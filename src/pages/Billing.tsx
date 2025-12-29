@@ -13,12 +13,23 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from '@/components/ui/tabs';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { 
   Loader2, 
@@ -29,7 +40,13 @@ import {
   Send, 
   Phone,
   RefreshCw,
-  MessageCircle
+  MessageCircle,
+  Building2,
+  Bot,
+  Search,
+  X,
+  FileText,
+  Play
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { Database } from '@/integrations/supabase/types';
@@ -43,21 +60,59 @@ interface ZapSession {
   status: string;
 }
 
-interface ZapChat {
+interface Department {
   id: string;
-  contact_name: string;
-  contact_phone: string;
-  last_message: string;
-  unread_count: number;
-  updated_at: string;
+  name: string;
+  phone?: string;
+}
+
+interface WhatsAppTemplate {
+  id: string;
+  name: string;
+  language?: string;
+  status?: string;
 }
 
 export default function Billing() {
   const [isSending, setIsSending] = useState(false);
   const [isLoadingSessions, setIsLoadingSessions] = useState(false);
-  const [isLoadingChats, setIsLoadingChats] = useState(false);
+  const [isLoadingDepartments, setIsLoadingDepartments] = useState(false);
+  const [isLoadingTemplates, setIsLoadingTemplates] = useState(false);
   const [sessions, setSessions] = useState<ZapSession[]>([]);
-  const [chats, setChats] = useState<ZapChat[]>([]);
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [templates, setTemplates] = useState<WhatsAppTemplate[]>([]);
+  const [selectedDepartment, setSelectedDepartment] = useState<Department | null>(null);
+  
+  // Form states
+  const [searchPhone, setSearchPhone] = useState('');
+  const [searchConversationId, setSearchConversationId] = useState('');
+  const [conversationResult, setConversationResult] = useState<any>(null);
+  const [isSearching, setIsSearching] = useState(false);
+  
+  // Dialog states
+  const [sendTemplateOpen, setSendTemplateOpen] = useState(false);
+  const [templateForm, setTemplateForm] = useState({
+    department_id: '',
+    template_name: '',
+    number: '',
+    language: 'pt_BR',
+  });
+  
+  const [iniciarBotOpen, setIniciarBotOpen] = useState(false);
+  const [botForm, setBotForm] = useState({
+    chat_id: '',
+    departamento: '',
+    aplicacao: 'whatsapp',
+    mensagem_inicial: '',
+  });
+
+  const [criarConversaOpen, setCriarConversaOpen] = useState(false);
+  const [conversaForm, setConversaForm] = useState({
+    attendant_id: '',
+    chat_id: '',
+    department_id: '',
+  });
+
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -115,6 +170,7 @@ export default function Billing() {
     },
   });
 
+  // Fetch sessions/atendentes
   const fetchSessions = async () => {
     setIsLoadingSessions(true);
     try {
@@ -126,18 +182,18 @@ export default function Billing() {
 
       if (data?.success && data?.data) {
         setSessions(data.data);
-        toast({ title: 'Sessões carregadas!', description: `${data.data.length} telefones encontrados.` });
+        toast({ title: 'Atendentes carregados!', description: `${data.data.length} atendentes encontrados.` });
       } else {
         toast({ 
-          title: 'Erro ao carregar sessões', 
+          title: 'Erro ao carregar atendentes', 
           description: data?.error || 'Resposta inválida da API',
           variant: 'destructive' 
         });
       }
     } catch (error: any) {
       toast({
-        title: 'Erro ao carregar sessões',
-        description: error.message || 'Não foi possível conectar à API do Zap Responder',
+        title: 'Erro ao carregar atendentes',
+        description: error.message || 'Não foi possível conectar à API',
         variant: 'destructive',
       });
     } finally {
@@ -145,33 +201,260 @@ export default function Billing() {
     }
   };
 
-  const fetchChats = async () => {
-    setIsLoadingChats(true);
+  // Fetch departments
+  const fetchDepartments = async () => {
+    setIsLoadingDepartments(true);
     try {
       const { data, error } = await supabase.functions.invoke('zap-responder', {
-        body: { action: 'chats' },
+        body: { action: 'departamentos' },
       });
 
       if (error) throw error;
 
       if (data?.success && data?.data) {
-        setChats(data.data);
-        toast({ title: 'Chats carregados!', description: `${data.data.length} conversas encontradas.` });
+        setDepartments(data.data);
+        toast({ title: 'Departamentos carregados!', description: `${data.data.length} departamentos encontrados.` });
       } else {
         toast({ 
-          title: 'Erro ao carregar chats', 
+          title: 'Erro ao carregar departamentos', 
           description: data?.error || 'Resposta inválida da API',
           variant: 'destructive' 
         });
       }
     } catch (error: any) {
       toast({
-        title: 'Erro ao carregar chats',
-        description: error.message || 'Não foi possível conectar à API do Zap Responder',
+        title: 'Erro ao carregar departamentos',
+        description: error.message,
         variant: 'destructive',
       });
     } finally {
-      setIsLoadingChats(false);
+      setIsLoadingDepartments(false);
+    }
+  };
+
+  // Fetch templates
+  const fetchTemplates = async (departmentId: string) => {
+    setIsLoadingTemplates(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('zap-responder', {
+        body: { action: 'buscar-templates', department_id: departmentId },
+      });
+
+      if (error) throw error;
+
+      if (data?.success && data?.data) {
+        setTemplates(data.data);
+        toast({ title: 'Templates carregados!', description: `${data.data.length} templates encontrados.` });
+      } else {
+        toast({ 
+          title: 'Erro ao carregar templates', 
+          description: data?.error || 'Resposta inválida da API',
+          variant: 'destructive' 
+        });
+      }
+    } catch (error: any) {
+      toast({
+        title: 'Erro ao carregar templates',
+        description: error.message,
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoadingTemplates(false);
+    }
+  };
+
+  // Search conversation by phone
+  const searchByPhone = async () => {
+    if (!searchPhone) return;
+    setIsSearching(true);
+    setConversationResult(null);
+    try {
+      const { data, error } = await supabase.functions.invoke('zap-responder', {
+        body: { action: 'buscar-conversa-telefone', phone: searchPhone, include_closed: true },
+      });
+
+      if (error) throw error;
+
+      if (data?.success) {
+        setConversationResult(data.data);
+        toast({ title: 'Conversa encontrada!' });
+      } else {
+        toast({ 
+          title: 'Conversa não encontrada', 
+          description: data?.error,
+          variant: 'destructive' 
+        });
+      }
+    } catch (error: any) {
+      toast({
+        title: 'Erro na busca',
+        description: error.message,
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  // Search conversation by ID
+  const searchById = async () => {
+    if (!searchConversationId) return;
+    setIsSearching(true);
+    setConversationResult(null);
+    try {
+      const { data, error } = await supabase.functions.invoke('zap-responder', {
+        body: { action: 'buscar-conversa-id', conversation_id: searchConversationId, include_closed: true },
+      });
+
+      if (error) throw error;
+
+      if (data?.success) {
+        setConversationResult(data.data);
+        toast({ title: 'Conversa encontrada!' });
+      } else {
+        toast({ 
+          title: 'Conversa não encontrada', 
+          description: data?.error,
+          variant: 'destructive' 
+        });
+      }
+    } catch (error: any) {
+      toast({
+        title: 'Erro na busca',
+        description: error.message,
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  // Send template
+  const sendTemplate = async () => {
+    try {
+      const { data, error } = await supabase.functions.invoke('zap-responder', {
+        body: { 
+          action: 'enviar-template',
+          ...templateForm
+        },
+      });
+
+      if (error) throw error;
+
+      if (data?.success) {
+        toast({ title: 'Template enviado com sucesso!' });
+        setSendTemplateOpen(false);
+        setTemplateForm({ department_id: '', template_name: '', number: '', language: 'pt_BR' });
+      } else {
+        toast({ 
+          title: 'Erro ao enviar template', 
+          description: data?.error,
+          variant: 'destructive' 
+        });
+      }
+    } catch (error: any) {
+      toast({
+        title: 'Erro ao enviar template',
+        description: error.message,
+        variant: 'destructive',
+      });
+    }
+  };
+
+  // Start bot
+  const startBot = async () => {
+    try {
+      const { data, error } = await supabase.functions.invoke('zap-responder', {
+        body: { 
+          action: 'iniciar-bot',
+          chat_id: botForm.chat_id,
+          departamento: botForm.departamento,
+          aplicacao: botForm.aplicacao,
+          mensagem_inicial: botForm.mensagem_inicial || undefined,
+        },
+      });
+
+      if (error) throw error;
+
+      if (data?.success) {
+        toast({ title: 'Bot iniciado com sucesso!' });
+        setIniciarBotOpen(false);
+        setBotForm({ chat_id: '', departamento: '', aplicacao: 'whatsapp', mensagem_inicial: '' });
+      } else {
+        toast({ 
+          title: 'Erro ao iniciar bot', 
+          description: data?.error,
+          variant: 'destructive' 
+        });
+      }
+    } catch (error: any) {
+      toast({
+        title: 'Erro ao iniciar bot',
+        description: error.message,
+        variant: 'destructive',
+      });
+    }
+  };
+
+  // Create conversation
+  const createConversation = async () => {
+    try {
+      const { data, error } = await supabase.functions.invoke('zap-responder', {
+        body: { 
+          action: 'criar-conversa',
+          attendant_id: conversaForm.attendant_id,
+          chat_id: conversaForm.chat_id,
+          department_id: conversaForm.department_id,
+        },
+      });
+
+      if (error) throw error;
+
+      if (data?.success) {
+        toast({ title: 'Conversa criada com sucesso!' });
+        setCriarConversaOpen(false);
+        setConversaForm({ attendant_id: '', chat_id: '', department_id: '' });
+      } else {
+        toast({ 
+          title: 'Erro ao criar conversa', 
+          description: data?.error,
+          variant: 'destructive' 
+        });
+      }
+    } catch (error: any) {
+      toast({
+        title: 'Erro ao criar conversa',
+        description: error.message,
+        variant: 'destructive',
+      });
+    }
+  };
+
+  // End conversation
+  const endConversation = async (chatId: string) => {
+    try {
+      const { data, error } = await supabase.functions.invoke('zap-responder', {
+        body: { action: 'encerrar-conversa', chat_id: chatId },
+      });
+
+      if (error) throw error;
+
+      if (data?.success) {
+        toast({ title: 'Conversa encerrada!' });
+        setConversationResult(null);
+      } else {
+        toast({ 
+          title: 'Erro ao encerrar conversa', 
+          description: data?.error,
+          variant: 'destructive' 
+        });
+      }
+    } catch (error: any) {
+      toast({
+        title: 'Erro ao encerrar conversa',
+        description: error.message,
+        variant: 'destructive',
+      });
     }
   };
 
@@ -208,7 +491,7 @@ export default function Billing() {
     if (!zapSettings?.selected_session_id) {
       toast({
         title: 'Nenhuma sessão selecionada',
-        description: 'Por favor, selecione um telefone conectado antes de enviar cobranças.',
+        description: 'Por favor, selecione um atendente antes de enviar cobranças.',
         variant: 'destructive',
       });
       return;
@@ -283,9 +566,9 @@ export default function Billing() {
       <div className="space-y-6 animate-fade-in">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-foreground">Cobranças</h1>
+            <h1 className="text-3xl font-bold text-foreground">Cobranças & WhatsApp</h1>
             <p className="text-muted-foreground mt-1">
-              Acompanhe as cobranças automáticas via WhatsApp
+              Gerencie cobranças automáticas e comunicações via WhatsApp
             </p>
           </div>
           <Button 
@@ -302,228 +585,568 @@ export default function Billing() {
           </Button>
         </div>
 
-        {/* Zap Responder Configuration */}
-        <Card className="glass-card border-border/50">
-          <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2">
-              <Phone className="w-5 h-5 text-primary" />
-              Configuração do Zap Responder
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex flex-col sm:flex-row gap-4">
-              <div className="flex-1">
-                <p className="text-sm text-muted-foreground mb-2">Telefone Conectado:</p>
-                {zapSettings?.selected_session_id ? (
-                  <div className="flex items-center gap-2 p-3 bg-success/10 border border-success/20 rounded-lg">
-                    <CheckCircle className="w-4 h-4 text-success" />
-                    <span className="font-medium">{zapSettings.selected_session_name}</span>
-                    <span className="text-muted-foreground">({zapSettings.selected_session_phone})</span>
+        <Tabs defaultValue="config" className="space-y-4">
+          <TabsList className="grid w-full grid-cols-5">
+            <TabsTrigger value="config">Configuração</TabsTrigger>
+            <TabsTrigger value="departamentos">Departamentos</TabsTrigger>
+            <TabsTrigger value="conversas">Conversas</TabsTrigger>
+            <TabsTrigger value="templates">Templates</TabsTrigger>
+            <TabsTrigger value="historico">Histórico</TabsTrigger>
+          </TabsList>
+
+          {/* Tab: Configuração */}
+          <TabsContent value="config" className="space-y-4">
+            {/* Zap Responder Configuration */}
+            <Card className="glass-card border-border/50">
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Phone className="w-5 h-5 text-primary" />
+                  Configuração do Zap Responder
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex flex-col sm:flex-row gap-4">
+                  <div className="flex-1">
+                    <p className="text-sm text-muted-foreground mb-2">Atendente Selecionado:</p>
+                    {zapSettings?.selected_session_id ? (
+                      <div className="flex items-center gap-2 p-3 bg-success/10 border border-success/20 rounded-lg">
+                        <CheckCircle className="w-4 h-4 text-success" />
+                        <span className="font-medium">{zapSettings.selected_session_name}</span>
+                        <span className="text-muted-foreground">({zapSettings.selected_session_phone})</span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2 p-3 bg-destructive/10 border border-destructive/20 rounded-lg">
+                        <AlertCircle className="w-4 h-4 text-destructive" />
+                        <span>Nenhum atendente selecionado</span>
+                      </div>
+                    )}
                   </div>
-                ) : (
-                  <div className="flex items-center gap-2 p-3 bg-destructive/10 border border-destructive/20 rounded-lg">
-                    <AlertCircle className="w-4 h-4 text-destructive" />
-                    <span>Nenhum telefone selecionado</span>
+                  <Button 
+                    variant="outline" 
+                    onClick={fetchSessions}
+                    disabled={isLoadingSessions}
+                  >
+                    {isLoadingSessions ? (
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    ) : (
+                      <RefreshCw className="w-4 h-4 mr-2" />
+                    )}
+                    Carregar Atendentes
+                  </Button>
+                </div>
+
+                {sessions.length > 0 && (
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium">Selecione um atendente:</p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                      {sessions.map((session) => (
+                        <button
+                          key={session.id}
+                          onClick={() => selectSessionMutation.mutate(session)}
+                          disabled={selectSessionMutation.isPending}
+                          className={cn(
+                            'p-3 rounded-lg border text-left transition-all hover:border-primary',
+                            zapSettings?.selected_session_id === session.id
+                              ? 'border-primary bg-primary/10'
+                              : 'border-border bg-secondary/50'
+                          )}
+                        >
+                          <p className="font-medium">{session.name}</p>
+                          <p className="text-sm text-muted-foreground">{session.phone}</p>
+                          <span className={cn(
+                            'text-xs px-2 py-0.5 rounded-full mt-1 inline-block',
+                            session.status === 'connected' || session.status === 'active'
+                              ? 'bg-success/10 text-success' 
+                              : 'bg-muted text-muted-foreground'
+                          )}>
+                            {session.status}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 )}
-              </div>
-              <div className="flex gap-2">
+              </CardContent>
+            </Card>
+
+            {/* Pending Billings Summary */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <Card className="glass-card border-border/50">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                    <Clock className="w-4 h-4 text-warning" />
+                    D-1 (Vencem Amanhã)
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-3xl font-bold text-warning">{pendingBillings?.dminus1.length || 0}</p>
+                </CardContent>
+              </Card>
+              <Card className="glass-card border-border/50">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 text-primary" />
+                    D0 (Vencem Hoje)
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-3xl font-bold text-primary">{pendingBillings?.d0.length || 0}</p>
+                </CardContent>
+              </Card>
+              <Card className="glass-card border-border/50">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 text-destructive" />
+                    D+1 (Venceram Ontem)
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-3xl font-bold text-destructive">{pendingBillings?.dplus1.length || 0}</p>
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
+
+          {/* Tab: Departamentos */}
+          <TabsContent value="departamentos" className="space-y-4">
+            <Card className="glass-card border-border/50">
+              <CardHeader className="flex flex-row items-center justify-between">
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Building2 className="w-5 h-5 text-primary" />
+                  Departamentos
+                </CardTitle>
                 <Button 
                   variant="outline" 
-                  onClick={fetchSessions}
-                  disabled={isLoadingSessions}
+                  onClick={fetchDepartments}
+                  disabled={isLoadingDepartments}
                 >
-                  {isLoadingSessions ? (
+                  {isLoadingDepartments ? (
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                   ) : (
                     <RefreshCw className="w-4 h-4 mr-2" />
                   )}
-                  Carregar Telefones
+                  Carregar Departamentos
                 </Button>
-                <Button 
-                  variant="outline" 
-                  onClick={fetchChats}
-                  disabled={isLoadingChats || !zapSettings?.selected_session_id}
-                >
-                  {isLoadingChats ? (
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  ) : (
-                    <MessageCircle className="w-4 h-4 mr-2" />
-                  )}
-                  Ver Chats
-                </Button>
-              </div>
-            </div>
-
-            {/* Sessions List */}
-            {sessions.length > 0 && (
-              <div className="space-y-2">
-                <p className="text-sm font-medium">Selecione um telefone:</p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                  {sessions.map((session) => (
-                    <button
-                      key={session.id}
-                      onClick={() => selectSessionMutation.mutate(session)}
-                      disabled={selectSessionMutation.isPending}
-                      className={cn(
-                        'p-3 rounded-lg border text-left transition-all hover:border-primary',
-                        zapSettings?.selected_session_id === session.id
-                          ? 'border-primary bg-primary/10'
-                          : 'border-border bg-secondary/50'
-                      )}
-                    >
-                      <p className="font-medium">{session.name}</p>
-                      <p className="text-sm text-muted-foreground">{session.phone}</p>
-                      <span className={cn(
-                        'text-xs px-2 py-0.5 rounded-full mt-1 inline-block',
-                        session.status === 'connected' 
-                          ? 'bg-success/10 text-success' 
-                          : 'bg-muted text-muted-foreground'
-                      )}>
-                        {session.status}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Chats List */}
-            {chats.length > 0 && (
-              <div className="space-y-2">
-                <p className="text-sm font-medium">Conversas Recentes:</p>
-                <div className="max-h-64 overflow-y-auto space-y-2">
-                  {chats.map((chat) => (
-                    <div
-                      key={chat.id}
-                      className="p-3 rounded-lg border border-border bg-secondary/30 flex items-center justify-between"
-                    >
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium truncate">{chat.contact_name}</p>
-                        <p className="text-sm text-muted-foreground truncate">{chat.contact_phone}</p>
-                        <p className="text-xs text-muted-foreground truncate mt-1">{chat.last_message}</p>
+              </CardHeader>
+              <CardContent>
+                {departments.length === 0 ? (
+                  <p className="text-muted-foreground text-center py-8">
+                    Clique em "Carregar Departamentos" para listar os departamentos disponíveis.
+                  </p>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {departments.map((dept) => (
+                      <div
+                        key={dept.id}
+                        className={cn(
+                          'p-4 rounded-lg border transition-all cursor-pointer hover:border-primary',
+                          selectedDepartment?.id === dept.id
+                            ? 'border-primary bg-primary/10'
+                            : 'border-border bg-secondary/30'
+                        )}
+                        onClick={() => {
+                          setSelectedDepartment(dept);
+                          fetchTemplates(dept.id);
+                        }}
+                      >
+                        <p className="font-medium">{dept.name}</p>
+                        {dept.phone && (
+                          <p className="text-sm text-muted-foreground">{dept.phone}</p>
+                        )}
+                        <p className="text-xs text-muted-foreground mt-1">ID: {dept.id}</p>
                       </div>
-                      {chat.unread_count > 0 && (
-                        <span className="ml-2 px-2 py-1 bg-primary text-primary-foreground text-xs rounded-full">
-                          {chat.unread_count}
-                        </span>
-                      )}
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Tab: Conversas */}
+          <TabsContent value="conversas" className="space-y-4">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {/* Search by Phone */}
+              <Card className="glass-card border-border/50">
+                <CardHeader>
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <Search className="w-5 h-5 text-primary" />
+                    Buscar por Telefone
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="Ex: 5511999999999"
+                      value={searchPhone}
+                      onChange={(e) => setSearchPhone(e.target.value)}
+                    />
+                    <Button onClick={searchByPhone} disabled={isSearching || !searchPhone}>
+                      {isSearching ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Search by ID */}
+              <Card className="glass-card border-border/50">
+                <CardHeader>
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <Search className="w-5 h-5 text-primary" />
+                    Buscar por ID
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="ID da conversa"
+                      value={searchConversationId}
+                      onChange={(e) => setSearchConversationId(e.target.value)}
+                    />
+                    <Button onClick={searchById} disabled={isSearching || !searchConversationId}>
+                      {isSearching ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Conversation Result */}
+            {conversationResult && (
+              <Card className="glass-card border-border/50">
+                <CardHeader className="flex flex-row items-center justify-between">
+                  <CardTitle className="text-lg">Resultado da Busca</CardTitle>
+                  <Button variant="ghost" size="sm" onClick={() => setConversationResult(null)}>
+                    <X className="w-4 h-4" />
+                  </Button>
+                </CardHeader>
+                <CardContent>
+                  <pre className="bg-secondary/50 p-4 rounded-lg overflow-auto max-h-64 text-sm">
+                    {JSON.stringify(conversationResult, null, 2)}
+                  </pre>
+                  {conversationResult?.chatId && (
+                    <div className="flex gap-2 mt-4">
+                      <Button 
+                        variant="destructive" 
+                        onClick={() => endConversation(conversationResult.chatId)}
+                      >
+                        <X className="w-4 h-4 mr-2" />
+                        Encerrar Conversa
+                      </Button>
                     </div>
-                  ))}
+                  )}
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Action Buttons */}
+            <div className="flex flex-wrap gap-2">
+              <Dialog open={criarConversaOpen} onOpenChange={setCriarConversaOpen}>
+                <DialogTrigger asChild>
+                  <Button variant="outline">
+                    <MessageCircle className="w-4 h-4 mr-2" />
+                    Criar Conversa
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Criar Nova Conversa</DialogTitle>
+                    <DialogDescription>
+                      Crie uma nova conversa vinculando um atendente a um contato.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-4">
+                    <div>
+                      <Label>ID do Atendente</Label>
+                      <Input
+                        placeholder="ID do atendente"
+                        value={conversaForm.attendant_id}
+                        onChange={(e) => setConversaForm({ ...conversaForm, attendant_id: e.target.value })}
+                      />
+                    </div>
+                    <div>
+                      <Label>Telefone do Contato (chatId)</Label>
+                      <Input
+                        placeholder="Ex: 5511999999999"
+                        value={conversaForm.chat_id}
+                        onChange={(e) => setConversaForm({ ...conversaForm, chat_id: e.target.value })}
+                      />
+                    </div>
+                    <div>
+                      <Label>ID do Departamento</Label>
+                      <Input
+                        placeholder="ID do departamento"
+                        value={conversaForm.department_id}
+                        onChange={(e) => setConversaForm({ ...conversaForm, department_id: e.target.value })}
+                      />
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <Button variant="outline" onClick={() => setCriarConversaOpen(false)}>Cancelar</Button>
+                    <Button onClick={createConversation}>Criar</Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+
+              <Dialog open={iniciarBotOpen} onOpenChange={setIniciarBotOpen}>
+                <DialogTrigger asChild>
+                  <Button variant="outline">
+                    <Bot className="w-4 h-4 mr-2" />
+                    Iniciar Bot
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Iniciar Bot</DialogTitle>
+                    <DialogDescription>
+                      Inicie um bot para um contato específico.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-4">
+                    <div>
+                      <Label>Telefone do Contato (chatId)</Label>
+                      <Input
+                        placeholder="Ex: 5511999999999"
+                        value={botForm.chat_id}
+                        onChange={(e) => setBotForm({ ...botForm, chat_id: e.target.value })}
+                      />
+                    </div>
+                    <div>
+                      <Label>ID do Departamento</Label>
+                      <Input
+                        placeholder="ID do departamento"
+                        value={botForm.departamento}
+                        onChange={(e) => setBotForm({ ...botForm, departamento: e.target.value })}
+                      />
+                    </div>
+                    <div>
+                      <Label>Aplicação</Label>
+                      <Input
+                        placeholder="whatsapp"
+                        value={botForm.aplicacao}
+                        onChange={(e) => setBotForm({ ...botForm, aplicacao: e.target.value })}
+                      />
+                    </div>
+                    <div>
+                      <Label>Mensagem Inicial (opcional)</Label>
+                      <Textarea
+                        placeholder="Mensagem inicial do bot..."
+                        value={botForm.mensagem_inicial}
+                        onChange={(e) => setBotForm({ ...botForm, mensagem_inicial: e.target.value })}
+                      />
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <Button variant="outline" onClick={() => setIniciarBotOpen(false)}>Cancelar</Button>
+                    <Button onClick={startBot}>
+                      <Play className="w-4 h-4 mr-2" />
+                      Iniciar
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+            </div>
+          </TabsContent>
+
+          {/* Tab: Templates */}
+          <TabsContent value="templates" className="space-y-4">
+            <Card className="glass-card border-border/50">
+              <CardHeader className="flex flex-row items-center justify-between">
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <FileText className="w-5 h-5 text-primary" />
+                  Templates WhatsApp
+                </CardTitle>
+                <Dialog open={sendTemplateOpen} onOpenChange={setSendTemplateOpen}>
+                  <DialogTrigger asChild>
+                    <Button>
+                      <Send className="w-4 h-4 mr-2" />
+                      Enviar Template
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Enviar Template WhatsApp</DialogTitle>
+                      <DialogDescription>
+                        Envie uma mensagem de template aprovado pelo WhatsApp.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                      <div>
+                        <Label>ID do Departamento</Label>
+                        <Input
+                          placeholder="ID do departamento"
+                          value={templateForm.department_id}
+                          onChange={(e) => setTemplateForm({ ...templateForm, department_id: e.target.value })}
+                        />
+                      </div>
+                      <div>
+                        <Label>Nome do Template</Label>
+                        <Input
+                          placeholder="Nome do template"
+                          value={templateForm.template_name}
+                          onChange={(e) => setTemplateForm({ ...templateForm, template_name: e.target.value })}
+                        />
+                      </div>
+                      <div>
+                        <Label>Número do Destinatário</Label>
+                        <Input
+                          placeholder="Ex: 5511999999999"
+                          value={templateForm.number}
+                          onChange={(e) => setTemplateForm({ ...templateForm, number: e.target.value })}
+                        />
+                      </div>
+                      <div>
+                        <Label>Idioma</Label>
+                        <Input
+                          placeholder="pt_BR"
+                          value={templateForm.language}
+                          onChange={(e) => setTemplateForm({ ...templateForm, language: e.target.value })}
+                        />
+                      </div>
+                    </div>
+                    <DialogFooter>
+                      <Button variant="outline" onClick={() => setSendTemplateOpen(false)}>Cancelar</Button>
+                      <Button onClick={sendTemplate}>
+                        <Send className="w-4 h-4 mr-2" />
+                        Enviar
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+              </CardHeader>
+              <CardContent>
+                {selectedDepartment ? (
+                  <div className="space-y-4">
+                    <p className="text-sm text-muted-foreground">
+                      Templates do departamento: <strong>{selectedDepartment.name}</strong>
+                    </p>
+                    {isLoadingTemplates ? (
+                      <div className="flex items-center justify-center py-8">
+                        <Loader2 className="w-6 h-6 animate-spin" />
+                      </div>
+                    ) : templates.length === 0 ? (
+                      <p className="text-muted-foreground text-center py-8">
+                        Nenhum template encontrado para este departamento.
+                      </p>
+                    ) : (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {templates.map((template) => (
+                          <div
+                            key={template.id}
+                            className="p-4 rounded-lg border border-border bg-secondary/30"
+                          >
+                            <p className="font-medium">{template.name}</p>
+                            {template.language && (
+                              <p className="text-sm text-muted-foreground">Idioma: {template.language}</p>
+                            )}
+                            {template.status && (
+                              <span className={cn(
+                                'text-xs px-2 py-0.5 rounded-full mt-1 inline-block',
+                                template.status === 'APPROVED' 
+                                  ? 'bg-success/10 text-success' 
+                                  : 'bg-muted text-muted-foreground'
+                              )}>
+                                {template.status}
+                              </span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-muted-foreground text-center py-8">
+                    Selecione um departamento na aba "Departamentos" para ver os templates disponíveis.
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Message Templates Info */}
+            <Card className="glass-card border-border/50">
+              <CardHeader>
+                <CardTitle className="text-lg">Modelos de Cobrança Automática</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="p-4 rounded-lg bg-warning/5 border border-warning/20">
+                  <p className="text-sm font-medium text-warning mb-2">D-1 (1 dia antes)</p>
+                  <p className="text-sm text-muted-foreground">
+                    "Olá, consta em nosso sistema que sua conta possui vencimento agendado para amanhã. 
+                    Caso já tenha realizado o pagamento, desconsidere esta mensagem."
+                  </p>
                 </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+                <div className="p-4 rounded-lg bg-primary/5 border border-primary/20">
+                  <p className="text-sm font-medium text-primary mb-2">D0 (dia do vencimento)</p>
+                  <p className="text-sm text-muted-foreground">
+                    "Olá, consta em nosso sistema que sua conta possui vencimento registrado para hoje. 
+                    Caso já tenha realizado o pagamento, desconsidere esta mensagem."
+                  </p>
+                </div>
+                <div className="p-4 rounded-lg bg-destructive/5 border border-destructive/20">
+                  <p className="text-sm font-medium text-destructive mb-2">D+1 (1 dia após)</p>
+                  <p className="text-sm text-muted-foreground">
+                    "Olá, consta em nosso sistema que sua conta está vencida desde ontem. 
+                    Entre em contato para regularizar seu pagamento."
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
 
-        {/* Pending Billings Summary */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Card className="glass-card border-border/50">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                <Clock className="w-4 h-4 text-warning" />
-                D-1 (Vencem Amanhã)
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-3xl font-bold text-warning">{pendingBillings?.dminus1.length || 0}</p>
-            </CardContent>
-          </Card>
-          <Card className="glass-card border-border/50">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 text-primary" />
-                D0 (Vencem Hoje)
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-3xl font-bold text-primary">{pendingBillings?.d0.length || 0}</p>
-            </CardContent>
-          </Card>
-          <Card className="glass-card border-border/50">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 text-destructive" />
-                D+1 (Venceram Ontem)
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-3xl font-bold text-destructive">{pendingBillings?.dplus1.length || 0}</p>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Message Templates */}
-        <Card className="glass-card border-border/50">
-          <CardHeader>
-            <CardTitle className="text-lg">Modelos de Mensagem</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="p-4 rounded-lg bg-warning/5 border border-warning/20">
-              <p className="text-sm font-medium text-warning mb-2">D-1 (1 dia antes)</p>
-              <p className="text-sm text-muted-foreground">
-                "Olá, consta em nosso sistema que sua conta possui vencimento agendado para amanhã. 
-                Caso já tenha realizado o pagamento, desconsidere esta mensagem."
-              </p>
-            </div>
-            <div className="p-4 rounded-lg bg-primary/5 border border-primary/20">
-              <p className="text-sm font-medium text-primary mb-2">D0 (dia do vencimento)</p>
-              <p className="text-sm text-muted-foreground">
-                "Olá, consta em nosso sistema que sua conta possui vencimento registrado para hoje. 
-                Caso já tenha realizado o pagamento, desconsidere esta mensagem."
-              </p>
-            </div>
-            <div className="p-4 rounded-lg bg-destructive/5 border border-destructive/20">
-              <p className="text-sm font-medium text-destructive mb-2">D+1 (1 dia após)</p>
-              <p className="text-sm text-muted-foreground">
-                "Olá, consta em nosso sistema que sua conta encontra-se vencida. 
-                Para restabelecer o acesso aos serviços, é necessária a regularização."
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Billing Logs */}
-        <Card className="glass-card border-border/50">
-          <CardHeader>
-            <CardTitle className="text-lg">Histórico de Envios</CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            {isLoading ? (
-              <div className="flex items-center justify-center h-48">
-                <Loader2 className="w-8 h-8 animate-spin text-primary" />
-              </div>
-            ) : billingLogs?.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-48 text-muted-foreground">
-                <MessageSquare className="w-12 h-12 mb-4 opacity-50" />
-                <p>Nenhuma cobrança enviada</p>
-              </div>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow className="border-border hover:bg-transparent">
-                    <TableHead>Cliente</TableHead>
-                    <TableHead>Tipo</TableHead>
-                    <TableHead>Enviado em</TableHead>
-                    <TableHead>Status WhatsApp</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {billingLogs?.map((log) => (
-                    <TableRow key={log.id} className="table-row-hover border-border">
-                      <TableCell className="font-medium">{log.customers?.name}</TableCell>
-                      <TableCell>{getBillingTypeBadge(log.billing_type)}</TableCell>
-                      <TableCell>
-                        {new Date(log.sent_at).toLocaleString('pt-BR')}
-                      </TableCell>
-                      <TableCell>{getStatusBadge(log.whatsapp_status)}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            )}
-          </CardContent>
-        </Card>
+          {/* Tab: Histórico */}
+          <TabsContent value="historico" className="space-y-4">
+            <Card className="glass-card border-border/50">
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <MessageSquare className="w-5 h-5 text-primary" />
+                  Histórico de Cobranças Enviadas
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {isLoading ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="w-6 h-6 animate-spin" />
+                  </div>
+                ) : billingLogs?.length === 0 ? (
+                  <p className="text-muted-foreground text-center py-8">
+                    Nenhuma cobrança enviada ainda.
+                  </p>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Data/Hora</TableHead>
+                          <TableHead>Cliente</TableHead>
+                          <TableHead>Tipo</TableHead>
+                          <TableHead>Mensagem</TableHead>
+                          <TableHead>Status WhatsApp</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {billingLogs?.map((log) => (
+                          <TableRow key={log.id}>
+                            <TableCell className="whitespace-nowrap">
+                              {new Date(log.sent_at).toLocaleString('pt-BR')}
+                            </TableCell>
+                            <TableCell>
+                              <div>
+                                <p className="font-medium">{log.customers?.name}</p>
+                                <p className="text-sm text-muted-foreground">{log.customers?.phone}</p>
+                              </div>
+                            </TableCell>
+                            <TableCell>{getBillingTypeBadge(log.billing_type)}</TableCell>
+                            <TableCell className="max-w-xs truncate">{log.message}</TableCell>
+                            <TableCell>{getStatusBadge(log.whatsapp_status)}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
       </div>
     </DashboardLayout>
   );
