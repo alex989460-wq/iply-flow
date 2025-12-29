@@ -7,12 +7,15 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent } from '@/components/ui/card';
+import { Calendar } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  DialogDescription,
 } from '@/components/ui/dialog';
 import {
   Select,
@@ -30,14 +33,19 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Pencil, Trash2, Loader2, Users, RefreshCw, Search } from 'lucide-react';
+import { Plus, Pencil, Trash2, Loader2, Users, RefreshCw, Search, CalendarIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 import type { Database } from '@/integrations/supabase/types';
 
 type CustomerStatus = Database['public']['Enums']['customer_status'];
 
 export default function Customers() {
   const [isOpen, setIsOpen] = useState(false);
+  const [isRenewOpen, setIsRenewOpen] = useState(false);
+  const [renewingCustomer, setRenewingCustomer] = useState<any | null>(null);
+  const [selectedPlanId, setSelectedPlanId] = useState('');
   const [editingCustomer, setEditingCustomer] = useState<any | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -48,6 +56,7 @@ export default function Customers() {
     plan_id: '',
     status: 'ativa' as CustomerStatus,
     notes: '',
+    due_date: '',
   });
 
   const queryClient = useQueryClient();
@@ -85,14 +94,23 @@ export default function Customers() {
 
   const createMutation = useMutation({
     mutationFn: async (data: any) => {
-      const plan = plans?.find(p => p.id === data.plan_id);
-      const dueDate = new Date();
-      dueDate.setDate(dueDate.getDate() + (plan?.duration_days || 30));
+      let dueDate: string;
+      
+      if (data.due_date) {
+        dueDate = data.due_date;
+      } else {
+        const plan = plans?.find(p => p.id === data.plan_id);
+        const dueDateObj = new Date();
+        dueDateObj.setDate(dueDateObj.getDate() + (plan?.duration_days || 30));
+        dueDate = dueDateObj.toISOString().split('T')[0];
+      }
+      
+      const { due_date, ...restData } = data;
       
       const { error } = await supabase.from('customers').insert({
-        ...data,
+        ...restData,
         start_date: new Date().toISOString().split('T')[0],
-        due_date: dueDate.toISOString().split('T')[0],
+        due_date: dueDate,
       });
       if (error) throw error;
     },
@@ -109,7 +127,14 @@ export default function Customers() {
 
   const updateMutation = useMutation({
     mutationFn: async ({ id, data }: { id: string; data: any }) => {
-      const { error } = await supabase.from('customers').update(data).eq('id', id);
+      const updateData: any = { ...data };
+      if (data.due_date) {
+        updateData.due_date = data.due_date;
+      }
+      const { due_date, ...restData } = updateData;
+      const finalData = data.due_date ? { ...restData, due_date: data.due_date } : restData;
+      
+      const { error } = await supabase.from('customers').update(finalData).eq('id', id);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -138,23 +163,43 @@ export default function Customers() {
   });
 
   const renewMutation = useMutation({
-    mutationFn: async (customer: any) => {
-      const plan = plans?.find(p => p.id === customer.plan_id);
-      const newDueDate = new Date();
-      newDueDate.setDate(newDueDate.getDate() + (plan?.duration_days || 30));
+    mutationFn: async ({ customerId, planId }: { customerId: string; planId: string }) => {
+      const plan = plans?.find(p => p.id === planId);
+      if (!plan) throw new Error('Plano não encontrado');
       
-      const { error } = await supabase
+      const newDueDate = new Date();
+      newDueDate.setDate(newDueDate.getDate() + plan.duration_days);
+      
+      // Update customer with new plan and due date
+      const { error: customerError } = await supabase
         .from('customers')
         .update({ 
           due_date: newDueDate.toISOString().split('T')[0],
-          status: 'ativa'
+          status: 'ativa',
+          plan_id: planId,
         })
-        .eq('id', customer.id);
-      if (error) throw error;
+        .eq('id', customerId);
+      if (customerError) throw customerError;
+      
+      // Create a pending payment
+      const { error: paymentError } = await supabase
+        .from('payments')
+        .insert({
+          customer_id: customerId,
+          amount: plan.price,
+          method: 'pix',
+          payment_date: new Date().toISOString().split('T')[0],
+          confirmed: false,
+        });
+      if (paymentError) throw paymentError;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['customers'] });
-      toast({ title: 'Plano renovado com sucesso!' });
+      queryClient.invalidateQueries({ queryKey: ['payments'] });
+      setIsRenewOpen(false);
+      setRenewingCustomer(null);
+      setSelectedPlanId('');
+      toast({ title: 'Renovação registrada! Pagamento pendente criado.' });
     },
     onError: (error: Error) => {
       toast({ title: 'Erro ao renovar plano', description: error.message, variant: 'destructive' });
@@ -162,7 +207,7 @@ export default function Customers() {
   });
 
   const resetForm = () => {
-    setFormData({ name: '', phone: '', server_id: '', plan_id: '', status: 'ativa', notes: '' });
+    setFormData({ name: '', phone: '', server_id: '', plan_id: '', status: 'ativa', notes: '', due_date: '' });
     setEditingCustomer(null);
   };
 
@@ -175,8 +220,20 @@ export default function Customers() {
       plan_id: customer.plan_id || '',
       status: customer.status,
       notes: customer.notes || '',
+      due_date: customer.due_date || '',
     });
     setIsOpen(true);
+  };
+
+  const handleRenewClick = (customer: any) => {
+    setRenewingCustomer(customer);
+    setSelectedPlanId(customer.plan_id || '');
+    setIsRenewOpen(true);
+  };
+
+  const handleRenewSubmit = () => {
+    if (!renewingCustomer || !selectedPlanId) return;
+    renewMutation.mutate({ customerId: renewingCustomer.id, planId: selectedPlanId });
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -234,9 +291,20 @@ export default function Customers() {
             <DialogContent className="bg-card border-border max-w-md">
               <DialogHeader>
                 <DialogTitle>{editingCustomer ? 'Editar Cliente' : 'Novo Cliente'}</DialogTitle>
+                <DialogDescription>
+                  {editingCustomer ? 'Atualize as informações do cliente.' : 'Preencha os dados do novo cliente.'}
+                </DialogDescription>
               </DialogHeader>
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
+                  {editingCustomer && (
+                    <div className="col-span-2 p-3 bg-secondary/30 rounded-lg">
+                      <p className="text-sm text-muted-foreground">
+                        <strong>Data de Cadastro:</strong>{' '}
+                        {format(new Date(editingCustomer.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                      </p>
+                    </div>
+                  )}
                   <div className="space-y-2 col-span-2">
                     <Label>Nome</Label>
                     <Input
@@ -294,6 +362,45 @@ export default function Customers() {
                     </Select>
                   </div>
                   <div className="space-y-2 col-span-2">
+                    <Label>Data de Vencimento</Label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          className={cn(
+                            "w-full justify-start text-left font-normal bg-secondary/50",
+                            !formData.due_date && "text-muted-foreground"
+                          )}
+                        >
+                          <CalendarIcon className="mr-2 h-4 w-4" />
+                          {formData.due_date ? (
+                            format(new Date(formData.due_date + 'T00:00:00'), "dd/MM/yyyy", { locale: ptBR })
+                          ) : (
+                            <span>{editingCustomer ? 'Alterar vencimento' : 'Calculado pelo plano'}</span>
+                          )}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={formData.due_date ? new Date(formData.due_date + 'T00:00:00') : undefined}
+                          onSelect={(date) => setFormData({ 
+                            ...formData, 
+                            due_date: date ? date.toISOString().split('T')[0] : '' 
+                          })}
+                          initialFocus
+                          className="p-3 pointer-events-auto"
+                          locale={ptBR}
+                        />
+                      </PopoverContent>
+                    </Popover>
+                    <p className="text-xs text-muted-foreground">
+                      {editingCustomer 
+                        ? 'Deixe em branco para manter a data atual.' 
+                        : 'Deixe em branco para calcular automaticamente pelo plano.'}
+                    </p>
+                  </div>
+                  <div className="space-y-2 col-span-2">
                     <Label>Status</Label>
                     <Select
                       value={formData.status}
@@ -333,6 +440,50 @@ export default function Customers() {
             </DialogContent>
           </Dialog>
         </div>
+
+        {/* Renew Dialog */}
+        <Dialog open={isRenewOpen} onOpenChange={(open) => { setIsRenewOpen(open); if (!open) { setRenewingCustomer(null); setSelectedPlanId(''); } }}>
+          <DialogContent className="bg-card border-border max-w-sm">
+            <DialogHeader>
+              <DialogTitle>Renovar Plano</DialogTitle>
+              <DialogDescription>
+                Selecione o plano para renovação de {renewingCustomer?.name}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label>Plano</Label>
+                <Select value={selectedPlanId} onValueChange={setSelectedPlanId}>
+                  <SelectTrigger className="bg-secondary/50">
+                    <SelectValue placeholder="Selecione o plano" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {plans?.map((plan) => (
+                      <SelectItem key={plan.id} value={plan.id}>
+                        {plan.plan_name} - R${Number(plan.price).toFixed(2)} ({plan.duration_days} dias)
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              {selectedPlanId && (
+                <div className="p-3 bg-secondary/30 rounded-lg text-sm">
+                  <p className="text-muted-foreground">
+                    Um pagamento pendente de <strong>R${Number(plans?.find(p => p.id === selectedPlanId)?.price).toFixed(2)}</strong> será criado.
+                  </p>
+                </div>
+              )}
+              <Button 
+                onClick={handleRenewSubmit} 
+                className="w-full"
+                disabled={!selectedPlanId || renewMutation.isPending}
+              >
+                {renewMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                Confirmar Renovação
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
 
         {/* Filters */}
         <div className="flex flex-col sm:flex-row gap-4">
@@ -403,7 +554,7 @@ export default function Customers() {
                             variant="ghost"
                             size="icon"
                             title="Renovar plano"
-                            onClick={() => renewMutation.mutate(customer)}
+                            onClick={() => handleRenewClick(customer)}
                             disabled={renewMutation.isPending}
                           >
                             <RefreshCw className={cn("w-4 h-4", renewMutation.isPending && "animate-spin")} />
