@@ -213,13 +213,14 @@ const ChatInterface = forwardRef<HTMLDivElement, ChatInterfaceProps>(({ departme
     }
   };
 
-  const fetchMessages = async (conversationId: string) => {
+  const fetchMessages = async (conv: Pick<Conversation, 'mongoId' | 'chatId'>) => {
     setIsLoadingMessages(true);
     try {
       const { data, error } = await supabase.functions.invoke('zap-responder', {
         body: {
           action: 'buscar-mensagens',
-          conversation_id: conversationId,
+          conversation_id: conv.mongoId,
+          chat_id: conv.chatId,
           limit: 100,
         },
       });
@@ -231,7 +232,6 @@ const ChatInterface = forwardRef<HTMLDivElement, ChatInterfaceProps>(({ departme
         return;
       }
 
-      // Edge function agora retorna 200 mesmo em erro; então tratamos aqui
       if (data?.error) {
         toast({
           title: 'Erro ao carregar mensagens',
@@ -303,9 +303,8 @@ const ChatInterface = forwardRef<HTMLDivElement, ChatInterfaceProps>(({ departme
 
   const handleSelectConversation = (conv: Conversation) => {
     setSelectedConversation(conv);
-    // Use the mongoId to fetch messages
-    if (conv.mongoId) {
-      fetchMessages(conv.mongoId);
+    if (conv.mongoId || conv.chatId) {
+      fetchMessages({ mongoId: conv.mongoId, chatId: conv.chatId });
     } else {
       setMessages([]);
     }

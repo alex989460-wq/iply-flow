@@ -579,10 +579,11 @@ async function buscarMensagens(
   apiBaseUrl: string,
   token: string,
   conversationId: string,
-  limit: number = 100
+  limit: number = 100,
+  chatId?: string
 ): Promise<{ success: boolean; data?: any[]; error?: string }> {
   try {
-    console.log('Fetching messages...', { conversationId, limit });
+    console.log('Fetching messages...', { conversationId, chatId, limit });
 
     const headers = {
       'Authorization': `Bearer ${token}`,
@@ -591,7 +592,21 @@ async function buscarMensagens(
     };
 
     const attempts: Array<{ label: string; url: string; method: 'GET' | 'POST'; body?: unknown }> = [
-      // v2 endpoints (conversations v2 já funciona para buscar conversa por telefone/ID)
+      // v2 endpoints
+      ...(chatId
+        ? [
+            {
+              label: 'v2 conversations chatId messages',
+              url: `${apiBaseUrl}/v2/conversations/chatId/${chatId}/messages?limit=${limit}`,
+              method: 'GET' as const,
+            },
+            {
+              label: 'v2 conversations chatId messages (offset)',
+              url: `${apiBaseUrl}/v2/conversations/chatId/${chatId}/messages?offset=0&limit=${limit}`,
+              method: 'GET' as const,
+            },
+          ]
+        : []),
       {
         label: 'v2 conversations messages (limit)',
         url: `${apiBaseUrl}/v2/conversations/${conversationId}/messages?limit=${limit}`,
@@ -655,7 +670,7 @@ async function buscarMensagens(
       let parsed: any;
       try {
         parsed = raw ? JSON.parse(raw) : [];
-      } catch (e) {
+      } catch {
         console.error(`Invalid JSON response (${attempt.label}):`, raw);
         lastError = `${attempt.label}: invalid JSON response`;
         continue;
@@ -1011,25 +1026,25 @@ Deno.serve(async (req) => {
       case 'listar-conversas': {
         const { status: convStatus, limit, offset } = body;
         const result = await listarConversas(apiBaseUrl, zapToken, convStatus, limit || 50, offset || 0);
+        // Não retornar 500 (evita runtime error no frontend)
         return new Response(
           JSON.stringify(result),
-          { status: result.success ? 200 : 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
 
       // Buscar mensagens de uma conversa
       case 'buscar-mensagens': {
-        const { conversation_id, limit } = body;
-        if (!conversation_id) {
+        const { conversation_id, chat_id, limit } = body;
+        if (!conversation_id && !chat_id) {
           return new Response(
-            JSON.stringify({ success: false, error: 'conversation_id is required' }),
-            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            JSON.stringify({ success: false, error: 'conversation_id or chat_id is required' }),
+            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
         }
-        const result = await buscarMensagens(apiBaseUrl, zapToken, conversation_id, limit || 100);
+        const result = await buscarMensagens(apiBaseUrl, zapToken, conversation_id || chat_id, limit || 100, chat_id);
         return new Response(
           JSON.stringify(result),
-          // Não retornar 500 aqui, senão o frontend recebe FunctionsHttpError e perde a mensagem de erro
           { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
