@@ -16,6 +16,7 @@ import { ptBR } from 'date-fns/locale';
 interface Conversation {
   _id: string;
   chatId: string;
+  mongoId: string; // The actual MongoDB _id for fetching messages
   cliente: {
     nome: string;
     telefone: string;
@@ -99,16 +100,18 @@ const ChatInterface = forwardRef<HTMLDivElement, ChatInterfaceProps>(({ departme
         });
 
         if (!error && data?.success && data?.data) {
-          const conv = data.data;
+          const conv = data.data.conversation || data.data;
+          const mongoId = conv._id || conv.id || '';
           foundConversations.push({
-            _id: conv._id || conv.id || phoneWithCode,
+            _id: phoneWithCode,
+            mongoId: mongoId, // Store the actual MongoDB _id
             chatId: conv.chatId || phoneWithCode,
             cliente: {
               nome: customer.name,
               telefone: customer.phone,
             },
-            status: conv.status || 'unknown',
-            lastMessage: conv.lastMessage?.text || conv.ultimaMensagem || '',
+            status: conv.status || conv.isFechado ? 'closed' : 'open',
+            lastMessage: conv.lastMessage?.content || conv.lastMessage?.text || conv.ultimaMensagem || '',
             updatedAt: conv.updatedAt || conv.atualizadoEm,
           });
         }
@@ -210,7 +213,12 @@ const ChatInterface = forwardRef<HTMLDivElement, ChatInterfaceProps>(({ departme
 
   const handleSelectConversation = (conv: Conversation) => {
     setSelectedConversation(conv);
-    fetchMessages(conv._id);
+    // Use the mongoId to fetch messages
+    if (conv.mongoId) {
+      fetchMessages(conv.mongoId);
+    } else {
+      setMessages([]);
+    }
   };
 
   const formatTime = (dateString?: string) => {

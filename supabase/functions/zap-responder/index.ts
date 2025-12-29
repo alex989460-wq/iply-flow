@@ -564,7 +564,8 @@ async function buscarMensagens(
   try {
     console.log('Fetching messages...', { conversationId, limit });
     
-    const response = await fetch(`${apiBaseUrl}/v2/conversations/${conversationId}/messages?limit=${limit}`, {
+    // Try the conversa/mensagens endpoint first (correct endpoint for Zap Responder)
+    const response = await fetch(`${apiBaseUrl}/conversa/mensagens/${conversationId}?limit=${limit}`, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${token}`,
@@ -574,15 +575,33 @@ async function buscarMensagens(
     });
 
     if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`Zap Responder API error: ${response.status} - ${errorText}`);
-      return { success: false, error: `API error: ${response.status} - ${errorText}` };
+      // Try alternative endpoint
+      console.log('Trying alternative messages endpoint...');
+      const altResponse = await fetch(`${apiBaseUrl}/mensagem/conversa/${conversationId}?limit=${limit}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+      });
+      
+      if (!altResponse.ok) {
+        const errorText = await altResponse.text();
+        console.error(`Zap Responder API error: ${altResponse.status} - ${errorText}`);
+        return { success: false, error: `API error: ${altResponse.status} - ${errorText}` };
+      }
+      
+      const altResult = await altResponse.json();
+      console.log('Messages fetched from alt endpoint:', altResult);
+      const altMessages = Array.isArray(altResult) ? altResult : (altResult.data || altResult.messages || altResult.mensagens || []);
+      return { success: true, data: altMessages };
     }
 
     const result = await response.json();
     console.log('Messages fetched successfully:', result);
     
-    const messages = Array.isArray(result) ? result : (result.data || result.messages || []);
+    const messages = Array.isArray(result) ? result : (result.data || result.messages || result.mensagens || []);
     
     return { success: true, data: messages };
   } catch (error: unknown) {
