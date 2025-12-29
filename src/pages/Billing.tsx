@@ -1,6 +1,8 @@
-import { useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import DashboardLayout from '@/components/layout/DashboardLayout';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Table,
@@ -10,13 +12,18 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Loader2, MessageSquare, AlertCircle, Clock, CheckCircle } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
+import { Loader2, MessageSquare, AlertCircle, Clock, CheckCircle, Send } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { Database } from '@/integrations/supabase/types';
 
 type BillingType = Database['public']['Enums']['billing_type'];
 
 export default function Billing() {
+  const [isSending, setIsSending] = useState(false);
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
   const { data: billingLogs, isLoading } = useQuery({
     queryKey: ['billing-logs'],
     queryFn: async () => {
@@ -58,6 +65,37 @@ export default function Billing() {
     },
   });
 
+  const handleSendBillings = async () => {
+    setIsSending(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('send-billing');
+      
+      if (error) {
+        toast({
+          title: 'Erro ao enviar cobranças',
+          description: error.message,
+          variant: 'destructive',
+        });
+      } else {
+        const results = data?.results;
+        toast({
+          title: 'Cobranças processadas!',
+          description: `Enviadas: ${results?.sent || 0} | Ignoradas: ${results?.skipped || 0} | Erros: ${results?.errors || 0}`,
+        });
+        queryClient.invalidateQueries({ queryKey: ['billing-logs'] });
+        queryClient.invalidateQueries({ queryKey: ['pending-billings'] });
+      }
+    } catch (error) {
+      toast({
+        title: 'Erro inesperado',
+        description: 'Não foi possível processar as cobranças',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSending(false);
+    }
+  };
+
   const getBillingTypeBadge = (type: BillingType) => {
     const config = {
       'D-1': { label: 'D-1', className: 'bg-warning/10 text-warning', icon: Clock },
@@ -88,14 +126,32 @@ export default function Billing() {
     );
   };
 
+  const totalPending = (pendingBillings?.dminus1.length || 0) + 
+                       (pendingBillings?.d0.length || 0) + 
+                       (pendingBillings?.dplus1.length || 0);
+
   return (
     <DashboardLayout>
       <div className="space-y-6 animate-fade-in">
-        <div>
-          <h1 className="text-3xl font-bold text-foreground">Cobranças</h1>
-          <p className="text-muted-foreground mt-1">
-            Acompanhe as cobranças automáticas via WhatsApp
-          </p>
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-bold text-foreground">Cobranças</h1>
+            <p className="text-muted-foreground mt-1">
+              Acompanhe as cobranças automáticas via WhatsApp
+            </p>
+          </div>
+          <Button 
+            variant="glow" 
+            onClick={handleSendBillings}
+            disabled={isSending || totalPending === 0}
+          >
+            {isSending ? (
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+            ) : (
+              <Send className="w-4 h-4 mr-2" />
+            )}
+            Enviar Cobranças Agora
+          </Button>
         </div>
 
         {/* Pending Billings Summary */}
