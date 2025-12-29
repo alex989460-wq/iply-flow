@@ -26,7 +26,8 @@ async function fetchSessions(apiBaseUrl: string, token: string): Promise<{ succe
   try {
     console.log('Fetching Zap Responder sessions...');
     
-    const response = await fetch(`${apiBaseUrl}/sessions`, {
+    // Zap Responder API uses /api/atendentes for sessions/phones
+    const response = await fetch(`${apiBaseUrl}/atendentes`, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${token}`,
@@ -137,7 +138,7 @@ Deno.serve(async (req) => {
       .limit(1)
       .single();
 
-    const apiBaseUrl = settings?.api_base_url || 'https://api.zapresponder.com.br/v1';
+    const apiBaseUrl = settings?.api_base_url || 'https://api.zapresponder.com.br/api';
 
     // Parse request body
     const body = await req.json().catch(() => ({}));
