@@ -1061,33 +1061,52 @@ export default function Billing() {
               </CardContent>
             </Card>
 
-            {/* Message Templates Info */}
+            {/* Approved Templates for Automatic Billing */}
             <Card className="glass-card border-border/50">
               <CardHeader>
-                <CardTitle className="text-lg">Modelos de Cobrança Automática</CardTitle>
+                <CardTitle className="text-lg">Modelos de Cobrança Automática (Templates Aprovados)</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="p-4 rounded-lg bg-warning/5 border border-warning/20">
-                  <p className="text-sm font-medium text-warning mb-2">D-1 (1 dia antes)</p>
-                  <p className="text-sm text-muted-foreground">
-                    "Olá, consta em nosso sistema que sua conta possui vencimento agendado para amanhã. 
-                    Caso já tenha realizado o pagamento, desconsidere esta mensagem."
+                {!selectedDepartment ? (
+                  <p className="text-muted-foreground text-center py-4">
+                    Selecione um departamento na aba "Departamentos" para ver os templates aprovados.
                   </p>
-                </div>
-                <div className="p-4 rounded-lg bg-primary/5 border border-primary/20">
-                  <p className="text-sm font-medium text-primary mb-2">D0 (dia do vencimento)</p>
-                  <p className="text-sm text-muted-foreground">
-                    "Olá, consta em nosso sistema que sua conta possui vencimento registrado para hoje. 
-                    Caso já tenha realizado o pagamento, desconsidere esta mensagem."
+                ) : isLoadingTemplates ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="w-6 h-6 animate-spin" />
+                  </div>
+                ) : templates.filter(t => t.status === 'APPROVED').length === 0 ? (
+                  <p className="text-muted-foreground text-center py-4">
+                    Nenhum template aprovado encontrado para este departamento.
                   </p>
-                </div>
-                <div className="p-4 rounded-lg bg-destructive/5 border border-destructive/20">
-                  <p className="text-sm font-medium text-destructive mb-2">D+1 (1 dia após)</p>
-                  <p className="text-sm text-muted-foreground">
-                    "Olá, consta em nosso sistema que sua conta está vencida desde ontem. 
-                    Entre em contato para regularizar seu pagamento."
-                  </p>
-                </div>
+                ) : (
+                  templates
+                    .filter(t => t.status === 'APPROVED')
+                    .map((template: any) => {
+                      const bodyComponent = template.components?.find((c: any) => c.type === 'BODY');
+                      const bodyText = bodyComponent?.text || 'Sem conteúdo';
+                      
+                      return (
+                        <div 
+                          key={template.id}
+                          className="p-4 rounded-lg bg-success/5 border border-success/20"
+                        >
+                          <div className="flex items-center justify-between mb-2">
+                            <p className="text-sm font-medium text-success">{template.name}</p>
+                            <span className="text-xs px-2 py-0.5 rounded-full bg-success/10 text-success">
+                              {template.status}
+                            </span>
+                          </div>
+                          <p className="text-sm text-muted-foreground whitespace-pre-line">
+                            {bodyText}
+                          </p>
+                          {template.language && (
+                            <p className="text-xs text-muted-foreground mt-2">Idioma: {template.language}</p>
+                          )}
+                        </div>
+                      );
+                    })
+                )}
               </CardContent>
             </Card>
           </TabsContent>
