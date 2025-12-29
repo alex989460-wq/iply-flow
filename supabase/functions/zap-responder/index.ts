@@ -576,54 +576,108 @@ async function listarConversas(
 // API Functions - Buscar mensagens da conversa
 // ===========================================
 async function buscarMensagens(
-  apiBaseUrl: string, 
-  token: string, 
+  apiBaseUrl: string,
+  token: string,
   conversationId: string,
   limit: number = 100
 ): Promise<{ success: boolean; data?: any[]; error?: string }> {
   try {
     console.log('Fetching messages...', { conversationId, limit });
-    
-    // Try the conversa/mensagens endpoint first (correct endpoint for Zap Responder)
-    const response = await fetch(`${apiBaseUrl}/conversa/mensagens/${conversationId}?limit=${limit}`, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-      },
-    });
 
-    if (!response.ok) {
-      // Try alternative endpoint
-      console.log('Trying alternative messages endpoint...');
-      const altResponse = await fetch(`${apiBaseUrl}/mensagem/conversa/${conversationId}?limit=${limit}`, {
+    const headers = {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+    };
+
+    const attempts: Array<{ label: string; url: string; method: 'GET' | 'POST'; body?: unknown }> = [
+      // v2 endpoints (conversations v2 já funciona para buscar conversa por telefone/ID)
+      {
+        label: 'v2 conversations messages (limit)',
+        url: `${apiBaseUrl}/v2/conversations/${conversationId}/messages?limit=${limit}`,
         method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
+      },
+      {
+        label: 'v2 conversations messages (offset)',
+        url: `${apiBaseUrl}/v2/conversations/${conversationId}/messages?offset=0&limit=${limit}`,
+        method: 'GET',
+      },
+      {
+        label: 'v2 messages conversation',
+        url: `${apiBaseUrl}/v2/messages/conversation/${conversationId}?limit=${limit}`,
+        method: 'GET',
+      },
+
+      // legacy / fallback endpoints
+      {
+        label: 'conversa/mensagens GET',
+        url: `${apiBaseUrl}/conversa/mensagens/${conversationId}?limit=${limit}`,
+        method: 'GET',
+      },
+      {
+        label: 'conversa/mensagens POST',
+        url: `${apiBaseUrl}/conversa/mensagens/${conversationId}`,
+        method: 'POST',
+        body: { limit },
+      },
+      {
+        label: 'mensagem/conversa GET',
+        url: `${apiBaseUrl}/mensagem/conversa/${conversationId}?limit=${limit}`,
+        method: 'GET',
+      },
+      {
+        label: 'mensagem/conversa POST',
+        url: `${apiBaseUrl}/mensagem/conversa/${conversationId}`,
+        method: 'POST',
+        body: { limit },
+      },
+    ];
+
+    let lastError: string | null = null;
+
+    for (const attempt of attempts) {
+      console.log('Trying messages endpoint...', { label: attempt.label, url: attempt.url, method: attempt.method });
+
+      const res = await fetch(attempt.url, {
+        method: attempt.method,
+        headers,
+        ...(attempt.body ? { body: JSON.stringify(attempt.body) } : {}),
       });
-      
-      if (!altResponse.ok) {
-        const errorText = await altResponse.text();
-        console.error(`Zap Responder API error: ${altResponse.status} - ${errorText}`);
-        return { success: false, error: `API error: ${altResponse.status} - ${errorText}` };
+
+      const raw = await res.text();
+
+      if (!res.ok) {
+        console.error(`Zap Responder API error (${attempt.label}): ${res.status} - ${raw}`);
+        lastError = `${attempt.label}: ${res.status} - ${raw}`;
+        continue;
       }
-      
-      const altResult = await altResponse.json();
-      console.log('Messages fetched from alt endpoint:', altResult);
-      const altMessages = Array.isArray(altResult) ? altResult : (altResult.data || altResult.messages || altResult.mensagens || []);
-      return { success: true, data: altMessages };
+
+      let parsed: any;
+      try {
+        parsed = raw ? JSON.parse(raw) : [];
+      } catch (e) {
+        console.error(`Invalid JSON response (${attempt.label}):`, raw);
+        lastError = `${attempt.label}: invalid JSON response`;
+        continue;
+      }
+
+      const messages = Array.isArray(parsed)
+        ? parsed
+        : (parsed.data || parsed.messages || parsed.mensagens || parsed.items || []);
+
+      if (!Array.isArray(messages)) {
+        console.log('Messages payload is not an array; returning empty array', { label: attempt.label });
+        return { success: true, data: [] };
+      }
+
+      console.log('Messages fetched successfully:', { label: attempt.label, count: messages.length });
+      return { success: true, data: messages };
     }
 
-    const result = await response.json();
-    console.log('Messages fetched successfully:', result);
-    
-    const messages = Array.isArray(result) ? result : (result.data || result.messages || result.mensagens || []);
-    
-    return { success: true, data: messages };
+    return {
+      success: false,
+      error: lastError ? `Não foi possível buscar mensagens. ${lastError}` : 'Não foi possível buscar mensagens.',
+    };
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     console.error('Error fetching messages:', error);
@@ -975,7 +1029,8 @@ Deno.serve(async (req) => {
         const result = await buscarMensagens(apiBaseUrl, zapToken, conversation_id, limit || 100);
         return new Response(
           JSON.stringify(result),
-          { status: result.success ? 200 : 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          // Não retornar 500 aqui, senão o frontend recebe FunctionsHttpError e perde a mensagem de erro
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
 
