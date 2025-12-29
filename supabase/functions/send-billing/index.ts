@@ -20,7 +20,7 @@ interface Customer {
   status: string;
 }
 
-// Send WhatsApp message via Zap Responder API
+// Send WhatsApp message via Zap Responder API using internal message (Agente IA)
 async function sendWhatsAppMessage(
   phone: string, 
   message: string, 
@@ -30,24 +30,31 @@ async function sendWhatsAppMessage(
 ): Promise<{ success: boolean; error?: string }> {
   try {
     // Format phone number (remove non-digits and ensure country code)
-    const formattedPhone = phone.replace(/\D/g, '');
+    let formattedPhone = phone.replace(/\D/g, '');
+    
+    // Ensure phone has country code (Brazil = 55)
+    if (!formattedPhone.startsWith('55') && formattedPhone.length <= 11) {
+      formattedPhone = '55' + formattedPhone;
+    }
     
     console.log(`Sending WhatsApp message to ${formattedPhone}`);
     
-    const body: any = {
-      phone: formattedPhone,
-      message: message,
+    // Use the internal message endpoint (Agente IA) to send messages
+    // POST /api/v2/assistants/internal_message
+    const body = {
+      chatId: formattedPhone,
+      content: {
+        type: 'text',
+        text: message,
+      },
+      generateAssistantResponse: false, // Don't generate AI response, just send the message
     };
     
-    // Add session_id if available
-    if (sessionId) {
-      body.session_id = sessionId;
-    }
-    
-    const response = await fetch(`${apiBaseUrl}/messages/send`, {
+    const response = await fetch(`${apiBaseUrl}/v2/assistants/internal_message`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'Accept': 'application/json',
         'Authorization': `Bearer ${token}`,
       },
       body: JSON.stringify(body),
@@ -55,16 +62,69 @@ async function sendWhatsAppMessage(
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error(`Zap Responder API error: ${response.status} - ${errorText}`);
-      return { success: false, error: `API error: ${response.status} - ${errorText}` };
+      console.error(`Zap Responder API error (internal_message): ${response.status} - ${errorText}`);
+      
+      // If internal message fails, try starting a bot with the message
+      console.log('Trying alternative method: iniciar bot...');
+      return await sendViaIniciarBot(formattedPhone, message, token, apiBaseUrl, sessionId);
     }
 
     const result = await response.json();
-    console.log(`Message sent successfully to ${formattedPhone}`, result);
+    console.log(`Message sent successfully to ${formattedPhone} via internal_message`, result);
     return { success: true };
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     console.error(`Error sending message to ${phone}:`, error);
+    return { success: false, error: errorMessage };
+  }
+}
+
+// Alternative method: Start bot with initial message
+async function sendViaIniciarBot(
+  phone: string,
+  message: string,
+  token: string,
+  apiBaseUrl: string,
+  departmentId?: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    console.log(`Trying to send via iniciarBot to ${phone}`);
+    
+    // If no department ID, we can't use this method
+    if (!departmentId) {
+      console.error('No department ID available for iniciarBot');
+      return { success: false, error: 'Department ID required for iniciarBot method' };
+    }
+    
+    const body = {
+      chatId: phone,
+      departamento: departmentId,
+      aplicacao: 'whatsapp',
+      mensagemInicial: message,
+    };
+    
+    const response = await fetch(`${apiBaseUrl}/conversa/iniciarBot`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify(body),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`Zap Responder API error (iniciarBot): ${response.status} - ${errorText}`);
+      return { success: false, error: `API error: ${response.status} - ${errorText}` };
+    }
+
+    const result = await response.json();
+    console.log(`Message sent successfully to ${phone} via iniciarBot`, result);
+    return { success: true };
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.error(`Error sending via iniciarBot to ${phone}:`, error);
     return { success: false, error: errorMessage };
   }
 }
@@ -118,8 +178,11 @@ Deno.serve(async (req) => {
       .limit(1)
       .single();
 
-    const apiBaseUrl = zapSettings?.api_base_url || 'https://api.zapresponder.com.br/v1';
+    const apiBaseUrl = zapSettings?.api_base_url || 'https://api.zapresponder.com.br/api';
     const selectedSessionId = zapSettings?.selected_session_id;
+
+    console.log(`Using API base URL: ${apiBaseUrl}`);
+    console.log(`Selected session ID: ${selectedSessionId}`);
 
     // Get today's date in ISO format
     const today = new Date().toISOString().split('T')[0];
