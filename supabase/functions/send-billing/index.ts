@@ -184,6 +184,34 @@ Deno.serve(async (req) => {
     console.log(`Using API base URL: ${apiBaseUrl}`);
     console.log(`Selected session ID: ${selectedSessionId}`);
 
+    // Fetch the attendant info to get the department ID
+    let departmentId: string | undefined;
+    if (selectedSessionId) {
+      try {
+        const atendenteResponse = await fetch(`${apiBaseUrl}/atendentes`, {
+          method: 'GET',
+          headers: {
+            'Accept': 'application/json',
+            'Authorization': `Bearer ${zapToken}`,
+          },
+        });
+        
+        if (atendenteResponse.ok) {
+          const atendentes = await atendenteResponse.json();
+          // Find the selected attendant
+          const selectedAtendente = atendentes?.find((a: any) => a._id === selectedSessionId);
+          if (selectedAtendente?.departamento?.length > 0) {
+            departmentId = selectedAtendente.departamento[0];
+            console.log(`Found department ID for attendant: ${departmentId}`);
+          }
+        }
+      } catch (e) {
+        console.error('Error fetching attendant department:', e);
+      }
+    }
+    
+    console.log(`Using department ID: ${departmentId}`);
+
     // Get today's date in ISO format
     const today = new Date().toISOString().split('T')[0];
     const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
@@ -246,8 +274,8 @@ Deno.serve(async (req) => {
       // Get message template
       const message = MESSAGES[billingType];
       
-      // Send WhatsApp message
-      const sendResult = await sendWhatsAppMessage(customer.phone, message, zapToken, apiBaseUrl, selectedSessionId);
+      // Send WhatsApp message - pass departmentId instead of sessionId
+      const sendResult = await sendWhatsAppMessage(customer.phone, message, zapToken, apiBaseUrl, departmentId);
       
       // Log the billing attempt
       const { error: logError } = await supabase
