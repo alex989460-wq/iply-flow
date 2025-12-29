@@ -1,1 +1,7 @@
 project_id = "fphqfgxfeaylldpxjqan"
+
+[functions.zap-responder]
+verify_jwt = false
+
+[functions.send-billing]
+verify_jwt = false
