@@ -507,6 +507,138 @@ async function buscarTemplates(
 }
 
 // ===========================================
+// API Functions - Listar todas conversas
+// ===========================================
+async function listarConversas(
+  apiBaseUrl: string, 
+  token: string, 
+  status?: string,
+  limit: number = 50,
+  offset: number = 0
+): Promise<{ success: boolean; data?: any[]; error?: string }> {
+  try {
+    console.log('Fetching all conversations...', { status, limit, offset });
+    
+    let url = `${apiBaseUrl}/v2/conversations?limit=${limit}&offset=${offset}`;
+    if (status) {
+      url += `&status=${status}`;
+    }
+    
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`Zap Responder API error: ${response.status} - ${errorText}`);
+      return { success: false, error: `API error: ${response.status} - ${errorText}` };
+    }
+
+    const result = await response.json();
+    console.log('Conversations fetched successfully:', result);
+    
+    const conversations = Array.isArray(result) ? result : (result.data || result.conversations || []);
+    
+    return { success: true, data: conversations };
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.error('Error fetching conversations:', error);
+    return { success: false, error: errorMessage };
+  }
+}
+
+// ===========================================
+// API Functions - Buscar mensagens da conversa
+// ===========================================
+async function buscarMensagens(
+  apiBaseUrl: string, 
+  token: string, 
+  conversationId: string,
+  limit: number = 100
+): Promise<{ success: boolean; data?: any[]; error?: string }> {
+  try {
+    console.log('Fetching messages...', { conversationId, limit });
+    
+    const response = await fetch(`${apiBaseUrl}/v2/conversations/${conversationId}/messages?limit=${limit}`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`Zap Responder API error: ${response.status} - ${errorText}`);
+      return { success: false, error: `API error: ${response.status} - ${errorText}` };
+    }
+
+    const result = await response.json();
+    console.log('Messages fetched successfully:', result);
+    
+    const messages = Array.isArray(result) ? result : (result.data || result.messages || []);
+    
+    return { success: true, data: messages };
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.error('Error fetching messages:', error);
+    return { success: false, error: errorMessage };
+  }
+}
+
+// ===========================================
+// API Functions - Enviar mensagem de texto
+// ===========================================
+async function enviarMensagemTexto(
+  apiBaseUrl: string, 
+  token: string, 
+  departmentId: string,
+  number: string,
+  text: string
+): Promise<{ success: boolean; data?: any; error?: string }> {
+  try {
+    console.log('Sending text message...', { departmentId, number, text });
+    
+    const body = {
+      type: 'text',
+      number,
+      text,
+    };
+    
+    const response = await fetch(`${apiBaseUrl}/whatsapp/message/${departmentId}`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: JSON.stringify(body),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`Zap Responder API error: ${response.status} - ${errorText}`);
+      return { success: false, error: `API error: ${response.status} - ${errorText}` };
+    }
+
+    const result = await response.json();
+    console.log('Message sent successfully:', result);
+    
+    return { success: true, data: result };
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.error('Error sending message:', error);
+    return { success: false, error: errorMessage };
+  }
+}
+
+// ===========================================
 // Main Handler
 // ===========================================
 Deno.serve(async (req) => {
@@ -745,6 +877,48 @@ Deno.serve(async (req) => {
         return new Response(
           JSON.stringify({ success: true, data: settings }),
           { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // Listar todas as conversas
+      case 'listar-conversas': {
+        const { status: convStatus, limit, offset } = body;
+        const result = await listarConversas(apiBaseUrl, zapToken, convStatus, limit || 50, offset || 0);
+        return new Response(
+          JSON.stringify(result),
+          { status: result.success ? 200 : 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // Buscar mensagens de uma conversa
+      case 'buscar-mensagens': {
+        const { conversation_id, limit } = body;
+        if (!conversation_id) {
+          return new Response(
+            JSON.stringify({ success: false, error: 'conversation_id is required' }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        const result = await buscarMensagens(apiBaseUrl, zapToken, conversation_id, limit || 100);
+        return new Response(
+          JSON.stringify(result),
+          { status: result.success ? 200 : 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // Enviar mensagem de texto
+      case 'enviar-mensagem': {
+        const { department_id, number, text } = body;
+        if (!department_id || !number || !text) {
+          return new Response(
+            JSON.stringify({ success: false, error: 'department_id, number, and text are required' }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        const result = await enviarMensagemTexto(apiBaseUrl, zapToken, department_id, number, text);
+        return new Response(
+          JSON.stringify(result),
+          { status: result.success ? 200 : 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
 
