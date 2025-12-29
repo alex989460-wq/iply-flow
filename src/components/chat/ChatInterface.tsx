@@ -217,7 +217,7 @@ const ChatInterface = forwardRef<HTMLDivElement, ChatInterfaceProps>(({ departme
     setIsLoadingMessages(true);
     try {
       const { data, error } = await supabase.functions.invoke('zap-responder', {
-        body: { 
+        body: {
           action: 'buscar-mensagens',
           conversation_id: conversationId,
           limit: 100,
@@ -228,12 +228,31 @@ const ChatInterface = forwardRef<HTMLDivElement, ChatInterfaceProps>(({ departme
 
       if (data?.success && data?.data) {
         setMessages(data.data.reverse ? data.data.reverse() : data.data);
-      } else if (data?.error) {
-        // Try alternative - just show empty
-        setMessages([]);
+        return;
       }
+
+      // Edge function agora retorna 200 mesmo em erro; então tratamos aqui
+      if (data?.error) {
+        toast({
+          title: 'Erro ao carregar mensagens',
+          description: data.error,
+          variant: 'destructive',
+        });
+      } else {
+        toast({
+          title: 'Nenhuma mensagem encontrada',
+          description: 'Essa conversa não retornou mensagens pelo Zap Responder.',
+        });
+      }
+
+      setMessages([]);
     } catch (error: any) {
       console.error('Error fetching messages:', error);
+      toast({
+        title: 'Erro ao carregar mensagens',
+        description: error?.message || 'Falha ao buscar mensagens.',
+        variant: 'destructive',
+      });
       setMessages([]);
     } finally {
       setIsLoadingMessages(false);
