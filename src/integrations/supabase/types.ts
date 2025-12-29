@@ -239,6 +239,8 @@ export type Database = {
           api_base_url: string
           created_at: string
           id: string
+          selected_department_id: string | null
+          selected_department_name: string | null
           selected_session_id: string | null
           selected_session_name: string | null
           selected_session_phone: string | null
@@ -248,6 +250,8 @@ export type Database = {
           api_base_url?: string
           created_at?: string
           id?: string
+          selected_department_id?: string | null
+          selected_department_name?: string | null
           selected_session_id?: string | null
           selected_session_name?: string | null
           selected_session_phone?: string | null
@@ -257,6 +261,8 @@ export type Database = {
           api_base_url?: string
           created_at?: string
           id?: string
+          selected_department_id?: string | null
+          selected_department_name?: string | null
           selected_session_id?: string | null
           selected_session_name?: string | null
           selected_session_phone?: string | null

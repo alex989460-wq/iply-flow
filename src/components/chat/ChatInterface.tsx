@@ -73,6 +73,80 @@ const ChatInterface = forwardRef<HTMLDivElement, ChatInterfaceProps>(({ departme
     scrollToBottom();
   }, [messages]);
 
+  // Fetch all conversations directly from Zap Responder API
+  const fetchAllConversations = async () => {
+    setIsLoadingConversations(true);
+
+    try {
+      const { data, error } = await supabase.functions.invoke('zap-responder', {
+        body: { 
+          action: 'listar-conversas',
+          limit: 100,
+        },
+      });
+
+      if (error) throw error;
+
+      if (data?.success && data?.data) {
+        const convs = data.data;
+        
+        // Map conversations to our format
+        const mappedConversations: Conversation[] = convs.map((conv: any) => {
+          // Try to find customer by phone
+          const chatId = conv.chatId || '';
+          const matchedCustomer = customers?.find(c => {
+            const customerPhone = c.phone.replace(/\D/g, '');
+            return chatId.includes(customerPhone) || customerPhone.includes(chatId.replace(/\D/g, ''));
+          });
+          
+          // Get name from conversation variables or lead
+          const convName = conv.variaveis?.find((v: any) => v.label === 'nome')?.value || 
+                          conv.pushName || 
+                          conv.lead?.nome || 
+                          'Contato';
+          
+          return {
+            _id: chatId || conv._id,
+            mongoId: conv._id || conv.id || '',
+            chatId: chatId,
+            cliente: {
+              nome: matchedCustomer?.name || convName,
+              telefone: chatId,
+            },
+            status: conv.isFechado ? 'closed' : (conv.status || 'open'),
+            lastMessage: conv.lastMessage?.content || conv.lastMessage?.text || '',
+            updatedAt: conv.updatedAt,
+          };
+        });
+
+        setConversations(mappedConversations);
+        
+        if (mappedConversations.length === 0) {
+          toast({ 
+            title: 'Nenhuma conversa encontrada', 
+            description: 'Não há conversas no Zap Responder.',
+          });
+        } else {
+          toast({ 
+            title: 'Conversas carregadas!', 
+            description: `${mappedConversations.length} conversas encontradas.`,
+          });
+        }
+      } else if (data?.error) {
+        // Fallback: try fetching by customer phones if direct list fails
+        console.log('Direct list failed, falling back to customer-based search');
+        await fetchConversationsFromCustomers();
+      }
+    } catch (error: any) {
+      console.error('Error fetching conversations:', error);
+      // Fallback to customer-based search
+      await fetchConversationsFromCustomers();
+    } finally {
+      setIsLoadingConversations(false);
+    }
+  };
+
+  // Fallback: Fetch conversations by searching each customer's phone
   const fetchConversationsFromCustomers = async () => {
     if (!customers || customers.length === 0) {
       toast({ 
@@ -83,7 +157,6 @@ const ChatInterface = forwardRef<HTMLDivElement, ChatInterfaceProps>(({ departme
       return;
     }
 
-    setIsLoadingConversations(true);
     const foundConversations: Conversation[] = [];
 
     try {
@@ -104,13 +177,13 @@ const ChatInterface = forwardRef<HTMLDivElement, ChatInterfaceProps>(({ departme
           const mongoId = conv._id || conv.id || '';
           foundConversations.push({
             _id: phoneWithCode,
-            mongoId: mongoId, // Store the actual MongoDB _id
+            mongoId: mongoId,
             chatId: conv.chatId || phoneWithCode,
             cliente: {
               nome: customer.name,
               telefone: customer.phone,
             },
-            status: conv.status || conv.isFechado ? 'closed' : 'open',
+            status: conv.isFechado ? 'closed' : (conv.status || 'open'),
             lastMessage: conv.lastMessage?.content || conv.lastMessage?.text || conv.ultimaMensagem || '',
             updatedAt: conv.updatedAt || conv.atualizadoEm,
           });
@@ -131,14 +204,12 @@ const ChatInterface = forwardRef<HTMLDivElement, ChatInterfaceProps>(({ departme
         });
       }
     } catch (error: any) {
-      console.error('Error fetching conversations:', error);
+      console.error('Error fetching conversations from customers:', error);
       toast({
         title: 'Erro ao buscar conversas',
         description: error.message,
         variant: 'destructive',
       });
-    } finally {
-      setIsLoadingConversations(false);
     }
   };
 
@@ -270,7 +341,7 @@ const ChatInterface = forwardRef<HTMLDivElement, ChatInterfaceProps>(({ departme
             <Button 
               size="sm" 
               variant="ghost" 
-              onClick={fetchConversationsFromCustomers}
+              onClick={fetchAllConversations}
               disabled={isLoadingConversations}
             >
               {isLoadingConversations ? (
@@ -304,7 +375,7 @@ const ChatInterface = forwardRef<HTMLDivElement, ChatInterfaceProps>(({ departme
               <Button 
                 size="sm" 
                 variant="outline" 
-                onClick={fetchConversationsFromCustomers}
+                onClick={fetchAllConversations}
                 className="mt-3"
               >
                 Carregar Conversas

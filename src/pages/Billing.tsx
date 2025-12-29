@@ -759,29 +759,59 @@ export default function Billing() {
                     Clique em "Carregar Departamentos" para listar os departamentos disponíveis.
                   </p>
                 ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                    {departments.map((dept) => (
-                      <div
-                        key={dept.id}
-                        className={cn(
-                          'p-4 rounded-lg border transition-all cursor-pointer hover:border-primary',
-                          selectedDepartment?.id === dept.id
-                            ? 'border-primary bg-primary/10'
-                            : 'border-border bg-secondary/30'
-                        )}
-                        onClick={() => {
-                          setSelectedDepartment(dept);
-                          fetchTemplates(dept.id);
-                        }}
-                      >
-                        <p className="font-medium">{dept.name}</p>
-                        {dept.phone && (
-                          <p className="text-sm text-muted-foreground">{dept.phone}</p>
-                        )}
-                        <p className="text-xs text-muted-foreground mt-1">ID: {dept.id}</p>
+                  <>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                      {departments.map((dept) => (
+                        <div
+                          key={dept.id}
+                          className={cn(
+                            'p-4 rounded-lg border transition-all cursor-pointer hover:border-primary',
+                            (selectedDepartment?.id === dept.id || zapSettings?.selected_department_id === dept.id)
+                              ? 'border-primary bg-primary/10'
+                              : 'border-border bg-secondary/30'
+                          )}
+                          onClick={async () => {
+                            setSelectedDepartment(dept);
+                            fetchTemplates(dept.id);
+                            // Save department selection
+                            try {
+                              await supabase.functions.invoke('zap-responder', {
+                                body: { 
+                                  action: 'select-department', 
+                                  department_id: dept.id, 
+                                  department_name: dept.name 
+                                },
+                              });
+                              refetchSettings();
+                              toast({ title: 'Departamento salvo!', description: `${dept.name} definido como padrão.` });
+                            } catch (err) {
+                              console.error('Error saving department:', err);
+                            }
+                          }}
+                        >
+                          <div className="flex items-center justify-between">
+                            <p className="font-medium">{dept.name}</p>
+                            {zapSettings?.selected_department_id === dept.id && (
+                              <CheckCircle className="w-4 h-4 text-success" />
+                            )}
+                          </div>
+                          {dept.phone && (
+                            <p className="text-sm text-muted-foreground">{dept.phone}</p>
+                          )}
+                          <p className="text-xs text-muted-foreground mt-1">ID: {dept.id}</p>
+                        </div>
+                      ))}
+                    </div>
+
+                    {zapSettings?.selected_department_id && (
+                      <div className="mt-4 p-3 bg-success/10 border border-success/20 rounded-lg flex items-center gap-2">
+                        <CheckCircle className="w-4 h-4 text-success" />
+                        <span className="text-sm">
+                          Departamento padrão: <strong>{zapSettings.selected_department_name || zapSettings.selected_department_id}</strong>
+                        </span>
                       </div>
-                    ))}
-                  </div>
+                    )}
+                  </>
                 )}
               </CardContent>
             </Card>

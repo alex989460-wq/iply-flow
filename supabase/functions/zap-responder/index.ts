@@ -519,8 +519,9 @@ async function listarConversas(
   try {
     console.log('Fetching all conversations...', { status, limit, offset });
     
-    let url = `${apiBaseUrl}/v2/conversations?limit=${limit}&offset=${offset}`;
-    if (status) {
+    // Try the conversa endpoint (common endpoint for Zap Responder)
+    let url = `${apiBaseUrl}/conversa?limit=${limit}&offset=${offset}`;
+    if (status && status !== 'all') {
       url += `&status=${status}`;
     }
     
@@ -534,15 +535,34 @@ async function listarConversas(
     });
 
     if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`Zap Responder API error: ${response.status} - ${errorText}`);
-      return { success: false, error: `API error: ${response.status} - ${errorText}` };
+      // Try alternative endpoint
+      console.log('Trying alternative conversations endpoint...');
+      const altUrl = `${apiBaseUrl}/conversas?limit=${limit}&offset=${offset}${status && status !== 'all' ? `&status=${status}` : ''}`;
+      const altResponse = await fetch(altUrl, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+      });
+      
+      if (!altResponse.ok) {
+        const errorText = await altResponse.text();
+        console.error(`Zap Responder API error: ${altResponse.status} - ${errorText}`);
+        return { success: false, error: `API error: ${altResponse.status} - ${errorText}` };
+      }
+      
+      const altResult = await altResponse.json();
+      console.log('Conversations fetched from alt endpoint:', altResult);
+      const altConversations = Array.isArray(altResult) ? altResult : (altResult.data || altResult.conversas || altResult.conversations || []);
+      return { success: true, data: altConversations };
     }
 
     const result = await response.json();
     console.log('Conversations fetched successfully:', result);
     
-    const conversations = Array.isArray(result) ? result : (result.data || result.conversations || []);
+    const conversations = Array.isArray(result) ? result : (result.data || result.conversas || result.conversations || []);
     
     return { success: true, data: conversations };
   } catch (error: unknown) {
@@ -887,6 +907,40 @@ Deno.serve(async (req) => {
 
         return new Response(
           JSON.stringify({ success: true, message: 'Session selected successfully' }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // Selecionar departamento padrão
+      case 'select-department': {
+        const { department_id, department_name } = body;
+        
+        if (!department_id) {
+          return new Response(
+            JSON.stringify({ error: 'department_id is required' }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        const { error: updateError } = await supabase
+          .from('zap_responder_settings')
+          .update({
+            selected_department_id: department_id,
+            selected_department_name: department_name || null,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', settings?.id);
+
+        if (updateError) {
+          console.error('Error updating department settings:', updateError);
+          return new Response(
+            JSON.stringify({ error: 'Failed to update department settings', details: updateError }),
+            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        return new Response(
+          JSON.stringify({ success: true, message: 'Department selected successfully' }),
           { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
