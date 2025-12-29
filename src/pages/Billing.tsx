@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Button } from '@/components/ui/button';
@@ -12,15 +12,52 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, MessageSquare, AlertCircle, Clock, CheckCircle, Send } from 'lucide-react';
+import { 
+  Loader2, 
+  MessageSquare, 
+  AlertCircle, 
+  Clock, 
+  CheckCircle, 
+  Send, 
+  Phone,
+  RefreshCw,
+  MessageCircle
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { Database } from '@/integrations/supabase/types';
 
 type BillingType = Database['public']['Enums']['billing_type'];
 
+interface ZapSession {
+  id: string;
+  name: string;
+  phone: string;
+  status: string;
+}
+
+interface ZapChat {
+  id: string;
+  contact_name: string;
+  contact_phone: string;
+  last_message: string;
+  unread_count: number;
+  updated_at: string;
+}
+
 export default function Billing() {
   const [isSending, setIsSending] = useState(false);
+  const [isLoadingSessions, setIsLoadingSessions] = useState(false);
+  const [isLoadingChats, setIsLoadingChats] = useState(false);
+  const [sessions, setSessions] = useState<ZapSession[]>([]);
+  const [chats, setChats] = useState<ZapChat[]>([]);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -32,6 +69,19 @@ export default function Billing() {
         .select('*, customers(name, phone)')
         .order('sent_at', { ascending: false })
         .limit(100);
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const { data: zapSettings, refetch: refetchSettings } = useQuery({
+    queryKey: ['zap-responder-settings'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('zap_responder_settings')
+        .select('*')
+        .limit(1)
+        .single();
       if (error) throw error;
       return data;
     },
@@ -65,7 +115,105 @@ export default function Billing() {
     },
   });
 
+  const fetchSessions = async () => {
+    setIsLoadingSessions(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('zap-responder', {
+        body: { action: 'sessions' },
+      });
+
+      if (error) throw error;
+
+      if (data?.success && data?.data) {
+        setSessions(data.data);
+        toast({ title: 'Sessões carregadas!', description: `${data.data.length} telefones encontrados.` });
+      } else {
+        toast({ 
+          title: 'Erro ao carregar sessões', 
+          description: data?.error || 'Resposta inválida da API',
+          variant: 'destructive' 
+        });
+      }
+    } catch (error: any) {
+      toast({
+        title: 'Erro ao carregar sessões',
+        description: error.message || 'Não foi possível conectar à API do Zap Responder',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoadingSessions(false);
+    }
+  };
+
+  const fetchChats = async () => {
+    setIsLoadingChats(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('zap-responder', {
+        body: { action: 'chats' },
+      });
+
+      if (error) throw error;
+
+      if (data?.success && data?.data) {
+        setChats(data.data);
+        toast({ title: 'Chats carregados!', description: `${data.data.length} conversas encontradas.` });
+      } else {
+        toast({ 
+          title: 'Erro ao carregar chats', 
+          description: data?.error || 'Resposta inválida da API',
+          variant: 'destructive' 
+        });
+      }
+    } catch (error: any) {
+      toast({
+        title: 'Erro ao carregar chats',
+        description: error.message || 'Não foi possível conectar à API do Zap Responder',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoadingChats(false);
+    }
+  };
+
+  const selectSessionMutation = useMutation({
+    mutationFn: async (session: ZapSession) => {
+      const { data, error } = await supabase.functions.invoke('zap-responder', {
+        body: {
+          action: 'select-session',
+          session_id: session.id,
+          session_name: session.name,
+          session_phone: session.phone,
+        },
+      });
+
+      if (error) throw error;
+      if (!data?.success) throw new Error(data?.error || 'Erro ao selecionar sessão');
+
+      return session;
+    },
+    onSuccess: (session) => {
+      refetchSettings();
+      toast({ title: 'Sessão selecionada!', description: `Usando ${session.name} (${session.phone})` });
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Erro ao selecionar sessão',
+        description: error.message,
+        variant: 'destructive',
+      });
+    },
+  });
+
   const handleSendBillings = async () => {
+    if (!zapSettings?.selected_session_id) {
+      toast({
+        title: 'Nenhuma sessão selecionada',
+        description: 'Por favor, selecione um telefone conectado antes de enviar cobranças.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     setIsSending(true);
     try {
       const { data, error } = await supabase.functions.invoke('send-billing');
@@ -143,7 +291,7 @@ export default function Billing() {
           <Button 
             variant="glow" 
             onClick={handleSendBillings}
-            disabled={isSending || totalPending === 0}
+            disabled={isSending || totalPending === 0 || !zapSettings?.selected_session_id}
           >
             {isSending ? (
               <Loader2 className="w-4 h-4 mr-2 animate-spin" />
@@ -153,6 +301,120 @@ export default function Billing() {
             Enviar Cobranças Agora
           </Button>
         </div>
+
+        {/* Zap Responder Configuration */}
+        <Card className="glass-card border-border/50">
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Phone className="w-5 h-5 text-primary" />
+              Configuração do Zap Responder
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex flex-col sm:flex-row gap-4">
+              <div className="flex-1">
+                <p className="text-sm text-muted-foreground mb-2">Telefone Conectado:</p>
+                {zapSettings?.selected_session_id ? (
+                  <div className="flex items-center gap-2 p-3 bg-success/10 border border-success/20 rounded-lg">
+                    <CheckCircle className="w-4 h-4 text-success" />
+                    <span className="font-medium">{zapSettings.selected_session_name}</span>
+                    <span className="text-muted-foreground">({zapSettings.selected_session_phone})</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2 p-3 bg-destructive/10 border border-destructive/20 rounded-lg">
+                    <AlertCircle className="w-4 h-4 text-destructive" />
+                    <span>Nenhum telefone selecionado</span>
+                  </div>
+                )}
+              </div>
+              <div className="flex gap-2">
+                <Button 
+                  variant="outline" 
+                  onClick={fetchSessions}
+                  disabled={isLoadingSessions}
+                >
+                  {isLoadingSessions ? (
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  ) : (
+                    <RefreshCw className="w-4 h-4 mr-2" />
+                  )}
+                  Carregar Telefones
+                </Button>
+                <Button 
+                  variant="outline" 
+                  onClick={fetchChats}
+                  disabled={isLoadingChats || !zapSettings?.selected_session_id}
+                >
+                  {isLoadingChats ? (
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  ) : (
+                    <MessageCircle className="w-4 h-4 mr-2" />
+                  )}
+                  Ver Chats
+                </Button>
+              </div>
+            </div>
+
+            {/* Sessions List */}
+            {sessions.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-sm font-medium">Selecione um telefone:</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                  {sessions.map((session) => (
+                    <button
+                      key={session.id}
+                      onClick={() => selectSessionMutation.mutate(session)}
+                      disabled={selectSessionMutation.isPending}
+                      className={cn(
+                        'p-3 rounded-lg border text-left transition-all hover:border-primary',
+                        zapSettings?.selected_session_id === session.id
+                          ? 'border-primary bg-primary/10'
+                          : 'border-border bg-secondary/50'
+                      )}
+                    >
+                      <p className="font-medium">{session.name}</p>
+                      <p className="text-sm text-muted-foreground">{session.phone}</p>
+                      <span className={cn(
+                        'text-xs px-2 py-0.5 rounded-full mt-1 inline-block',
+                        session.status === 'connected' 
+                          ? 'bg-success/10 text-success' 
+                          : 'bg-muted text-muted-foreground'
+                      )}>
+                        {session.status}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Chats List */}
+            {chats.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-sm font-medium">Conversas Recentes:</p>
+                <div className="max-h-64 overflow-y-auto space-y-2">
+                  {chats.map((chat) => (
+                    <div
+                      key={chat.id}
+                      className="p-3 rounded-lg border border-border bg-secondary/30 flex items-center justify-between"
+                    >
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium truncate">{chat.contact_name}</p>
+                        <p className="text-sm text-muted-foreground truncate">{chat.contact_phone}</p>
+                        <p className="text-xs text-muted-foreground truncate mt-1">{chat.last_message}</p>
+                      </div>
+                      {chat.unread_count > 0 && (
+                        <span className="ml-2 px-2 py-1 bg-primary text-primary-foreground text-xs rounded-full">
+                          {chat.unread_count}
+                        </span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
         {/* Pending Billings Summary */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

@@ -21,29 +21,42 @@ interface Customer {
 }
 
 // Send WhatsApp message via Zap Responder API
-async function sendWhatsAppMessage(phone: string, message: string, token: string): Promise<{ success: boolean; error?: string }> {
+async function sendWhatsAppMessage(
+  phone: string, 
+  message: string, 
+  token: string, 
+  apiBaseUrl: string,
+  sessionId?: string
+): Promise<{ success: boolean; error?: string }> {
   try {
     // Format phone number (remove non-digits and ensure country code)
     const formattedPhone = phone.replace(/\D/g, '');
     
     console.log(`Sending WhatsApp message to ${formattedPhone}`);
     
-    const response = await fetch('https://api.zapresponder.com.br/v1/messages/send', {
+    const body: any = {
+      phone: formattedPhone,
+      message: message,
+    };
+    
+    // Add session_id if available
+    if (sessionId) {
+      body.session_id = sessionId;
+    }
+    
+    const response = await fetch(`${apiBaseUrl}/messages/send`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${token}`,
       },
-      body: JSON.stringify({
-        phone: formattedPhone,
-        message: message,
-      }),
+      body: JSON.stringify(body),
     });
 
     if (!response.ok) {
       const errorText = await response.text();
       console.error(`Zap Responder API error: ${response.status} - ${errorText}`);
-      return { success: false, error: `API error: ${response.status}` };
+      return { success: false, error: `API error: ${response.status} - ${errorText}` };
     }
 
     const result = await response.json();
@@ -97,6 +110,16 @@ Deno.serve(async (req) => {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    // Get Zap Responder settings
+    const { data: zapSettings } = await supabase
+      .from('zap_responder_settings')
+      .select('*')
+      .limit(1)
+      .single();
+
+    const apiBaseUrl = zapSettings?.api_base_url || 'https://api.zapresponder.com.br/v1';
+    const selectedSessionId = zapSettings?.selected_session_id;
 
     // Get today's date in ISO format
     const today = new Date().toISOString().split('T')[0];
@@ -161,7 +184,7 @@ Deno.serve(async (req) => {
       const message = MESSAGES[billingType];
       
       // Send WhatsApp message
-      const sendResult = await sendWhatsAppMessage(customer.phone, message, zapToken);
+      const sendResult = await sendWhatsAppMessage(customer.phone, message, zapToken, apiBaseUrl, selectedSessionId);
       
       // Log the billing attempt
       const { error: logError } = await supabase

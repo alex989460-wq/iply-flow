@@ -234,6 +234,36 @@ export type Database = {
         }
         Relationships: []
       }
+      zap_responder_settings: {
+        Row: {
+          api_base_url: string
+          created_at: string
+          id: string
+          selected_session_id: string | null
+          selected_session_name: string | null
+          selected_session_phone: string | null
+          updated_at: string
+        }
+        Insert: {
+          api_base_url?: string
+          created_at?: string
+          id?: string
+          selected_session_id?: string | null
+          selected_session_name?: string | null
+          selected_session_phone?: string | null
+          updated_at?: string
+        }
+        Update: {
+          api_base_url?: string
+          created_at?: string
+          id?: string
+          selected_session_id?: string | null
+          selected_session_name?: string | null
+          selected_session_phone?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
