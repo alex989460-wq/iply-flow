@@ -5,7 +5,14 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Billing message templates
+// Mapping of billing types to template names (approved templates from the API)
+const TEMPLATE_MAPPING: Record<string, string> = {
+  'D-1': 'vence_amanha',  // Due tomorrow
+  'D0': 'hoje01',         // Due today
+  'D+1': 'vencido',       // Overdue (yesterday)
+};
+
+// Fallback messages if templates fail
 const MESSAGES = {
   'D-1': 'Olá, consta em nosso sistema que sua conta possui vencimento agendado para amanhã. Caso já tenha realizado o pagamento, desconsidere esta mensagem.',
   'D0': 'Olá, consta em nosso sistema que sua conta possui vencimento registrado para hoje. Caso já tenha realizado o pagamento, desconsidere esta mensagem.',
@@ -20,13 +27,13 @@ interface Customer {
   status: string;
 }
 
-// Send WhatsApp message via Zap Responder API using internal message (Agente IA)
-async function sendWhatsAppMessage(
+// Send WhatsApp template message via Zap Responder API
+async function sendWhatsAppTemplate(
   phone: string, 
-  message: string, 
+  templateName: string,
   token: string, 
   apiBaseUrl: string,
-  sessionId?: string
+  departmentId: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
     // Format phone number (remove non-digits and ensure country code)
@@ -37,20 +44,17 @@ async function sendWhatsAppMessage(
       formattedPhone = '55' + formattedPhone;
     }
     
-    console.log(`Sending WhatsApp message to ${formattedPhone}`);
+    console.log(`Sending WhatsApp template "${templateName}" to ${formattedPhone} via department ${departmentId}`);
     
-    // Use the internal message endpoint (Agente IA) to send messages
-    // POST /api/v2/assistants/internal_message
+    // Use the WhatsApp template endpoint
     const body = {
-      chatId: formattedPhone,
-      content: {
-        type: 'text',
-        text: message,
-      },
-      generateAssistantResponse: false, // Don't generate AI response, just send the message
+      type: 'template',
+      template_name: templateName,
+      number: formattedPhone,
+      language: 'pt_BR',
     };
     
-    const response = await fetch(`${apiBaseUrl}/v2/assistants/internal_message`, {
+    const response = await fetch(`${apiBaseUrl}/whatsapp/message/${departmentId}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -62,69 +66,16 @@ async function sendWhatsAppMessage(
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error(`Zap Responder API error (internal_message): ${response.status} - ${errorText}`);
-      
-      // If internal message fails, try starting a bot with the message
-      console.log('Trying alternative method: iniciar bot...');
-      return await sendViaIniciarBot(formattedPhone, message, token, apiBaseUrl, sessionId);
-    }
-
-    const result = await response.json();
-    console.log(`Message sent successfully to ${formattedPhone} via internal_message`, result);
-    return { success: true };
-  } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    console.error(`Error sending message to ${phone}:`, error);
-    return { success: false, error: errorMessage };
-  }
-}
-
-// Alternative method: Start bot with initial message
-async function sendViaIniciarBot(
-  phone: string,
-  message: string,
-  token: string,
-  apiBaseUrl: string,
-  departmentId?: string
-): Promise<{ success: boolean; error?: string }> {
-  try {
-    console.log(`Trying to send via iniciarBot to ${phone}`);
-    
-    // If no department ID, we can't use this method
-    if (!departmentId) {
-      console.error('No department ID available for iniciarBot');
-      return { success: false, error: 'Department ID required for iniciarBot method' };
-    }
-    
-    const body = {
-      chatId: phone,
-      departamento: departmentId,
-      aplicacao: 'whatsapp',
-      mensagemInicial: message,
-    };
-    
-    const response = await fetch(`${apiBaseUrl}/conversa/iniciarBot`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        'Authorization': `Bearer ${token}`,
-      },
-      body: JSON.stringify(body),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`Zap Responder API error (iniciarBot): ${response.status} - ${errorText}`);
+      console.error(`Zap Responder API error (template): ${response.status} - ${errorText}`);
       return { success: false, error: `API error: ${response.status} - ${errorText}` };
     }
 
     const result = await response.json();
-    console.log(`Message sent successfully to ${phone} via iniciarBot`, result);
+    console.log(`Template "${templateName}" sent successfully to ${formattedPhone}`, result);
     return { success: true };
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    console.error(`Error sending via iniciarBot to ${phone}:`, error);
+    console.error(`Error sending template to ${phone}:`, error);
     return { success: false, error: errorMessage };
   }
 }
@@ -210,6 +161,14 @@ Deno.serve(async (req) => {
       }
     }
     
+    if (!departmentId) {
+      console.error('No department ID found - cannot send messages');
+      return new Response(
+        JSON.stringify({ error: 'No department ID configured. Please select a session in Billing settings.' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    
     console.log(`Using department ID: ${departmentId}`);
 
     // Get today's date in ISO format
@@ -271,11 +230,12 @@ Deno.serve(async (req) => {
         continue;
       }
 
-      // Get message template
+      // Get template name for this billing type
+      const templateName = TEMPLATE_MAPPING[billingType];
       const message = MESSAGES[billingType];
       
-      // Send WhatsApp message - pass departmentId instead of sessionId
-      const sendResult = await sendWhatsAppMessage(customer.phone, message, zapToken, apiBaseUrl, departmentId);
+      // Send WhatsApp template
+      const sendResult = await sendWhatsAppTemplate(customer.phone, templateName, zapToken, apiBaseUrl, departmentId);
       
       // Log the billing attempt
       const { error: logError } = await supabase
@@ -283,7 +243,7 @@ Deno.serve(async (req) => {
         .insert({
           customer_id: customer.id,
           billing_type: billingType,
-          message: message,
+          message: `Template: ${templateName} - ${message}`,
           whatsapp_status: sendResult.success ? 'sent' : `error: ${sendResult.error}`,
         });
 
@@ -297,6 +257,7 @@ Deno.serve(async (req) => {
           customer: customer.name,
           phone: customer.phone,
           billingType,
+          template: templateName,
           status: 'sent',
         });
       } else {
@@ -305,6 +266,7 @@ Deno.serve(async (req) => {
           customer: customer.name,
           phone: customer.phone,
           billingType,
+          template: templateName,
           status: 'error',
           error: sendResult.error,
         });
