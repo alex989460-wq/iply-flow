@@ -1,7 +1,8 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import DashboardLayout from '@/components/layout/DashboardLayout';
+import ChatInterface from '@/components/chat/ChatInterface';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -50,18 +51,6 @@ import type { Database } from '@/integrations/supabase/types';
 
 type CustomerStatus = Database['public']['Enums']['customer_status'];
 
-interface Conversation {
-  _id: string;
-  chatId: string;
-  cliente?: {
-    nome?: string;
-    telefone?: string;
-  };
-  status?: string;
-  lastMessage?: string;
-  updatedAt?: string;
-}
-
 export default function Customers() {
   const [isOpen, setIsOpen] = useState(false);
   const [isRenewOpen, setIsRenewOpen] = useState(false);
@@ -82,10 +71,8 @@ export default function Customers() {
     due_date: '',
   });
 
-  // Chat states
-  const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [isLoadingConversations, setIsLoadingConversations] = useState(false);
-  const [chatSearchPhone, setChatSearchPhone] = useState('');
+  // State for department ID for chat
+  const [chatDepartmentId, setChatDepartmentId] = useState<string | null>(null);
 
   // Import states
   const [importData, setImportData] = useState<any[]>([]);
@@ -317,129 +304,46 @@ export default function Customers() {
 
   const isOverdue = (dueDate: string) => new Date(dueDate) < new Date();
 
-  // ============ Chat Functions ============
-  const fetchConversationsForCustomers = async () => {
-    if (!customers || customers.length === 0) {
-      toast({ title: 'Nenhum cliente cadastrado', variant: 'destructive' });
-      return;
-    }
-
-    setIsLoadingConversations(true);
-    const foundConversations: Conversation[] = [];
-
-    try {
-      for (const customer of customers.slice(0, 20)) { // Limit to first 20 customers
-        const formattedPhone = customer.phone.replace(/\D/g, '');
-        const phoneWithCode = formattedPhone.startsWith('55') ? formattedPhone : `55${formattedPhone}`;
-        
-        const { data, error } = await supabase.functions.invoke('zap-responder', {
-          body: { 
-            action: 'buscar-conversa-telefone',
-            phone: phoneWithCode,
-            include_closed: true,
-          },
-        });
-
-        if (!error && data?.success && data?.data) {
-          const conv = data.data;
-          foundConversations.push({
-            _id: conv._id || conv.id,
-            chatId: conv.chatId || phoneWithCode,
-            cliente: {
-              nome: customer.name,
-              telefone: customer.phone,
-            },
-            status: conv.status || 'unknown',
-            lastMessage: conv.lastMessage?.text || conv.ultimaMensagem || '',
-            updatedAt: conv.updatedAt || conv.atualizadoEm,
-          });
-        }
-      }
-
-      setConversations(foundConversations);
-      
-      if (foundConversations.length === 0) {
-        toast({ 
-          title: 'Nenhuma conversa encontrada', 
-          description: 'Não há conversas ativas para os clientes cadastrados.',
-        });
-      } else {
-        toast({ 
-          title: 'Conversas carregadas!', 
-          description: `${foundConversations.length} conversas encontradas.`,
-        });
-      }
-    } catch (error: any) {
-      toast({
-        title: 'Erro ao buscar conversas',
-        description: error.message,
-        variant: 'destructive',
-      });
-    } finally {
-      setIsLoadingConversations(false);
-    }
-  };
-
-  const searchConversationByPhone = async () => {
-    if (!chatSearchPhone.trim()) {
-      toast({ title: 'Digite um telefone', variant: 'destructive' });
-      return;
-    }
-
-    setIsLoadingConversations(true);
-    try {
-      const formattedPhone = chatSearchPhone.replace(/\D/g, '');
-      const phoneWithCode = formattedPhone.startsWith('55') ? formattedPhone : `55${formattedPhone}`;
-
-      const { data, error } = await supabase.functions.invoke('zap-responder', {
-        body: { 
-          action: 'buscar-conversa-telefone',
-          phone: phoneWithCode,
-          include_closed: true,
-        },
-      });
-
-      if (error) throw error;
-
-      if (data?.success && data?.data) {
-        const conv = data.data;
-        const customer = customers?.find(c => c.phone.includes(formattedPhone.slice(-9)));
-        
-        setConversations([{
-          _id: conv._id || conv.id,
-          chatId: conv.chatId || phoneWithCode,
-          cliente: {
-            nome: customer?.name || 'Desconhecido',
-            telefone: chatSearchPhone,
-          },
-          status: conv.status || 'unknown',
-          lastMessage: conv.lastMessage?.text || conv.ultimaMensagem || '',
-          updatedAt: conv.updatedAt || conv.atualizadoEm,
-        }]);
-        
-        toast({ title: 'Conversa encontrada!' });
-      } else {
-        toast({ 
-          title: 'Nenhuma conversa encontrada', 
-          description: 'Não há conversas para este número.',
-        });
-      }
-    } catch (error: any) {
-      toast({
-        title: 'Erro ao buscar conversa',
-        description: error.message,
-        variant: 'destructive',
-      });
-    } finally {
-      setIsLoadingConversations(false);
-    }
-  };
-
   const openWhatsApp = (phone: string) => {
     const formattedPhone = phone.replace(/\D/g, '');
     const phoneWithCode = formattedPhone.startsWith('55') ? formattedPhone : `55${formattedPhone}`;
     window.open(`https://wa.me/${phoneWithCode}`, '_blank');
   };
+
+  // Fetch department ID from session
+  useEffect(() => {
+    const fetchDepartmentId = async () => {
+      if (zapSettings?.selected_session_id) {
+        try {
+          const { data } = await supabase.functions.invoke('zap-responder', {
+            body: { 
+              action: 'atendentes',
+            },
+          });
+
+          if (data?.success && data?.data) {
+            const attendant = data.data.find((a: any) => a.id === zapSettings.selected_session_id);
+            if (attendant) {
+              // Get department from attendant info or fetch separately
+              const { data: deptData } = await supabase.functions.invoke('zap-responder', {
+                body: { 
+                  action: 'departamentos',
+                },
+              });
+
+              if (deptData?.success && deptData?.data?.[0]) {
+                setChatDepartmentId(deptData.data[0].id);
+              }
+            }
+          }
+        } catch (error) {
+          console.error('Error fetching department:', error);
+        }
+      }
+    };
+
+    fetchDepartmentId();
+  }, [zapSettings?.selected_session_id]);
 
   // ============ Import Functions ============
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -1056,111 +960,20 @@ export default function Customers() {
           </TabsContent>
 
           {/* Tab: Chat */}
-          <TabsContent value="chat" className="space-y-4">
-            <Card className="glass-card border-border/50">
-              <CardHeader>
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <MessageCircle className="w-5 h-5 text-primary" />
-                  Conversas com Clientes
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {!zapSettings?.selected_session_id ? (
+          <TabsContent value="chat">
+            {!zapSettings?.selected_session_id ? (
+              <Card className="glass-card border-border/50">
+                <CardContent className="py-8">
                   <div className="p-4 bg-warning/10 border border-warning/20 rounded-lg">
                     <p className="text-warning text-sm">
                       Configure uma sessão do Zap Responder na página de Cobranças para visualizar as conversas.
                     </p>
                   </div>
-                ) : (
-                  <>
-                    <div className="flex flex-col sm:flex-row gap-2">
-                      <div className="relative flex-1">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                        <Input
-                          value={chatSearchPhone}
-                          onChange={(e) => setChatSearchPhone(e.target.value)}
-                          placeholder="Buscar por telefone..."
-                          className="pl-10 bg-secondary/50"
-                        />
-                      </div>
-                      <Button onClick={searchConversationByPhone} disabled={isLoadingConversations}>
-                        {isLoadingConversations ? (
-                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        ) : (
-                          <Search className="w-4 h-4 mr-2" />
-                        )}
-                        Buscar
-                      </Button>
-                      <Button 
-                        variant="outline" 
-                        onClick={fetchConversationsForCustomers}
-                        disabled={isLoadingConversations}
-                      >
-                        {isLoadingConversations ? (
-                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        ) : (
-                          <RefreshCw className="w-4 h-4 mr-2" />
-                        )}
-                        Carregar Todas
-                      </Button>
-                    </div>
-
-                    {conversations.length === 0 ? (
-                      <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-                        <MessageCircle className="w-12 h-12 mb-4 opacity-50" />
-                        <p>Clique em "Carregar Todas" para buscar conversas dos clientes</p>
-                      </div>
-                    ) : (
-                      <div className="space-y-3">
-                        {conversations.map((conv) => (
-                          <div 
-                            key={conv._id}
-                            className="p-4 rounded-lg border border-border bg-secondary/20 hover:bg-secondary/40 transition-colors"
-                          >
-                            <div className="flex items-start justify-between">
-                              <div className="flex-1">
-                                <div className="flex items-center gap-2">
-                                  <h4 className="font-medium">{conv.cliente?.nome || 'Cliente'}</h4>
-                                  <span className={cn(
-                                    "text-xs px-2 py-0.5 rounded-full",
-                                    conv.status === 'open' || conv.status === 'aberta'
-                                      ? "bg-success/20 text-success"
-                                      : "bg-muted text-muted-foreground"
-                                  )}>
-                                    {conv.status === 'open' || conv.status === 'aberta' ? 'Aberta' : 'Fechada'}
-                                  </span>
-                                </div>
-                                <p className="text-sm text-muted-foreground font-mono">
-                                  {conv.cliente?.telefone || conv.chatId}
-                                </p>
-                                {conv.lastMessage && (
-                                  <p className="text-sm text-muted-foreground mt-2 line-clamp-2">
-                                    {conv.lastMessage}
-                                  </p>
-                                )}
-                                {conv.updatedAt && (
-                                  <p className="text-xs text-muted-foreground mt-1">
-                                    Última atualização: {new Date(conv.updatedAt).toLocaleString('pt-BR')}
-                                  </p>
-                                )}
-                              </div>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => openWhatsApp(conv.chatId)}
-                                title="Abrir WhatsApp"
-                              >
-                                <Phone className="w-4 h-4" />
-                              </Button>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </>
-                )}
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
+            ) : (
+              <ChatInterface departmentId={chatDepartmentId || undefined} />
+            )}
           </TabsContent>
         </Tabs>
       </div>
