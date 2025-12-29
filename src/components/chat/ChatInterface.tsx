@@ -1,12 +1,13 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, forwardRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useToast } from '@/hooks/use-toast';
+import { useQuery } from '@tanstack/react-query';
 import { 
   Search, RefreshCw, Loader2, Send, Phone, User, 
-  MessageCircle, Clock, Filter, X, Users, Inbox
+  MessageCircle, X
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
@@ -14,41 +15,23 @@ import { ptBR } from 'date-fns/locale';
 
 interface Conversation {
   _id: string;
-  id?: string;
   chatId: string;
-  cliente?: {
-    nome?: string;
-    telefone?: string;
-    name?: string;
-    phone?: string;
-  };
-  customer?: {
-    name?: string;
-    phone?: string;
+  cliente: {
+    nome: string;
+    telefone: string;
   };
   status?: string;
-  lastMessage?: {
-    text?: string;
-    content?: string;
-    createdAt?: string;
-  };
+  lastMessage?: string;
   updatedAt?: string;
-  createdAt?: string;
-  unreadCount?: number;
 }
 
 interface Message {
   _id: string;
-  id?: string;
-  content?: {
-    type?: string;
-    text?: string;
-  };
   text?: string;
-  role?: string;
-  sender?: string;
+  content?: { type?: string; text?: string };
   fromMe?: boolean;
   isFromMe?: boolean;
+  role?: string;
   createdAt?: string;
   timestamp?: string;
 }
@@ -57,7 +40,7 @@ interface ChatInterfaceProps {
   departmentId?: string;
 }
 
-export default function ChatInterface({ departmentId }: ChatInterfaceProps) {
+const ChatInterface = forwardRef<HTMLDivElement, ChatInterfaceProps>(({ departmentId }, ref) => {
   const { toast } = useToast();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
@@ -67,8 +50,19 @@ export default function ChatInterface({ departmentId }: ChatInterfaceProps) {
   const [isSending, setIsSending] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [newMessage, setNewMessage] = useState('');
-  const [statusFilter, setStatusFilter] = useState<string>('all');
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const { data: customers } = useQuery({
+    queryKey: ['customers-for-chat'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('customers')
+        .select('id, name, phone')
+        .order('name');
+      if (error) throw error;
+      return data;
+    },
+  });
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -78,28 +72,65 @@ export default function ChatInterface({ departmentId }: ChatInterfaceProps) {
     scrollToBottom();
   }, [messages]);
 
-  const fetchConversations = async () => {
-    setIsLoadingConversations(true);
-    try {
-      const { data, error } = await supabase.functions.invoke('zap-responder', {
-        body: { 
-          action: 'listar-conversas',
-          status: statusFilter !== 'all' ? statusFilter : undefined,
-          limit: 100,
-        },
+  const fetchConversationsFromCustomers = async () => {
+    if (!customers || customers.length === 0) {
+      toast({ 
+        title: 'Nenhum cliente cadastrado', 
+        description: 'Cadastre clientes para visualizar conversas.',
+        variant: 'destructive' 
       });
+      return;
+    }
 
-      if (error) throw error;
+    setIsLoadingConversations(true);
+    const foundConversations: Conversation[] = [];
 
-      if (data?.success && data?.data) {
-        setConversations(data.data);
-      } else if (data?.error) {
-        throw new Error(data.error);
+    try {
+      for (const customer of customers.slice(0, 30)) {
+        const formattedPhone = customer.phone.replace(/\D/g, '');
+        const phoneWithCode = formattedPhone.startsWith('55') ? formattedPhone : `55${formattedPhone}`;
+        
+        const { data, error } = await supabase.functions.invoke('zap-responder', {
+          body: { 
+            action: 'buscar-conversa-telefone',
+            phone: phoneWithCode,
+            include_closed: true,
+          },
+        });
+
+        if (!error && data?.success && data?.data) {
+          const conv = data.data;
+          foundConversations.push({
+            _id: conv._id || conv.id || phoneWithCode,
+            chatId: conv.chatId || phoneWithCode,
+            cliente: {
+              nome: customer.name,
+              telefone: customer.phone,
+            },
+            status: conv.status || 'unknown',
+            lastMessage: conv.lastMessage?.text || conv.ultimaMensagem || '',
+            updatedAt: conv.updatedAt || conv.atualizadoEm,
+          });
+        }
+      }
+
+      setConversations(foundConversations);
+      
+      if (foundConversations.length === 0) {
+        toast({ 
+          title: 'Nenhuma conversa encontrada', 
+          description: 'Não há conversas ativas para os clientes cadastrados.',
+        });
+      } else {
+        toast({ 
+          title: 'Conversas carregadas!', 
+          description: `${foundConversations.length} conversas encontradas.`,
+        });
       }
     } catch (error: any) {
       console.error('Error fetching conversations:', error);
       toast({
-        title: 'Erro ao carregar conversas',
+        title: 'Erro ao buscar conversas',
         description: error.message,
         variant: 'destructive',
       });
@@ -122,17 +153,14 @@ export default function ChatInterface({ departmentId }: ChatInterfaceProps) {
       if (error) throw error;
 
       if (data?.success && data?.data) {
-        setMessages(data.data.reverse());
+        setMessages(data.data.reverse ? data.data.reverse() : data.data);
       } else if (data?.error) {
-        throw new Error(data.error);
+        // Try alternative - just show empty
+        setMessages([]);
       }
     } catch (error: any) {
       console.error('Error fetching messages:', error);
-      toast({
-        title: 'Erro ao carregar mensagens',
-        description: error.message,
-        variant: 'destructive',
-      });
+      setMessages([]);
     } finally {
       setIsLoadingMessages(false);
     }
@@ -143,10 +171,7 @@ export default function ChatInterface({ departmentId }: ChatInterfaceProps) {
 
     setIsSending(true);
     try {
-      const phone = selectedConversation.chatId || 
-                    selectedConversation.cliente?.telefone || 
-                    selectedConversation.cliente?.phone ||
-                    selectedConversation.customer?.phone;
+      const phone = selectedConversation.chatId || selectedConversation.cliente?.telefone;
 
       const { data, error } = await supabase.functions.invoke('zap-responder', {
         body: { 
@@ -160,15 +185,13 @@ export default function ChatInterface({ departmentId }: ChatInterfaceProps) {
       if (error) throw error;
 
       if (data?.success) {
-        setNewMessage('');
-        // Add message locally for immediate feedback
         setMessages(prev => [...prev, {
           _id: Date.now().toString(),
           text: newMessage,
           fromMe: true,
-          isFromMe: true,
           createdAt: new Date().toISOString(),
         }]);
+        setNewMessage('');
         toast({ title: 'Mensagem enviada!' });
       } else if (data?.error) {
         throw new Error(data.error);
@@ -187,22 +210,7 @@ export default function ChatInterface({ departmentId }: ChatInterfaceProps) {
 
   const handleSelectConversation = (conv: Conversation) => {
     setSelectedConversation(conv);
-    const convId = conv._id || conv.id;
-    if (convId) {
-      fetchMessages(convId);
-    }
-  };
-
-  const getContactName = (conv: Conversation) => {
-    return conv.cliente?.nome || conv.cliente?.name || conv.customer?.name || 'Desconhecido';
-  };
-
-  const getContactPhone = (conv: Conversation) => {
-    return conv.chatId || conv.cliente?.telefone || conv.cliente?.phone || conv.customer?.phone || '';
-  };
-
-  const getLastMessageText = (conv: Conversation) => {
-    return conv.lastMessage?.text || conv.lastMessage?.content || '';
+    fetchMessages(conv._id);
   };
 
   const formatTime = (dateString?: string) => {
@@ -219,12 +227,12 @@ export default function ChatInterface({ departmentId }: ChatInterfaceProps) {
   };
 
   const isFromMe = (msg: Message) => {
-    return msg.fromMe || msg.isFromMe || msg.role === 'assistant' || msg.sender === 'me';
+    return msg.fromMe || msg.isFromMe || msg.role === 'assistant';
   };
 
   const filteredConversations = conversations.filter(conv => {
-    const name = getContactName(conv).toLowerCase();
-    const phone = getContactPhone(conv);
+    const name = conv.cliente.nome.toLowerCase();
+    const phone = conv.cliente.telefone;
     return name.includes(searchTerm.toLowerCase()) || phone.includes(searchTerm);
   });
 
@@ -242,10 +250,9 @@ export default function ChatInterface({ departmentId }: ChatInterfaceProps) {
   };
 
   return (
-    <div className="flex h-[calc(100vh-200px)] min-h-[600px] bg-card rounded-lg border border-border overflow-hidden">
+    <div ref={ref} className="flex h-[calc(100vh-200px)] min-h-[600px] bg-card rounded-lg border border-border overflow-hidden">
       {/* Conversations List */}
       <div className="w-80 border-r border-border flex flex-col">
-        {/* Header */}
         <div className="p-4 border-b border-border space-y-3">
           <div className="flex items-center justify-between">
             <h3 className="font-semibold text-foreground flex items-center gap-2">
@@ -255,7 +262,7 @@ export default function ChatInterface({ departmentId }: ChatInterfaceProps) {
             <Button 
               size="sm" 
               variant="ghost" 
-              onClick={fetchConversations}
+              onClick={fetchConversationsFromCustomers}
               disabled={isLoadingConversations}
             >
               {isLoadingConversations ? (
@@ -266,7 +273,6 @@ export default function ChatInterface({ departmentId }: ChatInterfaceProps) {
             </Button>
           </div>
           
-          {/* Search */}
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
@@ -276,31 +282,8 @@ export default function ChatInterface({ departmentId }: ChatInterfaceProps) {
               className="pl-9 bg-secondary/50"
             />
           </div>
-
-          {/* Status Filter */}
-          <div className="flex gap-1">
-            <Button 
-              size="sm" 
-              variant={statusFilter === 'all' ? 'secondary' : 'ghost'}
-              onClick={() => setStatusFilter('all')}
-              className="flex-1 text-xs"
-            >
-              <Inbox className="w-3 h-3 mr-1" />
-              Todas
-            </Button>
-            <Button 
-              size="sm" 
-              variant={statusFilter === 'open' ? 'secondary' : 'ghost'}
-              onClick={() => setStatusFilter('open')}
-              className="flex-1 text-xs"
-            >
-              <Users className="w-3 h-3 mr-1" />
-              Abertas
-            </Button>
-          </div>
         </div>
 
-        {/* Conversations */}
         <ScrollArea className="flex-1">
           {isLoadingConversations ? (
             <div className="flex items-center justify-center py-8">
@@ -309,11 +292,11 @@ export default function ChatInterface({ departmentId }: ChatInterfaceProps) {
           ) : filteredConversations.length === 0 ? (
             <div className="p-4 text-center text-muted-foreground">
               <MessageCircle className="w-8 h-8 mx-auto mb-2 opacity-50" />
-              <p className="text-sm">Nenhuma conversa encontrada</p>
+              <p className="text-sm">Nenhuma conversa</p>
               <Button 
                 size="sm" 
                 variant="outline" 
-                onClick={fetchConversations}
+                onClick={fetchConversationsFromCustomers}
                 className="mt-3"
               >
                 Carregar Conversas
@@ -323,7 +306,7 @@ export default function ChatInterface({ departmentId }: ChatInterfaceProps) {
             <div className="divide-y divide-border">
               {filteredConversations.map((conv) => (
                 <button
-                  key={conv._id || conv.id}
+                  key={conv._id}
                   onClick={() => handleSelectConversation(conv)}
                   className={cn(
                     'w-full p-3 text-left hover:bg-secondary/50 transition-colors',
@@ -337,7 +320,7 @@ export default function ChatInterface({ departmentId }: ChatInterfaceProps) {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between gap-2">
                         <span className="font-medium text-foreground truncate">
-                          {getContactName(conv)}
+                          {conv.cliente.nome}
                         </span>
                         <span className="text-xs text-muted-foreground flex-shrink-0">
                           {formatTime(conv.updatedAt)}
@@ -345,7 +328,7 @@ export default function ChatInterface({ departmentId }: ChatInterfaceProps) {
                       </div>
                       <div className="flex items-center justify-between gap-2 mt-0.5">
                         <p className="text-sm text-muted-foreground truncate">
-                          {getLastMessageText(conv) || 'Sem mensagens'}
+                          {conv.lastMessage || 'Sem mensagens'}
                         </p>
                         {getStatusBadge(conv.status)}
                       </div>
@@ -362,7 +345,6 @@ export default function ChatInterface({ departmentId }: ChatInterfaceProps) {
       <div className="flex-1 flex flex-col">
         {selectedConversation ? (
           <>
-            {/* Chat Header */}
             <div className="p-4 border-b border-border flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center">
@@ -370,11 +352,11 @@ export default function ChatInterface({ departmentId }: ChatInterfaceProps) {
                 </div>
                 <div>
                   <h3 className="font-semibold text-foreground">
-                    {getContactName(selectedConversation)}
+                    {selectedConversation.cliente.nome}
                   </h3>
                   <p className="text-sm text-muted-foreground flex items-center gap-1">
                     <Phone className="w-3 h-3" />
-                    {getContactPhone(selectedConversation)}
+                    {selectedConversation.cliente.telefone}
                   </p>
                 </div>
               </div>
@@ -390,7 +372,6 @@ export default function ChatInterface({ departmentId }: ChatInterfaceProps) {
               </div>
             </div>
 
-            {/* Messages */}
             <ScrollArea className="flex-1 p-4">
               {isLoadingMessages ? (
                 <div className="flex items-center justify-center h-full">
@@ -398,13 +379,13 @@ export default function ChatInterface({ departmentId }: ChatInterfaceProps) {
                 </div>
               ) : messages.length === 0 ? (
                 <div className="flex items-center justify-center h-full text-muted-foreground">
-                  <p>Nenhuma mensagem</p>
+                  <p>Nenhuma mensagem carregada</p>
                 </div>
               ) : (
                 <div className="space-y-3">
                   {messages.map((msg, idx) => (
                     <div
-                      key={msg._id || msg.id || idx}
+                      key={msg._id || idx}
                       className={cn(
                         'flex',
                         isFromMe(msg) ? 'justify-end' : 'justify-start'
@@ -435,7 +416,6 @@ export default function ChatInterface({ departmentId }: ChatInterfaceProps) {
               )}
             </ScrollArea>
 
-            {/* Message Input */}
             <div className="p-4 border-t border-border">
               <div className="flex gap-2">
                 <Input
@@ -464,7 +444,7 @@ export default function ChatInterface({ departmentId }: ChatInterfaceProps) {
               </div>
               {!departmentId && (
                 <p className="text-xs text-destructive mt-2">
-                  Nenhum departamento configurado. Configure nas integrações do Zap Responder.
+                  Nenhum departamento configurado.
                 </p>
               )}
             </div>
@@ -481,4 +461,8 @@ export default function ChatInterface({ departmentId }: ChatInterfaceProps) {
       </div>
     </div>
   );
-}
+});
+
+ChatInterface.displayName = 'ChatInterface';
+
+export default ChatInterface;
