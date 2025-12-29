@@ -11,6 +11,7 @@ import Plans from "./pages/Plans";
 import Customers from "./pages/Customers";
 import Payments from "./pages/Payments";
 import Billing from "./pages/Billing";
+import Chat from "./pages/Chat";
 import NotFound from "./pages/NotFound";
 import { Loader2 } from "lucide-react";
 
@@ -54,6 +55,7 @@ function AppRoutes() {
       <Route path="/customers" element={<ProtectedRoute><Customers /></ProtectedRoute>} />
       <Route path="/payments" element={<ProtectedRoute><Payments /></ProtectedRoute>} />
       <Route path="/billing" element={<ProtectedRoute><Billing /></ProtectedRoute>} />
+      <Route path="/chat" element={<ProtectedRoute><Chat /></ProtectedRoute>} />
       <Route path="*" element={<NotFound />} />
     </Routes>
   );

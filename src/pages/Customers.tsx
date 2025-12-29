@@ -1,13 +1,12 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import DashboardLayout from '@/components/layout/DashboardLayout';
-import ChatInterface from '@/components/chat/ChatInterface';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import {
@@ -33,16 +32,10 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { 
   Plus, Pencil, Trash2, Loader2, Users, RefreshCw, Search, CalendarIcon,
-  Upload, MessageCircle, Phone, FileText, Download
+  Upload, Phone, FileText, Download
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
@@ -60,7 +53,6 @@ export default function Customers() {
   const [editingCustomer, setEditingCustomer] = useState<any | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [activeTab, setActiveTab] = useState('lista');
   const [formData, setFormData] = useState({
     name: '',
     phone: '',
@@ -70,9 +62,6 @@ export default function Customers() {
     notes: '',
     due_date: '',
   });
-
-  // State for department ID for chat
-  const [chatDepartmentId, setChatDepartmentId] = useState<string | null>(null);
 
   // Import states
   const [importData, setImportData] = useState<any[]>([]);
@@ -309,41 +298,6 @@ export default function Customers() {
     const phoneWithCode = formattedPhone.startsWith('55') ? formattedPhone : `55${formattedPhone}`;
     window.open(`https://wa.me/${phoneWithCode}`, '_blank');
   };
-
-  // Fetch department ID from session
-  useEffect(() => {
-    const fetchDepartmentId = async () => {
-      if (zapSettings?.selected_session_id) {
-        try {
-          const { data } = await supabase.functions.invoke('zap-responder', {
-            body: { 
-              action: 'atendentes',
-            },
-          });
-
-          if (data?.success && data?.data) {
-            const attendant = data.data.find((a: any) => a.id === zapSettings.selected_session_id);
-            if (attendant) {
-              // Get department from attendant info or fetch separately
-              const { data: deptData } = await supabase.functions.invoke('zap-responder', {
-                body: { 
-                  action: 'departamentos',
-                },
-              });
-
-              if (deptData?.success && deptData?.data?.[0]) {
-                setChatDepartmentId(deptData.data[0].id);
-              }
-            }
-          }
-        } catch (error) {
-          console.error('Error fetching department:', error);
-        }
-      }
-    };
-
-    fetchDepartmentId();
-  }, [zapSettings?.selected_session_id]);
 
   // ============ Import Functions ============
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -837,145 +791,112 @@ export default function Customers() {
         </Dialog>
 
         {/* Tabs */}
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList>
-            <TabsTrigger value="lista">
-              <Users className="w-4 h-4 mr-2" />
-              Lista
-            </TabsTrigger>
-            <TabsTrigger value="chat">
-              <MessageCircle className="w-4 h-4 mr-2" />
-              Chat
-            </TabsTrigger>
-          </TabsList>
+        {/* Filters */}
+        <div className="flex flex-col sm:flex-row gap-4">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Buscar por nome ou telefone..."
+              className="pl-10 bg-secondary/50"
+            />
+          </div>
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="w-full sm:w-48 bg-secondary/50">
+              <SelectValue placeholder="Filtrar por status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos</SelectItem>
+              <SelectItem value="ativa">Ativas</SelectItem>
+              <SelectItem value="inativa">Inativas</SelectItem>
+              <SelectItem value="suspensa">Suspensas</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
 
-          {/* Tab: Lista */}
-          <TabsContent value="lista" className="space-y-4">
-            {/* Filters */}
-            <div className="flex flex-col sm:flex-row gap-4">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <Input
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  placeholder="Buscar por nome ou telefone..."
-                  className="pl-10 bg-secondary/50"
-                />
+        <Card className="glass-card border-border/50">
+          <CardContent className="p-0 overflow-x-auto">
+            {isLoading ? (
+              <div className="flex items-center justify-center h-48">
+                <Loader2 className="w-8 h-8 animate-spin text-primary" />
               </div>
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-full sm:w-48 bg-secondary/50">
-                  <SelectValue placeholder="Filtrar por status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos</SelectItem>
-                  <SelectItem value="ativa">Ativas</SelectItem>
-                  <SelectItem value="inativa">Inativas</SelectItem>
-                  <SelectItem value="suspensa">Suspensas</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <Card className="glass-card border-border/50">
-              <CardContent className="p-0 overflow-x-auto">
-                {isLoading ? (
-                  <div className="flex items-center justify-center h-48">
-                    <Loader2 className="w-8 h-8 animate-spin text-primary" />
-                  </div>
-                ) : filteredCustomers?.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center h-48 text-muted-foreground">
-                    <Users className="w-12 h-12 mb-4 opacity-50" />
-                    <p>Nenhum cliente encontrado</p>
-                  </div>
-                ) : (
-                  <Table>
-                    <TableHeader>
-                      <TableRow className="border-border hover:bg-transparent">
-                        <TableHead>Nome</TableHead>
-                        <TableHead>Telefone</TableHead>
-                        <TableHead>Servidor</TableHead>
-                        <TableHead>Plano</TableHead>
-                        <TableHead>Vencimento</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead className="text-right">Ações</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {filteredCustomers?.map((customer) => (
-                        <TableRow key={customer.id} className="table-row-hover border-border">
-                          <TableCell className="font-medium">{customer.name}</TableCell>
-                          <TableCell className="font-mono text-sm">{customer.phone}</TableCell>
-                          <TableCell>{customer.servers?.server_name || '-'}</TableCell>
-                          <TableCell>{customer.plans?.plan_name || '-'}</TableCell>
-                          <TableCell>
-                            <span className={cn(
-                              isOverdue(customer.due_date) && customer.status === 'ativa' && "text-destructive"
-                            )}>
-                              {new Date(customer.due_date).toLocaleDateString('pt-BR')}
-                            </span>
-                          </TableCell>
-                          <TableCell>{getStatusBadge(customer.status)}</TableCell>
-                          <TableCell className="text-right">
-                            <div className="flex items-center justify-end gap-1">
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                title="Abrir WhatsApp"
-                                onClick={() => openWhatsApp(customer.phone)}
-                              >
-                                <Phone className="w-4 h-4" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                title="Renovar plano"
-                                onClick={() => handleRenewClick(customer)}
-                                disabled={renewMutation.isPending}
-                              >
-                                <RefreshCw className={cn("w-4 h-4", renewMutation.isPending && "animate-spin")} />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => handleEdit(customer)}
-                              >
-                                <Pencil className="w-4 h-4" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="text-destructive hover:text-destructive"
-                                onClick={() => deleteMutation.mutate(customer.id)}
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </Button>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* Tab: Chat */}
-          <TabsContent value="chat">
-            {!zapSettings?.selected_session_id ? (
-              <Card className="glass-card border-border/50">
-                <CardContent className="py-8">
-                  <div className="p-4 bg-warning/10 border border-warning/20 rounded-lg">
-                    <p className="text-warning text-sm">
-                      Configure uma sessão do Zap Responder na página de Cobranças para visualizar as conversas.
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
+            ) : filteredCustomers?.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-48 text-muted-foreground">
+                <Users className="w-12 h-12 mb-4 opacity-50" />
+                <p>Nenhum cliente encontrado</p>
+              </div>
             ) : (
-              <ChatInterface departmentId={chatDepartmentId || undefined} />
+              <Table>
+                <TableHeader>
+                  <TableRow className="border-border hover:bg-transparent">
+                    <TableHead>Nome</TableHead>
+                    <TableHead>Telefone</TableHead>
+                    <TableHead>Servidor</TableHead>
+                    <TableHead>Plano</TableHead>
+                    <TableHead>Vencimento</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="text-right">Ações</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredCustomers?.map((customer) => (
+                    <TableRow key={customer.id} className="table-row-hover border-border">
+                      <TableCell className="font-medium">{customer.name}</TableCell>
+                      <TableCell className="font-mono text-sm">{customer.phone}</TableCell>
+                      <TableCell>{customer.servers?.server_name || '-'}</TableCell>
+                      <TableCell>{customer.plans?.plan_name || '-'}</TableCell>
+                      <TableCell>
+                        <span className={cn(
+                          isOverdue(customer.due_date) && customer.status === 'ativa' && "text-destructive"
+                        )}>
+                          {new Date(customer.due_date).toLocaleDateString('pt-BR')}
+                        </span>
+                      </TableCell>
+                      <TableCell>{getStatusBadge(customer.status)}</TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            title="Abrir WhatsApp"
+                            onClick={() => openWhatsApp(customer.phone)}
+                          >
+                            <Phone className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            title="Renovar plano"
+                            onClick={() => handleRenewClick(customer)}
+                            disabled={renewMutation.isPending}
+                          >
+                            <RefreshCw className={cn("w-4 h-4", renewMutation.isPending && "animate-spin")} />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleEdit(customer)}
+                          >
+                            <Pencil className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="text-destructive hover:text-destructive"
+                            onClick={() => deleteMutation.mutate(customer.id)}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
             )}
-          </TabsContent>
-        </Tabs>
+          </CardContent>
+        </Card>
       </div>
     </DashboardLayout>
   );

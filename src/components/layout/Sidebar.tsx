@@ -24,6 +24,7 @@ const menuItems = [
   { icon: Users, label: 'Clientes', path: '/customers' },
   { icon: CreditCard, label: 'Pagamentos', path: '/payments' },
   { icon: MessageSquare, label: 'Cobranças', path: '/billing' },
+  { icon: MessageSquare, label: 'Chat', path: '/chat' },
 ];
 
 export default function Sidebar() {
