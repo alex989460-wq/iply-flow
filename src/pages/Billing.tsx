@@ -46,7 +46,8 @@ import {
   Search,
   X,
   FileText,
-  Play
+  Play,
+  Trash2
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { Database } from '@/integrations/supabase/types';
@@ -115,6 +116,7 @@ export default function Billing() {
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [isDeletingLog, setIsDeletingLog] = useState(false);
 
   const { data: billingLogs, isLoading } = useQuery({
     queryKey: ['billing-logs'],
@@ -128,6 +130,29 @@ export default function Billing() {
       return data;
     },
   });
+
+  const deleteBillingLog = async (logId: string) => {
+    setIsDeletingLog(true);
+    try {
+      const { error } = await supabase
+        .from('billing_logs')
+        .delete()
+        .eq('id', logId);
+      
+      if (error) throw error;
+      
+      toast({ title: 'Log excluído!', description: 'O registro foi removido com sucesso.' });
+      queryClient.invalidateQueries({ queryKey: ['billing-logs'] });
+    } catch (error: any) {
+      toast({
+        title: 'Erro ao excluir',
+        description: error.message || 'Não foi possível excluir o registro.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsDeletingLog(false);
+    }
+  };
 
   const { data: zapSettings, refetch: refetchSettings } = useQuery({
     queryKey: ['zap-responder-settings'],
@@ -1139,6 +1164,7 @@ export default function Billing() {
                           <TableHead>Tipo</TableHead>
                           <TableHead>Mensagem</TableHead>
                           <TableHead>Status WhatsApp</TableHead>
+                          <TableHead className="w-[80px]">Ações</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -1156,6 +1182,21 @@ export default function Billing() {
                             <TableCell>{getBillingTypeBadge(log.billing_type)}</TableCell>
                             <TableCell className="max-w-xs truncate">{log.message}</TableCell>
                             <TableCell>{getStatusBadge(log.whatsapp_status)}</TableCell>
+                            <TableCell>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                                onClick={() => deleteBillingLog(log.id)}
+                                disabled={isDeletingLog}
+                              >
+                                {isDeletingLog ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <Trash2 className="h-4 w-4" />
+                                )}
+                              </Button>
+                            </TableCell>
                           </TableRow>
                         ))}
                       </TableBody>
