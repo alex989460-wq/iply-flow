@@ -333,6 +333,7 @@ export default function Customers() {
       const phoneIndex = header.findIndex(h => h.includes('telefone') || h.includes('phone') || h.includes('whatsapp'));
       const serverIndex = header.findIndex(h => h.includes('servidor') || h === 'server');
       const planIndex = header.findIndex(h => h.includes('plano') || h === 'plan');
+      const valueIndex = header.findIndex(h => h.includes('valor') || h === 'value' || h === 'preco' || h === 'price');
       const dueDateIndex = header.findIndex(h => h.includes('vencimento') || h.includes('due') || h.includes('expira'));
       const startDateIndex = header.findIndex(h => h.includes('cadastro') || h.includes('start') || h.includes('inicio'));
       const statusIndex = header.findIndex(h => h.includes('status'));
@@ -393,6 +394,14 @@ export default function Customers() {
           else if (statusValue?.includes('suspen')) status = 'suspensa';
         }
 
+        // Parse custom value
+        let customPrice: number | null = null;
+        if (valueIndex >= 0 && values[valueIndex]) {
+          const priceStr = values[valueIndex].replace(/[^\d.,]/g, '').replace(',', '.');
+          const parsed = parseFloat(priceStr);
+          if (!isNaN(parsed)) customPrice = parsed;
+        }
+
         parsedData.push({
           name,
           phone: phone.replace(/\D/g, ''),
@@ -400,6 +409,7 @@ export default function Customers() {
           server_name: serverName,
           plan_id: matchedPlan?.id || null,
           plan_name: planName,
+          custom_price: customPrice,
           due_date: parseDate(dueDate) || null,
           start_date: parseDate(startDate) || new Date().toISOString().split('T')[0],
           status,
@@ -447,6 +457,9 @@ export default function Customers() {
           customerData.due_date = dueDateObj.toISOString().split('T')[0];
         }
 
+        // Add created_by to track who imported
+        customerData.created_by = user?.id;
+
         const { error } = await supabase.from('customers').insert(customerData);
         
         if (error) {
@@ -477,9 +490,10 @@ export default function Customers() {
   };
 
   const downloadTemplate = () => {
-    const template = 'nome;telefone;servidor;plano;vencimento;cadastro;status\n' +
-      'João Silva;11999998888;Servidor 1;Mensal;31/01/2025;01/01/2025;ativa\n' +
-      'Maria Santos;11999997777;Servidor 2;Anual;31/12/2025;15/01/2025;ativa';
+    const template = 'nome;telefone;servidor;plano;valor;vencimento;cadastro;status\n' +
+      'João Silva;11999998888;NATV;Mensal;35.00;31/01/2025;01/01/2025;ativa\n' +
+      'Maria Santos;11999997777;NATV;Anual;280.00;31/12/2025;15/01/2025;ativa\n' +
+      'Carlos Oliveira;11999996666;NATV;Trimestral;;30/03/2025;01/01/2025;ativa';
     
     const blob = new Blob([template], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
