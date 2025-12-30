@@ -512,7 +512,9 @@ export default function Billing() {
     },
   });
 
-  const handleSendBillings = async () => {
+  const [sendingType, setSendingType] = useState<string | null>(null);
+
+  const handleSendBillings = async (billingType?: BillingType) => {
     if (!zapSettings?.selected_session_id) {
       toast({
         title: 'Nenhuma sessão selecionada',
@@ -523,8 +525,11 @@ export default function Billing() {
     }
 
     setIsSending(true);
+    setSendingType(billingType || 'all');
     try {
-      const { data, error } = await supabase.functions.invoke('send-billing');
+      const { data, error } = await supabase.functions.invoke('send-billing', {
+        body: billingType ? { billing_type: billingType } : {},
+      });
       
       if (error) {
         toast({
@@ -534,8 +539,9 @@ export default function Billing() {
         });
       } else {
         const results = data?.results;
+        const typeLabel = billingType || 'Todas';
         toast({
-          title: 'Cobranças processadas!',
+          title: `Cobranças ${typeLabel} processadas!`,
           description: `Enviadas: ${results?.sent || 0} | Ignoradas: ${results?.skipped || 0} | Erros: ${results?.errors || 0}`,
         });
         queryClient.invalidateQueries({ queryKey: ['billing-logs'] });
@@ -549,6 +555,7 @@ export default function Billing() {
       });
     } finally {
       setIsSending(false);
+      setSendingType(null);
     }
   };
 
@@ -598,15 +605,15 @@ export default function Billing() {
           </div>
           <Button 
             variant="glow" 
-            onClick={handleSendBillings}
+            onClick={() => handleSendBillings()}
             disabled={isSending || totalPending === 0 || !zapSettings?.selected_session_id}
           >
-            {isSending ? (
+            {isSending && sendingType === 'all' ? (
               <Loader2 className="w-4 h-4 mr-2 animate-spin" />
             ) : (
               <Send className="w-4 h-4 mr-2" />
             )}
-            Enviar Cobranças Agora
+            Enviar Todas as Cobranças
           </Button>
         </div>
 
@@ -703,8 +710,22 @@ export default function Billing() {
                     D-1 (Vencem Amanhã)
                   </CardTitle>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="space-y-3">
                   <p className="text-3xl font-bold text-warning">{pendingBillings?.dminus1.length || 0}</p>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    className="w-full border-warning/30 text-warning hover:bg-warning/10"
+                    onClick={() => handleSendBillings('D-1')}
+                    disabled={isSending || (pendingBillings?.dminus1.length || 0) === 0 || !zapSettings?.selected_session_id}
+                  >
+                    {isSending && sendingType === 'D-1' ? (
+                      <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                    ) : (
+                      <Send className="w-3 h-3 mr-1" />
+                    )}
+                    Enviar D-1
+                  </Button>
                 </CardContent>
               </Card>
               <Card className="glass-card border-border/50">
@@ -714,8 +735,22 @@ export default function Billing() {
                     D0 (Vencem Hoje)
                   </CardTitle>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="space-y-3">
                   <p className="text-3xl font-bold text-primary">{pendingBillings?.d0.length || 0}</p>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    className="w-full border-primary/30 text-primary hover:bg-primary/10"
+                    onClick={() => handleSendBillings('D0')}
+                    disabled={isSending || (pendingBillings?.d0.length || 0) === 0 || !zapSettings?.selected_session_id}
+                  >
+                    {isSending && sendingType === 'D0' ? (
+                      <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                    ) : (
+                      <Send className="w-3 h-3 mr-1" />
+                    )}
+                    Enviar D0
+                  </Button>
                 </CardContent>
               </Card>
               <Card className="glass-card border-border/50">
@@ -725,8 +760,22 @@ export default function Billing() {
                     D+1 (Venceram Ontem)
                   </CardTitle>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="space-y-3">
                   <p className="text-3xl font-bold text-destructive">{pendingBillings?.dplus1.length || 0}</p>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    className="w-full border-destructive/30 text-destructive hover:bg-destructive/10"
+                    onClick={() => handleSendBillings('D+1')}
+                    disabled={isSending || (pendingBillings?.dplus1.length || 0) === 0 || !zapSettings?.selected_session_id}
+                  >
+                    {isSending && sendingType === 'D+1' ? (
+                      <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                    ) : (
+                      <Send className="w-3 h-3 mr-1" />
+                    )}
+                    Enviar D+1
+                  </Button>
                 </CardContent>
               </Card>
             </div>

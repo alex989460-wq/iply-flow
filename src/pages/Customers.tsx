@@ -406,19 +406,33 @@ export default function Customers() {
           return dateStr;
         };
 
+        // Determine status based on due date (if vencido = inativa or suspensa)
         let status: CustomerStatus = 'ativa';
-        if (statusIndex >= 0) {
-          const statusValue = values[statusIndex]?.toLowerCase();
-          if (statusValue?.includes('inativ')) status = 'inativa';
-          else if (statusValue?.includes('suspen')) status = 'suspensa';
+        const parsedDueDate = parseDate(dueDate);
+        if (parsedDueDate) {
+          const dueDateObj = new Date(parsedDueDate);
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          dueDateObj.setHours(0, 0, 0, 0);
+          // Se vencido há mais de 7 dias = suspensa, senão se vencido = inativa
+          const diffDays = Math.floor((today.getTime() - dueDateObj.getTime()) / (1000 * 60 * 60 * 24));
+          if (diffDays > 7) {
+            status = 'suspensa';
+          } else if (diffDays > 0) {
+            status = 'inativa';
+          }
         }
 
-        // Parse custom value
+        // Parse custom value - if empty, use plan price
         let customPrice: number | null = null;
         if (valueIndex >= 0 && values[valueIndex]) {
           const priceStr = values[valueIndex].replace(/[^\d.,]/g, '').replace(',', '.');
           const parsed = parseFloat(priceStr);
           if (!isNaN(parsed)) customPrice = parsed;
+        }
+        // If no custom price and plan matched, use plan price
+        if (customPrice === null && matchedPlan) {
+          customPrice = Number(matchedPlan.price);
         }
 
         // Get username directly from CSV

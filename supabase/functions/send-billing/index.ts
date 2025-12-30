@@ -106,6 +106,18 @@ Deno.serve(async (req) => {
   }
 
   try {
+    // Parse request body to get optional billing_type filter
+    let filterBillingType: string | null = null;
+    if (req.method === 'POST') {
+      try {
+        const body = await req.json();
+        filterBillingType = body?.billing_type || null;
+        console.log(`Filter billing type: ${filterBillingType}`);
+      } catch {
+        // No body or invalid JSON, proceed without filter
+      }
+    }
+    
     console.log('Starting billing process...');
     
     const zapToken = Deno.env.get('ZAP_RESPONDER_TOKEN');
@@ -210,6 +222,13 @@ Deno.serve(async (req) => {
       
       if (!billingType) {
         console.log(`Skipping customer ${customer.name}: no billing type matched`);
+        results.skipped++;
+        continue;
+      }
+      
+      // If filter is set, skip customers that don't match
+      if (filterBillingType && billingType !== filterBillingType) {
+        console.log(`Skipping customer ${customer.name}: billing type ${billingType} doesn't match filter ${filterBillingType}`);
         results.skipped++;
         continue;
       }
