@@ -507,6 +507,212 @@ async function buscarTemplates(
 }
 
 // ===========================================
+// API Functions - Buscar QR Code para conectar sessão WhatsApp
+// ===========================================
+async function buscarQRCode(
+  apiBaseUrl: string,
+  token: string,
+  sessionId?: string
+): Promise<{ success: boolean; data?: any; error?: string }> {
+  try {
+    console.log('Fetching QR Code...', { sessionId, apiBaseUrl });
+
+    const headers = {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+    };
+
+    const normalizedBase = apiBaseUrl.replace(/\/+$/, '');
+    const baseCandidates = Array.from(
+      new Set(
+        [
+          normalizedBase,
+          normalizedBase.replace(/\/api$/, ''),
+          normalizedBase.replace(/\/v1$/, ''),
+        ].filter(Boolean)
+      )
+    );
+
+    // Endpoints comuns para QR Code em diferentes APIs de WhatsApp
+    const attempts = baseCandidates.flatMap((base) => [
+      // Zap Responder specific endpoints
+      { label: `qrcode [${base}]`, url: `${base}/qrcode${sessionId ? `/${sessionId}` : ''}` },
+      { label: `qr [${base}]`, url: `${base}/qr${sessionId ? `/${sessionId}` : ''}` },
+      { label: `session/qrcode [${base}]`, url: `${base}/session/qrcode${sessionId ? `/${sessionId}` : ''}` },
+      { label: `session/qr [${base}]`, url: `${base}/session/qr${sessionId ? `/${sessionId}` : ''}` },
+      { label: `whatsapp/qrcode [${base}]`, url: `${base}/whatsapp/qrcode${sessionId ? `/${sessionId}` : ''}` },
+      { label: `whatsapp/qr [${base}]`, url: `${base}/whatsapp/qr${sessionId ? `/${sessionId}` : ''}` },
+      { label: `start-session [${base}]`, url: `${base}/start-session${sessionId ? `/${sessionId}` : ''}` },
+      { label: `connect [${base}]`, url: `${base}/connect${sessionId ? `/${sessionId}` : ''}` },
+      // v2 endpoints
+      { label: `v2/session/qrcode [${base}]`, url: `${base}/v2/session/qrcode${sessionId ? `?sessionId=${sessionId}` : ''}` },
+      { label: `v2/whatsapp/qrcode [${base}]`, url: `${base}/v2/whatsapp/qrcode${sessionId ? `?sessionId=${sessionId}` : ''}` },
+    ]);
+
+    let lastError: string | null = null;
+
+    for (const attempt of attempts) {
+      console.log('Trying QR endpoint...', attempt);
+      
+      try {
+        const res = await fetch(attempt.url, { method: 'GET', headers });
+        const contentType = res.headers.get('content-type') || '';
+        
+        // Se for imagem, retornar base64
+        if (contentType.includes('image')) {
+          const arrayBuffer = await res.arrayBuffer();
+          const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
+          const mimeType = contentType.split(';')[0];
+          return { 
+            success: true, 
+            data: { 
+              qrCode: `data:${mimeType};base64,${base64}`,
+              status: 'NEED_SCAN'
+            } 
+          };
+        }
+
+        const raw = await res.text();
+
+        if (!res.ok) {
+          console.error(`QR API error (${attempt.label}): ${res.status} - ${raw}`);
+          lastError = `${attempt.label}: ${res.status} - ${raw}`;
+          continue;
+        }
+
+        let parsed: any;
+        try {
+          parsed = raw ? JSON.parse(raw) : null;
+        } catch {
+          lastError = `${attempt.label}: invalid JSON response`;
+          continue;
+        }
+
+        // Procurar o QR code na resposta
+        const qrCode = parsed?.qrCode || parsed?.qr || parsed?.qr_code || 
+                       parsed?.data?.qrCode || parsed?.data?.qr || parsed?.data?.qr_code ||
+                       parsed?.qrcode || parsed?.QRCode || parsed?.base64 ||
+                       parsed?.data?.base64 || parsed?.image || parsed?.data?.image;
+        
+        const status = parsed?.status || parsed?.data?.status || 'unknown';
+
+        if (qrCode) {
+          console.log('QR Code fetched successfully:', { label: attempt.label, status });
+          return { 
+            success: true, 
+            data: { 
+              qrCode: qrCode.startsWith('data:') ? qrCode : `data:image/png;base64,${qrCode}`,
+              status 
+            } 
+          };
+        }
+
+        // Pode ser que a sessão já esteja conectada
+        if (status === 'CONNECTED' || status === 'connected' || status === 'ready' || parsed?.connected === true) {
+          console.log('Session already connected:', { label: attempt.label, status });
+          return { 
+            success: true, 
+            data: { 
+              connected: true,
+              status: 'CONNECTED',
+              message: 'Sessão já está conectada'
+            } 
+          };
+        }
+
+        console.log('No QR code in response; trying next endpoint', { label: attempt.label });
+        lastError = `${attempt.label}: response OK but no QR code found`;
+        
+      } catch (fetchError) {
+        console.error(`Fetch error (${attempt.label}):`, fetchError);
+        lastError = `${attempt.label}: fetch error`;
+        continue;
+      }
+    }
+
+    return {
+      success: false,
+      error: lastError ? `Não foi possível obter o QR Code. ${lastError}` : 'Não foi possível obter o QR Code.',
+    };
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.error('Error fetching QR code:', error);
+    return { success: false, error: errorMessage };
+  }
+}
+
+// ===========================================
+// API Functions - Verificar status da sessão WhatsApp
+// ===========================================
+async function verificarStatusSessao(
+  apiBaseUrl: string,
+  token: string,
+  sessionId?: string
+): Promise<{ success: boolean; data?: any; error?: string }> {
+  try {
+    console.log('Checking session status...', { sessionId, apiBaseUrl });
+
+    const headers = {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+    };
+
+    const normalizedBase = apiBaseUrl.replace(/\/+$/, '');
+    const baseCandidates = Array.from(
+      new Set([
+        normalizedBase,
+        normalizedBase.replace(/\/api$/, ''),
+      ].filter(Boolean))
+    );
+
+    const attempts = baseCandidates.flatMap((base) => [
+      { label: `status [${base}]`, url: `${base}/status${sessionId ? `/${sessionId}` : ''}` },
+      { label: `session/status [${base}]`, url: `${base}/session/status${sessionId ? `/${sessionId}` : ''}` },
+      { label: `whatsapp/status [${base}]`, url: `${base}/whatsapp/status${sessionId ? `/${sessionId}` : ''}` },
+      { label: `v2/session/status [${base}]`, url: `${base}/v2/session/status${sessionId ? `?sessionId=${sessionId}` : ''}` },
+      { label: `me [${base}]`, url: `${base}/me${sessionId ? `?sessionId=${sessionId}` : ''}` },
+    ]);
+
+    for (const attempt of attempts) {
+      console.log('Trying status endpoint...', attempt);
+      
+      try {
+        const res = await fetch(attempt.url, { method: 'GET', headers });
+        
+        if (!res.ok) continue;
+
+        const parsed = await res.json();
+        
+        const connected = parsed?.connected || parsed?.status === 'CONNECTED' || 
+                         parsed?.status === 'connected' || parsed?.status === 'ready' ||
+                         parsed?.data?.connected || parsed?.data?.status === 'CONNECTED';
+
+        return { 
+          success: true, 
+          data: { 
+            connected,
+            status: parsed?.status || parsed?.data?.status || (connected ? 'CONNECTED' : 'DISCONNECTED'),
+            phone: parsed?.phone || parsed?.data?.phone || parsed?.me?.phone,
+            name: parsed?.name || parsed?.data?.name || parsed?.me?.pushName,
+          } 
+        };
+        
+      } catch {
+        continue;
+      }
+    }
+
+    return { success: false, error: 'Não foi possível verificar o status da sessão.' };
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.error('Error checking session status:', error);
+    return { success: false, error: errorMessage };
+  }
+}
+
+// ===========================================
 // API Functions - Listar todas conversas
 // ===========================================
 async function listarConversas(
@@ -1254,6 +1460,26 @@ Deno.serve(async (req) => {
         return new Response(
           JSON.stringify(result),
           { status: result.success ? 200 : 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // Buscar QR Code para conectar sessão WhatsApp
+      case 'buscar-qrcode': {
+        const { session_id } = body;
+        const result = await buscarQRCode(apiBaseUrl, zapToken, session_id);
+        return new Response(
+          JSON.stringify(result),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // Verificar status da sessão WhatsApp
+      case 'verificar-status': {
+        const { session_id } = body;
+        const result = await verificarStatusSessao(apiBaseUrl, zapToken, session_id);
+        return new Response(
+          JSON.stringify(result),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
 
