@@ -64,7 +64,7 @@ export default function Customers() {
     notes: '',
     due_date: '',
     custom_price: '',
-    created_by: '',
+    username: '',
   });
 
   // Import states
@@ -247,7 +247,7 @@ export default function Customers() {
   });
 
   const resetForm = () => {
-    setFormData({ name: '', phone: '', server_id: '', plan_id: '', status: 'ativa', notes: '', due_date: '', custom_price: '', created_by: user?.id || '' });
+    setFormData({ name: '', phone: '', server_id: '', plan_id: '', status: 'ativa', notes: '', due_date: '', custom_price: '', username: '' });
     setEditingCustomer(null);
   };
 
@@ -262,7 +262,7 @@ export default function Customers() {
       notes: customer.notes || '',
       due_date: customer.due_date || '',
       custom_price: customer.custom_price ? String(customer.custom_price) : '',
-      created_by: customer.created_by || '',
+      username: customer.username || '',
     });
     setIsOpen(true);
   };
@@ -288,10 +288,12 @@ export default function Customers() {
       server_id: formData.server_id || null,
       plan_id: formData.plan_id || null,
       custom_price: formData.custom_price ? parseFloat(formData.custom_price) : null,
-      created_by: formData.created_by || user?.id || null,
+      username: formData.username || null,
+      created_by: editingCustomer ? undefined : user?.id,
     };
     if (editingCustomer) {
-      updateMutation.mutate({ id: editingCustomer.id, data: submitData });
+      const { created_by, ...updateData } = submitData;
+      updateMutation.mutate({ id: editingCustomer.id, data: updateData });
     } else {
       createMutation.mutate(submitData);
     }
@@ -419,12 +421,8 @@ export default function Customers() {
           if (!isNaN(parsed)) customPrice = parsed;
         }
 
-        // Match user/responsible by name
-        const userName = userIndex >= 0 ? values[userIndex] : '';
-        const matchedUser = allProfiles?.find(p => 
-          p.full_name?.toLowerCase().includes(userName.toLowerCase()) ||
-          userName.toLowerCase().includes(p.full_name?.toLowerCase() || '')
-        );
+        // Get username directly from CSV
+        const username = userIndex >= 0 ? values[userIndex] : '';
 
         parsedData.push({
           name,
@@ -434,8 +432,7 @@ export default function Customers() {
           plan_id: matchedPlan?.id || null,
           plan_name: planName,
           custom_price: customPrice,
-          created_by: matchedUser?.user_id || null,
-          user_name: userName,
+          username: username || null,
           due_date: parseDate(dueDate) || null,
           start_date: parseDate(startDate) || new Date().toISOString().split('T')[0],
           status,
@@ -464,7 +461,7 @@ export default function Customers() {
 
     try {
       for (const row of importData) {
-        const { server_name, plan_name, user_name, ...customerData } = row;
+        const { server_name, plan_name, ...customerData } = row;
         
         // Calculate due_date if not provided
         if (!customerData.due_date && customerData.plan_id) {
@@ -483,10 +480,8 @@ export default function Customers() {
           customerData.due_date = dueDateObj.toISOString().split('T')[0];
         }
 
-        // Use specified user or fallback to current user
-        if (!customerData.created_by) {
-          customerData.created_by = user?.id;
-        }
+        // Set created_by to current user for import tracking
+        customerData.created_by = user?.id;
 
         const { error } = await supabase.from('customers').insert(customerData);
         
@@ -518,11 +513,10 @@ export default function Customers() {
   };
 
   const downloadTemplate = () => {
-    const currentUserName = user?.user_metadata?.full_name || 'Alex';
-    const template = 'nome;telefone;servidor;plano;valor;usuario;vencimento;cadastro;status\n' +
-      `João Silva;11999998888;NATV;Mensal;35.00;${currentUserName};31/01/2025;01/01/2025;ativa\n` +
-      `Maria Santos;11999997777;NATV;Anual;280.00;${currentUserName};31/12/2025;15/01/2025;ativa\n` +
-      `Carlos Oliveira;11999996666;NATV;Trimestral;;${currentUserName};30/03/2025;01/01/2025;ativa`;
+    const template = 'nome;telefone;usuario;servidor;plano;valor;vencimento;cadastro;status\n' +
+      'João Silva;11999998888;joao.silva;NATV;Mensal;35.00;31/01/2025;01/01/2025;ativa\n' +
+      'Maria Santos;11999997777;maria.santos;NATV;Anual;280.00;31/12/2025;15/01/2025;ativa\n' +
+      'Carlos Oliveira;11999996666;carlos123;NATV;Trimestral;;30/03/2025;01/01/2025;ativa';
     
     const blob = new Blob([template], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
@@ -797,22 +791,13 @@ export default function Customers() {
                       </Select>
                     </div>
                     <div className="space-y-2">
-                      <Label>Usuário Responsável</Label>
-                      <Select
-                        value={formData.created_by}
-                        onValueChange={(value) => setFormData({ ...formData, created_by: value })}
-                      >
-                        <SelectTrigger className="bg-secondary/50">
-                          <SelectValue placeholder="Selecione o usuário" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {allProfiles?.map((profile) => (
-                            <SelectItem key={profile.user_id} value={profile.user_id}>
-                              {profile.full_name || 'Sem nome'}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <Label>Usuário (login IPTV)</Label>
+                      <Input
+                        value={formData.username}
+                        onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+                        placeholder="Nome de usuário do cliente"
+                        className="bg-secondary/50"
+                      />
                     </div>
                     <div className="space-y-2 col-span-2">
                       <Label>Observações</Label>
@@ -974,8 +959,8 @@ export default function Customers() {
                           {format(new Date(customer.due_date + 'T12:00:00'), 'dd/MM/yyyy', { locale: ptBR })}
                         </span>
                       </TableCell>
-                      <TableCell className="text-muted-foreground text-sm">
-                        {customer.creator?.full_name || '-'}
+                      <TableCell className="font-mono text-sm">
+                        {customer.username || '-'}
                       </TableCell>
                       <TableCell>{getStatusBadge(customer.status)}</TableCell>
                       <TableCell className="text-right">
