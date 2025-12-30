@@ -254,12 +254,22 @@ export default function Customers() {
       const plan = plans?.find(p => p.id === planId);
       if (!plan) throw new Error('Plano não encontrado');
       
-      const customer = customers?.find(c => c.id === customerId);
+      // Always fetch the latest customer data from the backend (avoids stale cache)
+      const { data: customer, error: fetchCustomerError } = await supabase
+        .from('customers')
+        .select('id, name, phone, due_date, username, notes, servers(server_name)')
+        .eq('id', customerId)
+        .single();
+      if (fetchCustomerError) throw fetchCustomerError;
       if (!customer) throw new Error('Cliente não encontrado');
-      
+
       // Extend from current due date (if still valid) otherwise from today
-      const baseDate = customer.due_date ? new Date(`${customer.due_date}T12:00:00`) : new Date();
-      const anchorDate = baseDate > new Date() ? baseDate : new Date();
+      const startOfToday = new Date();
+      startOfToday.setHours(0, 0, 0, 0);
+
+      const baseDate = new Date(`${customer.due_date}T12:00:00`);
+      const anchorDate = baseDate > startOfToday ? baseDate : startOfToday;
+
       const newDueDate = new Date(anchorDate);
       newDueDate.setDate(newDueDate.getDate() + plan.duration_days);
       
@@ -284,28 +294,21 @@ export default function Customers() {
         });
       if (paymentError) throw paymentError;
 
+      // Return payload for UI/cache updates
+      const nextDueDateStr = format(newDueDate, 'yyyy-MM-dd');
+
       // Enviar mensagem de confirmação via WhatsApp se solicitado
       if (sendMessage && zapSettings?.selected_department_id) {
         const serverName = customer.servers?.server_name || '-';
         const formattedDueDate = format(newDueDate, "dd/MM/yyyy", { locale: ptBR });
         const formattedTime = format(new Date(), "HH:mm", { locale: ptBR });
-        
-        const message = `✅ Olá, *${customer.name}*. Obrigado por confirmar seu pagamento. Segue abaixo os dados da sua assinatura:
 
-==========================
-📅 Próx. Vencimento: *${formattedDueDate} - ${formattedTime} hrs*
-💰 Valor: *${amount.toFixed(2)}*
-👤 Usuário: *${customer.username || '-'}*
-📦 Plano: *${plan.plan_name}*
-🔌 Status: *Ativo*
-💎 Obs: ${customer.notes || '-'}
-⚡: *${serverName}*
-==========================`;
+        const message = `✅ Olá, *${customer.name}*. Obrigado por confirmar seu pagamento. Segue abaixo os dados da sua assinatura:\n\n==========================\n📅 Próx. Vencimento: *${formattedDueDate} - ${formattedTime} hrs*\n💰 Valor: *${amount.toFixed(2)}*\n👤 Usuário: *${customer.username || '-'}*\n📦 Plano: *${plan.plan_name}*\n🔌 Status: *Ativo*\n💎 Obs: ${customer.notes || '-'}\n⚡: *${serverName}*\n==========================`;
 
         try {
           const phone = customer.phone.replace(/\D/g, '');
           const phoneWithCode = phone.startsWith('55') ? phone : `55${phone}`;
-          
+
           const { data, error } = await supabase.functions.invoke('zap-responder', {
             body: {
               action: 'enviar-mensagem',
@@ -314,7 +317,7 @@ export default function Customers() {
               text: message,
             },
           });
-          
+
           if (error) {
             console.error('Erro ao enviar mensagem WhatsApp:', error);
           } else {
@@ -324,19 +327,50 @@ export default function Customers() {
           console.error('Erro ao enviar mensagem:', msgError);
         }
       }
+
+      return {
+        customerId,
+        planId,
+        nextDueDate: nextDueDateStr,
+      };
     },
-    onSuccess: () => {
-      // Refetch customers data
+    onSuccess: (result) => {
+      // Update cache immediately so the new due date appears right away
+      if (result?.customerId && result?.nextDueDate) {
+        const plan = plans?.find((p) => p.id === result.planId);
+        queryClient.setQueryData(['customers'], (old: any) => {
+          if (!Array.isArray(old)) return old;
+          return old.map((c) =>
+            c.id === result.customerId
+              ? {
+                  ...c,
+                  due_date: result.nextDueDate,
+                  plan_id: result.planId,
+                  status: 'ativa',
+                  plans: plan
+                    ? {
+                        plan_name: plan.plan_name,
+                        duration_days: plan.duration_days,
+                        price: plan.price,
+                      }
+                    : c.plans,
+                }
+              : c
+          );
+        });
+      }
+
+      // Refetch in background
       queryClient.invalidateQueries({ queryKey: ['customers'] });
       queryClient.invalidateQueries({ queryKey: ['payments'] });
-      
+
       // Reset all renewal state
       setIsRenewOpen(false);
       setRenewingCustomer(null);
       setSelectedPlanId('');
       setCustomAmount('');
       setSendConfirmationMessage(true);
-      
+
       const successMessage = sendConfirmationMessage && zapSettings?.selected_department_id
         ? 'Renovação registrada! Mensagem de confirmação enviada.'
         : 'Renovação registrada! Pagamento pendente criado.';
