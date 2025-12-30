@@ -137,17 +137,6 @@ export default function Billing() {
   const [progressStats, setProgressStats] = useState({ sent: 0, errors: 0, skipped: 0, total: 0 });
   const [isProgressComplete, setIsProgressComplete] = useState(false);
 
-  // Last send results for reports tab
-  const [lastSendResults, setLastSendResults] = useState<Array<{
-    customer: string;
-    phone: string;
-    billingType: string;
-    template: string;
-    status: 'sent' | 'error';
-    error?: string;
-  }>>([]);
-  const [lastBillingType, setLastBillingType] = useState('');
-  const [lastSentAt, setLastSentAt] = useState<Date | undefined>();
 
   const { data: billingLogs, isLoading } = useQuery({
     queryKey: ['billing-logs'],
@@ -668,13 +657,10 @@ export default function Billing() {
           total: totalToSend
         });
         setIsProgressComplete(true);
-
-        // Save for reports tab
-        setLastSendResults(formattedResults);
-        setLastBillingType(billingType || 'all');
-        setLastSentAt(new Date());
         
+        // Invalidate queries to refresh data
         queryClient.invalidateQueries({ queryKey: ['billing-logs'] });
+        queryClient.invalidateQueries({ queryKey: ['billing-logs-today'] });
         queryClient.invalidateQueries({ queryKey: ['pending-billings'] });
       }
     } catch (error) {
@@ -1423,11 +1409,7 @@ export default function Billing() {
 
           {/* Tab: Relatórios */}
           <TabsContent value="relatorios">
-            <BillingReportsTab 
-              lastResults={lastSendResults}
-              lastBillingType={lastBillingType}
-              lastSentAt={lastSentAt}
-            />
+            <BillingReportsTab />
           </TabsContent>
         </Tabs>
       </div>
