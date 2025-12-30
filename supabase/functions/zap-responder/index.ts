@@ -777,15 +777,91 @@ async function enviarMensagemTexto(
   try {
     console.log('Sending text message...', { departmentId, number, text });
     
-    // Zap Responder API format - uses 'body' field for text messages
+    // Format phone number - ensure it's in correct format
+    const formattedNumber = number.replace(/\D/g, '');
+    const chatId = `${formattedNumber}@s.whatsapp.net`;
+    
+    // STRATEGY 1: Try to find active conversation and send via conversation endpoint
+    console.log('Trying to find active conversation for:', chatId);
+    
+    const conversaResult = await buscarConversaPorTelefone(apiBaseUrl, token, formattedNumber, false);
+    
+    if (conversaResult.success && conversaResult.data) {
+      // The API returns { conversation: {...} } or direct conversation object
+      const rawData = conversaResult.data;
+      const conversa = rawData.conversation || rawData;
+      const conversationId = conversa._id || conversa.id || conversa.conversationId;
+      const conversaChatId = conversa.chatId;
+      
+      console.log('Found conversation data:', { conversationId, conversaChatId, isFechado: conversa.isFechado });
+      
+      if (conversationId && !conversa.isFechado) {
+        console.log('Found active conversation, sending via conversation endpoint:', conversationId);
+        
+        // Try sending via conversation message endpoint
+        const msgBody = {
+          content: {
+            type: 'text',
+            text: text,
+          },
+        };
+        
+        const msgResponse = await fetch(`${apiBaseUrl}/mensagem/conversa/${conversationId}`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+          },
+          body: JSON.stringify(msgBody),
+        });
+        
+        if (msgResponse.ok) {
+          const msgResult = await msgResponse.json();
+          console.log('Message sent via conversation endpoint:', msgResult);
+          return { success: true, data: msgResult };
+        }
+        
+        console.log('Conversation endpoint failed, trying v2 endpoint...');
+        
+        // Try v2 conversations messages endpoint
+        const v2Body = {
+          type: 'text',
+          text: text,
+        };
+        
+        const v2Response = await fetch(`${apiBaseUrl}/v2/conversations/${conversationId}/messages`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+          },
+          body: JSON.stringify(v2Body),
+        });
+        
+        if (v2Response.ok) {
+          const v2Result = await v2Response.json();
+          console.log('Message sent via v2 conversation endpoint:', v2Result);
+          return { success: true, data: v2Result };
+        }
+        
+        console.log('V2 endpoint also failed, falling back to WhatsApp endpoint');
+      }
+    }
+    
+    // STRATEGY 2: Try WhatsApp official API endpoint (works for templates or within 24h window)
+    console.log('Trying WhatsApp official API endpoint...');
+    
     const body = {
       type: 'text',
-      number,
-      body: text,
+      number: formattedNumber,
+      text: {
+        body: String(text),
+      },
     };
 
     console.log('Sending text message payload to Zap Responder:', JSON.stringify(body));
-
     
     const response = await fetch(`${apiBaseUrl}/whatsapp/message/${departmentId}`, {
       method: 'POST',
@@ -800,6 +876,15 @@ async function enviarMensagemTexto(
     if (!response.ok) {
       const errorText = await response.text();
       console.error(`Zap Responder API error: ${response.status} - ${errorText}`);
+      
+      // Check if error is about 24h window - suggest using template
+      if (errorText.includes('text') && errorText.includes('body')) {
+        return { 
+          success: false, 
+          error: 'Não é possível enviar mensagem de texto livre. O cliente precisa ter respondido nas últimas 24h ou você deve usar um template aprovado.' 
+        };
+      }
+      
       return { success: false, error: `API error: ${response.status} - ${errorText}` };
     }
 
