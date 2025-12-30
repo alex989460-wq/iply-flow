@@ -348,8 +348,10 @@ export default function Customers() {
   };
 
   const filteredCustomers = customers?.filter(customer => {
-    const matchesSearch = customer.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          customer.phone.includes(searchTerm);
+    const searchLower = searchTerm.toLowerCase();
+    const matchesSearch = customer.name.toLowerCase().includes(searchLower) ||
+                          customer.phone.includes(searchTerm) ||
+                          (customer.username && customer.username.toLowerCase().includes(searchLower));
     const matchesStatus = statusFilter === 'all' || customer.status === statusFilter;
     
     // Due date filtering
