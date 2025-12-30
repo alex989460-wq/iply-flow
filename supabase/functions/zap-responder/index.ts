@@ -583,7 +583,7 @@ async function buscarMensagens(
   chatId?: string
 ): Promise<{ success: boolean; data?: any[]; error?: string }> {
   try {
-    console.log('Fetching messages...', { conversationId, chatId, limit });
+    console.log('Fetching messages...', { conversationId, chatId, limit, apiBaseUrl });
 
     const headers = {
       'Authorization': `Bearer ${token}`,
@@ -591,62 +591,109 @@ async function buscarMensagens(
       'Accept': 'application/json',
     };
 
-    const attempts: Array<{ label: string; url: string; method: 'GET' | 'POST'; body?: unknown }> = [
-      // v2 endpoints
-      ...(chatId
-        ? [
-            {
-              label: 'v2 conversations chatId messages',
-              url: `${apiBaseUrl}/v2/conversations/chatId/${chatId}/messages?limit=${limit}`,
-              method: 'GET' as const,
-            },
-            {
-              label: 'v2 conversations chatId messages (offset)',
-              url: `${apiBaseUrl}/v2/conversations/chatId/${chatId}/messages?offset=0&limit=${limit}`,
-              method: 'GET' as const,
-            },
-          ]
-        : []),
-      {
-        label: 'v2 conversations messages (limit)',
-        url: `${apiBaseUrl}/v2/conversations/${conversationId}/messages?limit=${limit}`,
-        method: 'GET',
-      },
-      {
-        label: 'v2 conversations messages (offset)',
-        url: `${apiBaseUrl}/v2/conversations/${conversationId}/messages?offset=0&limit=${limit}`,
-        method: 'GET',
-      },
-      {
-        label: 'v2 messages conversation',
-        url: `${apiBaseUrl}/v2/messages/conversation/${conversationId}?limit=${limit}`,
-        method: 'GET',
-      },
+    const normalizedBase = apiBaseUrl.replace(/\/+$/, '');
+    const baseCandidates = Array.from(
+      new Set(
+        [
+          normalizedBase,
+          // Alguns clientes salvam com /api; tentamos também sem esse sufixo
+          normalizedBase.replace(/\/api$/, ''),
+          // Alguns ambientes usam /v1
+          normalizedBase.replace(/\/v1$/, ''),
+        ].filter(Boolean)
+      )
+    );
 
-      // legacy / fallback endpoints
-      {
-        label: 'conversa/mensagens GET',
-        url: `${apiBaseUrl}/conversa/mensagens/${conversationId}?limit=${limit}`,
-        method: 'GET',
-      },
-      {
-        label: 'conversa/mensagens POST',
-        url: `${apiBaseUrl}/conversa/mensagens/${conversationId}`,
-        method: 'POST',
-        body: { limit },
-      },
-      {
-        label: 'mensagem/conversa GET',
-        url: `${apiBaseUrl}/mensagem/conversa/${conversationId}?limit=${limit}`,
-        method: 'GET',
-      },
-      {
-        label: 'mensagem/conversa POST',
-        url: `${apiBaseUrl}/mensagem/conversa/${conversationId}`,
-        method: 'POST',
-        body: { limit },
-      },
-    ];
+    const attempts: Array<{ label: string; url: string; method: 'GET' | 'POST'; body?: unknown }> = baseCandidates.flatMap(
+      (base) => {
+        const v2ConversationByIdWithLimit = `${base}/v2/conversations/${conversationId}?limit=${limit}`;
+        const v2ConversationByIdWithOffset = `${base}/v2/conversations/${conversationId}?offset=0&limit=${limit}`;
+
+        return [
+          // Muitas vezes o endpoint de conversa já retorna as mensagens quando passamos limit/offset
+          ...(chatId
+            ? [
+                {
+                  label: `v2 conversation chatId (limit) [${base}]`,
+                  url: `${base}/v2/conversations/chatId/${chatId}?limit=${limit}`,
+                  method: 'GET' as const,
+                },
+                {
+                  label: `v2 conversation chatId (offset) [${base}]`,
+                  url: `${base}/v2/conversations/chatId/${chatId}?offset=0&limit=${limit}`,
+                  method: 'GET' as const,
+                },
+              ]
+            : []),
+
+          {
+            label: `v2 conversation by id (limit) [${base}]`,
+            url: v2ConversationByIdWithLimit,
+            method: 'GET',
+          },
+          {
+            label: `v2 conversation by id (offset) [${base}]`,
+            url: v2ConversationByIdWithOffset,
+            method: 'GET',
+          },
+
+          // Endpoints dedicados a mensagens (nem todas contas/versões têm)
+          ...(chatId
+            ? [
+                {
+                  label: `v2 conversations chatId messages [${base}]`,
+                  url: `${base}/v2/conversations/chatId/${chatId}/messages?limit=${limit}`,
+                  method: 'GET' as const,
+                },
+                {
+                  label: `v2 conversations chatId messages (offset) [${base}]`,
+                  url: `${base}/v2/conversations/chatId/${chatId}/messages?offset=0&limit=${limit}`,
+                  method: 'GET' as const,
+                },
+              ]
+            : []),
+          {
+            label: `v2 conversations messages (limit) [${base}]`,
+            url: `${base}/v2/conversations/${conversationId}/messages?limit=${limit}`,
+            method: 'GET',
+          },
+          {
+            label: `v2 conversations messages (offset) [${base}]`,
+            url: `${base}/v2/conversations/${conversationId}/messages?offset=0&limit=${limit}`,
+            method: 'GET',
+          },
+          {
+            label: `v2 messages conversation [${base}]`,
+            url: `${base}/v2/messages/conversation/${conversationId}?limit=${limit}`,
+            method: 'GET',
+          },
+
+          // legacy / fallback endpoints
+          {
+            label: `conversa/mensagens GET [${base}]`,
+            url: `${base}/conversa/mensagens/${conversationId}?limit=${limit}`,
+            method: 'GET',
+          },
+          {
+            label: `conversa/mensagens POST [${base}]`,
+            url: `${base}/conversa/mensagens/${conversationId}`,
+            method: 'POST',
+            body: { limit },
+          },
+          {
+            label: `mensagem/conversa GET [${base}]`,
+            url: `${base}/mensagem/conversa/${conversationId}?limit=${limit}`,
+            method: 'GET',
+          },
+          {
+            label: `mensagem/conversa POST [${base}]`,
+            url: `${base}/mensagem/conversa/${conversationId}`,
+            method: 'POST',
+            body: { limit },
+          },
+        ];
+      }
+    );
 
     let lastError: string | null = null;
 
@@ -669,20 +716,37 @@ async function buscarMensagens(
 
       let parsed: any;
       try {
-        parsed = raw ? JSON.parse(raw) : [];
+        parsed = raw ? JSON.parse(raw) : null;
       } catch {
         console.error(`Invalid JSON response (${attempt.label}):`, raw);
         lastError = `${attempt.label}: invalid JSON response`;
         continue;
       }
 
-      const messages = Array.isArray(parsed)
-        ? parsed
-        : (parsed.data || parsed.messages || parsed.mensagens || parsed.items || []);
+      const candidates = [
+        parsed,
+        parsed?.data,
+        parsed?.messages,
+        parsed?.mensagens,
+        parsed?.items,
+        parsed?.conversation?.messages,
+        parsed?.conversation?.mensagens,
+        parsed?.conversation?.items,
+        parsed?.data?.messages,
+        parsed?.data?.mensagens,
+        parsed?.data?.items,
+      ];
 
-      if (!Array.isArray(messages)) {
-        console.log('Messages payload is not an array; returning empty array', { label: attempt.label });
-        return { success: true, data: [] };
+      const messages = candidates.find((c) => Array.isArray(c)) as any[] | undefined;
+
+      if (!messages) {
+        // Endpoint retornou 200 mas não veio array de mensagens; tentamos o próximo
+        console.log('No messages array in payload; trying next endpoint', {
+          label: attempt.label,
+          keys: parsed && typeof parsed === 'object' ? Object.keys(parsed) : typeof parsed,
+        });
+        lastError = `${attempt.label}: response OK but no messages array`;
+        continue;
       }
 
       console.log('Messages fetched successfully:', { label: attempt.label, count: messages.length });
