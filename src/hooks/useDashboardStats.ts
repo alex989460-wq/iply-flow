@@ -1,40 +1,54 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import type { Database } from '@/integrations/supabase/types';
+
+type TableNames = keyof Database['public']['Tables'];
 
 // Helper to fetch all records without the 1000 limit
-async function fetchAllRecords<T>(
-  tableName: string,
-  selectQuery: string,
-  filters?: { column: string; value: any; operator?: string }[]
-): Promise<T[]> {
+async function fetchAllCustomers() {
   const pageSize = 1000;
-  let allData: T[] = [];
+  let allData: any[] = [];
   let page = 0;
   let hasMore = true;
 
   while (hasMore) {
-    let query = supabase
-      .from(tableName)
-      .select(selectQuery)
+    const { data, error } = await supabase
+      .from('customers')
+      .select('*, plans(plan_name, price), servers(server_name)')
       .range(page * pageSize, (page + 1) * pageSize - 1);
 
-    if (filters) {
-      for (const filter of filters) {
-        if (filter.operator === 'gte') {
-          query = query.gte(filter.column, filter.value);
-        } else if (filter.operator === 'lte') {
-          query = query.lte(filter.column, filter.value);
-        } else {
-          query = query.eq(filter.column, filter.value);
-        }
-      }
-    }
-
-    const { data, error } = await query;
     if (error) throw error;
 
     if (data && data.length > 0) {
-      allData = [...allData, ...(data as T[])];
+      allData = [...allData, ...data];
+      hasMore = data.length === pageSize;
+      page++;
+    } else {
+      hasMore = false;
+    }
+  }
+
+  return allData;
+}
+
+async function fetchAllPayments(startDate: string) {
+  const pageSize = 1000;
+  let allData: any[] = [];
+  let page = 0;
+  let hasMore = true;
+
+  while (hasMore) {
+    const { data, error } = await supabase
+      .from('payments')
+      .select('*')
+      .eq('confirmed', true)
+      .gte('payment_date', startDate)
+      .range(page * pageSize, (page + 1) * pageSize - 1);
+
+    if (error) throw error;
+
+    if (data && data.length > 0) {
+      allData = [...allData, ...data];
       hasMore = data.length === pageSize;
       page++;
     } else {
@@ -52,24 +66,14 @@ export function useDashboardStats() {
       const today = new Date().toISOString().split('T')[0];
 
       // Fetch all customers (without 1000 limit)
-      const customers = await fetchAllRecords<any>(
-        'customers',
-        '*, plans(plan_name, price), servers(server_name)'
-      );
+      const customers = await fetchAllCustomers();
 
       // Fetch payments for this month
       const startOfMonth = new Date();
       startOfMonth.setDate(1);
       startOfMonth.setHours(0, 0, 0, 0);
 
-      const payments = await fetchAllRecords<any>(
-        'payments',
-        '*',
-        [
-          { column: 'confirmed', value: true },
-          { column: 'payment_date', value: startOfMonth.toISOString().split('T')[0], operator: 'gte' },
-        ]
-      );
+      const payments = await fetchAllPayments(startOfMonth.toISOString().split('T')[0]);
 
       // Calculate stats
       const totalCustomers = customers?.length || 0;

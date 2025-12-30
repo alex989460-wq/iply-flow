@@ -12,7 +12,8 @@ import {
   DollarSign, 
   AlertCircle, 
   Clock,
-  Loader2 
+  Loader2,
+  TrendingUp
 } from 'lucide-react';
 
 export default function Dashboard() {
@@ -69,12 +70,18 @@ export default function Dashboard() {
         </div>
 
         {/* Revenue and Alerts Row */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <StatsCard
             title="Receita do Mês"
             value={`R$ ${(stats?.monthlyRevenue || 0).toFixed(2)}`}
             icon={DollarSign}
             variant="success"
+          />
+          <StatsCard
+            title="Projeção Mensal"
+            value={`R$ ${(stats?.monthlyProjection || 0).toFixed(2)}`}
+            icon={TrendingUp}
+            variant="primary"
           />
           <StatsCard
             title="Vencem Hoje"
