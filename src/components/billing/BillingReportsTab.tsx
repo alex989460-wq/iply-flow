@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -26,9 +28,12 @@ import {
   FileText, 
   Search,
   Filter,
-  Download
+  Download,
+  Loader2,
+  RefreshCw
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { format } from 'date-fns';
 
 interface SendResult {
   customer: string;
@@ -40,21 +45,46 @@ interface SendResult {
   timestamp?: string;
 }
 
-interface BillingReportsTabProps {
-  lastResults: SendResult[];
-  lastBillingType: string;
-  lastSentAt?: Date;
-}
-
-export function BillingReportsTab({ 
-  lastResults, 
-  lastBillingType,
-  lastSentAt 
-}: BillingReportsTabProps) {
+export function BillingReportsTab() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'sent' | 'error'>('all');
 
-  const filteredResults = lastResults.filter(result => {
+  // Fetch today's billing logs from database
+  const { data: todayLogs, isLoading, refetch } = useQuery({
+    queryKey: ['billing-logs-today'],
+    queryFn: async () => {
+      const today = format(new Date(), 'yyyy-MM-dd');
+      
+      const { data, error } = await supabase
+        .from('billing_logs')
+        .select('*, customers(name, phone)')
+        .gte('sent_at', `${today}T00:00:00`)
+        .lte('sent_at', `${today}T23:59:59`)
+        .order('sent_at', { ascending: false });
+      
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  // Transform logs to results format
+  const results: SendResult[] = (todayLogs || []).map(log => {
+    const isSuccess = log.whatsapp_status === 'sent';
+    const phoneMatch = log.message?.match(/\[([^\]]+)\]/);
+    const phone = phoneMatch ? phoneMatch[1] : log.customers?.phone || '';
+    
+    return {
+      customer: log.customers?.name || 'Cliente',
+      phone: phone,
+      billingType: log.billing_type,
+      template: log.message?.replace(/\[[^\]]+\]\s*/, '').replace('Template: ', '') || '',
+      status: isSuccess ? 'sent' : 'error',
+      error: isSuccess ? undefined : log.whatsapp_status?.replace('error: ', ''),
+      timestamp: log.sent_at,
+    };
+  });
+
+  const filteredResults = results.filter(result => {
     const matchesSearch = 
       result.customer.toLowerCase().includes(searchTerm.toLowerCase()) ||
       result.phone.includes(searchTerm);
@@ -64,8 +94,8 @@ export function BillingReportsTab({
     return matchesSearch && matchesStatus;
   });
 
-  const sentCount = lastResults.filter(r => r.status === 'sent').length;
-  const errorCount = lastResults.filter(r => r.status === 'error').length;
+  const sentCount = results.filter(r => r.status === 'sent').length;
+  const errorCount = results.filter(r => r.status === 'error').length;
 
   const getBillingTypeLabel = (type: string) => {
     switch (type) {
@@ -80,14 +110,15 @@ export function BillingReportsTab({
   const exportToCSV = () => {
     if (filteredResults.length === 0) return;
     
-    const headers = ['Cliente', 'Telefone', 'Tipo', 'Template', 'Status', 'Erro'];
+    const headers = ['Cliente', 'Telefone', 'Tipo', 'Template', 'Status', 'Erro', 'Data/Hora'];
     const rows = filteredResults.map(r => [
       r.customer,
       r.phone,
       r.billingType,
       r.template,
       r.status === 'sent' ? 'Enviado' : 'Erro',
-      r.error || ''
+      r.error || '',
+      r.timestamp ? new Date(r.timestamp).toLocaleString('pt-BR') : ''
     ]);
     
     const csvContent = [headers, ...rows]
@@ -101,19 +132,35 @@ export function BillingReportsTab({
     link.click();
   };
 
-  if (lastResults.length === 0) {
+  if (isLoading) {
+    return (
+      <Card className="glass-card border-border/50">
+        <CardContent className="flex items-center justify-center py-12">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (results.length === 0) {
     return (
       <Card className="glass-card border-border/50">
         <CardHeader>
-          <CardTitle className="text-lg flex items-center gap-2">
-            <FileText className="w-5 h-5 text-primary" />
-            Relatório do Último Envio
-          </CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-lg flex items-center gap-2">
+              <FileText className="w-5 h-5 text-primary" />
+              Relatório de Hoje
+            </CardTitle>
+            <Button variant="outline" size="sm" onClick={() => refetch()}>
+              <RefreshCw className="w-4 h-4 mr-2" />
+              Atualizar
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           <div className="text-center py-12 text-muted-foreground">
             <FileText className="w-12 h-12 mx-auto mb-4 opacity-50" />
-            <p>Nenhum envio realizado ainda.</p>
+            <p>Nenhum envio realizado hoje.</p>
             <p className="text-sm mt-2">Os resultados aparecerão aqui após enviar cobranças.</p>
           </div>
         </CardContent>
@@ -128,17 +175,22 @@ export function BillingReportsTab({
           <div>
             <CardTitle className="text-lg flex items-center gap-2">
               <FileText className="w-5 h-5 text-primary" />
-              Relatório do Último Envio
+              Relatório de Hoje
             </CardTitle>
             <p className="text-sm text-muted-foreground mt-1">
-              {getBillingTypeLabel(lastBillingType)} 
-              {lastSentAt && ` • ${lastSentAt.toLocaleString('pt-BR')}`}
+              {format(new Date(), 'dd/MM/yyyy')} • {results.length} envios
             </p>
           </div>
-          <Button variant="outline" size="sm" onClick={exportToCSV}>
-            <Download className="w-4 h-4 mr-2" />
-            Exportar CSV
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={() => refetch()}>
+              <RefreshCw className="w-4 h-4 mr-2" />
+              Atualizar
+            </Button>
+            <Button variant="outline" size="sm" onClick={exportToCSV}>
+              <Download className="w-4 h-4 mr-2" />
+              Exportar CSV
+            </Button>
+          </div>
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
