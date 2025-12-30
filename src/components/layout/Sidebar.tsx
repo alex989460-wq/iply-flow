@@ -13,6 +13,7 @@ import {
   Settings,
   ChevronLeft,
   Menu,
+  QrCode,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useState } from 'react';
@@ -24,6 +25,7 @@ const menuItems = [
   { icon: Users, label: 'Clientes', path: '/customers' },
   { icon: CreditCard, label: 'Pagamentos', path: '/payments' },
   { icon: MessageSquare, label: 'Cobranças', path: '/billing' },
+  { icon: QrCode, label: 'WhatsApp', path: '/whatsapp' },
 ];
 
 export default function Sidebar() {
