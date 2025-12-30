@@ -80,22 +80,38 @@ async function sendWhatsAppTemplate(
   }
 }
 
+// Format YYYY-MM-DD in America/Sao_Paulo (prevents UTC day-shift issues)
+function formatDateSaoPaulo(date: Date): string {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Sao_Paulo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date);
+
+  const year = parts.find(p => p.type === 'year')?.value ?? '1970';
+  const month = parts.find(p => p.type === 'month')?.value ?? '01';
+  const day = parts.find(p => p.type === 'day')?.value ?? '01';
+
+  return `${year}-${month}-${day}`;
+}
+
 // Get billing type based on due date comparison with today
 function getBillingType(dueDate: string, today: string): 'D-1' | 'D0' | 'D+1' | null {
   const due = new Date(dueDate);
   const todayDate = new Date(today);
-  
+
   // Reset time for accurate date comparison
   due.setHours(0, 0, 0, 0);
   todayDate.setHours(0, 0, 0, 0);
-  
+
   const diffTime = due.getTime() - todayDate.getTime();
   const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
-  
-  if (diffDays === 1) return 'D-1';   // Due tomorrow
-  if (diffDays === 0) return 'D0';    // Due today
-  if (diffDays === -1) return 'D+1';  // Due yesterday
-  
+
+  if (diffDays === 1) return 'D-1'; // Due tomorrow
+  if (diffDays === 0) return 'D0'; // Due today
+  if (diffDays === -1) return 'D+1'; // Due yesterday
+
   return null;
 }
 
@@ -183,18 +199,18 @@ Deno.serve(async (req) => {
     
     console.log(`Using department ID: ${departmentId}`);
 
-    // Get today's date in ISO format
-    const today = new Date().toISOString().split('T')[0];
-    const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
-    const tomorrow = new Date(Date.now() + 86400000).toISOString().split('T')[0];
+    // Get today's date in Sao Paulo timezone (YYYY-MM-DD)
+    const today = formatDateSaoPaulo(new Date());
+    const yesterday = formatDateSaoPaulo(new Date(Date.now() - 86400000));
+    const tomorrow = formatDateSaoPaulo(new Date(Date.now() + 86400000));
 
     console.log(`Processing billings for dates: yesterday=${yesterday}, today=${today}, tomorrow=${tomorrow}`);
 
-    // Fetch active customers with due dates in our range
+    // Fetch customers (ativa + inativa) with due dates in our range
     const { data: customers, error: customersError } = await supabase
       .from('customers')
       .select('id, name, phone, due_date, status')
-      .eq('status', 'ativa')
+      .in('status', ['ativa', 'inativa'])
       .in('due_date', [yesterday, today, tomorrow]);
 
     if (customersError) {
