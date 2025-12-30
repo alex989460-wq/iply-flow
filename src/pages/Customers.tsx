@@ -80,8 +80,21 @@ export default function Customers() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('customers')
-        .select('*, plans(plan_name, duration_days, price), servers(server_name), profiles:created_by(full_name)')
+        .select('*, plans(plan_name, duration_days, price), servers(server_name), creator:profiles!customers_created_by_profiles_fkey(full_name)')
         .order('created_at', { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  // Fetch all profiles for user assignment
+  const { data: allProfiles } = useQuery({
+    queryKey: ['all-profiles'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('user_id, full_name')
+        .order('full_name');
       if (error) throw error;
       return data;
     },
@@ -334,6 +347,7 @@ export default function Customers() {
       const serverIndex = header.findIndex(h => h.includes('servidor') || h === 'server');
       const planIndex = header.findIndex(h => h.includes('plano') || h === 'plan');
       const valueIndex = header.findIndex(h => h.includes('valor') || h === 'value' || h === 'preco' || h === 'price');
+      const userIndex = header.findIndex(h => h.includes('usuario') || h === 'user' || h.includes('responsavel'));
       const dueDateIndex = header.findIndex(h => h.includes('vencimento') || h.includes('due') || h.includes('expira'));
       const startDateIndex = header.findIndex(h => h.includes('cadastro') || h.includes('start') || h.includes('inicio'));
       const statusIndex = header.findIndex(h => h.includes('status'));
@@ -402,6 +416,13 @@ export default function Customers() {
           if (!isNaN(parsed)) customPrice = parsed;
         }
 
+        // Match user/responsible by name
+        const userName = userIndex >= 0 ? values[userIndex] : '';
+        const matchedUser = allProfiles?.find(p => 
+          p.full_name?.toLowerCase().includes(userName.toLowerCase()) ||
+          userName.toLowerCase().includes(p.full_name?.toLowerCase() || '')
+        );
+
         parsedData.push({
           name,
           phone: phone.replace(/\D/g, ''),
@@ -410,6 +431,8 @@ export default function Customers() {
           plan_id: matchedPlan?.id || null,
           plan_name: planName,
           custom_price: customPrice,
+          created_by: matchedUser?.user_id || null,
+          user_name: userName,
           due_date: parseDate(dueDate) || null,
           start_date: parseDate(startDate) || new Date().toISOString().split('T')[0],
           status,
@@ -438,7 +461,7 @@ export default function Customers() {
 
     try {
       for (const row of importData) {
-        const { server_name, plan_name, ...customerData } = row;
+        const { server_name, plan_name, user_name, ...customerData } = row;
         
         // Calculate due_date if not provided
         if (!customerData.due_date && customerData.plan_id) {
@@ -457,8 +480,10 @@ export default function Customers() {
           customerData.due_date = dueDateObj.toISOString().split('T')[0];
         }
 
-        // Add created_by to track who imported
-        customerData.created_by = user?.id;
+        // Use specified user or fallback to current user
+        if (!customerData.created_by) {
+          customerData.created_by = user?.id;
+        }
 
         const { error } = await supabase.from('customers').insert(customerData);
         
@@ -490,10 +515,11 @@ export default function Customers() {
   };
 
   const downloadTemplate = () => {
-    const template = 'nome;telefone;servidor;plano;valor;vencimento;cadastro;status\n' +
-      'João Silva;11999998888;NATV;Mensal;35.00;31/01/2025;01/01/2025;ativa\n' +
-      'Maria Santos;11999997777;NATV;Anual;280.00;31/12/2025;15/01/2025;ativa\n' +
-      'Carlos Oliveira;11999996666;NATV;Trimestral;;30/03/2025;01/01/2025;ativa';
+    const currentUserName = user?.user_metadata?.full_name || 'Alex';
+    const template = 'nome;telefone;servidor;plano;valor;usuario;vencimento;cadastro;status\n' +
+      `João Silva;11999998888;NATV;Mensal;35.00;${currentUserName};31/01/2025;01/01/2025;ativa\n` +
+      `Maria Santos;11999997777;NATV;Anual;280.00;${currentUserName};31/12/2025;15/01/2025;ativa\n` +
+      `Carlos Oliveira;11999996666;NATV;Trimestral;;${currentUserName};30/03/2025;01/01/2025;ativa`;
     
     const blob = new Blob([template], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
@@ -928,7 +954,7 @@ export default function Customers() {
                         </span>
                       </TableCell>
                       <TableCell className="text-muted-foreground text-sm">
-                        {customer.profiles?.full_name || '-'}
+                        {customer.creator?.full_name || '-'}
                       </TableCell>
                       <TableCell>{getStatusBadge(customer.status)}</TableCell>
                       <TableCell className="text-right">

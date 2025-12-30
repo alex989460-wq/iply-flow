@@ -94,6 +94,13 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "customers_created_by_profiles_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
             foreignKeyName: "customers_plan_id_fkey"
             columns: ["plan_id"]
             isOneToOne: false
