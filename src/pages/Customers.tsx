@@ -64,6 +64,7 @@ export default function Customers() {
     notes: '',
     due_date: '',
     custom_price: '',
+    created_by: '',
   });
 
   // Import states
@@ -246,7 +247,7 @@ export default function Customers() {
   });
 
   const resetForm = () => {
-    setFormData({ name: '', phone: '', server_id: '', plan_id: '', status: 'ativa', notes: '', due_date: '', custom_price: '' });
+    setFormData({ name: '', phone: '', server_id: '', plan_id: '', status: 'ativa', notes: '', due_date: '', custom_price: '', created_by: user?.id || '' });
     setEditingCustomer(null);
   };
 
@@ -261,6 +262,7 @@ export default function Customers() {
       notes: customer.notes || '',
       due_date: customer.due_date || '',
       custom_price: customer.custom_price ? String(customer.custom_price) : '',
+      created_by: customer.created_by || '',
     });
     setIsOpen(true);
   };
@@ -286,6 +288,7 @@ export default function Customers() {
       server_id: formData.server_id || null,
       plan_id: formData.plan_id || null,
       custom_price: formData.custom_price ? parseFloat(formData.custom_price) : null,
+      created_by: formData.created_by || user?.id || null,
     };
     if (editingCustomer) {
       updateMutation.mutate({ id: editingCustomer.id, data: submitData });
@@ -777,7 +780,7 @@ export default function Customers() {
                           : 'Deixe em branco para calcular automaticamente pelo plano.'}
                       </p>
                     </div>
-                    <div className="space-y-2 col-span-2">
+                    <div className="space-y-2">
                       <Label>Status</Label>
                       <Select
                         value={formData.status}
@@ -790,6 +793,24 @@ export default function Customers() {
                           <SelectItem value="ativa">Ativa</SelectItem>
                           <SelectItem value="inativa">Inativa</SelectItem>
                           <SelectItem value="suspensa">Suspensa</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Usuário Responsável</Label>
+                      <Select
+                        value={formData.created_by}
+                        onValueChange={(value) => setFormData({ ...formData, created_by: value })}
+                      >
+                        <SelectTrigger className="bg-secondary/50">
+                          <SelectValue placeholder="Selecione o usuário" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {allProfiles?.map((profile) => (
+                            <SelectItem key={profile.user_id} value={profile.user_id}>
+                              {profile.full_name || 'Sem nome'}
+                            </SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
                     </div>
