@@ -29,14 +29,14 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Loader2, CreditCard, Check, X } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { Plus, Loader2, CreditCard, Pencil, Trash2 } from 'lucide-react';
 import type { Database } from '@/integrations/supabase/types';
 
 type PaymentMethod = Database['public']['Enums']['payment_method'];
 
 export default function Payments() {
   const [isOpen, setIsOpen] = useState(false);
+  const [editingPayment, setEditingPayment] = useState<any | null>(null);
   const [formData, setFormData] = useState({
     customer_id: '',
     amount: 0,
@@ -75,12 +75,13 @@ export default function Payments() {
     mutationFn: async (data: typeof formData) => {
       const { error } = await supabase.from('payments').insert({
         ...data,
-        confirmed: false,
+        confirmed: true,
       });
       if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['payments'] });
+      queryClient.invalidateQueries({ queryKey: ['customers'] });
       setIsOpen(false);
       resetForm();
       toast({ title: 'Pagamento registrado com sucesso!' });
@@ -90,21 +91,39 @@ export default function Payments() {
     },
   });
 
-  const confirmMutation = useMutation({
-    mutationFn: async (id: string) => {
+  const updateMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: typeof formData }) => {
       const { error } = await supabase
         .from('payments')
-        .update({ confirmed: true })
+        .update(data)
         .eq('id', id);
       if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['payments'] });
-      queryClient.invalidateQueries({ queryKey: ['customers'] });
-      toast({ title: 'Pagamento confirmado! Plano renovado.' });
+      setIsOpen(false);
+      resetForm();
+      toast({ title: 'Pagamento atualizado com sucesso!' });
     },
     onError: (error: Error) => {
-      toast({ title: 'Erro ao confirmar pagamento', description: error.message, variant: 'destructive' });
+      toast({ title: 'Erro ao atualizar pagamento', description: error.message, variant: 'destructive' });
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from('payments')
+        .delete()
+        .eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['payments'] });
+      toast({ title: 'Pagamento excluído com sucesso!' });
+    },
+    onError: (error: Error) => {
+      toast({ title: 'Erro ao excluir pagamento', description: error.message, variant: 'destructive' });
     },
   });
 
@@ -115,6 +134,7 @@ export default function Payments() {
       method: 'pix',
       payment_date: new Date().toISOString().split('T')[0],
     });
+    setEditingPayment(null);
   };
 
   const handleCustomerChange = (customerId: string) => {
@@ -126,9 +146,24 @@ export default function Payments() {
     });
   };
 
+  const handleEdit = (payment: any) => {
+    setEditingPayment(payment);
+    setFormData({
+      customer_id: payment.customer_id,
+      amount: payment.amount,
+      method: payment.method,
+      payment_date: payment.payment_date,
+    });
+    setIsOpen(true);
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    createMutation.mutate(formData);
+    if (editingPayment) {
+      updateMutation.mutate({ id: editingPayment.id, data: formData });
+    } else {
+      createMutation.mutate(formData);
+    }
   };
 
   const getMethodLabel = (method: PaymentMethod) => {
@@ -157,7 +192,7 @@ export default function Payments() {
             </DialogTrigger>
             <DialogContent className="bg-card border-border">
               <DialogHeader>
-                <DialogTitle>Registrar Pagamento</DialogTitle>
+                <DialogTitle>{editingPayment ? 'Editar Pagamento' : 'Registrar Pagamento'}</DialogTitle>
               </DialogHeader>
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="space-y-2">
@@ -165,6 +200,7 @@ export default function Payments() {
                   <Select
                     value={formData.customer_id}
                     onValueChange={handleCustomerChange}
+                    disabled={!!editingPayment}
                   >
                     <SelectTrigger className="bg-secondary/50">
                       <SelectValue placeholder="Selecione o cliente" />
@@ -219,12 +255,12 @@ export default function Payments() {
                 <Button 
                   type="submit" 
                   className="w-full" 
-                  disabled={createMutation.isPending || !formData.customer_id}
+                  disabled={createMutation.isPending || updateMutation.isPending || !formData.customer_id}
                 >
-                  {createMutation.isPending && (
+                  {(createMutation.isPending || updateMutation.isPending) && (
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                   )}
-                  Registrar
+                  {editingPayment ? 'Salvar Alterações' : 'Registrar'}
                 </Button>
               </form>
             </DialogContent>
@@ -250,7 +286,6 @@ export default function Payments() {
                     <TableHead>Valor</TableHead>
                     <TableHead>Método</TableHead>
                     <TableHead>Data</TableHead>
-                    <TableHead>Status</TableHead>
                     <TableHead className="text-right">Ações</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -265,37 +300,25 @@ export default function Payments() {
                       <TableCell>
                         {new Date(payment.payment_date).toLocaleDateString('pt-BR')}
                       </TableCell>
-                      <TableCell>
-                        {payment.confirmed ? (
-                          <span className="badge-online">
-                            <Check className="w-3 h-3" />
-                            Confirmado
-                          </span>
-                        ) : (
-                          <span className="badge-maintenance">
-                            <X className="w-3 h-3" />
-                            Pendente
-                          </span>
-                        )}
-                      </TableCell>
                       <TableCell className="text-right">
-                        {!payment.confirmed && (
+                        <div className="flex items-center justify-end gap-1">
                           <Button
-                            variant="success"
-                            size="sm"
-                            onClick={() => confirmMutation.mutate(payment.id)}
-                            disabled={confirmMutation.isPending}
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleEdit(payment)}
                           >
-                            {confirmMutation.isPending ? (
-                              <Loader2 className="w-4 h-4 animate-spin" />
-                            ) : (
-                              <>
-                                <Check className="w-4 h-4 mr-1" />
-                                Confirmar
-                              </>
-                            )}
+                            <Pencil className="w-4 h-4" />
                           </Button>
-                        )}
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="text-destructive hover:text-destructive"
+                            onClick={() => deleteMutation.mutate(payment.id)}
+                            disabled={deleteMutation.isPending}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}
