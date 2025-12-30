@@ -31,6 +31,7 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
+import { format } from 'date-fns';
 import { 
   Loader2, 
   MessageSquare, 
@@ -212,7 +213,7 @@ export default function Billing() {
       const tomorrow = new Date(today);
       tomorrow.setDate(tomorrow.getDate() + 1);
 
-      // Fetch ALL active customers using pagination (bypass 1000 limit)
+      // Fetch ALL customers (ativa + inativa) using pagination (bypass 1000 limit)
       const pageSize = 1000;
       let allCustomers: any[] = [];
       let page = 0;
@@ -222,7 +223,7 @@ export default function Billing() {
         const { data, error } = await supabase
           .from('customers')
           .select('*, plans(plan_name)')
-          .eq('status', 'ativa')
+          .in('status', ['ativa', 'inativa'])
           .range(page * pageSize, (page + 1) * pageSize - 1);
 
         if (error) throw error;
@@ -236,15 +237,9 @@ export default function Billing() {
         }
       }
 
-      const todayStr = today.toISOString().split('T')[0];
-      const yesterdayStr = yesterday.toISOString().split('T')[0];
-      const tomorrowStr = tomorrow.toISOString().split('T')[0];
-
-      console.log('Billing dates:', { todayStr, yesterdayStr, tomorrowStr });
-      console.log('Total active customers:', allCustomers.length);
-      console.log('D-1 (tomorrow):', allCustomers.filter(c => c.due_date === tomorrowStr).length);
-      console.log('D0 (today):', allCustomers.filter(c => c.due_date === todayStr).length);
-      console.log('D+1 (yesterday):', allCustomers.filter(c => c.due_date === yesterdayStr).length);
+      const todayStr = format(today, 'yyyy-MM-dd');
+      const yesterdayStr = format(yesterday, 'yyyy-MM-dd');
+      const tomorrowStr = format(tomorrow, 'yyyy-MM-dd');
 
       return {
         dminus1: allCustomers.filter(c => c.due_date === tomorrowStr) || [],
