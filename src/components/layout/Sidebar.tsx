@@ -96,9 +96,9 @@ export default function Sidebar() {
           {!collapsed && user && (
             <div className="px-3 py-2">
               <p className="text-sm font-medium text-foreground truncate">
-                {user.email}
+                {user.user_metadata?.full_name || user.email?.split('@')[0] || 'Usuário'}
               </p>
-              <p className="text-xs text-muted-foreground">Administrador</p>
+              <p className="text-xs text-muted-foreground truncate">{user.email}</p>
             </div>
           )}
           <button
