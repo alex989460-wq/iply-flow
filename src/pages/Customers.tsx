@@ -298,6 +298,16 @@ export default function Customers() {
       const nextDueDateStr = format(newDueDate, 'yyyy-MM-dd');
 
       // Enviar mensagem de confirmação via WhatsApp se solicitado
+      let sendMessageRequested = false;
+      let departmentConfigured = false;
+      let messageSent = false;
+      let messageError: string | null = null;
+
+      if (sendMessage) {
+        sendMessageRequested = true;
+        departmentConfigured = Boolean(zapSettings?.selected_department_id);
+      }
+
       if (sendMessage && zapSettings?.selected_department_id) {
         const serverName = customer.servers?.server_name || '-';
         const formattedDueDate = format(newDueDate, "dd/MM/yyyy", { locale: ptBR });
@@ -319,11 +329,17 @@ export default function Customers() {
           });
 
           if (error) {
+            messageError = error.message;
             console.error('Erro ao enviar mensagem WhatsApp:', error);
+          } else if (!data?.success) {
+            messageError = data?.error || 'Falha ao enviar mensagem.';
+            console.error('Falha ao enviar mensagem WhatsApp:', data);
           } else {
+            messageSent = true;
             console.log('Mensagem de confirmação enviada:', data);
           }
         } catch (msgError) {
+          messageError = msgError instanceof Error ? msgError.message : 'Erro desconhecido ao enviar mensagem.';
           console.error('Erro ao enviar mensagem:', msgError);
         }
       }
@@ -332,6 +348,10 @@ export default function Customers() {
         customerId,
         planId,
         nextDueDate: nextDueDateStr,
+        sendMessageRequested,
+        departmentConfigured,
+        messageSent,
+        messageError,
       };
     },
     onSuccess: (result) => {
@@ -371,10 +391,25 @@ export default function Customers() {
       setCustomAmount('');
       setSendConfirmationMessage(true);
 
-      const successMessage = sendConfirmationMessage && zapSettings?.selected_department_id
-        ? 'Renovação registrada! Mensagem de confirmação enviada.'
-        : 'Renovação registrada! Pagamento pendente criado.';
-      toast({ title: successMessage });
+      if (result?.sendMessageRequested) {
+        if (!result.departmentConfigured) {
+          toast({
+            title: 'Renovação registrada! Mensagem não enviada.',
+            description: 'Configure um departamento nas configurações de WhatsApp para habilitar o envio.',
+            variant: 'destructive',
+          });
+        } else if (result.messageSent) {
+          toast({ title: 'Renovação registrada! Mensagem de confirmação enviada.' });
+        } else {
+          toast({
+            title: 'Renovação registrada, mas a mensagem falhou.',
+            description: result.messageError || 'Não foi possível enviar a confirmação no WhatsApp.',
+            variant: 'destructive',
+          });
+        }
+      } else {
+        toast({ title: 'Renovação registrada! Pagamento pendente criado.' });
+      }
     },
     onError: (error: Error) => {
       toast({ title: 'Erro ao renovar plano', description: error.message, variant: 'destructive' });
