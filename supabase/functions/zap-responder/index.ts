@@ -777,14 +777,15 @@ async function enviarMensagemTexto(
   try {
     console.log('Sending text message...', { departmentId, number, text });
     
-    // WhatsApp Official API expects text as object { body: "message" }
+    // Zap Responder API costuma aceitar o texto como string (ele monta o payload oficial internamente)
     const body = {
       type: 'text',
       number,
-      text: {
-        body: text,
-      },
+      text,
     };
+
+    console.log('Sending text message payload to Zap Responder:', body);
+
     
     const response = await fetch(`${apiBaseUrl}/whatsapp/message/${departmentId}`, {
       method: 'POST',
