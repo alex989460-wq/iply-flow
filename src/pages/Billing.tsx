@@ -48,10 +48,13 @@ import {
   X,
   FileText,
   Play,
-  Trash2
+  Trash2,
+  BarChart3
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { Database } from '@/integrations/supabase/types';
+import { SendProgressModal } from '@/components/billing/SendProgressModal';
+import { BillingReportsTab } from '@/components/billing/BillingReportsTab';
 
 type BillingType = Database['public']['Enums']['billing_type'];
 
@@ -120,6 +123,31 @@ export default function Billing() {
   const [isDeletingLog, setIsDeletingLog] = useState(false);
   const [departmentsLoaded, setDepartmentsLoaded] = useState(false);
   const [sessionsLoaded, setSessionsLoaded] = useState(false);
+
+  // Progress modal state
+  const [progressModalOpen, setProgressModalOpen] = useState(false);
+  const [progressResults, setProgressResults] = useState<Array<{
+    customer: string;
+    phone: string;
+    billingType: string;
+    template: string;
+    status: 'sent' | 'error' | 'pending';
+    error?: string;
+  }>>([]);
+  const [progressStats, setProgressStats] = useState({ sent: 0, errors: 0, skipped: 0, total: 0 });
+  const [isProgressComplete, setIsProgressComplete] = useState(false);
+
+  // Last send results for reports tab
+  const [lastSendResults, setLastSendResults] = useState<Array<{
+    customer: string;
+    phone: string;
+    billingType: string;
+    template: string;
+    status: 'sent' | 'error';
+    error?: string;
+  }>>([]);
+  const [lastBillingType, setLastBillingType] = useState('');
+  const [lastSentAt, setLastSentAt] = useState<Date | undefined>();
 
   const { data: billingLogs, isLoading } = useQuery({
     queryKey: ['billing-logs'],
@@ -584,8 +612,29 @@ export default function Billing() {
       return;
     }
 
+    // Get total count for progress
+    let totalToSend = 0;
+    if (billingType === 'D-1') {
+      totalToSend = pendingBillings?.dminus1.length || 0;
+    } else if (billingType === 'D0') {
+      totalToSend = pendingBillings?.d0.length || 0;
+    } else if (billingType === 'D+1') {
+      totalToSend = pendingBillings?.dplus1.length || 0;
+    } else {
+      totalToSend = (pendingBillings?.dminus1.length || 0) + 
+                    (pendingBillings?.d0.length || 0) + 
+                    (pendingBillings?.dplus1.length || 0);
+    }
+
+    // Reset and open progress modal
+    setProgressResults([]);
+    setProgressStats({ sent: 0, errors: 0, skipped: 0, total: totalToSend });
+    setIsProgressComplete(false);
+    setProgressModalOpen(true);
+
     setIsSending(true);
     setSendingType(billingType || 'all');
+    
     try {
       const { data, error } = await supabase.functions.invoke('send-billing', {
         body: billingType ? { billing_type: billingType } : {},
@@ -597,13 +646,34 @@ export default function Billing() {
           description: error.message,
           variant: 'destructive',
         });
+        setProgressModalOpen(false);
       } else {
         const results = data?.results;
-        const typeLabel = billingType || 'Todas';
-        toast({
-          title: `Cobranças ${typeLabel} processadas!`,
-          description: `Enviadas: ${results?.sent || 0} | Ignoradas: ${results?.skipped || 0} | Erros: ${results?.errors || 0}`,
+        
+        // Update progress with all results at once
+        const formattedResults = (results?.details || []).map((detail: any) => ({
+          customer: detail.customer,
+          phone: detail.phone,
+          billingType: detail.billingType,
+          template: detail.template,
+          status: detail.status as 'sent' | 'error',
+          error: detail.error,
+        }));
+        
+        setProgressResults(formattedResults);
+        setProgressStats({
+          sent: results?.sent || 0,
+          errors: results?.errors || 0,
+          skipped: results?.skipped || 0,
+          total: totalToSend
         });
+        setIsProgressComplete(true);
+
+        // Save for reports tab
+        setLastSendResults(formattedResults);
+        setLastBillingType(billingType || 'all');
+        setLastSentAt(new Date());
+        
         queryClient.invalidateQueries({ queryKey: ['billing-logs'] });
         queryClient.invalidateQueries({ queryKey: ['pending-billings'] });
       }
@@ -613,6 +683,7 @@ export default function Billing() {
         description: 'Não foi possível processar as cobranças',
         variant: 'destructive',
       });
+      setProgressModalOpen(false);
     } finally {
       setIsSending(false);
       setSendingType(null);
@@ -678,11 +749,15 @@ export default function Billing() {
         </div>
 
         <Tabs defaultValue="config" className="space-y-4">
-          <TabsList className="grid w-full grid-cols-5">
+          <TabsList className="grid w-full grid-cols-6">
             <TabsTrigger value="config">Configuração</TabsTrigger>
             <TabsTrigger value="departamentos">Departamentos</TabsTrigger>
             <TabsTrigger value="conversas">Conversas</TabsTrigger>
             <TabsTrigger value="templates">Templates</TabsTrigger>
+            <TabsTrigger value="relatorios">
+              <BarChart3 className="w-4 h-4 mr-1" />
+              Relatórios
+            </TabsTrigger>
             <TabsTrigger value="historico">Histórico</TabsTrigger>
           </TabsList>
 
@@ -1345,8 +1420,30 @@ export default function Billing() {
               </CardContent>
             </Card>
           </TabsContent>
+
+          {/* Tab: Relatórios */}
+          <TabsContent value="relatorios">
+            <BillingReportsTab 
+              lastResults={lastSendResults}
+              lastBillingType={lastBillingType}
+              lastSentAt={lastSentAt}
+            />
+          </TabsContent>
         </Tabs>
       </div>
+
+      {/* Progress Modal */}
+      <SendProgressModal
+        open={progressModalOpen}
+        onClose={() => setProgressModalOpen(false)}
+        billingType={sendingType || 'all'}
+        totalToSend={progressStats.total}
+        results={progressResults}
+        isComplete={isProgressComplete}
+        sent={progressStats.sent}
+        errors={progressStats.errors}
+        skipped={progressStats.skipped}
+      />
     </DashboardLayout>
   );
 }
