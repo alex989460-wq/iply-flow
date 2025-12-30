@@ -96,32 +96,40 @@ export default function Customers() {
   const { data: customers, isLoading } = useQuery({
     queryKey: ['customers'],
     queryFn: async () => {
-      // Fetch all customers without the 1000 limit using pagination
+      // Fetch customers with optimized parallel pagination
       const pageSize = 1000;
-      let allData: any[] = [];
-      let page = 0;
-      let hasMore = true;
-
-      while (hasMore) {
-        const { data, error } = await supabase
+      
+      // First, get total count
+      const { count, error: countError } = await supabase
+        .from('customers')
+        .select('*', { count: 'exact', head: true });
+      
+      if (countError) throw countError;
+      
+      const totalPages = Math.ceil((count || 0) / pageSize);
+      
+      if (totalPages === 0) return [];
+      
+      // Fetch all pages in parallel
+      const pagePromises = Array.from({ length: totalPages }, (_, page) =>
+        supabase
           .from('customers')
           .select('*, plans(plan_name, duration_days, price), servers(server_name), creator:profiles!customers_created_by_profiles_fkey(full_name)')
           .order('created_at', { ascending: false })
-          .range(page * pageSize, (page + 1) * pageSize - 1);
-        
-        if (error) throw error;
-
-        if (data && data.length > 0) {
-          allData = [...allData, ...data];
-          hasMore = data.length === pageSize;
-          page++;
-        } else {
-          hasMore = false;
-        }
+          .range(page * pageSize, (page + 1) * pageSize - 1)
+      );
+      
+      const results = await Promise.all(pagePromises);
+      
+      const allData: any[] = [];
+      for (const result of results) {
+        if (result.error) throw result.error;
+        if (result.data) allData.push(...result.data);
       }
-
+      
       return allData;
     },
+    staleTime: 30000, // Cache for 30 seconds
   });
 
   // Fetch all profiles for user assignment
@@ -359,7 +367,7 @@ export default function Customers() {
   };
 
   const handleRenewSubmit = () => {
-    if (!renewingCustomer || !selectedPlanId) return;
+    if (!renewingCustomer || !selectedPlanId || renewMutation.isPending) return;
     const amount = customAmount ? parseFloat(customAmount) : (plans?.find(p => p.id === selectedPlanId)?.price || 0);
     renewMutation.mutate({ 
       customerId: renewingCustomer.id, 
