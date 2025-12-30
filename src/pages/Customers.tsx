@@ -50,6 +50,7 @@ type CustomerStatus = Database['public']['Enums']['customer_status'];
 export default function Customers() {
   const [isOpen, setIsOpen] = useState(false);
   const [isRenewOpen, setIsRenewOpen] = useState(false);
+  const [isBulkRenewOpen, setIsBulkRenewOpen] = useState(false);
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [renewingCustomer, setRenewingCustomer] = useState<any | null>(null);
   const [selectedPlanId, setSelectedPlanId] = useState('');
@@ -62,6 +63,9 @@ export default function Customers() {
   const [pageSize, setPageSize] = useState<number>(50);
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [searchParams, setSearchParams] = useSearchParams();
+  const [selectedCustomerIds, setSelectedCustomerIds] = useState<Set<string>>(new Set());
+  const [bulkRenewProgress, setBulkRenewProgress] = useState(0);
+  const [isBulkRenewing, setIsBulkRenewing] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     phone: '',
@@ -454,6 +458,154 @@ export default function Customers() {
       amount, 
       sendMessage: sendConfirmationMessage 
     });
+  };
+
+  // Bulk renew handler
+  const handleBulkRenew = async () => {
+    if (selectedCustomerIds.size === 0 || !selectedPlanId || isBulkRenewing) return;
+    
+    setIsBulkRenewing(true);
+    setBulkRenewProgress(0);
+    
+    const selectedCustomers = customers?.filter(c => selectedCustomerIds.has(c.id)) || [];
+    const plan = plans?.find(p => p.id === selectedPlanId);
+    if (!plan) {
+      toast({ title: 'Plano não encontrado', variant: 'destructive' });
+      setIsBulkRenewing(false);
+      return;
+    }
+    
+    const amount = customAmount ? parseFloat(customAmount) : plan.price;
+    let successCount = 0;
+    let errorCount = 0;
+    
+    for (let i = 0; i < selectedCustomers.length; i++) {
+      const customer = selectedCustomers[i];
+      
+      try {
+        // Fetch latest customer data
+        const { data: latestCustomer, error: fetchError } = await supabase
+          .from('customers')
+          .select('id, name, phone, due_date, username, notes, servers(server_name)')
+          .eq('id', customer.id)
+          .single();
+        
+        if (fetchError || !latestCustomer) {
+          errorCount++;
+          continue;
+        }
+        
+        // Calculate new due date
+        const startOfToday = new Date();
+        startOfToday.setHours(0, 0, 0, 0);
+        const baseDate = new Date(`${latestCustomer.due_date}T12:00:00`);
+        const anchorDate = baseDate > startOfToday ? baseDate : startOfToday;
+        const newDueDate = new Date(anchorDate);
+        newDueDate.setDate(newDueDate.getDate() + plan.duration_days);
+        
+        // Update customer
+        const { error: updateError } = await supabase
+          .from('customers')
+          .update({
+            due_date: format(newDueDate, 'yyyy-MM-dd'),
+            status: 'ativa',
+            plan_id: selectedPlanId,
+          })
+          .eq('id', customer.id);
+        
+        if (updateError) {
+          errorCount++;
+          continue;
+        }
+        
+        // Create payment
+        const { error: paymentError } = await supabase
+          .from('payments')
+          .insert({
+            customer_id: customer.id,
+            amount: amount,
+            method: 'pix',
+            payment_date: format(new Date(), 'yyyy-MM-dd'),
+            confirmed: true,
+          });
+        
+        if (paymentError) {
+          console.error('Payment error for', customer.name, paymentError);
+        }
+        
+        // Send WhatsApp message if enabled
+        if (sendConfirmationMessage && zapSettings?.selected_department_id) {
+          const serverName = latestCustomer.servers?.server_name || '-';
+          const formattedDueDate = format(newDueDate, "dd/MM/yyyy", { locale: ptBR });
+          const formattedTime = format(new Date(), "HH:mm", { locale: ptBR });
+          
+          const message = `✅ Olá, *${latestCustomer.name}*. Obrigado por confirmar seu pagamento. Segue abaixo os dados da sua assinatura:\n\n==========================\n📅 Próx. Vencimento: *${formattedDueDate} - ${formattedTime} hrs*\n💰 Valor: *${Number(amount).toFixed(2)}*\n👤 Usuário: *${latestCustomer.username || '-'}*\n📦 Plano: *${plan.plan_name}*\n🔌 Status: *Ativo*\n💎 Obs: ${latestCustomer.notes || '-'}\n⚡: *${serverName}*\n==========================`;
+          
+          const phone = latestCustomer.phone.replace(/\D/g, '');
+          const phoneWithCode = phone.startsWith('55') ? phone : `55${phone}`;
+          
+          try {
+            await supabase.functions.invoke('zap-responder', {
+              body: {
+                action: 'enviar-mensagem',
+                department_id: zapSettings.selected_department_id,
+                number: phoneWithCode,
+                text: message,
+              },
+            });
+          } catch (msgError) {
+            console.error('Message error for', customer.name, msgError);
+          }
+        }
+        
+        successCount++;
+      } catch (error) {
+        console.error('Error renewing', customer.name, error);
+        errorCount++;
+      }
+      
+      setBulkRenewProgress(Math.round(((i + 1) / selectedCustomers.length) * 100));
+    }
+    
+    // Cleanup
+    queryClient.invalidateQueries({ queryKey: ['customers'] });
+    queryClient.invalidateQueries({ queryKey: ['payments'] });
+    setIsBulkRenewing(false);
+    setBulkRenewProgress(0);
+    setIsBulkRenewOpen(false);
+    setSelectedCustomerIds(new Set());
+    setSelectedPlanId('');
+    setCustomAmount('');
+    setSendConfirmationMessage(true);
+    
+    toast({
+      title: 'Renovação em massa concluída!',
+      description: `${successCount} renovados${errorCount > 0 ? `, ${errorCount} erros` : ''}.`,
+    });
+  };
+
+  const toggleSelectCustomer = (customerId: string) => {
+    const newSet = new Set(selectedCustomerIds);
+    if (newSet.has(customerId)) {
+      newSet.delete(customerId);
+    } else {
+      newSet.add(customerId);
+    }
+    setSelectedCustomerIds(newSet);
+  };
+
+  const toggleSelectAll = () => {
+    if (!paginatedCustomers) return;
+    const allSelected = paginatedCustomers.every((c: any) => selectedCustomerIds.has(c.id));
+    if (allSelected) {
+      const newSet = new Set(selectedCustomerIds);
+      paginatedCustomers.forEach((c: any) => newSet.delete(c.id));
+      setSelectedCustomerIds(newSet);
+    } else {
+      const newSet = new Set(selectedCustomerIds);
+      paginatedCustomers.forEach((c: any) => newSet.add(c.id));
+      setSelectedCustomerIds(newSet);
+    }
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -1314,7 +1466,108 @@ export default function Customers() {
             </Select>
             <span className="text-sm text-muted-foreground whitespace-nowrap">Registros</span>
           </div>
+          {selectedCustomerIds.size > 0 && (
+            <Button 
+              variant="glow" 
+              onClick={() => setIsBulkRenewOpen(true)}
+              disabled={isBulkRenewing}
+            >
+              <RefreshCw className="w-4 h-4 mr-2" />
+              Renovar {selectedCustomerIds.size} selecionado(s)
+            </Button>
+          )}
         </div>
+
+        {/* Bulk Renew Dialog */}
+        <Dialog open={isBulkRenewOpen} onOpenChange={(open) => { if (!isBulkRenewing) setIsBulkRenewOpen(open); }}>
+          <DialogContent className="bg-card border-border">
+            <DialogHeader>
+              <DialogTitle>Renovar {selectedCustomerIds.size} Clientes</DialogTitle>
+              <DialogDescription>
+                Renove todos os clientes selecionados de uma vez.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label>Plano</Label>
+                <Select value={selectedPlanId} onValueChange={(value) => {
+                  setSelectedPlanId(value);
+                  const plan = plans?.find(p => p.id === value);
+                  setCustomAmount(plan ? String(plan.price) : '');
+                }}>
+                  <SelectTrigger className="bg-secondary/50">
+                    <SelectValue placeholder="Selecione o plano" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {plans?.map((plan) => (
+                      <SelectItem key={plan.id} value={plan.id}>
+                        {plan.plan_name} - R${Number(plan.price).toFixed(2)} ({plan.duration_days} dias)
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Valor do Pagamento (R$)</Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={customAmount}
+                  onChange={(e) => setCustomAmount(e.target.value)}
+                  placeholder="Valor personalizado"
+                  className="bg-secondary/50"
+                />
+              </div>
+              
+              <div className="flex items-start space-x-3 p-3 bg-secondary/30 rounded-lg">
+                <Checkbox
+                  id="bulkSendConfirmation"
+                  checked={sendConfirmationMessage}
+                  onCheckedChange={(checked) => setSendConfirmationMessage(checked === true)}
+                  disabled={!zapSettings?.selected_department_id}
+                />
+                <div className="grid gap-1.5 leading-none">
+                  <label
+                    htmlFor="bulkSendConfirmation"
+                    className="text-sm font-medium leading-none flex items-center gap-2"
+                  >
+                    <MessageSquare className="w-4 h-4 text-primary" />
+                    Enviar confirmação via WhatsApp
+                  </label>
+                  <p className="text-xs text-muted-foreground">
+                    {zapSettings?.selected_department_id 
+                      ? 'Envia mensagem para cada cliente.'
+                      : 'Configure o departamento do ZapResponder primeiro.'}
+                  </p>
+                </div>
+              </div>
+
+              {isBulkRenewing ? (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between text-sm">
+                    <span>Renovando clientes...</span>
+                    <span className="font-medium">{bulkRenewProgress}%</span>
+                  </div>
+                  <div className="w-full bg-secondary rounded-full h-3 overflow-hidden">
+                    <div 
+                      className="bg-primary h-full transition-all duration-300 ease-out"
+                      style={{ width: `${bulkRenewProgress}%` }}
+                    />
+                  </div>
+                </div>
+              ) : (
+                <Button 
+                  onClick={handleBulkRenew} 
+                  className="w-full"
+                  disabled={!selectedPlanId}
+                >
+                  Confirmar Renovação em Massa
+                </Button>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
 
         <Card className="glass-card border-border/50">
           <CardContent className="p-0 overflow-x-auto">
@@ -1331,6 +1584,12 @@ export default function Customers() {
               <Table>
                 <TableHeader>
                   <TableRow className="border-border hover:bg-transparent">
+                    <TableHead className="w-10">
+                      <Checkbox 
+                        checked={paginatedCustomers?.length > 0 && paginatedCustomers.every((c: any) => selectedCustomerIds.has(c.id))}
+                        onCheckedChange={toggleSelectAll}
+                      />
+                    </TableHead>
                     <TableHead>Nome</TableHead>
                     <TableHead>Telefone</TableHead>
                     <TableHead>Servidor</TableHead>
@@ -1345,6 +1604,12 @@ export default function Customers() {
                 <TableBody>
                   {paginatedCustomers?.map((customer: any) => (
                     <TableRow key={customer.id} className="table-row-hover border-border">
+                      <TableCell>
+                        <Checkbox 
+                          checked={selectedCustomerIds.has(customer.id)}
+                          onCheckedChange={() => toggleSelectCustomer(customer.id)}
+                        />
+                      </TableCell>
                       <TableCell className="font-medium">{customer.name}</TableCell>
                       <TableCell className="font-mono text-sm">{customer.phone}</TableCell>
                       <TableCell>{customer.servers?.server_name || '-'}</TableCell>
