@@ -109,8 +109,12 @@ const ChatInterface = forwardRef<HTMLDivElement, ChatInterfaceProps>(({ departme
                           conv.lead?.nome || 
                           'Contato';
           
+          // Use the most recent date available
+          const lastMsgDate = conv.lastMessage?.createdAt || conv.lastMessage?.updatedAt;
+          const convUpdatedAt = conv.updatedAt || lastMsgDate || conv.createdAt;
+          
           return {
-            _id: chatId || conv._id,
+            _id: `${chatId}_${conv._id}`, // Unique key combining chatId and mongoId
             mongoId: conv._id || conv.id || '',
             chatId: chatId,
             cliente: {
@@ -119,8 +123,15 @@ const ChatInterface = forwardRef<HTMLDivElement, ChatInterfaceProps>(({ departme
             },
             status: conv.isFechado ? 'closed' : (conv.status || 'open'),
             lastMessage: conv.lastMessage?.content || conv.lastMessage?.text || '',
-            updatedAt: conv.updatedAt,
+            updatedAt: convUpdatedAt,
           };
+        });
+
+        // Sort conversations by updatedAt (most recent first)
+        mappedConversations.sort((a, b) => {
+          const dateA = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
+          const dateB = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
+          return dateB - dateA;
         });
 
         setConversations(mappedConversations);
@@ -179,8 +190,10 @@ const ChatInterface = forwardRef<HTMLDivElement, ChatInterfaceProps>(({ departme
         if (!error && data?.success && data?.data) {
           const conv = data.data.conversation || data.data;
           const mongoId = conv._id || conv.id || '';
+          const lastMsgDate = conv.lastMessage?.createdAt || conv.lastMessage?.updatedAt;
+          const convUpdatedAt = conv.updatedAt || lastMsgDate || conv.createdAt || conv.atualizadoEm;
           foundConversations.push({
-            _id: phoneWithCode,
+            _id: `${phoneWithCode}_${mongoId}`, // Unique key
             mongoId: mongoId,
             chatId: conv.chatId || phoneWithCode,
             cliente: {
@@ -189,10 +202,16 @@ const ChatInterface = forwardRef<HTMLDivElement, ChatInterfaceProps>(({ departme
             },
             status: conv.isFechado ? 'closed' : (conv.status || 'open'),
             lastMessage: conv.lastMessage?.content || conv.lastMessage?.text || conv.ultimaMensagem || '',
-            updatedAt: conv.updatedAt || conv.atualizadoEm,
+            updatedAt: convUpdatedAt,
           });
         }
       }
+      // Sort by most recent
+      foundConversations.sort((a, b) => {
+        const dateA = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
+        const dateB = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
+        return dateB - dateA;
+      });
 
       setConversations(foundConversations);
       
