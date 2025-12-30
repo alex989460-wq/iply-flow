@@ -37,8 +37,9 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { 
   Plus, Pencil, Trash2, Loader2, Users, RefreshCw, Search, CalendarIcon,
-  Upload, Phone, FileText, Download
+  Upload, Phone, FileText, Download, MessageSquare
 } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -53,6 +54,7 @@ export default function Customers() {
   const [renewingCustomer, setRenewingCustomer] = useState<any | null>(null);
   const [selectedPlanId, setSelectedPlanId] = useState('');
   const [customAmount, setCustomAmount] = useState('');
+  const [sendConfirmationMessage, setSendConfirmationMessage] = useState(true);
   const [editingCustomer, setEditingCustomer] = useState<any | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -238,9 +240,12 @@ export default function Customers() {
   });
 
   const renewMutation = useMutation({
-    mutationFn: async ({ customerId, planId, amount }: { customerId: string; planId: string; amount: number }) => {
+    mutationFn: async ({ customerId, planId, amount, sendMessage }: { customerId: string; planId: string; amount: number; sendMessage: boolean }) => {
       const plan = plans?.find(p => p.id === planId);
       if (!plan) throw new Error('Plano não encontrado');
+      
+      const customer = customers?.find(c => c.id === customerId);
+      if (!customer) throw new Error('Cliente não encontrado');
       
       const newDueDate = new Date();
       newDueDate.setDate(newDueDate.getDate() + plan.duration_days);
@@ -265,6 +270,47 @@ export default function Customers() {
           confirmed: false,
         });
       if (paymentError) throw paymentError;
+
+      // Enviar mensagem de confirmação via WhatsApp se solicitado
+      if (sendMessage && zapSettings?.selected_department_id) {
+        const serverName = customer.servers?.server_name || '-';
+        const formattedDueDate = format(newDueDate, "dd/MM/yyyy", { locale: ptBR });
+        const formattedTime = format(new Date(), "HH:mm", { locale: ptBR });
+        
+        const message = `✅ Olá, *${customer.name}*. Obrigado por confirmar seu pagamento. Segue abaixo os dados da sua assinatura:
+
+==========================
+📅 Próx. Vencimento: *${formattedDueDate} - ${formattedTime} hrs*
+💰 Valor: *${amount.toFixed(2)}*
+👤 Usuário: *${customer.username || '-'}*
+📦 Plano: *${plan.plan_name}*
+🔌 Status: *Ativo*
+💎 Obs: ${customer.notes || '-'}
+⚡: *${serverName}*
+==========================`;
+
+        try {
+          const phone = customer.phone.replace(/\D/g, '');
+          const phoneWithCode = phone.startsWith('55') ? phone : `55${phone}`;
+          
+          const { data, error } = await supabase.functions.invoke('zap-responder', {
+            body: {
+              action: 'enviar-mensagem',
+              department_id: zapSettings.selected_department_id,
+              number: phoneWithCode,
+              text: message,
+            },
+          });
+          
+          if (error) {
+            console.error('Erro ao enviar mensagem WhatsApp:', error);
+          } else {
+            console.log('Mensagem de confirmação enviada:', data);
+          }
+        } catch (msgError) {
+          console.error('Erro ao enviar mensagem:', msgError);
+        }
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['customers'] });
@@ -273,7 +319,10 @@ export default function Customers() {
       setRenewingCustomer(null);
       setSelectedPlanId('');
       setCustomAmount('');
-      toast({ title: 'Renovação registrada! Pagamento pendente criado.' });
+      const successMessage = sendConfirmationMessage && zapSettings?.selected_department_id
+        ? 'Renovação registrada! Mensagem de confirmação enviada.'
+        : 'Renovação registrada! Pagamento pendente criado.';
+      toast({ title: successMessage });
     },
     onError: (error: Error) => {
       toast({ title: 'Erro ao renovar plano', description: error.message, variant: 'destructive' });
@@ -312,7 +361,12 @@ export default function Customers() {
   const handleRenewSubmit = () => {
     if (!renewingCustomer || !selectedPlanId) return;
     const amount = customAmount ? parseFloat(customAmount) : (plans?.find(p => p.id === selectedPlanId)?.price || 0);
-    renewMutation.mutate({ customerId: renewingCustomer.id, planId: selectedPlanId, amount });
+    renewMutation.mutate({ 
+      customerId: renewingCustomer.id, 
+      planId: selectedPlanId, 
+      amount, 
+      sendMessage: sendConfirmationMessage 
+    });
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -1061,10 +1115,40 @@ export default function Customers() {
                   Edite para cobrar um valor diferente do plano.
                 </p>
               </div>
+              
+              {/* Checkbox para enviar mensagem de confirmação */}
+              <div className="flex items-start space-x-3 p-3 bg-secondary/30 rounded-lg">
+                <Checkbox
+                  id="sendConfirmation"
+                  checked={sendConfirmationMessage}
+                  onCheckedChange={(checked) => setSendConfirmationMessage(checked === true)}
+                  disabled={!zapSettings?.selected_department_id}
+                />
+                <div className="grid gap-1.5 leading-none">
+                  <label
+                    htmlFor="sendConfirmation"
+                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 flex items-center gap-2"
+                  >
+                    <MessageSquare className="w-4 h-4 text-primary" />
+                    Enviar confirmação via WhatsApp
+                  </label>
+                  <p className="text-xs text-muted-foreground">
+                    {zapSettings?.selected_department_id 
+                      ? 'Envia mensagem com dados da renovação para o cliente.'
+                      : 'Configure o departamento do ZapResponder primeiro.'}
+                  </p>
+                </div>
+              </div>
+
               {selectedPlanId && customAmount && (
                 <div className="p-3 bg-secondary/30 rounded-lg text-sm">
                   <p className="text-muted-foreground">
                     Um pagamento pendente de <strong>R${Number(customAmount).toFixed(2)}</strong> será criado.
+                    {sendConfirmationMessage && zapSettings?.selected_department_id && (
+                      <span className="block mt-1 text-primary">
+                        ✓ Mensagem de confirmação será enviada
+                      </span>
+                    )}
                   </p>
                 </div>
               )}
