@@ -12,6 +12,7 @@ interface StatsCardProps {
     isPositive: boolean;
   };
   variant?: 'default' | 'primary' | 'success' | 'warning' | 'destructive';
+  onClick?: () => void;
 }
 
 const variantStyles = {
@@ -37,12 +38,17 @@ export default function StatsCard({
   description,
   trend,
   variant = 'default',
+  onClick,
 }: StatsCardProps) {
   return (
-    <div className={cn(
-      "stat-card rounded-xl",
-      variantStyles[variant]
-    )}>
+    <div 
+      className={cn(
+        "stat-card rounded-xl",
+        variantStyles[variant],
+        onClick && "cursor-pointer hover:scale-[1.02] transition-transform"
+      )}
+      onClick={onClick}
+    >
       <div className="flex items-start justify-between">
         <div className="space-y-2">
           <p className="text-sm font-medium text-muted-foreground">{title}</p>

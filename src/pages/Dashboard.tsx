@@ -1,3 +1,4 @@
+import { useNavigate } from 'react-router-dom';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import StatsCard from '@/components/dashboard/StatsCard';
 import RevenueChart from '@/components/dashboard/RevenueChart';
@@ -13,10 +14,13 @@ import {
   AlertCircle, 
   Clock,
   Loader2,
-  TrendingUp
+  TrendingUp,
+  CalendarClock,
+  CalendarX
 } from 'lucide-react';
 
 export default function Dashboard() {
+  const navigate = useNavigate();
   const { data: stats, isLoading: statsLoading } = useDashboardStats();
   const { data: revenueHistory, isLoading: revenueLoading } = useRevenueHistory();
 
@@ -29,6 +33,10 @@ export default function Dashboard() {
       </DashboardLayout>
     );
   }
+
+  const navigateToCustomers = (filter: string) => {
+    navigate(`/customers?filter=${filter}`);
+  };
 
   return (
     <DashboardLayout>
@@ -69,8 +77,8 @@ export default function Dashboard() {
           />
         </div>
 
-        {/* Revenue and Alerts Row */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Revenue Row */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <StatsCard
             title="Receita do Mês"
             value={`R$ ${(stats?.monthlyRevenue || 0).toFixed(2)}`}
@@ -83,17 +91,37 @@ export default function Dashboard() {
             icon={TrendingUp}
             variant="primary"
           />
+        </div>
+
+        {/* Due Dates Row - Clickable */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <StatsCard
             title="Vencem Hoje"
             value={stats?.dueTodayCustomers || 0}
             icon={Clock}
             variant="warning"
+            onClick={() => navigateToCustomers('due_today')}
           />
           <StatsCard
-            title="Vencidas"
+            title="Vencem Amanhã"
+            value={stats?.dueTomorrowCustomers || 0}
+            icon={CalendarClock}
+            variant="primary"
+            onClick={() => navigateToCustomers('due_tomorrow')}
+          />
+          <StatsCard
+            title="Vencidas 1 Dia"
+            value={stats?.overdueOneDayCustomers || 0}
+            icon={CalendarX}
+            variant="warning"
+            onClick={() => navigateToCustomers('overdue_1day')}
+          />
+          <StatsCard
+            title="Todas Vencidas"
             value={stats?.overdueCustomers || 0}
             icon={AlertCircle}
             variant="destructive"
+            onClick={() => navigateToCustomers('overdue')}
           />
         </div>
 
