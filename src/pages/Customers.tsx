@@ -70,7 +70,7 @@ export default function Customers() {
   // Import states
   const [importData, setImportData] = useState<any[]>([]);
   const [isImporting, setIsImporting] = useState(false);
-  const [importStatusFilter, setImportStatusFilter] = useState<string>('all');
+  const [importStatusFilter, setImportStatusFilter] = useState<string[]>(['ativa', 'inativa', 'suspensa']);
   const [importProgress, setImportProgress] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -466,10 +466,10 @@ export default function Customers() {
   };
 
   const executeImport = async () => {
-    // Filter data based on selected status filter
-    const dataToImport = importStatusFilter === 'all' 
+    // Filter data based on selected status filters
+    const dataToImport = importStatusFilter.length === 3
       ? importData 
-      : importData.filter(r => r.status === importStatusFilter);
+      : importData.filter(r => importStatusFilter.includes(r.status));
 
     if (dataToImport.length === 0) {
       toast({ title: 'Nenhum dado para importar', variant: 'destructive' });
@@ -566,7 +566,7 @@ export default function Customers() {
       queryClient.invalidateQueries({ queryKey: ['customers'] });
       setIsImportOpen(false);
       setImportData([]);
-      setImportStatusFilter('all');
+      setImportStatusFilter(['ativa', 'inativa', 'suspensa']);
       
       const serverMsg = serversCreated > 0 ? ` ${serversCreated} servidor(es) criado(s).` : '';
       toast({ 
@@ -650,22 +650,36 @@ export default function Customers() {
                         </div>
 
                         <div className="space-y-2">
-                          <Label>Importar apenas clientes com status:</Label>
-                          <Select value={importStatusFilter} onValueChange={setImportStatusFilter}>
-                            <SelectTrigger className="bg-input border-border">
-                              <SelectValue placeholder="Selecione o status" />
-                            </SelectTrigger>
-                            <SelectContent className="bg-card border-border">
-                              <SelectItem value="all">Todos os status</SelectItem>
-                              <SelectItem value="ativa">Apenas Ativos</SelectItem>
-                              <SelectItem value="inativa">Apenas Inativos</SelectItem>
-                              <SelectItem value="suspensa">Apenas Suspensos</SelectItem>
-                            </SelectContent>
-                          </Select>
+                          <Label>Importar clientes com status:</Label>
+                          <div className="flex flex-wrap gap-3">
+                            {[
+                              { value: 'ativa', label: 'Ativos' },
+                              { value: 'inativa', label: 'Inativos' },
+                              { value: 'suspensa', label: 'Suspensos' },
+                            ].map((status) => (
+                              <label key={status.value} className="flex items-center gap-2 cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={importStatusFilter.includes(status.value)}
+                                  onChange={(e) => {
+                                    if (e.target.checked) {
+                                      setImportStatusFilter([...importStatusFilter, status.value]);
+                                    } else {
+                                      setImportStatusFilter(importStatusFilter.filter(s => s !== status.value));
+                                    }
+                                  }}
+                                  className="w-4 h-4 rounded border-border bg-input accent-primary"
+                                />
+                                <span className="text-sm">{status.label}</span>
+                              </label>
+                            ))}
+                          </div>
                           <p className="text-xs text-muted-foreground">
-                            {importStatusFilter === 'all' 
+                            {importStatusFilter.length === 3 
                               ? `${importData.length} clientes serão importados`
-                              : `${importData.filter(r => r.status === importStatusFilter).length} clientes com status "${importStatusFilter}" serão importados`
+                              : importStatusFilter.length === 0
+                              ? 'Selecione pelo menos um status'
+                              : `${importData.filter(r => importStatusFilter.includes(r.status)).length} clientes serão importados`
                             }
                           </p>
                         </div>
@@ -684,7 +698,7 @@ export default function Customers() {
                             </TableRow>
                           </TableHeader>
                           <TableBody>
-                            {(importStatusFilter === 'all' ? importData : importData.filter(r => r.status === importStatusFilter)).slice(0, 10).map((row, idx) => (
+                            {(importStatusFilter.length === 3 ? importData : importData.filter(r => importStatusFilter.includes(r.status))).slice(0, 10).map((row, idx) => (
                               <TableRow key={idx}>
                                 <TableCell>{row.name}</TableCell>
                                 <TableCell>{row.phone}</TableCell>
@@ -708,9 +722,9 @@ export default function Customers() {
                             ))}
                           </TableBody>
                         </Table>
-                        {(importStatusFilter === 'all' ? importData : importData.filter(r => r.status === importStatusFilter)).length > 10 && (
+                        {(importStatusFilter.length === 3 ? importData : importData.filter(r => importStatusFilter.includes(r.status))).length > 10 && (
                           <p className="text-sm text-muted-foreground text-center mt-2">
-                            ... e mais {(importStatusFilter === 'all' ? importData : importData.filter(r => r.status === importStatusFilter)).length - 10} clientes
+                            ... e mais {(importStatusFilter.length === 3 ? importData : importData.filter(r => importStatusFilter.includes(r.status))).length - 10} clientes
                           </p>
                         )}
                       </div>
@@ -732,9 +746,9 @@ export default function Customers() {
                         <Button 
                           onClick={executeImport} 
                           className="w-full"
-                          disabled={(importStatusFilter === 'all' ? importData : importData.filter(r => r.status === importStatusFilter)).length === 0}
+                          disabled={importStatusFilter.length === 0 || (importStatusFilter.length === 3 ? importData : importData.filter(r => importStatusFilter.includes(r.status))).length === 0}
                         >
-                          Importar {(importStatusFilter === 'all' ? importData : importData.filter(r => r.status === importStatusFilter)).length} Clientes
+                          Importar {(importStatusFilter.length === 3 ? importData : importData.filter(r => importStatusFilter.includes(r.status))).length} Clientes
                         </Button>
                       )}
                     </>
