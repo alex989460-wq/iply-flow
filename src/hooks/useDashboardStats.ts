@@ -1,31 +1,75 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 
+// Helper to fetch all records without the 1000 limit
+async function fetchAllRecords<T>(
+  tableName: string,
+  selectQuery: string,
+  filters?: { column: string; value: any; operator?: string }[]
+): Promise<T[]> {
+  const pageSize = 1000;
+  let allData: T[] = [];
+  let page = 0;
+  let hasMore = true;
+
+  while (hasMore) {
+    let query = supabase
+      .from(tableName)
+      .select(selectQuery)
+      .range(page * pageSize, (page + 1) * pageSize - 1);
+
+    if (filters) {
+      for (const filter of filters) {
+        if (filter.operator === 'gte') {
+          query = query.gte(filter.column, filter.value);
+        } else if (filter.operator === 'lte') {
+          query = query.lte(filter.column, filter.value);
+        } else {
+          query = query.eq(filter.column, filter.value);
+        }
+      }
+    }
+
+    const { data, error } = await query;
+    if (error) throw error;
+
+    if (data && data.length > 0) {
+      allData = [...allData, ...(data as T[])];
+      hasMore = data.length === pageSize;
+      page++;
+    } else {
+      hasMore = false;
+    }
+  }
+
+  return allData;
+}
+
 export function useDashboardStats() {
   return useQuery({
     queryKey: ['dashboard-stats'],
     queryFn: async () => {
       const today = new Date().toISOString().split('T')[0];
 
-      // Fetch all customers
-      const { data: customers, error: customersError } = await supabase
-        .from('customers')
-        .select('*, plans(plan_name, price), servers(server_name)');
-
-      if (customersError) throw customersError;
+      // Fetch all customers (without 1000 limit)
+      const customers = await fetchAllRecords<any>(
+        'customers',
+        '*, plans(plan_name, price), servers(server_name)'
+      );
 
       // Fetch payments for this month
       const startOfMonth = new Date();
       startOfMonth.setDate(1);
       startOfMonth.setHours(0, 0, 0, 0);
 
-      const { data: payments, error: paymentsError } = await supabase
-        .from('payments')
-        .select('*')
-        .eq('confirmed', true)
-        .gte('payment_date', startOfMonth.toISOString().split('T')[0]);
-
-      if (paymentsError) throw paymentsError;
+      const payments = await fetchAllRecords<any>(
+        'payments',
+        '*',
+        [
+          { column: 'confirmed', value: true },
+          { column: 'payment_date', value: startOfMonth.toISOString().split('T')[0], operator: 'gte' },
+        ]
+      );
 
       // Calculate stats
       const totalCustomers = customers?.length || 0;
@@ -37,6 +81,14 @@ export function useDashboardStats() {
 
       const dueTodayCustomers = customers?.filter(c => c.due_date === today && c.status === 'ativa').length || 0;
       const overdueCustomers = customers?.filter(c => c.due_date < today && c.status === 'ativa').length || 0;
+
+      // Calculate monthly projection based on active customers and their plan prices
+      const monthlyProjection = customers
+        ?.filter(c => c.status === 'ativa')
+        .reduce((sum, c) => {
+          const price = c.custom_price ?? c.plans?.price ?? 0;
+          return sum + Number(price);
+        }, 0) || 0;
 
       // Customers by plan
       const planCounts: Record<string, number> = {};
@@ -69,6 +121,7 @@ export function useDashboardStats() {
         inactiveCustomers,
         suspendedCustomers,
         monthlyRevenue,
+        monthlyProjection,
         dueTodayCustomers,
         overdueCustomers,
         planDistribution,
