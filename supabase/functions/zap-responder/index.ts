@@ -777,10 +777,13 @@ async function enviarMensagemTexto(
   try {
     console.log('Sending text message...', { departmentId, number, text });
     
+    // WhatsApp Official API expects text as object { body: "message" }
     const body = {
       type: 'text',
       number,
-      text,
+      text: {
+        body: text,
+      },
     };
     
     const response = await fetch(`${apiBaseUrl}/whatsapp/message/${departmentId}`, {
