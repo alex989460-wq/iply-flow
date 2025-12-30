@@ -70,6 +70,7 @@ export default function Customers() {
   // Import states
   const [importData, setImportData] = useState<any[]>([]);
   const [isImporting, setIsImporting] = useState(false);
+  const [importStatusFilter, setImportStatusFilter] = useState<string>('all');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const queryClient = useQueryClient();
@@ -464,7 +465,12 @@ export default function Customers() {
   };
 
   const executeImport = async () => {
-    if (importData.length === 0) {
+    // Filter data based on selected status filter
+    const dataToImport = importStatusFilter === 'all' 
+      ? importData 
+      : importData.filter(r => r.status === importStatusFilter);
+
+    if (dataToImport.length === 0) {
       toast({ title: 'Nenhum dado para importar', variant: 'destructive' });
       return;
     }
@@ -479,7 +485,7 @@ export default function Customers() {
 
     try {
       // First, create all unique servers that don't exist
-      const uniqueServerNames = [...new Set(importData.map(row => row.server_name?.trim()).filter(Boolean))];
+      const uniqueServerNames = [...new Set(dataToImport.map(row => row.server_name?.trim()).filter(Boolean))];
       
       for (const serverName of uniqueServerNames) {
         // Check if server already exists in current list
@@ -511,7 +517,7 @@ export default function Customers() {
       // Refresh servers list after creating new ones
       await queryClient.invalidateQueries({ queryKey: ['servers'] });
 
-      for (const row of importData) {
+      for (const row of dataToImport) {
         const { server_name, plan_name, ...customerData } = row;
         
         // Use cached server_id if server was created or matched
@@ -552,6 +558,7 @@ export default function Customers() {
       queryClient.invalidateQueries({ queryKey: ['customers'] });
       setIsImportOpen(false);
       setImportData([]);
+      setImportStatusFilter('all');
       
       const serverMsg = serversCreated > 0 ? ` ${serversCreated} servidor(es) criado(s).` : '';
       toast({ 
@@ -626,10 +633,33 @@ export default function Customers() {
 
                   {importData.length > 0 && (
                     <>
-                      <div className="p-3 bg-secondary/30 rounded-lg">
-                        <p className="text-sm text-muted-foreground">
-                          <strong>{importData.length}</strong> clientes prontos para importar
-                        </p>
+                      <div className="space-y-3">
+                        <div className="p-3 bg-secondary/30 rounded-lg">
+                          <p className="text-sm text-muted-foreground">
+                            <strong>{importData.length}</strong> clientes no arquivo
+                          </p>
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label>Importar apenas clientes com status:</Label>
+                          <Select value={importStatusFilter} onValueChange={setImportStatusFilter}>
+                            <SelectTrigger className="bg-input border-border">
+                              <SelectValue placeholder="Selecione o status" />
+                            </SelectTrigger>
+                            <SelectContent className="bg-card border-border">
+                              <SelectItem value="all">Todos os status</SelectItem>
+                              <SelectItem value="ativa">Apenas Ativos</SelectItem>
+                              <SelectItem value="inativa">Apenas Inativos</SelectItem>
+                              <SelectItem value="suspensa">Apenas Suspensos</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <p className="text-xs text-muted-foreground">
+                            {importStatusFilter === 'all' 
+                              ? `${importData.length} clientes serão importados`
+                              : `${importData.filter(r => r.status === importStatusFilter).length} clientes com status "${importStatusFilter}" serão importados`
+                            }
+                          </p>
+                        </div>
                       </div>
 
                       <div className="overflow-x-auto max-h-60">
@@ -645,7 +675,7 @@ export default function Customers() {
                             </TableRow>
                           </TableHeader>
                           <TableBody>
-                            {importData.slice(0, 10).map((row, idx) => (
+                            {(importStatusFilter === 'all' ? importData : importData.filter(r => r.status === importStatusFilter)).slice(0, 10).map((row, idx) => (
                               <TableRow key={idx}>
                                 <TableCell>{row.name}</TableCell>
                                 <TableCell>{row.phone}</TableCell>
@@ -669,9 +699,9 @@ export default function Customers() {
                             ))}
                           </TableBody>
                         </Table>
-                        {importData.length > 10 && (
+                        {(importStatusFilter === 'all' ? importData : importData.filter(r => r.status === importStatusFilter)).length > 10 && (
                           <p className="text-sm text-muted-foreground text-center mt-2">
-                            ... e mais {importData.length - 10} clientes
+                            ... e mais {(importStatusFilter === 'all' ? importData : importData.filter(r => r.status === importStatusFilter)).length - 10} clientes
                           </p>
                         )}
                       </div>
@@ -679,10 +709,10 @@ export default function Customers() {
                       <Button 
                         onClick={executeImport} 
                         className="w-full"
-                        disabled={isImporting}
+                        disabled={isImporting || (importStatusFilter === 'all' ? importData : importData.filter(r => r.status === importStatusFilter)).length === 0}
                       >
                         {isImporting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                        Importar {importData.length} Clientes
+                        Importar {(importStatusFilter === 'all' ? importData : importData.filter(r => r.status === importStatusFilter)).length} Clientes
                       </Button>
                     </>
                   )}
