@@ -775,123 +775,114 @@ async function enviarMensagemTexto(
   text: string
 ): Promise<{ success: boolean; data?: any; error?: string }> {
   try {
-    console.log('Sending text message...', { departmentId, number, text });
+    console.log('=== SENDING TEXT MESSAGE ===');
+    console.log('Params:', { departmentId, number, text });
     
     // Format phone number - ensure it's in correct format
     const formattedNumber = number.replace(/\D/g, '');
     const chatId = `${formattedNumber}@s.whatsapp.net`;
     
-    // STRATEGY 1: Try to find active conversation and send via conversation endpoint
-    console.log('Trying to find active conversation for:', chatId);
+    // List of endpoints to try in order
+    const endpoints = [
+      // 1. Direct message endpoint (most common for chat apps)
+      {
+        url: `${apiBaseUrl}/mensagem/enviar`,
+        body: { chatId, departamento: departmentId, content: { type: 'text', text } },
+        name: 'mensagem/enviar'
+      },
+      // 2. Send message with department
+      {
+        url: `${apiBaseUrl}/mensagem`,
+        body: { chatId, departamento: departmentId, tipo: 'text', texto: text },
+        name: 'mensagem'
+      },
+      // 3. Department message endpoint
+      {
+        url: `${apiBaseUrl}/departamento/${departmentId}/mensagem`,
+        body: { chatId, content: text, type: 'text' },
+        name: 'departamento/mensagem'
+      },
+      // 4. Send text endpoint
+      {
+        url: `${apiBaseUrl}/enviar-texto`,
+        body: { numero: formattedNumber, mensagem: text, departamento: departmentId },
+        name: 'enviar-texto'
+      },
+      // 5. Chat send endpoint
+      {
+        url: `${apiBaseUrl}/chat/send`,
+        body: { to: chatId, message: text, departmentId },
+        name: 'chat/send'
+      },
+      // 6. WhatsApp message (simple body format)
+      {
+        url: `${apiBaseUrl}/whatsapp/message/${departmentId}`,
+        body: { type: 'text', number: formattedNumber, body: text },
+        name: 'whatsapp/message (body)'
+      },
+      // 7. WhatsApp message (text object format)
+      {
+        url: `${apiBaseUrl}/whatsapp/message/${departmentId}`,
+        body: { type: 'text', number: formattedNumber, text: { body: text } },
+        name: 'whatsapp/message (text.body)'
+      },
+    ];
     
-    const conversaResult = await buscarConversaPorTelefone(apiBaseUrl, token, formattedNumber, false);
-    
-    if (conversaResult.success && conversaResult.data) {
-      // The API returns { conversation: {...} } or direct conversation object
-      const rawData = conversaResult.data;
-      const conversa = rawData.conversation || rawData;
-      const conversationId = conversa._id || conversa.id || conversa.conversationId;
-      const conversaChatId = conversa.chatId;
+    for (const endpoint of endpoints) {
+      console.log(`Trying endpoint: ${endpoint.name}`);
+      console.log(`URL: ${endpoint.url}`);
+      console.log(`Body: ${JSON.stringify(endpoint.body)}`);
       
-      console.log('Found conversation data:', { conversationId, conversaChatId, isFechado: conversa.isFechado });
-      
-      if (conversationId && !conversa.isFechado) {
-        console.log('Found active conversation, sending via conversation endpoint:', conversationId);
-        
-        // Try sending via conversation message endpoint
-        const msgBody = {
-          content: {
-            type: 'text',
-            text: text,
-          },
-        };
-        
-        const msgResponse = await fetch(`${apiBaseUrl}/mensagem/conversa/${conversationId}`, {
+      try {
+        const response = await fetch(endpoint.url, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json',
             'Accept': 'application/json',
           },
-          body: JSON.stringify(msgBody),
+          body: JSON.stringify(endpoint.body),
         });
         
-        if (msgResponse.ok) {
-          const msgResult = await msgResponse.json();
-          console.log('Message sent via conversation endpoint:', msgResult);
-          return { success: true, data: msgResult };
+        const responseText = await response.text();
+        console.log(`Response status: ${response.status}`);
+        console.log(`Response body: ${responseText}`);
+        
+        if (response.ok) {
+          let result;
+          try {
+            result = JSON.parse(responseText);
+          } catch {
+            result = { raw: responseText };
+          }
+          console.log(`SUCCESS with endpoint: ${endpoint.name}`);
+          return { success: true, data: result };
         }
         
-        console.log('Conversation endpoint failed, trying v2 endpoint...');
-        
-        // Try v2 conversations messages endpoint
-        const v2Body = {
-          type: 'text',
-          text: text,
-        };
-        
-        const v2Response = await fetch(`${apiBaseUrl}/v2/conversations/${conversationId}/messages`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
-          },
-          body: JSON.stringify(v2Body),
-        });
-        
-        if (v2Response.ok) {
-          const v2Result = await v2Response.json();
-          console.log('Message sent via v2 conversation endpoint:', v2Result);
-          return { success: true, data: v2Result };
+        // If we get a clear error about the endpoint not existing, continue to next
+        if (response.status === 404) {
+          console.log(`Endpoint ${endpoint.name} not found, trying next...`);
+          continue;
         }
         
-        console.log('V2 endpoint also failed, falling back to WhatsApp endpoint');
+        // If we get an error about the format, continue to next
+        if (response.status === 400) {
+          console.log(`Endpoint ${endpoint.name} rejected format, trying next...`);
+          continue;
+        }
+        
+      } catch (fetchError) {
+        console.error(`Error with endpoint ${endpoint.name}:`, fetchError);
+        continue;
       }
     }
     
-    // STRATEGY 2: Try WhatsApp official API endpoint (works for templates or within 24h window)
-    console.log('Trying WhatsApp official API endpoint...');
-    
-    const body = {
-      type: 'text',
-      number: formattedNumber,
-      text: {
-        body: String(text),
-      },
+    // All endpoints failed
+    return { 
+      success: false, 
+      error: 'Nenhum endpoint conseguiu enviar a mensagem. Verifique os logs para mais detalhes.' 
     };
-
-    console.log('Sending text message payload to Zap Responder:', JSON.stringify(body));
     
-    const response = await fetch(`${apiBaseUrl}/whatsapp/message/${departmentId}`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-      },
-      body: JSON.stringify(body),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`Zap Responder API error: ${response.status} - ${errorText}`);
-      
-      // Check if error is about 24h window - suggest using template
-      if (errorText.includes('text') && errorText.includes('body')) {
-        return { 
-          success: false, 
-          error: 'Não é possível enviar mensagem de texto livre. O cliente precisa ter respondido nas últimas 24h ou você deve usar um template aprovado.' 
-        };
-      }
-      
-      return { success: false, error: `API error: ${response.status} - ${errorText}` };
-    }
-
-    const result = await response.json();
-    console.log('Message sent successfully:', result);
-    
-    return { success: true, data: result };
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     console.error('Error sending message:', error);
