@@ -10,8 +10,8 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   return (
     <div className="min-h-screen bg-background">
       <Sidebar />
-      <main className="lg:ml-64 min-h-screen transition-all duration-300">
-        <div className="p-4 lg:p-8">
+      <main className="pt-16 lg:pt-0 lg:ml-64 min-h-screen transition-all duration-300">
+        <div className="p-3 sm:p-4 lg:p-8">
           {children}
         </div>
       </main>

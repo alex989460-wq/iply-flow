@@ -115,14 +115,19 @@ export default function Sidebar() {
       </aside>
 
       {/* Mobile toggle button */}
-      <Button
-        variant="outline"
-        size="icon"
-        className="fixed top-4 left-4 z-30 lg:hidden"
-        onClick={() => setCollapsed(false)}
-      >
-        <Menu className="w-4 h-4" />
-      </Button>
+      <div className="fixed top-0 left-0 right-0 h-14 bg-background/95 backdrop-blur-sm border-b border-border z-30 lg:hidden flex items-center px-4">
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => setCollapsed(false)}
+        >
+          <Menu className="w-5 h-5" />
+        </Button>
+        <div className="flex items-center gap-2 ml-3">
+          <Tv className="w-5 h-5 text-primary" />
+          <span className="font-bold text-foreground">IPTV CRM</span>
+        </div>
+      </div>
 
       {/* Content margin */}
       <div className={cn("transition-all duration-300", collapsed ? "lg:ml-16" : "lg:ml-64")} />

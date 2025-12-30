@@ -40,17 +40,17 @@ export default function Dashboard() {
 
   return (
     <DashboardLayout>
-      <div className="space-y-8 animate-fade-in">
+      <div className="space-y-4 sm:space-y-6 lg:space-y-8 animate-fade-in">
         {/* Header */}
         <div>
-          <h1 className="text-3xl font-bold text-foreground">Dashboard</h1>
-          <p className="text-muted-foreground mt-1">
+          <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-foreground">Dashboard</h1>
+          <p className="text-muted-foreground text-sm sm:text-base mt-1">
             Visão geral do seu sistema IPTV
           </p>
         </div>
 
         {/* Stats Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3 lg:gap-4">
           <StatsCard
             title="Total de Clientes"
             value={stats?.totalCustomers || 0}
@@ -78,7 +78,7 @@ export default function Dashboard() {
         </div>
 
         {/* Revenue Row */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:gap-4">
           <StatsCard
             title="Receita do Mês"
             value={`R$ ${(stats?.monthlyRevenue || 0).toFixed(2)}`}
@@ -94,7 +94,7 @@ export default function Dashboard() {
         </div>
 
         {/* Due Dates Row - Clickable */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3 lg:gap-4">
           <StatsCard
             title="Vencem Hoje"
             value={stats?.dueTodayCustomers || 0}
@@ -126,7 +126,7 @@ export default function Dashboard() {
         </div>
 
         {/* Charts */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 lg:gap-6">
           {!revenueLoading && revenueHistory && (
             <RevenueChart data={revenueHistory} />
           )}

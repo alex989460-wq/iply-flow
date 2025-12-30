@@ -149,11 +149,11 @@ export default function Servers() {
 
   return (
     <DashboardLayout>
-      <div className="space-y-6 animate-fade-in">
-        <div className="flex items-center justify-between">
+      <div className="space-y-4 sm:space-y-6 animate-fade-in">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-foreground">Servidores</h1>
-            <p className="text-muted-foreground mt-1">Gerencie seus servidores IPTV</p>
+            <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-foreground">Servidores</h1>
+            <p className="text-muted-foreground text-sm sm:text-base mt-1">Gerencie seus servidores IPTV</p>
           </div>
           <Dialog open={isOpen} onOpenChange={(open) => { setIsOpen(open); if (!open) resetForm(); }}>
             <DialogTrigger asChild>
@@ -227,8 +227,8 @@ export default function Servers() {
           </Dialog>
         </div>
 
-        <Card className="glass-card border-border/50">
-          <CardContent className="p-0">
+        <Card className="glass-card border-border/50 overflow-hidden">
+          <CardContent className="p-0 overflow-x-auto">
             {isLoading ? (
               <div className="flex items-center justify-center h-48">
                 <Loader2 className="w-8 h-8 animate-spin text-primary" />

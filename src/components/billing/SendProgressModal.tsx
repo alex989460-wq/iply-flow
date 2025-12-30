@@ -59,11 +59,11 @@ export function SendProgressModal({
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && isComplete && onClose()}>
-      <DialogContent className="max-w-2xl max-h-[80vh] flex flex-col">
+      <DialogContent className="max-w-2xl max-h-[90vh] sm:max-h-[80vh] flex flex-col mx-2 sm:mx-auto">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Send className="w-5 h-5 text-primary" />
-            Enviando {getBillingTypeLabel(billingType)}
+          <DialogTitle className="flex items-center gap-2 text-base sm:text-lg">
+            <Send className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
+            <span className="truncate">{getBillingTypeLabel(billingType)}</span>
           </DialogTitle>
         </DialogHeader>
 
@@ -82,34 +82,34 @@ export function SendProgressModal({
           </div>
 
           {/* Stats */}
-          <div className="grid grid-cols-3 gap-3">
-            <div className="p-3 rounded-lg bg-success/10 border border-success/20 text-center">
+          <div className="grid grid-cols-3 gap-2 sm:gap-3">
+            <div className="p-2 sm:p-3 rounded-lg bg-success/10 border border-success/20 text-center">
               <div className="flex items-center justify-center gap-1 text-success">
-                <CheckCircle className="w-4 h-4" />
-                <span className="text-lg font-bold">{sent}</span>
+                <CheckCircle className="w-3 h-3 sm:w-4 sm:h-4" />
+                <span className="text-base sm:text-lg font-bold">{sent}</span>
               </div>
-              <p className="text-xs text-success/80">Enviados</p>
+              <p className="text-[10px] sm:text-xs text-success/80">Enviados</p>
             </div>
-            <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/20 text-center">
+            <div className="p-2 sm:p-3 rounded-lg bg-destructive/10 border border-destructive/20 text-center">
               <div className="flex items-center justify-center gap-1 text-destructive">
-                <XCircle className="w-4 h-4" />
-                <span className="text-lg font-bold">{errors}</span>
+                <XCircle className="w-3 h-3 sm:w-4 sm:h-4" />
+                <span className="text-base sm:text-lg font-bold">{errors}</span>
               </div>
-              <p className="text-xs text-destructive/80">Erros</p>
+              <p className="text-[10px] sm:text-xs text-destructive/80">Erros</p>
             </div>
-            <div className="p-3 rounded-lg bg-muted/50 border border-border text-center">
+            <div className="p-2 sm:p-3 rounded-lg bg-muted/50 border border-border text-center">
               <div className="flex items-center justify-center gap-1 text-muted-foreground">
-                <AlertCircle className="w-4 h-4" />
-                <span className="text-lg font-bold">{skipped}</span>
+                <AlertCircle className="w-3 h-3 sm:w-4 sm:h-4" />
+                <span className="text-base sm:text-lg font-bold">{skipped}</span>
               </div>
-              <p className="text-xs text-muted-foreground">Ignorados</p>
+              <p className="text-[10px] sm:text-xs text-muted-foreground">Ignorados</p>
             </div>
           </div>
 
           {/* Results List */}
           <div className="flex-1 overflow-hidden">
-            <p className="text-sm font-medium mb-2">Detalhes do envio:</p>
-            <ScrollArea className="h-[300px] border rounded-lg">
+            <p className="text-xs sm:text-sm font-medium mb-2">Detalhes do envio:</p>
+            <ScrollArea className="h-[200px] sm:h-[300px] border rounded-lg">
               <div className="p-2 space-y-1">
                 {results.length === 0 && !isComplete && (
                   <div className="flex items-center justify-center py-8 text-muted-foreground">

@@ -142,11 +142,11 @@ export default function Payments() {
 
   return (
     <DashboardLayout>
-      <div className="space-y-6 animate-fade-in">
-        <div className="flex items-center justify-between">
+      <div className="space-y-4 sm:space-y-6 animate-fade-in">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-foreground">Pagamentos</h1>
-            <p className="text-muted-foreground mt-1">Gerencie os pagamentos dos clientes</p>
+            <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-foreground">Pagamentos</h1>
+            <p className="text-muted-foreground text-sm sm:text-base mt-1">Gerencie os pagamentos dos clientes</p>
           </div>
           <Dialog open={isOpen} onOpenChange={(open) => { setIsOpen(open); if (!open) resetForm(); }}>
             <DialogTrigger asChild>

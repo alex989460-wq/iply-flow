@@ -181,34 +181,34 @@ export function BillingReportsTab() {
               {format(new Date(), 'dd/MM/yyyy')} • {results.length} envios
             </p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Button variant="outline" size="sm" onClick={() => refetch()}>
-              <RefreshCw className="w-4 h-4 mr-2" />
-              Atualizar
+              <RefreshCw className="w-4 h-4 sm:mr-2" />
+              <span className="hidden sm:inline">Atualizar</span>
             </Button>
             <Button variant="outline" size="sm" onClick={exportToCSV}>
-              <Download className="w-4 h-4 mr-2" />
-              Exportar CSV
+              <Download className="w-4 h-4 sm:mr-2" />
+              <span className="hidden sm:inline">Exportar CSV</span>
             </Button>
           </div>
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
         {/* Stats Summary */}
-        <div className="grid grid-cols-2 gap-3">
-          <div className="p-4 rounded-lg bg-success/10 border border-success/20">
+        <div className="grid grid-cols-2 gap-2 sm:gap-3">
+          <div className="p-3 sm:p-4 rounded-lg bg-success/10 border border-success/20">
             <div className="flex items-center gap-2">
-              <CheckCircle className="w-5 h-5 text-success" />
-              <span className="text-2xl font-bold text-success">{sentCount}</span>
+              <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5 text-success" />
+              <span className="text-xl sm:text-2xl font-bold text-success">{sentCount}</span>
             </div>
-            <p className="text-sm text-success/80 mt-1">Enviados com sucesso</p>
+            <p className="text-xs sm:text-sm text-success/80 mt-1">Enviados</p>
           </div>
-          <div className="p-4 rounded-lg bg-destructive/10 border border-destructive/20">
+          <div className="p-3 sm:p-4 rounded-lg bg-destructive/10 border border-destructive/20">
             <div className="flex items-center gap-2">
-              <XCircle className="w-5 h-5 text-destructive" />
-              <span className="text-2xl font-bold text-destructive">{errorCount}</span>
+              <XCircle className="w-4 h-4 sm:w-5 sm:h-5 text-destructive" />
+              <span className="text-xl sm:text-2xl font-bold text-destructive">{errorCount}</span>
             </div>
-            <p className="text-sm text-destructive/80 mt-1">Erros no envio</p>
+            <p className="text-xs sm:text-sm text-destructive/80 mt-1">Erros</p>
           </div>
         </div>
 
@@ -238,71 +238,78 @@ export function BillingReportsTab() {
 
         {/* Results Table */}
         <ScrollArea className="h-[400px] border rounded-lg">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Status</TableHead>
-                <TableHead>Cliente</TableHead>
-                <TableHead>Telefone</TableHead>
-                <TableHead>Tipo</TableHead>
-                <TableHead>Template</TableHead>
-                <TableHead>Erro</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredResults.length === 0 ? (
+          <div className="min-w-[600px]">
+            <Table>
+              <TableHeader>
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
-                    Nenhum resultado encontrado
-                  </TableCell>
+                  <TableHead className="w-12">Status</TableHead>
+                  <TableHead>Cliente</TableHead>
+                  <TableHead className="hidden sm:table-cell">Telefone</TableHead>
+                  <TableHead>Tipo</TableHead>
+                  <TableHead className="hidden md:table-cell">Template</TableHead>
+                  <TableHead className="hidden lg:table-cell">Erro</TableHead>
                 </TableRow>
-              ) : (
-                filteredResults.map((result, index) => (
-                  <TableRow 
-                    key={index}
-                    className={cn(
-                      result.status === 'error' && 'bg-destructive/5'
-                    )}
-                  >
-                    <TableCell>
-                      {result.status === 'sent' ? (
-                        <CheckCircle className="w-4 h-4 text-success" />
-                      ) : (
-                        <XCircle className="w-4 h-4 text-destructive" />
-                      )}
-                    </TableCell>
-                    <TableCell className="font-medium">{result.customer}</TableCell>
-                    <TableCell>
-                      <span className="flex items-center gap-1 text-muted-foreground">
-                        <Phone className="w-3 h-3" />
-                        {result.phone}
-                      </span>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={
-                        result.billingType === 'D-1' ? 'secondary' :
-                        result.billingType === 'D0' ? 'default' : 'destructive'
-                      }>
-                        {result.billingType}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
-                      {result.template}
-                    </TableCell>
-                    <TableCell>
-                      {result.error && (
-                        <span className="text-sm text-destructive" title={result.error}>
-                          {result.error.length > 40 
-                            ? result.error.substring(0, 40) + '...' 
-                            : result.error}
-                        </span>
-                      )}
+              </TableHeader>
+              <TableBody>
+                {filteredResults.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+                      Nenhum resultado encontrado
                     </TableCell>
                   </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
+                ) : (
+                  filteredResults.map((result, index) => (
+                    <TableRow 
+                      key={index}
+                      className={cn(
+                        result.status === 'error' && 'bg-destructive/5'
+                      )}
+                    >
+                      <TableCell>
+                        {result.status === 'sent' ? (
+                          <CheckCircle className="w-4 h-4 text-success" />
+                        ) : (
+                          <XCircle className="w-4 h-4 text-destructive" />
+                        )}
+                      </TableCell>
+                      <TableCell className="font-medium">
+                        <div>
+                          <span className="block truncate max-w-[120px] sm:max-w-none">{result.customer}</span>
+                          <span className="block sm:hidden text-xs text-muted-foreground">{result.phone}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell className="hidden sm:table-cell">
+                        <span className="flex items-center gap-1 text-muted-foreground">
+                          <Phone className="w-3 h-3" />
+                          {result.phone}
+                        </span>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={
+                          result.billingType === 'D-1' ? 'secondary' :
+                          result.billingType === 'D0' ? 'default' : 'destructive'
+                        }>
+                          {result.billingType}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="hidden md:table-cell text-sm text-muted-foreground">
+                        {result.template}
+                      </TableCell>
+                      <TableCell className="hidden lg:table-cell">
+                        {result.error && (
+                          <span className="text-sm text-destructive" title={result.error}>
+                            {result.error.length > 40 
+                              ? result.error.substring(0, 40) + '...' 
+                              : result.error}
+                          </span>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
         </ScrollArea>
       </CardContent>
     </Card>
