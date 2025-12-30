@@ -510,61 +510,108 @@ async function buscarTemplates(
 // API Functions - Listar todas conversas
 // ===========================================
 async function listarConversas(
-  apiBaseUrl: string, 
-  token: string, 
+  apiBaseUrl: string,
+  token: string,
   status?: string,
   limit: number = 50,
   offset: number = 0
 ): Promise<{ success: boolean; data?: any[]; error?: string }> {
   try {
-    console.log('Fetching all conversations...', { status, limit, offset });
-    
-    // Try the conversa endpoint (common endpoint for Zap Responder)
-    let url = `${apiBaseUrl}/conversa?limit=${limit}&offset=${offset}`;
-    if (status && status !== 'all') {
-      url += `&status=${status}`;
-    }
-    
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-      },
+    console.log('Fetching all conversations...', { status, limit, offset, apiBaseUrl });
+
+    const headers = {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+    };
+
+    const normalizedBase = apiBaseUrl.replace(/\/+$/, '');
+    const baseCandidates = Array.from(
+      new Set(
+        [
+          normalizedBase,
+          normalizedBase.replace(/\/api$/, ''),
+          normalizedBase.replace(/\/v1$/, ''),
+        ].filter(Boolean)
+      )
+    );
+
+    const attempts = baseCandidates.flatMap((base) => {
+      const qsBase = `limit=${limit}&offset=${offset}`;
+      const statusQs = status && status !== 'all' ? `&status=${encodeURIComponent(status)}` : '';
+
+      return [
+        {
+          label: `v2 conversations (base) [${base}]`,
+          url: `${base}/v2/conversations?${qsBase}${statusQs}`,
+        },
+        {
+          label: `v2 conversations (includeClosed) [${base}]`,
+          url: `${base}/v2/conversations?${qsBase}${statusQs}&includeClosed=true`,
+        },
+        // fallbacks (algumas contas usam rotas legacy)
+        {
+          label: `legacy conversa [${base}]`,
+          url: `${base}/conversa?${qsBase}${statusQs}`,
+        },
+        {
+          label: `legacy conversas [${base}]`,
+          url: `${base}/conversas?${qsBase}${statusQs}`,
+        },
+      ];
     });
 
-    if (!response.ok) {
-      // Try alternative endpoint
-      console.log('Trying alternative conversations endpoint...');
-      const altUrl = `${apiBaseUrl}/conversas?limit=${limit}&offset=${offset}${status && status !== 'all' ? `&status=${status}` : ''}`;
-      const altResponse = await fetch(altUrl, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-      });
-      
-      if (!altResponse.ok) {
-        const errorText = await altResponse.text();
-        console.error(`Zap Responder API error: ${altResponse.status} - ${errorText}`);
-        return { success: false, error: `API error: ${altResponse.status} - ${errorText}` };
+    let lastError: string | null = null;
+
+    for (const attempt of attempts) {
+      console.log('Trying conversations endpoint...', attempt);
+      const res = await fetch(attempt.url, { method: 'GET', headers });
+      const raw = await res.text();
+
+      if (!res.ok) {
+        console.error(`Zap Responder API error (${attempt.label}): ${res.status} - ${raw}`);
+        lastError = `${attempt.label}: ${res.status} - ${raw}`;
+        continue;
       }
-      
-      const altResult = await altResponse.json();
-      console.log('Conversations fetched from alt endpoint:', altResult);
-      const altConversations = Array.isArray(altResult) ? altResult : (altResult.data || altResult.conversas || altResult.conversations || []);
-      return { success: true, data: altConversations };
+
+      let parsed: any;
+      try {
+        parsed = raw ? JSON.parse(raw) : null;
+      } catch {
+        lastError = `${attempt.label}: invalid JSON response`;
+        continue;
+      }
+
+      const candidates = [
+        parsed,
+        parsed?.data,
+        parsed?.conversations,
+        parsed?.conversas,
+        parsed?.items,
+        parsed?.data?.conversations,
+        parsed?.data?.conversas,
+        parsed?.data?.items,
+      ];
+
+      const conversations = candidates.find((c) => Array.isArray(c)) as any[] | undefined;
+
+      if (!conversations) {
+        console.log('No conversations array in payload; trying next endpoint', {
+          label: attempt.label,
+          keys: parsed && typeof parsed === 'object' ? Object.keys(parsed) : typeof parsed,
+        });
+        lastError = `${attempt.label}: response OK but no conversations array`;
+        continue;
+      }
+
+      console.log('Conversations fetched successfully:', { label: attempt.label, count: conversations.length });
+      return { success: true, data: conversations };
     }
 
-    const result = await response.json();
-    console.log('Conversations fetched successfully:', result);
-    
-    const conversations = Array.isArray(result) ? result : (result.data || result.conversas || result.conversations || []);
-    
-    return { success: true, data: conversations };
+    return {
+      success: false,
+      error: lastError ? `Não foi possível listar conversas. ${lastError}` : 'Não foi possível listar conversas.',
+    };
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     console.error('Error fetching conversations:', error);
@@ -669,25 +716,26 @@ async function buscarMensagens(
           },
 
           // legacy / fallback endpoints
+          // IMPORTANT: alguns endpoints antigos usam chatId (telefone) e não o Mongo _id
           {
             label: `conversa/mensagens GET [${base}]`,
-            url: `${base}/conversa/mensagens/${conversationId}?limit=${limit}`,
+            url: `${base}/conversa/mensagens/${chatId || conversationId}?limit=${limit}`,
             method: 'GET',
           },
           {
             label: `conversa/mensagens POST [${base}]`,
-            url: `${base}/conversa/mensagens/${conversationId}`,
+            url: `${base}/conversa/mensagens/${chatId || conversationId}`,
             method: 'POST',
             body: { limit },
           },
           {
             label: `mensagem/conversa GET [${base}]`,
-            url: `${base}/mensagem/conversa/${conversationId}?limit=${limit}`,
+            url: `${base}/mensagem/conversa/${chatId || conversationId}?limit=${limit}`,
             method: 'GET',
           },
           {
             label: `mensagem/conversa POST [${base}]`,
-            url: `${base}/mensagem/conversa/${conversationId}`,
+            url: `${base}/mensagem/conversa/${chatId || conversationId}`,
             method: 'POST',
             body: { limit },
           },
