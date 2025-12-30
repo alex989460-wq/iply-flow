@@ -712,11 +712,11 @@ export default function Billing() {
 
   return (
     <DashboardLayout>
-      <div className="space-y-6 animate-fade-in">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+      <div className="space-y-4 sm:space-y-6 animate-fade-in">
+        <div className="flex flex-col gap-3">
           <div>
-            <h1 className="text-3xl font-bold text-foreground">Cobranças & WhatsApp</h1>
-            <p className="text-muted-foreground mt-1">
+            <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-foreground">Cobranças & WhatsApp</h1>
+            <p className="text-muted-foreground text-sm sm:text-base mt-1">
               Gerencie cobranças automáticas e comunicações via WhatsApp
             </p>
           </div>
@@ -724,27 +724,30 @@ export default function Billing() {
             variant="glow" 
             onClick={() => handleSendBillings()}
             disabled={isSending || totalPending === 0 || !zapSettings?.selected_session_id}
+            className="w-full sm:w-auto sm:self-start"
           >
             {isSending && sendingType === 'all' ? (
               <Loader2 className="w-4 h-4 mr-2 animate-spin" />
             ) : (
               <Send className="w-4 h-4 mr-2" />
             )}
-            Enviar Todas as Cobranças
+            <span className="hidden sm:inline">Enviar Todas as Cobranças</span>
+            <span className="sm:hidden">Enviar Todas</span>
           </Button>
         </div>
 
         <Tabs defaultValue="config" className="space-y-4">
-          <TabsList className="grid w-full grid-cols-6">
-            <TabsTrigger value="config">Configuração</TabsTrigger>
-            <TabsTrigger value="departamentos">Departamentos</TabsTrigger>
-            <TabsTrigger value="conversas">Conversas</TabsTrigger>
-            <TabsTrigger value="templates">Templates</TabsTrigger>
-            <TabsTrigger value="relatorios">
-              <BarChart3 className="w-4 h-4 mr-1" />
-              Relatórios
+          <TabsList className="grid w-full grid-cols-3 sm:grid-cols-6 h-auto">
+            <TabsTrigger value="config" className="text-xs sm:text-sm py-2">Config</TabsTrigger>
+            <TabsTrigger value="departamentos" className="text-xs sm:text-sm py-2">Deptos</TabsTrigger>
+            <TabsTrigger value="conversas" className="text-xs sm:text-sm py-2">Conversas</TabsTrigger>
+            <TabsTrigger value="templates" className="text-xs sm:text-sm py-2">Templates</TabsTrigger>
+            <TabsTrigger value="relatorios" className="text-xs sm:text-sm py-2 flex items-center gap-1">
+              <BarChart3 className="w-3 h-3 sm:w-4 sm:h-4" />
+              <span className="hidden sm:inline">Relatórios</span>
+              <span className="sm:hidden">Rel.</span>
             </TabsTrigger>
-            <TabsTrigger value="historico">Histórico</TabsTrigger>
+            <TabsTrigger value="historico" className="text-xs sm:text-sm py-2">Histórico</TabsTrigger>
           </TabsList>
 
           {/* Tab: Configuração */}
@@ -823,7 +826,7 @@ export default function Billing() {
             </Card>
 
             {/* Pending Billings Summary */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
               <Card className="glass-card border-border/50">
                 <CardHeader className="pb-2">
                   <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
@@ -832,7 +835,7 @@ export default function Billing() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
-                  <p className="text-3xl font-bold text-warning">{pendingBillings?.dminus1.length || 0}</p>
+                  <p className="text-2xl sm:text-3xl font-bold text-warning">{pendingBillings?.dminus1.length || 0}</p>
                   <Button 
                     variant="outline" 
                     size="sm"
@@ -857,7 +860,7 @@ export default function Billing() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
-                  <p className="text-3xl font-bold text-primary">{pendingBillings?.d0.length || 0}</p>
+                  <p className="text-2xl sm:text-3xl font-bold text-primary">{pendingBillings?.d0.length || 0}</p>
                   <Button 
                     variant="outline" 
                     size="sm"
@@ -882,7 +885,7 @@ export default function Billing() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
-                  <p className="text-3xl font-bold text-destructive">{pendingBillings?.dplus1.length || 0}</p>
+                  <p className="text-2xl sm:text-3xl font-bold text-destructive">{pendingBillings?.dplus1.length || 0}</p>
                   <Button 
                     variant="outline" 
                     size="sm"

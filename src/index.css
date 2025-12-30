@@ -117,7 +117,7 @@
   }
 
   .stat-card {
-    @apply relative overflow-hidden rounded-xl p-6 transition-all duration-300 hover:scale-[1.02];
+    @apply relative overflow-hidden rounded-xl transition-all duration-300 hover:scale-[1.02];
     background: var(--gradient-card);
     box-shadow: var(--shadow-md);
   }

@@ -663,11 +663,11 @@ export default function Customers() {
 
   return (
     <DashboardLayout>
-      <div className="space-y-6 animate-fade-in">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+      <div className="space-y-4 sm:space-y-6 animate-fade-in">
+        <div className="flex flex-col gap-3">
           <div>
-            <h1 className="text-3xl font-bold text-foreground">Clientes</h1>
-            <p className="text-muted-foreground mt-1">Gerencie seus clientes IPTV</p>
+            <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-foreground">Clientes</h1>
+            <p className="text-muted-foreground text-sm sm:text-base mt-1">Gerencie seus clientes IPTV</p>
           </div>
           <div className="flex gap-2">
             <Dialog open={isImportOpen} onOpenChange={setIsImportOpen}>
