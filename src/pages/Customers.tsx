@@ -458,10 +458,52 @@ export default function Customers() {
     setIsImporting(true);
     let imported = 0;
     let errors = 0;
+    let serversCreated = 0;
+
+    // Cache for newly created servers to avoid duplicates
+    const serverCache: Record<string, string> = {};
 
     try {
+      // First, create all unique servers that don't exist
+      const uniqueServerNames = [...new Set(importData.map(row => row.server_name?.trim()).filter(Boolean))];
+      
+      for (const serverName of uniqueServerNames) {
+        // Check if server already exists in current list
+        const existingServer = servers?.find(s => 
+          s.server_name.toLowerCase() === serverName.toLowerCase()
+        );
+        
+        if (existingServer) {
+          serverCache[serverName.toLowerCase()] = existingServer.id;
+        } else {
+          // Create new server
+          const { data: newServer, error: serverError } = await supabase
+            .from('servers')
+            .insert({
+              server_name: serverName,
+              host: serverName.toLowerCase().replace(/\s+/g, '-'),
+              status: 'online',
+            })
+            .select('id')
+            .single();
+          
+          if (!serverError && newServer) {
+            serverCache[serverName.toLowerCase()] = newServer.id;
+            serversCreated++;
+          }
+        }
+      }
+
+      // Refresh servers list after creating new ones
+      await queryClient.invalidateQueries({ queryKey: ['servers'] });
+
       for (const row of importData) {
         const { server_name, plan_name, ...customerData } = row;
+        
+        // Use cached server_id if server was created or matched
+        if (server_name && serverCache[server_name.toLowerCase()]) {
+          customerData.server_id = serverCache[server_name.toLowerCase()];
+        }
         
         // Calculate due_date if not provided
         if (!customerData.due_date && customerData.plan_id) {
@@ -497,9 +539,10 @@ export default function Customers() {
       setIsImportOpen(false);
       setImportData([]);
       
+      const serverMsg = serversCreated > 0 ? ` ${serversCreated} servidor(es) criado(s).` : '';
       toast({ 
         title: 'Importação concluída!', 
-        description: `${imported} clientes importados. ${errors > 0 ? `${errors} erros.` : ''}`,
+        description: `${imported} clientes importados.${serverMsg} ${errors > 0 ? `${errors} erros.` : ''}`,
       });
     } catch (error: any) {
       toast({
