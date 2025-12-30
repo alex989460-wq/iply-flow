@@ -291,7 +291,7 @@ export default function Customers() {
     return matchesSearch && matchesStatus;
   });
 
-  const isOverdue = (dueDate: string) => new Date(dueDate) < new Date();
+  const isOverdue = (dueDate: string) => new Date(dueDate + 'T23:59:59') < new Date();
 
   const openWhatsApp = (phone: string) => {
     const formattedPhone = phone.replace(/\D/g, '');
@@ -687,10 +687,10 @@ export default function Customers() {
                         <PopoverContent className="w-auto p-0" align="start">
                           <Calendar
                             mode="single"
-                            selected={formData.due_date ? new Date(formData.due_date + 'T00:00:00') : undefined}
+                            selected={formData.due_date ? new Date(formData.due_date + 'T12:00:00') : undefined}
                             onSelect={(date) => setFormData({ 
                               ...formData, 
-                              due_date: date ? date.toISOString().split('T')[0] : '' 
+                              due_date: date ? format(date, 'yyyy-MM-dd') : '' 
                             })}
                             initialFocus
                             className="p-3 pointer-events-auto"
@@ -850,7 +850,7 @@ export default function Customers() {
                         <span className={cn(
                           isOverdue(customer.due_date) && customer.status === 'ativa' && "text-destructive"
                         )}>
-                          {new Date(customer.due_date).toLocaleDateString('pt-BR')}
+                          {format(new Date(customer.due_date + 'T12:00:00'), 'dd/MM/yyyy', { locale: ptBR })}
                         </span>
                       </TableCell>
                       <TableCell>{getStatusBadge(customer.status)}</TableCell>
