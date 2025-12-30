@@ -50,6 +50,7 @@ export default function Customers() {
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [renewingCustomer, setRenewingCustomer] = useState<any | null>(null);
   const [selectedPlanId, setSelectedPlanId] = useState('');
+  const [customAmount, setCustomAmount] = useState('');
   const [editingCustomer, setEditingCustomer] = useState<any | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -185,7 +186,7 @@ export default function Customers() {
   });
 
   const renewMutation = useMutation({
-    mutationFn: async ({ customerId, planId }: { customerId: string; planId: string }) => {
+    mutationFn: async ({ customerId, planId, amount }: { customerId: string; planId: string; amount: number }) => {
       const plan = plans?.find(p => p.id === planId);
       if (!plan) throw new Error('Plano não encontrado');
       
@@ -195,7 +196,7 @@ export default function Customers() {
       const { error: customerError } = await supabase
         .from('customers')
         .update({ 
-          due_date: newDueDate.toISOString().split('T')[0],
+          due_date: format(newDueDate, 'yyyy-MM-dd'),
           status: 'ativa',
           plan_id: planId,
         })
@@ -206,9 +207,9 @@ export default function Customers() {
         .from('payments')
         .insert({
           customer_id: customerId,
-          amount: plan.price,
+          amount: amount,
           method: 'pix',
-          payment_date: new Date().toISOString().split('T')[0],
+          payment_date: format(new Date(), 'yyyy-MM-dd'),
           confirmed: false,
         });
       if (paymentError) throw paymentError;
@@ -219,6 +220,7 @@ export default function Customers() {
       setIsRenewOpen(false);
       setRenewingCustomer(null);
       setSelectedPlanId('');
+      setCustomAmount('');
       toast({ title: 'Renovação registrada! Pagamento pendente criado.' });
     },
     onError: (error: Error) => {
@@ -248,12 +250,15 @@ export default function Customers() {
   const handleRenewClick = (customer: any) => {
     setRenewingCustomer(customer);
     setSelectedPlanId(customer.plan_id || '');
+    const plan = plans?.find(p => p.id === customer.plan_id);
+    setCustomAmount(plan ? String(plan.price) : '');
     setIsRenewOpen(true);
   };
 
   const handleRenewSubmit = () => {
     if (!renewingCustomer || !selectedPlanId) return;
-    renewMutation.mutate({ customerId: renewingCustomer.id, planId: selectedPlanId });
+    const amount = customAmount ? parseFloat(customAmount) : (plans?.find(p => p.id === selectedPlanId)?.price || 0);
+    renewMutation.mutate({ customerId: renewingCustomer.id, planId: selectedPlanId, amount });
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -747,7 +752,7 @@ export default function Customers() {
         </div>
 
         {/* Renew Dialog */}
-        <Dialog open={isRenewOpen} onOpenChange={(open) => { setIsRenewOpen(open); if (!open) { setRenewingCustomer(null); setSelectedPlanId(''); } }}>
+        <Dialog open={isRenewOpen} onOpenChange={(open) => { setIsRenewOpen(open); if (!open) { setRenewingCustomer(null); setSelectedPlanId(''); setCustomAmount(''); } }}>
           <DialogContent className="bg-card border-border max-w-sm">
             <DialogHeader>
               <DialogTitle>Renovar Plano</DialogTitle>
@@ -758,7 +763,14 @@ export default function Customers() {
             <div className="space-y-4">
               <div className="space-y-2">
                 <Label>Plano</Label>
-                <Select value={selectedPlanId} onValueChange={setSelectedPlanId}>
+                <Select 
+                  value={selectedPlanId} 
+                  onValueChange={(value) => {
+                    setSelectedPlanId(value);
+                    const plan = plans?.find(p => p.id === value);
+                    if (plan) setCustomAmount(String(plan.price));
+                  }}
+                >
                   <SelectTrigger className="bg-secondary/50">
                     <SelectValue placeholder="Selecione o plano" />
                   </SelectTrigger>
@@ -771,10 +783,25 @@ export default function Customers() {
                   </SelectContent>
                 </Select>
               </div>
-              {selectedPlanId && (
+              <div className="space-y-2">
+                <Label>Valor do Pagamento (R$)</Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={customAmount}
+                  onChange={(e) => setCustomAmount(e.target.value)}
+                  placeholder="Valor personalizado"
+                  className="bg-secondary/50"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Edite para cobrar um valor diferente do plano.
+                </p>
+              </div>
+              {selectedPlanId && customAmount && (
                 <div className="p-3 bg-secondary/30 rounded-lg text-sm">
                   <p className="text-muted-foreground">
-                    Um pagamento pendente de <strong>R${Number(plans?.find(p => p.id === selectedPlanId)?.price).toFixed(2)}</strong> será criado.
+                    Um pagamento pendente de <strong>R${Number(customAmount).toFixed(2)}</strong> será criado.
                   </p>
                 </div>
               )}
