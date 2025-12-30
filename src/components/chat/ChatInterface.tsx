@@ -29,13 +29,17 @@ interface Conversation {
 interface Message {
   _id: string;
   text?: string;
-  content?: { type?: string; text?: string };
+  // Zap Responder às vezes retorna content como string, às vezes como objeto
+  content?: string | { type?: string; text?: string };
   fromMe?: boolean;
   isFromMe?: boolean;
   role?: string;
+  autor?: string;
   createdAt?: string;
   timestamp?: string;
+  sendedAt?: string;
 }
+
 
 interface ChatInterfaceProps {
   departmentId?: string;
@@ -320,12 +324,15 @@ const ChatInterface = forwardRef<HTMLDivElement, ChatInterfaceProps>(({ departme
   };
 
   const getMessageText = (msg: Message) => {
+    if (typeof msg.content === 'string') return msg.content;
     return msg.text || msg.content?.text || '';
   };
 
   const isFromMe = (msg: Message) => {
+    if (msg.autor) return msg.autor === 'atendente' || msg.autor === 'agent' || msg.autor === 'admin';
     return msg.fromMe || msg.isFromMe || msg.role === 'assistant';
   };
+
 
   const filteredConversations = conversations.filter(conv => {
     const name = conv.cliente.nome.toLowerCase();
@@ -503,7 +510,7 @@ const ChatInterface = forwardRef<HTMLDivElement, ChatInterfaceProps>(({ departme
                           'text-xs mt-1',
                           isFromMe(msg) ? 'text-primary-foreground/70' : 'text-muted-foreground'
                         )}>
-                          {formatTime(msg.createdAt || msg.timestamp)}
+                          {formatTime(msg.createdAt || msg.timestamp || msg.sendedAt)}
                         </p>
                       </div>
                     </div>
