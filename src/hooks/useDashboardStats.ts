@@ -63,7 +63,17 @@ export function useDashboardStats() {
   return useQuery({
     queryKey: ['dashboard-stats'],
     queryFn: async () => {
-      const today = new Date().toISOString().split('T')[0];
+      // Calculate dates
+      const now = new Date();
+      const today = now.toISOString().split('T')[0];
+      
+      const tomorrow = new Date(now);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      const tomorrowStr = tomorrow.toISOString().split('T')[0];
+      
+      const yesterday = new Date(now);
+      yesterday.setDate(yesterday.getDate() - 1);
+      const yesterdayStr = yesterday.toISOString().split('T')[0];
 
       // Fetch all customers (without 1000 limit)
       const customers = await fetchAllCustomers();
@@ -83,8 +93,17 @@ export function useDashboardStats() {
 
       const monthlyRevenue = payments?.reduce((sum, p) => sum + Number(p.amount), 0) || 0;
 
-      const dueTodayCustomers = customers?.filter(c => c.due_date === today && c.status === 'ativa').length || 0;
-      const overdueCustomers = customers?.filter(c => c.due_date < today && c.status === 'ativa').length || 0;
+      // Due today - all statuses
+      const dueTodayCustomers = customers?.filter(c => c.due_date === today).length || 0;
+      
+      // Due tomorrow - all statuses
+      const dueTomorrowCustomers = customers?.filter(c => c.due_date === tomorrowStr).length || 0;
+      
+      // Overdue by 1 day (venceu ontem)
+      const overdueOneDayCustomers = customers?.filter(c => c.due_date === yesterdayStr).length || 0;
+      
+      // All overdue (before today)
+      const overdueCustomers = customers?.filter(c => c.due_date < today).length || 0;
 
       // Calculate monthly projection based on active customers and their plan prices
       const monthlyProjection = customers
@@ -127,9 +146,15 @@ export function useDashboardStats() {
         monthlyRevenue,
         monthlyProjection,
         dueTodayCustomers,
+        dueTomorrowCustomers,
+        overdueOneDayCustomers,
         overdueCustomers,
         planDistribution,
         serverDistribution,
+        // Pass dates for filtering
+        today,
+        tomorrow: tomorrowStr,
+        yesterday: yesterdayStr,
       };
     },
   });

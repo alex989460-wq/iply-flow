@@ -1,5 +1,6 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import DashboardLayout from '@/components/layout/DashboardLayout';
@@ -55,6 +56,8 @@ export default function Customers() {
   const [editingCustomer, setEditingCustomer] = useState<any | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [dueDateFilter, setDueDateFilter] = useState<string>('all');
+  const [searchParams, setSearchParams] = useSearchParams();
   const [formData, setFormData] = useState({
     name: '',
     phone: '',
@@ -77,6 +80,16 @@ export default function Customers() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { user } = useAuth();
+
+  // Handle URL params for filtering from dashboard
+  useEffect(() => {
+    const filter = searchParams.get('filter');
+    if (filter) {
+      setDueDateFilter(filter);
+      // Clear the URL param after setting the filter
+      setSearchParams({});
+    }
+  }, [searchParams, setSearchParams]);
 
   const { data: customers, isLoading } = useQuery({
     queryKey: ['customers'],
@@ -338,7 +351,38 @@ export default function Customers() {
     const matchesSearch = customer.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                           customer.phone.includes(searchTerm);
     const matchesStatus = statusFilter === 'all' || customer.status === statusFilter;
-    return matchesSearch && matchesStatus;
+    
+    // Due date filtering
+    let matchesDueDate = true;
+    if (dueDateFilter !== 'all') {
+      const now = new Date();
+      const today = now.toISOString().split('T')[0];
+      
+      const tomorrow = new Date(now);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      const tomorrowStr = tomorrow.toISOString().split('T')[0];
+      
+      const yesterday = new Date(now);
+      yesterday.setDate(yesterday.getDate() - 1);
+      const yesterdayStr = yesterday.toISOString().split('T')[0];
+
+      switch (dueDateFilter) {
+        case 'due_today':
+          matchesDueDate = customer.due_date === today;
+          break;
+        case 'due_tomorrow':
+          matchesDueDate = customer.due_date === tomorrowStr;
+          break;
+        case 'overdue_1day':
+          matchesDueDate = customer.due_date === yesterdayStr;
+          break;
+        case 'overdue':
+          matchesDueDate = customer.due_date < today;
+          break;
+      }
+    }
+    
+    return matchesSearch && matchesStatus && matchesDueDate;
   });
 
   const isOverdue = (dueDate: string) => new Date(dueDate + 'T23:59:59') < new Date();
@@ -1034,7 +1078,6 @@ export default function Customers() {
           </DialogContent>
         </Dialog>
 
-        {/* Tabs */}
         {/* Filters */}
         <div className="flex flex-col sm:flex-row gap-4">
           <div className="relative flex-1">
@@ -1047,14 +1090,26 @@ export default function Customers() {
             />
           </div>
           <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-full sm:w-48 bg-secondary/50">
-              <SelectValue placeholder="Filtrar por status" />
+            <SelectTrigger className="w-full sm:w-40 bg-secondary/50">
+              <SelectValue placeholder="Status" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Todos</SelectItem>
+              <SelectItem value="all">Todos Status</SelectItem>
               <SelectItem value="ativa">Ativas</SelectItem>
               <SelectItem value="inativa">Inativas</SelectItem>
               <SelectItem value="suspensa">Suspensas</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={dueDateFilter} onValueChange={setDueDateFilter}>
+            <SelectTrigger className="w-full sm:w-48 bg-secondary/50">
+              <SelectValue placeholder="Vencimento" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos Vencimentos</SelectItem>
+              <SelectItem value="due_today">Vencem Hoje</SelectItem>
+              <SelectItem value="due_tomorrow">Vencem Amanhã</SelectItem>
+              <SelectItem value="overdue_1day">Vencidas 1 Dia</SelectItem>
+              <SelectItem value="overdue">Todas Vencidas</SelectItem>
             </SelectContent>
           </Select>
         </div>
