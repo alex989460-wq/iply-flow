@@ -257,7 +257,10 @@ export default function Customers() {
       const customer = customers?.find(c => c.id === customerId);
       if (!customer) throw new Error('Cliente não encontrado');
       
-      const newDueDate = new Date();
+      // Extend from current due date (if still valid) otherwise from today
+      const baseDate = customer.due_date ? new Date(`${customer.due_date}T12:00:00`) : new Date();
+      const anchorDate = baseDate > new Date() ? baseDate : new Date();
+      const newDueDate = new Date(anchorDate);
       newDueDate.setDate(newDueDate.getDate() + plan.duration_days);
       
       const { error: customerError } = await supabase
