@@ -63,6 +63,7 @@ export type Database = {
           server_id: string | null
           start_date: string
           status: Database["public"]["Enums"]["customer_status"]
+          username: string | null
         }
         Insert: {
           created_at?: string
@@ -77,6 +78,7 @@ export type Database = {
           server_id?: string | null
           start_date?: string
           status?: Database["public"]["Enums"]["customer_status"]
+          username?: string | null
         }
         Update: {
           created_at?: string
@@ -91,6 +93,7 @@ export type Database = {
           server_id?: string | null
           start_date?: string
           status?: Database["public"]["Enums"]["customer_status"]
+          username?: string | null
         }
         Relationships: [
           {
