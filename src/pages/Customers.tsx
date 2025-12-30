@@ -71,6 +71,7 @@ export default function Customers() {
   const [importData, setImportData] = useState<any[]>([]);
   const [isImporting, setIsImporting] = useState(false);
   const [importStatusFilter, setImportStatusFilter] = useState<string>('all');
+  const [importProgress, setImportProgress] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const queryClient = useQueryClient();
@@ -517,6 +518,9 @@ export default function Customers() {
       // Refresh servers list after creating new ones
       await queryClient.invalidateQueries({ queryKey: ['servers'] });
 
+      const totalToImport = dataToImport.length;
+      let processedCount = 0;
+
       for (const row of dataToImport) {
         const { server_name, plan_name, ...customerData } = row;
         
@@ -553,6 +557,10 @@ export default function Customers() {
         } else {
           imported++;
         }
+
+        // Update progress
+        processedCount++;
+        setImportProgress(Math.round((processedCount / totalToImport) * 100));
       }
 
       queryClient.invalidateQueries({ queryKey: ['customers'] });
@@ -573,6 +581,7 @@ export default function Customers() {
       });
     } finally {
       setIsImporting(false);
+      setImportProgress(0);
     }
   };
 
@@ -706,14 +715,28 @@ export default function Customers() {
                         )}
                       </div>
 
-                      <Button 
-                        onClick={executeImport} 
-                        className="w-full"
-                        disabled={isImporting || (importStatusFilter === 'all' ? importData : importData.filter(r => r.status === importStatusFilter)).length === 0}
-                      >
-                        {isImporting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                        Importar {(importStatusFilter === 'all' ? importData : importData.filter(r => r.status === importStatusFilter)).length} Clientes
-                      </Button>
+                      {isImporting ? (
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between text-sm">
+                            <span>Importando clientes...</span>
+                            <span className="font-medium">{importProgress}%</span>
+                          </div>
+                          <div className="w-full bg-secondary rounded-full h-3 overflow-hidden">
+                            <div 
+                              className="bg-primary h-full transition-all duration-300 ease-out"
+                              style={{ width: `${importProgress}%` }}
+                            />
+                          </div>
+                        </div>
+                      ) : (
+                        <Button 
+                          onClick={executeImport} 
+                          className="w-full"
+                          disabled={(importStatusFilter === 'all' ? importData : importData.filter(r => r.status === importStatusFilter)).length === 0}
+                        >
+                          Importar {(importStatusFilter === 'all' ? importData : importData.filter(r => r.status === importStatusFilter)).length} Clientes
+                        </Button>
+                      )}
                     </>
                   )}
                 </div>
