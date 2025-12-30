@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -62,6 +63,7 @@ export default function Customers() {
     status: 'ativa' as CustomerStatus,
     notes: '',
     due_date: '',
+    custom_price: '',
   });
 
   // Import states
@@ -71,13 +73,14 @@ export default function Customers() {
 
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const { user } = useAuth();
 
   const { data: customers, isLoading } = useQuery({
     queryKey: ['customers'],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('customers')
-        .select('*, plans(plan_name, duration_days, price), servers(server_name)')
+        .select('*, plans(plan_name, duration_days, price), servers(server_name), profiles:created_by(full_name)')
         .order('created_at', { ascending: false });
       if (error) throw error;
       return data;
@@ -134,6 +137,7 @@ export default function Customers() {
         ...restData,
         start_date: new Date().toISOString().split('T')[0],
         due_date: dueDate,
+        created_by: user?.id,
       });
       if (error) throw error;
     },
@@ -229,7 +233,7 @@ export default function Customers() {
   });
 
   const resetForm = () => {
-    setFormData({ name: '', phone: '', server_id: '', plan_id: '', status: 'ativa', notes: '', due_date: '' });
+    setFormData({ name: '', phone: '', server_id: '', plan_id: '', status: 'ativa', notes: '', due_date: '', custom_price: '' });
     setEditingCustomer(null);
   };
 
@@ -243,6 +247,7 @@ export default function Customers() {
       status: customer.status,
       notes: customer.notes || '',
       due_date: customer.due_date || '',
+      custom_price: customer.custom_price ? String(customer.custom_price) : '',
     });
     setIsOpen(true);
   };
@@ -267,6 +272,7 @@ export default function Customers() {
       ...formData,
       server_id: formData.server_id || null,
       plan_id: formData.plan_id || null,
+      custom_price: formData.custom_price ? parseFloat(formData.custom_price) : null,
     };
     if (editingCustomer) {
       updateMutation.mutate({ id: editingCustomer.id, data: submitData });
@@ -656,7 +662,14 @@ export default function Customers() {
                       <Label>Plano</Label>
                       <Select
                         value={formData.plan_id}
-                        onValueChange={(value) => setFormData({ ...formData, plan_id: value })}
+                        onValueChange={(value) => {
+                          const plan = plans?.find(p => p.id === value);
+                          setFormData({ 
+                            ...formData, 
+                            plan_id: value,
+                            custom_price: formData.custom_price || (plan ? String(plan.price) : '')
+                          });
+                        }}
                       >
                         <SelectTrigger className="bg-secondary/50">
                           <SelectValue placeholder="Selecione" />
@@ -669,6 +682,21 @@ export default function Customers() {
                           ))}
                         </SelectContent>
                       </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Valor (R$)</Label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={formData.custom_price}
+                        onChange={(e) => setFormData({ ...formData, custom_price: e.target.value })}
+                        placeholder={formData.plan_id ? `Padrão: R$${Number(plans?.find(p => p.id === formData.plan_id)?.price || 0).toFixed(2)}` : 'Selecione um plano'}
+                        className="bg-secondary/50"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Deixe vazio para usar o valor do plano.
+                      </p>
                     </div>
                     <div className="space-y-2 col-span-2">
                       <Label>Data de Vencimento</Label>
@@ -861,24 +889,32 @@ export default function Customers() {
                     <TableHead>Telefone</TableHead>
                     <TableHead>Servidor</TableHead>
                     <TableHead>Plano</TableHead>
+                    <TableHead>Valor</TableHead>
                     <TableHead>Vencimento</TableHead>
+                    <TableHead>Usuário</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead className="text-right">Ações</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredCustomers?.map((customer) => (
+                  {filteredCustomers?.map((customer: any) => (
                     <TableRow key={customer.id} className="table-row-hover border-border">
                       <TableCell className="font-medium">{customer.name}</TableCell>
                       <TableCell className="font-mono text-sm">{customer.phone}</TableCell>
                       <TableCell>{customer.servers?.server_name || '-'}</TableCell>
                       <TableCell>{customer.plans?.plan_name || '-'}</TableCell>
+                      <TableCell className="font-medium text-primary">
+                        R${Number(customer.custom_price || customer.plans?.price || 0).toFixed(2)}
+                      </TableCell>
                       <TableCell>
                         <span className={cn(
                           isOverdue(customer.due_date) && customer.status === 'ativa' && "text-destructive"
                         )}>
                           {format(new Date(customer.due_date + 'T12:00:00'), 'dd/MM/yyyy', { locale: ptBR })}
                         </span>
+                      </TableCell>
+                      <TableCell className="text-muted-foreground text-sm">
+                        {customer.profiles?.full_name || '-'}
                       </TableCell>
                       <TableCell>{getStatusBadge(customer.status)}</TableCell>
                       <TableCell className="text-right">

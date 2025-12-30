@@ -52,6 +52,8 @@ export type Database = {
       customers: {
         Row: {
           created_at: string
+          created_by: string | null
+          custom_price: number | null
           due_date: string
           id: string
           name: string
@@ -64,6 +66,8 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          created_by?: string | null
+          custom_price?: number | null
           due_date: string
           id?: string
           name: string
@@ -76,6 +80,8 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          created_by?: string | null
+          custom_price?: number | null
           due_date?: string
           id?: string
           name?: string
