@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import DashboardLayout from '@/components/layout/DashboardLayout';
@@ -117,6 +117,8 @@ export default function Billing() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [isDeletingLog, setIsDeletingLog] = useState(false);
+  const [departmentsLoaded, setDepartmentsLoaded] = useState(false);
+  const [sessionsLoaded, setSessionsLoaded] = useState(false);
 
   const { data: billingLogs, isLoading } = useQuery({
     queryKey: ['billing-logs'],
@@ -167,6 +169,40 @@ export default function Billing() {
     },
   });
 
+  // Auto-load sessions and departments on mount
+  useEffect(() => {
+    if (zapSettings && !sessionsLoaded) {
+      fetchSessions(false).then(() => setSessionsLoaded(true));
+    }
+  }, [zapSettings, sessionsLoaded]);
+
+  useEffect(() => {
+    if (zapSettings && !departmentsLoaded) {
+      fetchDepartmentsAuto();
+    }
+  }, [zapSettings, departmentsLoaded]);
+
+  // Silent fetch for auto-load (no toast)
+  const fetchDepartmentsAuto = async () => {
+    setIsLoadingDepartments(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('zap-responder', {
+        body: { action: 'departamentos' },
+      });
+
+      if (error) throw error;
+
+      if (data?.success && data?.data) {
+        setDepartments(data.data);
+        setDepartmentsLoaded(true);
+      }
+    } catch (error: any) {
+      console.error('Error auto-loading departments:', error);
+    } finally {
+      setIsLoadingDepartments(false);
+    }
+  };
+
   const { data: pendingBillings } = useQuery({
     queryKey: ['pending-billings'],
     queryFn: async () => {
@@ -176,27 +212,50 @@ export default function Billing() {
       const tomorrow = new Date(today);
       tomorrow.setDate(tomorrow.getDate() + 1);
 
-      const { data: customers, error } = await supabase
-        .from('customers')
-        .select('*, plans(plan_name)')
-        .eq('status', 'ativa');
+      // Fetch ALL active customers using pagination (bypass 1000 limit)
+      const pageSize = 1000;
+      let allCustomers: any[] = [];
+      let page = 0;
+      let hasMore = true;
 
-      if (error) throw error;
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from('customers')
+          .select('*, plans(plan_name)')
+          .eq('status', 'ativa')
+          .range(page * pageSize, (page + 1) * pageSize - 1);
+
+        if (error) throw error;
+
+        if (data && data.length > 0) {
+          allCustomers = [...allCustomers, ...data];
+          hasMore = data.length === pageSize;
+          page++;
+        } else {
+          hasMore = false;
+        }
+      }
 
       const todayStr = today.toISOString().split('T')[0];
       const yesterdayStr = yesterday.toISOString().split('T')[0];
       const tomorrowStr = tomorrow.toISOString().split('T')[0];
 
+      console.log('Billing dates:', { todayStr, yesterdayStr, tomorrowStr });
+      console.log('Total active customers:', allCustomers.length);
+      console.log('D-1 (tomorrow):', allCustomers.filter(c => c.due_date === tomorrowStr).length);
+      console.log('D0 (today):', allCustomers.filter(c => c.due_date === todayStr).length);
+      console.log('D+1 (yesterday):', allCustomers.filter(c => c.due_date === yesterdayStr).length);
+
       return {
-        dminus1: customers?.filter(c => c.due_date === tomorrowStr) || [],
-        d0: customers?.filter(c => c.due_date === todayStr) || [],
-        dplus1: customers?.filter(c => c.due_date === yesterdayStr) || [],
+        dminus1: allCustomers.filter(c => c.due_date === tomorrowStr) || [],
+        d0: allCustomers.filter(c => c.due_date === todayStr) || [],
+        dplus1: allCustomers.filter(c => c.due_date === yesterdayStr) || [],
       };
     },
   });
 
   // Fetch sessions/atendentes
-  const fetchSessions = async () => {
+  const fetchSessions = async (showToast = true) => {
     setIsLoadingSessions(true);
     try {
       const { data, error } = await supabase.functions.invoke('zap-responder', {
@@ -207,20 +266,26 @@ export default function Billing() {
 
       if (data?.success && data?.data) {
         setSessions(data.data);
-        toast({ title: 'Atendentes carregados!', description: `${data.data.length} atendentes encontrados.` });
+        if (showToast) {
+          toast({ title: 'Atendentes carregados!', description: `${data.data.length} atendentes encontrados.` });
+        }
       } else {
-        toast({ 
-          title: 'Erro ao carregar atendentes', 
-          description: data?.error || 'Resposta inválida da API',
-          variant: 'destructive' 
-        });
+        if (showToast) {
+          toast({ 
+            title: 'Erro ao carregar atendentes', 
+            description: data?.error || 'Resposta inválida da API',
+            variant: 'destructive' 
+          });
+        }
       }
     } catch (error: any) {
-      toast({
-        title: 'Erro ao carregar atendentes',
-        description: error.message || 'Não foi possível conectar à API',
-        variant: 'destructive',
-      });
+      if (showToast) {
+        toast({
+          title: 'Erro ao carregar atendentes',
+          description: error.message || 'Não foi possível conectar à API',
+          variant: 'destructive',
+        });
+      }
     } finally {
       setIsLoadingSessions(false);
     }
@@ -655,7 +720,7 @@ export default function Billing() {
                   </div>
                   <Button 
                     variant="outline" 
-                    onClick={fetchSessions}
+                    onClick={() => fetchSessions(true)}
                     disabled={isLoadingSessions}
                   >
                     {isLoadingSessions ? (
