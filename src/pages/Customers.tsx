@@ -59,6 +59,8 @@ export default function Customers() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [dueDateFilter, setDueDateFilter] = useState<string>('all');
+  const [pageSize, setPageSize] = useState<number>(50);
+  const [currentPage, setCurrentPage] = useState<number>(1);
   const [searchParams, setSearchParams] = useSearchParams();
   const [formData, setFormData] = useState({
     name: '',
@@ -321,12 +323,17 @@ export default function Customers() {
       }
     },
     onSuccess: () => {
+      // Refetch customers data
       queryClient.invalidateQueries({ queryKey: ['customers'] });
       queryClient.invalidateQueries({ queryKey: ['payments'] });
+      
+      // Reset all renewal state
       setIsRenewOpen(false);
       setRenewingCustomer(null);
       setSelectedPlanId('');
       setCustomAmount('');
+      setSendConfirmationMessage(true);
+      
       const successMessage = sendConfirmationMessage && zapSettings?.selected_department_id
         ? 'Renovação registrada! Mensagem de confirmação enviada.'
         : 'Renovação registrada! Pagamento pendente criado.';
@@ -448,6 +455,20 @@ export default function Customers() {
     
     return matchesSearch && matchesStatus && matchesDueDate;
   });
+
+  // Pagination
+  const totalFiltered = filteredCustomers?.length || 0;
+  const totalPages = Math.ceil(totalFiltered / pageSize);
+  const paginatedCustomers = filteredCustomers?.slice(
+    (currentPage - 1) * pageSize,
+    currentPage * pageSize
+  );
+
+  // Reset to page 1 when filters change
+  const handleFilterChange = (setter: (val: string) => void, value: string) => {
+    setter(value);
+    setCurrentPage(1);
+  };
 
   const isOverdue = (dueDate: string) => new Date(dueDate + 'T23:59:59') < new Date();
 
@@ -1173,17 +1194,17 @@ export default function Customers() {
         </Dialog>
 
         {/* Filters */}
-        <div className="flex flex-col sm:flex-row gap-4">
+        <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Buscar por nome ou telefone..."
+              onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
+              placeholder="Buscar por nome, telefone ou usuário..."
               className="pl-10 bg-secondary/50"
             />
           </div>
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
+          <Select value={statusFilter} onValueChange={(v) => handleFilterChange(setStatusFilter, v)}>
             <SelectTrigger className="w-full sm:w-40 bg-secondary/50">
               <SelectValue placeholder="Status" />
             </SelectTrigger>
@@ -1194,7 +1215,7 @@ export default function Customers() {
               <SelectItem value="suspensa">Suspensas</SelectItem>
             </SelectContent>
           </Select>
-          <Select value={dueDateFilter} onValueChange={setDueDateFilter}>
+          <Select value={dueDateFilter} onValueChange={(v) => handleFilterChange(setDueDateFilter, v)}>
             <SelectTrigger className="w-full sm:w-48 bg-secondary/50">
               <SelectValue placeholder="Vencimento" />
             </SelectTrigger>
@@ -1206,6 +1227,21 @@ export default function Customers() {
               <SelectItem value="overdue">Todas Vencidas</SelectItem>
             </SelectContent>
           </Select>
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-muted-foreground whitespace-nowrap">Mostrar</span>
+            <Select value={String(pageSize)} onValueChange={(v) => { setPageSize(Number(v)); setCurrentPage(1); }}>
+              <SelectTrigger className="w-20 bg-secondary/50">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="15">15</SelectItem>
+                <SelectItem value="25">25</SelectItem>
+                <SelectItem value="50">50</SelectItem>
+                <SelectItem value="100">100</SelectItem>
+              </SelectContent>
+            </Select>
+            <span className="text-sm text-muted-foreground whitespace-nowrap">Registros</span>
+          </div>
         </div>
 
         <Card className="glass-card border-border/50">
@@ -1235,7 +1271,7 @@ export default function Customers() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredCustomers?.map((customer: any) => (
+                  {paginatedCustomers?.map((customer: any) => (
                     <TableRow key={customer.id} className="table-row-hover border-border">
                       <TableCell className="font-medium">{customer.name}</TableCell>
                       <TableCell className="font-mono text-sm">{customer.phone}</TableCell>
@@ -1297,6 +1333,52 @@ export default function Customers() {
               </Table>
             )}
           </CardContent>
+
+          {/* Pagination */}
+          {totalFiltered > 0 && (
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 border-t border-border">
+              <div className="text-sm text-muted-foreground">
+                Mostrando {((currentPage - 1) * pageSize) + 1} - {Math.min(currentPage * pageSize, totalFiltered)} de {totalFiltered} registros
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(1)}
+                  disabled={currentPage === 1}
+                >
+                  Primeira
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                >
+                  Anterior
+                </Button>
+                <span className="text-sm px-2">
+                  Página {currentPage} de {totalPages}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages}
+                >
+                  Próxima
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(totalPages)}
+                  disabled={currentPage === totalPages}
+                >
+                  Última
+                </Button>
+              </div>
+            </div>
+          )}
         </Card>
       </div>
     </DashboardLayout>
