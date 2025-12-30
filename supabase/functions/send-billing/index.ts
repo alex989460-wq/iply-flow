@@ -231,20 +231,21 @@ Deno.serve(async (req) => {
       details: [] as any[],
     };
 
+    // Pre-filter customers to avoid duplicate log checks in parallel processing
+    const customersToProcess: any[] = [];
+    
     for (const customer of customers || []) {
       results.processed++;
       
       const billingType = getBillingType(customer.due_date, today);
       
       if (!billingType) {
-        console.log(`Skipping customer ${customer.name}: no billing type matched`);
         results.skipped++;
         continue;
       }
       
       // If filter is set, skip customers that don't match
       if (filterBillingType && billingType !== filterBillingType) {
-        console.log(`Skipping customer ${customer.name}: billing type ${billingType} doesn't match filter ${filterBillingType}`);
         results.skipped++;
         continue;
       }
@@ -260,51 +261,70 @@ Deno.serve(async (req) => {
         .maybeSingle();
 
       if (existingLog) {
-        console.log(`Skipping customer ${customer.name}: billing ${billingType} already sent today`);
         results.skipped++;
         continue;
       }
 
-      // Get template name for this billing type
-      const templateName = TEMPLATE_MAPPING[billingType];
-      const message = MESSAGES[billingType];
-      
-      // Send WhatsApp template
-      const sendResult = await sendWhatsAppTemplate(customer.phone, templateName, zapToken, apiBaseUrl, departmentId);
-      
-      // Log the billing attempt
-      const { error: logError } = await supabase
-        .from('billing_logs')
-        .insert({
-          customer_id: customer.id,
-          billing_type: billingType,
-          message: `Template: ${templateName} - ${message}`,
-          whatsapp_status: sendResult.success ? 'sent' : `error: ${sendResult.error}`,
-        });
+      customersToProcess.push({ ...customer, billingType });
+    }
 
-      if (logError) {
-        console.error(`Error logging billing for ${customer.name}:`, logError);
-      }
+    console.log(`Customers to process after filtering: ${customersToProcess.length}`);
 
-      if (sendResult.success) {
-        results.sent++;
-        results.details.push({
+    // Process in parallel batches of 5 to speed up
+    const BATCH_SIZE = 5;
+    for (let i = 0; i < customersToProcess.length; i += BATCH_SIZE) {
+      const batch = customersToProcess.slice(i, i + BATCH_SIZE);
+      
+      const batchPromises = batch.map(async (customer) => {
+        const billingType = customer.billingType as 'D-1' | 'D0' | 'D+1';
+        const templateName = TEMPLATE_MAPPING[billingType];
+        
+        // Send WhatsApp template
+        const sendResult = await sendWhatsAppTemplate(customer.phone, templateName, zapToken, apiBaseUrl, departmentId);
+        
+        // Log the billing attempt
+        await supabase
+          .from('billing_logs')
+          .insert({
+            customer_id: customer.id,
+            billing_type: billingType,
+            message: `[${customer.phone}] Template: ${templateName}`,
+            whatsapp_status: sendResult.success ? 'sent' : `error: ${sendResult.error}`,
+          });
+
+        return {
           customer: customer.name,
           phone: customer.phone,
           billingType,
           template: templateName,
-          status: 'sent',
-        });
-      } else {
-        results.errors++;
-        results.details.push({
-          customer: customer.name,
-          phone: customer.phone,
-          billingType,
-          template: templateName,
-          status: 'error',
+          success: sendResult.success,
           error: sendResult.error,
-        });
+        };
+      });
+
+      const batchResults = await Promise.all(batchPromises);
+      
+      for (const result of batchResults) {
+        if (result.success) {
+          results.sent++;
+          results.details.push({
+            customer: result.customer,
+            phone: result.phone,
+            billingType: result.billingType,
+            template: result.template,
+            status: 'sent',
+          });
+        } else {
+          results.errors++;
+          results.details.push({
+            customer: result.customer,
+            phone: result.phone,
+            billingType: result.billingType,
+            template: result.template,
+            status: 'error',
+            error: result.error,
+          });
+        }
       }
     }
 
