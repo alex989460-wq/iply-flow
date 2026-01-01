@@ -49,7 +49,8 @@ import {
   FileText,
   Play,
   Trash2,
-  BarChart3
+  BarChart3,
+  Download
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { Database } from '@/integrations/supabase/types';
@@ -710,6 +711,61 @@ export default function Billing() {
                        (pendingBillings?.d0.length || 0) + 
                        (pendingBillings?.dplus1.length || 0);
 
+  // Export contacts to CSV
+  const exportContactsToCSV = (type: 'D-1' | 'D0' | 'D+1') => {
+    let customers: any[] = [];
+    let filename = '';
+    
+    switch (type) {
+      case 'D-1':
+        customers = pendingBillings?.dminus1 || [];
+        filename = 'clientes_d-1_vencem_amanha.csv';
+        break;
+      case 'D0':
+        customers = pendingBillings?.d0 || [];
+        filename = 'clientes_d0_vencem_hoje.csv';
+        break;
+      case 'D+1':
+        customers = pendingBillings?.dplus1 || [];
+        filename = 'clientes_d+1_venceram_ontem.csv';
+        break;
+    }
+    
+    if (customers.length === 0) {
+      toast({
+        title: 'Nenhum cliente para exportar',
+        description: `Não há clientes na categoria ${type}`,
+        variant: 'destructive',
+      });
+      return;
+    }
+    
+    // Create CSV content with BOM for proper encoding
+    const BOM = '\uFEFF';
+    const headers = ['Nome', 'Telefone'];
+    const rows = customers.map(c => [
+      `"${(c.name || '').replace(/"/g, '""')}"`,
+      `"${(c.phone || '').replace(/"/g, '""')}"`
+    ]);
+    
+    const csvContent = BOM + headers.join(',') + '\n' + rows.map(row => row.join(',')).join('\n');
+    
+    // Create and download file
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(link.href);
+    
+    toast({
+      title: 'Exportação concluída!',
+      description: `${customers.length} contatos exportados para ${filename}`,
+    });
+  };
+
   return (
     <DashboardLayout>
       <div className="space-y-4 sm:space-y-6 animate-fade-in">
@@ -836,20 +892,32 @@ export default function Billing() {
                 </CardHeader>
                 <CardContent className="space-y-3">
                   <p className="text-2xl sm:text-3xl font-bold text-warning">{pendingBillings?.dminus1.length || 0}</p>
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    className="w-full border-warning/30 text-warning hover:bg-warning/10"
-                    onClick={() => handleSendBillings('D-1')}
-                    disabled={isSending || (pendingBillings?.dminus1.length || 0) === 0 || !zapSettings?.selected_session_id}
-                  >
-                    {isSending && sendingType === 'D-1' ? (
-                      <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-                    ) : (
-                      <Send className="w-3 h-3 mr-1" />
-                    )}
-                    Enviar D-1
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      className="flex-1 border-warning/30 text-warning hover:bg-warning/10"
+                      onClick={() => handleSendBillings('D-1')}
+                      disabled={isSending || (pendingBillings?.dminus1.length || 0) === 0 || !zapSettings?.selected_session_id}
+                    >
+                      {isSending && sendingType === 'D-1' ? (
+                        <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                      ) : (
+                        <Send className="w-3 h-3 mr-1" />
+                      )}
+                      Enviar
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      className="border-warning/30 text-warning hover:bg-warning/10"
+                      onClick={() => exportContactsToCSV('D-1')}
+                      disabled={(pendingBillings?.dminus1.length || 0) === 0}
+                      title="Exportar contatos para CSV"
+                    >
+                      <Download className="w-3 h-3" />
+                    </Button>
+                  </div>
                 </CardContent>
               </Card>
               <Card className="glass-card border-border/50">
@@ -861,20 +929,32 @@ export default function Billing() {
                 </CardHeader>
                 <CardContent className="space-y-3">
                   <p className="text-2xl sm:text-3xl font-bold text-primary">{pendingBillings?.d0.length || 0}</p>
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    className="w-full border-primary/30 text-primary hover:bg-primary/10"
-                    onClick={() => handleSendBillings('D0')}
-                    disabled={isSending || (pendingBillings?.d0.length || 0) === 0 || !zapSettings?.selected_session_id}
-                  >
-                    {isSending && sendingType === 'D0' ? (
-                      <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-                    ) : (
-                      <Send className="w-3 h-3 mr-1" />
-                    )}
-                    Enviar D0
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      className="flex-1 border-primary/30 text-primary hover:bg-primary/10"
+                      onClick={() => handleSendBillings('D0')}
+                      disabled={isSending || (pendingBillings?.d0.length || 0) === 0 || !zapSettings?.selected_session_id}
+                    >
+                      {isSending && sendingType === 'D0' ? (
+                        <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                      ) : (
+                        <Send className="w-3 h-3 mr-1" />
+                      )}
+                      Enviar
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      className="border-primary/30 text-primary hover:bg-primary/10"
+                      onClick={() => exportContactsToCSV('D0')}
+                      disabled={(pendingBillings?.d0.length || 0) === 0}
+                      title="Exportar contatos para CSV"
+                    >
+                      <Download className="w-3 h-3" />
+                    </Button>
+                  </div>
                 </CardContent>
               </Card>
               <Card className="glass-card border-border/50">
@@ -886,20 +966,32 @@ export default function Billing() {
                 </CardHeader>
                 <CardContent className="space-y-3">
                   <p className="text-2xl sm:text-3xl font-bold text-destructive">{pendingBillings?.dplus1.length || 0}</p>
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    className="w-full border-destructive/30 text-destructive hover:bg-destructive/10"
-                    onClick={() => handleSendBillings('D+1')}
-                    disabled={isSending || (pendingBillings?.dplus1.length || 0) === 0 || !zapSettings?.selected_session_id}
-                  >
-                    {isSending && sendingType === 'D+1' ? (
-                      <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-                    ) : (
-                      <Send className="w-3 h-3 mr-1" />
-                    )}
-                    Enviar D+1
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      className="flex-1 border-destructive/30 text-destructive hover:bg-destructive/10"
+                      onClick={() => handleSendBillings('D+1')}
+                      disabled={isSending || (pendingBillings?.dplus1.length || 0) === 0 || !zapSettings?.selected_session_id}
+                    >
+                      {isSending && sendingType === 'D+1' ? (
+                        <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                      ) : (
+                        <Send className="w-3 h-3 mr-1" />
+                      )}
+                      Enviar
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      className="border-destructive/30 text-destructive hover:bg-destructive/10"
+                      onClick={() => exportContactsToCSV('D+1')}
+                      disabled={(pendingBillings?.dplus1.length || 0) === 0}
+                      title="Exportar contatos para CSV"
+                    >
+                      <Download className="w-3 h-3" />
+                    </Button>
+                  </div>
                 </CardContent>
               </Card>
             </div>
