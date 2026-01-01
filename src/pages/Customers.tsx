@@ -37,7 +37,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { 
   Plus, Pencil, Trash2, Loader2, Users, RefreshCw, Search, CalendarIcon,
-  Upload, Phone, FileText, Download, MessageSquare, AlertTriangle
+  Upload, Phone, FileText, Download, MessageSquare, AlertTriangle, Send
 } from 'lucide-react';
 import {
   AlertDialog,
@@ -101,6 +101,14 @@ export default function Customers() {
   const [isDeleteAllOpen, setIsDeleteAllOpen] = useState(false);
   const [isDeletingAll, setIsDeletingAll] = useState(false);
   const [deleteAllProgress, setDeleteAllProgress] = useState(0);
+
+  // Send billing states
+  const [isSendBillingOpen, setIsSendBillingOpen] = useState(false);
+  const [sendingBillingCustomer, setSendingBillingCustomer] = useState<any | null>(null);
+  const [selectedTemplate, setSelectedTemplate] = useState('');
+  const [templates, setTemplates] = useState<Array<{ id: string; name: string; language?: string; status?: string }>>([]);
+  const [isLoadingTemplates, setIsLoadingTemplates] = useState(false);
+  const [isSendingBilling, setIsSendingBilling] = useState(false);
 
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -717,6 +725,105 @@ export default function Customers() {
     const formattedPhone = phone.replace(/\D/g, '');
     const phoneWithCode = formattedPhone.startsWith('55') ? formattedPhone : `55${formattedPhone}`;
     window.open(`https://wa.me/${phoneWithCode}`, '_blank');
+  };
+
+  // ============ Send Individual Billing Functions ============
+  const fetchTemplates = async () => {
+    if (!zapSettings?.selected_department_id) {
+      toast({
+        title: 'Departamento não configurado',
+        description: 'Configure um departamento na página de Cobranças primeiro.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    
+    setIsLoadingTemplates(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('zap-responder', {
+        body: { action: 'buscar-templates', department_id: zapSettings.selected_department_id },
+      });
+
+      if (error) throw error;
+
+      if (data?.success && data?.data) {
+        setTemplates(data.data);
+      } else {
+        toast({ 
+          title: 'Erro ao carregar templates', 
+          description: data?.error || 'Resposta inválida da API',
+          variant: 'destructive' 
+        });
+      }
+    } catch (error: any) {
+      toast({
+        title: 'Erro ao carregar templates',
+        description: error.message,
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoadingTemplates(false);
+    }
+  };
+
+  const openSendBillingDialog = async (customer: any) => {
+    setSendingBillingCustomer(customer);
+    setSelectedTemplate('');
+    setIsSendBillingOpen(true);
+    if (templates.length === 0) {
+      await fetchTemplates();
+    }
+  };
+
+  const sendIndividualBilling = async () => {
+    if (!sendingBillingCustomer || !selectedTemplate || !zapSettings?.selected_department_id) return;
+    
+    setIsSendingBilling(true);
+    try {
+      const phone = sendingBillingCustomer.phone.replace(/\D/g, '');
+      const phoneWithCode = phone.startsWith('55') ? phone : `55${phone}`;
+      
+      const { data, error } = await supabase.functions.invoke('zap-responder', {
+        body: { 
+          action: 'enviar-template',
+          department_id: zapSettings.selected_department_id,
+          template_name: selectedTemplate,
+          number: phoneWithCode,
+          language: 'pt_BR',
+        },
+      });
+
+      if (error) throw error;
+
+      if (data?.success) {
+        // Log the billing
+        await supabase.from('billing_logs').insert({
+          customer_id: sendingBillingCustomer.id,
+          billing_type: 'D0',
+          message: `Template "${selectedTemplate}" enviado manualmente`,
+          whatsapp_status: 'sent',
+        });
+        
+        toast({ title: 'Cobrança enviada!', description: `Template "${selectedTemplate}" enviado para ${sendingBillingCustomer.name}.` });
+        setIsSendBillingOpen(false);
+        setSendingBillingCustomer(null);
+        setSelectedTemplate('');
+      } else {
+        toast({ 
+          title: 'Erro ao enviar', 
+          description: data?.error || 'Não foi possível enviar a cobrança.',
+          variant: 'destructive' 
+        });
+      }
+    } catch (error: any) {
+      toast({
+        title: 'Erro ao enviar cobrança',
+        description: error.message,
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSendingBilling(false);
+    }
   };
 
   // ============ Import Functions ============
@@ -1756,6 +1863,15 @@ export default function Customers() {
                           <Button
                             variant="ghost"
                             size="icon"
+                            title="Enviar cobrança"
+                            onClick={() => openSendBillingDialog(customer)}
+                            disabled={!zapSettings?.selected_department_id}
+                          >
+                            <Send className="w-4 h-4 text-primary" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
                             title="Renovar plano"
                             onClick={() => handleRenewClick(customer)}
                             disabled={renewMutation.isPending}
@@ -1832,6 +1948,84 @@ export default function Customers() {
             </div>
           )}
         </Card>
+
+        {/* Send Individual Billing Dialog */}
+        <Dialog open={isSendBillingOpen} onOpenChange={(open) => { 
+          setIsSendBillingOpen(open); 
+          if (!open) { 
+            setSendingBillingCustomer(null); 
+            setSelectedTemplate(''); 
+          } 
+        }}>
+          <DialogContent className="bg-card border-border max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Send className="w-5 h-5 text-primary" />
+                Enviar Cobrança Individual
+              </DialogTitle>
+              <DialogDescription>
+                Envie uma cobrança para {sendingBillingCustomer?.name}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="p-3 bg-secondary/30 rounded-lg space-y-1">
+                <p className="text-sm"><strong>Cliente:</strong> {sendingBillingCustomer?.name}</p>
+                <p className="text-sm"><strong>Telefone:</strong> {sendingBillingCustomer?.phone}</p>
+                <p className="text-sm"><strong>Vencimento:</strong> {sendingBillingCustomer?.due_date ? format(new Date(sendingBillingCustomer.due_date + 'T12:00:00'), 'dd/MM/yyyy', { locale: ptBR }) : 'Não definido'}</p>
+              </div>
+              
+              <div className="space-y-2">
+                <Label>Selecione o Template</Label>
+                {isLoadingTemplates ? (
+                  <div className="flex items-center justify-center py-4">
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    <span className="ml-2 text-sm text-muted-foreground">Carregando templates...</span>
+                  </div>
+                ) : templates.length === 0 ? (
+                  <div className="text-center py-4">
+                    <p className="text-sm text-muted-foreground">Nenhum template disponível.</p>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="mt-2"
+                      onClick={fetchTemplates}
+                    >
+                      <RefreshCw className="w-3 h-3 mr-1" />
+                      Recarregar
+                    </Button>
+                  </div>
+                ) : (
+                  <Select value={selectedTemplate} onValueChange={setSelectedTemplate}>
+                    <SelectTrigger className="bg-secondary/50">
+                      <SelectValue placeholder="Selecione um template" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {templates.map((template) => (
+                        <SelectItem key={template.id || template.name} value={template.name}>
+                          {template.name}
+                          {template.status && ` (${template.status})`}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              </div>
+              
+              <Button 
+                className="w-full" 
+                onClick={sendIndividualBilling}
+                disabled={!selectedTemplate || isSendingBilling}
+              >
+                {isSendingBilling ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <Send className="w-4 h-4 mr-2" />
+                )}
+                Enviar Cobrança
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </DashboardLayout>
   );
