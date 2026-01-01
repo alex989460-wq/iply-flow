@@ -175,6 +175,34 @@ export default function Billing() {
     }
   };
 
+  const [isDeletingByType, setIsDeletingByType] = useState<string | null>(null);
+
+  const deleteLogsByType = async (billingType: 'D-1' | 'D0' | 'D+1') => {
+    setIsDeletingByType(billingType);
+    try {
+      const { error } = await supabase
+        .from('billing_logs')
+        .delete()
+        .eq('billing_type', billingType);
+      
+      if (error) throw error;
+      
+      toast({ 
+        title: 'Logs excluídos!', 
+        description: `Todos os registros ${billingType} foram removidos.` 
+      });
+      queryClient.invalidateQueries({ queryKey: ['billing-logs'] });
+    } catch (error: any) {
+      toast({
+        title: 'Erro ao excluir',
+        description: error.message || 'Não foi possível excluir os registros.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsDeletingByType(null);
+    }
+  };
+
   const { data: zapSettings, refetch: refetchSettings } = useQuery({
     queryKey: ['zap-responder-settings'],
     queryFn: async () => {
@@ -1434,11 +1462,55 @@ export default function Billing() {
           {/* Tab: Histórico */}
           <TabsContent value="historico" className="space-y-4">
             <Card className="glass-card border-border/50">
-              <CardHeader>
+              <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <CardTitle className="text-lg flex items-center gap-2">
                   <MessageSquare className="w-5 h-5 text-primary" />
                   Histórico de Cobranças Enviadas
                 </CardTitle>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="border-warning/30 text-warning hover:bg-warning/10"
+                    onClick={() => deleteLogsByType('D-1')}
+                    disabled={isDeletingByType !== null || !billingLogs?.some(l => l.billing_type === 'D-1')}
+                  >
+                    {isDeletingByType === 'D-1' ? (
+                      <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                    ) : (
+                      <Trash2 className="w-3 h-3 mr-1" />
+                    )}
+                    Excluir D-1
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="border-primary/30 text-primary hover:bg-primary/10"
+                    onClick={() => deleteLogsByType('D0')}
+                    disabled={isDeletingByType !== null || !billingLogs?.some(l => l.billing_type === 'D0')}
+                  >
+                    {isDeletingByType === 'D0' ? (
+                      <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                    ) : (
+                      <Trash2 className="w-3 h-3 mr-1" />
+                    )}
+                    Excluir D0
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="border-destructive/30 text-destructive hover:bg-destructive/10"
+                    onClick={() => deleteLogsByType('D+1')}
+                    disabled={isDeletingByType !== null || !billingLogs?.some(l => l.billing_type === 'D+1')}
+                  >
+                    {isDeletingByType === 'D+1' ? (
+                      <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                    ) : (
+                      <Trash2 className="w-3 h-3 mr-1" />
+                    )}
+                    Excluir D+1
+                  </Button>
+                </div>
               </CardHeader>
               <CardContent>
                 {isLoading ? (
