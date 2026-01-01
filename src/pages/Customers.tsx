@@ -1045,7 +1045,7 @@ export default function Customers() {
             <p className="text-muted-foreground text-sm sm:text-base mt-1">Gerencie seus clientes IPTV</p>
           </div>
           <div className="flex gap-2 flex-wrap">
-            <AlertDialog open={isDeleteAllOpen} onOpenChange={setIsDeleteAllOpen}>
+            <AlertDialog open={isDeleteAllOpen} onOpenChange={(open) => !isDeletingAll && setIsDeleteAllOpen(open)}>
               <AlertDialogTrigger asChild>
                 <Button variant="destructive" disabled={!customers || customers.length === 0}>
                   <Trash2 className="w-4 h-4 mr-2" />
@@ -1059,7 +1059,10 @@ export default function Customers() {
                     Excluir todos os clientes?
                   </AlertDialogTitle>
                   <AlertDialogDescription>
-                    Esta ação é irreversível. Todos os <strong>{customers?.length || 0}</strong> clientes serão excluídos permanentemente.
+                    {isDeletingAll 
+                      ? `Excluindo ${customers?.length || 0} clientes...`
+                      : <>Esta ação é irreversível. Todos os <strong>{customers?.length || 0}</strong> clientes serão excluídos permanentemente.</>
+                    }
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 
@@ -1070,16 +1073,22 @@ export default function Customers() {
                       <span className="font-medium">{deleteAllProgress}%</span>
                     </div>
                     <Progress value={deleteAllProgress} className="h-3" />
+                    <p className="text-xs text-muted-foreground text-center">
+                      Aguarde, não feche esta janela...
+                    </p>
                   </div>
                 ) : (
                   <AlertDialogFooter>
                     <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                    <AlertDialogAction
-                      onClick={handleDeleteAll}
-                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    <Button
+                      variant="destructive"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        handleDeleteAll();
+                      }}
                     >
                       Sim, excluir todos
-                    </AlertDialogAction>
+                    </Button>
                   </AlertDialogFooter>
                 )}
               </AlertDialogContent>
