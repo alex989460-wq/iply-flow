@@ -37,8 +37,20 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { 
   Plus, Pencil, Trash2, Loader2, Users, RefreshCw, Search, CalendarIcon,
-  Upload, Phone, FileText, Download, MessageSquare
+  Upload, Phone, FileText, Download, MessageSquare, AlertTriangle
 } from 'lucide-react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
+import { Progress } from '@/components/ui/progress';
 import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
@@ -84,6 +96,11 @@ export default function Customers() {
   const [importStatusFilter, setImportStatusFilter] = useState<string[]>(['ativa', 'inativa', 'suspensa']);
   const [importProgress, setImportProgress] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Delete all states
+  const [isDeleteAllOpen, setIsDeleteAllOpen] = useState(false);
+  const [isDeletingAll, setIsDeletingAll] = useState(false);
+  const [deleteAllProgress, setDeleteAllProgress] = useState(0);
 
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -970,6 +987,55 @@ export default function Customers() {
     link.click();
   };
 
+  const handleDeleteAll = async () => {
+    if (!customers || customers.length === 0 || isDeletingAll) return;
+    
+    setIsDeletingAll(true);
+    setDeleteAllProgress(0);
+    
+    const totalCustomers = customers.length;
+    let deleted = 0;
+    let errors = 0;
+    
+    // Delete in batches of 50 for efficiency
+    const batchSize = 50;
+    const customerIds = customers.map(c => c.id);
+    
+    for (let i = 0; i < customerIds.length; i += batchSize) {
+      const batch = customerIds.slice(i, i + batchSize);
+      
+      const { error } = await supabase
+        .from('customers')
+        .delete()
+        .in('id', batch);
+      
+      if (error) {
+        console.error('Erro ao excluir lote:', error);
+        errors += batch.length;
+      } else {
+        deleted += batch.length;
+      }
+      
+      setDeleteAllProgress(Math.round(((i + batch.length) / totalCustomers) * 100));
+    }
+    
+    queryClient.invalidateQueries({ queryKey: ['customers'] });
+    setIsDeletingAll(false);
+    setIsDeleteAllOpen(false);
+    setDeleteAllProgress(0);
+    setSelectedCustomerIds(new Set());
+    
+    if (errors > 0) {
+      toast({
+        title: 'Exclusão parcial',
+        description: `${deleted} clientes excluídos. ${errors} erros.`,
+        variant: 'destructive',
+      });
+    } else {
+      toast({ title: `${deleted} clientes excluídos com sucesso!` });
+    }
+  };
+
   return (
     <DashboardLayout>
       <div className="space-y-4 sm:space-y-6 animate-fade-in">
@@ -978,7 +1044,47 @@ export default function Customers() {
             <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-foreground">Clientes</h1>
             <p className="text-muted-foreground text-sm sm:text-base mt-1">Gerencie seus clientes IPTV</p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
+            <AlertDialog open={isDeleteAllOpen} onOpenChange={setIsDeleteAllOpen}>
+              <AlertDialogTrigger asChild>
+                <Button variant="destructive" disabled={!customers || customers.length === 0}>
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  Excluir Todos
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle className="flex items-center gap-2">
+                    <AlertTriangle className="w-5 h-5 text-destructive" />
+                    Excluir todos os clientes?
+                  </AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Esta ação é irreversível. Todos os <strong>{customers?.length || 0}</strong> clientes serão excluídos permanentemente.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                
+                {isDeletingAll ? (
+                  <div className="space-y-3 py-4">
+                    <div className="flex items-center justify-between text-sm">
+                      <span>Excluindo clientes...</span>
+                      <span className="font-medium">{deleteAllProgress}%</span>
+                    </div>
+                    <Progress value={deleteAllProgress} className="h-3" />
+                  </div>
+                ) : (
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={handleDeleteAll}
+                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    >
+                      Sim, excluir todos
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                )}
+              </AlertDialogContent>
+            </AlertDialog>
+
             <Dialog open={isImportOpen} onOpenChange={setIsImportOpen}>
               <DialogTrigger asChild>
                 <Button variant="outline">
