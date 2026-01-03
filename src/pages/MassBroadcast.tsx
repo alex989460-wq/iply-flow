@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -23,7 +23,9 @@ import {
   Search,
   Filter,
   Loader2,
-  MessageSquare
+  MessageSquare,
+  RefreshCw,
+  FileText
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -39,22 +41,20 @@ interface Customer {
   plans?: { plan_name: string; price: number } | null;
 }
 
-interface Server {
+interface ServerType {
   id: string;
   server_name: string;
 }
 
+interface WhatsAppTemplate {
+  id: string;
+  name: string;
+  language?: string;
+  status?: string;
+}
+
 type StatusFilter = 'all' | 'ativa' | 'inativa' | 'vencidos' | 'ativos';
 type SelectionMode = 'customers' | 'servers';
-
-// Templates aprovados
-const APPROVED_TEMPLATES = [
-  { id: 'vence_amanha', name: 'Vence Amanhã', description: 'Lembrete de vencimento para o dia seguinte' },
-  { id: 'hoje01', name: 'Vence Hoje', description: 'Aviso de vencimento no dia atual' },
-  { id: 'vencido', name: 'Vencido', description: 'Notificação de conta vencida' },
-  { id: 'promocao', name: 'Promoção', description: 'Ofertas e promoções especiais' },
-  { id: 'boas_vindas', name: 'Boas Vindas', description: 'Mensagem de boas vindas para novos clientes' },
-];
 
 // Custo estimado por mensagem (em centavos)
 const COST_PER_MESSAGE = 0.08; // R$ 0,08 por mensagem
@@ -72,6 +72,25 @@ export default function MassBroadcast() {
   const [sendingProgress, setSendingProgress] = useState(0);
   const [isSending, setIsSending] = useState(false);
   const [delaySeconds, setDelaySeconds] = useState(5);
+
+  // Templates from API
+  const [templates, setTemplates] = useState<WhatsAppTemplate[]>([]);
+  const [isLoadingTemplates, setIsLoadingTemplates] = useState(false);
+  const [templatesLoaded, setTemplatesLoaded] = useState(false);
+
+  // Fetch zap settings for department
+  const { data: zapSettings } = useQuery({
+    queryKey: ['zap-responder-settings'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('zap_responder_settings')
+        .select('*')
+        .limit(1)
+        .single();
+      if (error) throw error;
+      return data;
+    },
+  });
 
   // Fetch customers
   const { data: customers = [], isLoading: customersLoading } = useQuery({
@@ -101,9 +120,69 @@ export default function MassBroadcast() {
         .order('server_name');
       
       if (error) throw error;
-      return data as Server[];
+      return data as ServerType[];
     },
   });
+
+  // Fetch templates when department is available
+  const fetchTemplates = async (showToast = true) => {
+    if (!zapSettings?.selected_department_id) {
+      if (showToast) {
+        toast({
+          title: 'Departamento não configurado',
+          description: 'Configure um departamento na página de cobrança primeiro.',
+          variant: 'destructive',
+        });
+      }
+      return;
+    }
+
+    setIsLoadingTemplates(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('zap-responder', {
+        body: { action: 'buscar-templates', department_id: zapSettings.selected_department_id },
+      });
+
+      if (error) throw error;
+
+      if (data?.success && data?.data) {
+        // Filter only approved templates
+        const approvedTemplates = data.data.filter((t: any) => 
+          t.status?.toLowerCase() === 'approved' || !t.status
+        );
+        setTemplates(approvedTemplates);
+        setTemplatesLoaded(true);
+        if (showToast) {
+          toast({ title: 'Templates carregados!', description: `${approvedTemplates.length} templates aprovados encontrados.` });
+        }
+      } else {
+        if (showToast) {
+          toast({ 
+            title: 'Erro ao carregar templates', 
+            description: data?.error || 'Resposta inválida da API',
+            variant: 'destructive' 
+          });
+        }
+      }
+    } catch (error: any) {
+      if (showToast) {
+        toast({
+          title: 'Erro ao carregar templates',
+          description: error.message,
+          variant: 'destructive',
+        });
+      }
+    } finally {
+      setIsLoadingTemplates(false);
+    }
+  };
+
+  // Auto-load templates when department is available
+  useEffect(() => {
+    if (zapSettings?.selected_department_id && !templatesLoaded) {
+      fetchTemplates(false);
+    }
+  }, [zapSettings?.selected_department_id, templatesLoaded]);
 
   // Filter customers based on status and search
   const filteredCustomers = useMemo(() => {
@@ -523,42 +602,78 @@ export default function MassBroadcast() {
             {/* Template Selection */}
             <Card>
               <CardHeader className="pb-3">
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <MessageSquare className="w-5 h-5" />
-                  Template
-                </CardTitle>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <FileText className="w-5 h-5" />
+                    Template
+                  </CardTitle>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => fetchTemplates(true)}
+                    disabled={isLoadingTemplates}
+                  >
+                    {isLoadingTemplates ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <RefreshCw className="w-4 h-4" />
+                    )}
+                  </Button>
+                </div>
                 <CardDescription>
                   Selecione um template aprovado pelo Meta
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
-                {APPROVED_TEMPLATES.map(template => (
-                  <div
-                    key={template.id}
-                    className={cn(
-                      "p-3 rounded-lg border cursor-pointer transition-colors",
-                      selectedTemplate === template.id
-                        ? "bg-primary/10 border-primary"
-                        : "bg-card hover:bg-muted/50"
-                    )}
-                    onClick={() => setSelectedTemplate(template.id)}
-                  >
-                    <div className="flex items-center gap-2">
-                      <div className={cn(
-                        "w-4 h-4 rounded-full border-2 flex items-center justify-center",
-                        selectedTemplate === template.id ? "border-primary" : "border-muted-foreground"
-                      )}>
-                        {selectedTemplate === template.id && (
-                          <div className="w-2 h-2 rounded-full bg-primary" />
-                        )}
-                      </div>
-                      <span className="font-medium">{template.name}</span>
-                    </div>
-                    <p className="text-sm text-muted-foreground mt-1 ml-6">
-                      {template.description}
-                    </p>
+                {isLoadingTemplates ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
                   </div>
-                ))}
+                ) : templates.length === 0 ? (
+                  <div className="text-center py-8 space-y-2">
+                    <FileText className="w-8 h-8 mx-auto text-muted-foreground" />
+                    <p className="text-sm text-muted-foreground">
+                      Nenhum template encontrado
+                    </p>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => fetchTemplates(true)}
+                    >
+                      Carregar templates
+                    </Button>
+                  </div>
+                ) : (
+                  templates.map(template => (
+                    <div
+                      key={template.id || template.name}
+                      className={cn(
+                        "p-3 rounded-lg border cursor-pointer transition-colors",
+                        selectedTemplate === template.name
+                          ? "bg-primary/10 border-primary"
+                          : "bg-card hover:bg-muted/50"
+                      )}
+                      onClick={() => setSelectedTemplate(template.name)}
+                    >
+                      <div className="flex items-center gap-2">
+                        <div className={cn(
+                          "w-4 h-4 rounded-full border-2 flex items-center justify-center",
+                          selectedTemplate === template.name ? "border-primary" : "border-muted-foreground"
+                        )}>
+                          {selectedTemplate === template.name && (
+                            <div className="w-2 h-2 rounded-full bg-primary" />
+                          )}
+                        </div>
+                        <span className="font-medium">{template.name}</span>
+                      </div>
+                      {template.language && (
+                        <p className="text-sm text-muted-foreground mt-1 ml-6">
+                          Idioma: {template.language}
+                        </p>
+                      )}
+                    </div>
+                  ))
+                )}
               </CardContent>
             </Card>
 
