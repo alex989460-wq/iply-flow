@@ -49,6 +49,50 @@ export type Database = {
           },
         ]
       }
+      broadcast_logs: {
+        Row: {
+          created_at: string
+          customer_id: string
+          id: string
+          last_error: string | null
+          last_sent_at: string | null
+          last_status: string
+          phone_normalized: string
+          template_name: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          customer_id: string
+          id?: string
+          last_error?: string | null
+          last_sent_at?: string | null
+          last_status?: string
+          phone_normalized: string
+          template_name: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          customer_id?: string
+          id?: string
+          last_error?: string | null
+          last_sent_at?: string | null
+          last_status?: string
+          phone_normalized?: string
+          template_name?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "broadcast_logs_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       customers: {
         Row: {
           created_at: string

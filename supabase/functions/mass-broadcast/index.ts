@@ -18,6 +18,13 @@ interface CustomerInfo {
   phone: string;
 }
 
+interface InitialResult {
+  customer: string;
+  phone: string;
+  status: 'skipped';
+  error: string;
+}
+
 // Generate random delay between min and max
 function getRandomDelay(min: number, max: number): number {
   return Math.floor(Math.random() * (max - min + 1)) + min;
@@ -89,7 +96,8 @@ function delay(ms: number): Promise<void> {
 // Background task to process broadcast
 async function processBroadcast(
   customersToSend: CustomerInfo[],
-  skippedCustomers: CustomerInfo[],
+  alreadySentCustomers: CustomerInfo[],
+  duplicateCustomers: CustomerInfo[],
   templateName: string,
   delayMinSeconds: number,
   delayMaxSeconds: number,
@@ -101,13 +109,13 @@ async function processBroadcast(
 ) {
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-  console.log(`[BACKGROUND] Starting broadcast processing for ${customersToSend.length} unique customers (${skippedCustomers.length} duplicates skipped)`);
+  console.log(`[BACKGROUND] Starting broadcast processing for ${customersToSend.length} unique customers (${duplicateCustomers.length} duplicates, ${alreadySentCustomers.length} already sent)`);
 
   let sent = 0;
   let errors = 0;
 
-  // Log skipped customers first
-  for (const customer of skippedCustomers) {
+  // Log duplicate skipped customers
+  for (const customer of duplicateCustomers) {
     await supabase
       .from('billing_logs')
       .insert({
@@ -118,9 +126,22 @@ async function processBroadcast(
       });
   }
 
+  // Log already-sent skipped customers
+  for (const customer of alreadySentCustomers) {
+    await supabase
+      .from('billing_logs')
+      .insert({
+        customer_id: customer.id,
+        billing_type: 'D0' as any,
+        message: `[BROADCAST] ${customer.phone} - Template: ${templateName} - IGNORADO (já enviado anteriormente)`,
+        whatsapp_status: 'skipped',
+      });
+  }
+
   // Process customers one by one with delay
   for (let i = 0; i < customersToSend.length; i++) {
     const customer = customersToSend[i];
+    const normalizedPhone = normalizePhone(customer.phone);
     
     console.log(`[BACKGROUND] Processing ${i + 1}/${customersToSend.length}: ${customer.name} (${customer.phone})`);
 
@@ -133,7 +154,7 @@ async function processBroadcast(
       departmentId
     );
 
-    // Log the broadcast attempt
+    // Log the broadcast attempt to billing_logs
     await supabase
       .from('billing_logs')
       .insert({
@@ -142,6 +163,20 @@ async function processBroadcast(
         message: `[BROADCAST] ${customer.phone} - Template: ${templateName}`,
         whatsapp_status: sendResult.success ? 'sent' : `error: ${sendResult.error}`,
       });
+
+    // Upsert to broadcast_logs to track sent templates
+    const now = new Date().toISOString();
+    await supabase
+      .from('broadcast_logs')
+      .upsert({
+        customer_id: customer.id,
+        phone_normalized: normalizedPhone,
+        template_name: templateName,
+        last_status: sendResult.success ? 'sent' : 'error',
+        last_error: sendResult.success ? null : sendResult.error,
+        last_sent_at: sendResult.success ? now : null,
+        updated_at: now,
+      }, { onConflict: 'phone_normalized,template_name' });
 
     if (sendResult.success) {
       sent++;
@@ -157,7 +192,7 @@ async function processBroadcast(
     }
   }
 
-  console.log(`[BACKGROUND] Broadcast completed: ${sent} sent, ${errors} errors, ${skippedCustomers.length} skipped out of ${customersToSend.length + skippedCustomers.length} total`);
+  console.log(`[BACKGROUND] Broadcast completed: ${sent} sent, ${errors} errors, ${duplicateCustomers.length} duplicates skipped, ${alreadySentCustomers.length} already sent skipped`);
 }
 
 Deno.serve(async (req) => {
@@ -212,15 +247,37 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Filter out duplicate phone numbers - keep only the first occurrence
+    // Get all normalized phones to check
+    const allNormalizedPhones = customers.map(c => normalizePhone(c.phone));
+
+    // Check broadcast_logs for already sent templates
+    const { data: existingLogs } = await supabase
+      .from('broadcast_logs')
+      .select('phone_normalized')
+      .eq('template_name', template_name)
+      .eq('last_status', 'sent')
+      .in('phone_normalized', allNormalizedPhones);
+
+    const alreadySentPhones = new Set((existingLogs || []).map((l: any) => l.phone_normalized));
+    console.log(`Found ${alreadySentPhones.size} phones that already received template "${template_name}"`);
+
+    // Filter customers:
+    // 1) Already sent (same template) -> skip
+    // 2) Duplicate phone in current batch -> skip
+    // 3) New -> send
     const seenPhones = new Set<string>();
     const customersToSend: CustomerInfo[] = [];
-    const skippedCustomers: CustomerInfo[] = [];
+    const duplicateCustomers: CustomerInfo[] = [];
+    const alreadySentCustomers: CustomerInfo[] = [];
 
     for (const customer of customers) {
       const normalizedPhone = normalizePhone(customer.phone);
-      if (seenPhones.has(normalizedPhone)) {
-        skippedCustomers.push(customer);
+
+      if (alreadySentPhones.has(normalizedPhone)) {
+        alreadySentCustomers.push(customer);
+        console.log(`Skipping already sent: ${customer.name} (${customer.phone})`);
+      } else if (seenPhones.has(normalizedPhone)) {
+        duplicateCustomers.push(customer);
         console.log(`Skipping duplicate phone: ${customer.name} (${customer.phone})`);
       } else {
         seenPhones.add(normalizedPhone);
@@ -228,7 +285,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    console.log(`Unique customers: ${customersToSend.length}, Duplicates skipped: ${skippedCustomers.length}`);
+    console.log(`To send: ${customersToSend.length}, Duplicates: ${duplicateCustomers.length}, Already sent: ${alreadySentCustomers.length}`);
 
     // Get Zap Responder settings
     const { data: zapSettings } = await supabase
@@ -281,7 +338,8 @@ Deno.serve(async (req) => {
     (globalThis as any).EdgeRuntime.waitUntil(
       processBroadcast(
         customersToSend,
-        skippedCustomers,
+        alreadySentCustomers,
+        duplicateCustomers,
         template_name,
         delay_min_seconds,
         delay_max_seconds,
@@ -293,12 +351,18 @@ Deno.serve(async (req) => {
       )
     );
 
-    // Return immediately with acknowledgment including duplicate info
+    // Return immediately with acknowledgment including duplicate and already-sent info
     console.log('Broadcast task started in background, returning response immediately');
 
     // Build initial results for UI
-    const initialResults = [
-      ...skippedCustomers.map(c => ({
+    const initialResults: InitialResult[] = [
+      ...alreadySentCustomers.map(c => ({
+        customer: c.name,
+        phone: c.phone,
+        status: 'skipped' as const,
+        error: 'Já enviado anteriormente',
+      })),
+      ...duplicateCustomers.map(c => ({
         customer: c.name,
         phone: c.phone,
         status: 'skipped' as const,
@@ -312,7 +376,9 @@ Deno.serve(async (req) => {
         message: 'Broadcast started in background',
         total: customers.length,
         unique: customersToSend.length,
-        skipped: skippedCustomers.length,
+        skipped: alreadySentCustomers.length + duplicateCustomers.length,
+        already_sent: alreadySentCustomers.length,
+        duplicates: duplicateCustomers.length,
         template: template_name,
         estimated_time_minutes: Math.ceil((customersToSend.length * ((delay_min_seconds + delay_max_seconds) / 2)) / 60),
         initial_results: initialResults,
