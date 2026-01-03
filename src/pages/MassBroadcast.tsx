@@ -57,6 +57,23 @@ interface WhatsAppTemplate {
 type StatusFilter = 'all' | 'ativa' | 'inativa' | 'vencidos' | 'vencidos_mes_anterior' | 'ativos';
 type SelectionMode = 'customers' | 'servers';
 
+interface BroadcastResult {
+  customer: string;
+  phone: string;
+  status: 'sent' | 'error';
+  error?: string;
+}
+
+interface BroadcastReport {
+  total: number;
+  sent: number;
+  errors: number;
+  details: BroadcastResult[];
+  templateName: string;
+  startedAt: Date;
+  completedAt?: Date;
+}
+
 // Custos por tipo de mensagem - Tabela Brasil (válida até 31/12/2025)
 const COST_MARKETING = 0.5895; // R$ 0,5895 por mensagem de marketing (Cloud API)
 const COST_UTILITY = 0.0642; // R$ 0,0642 por mensagem de utilidade (Cloud API)
@@ -75,6 +92,8 @@ export default function MassBroadcast() {
   const [isSending, setIsSending] = useState(false);
   const [delayMinSeconds, setDelayMinSeconds] = useState(5);
   const [delayMaxSeconds, setDelayMaxSeconds] = useState(10);
+  const [broadcastReport, setBroadcastReport] = useState<BroadcastReport | null>(null);
+  const [showReport, setShowReport] = useState(false);
 
   // Templates from API
   const [templates, setTemplates] = useState<WhatsAppTemplate[]>([]);
@@ -341,8 +360,17 @@ export default function MassBroadcast() {
 
     setIsSending(true);
     setSendingProgress(0);
+    setBroadcastReport(null);
+    setShowReport(false);
+
+    const startedAt = new Date();
 
     try {
+      toast({
+        title: 'Disparo iniciado!',
+        description: `Enviando para ${customersToSend.length} clientes com intervalo aleatório de ${delayMinSeconds}-${delayMaxSeconds}s entre mensagens.`,
+      });
+
       const response = await supabase.functions.invoke('mass-broadcast', {
         body: {
           customer_ids: customersToSend.map(c => c.id),
@@ -356,13 +384,32 @@ export default function MassBroadcast() {
         throw new Error(response.error.message);
       }
 
-      toast({
-        title: 'Disparo iniciado!',
-        description: `Enviando para ${customersToSend.length} clientes com intervalo aleatório de ${delayMinSeconds}-${delayMaxSeconds}s entre mensagens.`,
-      });
-
-      // Poll for progress
-      pollProgress(response.data?.batch_id);
+      // Process results from edge function
+      const results = response.data?.results;
+      
+      if (results) {
+        const report: BroadcastReport = {
+          total: results.total,
+          sent: results.sent,
+          errors: results.errors,
+          details: results.details || [],
+          templateName: selectedTemplate,
+          startedAt,
+          completedAt: new Date(),
+        };
+        
+        setBroadcastReport(report);
+        setShowReport(true);
+        setSendingProgress(100);
+        
+        toast({
+          title: 'Disparo concluído!',
+          description: `${results.sent} enviados, ${results.errors} erros de ${results.total} total.`,
+        });
+      }
+      
+      clearSelection();
+      queryClient.invalidateQueries({ queryKey: ['billing-logs'] });
       
     } catch (error: any) {
       console.error('Broadcast error:', error);
@@ -371,30 +418,9 @@ export default function MassBroadcast() {
         description: error.message || 'Ocorreu um erro ao iniciar o disparo.',
         variant: 'destructive',
       });
+    } finally {
       setIsSending(false);
     }
-  };
-
-  // Poll for progress updates
-  const pollProgress = async (batchId?: string) => {
-    // Simple simulation of progress for now
-    let progress = 0;
-    const avgDelay = (delayMinSeconds + delayMaxSeconds) / 2;
-    const interval = setInterval(() => {
-      progress += 100 / getSelectedCustomersList.length;
-      setSendingProgress(Math.min(progress, 100));
-      
-      if (progress >= 100) {
-        clearInterval(interval);
-        setIsSending(false);
-        toast({
-          title: 'Disparo concluído!',
-          description: 'Todas as mensagens foram enviadas com sucesso.',
-        });
-        clearSelection();
-        queryClient.invalidateQueries({ queryKey: ['billing-logs'] });
-      }
-    }, avgDelay * 1000);
   };
 
   const formatCurrency = (value: number) => {
@@ -871,9 +897,8 @@ export default function MassBroadcast() {
                     <Loader2 className="w-5 h-5 animate-spin text-primary" />
                     <span className="font-medium">Enviando mensagens...</span>
                   </div>
-                  <Progress value={sendingProgress} className="h-2" />
                   <p className="text-sm text-muted-foreground text-center">
-                    {Math.round(sendingProgress)}% concluído
+                    Aguarde, o disparo está em andamento...
                   </p>
                 </CardContent>
               </Card>
@@ -886,6 +911,100 @@ export default function MassBroadcast() {
                 <Send className="w-5 h-5 mr-2" />
                 Iniciar Disparo
               </Button>
+            )}
+
+            {/* Broadcast Report */}
+            {showReport && broadcastReport && (
+              <Card className="border-primary/30">
+                <CardHeader className="pb-3">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      <FileText className="w-5 h-5" />
+                      Relatório do Disparo
+                    </CardTitle>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setShowReport(false)}
+                    >
+                      <XCircle className="w-4 h-4" />
+                    </Button>
+                  </div>
+                  <CardDescription>
+                    Template: {broadcastReport.templateName}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {/* Summary */}
+                  <div className="grid grid-cols-3 gap-2 text-center">
+                    <div className="p-2 bg-muted rounded-lg">
+                      <p className="text-lg font-bold">{broadcastReport.total}</p>
+                      <p className="text-xs text-muted-foreground">Total</p>
+                    </div>
+                    <div className="p-2 bg-success/10 rounded-lg">
+                      <p className="text-lg font-bold text-success">{broadcastReport.sent}</p>
+                      <p className="text-xs text-muted-foreground">Enviados</p>
+                    </div>
+                    <div className="p-2 bg-destructive/10 rounded-lg">
+                      <p className="text-lg font-bold text-destructive">{broadcastReport.errors}</p>
+                      <p className="text-xs text-muted-foreground">Erros</p>
+                    </div>
+                  </div>
+
+                  {/* Progress bar showing success rate */}
+                  <div className="space-y-1">
+                    <div className="flex justify-between text-xs text-muted-foreground">
+                      <span>Taxa de sucesso</span>
+                      <span>{broadcastReport.total > 0 ? Math.round((broadcastReport.sent / broadcastReport.total) * 100) : 0}%</span>
+                    </div>
+                    <Progress 
+                      value={broadcastReport.total > 0 ? (broadcastReport.sent / broadcastReport.total) * 100 : 0} 
+                      className="h-2" 
+                    />
+                  </div>
+
+                  {/* Time info */}
+                  <div className="text-xs text-muted-foreground space-y-1">
+                    <p>Iniciado: {broadcastReport.startedAt.toLocaleTimeString('pt-BR')}</p>
+                    {broadcastReport.completedAt && (
+                      <p>Concluído: {broadcastReport.completedAt.toLocaleTimeString('pt-BR')}</p>
+                    )}
+                  </div>
+
+                  {/* Details - scrollable list */}
+                  {broadcastReport.details.length > 0 && (
+                    <div className="space-y-2">
+                      <p className="text-sm font-medium">Detalhes:</p>
+                      <div className="max-h-[200px] overflow-y-auto space-y-1">
+                        {broadcastReport.details.map((detail, idx) => (
+                          <div 
+                            key={idx}
+                            className={cn(
+                              "flex items-center gap-2 p-2 rounded text-sm",
+                              detail.status === 'sent' 
+                                ? "bg-success/10" 
+                                : "bg-destructive/10"
+                            )}
+                          >
+                            {detail.status === 'sent' ? (
+                              <CheckCircle className="w-4 h-4 text-success flex-shrink-0" />
+                            ) : (
+                              <XCircle className="w-4 h-4 text-destructive flex-shrink-0" />
+                            )}
+                            <div className="flex-1 min-w-0">
+                              <p className="truncate font-medium">{detail.customer}</p>
+                              <p className="text-xs text-muted-foreground">{detail.phone}</p>
+                              {detail.error && (
+                                <p className="text-xs text-destructive truncate">{detail.error}</p>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
             )}
           </div>
         </div>
