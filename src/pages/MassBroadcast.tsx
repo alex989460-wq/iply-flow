@@ -51,13 +51,15 @@ interface WhatsAppTemplate {
   name: string;
   language?: string;
   status?: string;
+  category?: string;
 }
 
 type StatusFilter = 'all' | 'ativa' | 'inativa' | 'vencidos' | 'ativos';
 type SelectionMode = 'customers' | 'servers';
 
-// Custo estimado por mensagem (em centavos)
-const COST_PER_MESSAGE = 0.08; // R$ 0,08 por mensagem
+// Custos por tipo de mensagem (valores aproximados Meta Business)
+const COST_MARKETING = 0.25; // R$ 0,25 por mensagem de marketing
+const COST_UTILITY = 0.08; // R$ 0,08 por mensagem de utilidade
 
 export default function MassBroadcast() {
   const { toast } = useToast();
@@ -226,15 +228,24 @@ export default function MassBroadcast() {
     }
   }, [selectionMode, filteredCustomers, selectedCustomers, selectedServers]);
 
-  // Calculate estimated cost
+  // Get selected template info
+  const selectedTemplateInfo = useMemo(() => {
+    return templates.find(t => t.name === selectedTemplate);
+  }, [templates, selectedTemplate]);
+
+  // Calculate estimated cost based on template category
   const estimatedCost = useMemo(() => {
     const count = getSelectedCustomersList.length;
+    const isMarketing = selectedTemplateInfo?.category?.toUpperCase() === 'MARKETING';
+    const costPerMessage = isMarketing ? COST_MARKETING : COST_UTILITY;
     return {
       count,
-      totalCost: count * COST_PER_MESSAGE,
-      estimatedTime: count * delaySeconds, // em segundos
+      totalCost: count * costPerMessage,
+      estimatedTime: count * delaySeconds,
+      isMarketing,
+      costPerMessage,
     };
-  }, [getSelectedCustomersList, delaySeconds]);
+  }, [getSelectedCustomersList, delaySeconds, selectedTemplateInfo]);
 
   // Toggle customer selection
   const toggleCustomer = (customerId: string) => {
@@ -644,35 +655,49 @@ export default function MassBroadcast() {
                     </Button>
                   </div>
                 ) : (
-                  templates.map(template => (
-                    <div
-                      key={template.id || template.name}
-                      className={cn(
-                        "p-3 rounded-lg border cursor-pointer transition-colors",
-                        selectedTemplate === template.name
-                          ? "bg-primary/10 border-primary"
-                          : "bg-card hover:bg-muted/50"
-                      )}
-                      onClick={() => setSelectedTemplate(template.name)}
-                    >
-                      <div className="flex items-center gap-2">
-                        <div className={cn(
-                          "w-4 h-4 rounded-full border-2 flex items-center justify-center",
-                          selectedTemplate === template.name ? "border-primary" : "border-muted-foreground"
-                        )}>
-                          {selectedTemplate === template.name && (
-                            <div className="w-2 h-2 rounded-full bg-primary" />
-                          )}
+                  templates.map(template => {
+                    const isMarketing = template.category?.toUpperCase() === 'MARKETING';
+                    return (
+                      <div
+                        key={template.id || template.name}
+                        className={cn(
+                          "p-3 rounded-lg border cursor-pointer transition-colors",
+                          selectedTemplate === template.name
+                            ? "bg-primary/10 border-primary"
+                            : "bg-card hover:bg-muted/50"
+                        )}
+                        onClick={() => setSelectedTemplate(template.name)}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2">
+                            <div className={cn(
+                              "w-4 h-4 rounded-full border-2 flex items-center justify-center",
+                              selectedTemplate === template.name ? "border-primary" : "border-muted-foreground"
+                            )}>
+                              {selectedTemplate === template.name && (
+                                <div className="w-2 h-2 rounded-full bg-primary" />
+                              )}
+                            </div>
+                            <span className="font-medium">{template.name}</span>
+                          </div>
+                          <Badge 
+                            variant="outline" 
+                            className={cn(
+                              "text-[10px] px-1.5 py-0",
+                              isMarketing 
+                                ? "bg-warning/10 text-warning border-warning/30" 
+                                : "bg-success/10 text-success border-success/30"
+                            )}
+                          >
+                            {isMarketing ? "Marketing" : "Utility"}
+                          </Badge>
                         </div>
-                        <span className="font-medium">{template.name}</span>
-                      </div>
-                      {template.language && (
-                        <p className="text-sm text-muted-foreground mt-1 ml-6">
-                          Idioma: {template.language}
+                        <p className="text-xs text-muted-foreground mt-1 ml-6">
+                          {isMarketing ? formatCurrency(COST_MARKETING) : formatCurrency(COST_UTILITY)} por msg
                         </p>
-                      )}
-                    </div>
-                  ))
+                      </div>
+                    );
+                  })
                 )}
               </CardContent>
             </Card>
@@ -707,12 +732,28 @@ export default function MassBroadcast() {
             </Card>
 
             {/* Cost Calculator */}
-            <Card className="border-primary/30 bg-primary/5">
+            <Card className={cn(
+              "border-primary/30",
+              estimatedCost.isMarketing ? "bg-warning/5 border-warning/30" : "bg-primary/5"
+            )}>
               <CardHeader className="pb-3">
                 <CardTitle className="text-lg flex items-center gap-2">
                   <Calculator className="w-5 h-5" />
                   Calculadora de Custos
                 </CardTitle>
+                {selectedTemplateInfo && (
+                  <Badge 
+                    variant={estimatedCost.isMarketing ? "secondary" : "outline"}
+                    className={cn(
+                      "w-fit",
+                      estimatedCost.isMarketing 
+                        ? "bg-warning/20 text-warning border-warning/30" 
+                        : "bg-primary/20 text-primary border-primary/30"
+                    )}
+                  >
+                    {estimatedCost.isMarketing ? "Marketing" : "Utility"}
+                  </Badge>
+                )}
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
@@ -721,7 +762,10 @@ export default function MassBroadcast() {
                     <p className="text-sm text-muted-foreground">Mensagens</p>
                   </div>
                   <div className="text-center p-3 bg-background rounded-lg">
-                    <p className="text-2xl font-bold text-primary">
+                    <p className={cn(
+                      "text-2xl font-bold",
+                      estimatedCost.isMarketing ? "text-warning" : "text-primary"
+                    )}>
                       {formatCurrency(estimatedCost.totalCost)}
                     </p>
                     <p className="text-sm text-muted-foreground">Custo estimado</p>
@@ -737,9 +781,14 @@ export default function MassBroadcast() {
                     Tempo estimado de envio
                   </p>
                 </div>
-                <p className="text-xs text-muted-foreground text-center">
-                  * Custo baseado em {formatCurrency(COST_PER_MESSAGE)} por mensagem
-                </p>
+                <div className="text-xs text-muted-foreground text-center space-y-1">
+                  <p>
+                    * {estimatedCost.isMarketing ? "Marketing" : "Utility"}: {formatCurrency(estimatedCost.costPerMessage)} por mensagem
+                  </p>
+                  <p className="text-[10px] opacity-70">
+                    Marketing: {formatCurrency(COST_MARKETING)} | Utility: {formatCurrency(COST_UTILITY)}
+                  </p>
+                </div>
               </CardContent>
             </Card>
 
