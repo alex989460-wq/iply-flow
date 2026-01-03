@@ -8,7 +8,13 @@ const corsHeaders = {
 interface BroadcastRequest {
   customer_ids: string[];
   template_name: string;
-  delay_seconds: number;
+  delay_min_seconds?: number;
+  delay_max_seconds?: number;
+}
+
+// Generate random delay between min and max
+function getRandomDelay(min: number, max: number): number {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
 // Send WhatsApp template message via Zap Responder API
@@ -76,9 +82,9 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { customer_ids, template_name, delay_seconds = 5 }: BroadcastRequest = await req.json();
+    const { customer_ids, template_name, delay_min_seconds = 5, delay_max_seconds = 10 }: BroadcastRequest = await req.json();
 
-    console.log(`Starting mass broadcast: ${customer_ids.length} customers, template: ${template_name}, delay: ${delay_seconds}s`);
+    console.log(`Starting mass broadcast: ${customer_ids.length} customers, template: ${template_name}, delay: ${delay_min_seconds}-${delay_max_seconds}s (random)`);
 
     if (!customer_ids || customer_ids.length === 0) {
       return new Response(
@@ -219,10 +225,11 @@ Deno.serve(async (req) => {
         });
       }
 
-      // Add delay between messages (except for the last one)
+      // Add random delay between messages (except for the last one)
       if (i < customers!.length - 1) {
-        console.log(`Waiting ${delay_seconds} seconds before next message...`);
-        await delay(delay_seconds * 1000);
+        const randomDelay = getRandomDelay(delay_min_seconds, delay_max_seconds);
+        console.log(`Waiting ${randomDelay} seconds before next message... (random between ${delay_min_seconds}-${delay_max_seconds}s)`);
+        await delay(randomDelay * 1000);
       }
     }
 
