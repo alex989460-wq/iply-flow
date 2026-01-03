@@ -73,7 +73,8 @@ export default function MassBroadcast() {
   const [searchTerm, setSearchTerm] = useState('');
   const [sendingProgress, setSendingProgress] = useState(0);
   const [isSending, setIsSending] = useState(false);
-  const [delaySeconds, setDelaySeconds] = useState(5);
+  const [delayMinSeconds, setDelayMinSeconds] = useState(5);
+  const [delayMaxSeconds, setDelayMaxSeconds] = useState(10);
 
   // Templates from API
   const [templates, setTemplates] = useState<WhatsAppTemplate[]>([]);
@@ -267,14 +268,15 @@ export default function MassBroadcast() {
     const count = getSelectedCustomersList.length;
     const isMarketing = selectedTemplateInfo?.category?.toUpperCase() === 'MARKETING';
     const costPerMessage = isMarketing ? COST_MARKETING : COST_UTILITY;
+    const avgDelay = (delayMinSeconds + delayMaxSeconds) / 2;
     return {
       count,
       totalCost: count * costPerMessage,
-      estimatedTime: count * delaySeconds,
+      estimatedTime: count * avgDelay,
       isMarketing,
       costPerMessage,
     };
-  }, [getSelectedCustomersList, delaySeconds, selectedTemplateInfo]);
+  }, [getSelectedCustomersList, delayMinSeconds, delayMaxSeconds, selectedTemplateInfo]);
 
   // Toggle customer selection
   const toggleCustomer = (customerId: string) => {
@@ -345,7 +347,8 @@ export default function MassBroadcast() {
         body: {
           customer_ids: customersToSend.map(c => c.id),
           template_name: selectedTemplate,
-          delay_seconds: delaySeconds,
+          delay_min_seconds: delayMinSeconds,
+          delay_max_seconds: delayMaxSeconds,
         },
       });
 
@@ -355,7 +358,7 @@ export default function MassBroadcast() {
 
       toast({
         title: 'Disparo iniciado!',
-        description: `Enviando para ${customersToSend.length} clientes com intervalo de ${delaySeconds}s entre mensagens.`,
+        description: `Enviando para ${customersToSend.length} clientes com intervalo aleatório de ${delayMinSeconds}-${delayMaxSeconds}s entre mensagens.`,
       });
 
       // Poll for progress
@@ -376,6 +379,7 @@ export default function MassBroadcast() {
   const pollProgress = async (batchId?: string) => {
     // Simple simulation of progress for now
     let progress = 0;
+    const avgDelay = (delayMinSeconds + delayMaxSeconds) / 2;
     const interval = setInterval(() => {
       progress += 100 / getSelectedCustomersList.length;
       setSendingProgress(Math.min(progress, 100));
@@ -390,7 +394,7 @@ export default function MassBroadcast() {
         clearSelection();
         queryClient.invalidateQueries({ queryKey: ['billing-logs'] });
       }
-    }, delaySeconds * 1000);
+    }, avgDelay * 1000);
   };
 
   const formatCurrency = (value: number) => {
@@ -753,26 +757,47 @@ export default function MassBroadcast() {
               <CardHeader className="pb-3">
                 <CardTitle className="text-lg flex items-center gap-2">
                   <Clock className="w-5 h-5" />
-                  Intervalo entre mensagens
+                  Intervalo Aleatório
                 </CardTitle>
                 <CardDescription>
-                  Tempo de espera entre cada envio (anti-bloqueio)
+                  Intervalo aleatório entre envios (anti-bloqueio)
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="flex items-center gap-4">
-                  <Input
-                    type="number"
-                    min={3}
-                    max={60}
-                    value={delaySeconds}
-                    onChange={(e) => setDelaySeconds(Math.max(3, parseInt(e.target.value) || 5))}
-                    className="w-20"
-                  />
-                  <span className="text-muted-foreground">segundos</span>
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2">
+                    <Label className="text-sm text-muted-foreground">Mín:</Label>
+                    <Input
+                      type="number"
+                      min={3}
+                      max={delayMaxSeconds - 1}
+                      value={delayMinSeconds}
+                      onChange={(e) => {
+                        const val = Math.max(3, parseInt(e.target.value) || 5);
+                        setDelayMinSeconds(Math.min(val, delayMaxSeconds - 1));
+                      }}
+                      className="w-16"
+                    />
+                  </div>
+                  <span className="text-muted-foreground">-</span>
+                  <div className="flex items-center gap-2">
+                    <Label className="text-sm text-muted-foreground">Máx:</Label>
+                    <Input
+                      type="number"
+                      min={delayMinSeconds + 1}
+                      max={120}
+                      value={delayMaxSeconds}
+                      onChange={(e) => {
+                        const val = Math.max(delayMinSeconds + 1, parseInt(e.target.value) || 10);
+                        setDelayMaxSeconds(Math.min(val, 120));
+                      }}
+                      className="w-16"
+                    />
+                  </div>
+                  <span className="text-muted-foreground">seg</span>
                 </div>
                 <p className="text-xs text-muted-foreground mt-2">
-                  Recomendado: 5-10 segundos para evitar bloqueios
+                  O sistema escolherá um tempo aleatório entre {delayMinSeconds}s e {delayMaxSeconds}s para cada mensagem
                 </p>
               </CardContent>
             </Card>
