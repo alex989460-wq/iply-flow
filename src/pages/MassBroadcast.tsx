@@ -54,7 +54,7 @@ interface WhatsAppTemplate {
   category?: string;
 }
 
-type StatusFilter = 'all' | 'ativa' | 'inativa' | 'vencidos' | 'ativos';
+type StatusFilter = 'all' | 'ativa' | 'inativa' | 'vencidos' | 'vencidos_mes_anterior' | 'ativos';
 type SelectionMode = 'customers' | 'servers';
 
 // Custos por tipo de mensagem - Tabela Brasil (válida até 31/12/2025)
@@ -210,6 +210,9 @@ export default function MassBroadcast() {
   const filteredCustomers = useMemo(() => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
+    
+    // First day of current month
+    const firstDayCurrentMonth = new Date(today.getFullYear(), today.getMonth(), 1);
 
     return customers.filter(customer => {
       // Search filter
@@ -228,6 +231,12 @@ export default function MassBroadcast() {
         const dueDate = new Date(customer.due_date);
         dueDate.setHours(0, 0, 0, 0);
         return dueDate < today;
+      }
+      if (statusFilter === 'vencidos_mes_anterior') {
+        const dueDate = new Date(customer.due_date);
+        dueDate.setHours(0, 0, 0, 0);
+        // Vencidos até o mês anterior (antes do primeiro dia do mês atual)
+        return dueDate < firstDayCurrentMonth;
       }
       if (statusFilter === 'ativos') {
         const dueDate = new Date(customer.due_date);
@@ -508,6 +517,13 @@ export default function MassBroadcast() {
                     onClick={() => setStatusFilter('vencidos')}
                   >
                     Vencidos
+                  </Button>
+                  <Button
+                    variant={statusFilter === 'vencidos_mes_anterior' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setStatusFilter('vencidos_mes_anterior')}
+                  >
+                    Vencidos Mês Anterior
                   </Button>
                   <Button
                     variant={statusFilter === 'ativos' ? 'default' : 'outline'}
