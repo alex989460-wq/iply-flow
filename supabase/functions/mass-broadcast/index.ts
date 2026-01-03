@@ -75,6 +75,80 @@ function delay(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+// Background task to process broadcast
+async function processBroadcast(
+  customerIds: string[],
+  templateName: string,
+  delayMinSeconds: number,
+  delayMaxSeconds: number,
+  supabaseUrl: string,
+  supabaseServiceKey: string,
+  zapToken: string,
+  apiBaseUrl: string,
+  departmentId: string
+) {
+  const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+  console.log(`[BACKGROUND] Starting broadcast processing for ${customerIds.length} customers`);
+
+  // Fetch customers
+  const { data: customers, error: customersError } = await supabase
+    .from('customers')
+    .select('id, name, phone')
+    .in('id', customerIds);
+
+  if (customersError || !customers) {
+    console.error('[BACKGROUND] Error fetching customers:', customersError);
+    return;
+  }
+
+  console.log(`[BACKGROUND] Found ${customers.length} customers to send`);
+
+  let sent = 0;
+  let errors = 0;
+
+  // Process customers one by one with delay
+  for (let i = 0; i < customers.length; i++) {
+    const customer = customers[i];
+    
+    console.log(`[BACKGROUND] Processing ${i + 1}/${customers.length}: ${customer.name} (${customer.phone})`);
+
+    // Send WhatsApp template
+    const sendResult = await sendWhatsAppTemplate(
+      customer.phone, 
+      templateName, 
+      zapToken, 
+      apiBaseUrl, 
+      departmentId
+    );
+
+    // Log the broadcast attempt
+    await supabase
+      .from('billing_logs')
+      .insert({
+        customer_id: customer.id,
+        billing_type: 'D0' as any,
+        message: `[BROADCAST] ${customer.phone} - Template: ${templateName}`,
+        whatsapp_status: sendResult.success ? 'sent' : `error: ${sendResult.error}`,
+      });
+
+    if (sendResult.success) {
+      sent++;
+    } else {
+      errors++;
+    }
+
+    // Add random delay between messages (except for the last one)
+    if (i < customers.length - 1) {
+      const randomDelay = getRandomDelay(delayMinSeconds, delayMaxSeconds);
+      console.log(`[BACKGROUND] Waiting ${randomDelay} seconds before next message...`);
+      await delay(randomDelay * 1000);
+    }
+  }
+
+  console.log(`[BACKGROUND] Broadcast completed: ${sent} sent, ${errors} errors out of ${customers.length} total`);
+}
+
 Deno.serve(async (req) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
@@ -109,7 +183,6 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Initialize Supabase client with service role for full access
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
@@ -160,86 +233,32 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Fetch customers
-    const { data: customers, error: customersError } = await supabase
-      .from('customers')
-      .select('id, name, phone')
-      .in('id', customer_ids);
-
-    if (customersError) {
-      console.error('Error fetching customers:', customersError);
-      return new Response(
-        JSON.stringify({ error: 'Failed to fetch customers', details: customersError }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    console.log(`Found ${customers?.length || 0} customers to send`);
-
-    const results = {
-      total: customers?.length || 0,
-      sent: 0,
-      errors: 0,
-      details: [] as any[],
-    };
-
-    // Process customers one by one with delay to avoid blocking
-    for (let i = 0; i < (customers || []).length; i++) {
-      const customer = customers![i];
-      
-      console.log(`Processing ${i + 1}/${customers!.length}: ${customer.name}`);
-
-      // Send WhatsApp template
-      const sendResult = await sendWhatsAppTemplate(
-        customer.phone, 
-        template_name, 
-        zapToken, 
-        apiBaseUrl, 
+    // Start background task for processing
+    // @ts-ignore - EdgeRuntime is available in Supabase Edge Functions
+    (globalThis as any).EdgeRuntime.waitUntil(
+      processBroadcast(
+        customer_ids,
+        template_name,
+        delay_min_seconds,
+        delay_max_seconds,
+        supabaseUrl,
+        supabaseServiceKey,
+        zapToken,
+        apiBaseUrl,
         departmentId
-      );
+      )
+    );
 
-      // Log the broadcast attempt (using billing_logs table with a generic type)
-      await supabase
-        .from('billing_logs')
-        .insert({
-          customer_id: customer.id,
-          billing_type: 'D0' as any, // Using D0 as a placeholder for mass broadcast
-          message: `[BROADCAST] ${customer.phone} - Template: ${template_name}`,
-          whatsapp_status: sendResult.success ? 'sent' : `error: ${sendResult.error}`,
-        });
-
-      if (sendResult.success) {
-        results.sent++;
-        results.details.push({
-          customer: customer.name,
-          phone: customer.phone,
-          status: 'sent',
-        });
-      } else {
-        results.errors++;
-        results.details.push({
-          customer: customer.name,
-          phone: customer.phone,
-          status: 'error',
-          error: sendResult.error,
-        });
-      }
-
-      // Add random delay between messages (except for the last one)
-      if (i < customers!.length - 1) {
-        const randomDelay = getRandomDelay(delay_min_seconds, delay_max_seconds);
-        console.log(`Waiting ${randomDelay} seconds before next message... (random between ${delay_min_seconds}-${delay_max_seconds}s)`);
-        await delay(randomDelay * 1000);
-      }
-    }
-
-    console.log('Mass broadcast completed:', results);
+    // Return immediately with acknowledgment
+    console.log('Broadcast task started in background, returning response immediately');
 
     return new Response(
       JSON.stringify({
         success: true,
-        message: 'Mass broadcast completed',
-        results,
+        message: 'Broadcast started in background',
+        total: customer_ids.length,
+        template: template_name,
+        estimated_time_minutes: Math.ceil((customer_ids.length * ((delay_min_seconds + delay_max_seconds) / 2)) / 60),
       }),
       { 
         status: 200, 
