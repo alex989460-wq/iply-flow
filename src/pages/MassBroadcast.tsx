@@ -387,11 +387,11 @@ export default function MassBroadcast() {
         throw new Error(response.error.message);
       }
 
-      // Background task started - update modal with initial results (skipped duplicates)
+      // Background task started - update modal with initial results (skipped duplicates + already sent)
       const data = response.data;
       
       if (data?.success) {
-        // Set initial results with skipped duplicates
+        // Set initial results with skipped (already sent + duplicates)
         const initialResults: BroadcastResult[] = data.initial_results || [];
         setBroadcastResults(initialResults);
         setBroadcastStats({
@@ -413,9 +413,21 @@ export default function MassBroadcast() {
         // The real results will be in billing_logs
         setIsBroadcastComplete(true);
         
+        const alreadySentCount = data.already_sent || 0;
+        const duplicatesCount = data.duplicates || 0;
+        
+        let description = `${data.unique} mensagens únicas serão enviadas`;
+        if (alreadySentCount > 0 || duplicatesCount > 0) {
+          const skipParts: string[] = [];
+          if (alreadySentCount > 0) skipParts.push(`${alreadySentCount} já enviados`);
+          if (duplicatesCount > 0) skipParts.push(`${duplicatesCount} duplicados`);
+          description += ` (${skipParts.join(', ')} ignorados)`;
+        }
+        description += `. Tempo estimado: ~${data.estimated_time_minutes} min.`;
+        
         toast({
           title: 'Disparo iniciado!',
-          description: `${data.unique} mensagens únicas serão enviadas${data.skipped > 0 ? ` (${data.skipped} duplicados ignorados)` : ''}. Tempo estimado: ~${data.estimated_time_minutes} min.`,
+          description,
         });
       }
       
