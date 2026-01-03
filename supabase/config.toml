@@ -5,3 +5,6 @@ verify_jwt = false
 
 [functions.send-billing]
 verify_jwt = false
+
+[functions.mass-broadcast]
+verify_jwt = false
