@@ -295,6 +295,12 @@ export default function MassBroadcast() {
     setSelectedCustomers(allIds);
   };
 
+  // Select all servers
+  const selectAllServers = () => {
+    const allIds = new Set(servers.map(s => s.id));
+    setSelectedServers(allIds);
+  };
+
   // Clear selection
   const clearSelection = () => {
     setSelectedCustomers(new Set());
@@ -522,8 +528,12 @@ export default function MassBroadcast() {
                     {selectionMode === 'customers' ? 'Selecionar Clientes' : 'Selecionar Servidores'}
                   </CardTitle>
                   <div className="flex gap-2">
-                    {selectionMode === 'customers' && (
+                    {selectionMode === 'customers' ? (
                       <Button variant="outline" size="sm" onClick={selectAllCustomers}>
+                        Selecionar Todos
+                      </Button>
+                    ) : (
+                      <Button variant="outline" size="sm" onClick={selectAllServers}>
                         Selecionar Todos
                       </Button>
                     )}
