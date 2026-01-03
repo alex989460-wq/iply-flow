@@ -13,6 +13,7 @@ import {
   Settings,
   ChevronLeft,
   Menu,
+  Send,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useState } from 'react';
@@ -24,7 +25,7 @@ const menuItems = [
   { icon: Users, label: 'Clientes', path: '/customers' },
   { icon: CreditCard, label: 'Pagamentos', path: '/payments' },
   { icon: MessageSquare, label: 'Cobranças', path: '/billing' },
-  
+  { icon: Send, label: 'Disparo em Massa', path: '/mass-broadcast' },
 ];
 
 export default function Sidebar() {
