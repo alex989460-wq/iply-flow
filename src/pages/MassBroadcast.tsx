@@ -57,9 +57,9 @@ interface WhatsAppTemplate {
 type StatusFilter = 'all' | 'ativa' | 'inativa' | 'vencidos' | 'ativos';
 type SelectionMode = 'customers' | 'servers';
 
-// Custos por tipo de mensagem (valores aproximados Meta Business)
-const COST_MARKETING = 0.25; // R$ 0,25 por mensagem de marketing
-const COST_UTILITY = 0.08; // R$ 0,08 por mensagem de utilidade
+// Custos por tipo de mensagem - Tabela Brasil (válida até 31/12/2025)
+const COST_MARKETING = 0.5895; // R$ 0,5895 por mensagem de marketing (Cloud API)
+const COST_UTILITY = 0.0642; // R$ 0,0642 por mensagem de utilidade (Cloud API)
 
 export default function MassBroadcast() {
   const { toast } = useToast();
