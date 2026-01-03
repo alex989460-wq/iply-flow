@@ -366,11 +366,6 @@ export default function MassBroadcast() {
     const startedAt = new Date();
 
     try {
-      toast({
-        title: 'Disparo iniciado!',
-        description: `Enviando para ${customersToSend.length} clientes com intervalo aleatório de ${delayMinSeconds}-${delayMaxSeconds}s entre mensagens.`,
-      });
-
       const response = await supabase.functions.invoke('mass-broadcast', {
         body: {
           customer_ids: customersToSend.map(c => c.id),
@@ -384,28 +379,28 @@ export default function MassBroadcast() {
         throw new Error(response.error.message);
       }
 
-      // Process results from edge function
-      const results = response.data?.results;
+      // Background task started - show acknowledgment
+      const data = response.data;
       
-      if (results) {
+      if (data?.success) {
+        toast({
+          title: 'Disparo iniciado em segundo plano!',
+          description: `${data.total} mensagens serão enviadas. Tempo estimado: ~${data.estimated_time_minutes} minutos. Acompanhe o progresso nos relatórios de cobrança.`,
+        });
+        
+        // Create a preliminary report
         const report: BroadcastReport = {
-          total: results.total,
-          sent: results.sent,
-          errors: results.errors,
-          details: results.details || [],
+          total: data.total,
+          sent: 0,
+          errors: 0,
+          details: [],
           templateName: selectedTemplate,
           startedAt,
-          completedAt: new Date(),
         };
         
         setBroadcastReport(report);
         setShowReport(true);
         setSendingProgress(100);
-        
-        toast({
-          title: 'Disparo concluído!',
-          description: `${results.sent} enviados, ${results.errors} erros de ${results.total} total.`,
-        });
       }
       
       clearSelection();
