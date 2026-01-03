@@ -94,21 +94,41 @@ export default function MassBroadcast() {
     },
   });
 
-  // Fetch customers
+  // Fetch all customers with pagination to overcome 1000 row limit
   const { data: customers = [], isLoading: customersLoading } = useQuery({
     queryKey: ['customers-broadcast'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('customers')
-        .select(`
-          *,
-          servers:server_id(server_name),
-          plans:plan_id(plan_name, price)
-        `)
-        .order('name');
-      
-      if (error) throw error;
-      return data as Customer[];
+      const allCustomers: Customer[] = [];
+      const pageSize = 1000;
+      let page = 0;
+      let hasMore = true;
+
+      while (hasMore) {
+        const from = page * pageSize;
+        const to = from + pageSize - 1;
+        
+        const { data, error } = await supabase
+          .from('customers')
+          .select(`
+            *,
+            servers:server_id(server_name),
+            plans:plan_id(plan_name, price)
+          `)
+          .order('name')
+          .range(from, to);
+        
+        if (error) throw error;
+        
+        if (data && data.length > 0) {
+          allCustomers.push(...(data as Customer[]));
+          hasMore = data.length === pageSize;
+          page++;
+        } else {
+          hasMore = false;
+        }
+      }
+
+      return allCustomers;
     },
   });
 
