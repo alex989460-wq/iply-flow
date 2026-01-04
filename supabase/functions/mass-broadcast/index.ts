@@ -96,6 +96,53 @@ function clampInt(value: unknown, fallback: number, min: number, max?: number) {
   return clamped;
 }
 
+function chunkArray<T>(items: T[], chunkSize: number): T[][] {
+  if (chunkSize <= 0) return [items];
+  const chunks: T[][] = [];
+  for (let i = 0; i < items.length; i += chunkSize) {
+    chunks.push(items.slice(i, i + chunkSize));
+  }
+  return chunks;
+}
+
+// PostgREST can return 400 (Bad Request) when `.in(...)` lists are too large.
+// Chunking avoids URL/query length limits for big broadcasts.
+const CUSTOMER_ID_CHUNK_SIZE = 200;
+const PHONE_CHUNK_SIZE = 500;
+
+async function fetchCustomersByIds(supabase: any, customerIds: string[]) {
+  const customers: any[] = [];
+
+  for (const chunk of chunkArray(customerIds, CUSTOMER_ID_CHUNK_SIZE)) {
+    const { data, error } = await supabase.from('customers').select('id, name, phone').in('id', chunk);
+    if (error) return { customers: null as any[] | null, error };
+    if (data?.length) customers.push(...data);
+  }
+
+  return { customers, error: null };
+}
+
+async function fetchAlreadySentPhones(supabase: any, templateName: string, phonesNormalized: string[]) {
+  const sentPhones = new Set<string>();
+
+  for (const chunk of chunkArray(phonesNormalized, PHONE_CHUNK_SIZE)) {
+    const { data, error } = await supabase
+      .from('broadcast_logs')
+      .select('phone_normalized')
+      .eq('template_name', templateName)
+      .eq('last_status', 'sent')
+      .in('phone_normalized', chunk);
+
+    if (error) return { sentPhones: null as Set<string> | null, error };
+
+    for (const row of data || []) {
+      sentPhones.add((row as any).phone_normalized);
+    }
+  }
+
+  return { sentPhones, error: null };
+}
+
 async function startBroadcastPlan(args: {
   supabaseUrl: string;
   supabaseServiceKey: string;
@@ -104,11 +151,8 @@ async function startBroadcastPlan(args: {
 }) {
   const supabase = createClient(args.supabaseUrl, args.supabaseServiceKey);
 
-  // Fetch customers
-  const { data: customers, error: customersError } = await supabase
-    .from('customers')
-    .select('id, name, phone')
-    .in('id', args.customerIds);
+  // Fetch customers (chunked)
+  const { customers, error: customersError } = await fetchCustomersByIds(supabase, args.customerIds);
 
   if (customersError || !customers) {
     console.error('Error fetching customers:', customersError);
@@ -118,15 +162,18 @@ async function startBroadcastPlan(args: {
   // Get all normalized phones to check
   const allNormalizedPhones = customers.map((c: any) => normalizePhone(c.phone));
 
-  // Check broadcast_logs for already sent templates
-  const { data: existingLogs } = await supabase
-    .from('broadcast_logs')
-    .select('phone_normalized')
-    .eq('template_name', args.templateName)
-    .eq('last_status', 'sent')
-    .in('phone_normalized', allNormalizedPhones);
+  // Check broadcast_logs for already sent templates (chunked)
+  const { sentPhones: alreadySentPhones, error: sentPhonesError } = await fetchAlreadySentPhones(
+    supabase,
+    args.templateName,
+    allNormalizedPhones
+  );
 
-  const alreadySentPhones = new Set((existingLogs || []).map((l: any) => l.phone_normalized));
+  if (sentPhonesError || !alreadySentPhones) {
+    console.error('Error fetching broadcast logs:', sentPhonesError);
+    return { ok: false as const, status: 500, body: { error: 'Error checking previous sends' } };
+  }
+
   console.log(`Found ${alreadySentPhones.size} phones that already received template "${args.templateName}"`);
 
   const seenPhones = new Set<string>();
@@ -493,11 +540,8 @@ Deno.serve(async (req) => {
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Fetch customers
-    const { data: customers, error: customersError } = await supabase
-      .from('customers')
-      .select('id, name, phone')
-      .in('id', customer_ids);
+    // Fetch customers (chunked)
+    const { customers, error: customersError } = await fetchCustomersByIds(supabase, customer_ids);
 
     if (customersError || !customers) {
       console.error('Error fetching customers:', customersError);
@@ -509,14 +553,19 @@ Deno.serve(async (req) => {
 
     const allNormalizedPhones = (customers as any[]).map((c) => normalizePhone(c.phone));
 
-    const { data: existingLogs } = await supabase
-      .from('broadcast_logs')
-      .select('phone_normalized')
-      .eq('template_name', template_name)
-      .eq('last_status', 'sent')
-      .in('phone_normalized', allNormalizedPhones);
+    const { sentPhones: alreadySentPhones, error: sentPhonesError } = await fetchAlreadySentPhones(
+      supabase,
+      template_name,
+      allNormalizedPhones
+    );
 
-    const alreadySentPhones = new Set((existingLogs || []).map((l: any) => l.phone_normalized));
+    if (sentPhonesError || !alreadySentPhones) {
+      console.error('Error fetching broadcast logs:', sentPhonesError);
+      return new Response(JSON.stringify({ error: 'Error checking previous sends' }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
 
     const seenPhones = new Set<string>();
     const customersToSend: CustomerInfo[] = [];
