@@ -92,8 +92,8 @@ export default function MassBroadcast() {
   const [searchTerm, setSearchTerm] = useState('');
   const [sendingProgress, setSendingProgress] = useState(0);
   const [isSending, setIsSending] = useState(false);
-  const [delayMinSeconds, setDelayMinSeconds] = useState(1);
-  const [delayMaxSeconds, setDelayMaxSeconds] = useState(2);
+  const [batchSize, setBatchSize] = useState(8);
+  const [batchIntervalSeconds, setBatchIntervalSeconds] = useState(3);
   const [broadcastReport, setBroadcastReport] = useState<BroadcastReportData | null>(null);
   const [showProgressModal, setShowProgressModal] = useState(false);
   const [broadcastResults, setBroadcastResults] = useState<BroadcastResult[]>([]);
@@ -103,6 +103,7 @@ export default function MassBroadcast() {
 
   const initialResultsRef = useRef<BroadcastResult[]>([]);
   const realtimeResultsRef = useRef<Map<string, BroadcastResult>>(new Map());
+  const cancelSendRef = useRef(false);
 
   // Templates from API
   const [templates, setTemplates] = useState<WhatsAppTemplate[]>([]);
@@ -296,15 +297,18 @@ export default function MassBroadcast() {
     const count = getSelectedCustomersList.length;
     const isMarketing = selectedTemplateInfo?.category?.toUpperCase() === 'MARKETING';
     const costPerMessage = isMarketing ? COST_MARKETING : COST_UTILITY;
-    const avgDelay = (delayMinSeconds + delayMaxSeconds) / 2;
+
+    const batches = batchSize > 0 ? Math.ceil(count / batchSize) : 0;
+    const estimatedTime = batches * batchIntervalSeconds;
+
     return {
       count,
       totalCost: count * costPerMessage,
-      estimatedTime: count * avgDelay,
+      estimatedTime,
       isMarketing,
       costPerMessage,
     };
-  }, [getSelectedCustomersList, delayMinSeconds, delayMaxSeconds, selectedTemplateInfo]);
+  }, [getSelectedCustomersList, batchSize, batchIntervalSeconds, selectedTemplateInfo]);
 
   // Toggle customer selection
   const toggleCustomer = (customerId: string) => {
@@ -348,6 +352,8 @@ export default function MassBroadcast() {
 
   // Send broadcast
   const sendBroadcast = async () => {
+    if (isSending) return;
+
     if (!selectedTemplate) {
       toast({
         title: 'Template não selecionado',
@@ -367,6 +373,11 @@ export default function MassBroadcast() {
       return;
     }
 
+    const templateName = selectedTemplate;
+    const allCustomerIds = customersToSend.map((c) => c.id);
+
+    const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
     const startedAt = new Date();
     const startedAtIso = new Date(startedAt.getTime() - 15_000).toISOString();
     const customerById: Record<string, { name: string; phone: string }> = Object.fromEntries(
@@ -375,11 +386,13 @@ export default function MassBroadcast() {
 
     // Open progress modal immediately
     setActiveBroadcast({
-      templateName: selectedTemplate,
+      templateName,
       startedAtIso,
       customerById,
       total: customersToSend.length,
     });
+
+    cancelSendRef.current = false;
     setIsSending(true);
     setSendingProgress(0);
     initialResultsRef.current = [];
@@ -393,70 +406,92 @@ export default function MassBroadcast() {
       errors: 0,
       skipped: 0,
       details: [],
-      templateName: selectedTemplate,
+      templateName,
       startedAt,
     });
 
     try {
-      const response = await supabase.functions.invoke('mass-broadcast', {
+      // 1) Start: get queue + log skips immediately
+      const startResponse = await supabase.functions.invoke('mass-broadcast', {
         body: {
-          customer_ids: customersToSend.map((c) => c.id),
-          template_name: selectedTemplate,
-          delay_min_seconds: delayMinSeconds,
-          delay_max_seconds: delayMaxSeconds,
+          action: 'start',
+          customer_ids: allCustomerIds,
+          template_name: templateName,
         },
       });
 
-      if (response.error) {
-        throw new Error(response.error.message);
+      if (startResponse.error) throw new Error(startResponse.error.message);
+
+      const startData = startResponse.data;
+      if (!startData?.success) throw new Error(startData?.error || 'Resposta inválida do backend');
+
+      const initialResults: BroadcastResult[] = startData.initial_results || [];
+      const queueCustomerIds: string[] = startData.queue_customer_ids || [];
+
+      initialResultsRef.current = initialResults;
+
+      setBroadcastResults(initialResults);
+      setBroadcastStats({
+        sent: 0,
+        errors: 0,
+        skipped: startData.skipped || 0,
+      });
+      setBroadcastReport({
+        total: customersToSend.length,
+        sent: 0,
+        errors: 0,
+        skipped: startData.skipped || 0,
+        details: initialResults,
+        templateName,
+        startedAt,
+      });
+
+      const alreadySentCount = startData.already_sent || 0;
+      const duplicatesCount = startData.duplicates || 0;
+
+      const batches = batchSize > 0 ? Math.ceil(queueCustomerIds.length / batchSize) : 0;
+      const estimatedSeconds = batches * batchIntervalSeconds;
+
+      let description = `${queueCustomerIds.length} mensagens únicas serão enviadas`;
+      if (alreadySentCount > 0 || duplicatesCount > 0) {
+        const skipParts: string[] = [];
+        if (alreadySentCount > 0) skipParts.push(`${alreadySentCount} já enviados`);
+        if (duplicatesCount > 0) skipParts.push(`${duplicatesCount} duplicados`);
+        description += ` (${skipParts.join(', ')} ignorados)`;
       }
+      description += `. Velocidade: ${batchSize} msgs / ${batchIntervalSeconds}s. Tempo estimado: ~${formatDuration(estimatedSeconds)}.`;
 
-      // Background task started - update modal with initial skipped results
-      const data = response.data;
-
-      if (data?.success) {
-        const initialResults: BroadcastResult[] = data.initial_results || [];
-        initialResultsRef.current = initialResults;
-
-        setBroadcastResults(initialResults);
-        setBroadcastStats({
-          sent: 0,
-          errors: 0,
-          skipped: data.skipped || 0,
-        });
-        setBroadcastReport({
-          total: customersToSend.length,
-          sent: 0,
-          errors: 0,
-          skipped: data.skipped || 0,
-          details: initialResults,
-          templateName: selectedTemplate,
-          startedAt,
-        });
-
-        const alreadySentCount = data.already_sent || 0;
-        const duplicatesCount = data.duplicates || 0;
-
-        let description = `${data.unique} mensagens únicas serão enviadas`;
-        if (alreadySentCount > 0 || duplicatesCount > 0) {
-          const skipParts: string[] = [];
-          if (alreadySentCount > 0) skipParts.push(`${alreadySentCount} já enviados`);
-          if (duplicatesCount > 0) skipParts.push(`${duplicatesCount} duplicados`);
-          description += ` (${skipParts.join(', ')} ignorados)`;
-        }
-        description += `. Tempo estimado: ~${data.estimated_time_minutes} min.`;
-
-        toast({
-          title: 'Disparo iniciado!',
-          description,
-        });
-      }
+      toast({
+        title: 'Disparo iniciado!',
+        description,
+      });
 
       clearSelection();
       queryClient.invalidateQueries({ queryKey: ['billing-logs'] });
+
+      // 2) Drive the sending in short batches to avoid backend timeouts
+      for (let offset = 0; offset < queueCustomerIds.length; offset += batchSize) {
+        if (cancelSendRef.current) break;
+
+        const batch = queueCustomerIds.slice(offset, offset + batchSize);
+        const batchResponse = await supabase.functions.invoke('mass-broadcast', {
+          body: {
+            action: 'batch',
+            customer_ids: batch,
+            template_name: templateName,
+          },
+        });
+
+        if (batchResponse.error) throw new Error(batchResponse.error.message);
+        if (!batchResponse.data?.success) throw new Error(batchResponse.data?.error || 'Erro ao enviar lote');
+
+        const isLast = offset + batchSize >= queueCustomerIds.length;
+        if (!isLast && batchIntervalSeconds > 0) {
+          await sleep(batchIntervalSeconds * 1000);
+        }
+      }
     } catch (error: any) {
       console.error('Broadcast error:', error);
-      setIsBroadcastComplete(true);
       toast({
         title: 'Erro no disparo',
         description: error.message || 'Ocorreu um erro ao iniciar o disparo.',
@@ -988,52 +1023,55 @@ export default function MassBroadcast() {
               </CardContent>
             </Card>
 
-            {/* Delay Setting */}
+            {/* Batch Speed */}
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-lg flex items-center gap-2">
                   <Clock className="w-5 h-5" />
-                  Intervalo Aleatório
+                  Envio em Lotes
                 </CardTitle>
                 <CardDescription>
-                  Intervalo aleatório entre envios (anti-bloqueio)
+                  Ex.: 8 mensagens a cada 3s (mais rápido e evita travar)
                 </CardDescription>
               </CardHeader>
-              <CardContent>
-                <div className="flex items-center gap-3">
+              <CardContent className="space-y-3">
+                <div className="flex flex-wrap items-center gap-4">
                   <div className="flex items-center gap-2">
-                    <Label className="text-sm text-muted-foreground">Mín:</Label>
+                    <Label className="text-sm text-muted-foreground">Lote:</Label>
                     <Input
                       type="number"
                       min={1}
-                      max={delayMaxSeconds - 1}
-                      value={delayMinSeconds}
+                      max={50}
+                      value={batchSize}
                       onChange={(e) => {
                         const val = Math.max(1, parseInt(e.target.value) || 1);
-                        setDelayMinSeconds(Math.min(val, delayMaxSeconds - 1));
+                        setBatchSize(Math.min(val, 50));
                       }}
-                      className="w-16"
+                      className="w-20"
                     />
+                    <span className="text-sm text-muted-foreground">msgs</span>
                   </div>
-                  <span className="text-muted-foreground">-</span>
+
                   <div className="flex items-center gap-2">
-                    <Label className="text-sm text-muted-foreground">Máx:</Label>
+                    <Label className="text-sm text-muted-foreground">Intervalo:</Label>
                     <Input
                       type="number"
-                      min={delayMinSeconds + 1}
-                      max={120}
-                      value={delayMaxSeconds}
+                      min={0}
+                      max={60}
+                      value={batchIntervalSeconds}
                       onChange={(e) => {
-                        const val = Math.max(delayMinSeconds + 1, parseInt(e.target.value) || delayMinSeconds + 1);
-                        setDelayMaxSeconds(Math.min(val, 120));
+                        const val = Math.max(0, parseInt(e.target.value) || 0);
+                        setBatchIntervalSeconds(Math.min(val, 60));
                       }}
-                      className="w-16"
+                      className="w-20"
                     />
+                    <span className="text-sm text-muted-foreground">seg</span>
                   </div>
-                  <span className="text-muted-foreground">seg</span>
                 </div>
-                <p className="text-xs text-muted-foreground mt-2">
-                  O sistema escolherá um tempo aleatório entre {delayMinSeconds}s e {delayMaxSeconds}s para cada mensagem
+
+                <p className="text-xs text-muted-foreground">
+                  Envia até <strong>{batchSize}</strong> mensagens por lote, aguarda{' '}
+                  <strong>{batchIntervalSeconds}s</strong> e repete. Quanto mais rápido, maior o risco de bloqueio.
                 </p>
               </CardContent>
             </Card>

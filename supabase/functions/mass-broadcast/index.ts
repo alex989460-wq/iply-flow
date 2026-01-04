@@ -5,9 +5,16 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-interface BroadcastRequest {
+type BroadcastAction = 'start' | 'batch' | 'legacy';
+
+interface BroadcastRequestBase {
+  action?: BroadcastAction;
   customer_ids: string[];
   template_name: string;
+}
+
+interface LegacyBroadcastRequest extends BroadcastRequestBase {
+  action?: 'legacy';
   delay_min_seconds?: number;
   delay_max_seconds?: number;
 }
@@ -25,11 +32,6 @@ interface InitialResult {
   error: string;
 }
 
-// Generate random delay between min and max
-function getRandomDelay(min: number, max: number): number {
-  return Math.floor(Math.random() * (max - min + 1)) + min;
-}
-
 // Normalize phone number for comparison (remove non-digits)
 function normalizePhone(phone: string): string {
   return phone.replace(/\D/g, '');
@@ -37,37 +39,36 @@ function normalizePhone(phone: string): string {
 
 // Send WhatsApp template message via Zap Responder API
 async function sendWhatsAppTemplate(
-  phone: string, 
+  phone: string,
   templateName: string,
-  token: string, 
+  token: string,
   apiBaseUrl: string,
   departmentId: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
     // Format phone number (remove non-digits and ensure country code)
     let formattedPhone = phone.replace(/\D/g, '');
-    
+
     // Ensure phone has country code (Brazil = 55)
     if (!formattedPhone.startsWith('55') && formattedPhone.length <= 11) {
       formattedPhone = '55' + formattedPhone;
     }
-    
+
     console.log(`Sending WhatsApp template "${templateName}" to ${formattedPhone} via department ${departmentId}`);
-    
-    // Use the WhatsApp template endpoint
+
     const body = {
       type: 'template',
       template_name: templateName,
       number: formattedPhone,
       language: 'pt_BR',
     };
-    
+
     const response = await fetch(`${apiBaseUrl}/whatsapp/message/${departmentId}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        'Authorization': `Bearer ${token}`,
+        Accept: 'application/json',
+        Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify(body),
     });
@@ -88,115 +89,328 @@ async function sendWhatsAppTemplate(
   }
 }
 
-// Delay helper function
-function delay(ms: number): Promise<void> {
-  return new Promise(resolve => setTimeout(resolve, ms));
+function clampInt(value: unknown, fallback: number, min: number, max?: number) {
+  const raw = typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+  const floored = Math.floor(raw);
+  const clamped = Math.max(min, max != null ? Math.min(floored, max) : floored);
+  return clamped;
 }
 
-// Background task to process broadcast
-async function processBroadcast(
-  customersToSend: CustomerInfo[],
-  alreadySentCustomers: CustomerInfo[],
-  duplicateCustomers: CustomerInfo[],
-  templateName: string,
-  delayMinSeconds: number,
-  delayMaxSeconds: number,
-  supabaseUrl: string,
-  supabaseServiceKey: string,
-  zapToken: string,
-  apiBaseUrl: string,
-  departmentId: string
-) {
-  const supabase = createClient(supabaseUrl, supabaseServiceKey);
+async function startBroadcastPlan(args: {
+  supabaseUrl: string;
+  supabaseServiceKey: string;
+  customerIds: string[];
+  templateName: string;
+}) {
+  const supabase = createClient(args.supabaseUrl, args.supabaseServiceKey);
 
-  console.log(`[BACKGROUND] Starting broadcast processing for ${customersToSend.length} unique customers (${duplicateCustomers.length} duplicates, ${alreadySentCustomers.length} already sent)`);
+  // Fetch customers
+  const { data: customers, error: customersError } = await supabase
+    .from('customers')
+    .select('id, name, phone')
+    .in('id', args.customerIds);
 
-  let sent = 0;
-  let errors = 0;
+  if (customersError || !customers) {
+    console.error('Error fetching customers:', customersError);
+    return { ok: false as const, status: 500, body: { error: 'Error fetching customers' } };
+  }
+
+  // Get all normalized phones to check
+  const allNormalizedPhones = customers.map((c: any) => normalizePhone(c.phone));
+
+  // Check broadcast_logs for already sent templates
+  const { data: existingLogs } = await supabase
+    .from('broadcast_logs')
+    .select('phone_normalized')
+    .eq('template_name', args.templateName)
+    .eq('last_status', 'sent')
+    .in('phone_normalized', allNormalizedPhones);
+
+  const alreadySentPhones = new Set((existingLogs || []).map((l: any) => l.phone_normalized));
+  console.log(`Found ${alreadySentPhones.size} phones that already received template "${args.templateName}"`);
+
+  const seenPhones = new Set<string>();
+  const customersToSend: CustomerInfo[] = [];
+  const duplicateCustomers: CustomerInfo[] = [];
+  const alreadySentCustomers: CustomerInfo[] = [];
+
+  for (const customer of customers as any[]) {
+    const normalizedPhone = normalizePhone(customer.phone);
+
+    if (alreadySentPhones.has(normalizedPhone)) {
+      alreadySentCustomers.push(customer);
+    } else if (seenPhones.has(normalizedPhone)) {
+      duplicateCustomers.push(customer);
+    } else {
+      seenPhones.add(normalizedPhone);
+      customersToSend.push(customer);
+    }
+  }
+
+  console.log(
+    `Broadcast plan: total=${customers.length}, to_send=${customersToSend.length}, duplicates=${duplicateCustomers.length}, already_sent=${alreadySentCustomers.length}`
+  );
+
+  // Log skips immediately (so UI receives realtime updates)
+  if (duplicateCustomers.length > 0) {
+    const { error } = await supabase.from('billing_logs').insert(
+      duplicateCustomers.map((customer) => ({
+        customer_id: customer.id,
+        billing_type: 'D0' as any,
+        message: `[BROADCAST] ${customer.phone} - Template: ${args.templateName} - IGNORADO (telefone duplicado)`,
+        whatsapp_status: 'skipped',
+      }))
+    );
+
+    if (error) console.error('Error inserting duplicate skip logs:', error);
+  }
+
+  if (alreadySentCustomers.length > 0) {
+    const { error } = await supabase.from('billing_logs').insert(
+      alreadySentCustomers.map((customer) => ({
+        customer_id: customer.id,
+        billing_type: 'D0' as any,
+        message: `[BROADCAST] ${customer.phone} - Template: ${args.templateName} - IGNORADO (já enviado anteriormente)`,
+        whatsapp_status: 'skipped',
+      }))
+    );
+
+    if (error) console.error('Error inserting already-sent skip logs:', error);
+  }
+
+  const initialResults: InitialResult[] = [
+    ...alreadySentCustomers.map((c) => ({
+      customer: c.name,
+      phone: c.phone,
+      status: 'skipped' as const,
+      error: 'Já enviado anteriormente',
+    })),
+    ...duplicateCustomers.map((c) => ({
+      customer: c.name,
+      phone: c.phone,
+      status: 'skipped' as const,
+      error: 'Telefone duplicado',
+    })),
+  ];
+
+  return {
+    ok: true as const,
+    status: 200,
+    body: {
+      success: true,
+      total: customers.length,
+      unique: customersToSend.length,
+      skipped: alreadySentCustomers.length + duplicateCustomers.length,
+      already_sent: alreadySentCustomers.length,
+      duplicates: duplicateCustomers.length,
+      template: args.templateName,
+      queue_customer_ids: customersToSend.map((c) => c.id),
+      initial_results: initialResults,
+    },
+  };
+}
+
+async function processBroadcastBatch(args: {
+  supabaseUrl: string;
+  supabaseServiceKey: string;
+  zapToken: string;
+  customerIds: string[];
+  templateName: string;
+}) {
+  const supabase = createClient(args.supabaseUrl, args.supabaseServiceKey);
+
+  // Settings
+  const { data: zapSettings, error: zapSettingsError } = await supabase
+    .from('zap_responder_settings')
+    .select('*')
+    .limit(1)
+    .single();
+
+  if (zapSettingsError) {
+    console.error('Error fetching zap settings:', zapSettingsError);
+    return { ok: false as const, status: 500, body: { error: 'Erro ao carregar configurações do Zap' } };
+  }
+
+  const apiBaseUrl = zapSettings?.api_base_url || 'https://api.zapresponder.com.br/api';
+  const departmentId = zapSettings?.selected_department_id;
+
+  if (!departmentId) {
+    return {
+      ok: false as const,
+      status: 400,
+      body: { error: 'Departamento não configurado. Configure na tela de cobranças.' },
+    };
+  }
+
+  // Customers
+  const { data: customers, error: customersError } = await supabase
+    .from('customers')
+    .select('id, name, phone')
+    .in('id', args.customerIds);
+
+  if (customersError || !customers) {
+    console.error('Error fetching customers for batch:', customersError);
+    return { ok: false as const, status: 500, body: { error: 'Error fetching customers' } };
+  }
+
+  console.log(
+    `Processing batch: size=${customers.length}, template=${args.templateName}, department=${departmentId}, apiBaseUrl=${apiBaseUrl}`
+  );
+
+  const nowIso = new Date().toISOString();
+
+  const results = await Promise.all(
+    (customers as any[]).map(async (customer) => {
+      const sendResult = await sendWhatsAppTemplate(customer.phone, args.templateName, args.zapToken, apiBaseUrl, departmentId);
+      return {
+        customer,
+        normalizedPhone: normalizePhone(customer.phone),
+        sendResult,
+      };
+    })
+  );
+
+  const billingRows = results.map(({ customer, sendResult }) => ({
+    customer_id: customer.id,
+    billing_type: 'D0' as any,
+    message: `[BROADCAST] ${customer.phone} - Template: ${args.templateName}`,
+    whatsapp_status: sendResult.success ? 'sent' : `error: ${sendResult.error || 'Unknown error'}`,
+  }));
+
+  const { error: billingError } = await supabase.from('billing_logs').insert(billingRows);
+  if (billingError) console.error('Error inserting billing logs (batch):', billingError);
+
+  const broadcastRows = results.map(({ customer, normalizedPhone, sendResult }) => ({
+    customer_id: customer.id,
+    phone_normalized: normalizedPhone,
+    template_name: args.templateName,
+    last_status: sendResult.success ? 'sent' : 'error',
+    last_error: sendResult.success ? null : sendResult.error || 'Unknown error',
+    last_sent_at: sendResult.success ? nowIso : null,
+    updated_at: nowIso,
+  }));
+
+  const { error: broadcastError } = await supabase
+    .from('broadcast_logs')
+    .upsert(broadcastRows, { onConflict: 'phone_normalized,template_name' });
+  if (broadcastError) console.error('Error upserting broadcast logs (batch):', broadcastError);
+
+  const sent = results.filter((r) => r.sendResult.success).length;
+  const errors = results.length - sent;
+
+  console.log(`Batch completed: sent=${sent}, errors=${errors}`);
+
+  return {
+    ok: true as const,
+    status: 200,
+    body: {
+      success: true,
+      batch_total: results.length,
+      sent,
+      errors,
+    },
+  };
+}
+
+// Delay helper function (legacy mode)
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// Generate random delay between min and max (legacy mode)
+function getRandomDelay(min: number, max: number): number {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+// Legacy background task to process the whole broadcast (can time out on long lists)
+async function processBroadcastLegacy(args: {
+  customersToSend: CustomerInfo[];
+  alreadySentCustomers: CustomerInfo[];
+  duplicateCustomers: CustomerInfo[];
+  templateName: string;
+  delayMinSeconds: number;
+  delayMaxSeconds: number;
+  supabaseUrl: string;
+  supabaseServiceKey: string;
+  zapToken: string;
+  apiBaseUrl: string;
+  departmentId: string;
+}) {
+  const supabase = createClient(args.supabaseUrl, args.supabaseServiceKey);
+
+  console.log(
+    `[BACKGROUND][LEGACY] Starting broadcast processing for ${args.customersToSend.length} unique customers (${args.duplicateCustomers.length} duplicates, ${args.alreadySentCustomers.length} already sent)`
+  );
 
   // Log duplicate skipped customers
-  if (duplicateCustomers.length > 0) {
-    await supabase
-      .from('billing_logs')
-      .insert(
-        duplicateCustomers.map((customer) => ({
-          customer_id: customer.id,
-          billing_type: 'D0' as any,
-          message: `[BROADCAST] ${customer.phone} - Template: ${templateName} - IGNORADO (telefone duplicado)`,
-          whatsapp_status: 'skipped',
-        }))
-      );
+  if (args.duplicateCustomers.length > 0) {
+    await supabase.from('billing_logs').insert(
+      args.duplicateCustomers.map((customer) => ({
+        customer_id: customer.id,
+        billing_type: 'D0' as any,
+        message: `[BROADCAST] ${customer.phone} - Template: ${args.templateName} - IGNORADO (telefone duplicado)`,
+        whatsapp_status: 'skipped',
+      }))
+    );
   }
 
   // Log already-sent skipped customers
-  if (alreadySentCustomers.length > 0) {
-    await supabase
-      .from('billing_logs')
-      .insert(
-        alreadySentCustomers.map((customer) => ({
-          customer_id: customer.id,
-          billing_type: 'D0' as any,
-          message: `[BROADCAST] ${customer.phone} - Template: ${templateName} - IGNORADO (já enviado anteriormente)`,
-          whatsapp_status: 'skipped',
-        }))
-      );
-  }
-
-  // Process customers one by one with delay
-  for (let i = 0; i < customersToSend.length; i++) {
-    const customer = customersToSend[i];
-    const normalizedPhone = normalizePhone(customer.phone);
-    
-    console.log(`[BACKGROUND] Processing ${i + 1}/${customersToSend.length}: ${customer.name} (${customer.phone})`);
-
-    // Send WhatsApp template
-    const sendResult = await sendWhatsAppTemplate(
-      customer.phone, 
-      templateName, 
-      zapToken, 
-      apiBaseUrl, 
-      departmentId
-    );
-
-    // Log the broadcast attempt to billing_logs
-    await supabase
-      .from('billing_logs')
-      .insert({
+  if (args.alreadySentCustomers.length > 0) {
+    await supabase.from('billing_logs').insert(
+      args.alreadySentCustomers.map((customer) => ({
         customer_id: customer.id,
         billing_type: 'D0' as any,
-        message: `[BROADCAST] ${customer.phone} - Template: ${templateName}`,
-        whatsapp_status: sendResult.success ? 'sent' : `error: ${sendResult.error}`,
-      });
+        message: `[BROADCAST] ${customer.phone} - Template: ${args.templateName} - IGNORADO (já enviado anteriormente)`,
+        whatsapp_status: 'skipped',
+      }))
+    );
+  }
 
-    // Upsert to broadcast_logs to track sent templates
+  for (let i = 0; i < args.customersToSend.length; i++) {
+    const customer = args.customersToSend[i];
+    const normalizedPhone = normalizePhone(customer.phone);
+
+    console.log(`[BACKGROUND][LEGACY] Processing ${i + 1}/${args.customersToSend.length}: ${customer.name} (${customer.phone})`);
+
+    const sendResult = await sendWhatsAppTemplate(
+      customer.phone,
+      args.templateName,
+      args.zapToken,
+      args.apiBaseUrl,
+      args.departmentId
+    );
+
+    await supabase.from('billing_logs').insert({
+      customer_id: customer.id,
+      billing_type: 'D0' as any,
+      message: `[BROADCAST] ${customer.phone} - Template: ${args.templateName}`,
+      whatsapp_status: sendResult.success ? 'sent' : `error: ${sendResult.error}`,
+    });
+
     const now = new Date().toISOString();
     await supabase
       .from('broadcast_logs')
-      .upsert({
-        customer_id: customer.id,
-        phone_normalized: normalizedPhone,
-        template_name: templateName,
-        last_status: sendResult.success ? 'sent' : 'error',
-        last_error: sendResult.success ? null : sendResult.error,
-        last_sent_at: sendResult.success ? now : null,
-        updated_at: now,
-      }, { onConflict: 'phone_normalized,template_name' });
+      .upsert(
+        {
+          customer_id: customer.id,
+          phone_normalized: normalizedPhone,
+          template_name: args.templateName,
+          last_status: sendResult.success ? 'sent' : 'error',
+          last_error: sendResult.success ? null : sendResult.error,
+          last_sent_at: sendResult.success ? now : null,
+          updated_at: now,
+        },
+        { onConflict: 'phone_normalized,template_name' }
+      );
 
-    if (sendResult.success) {
-      sent++;
-    } else {
-      errors++;
-    }
-
-    // Add random delay between messages (except for the last one)
-    if (i < customersToSend.length - 1) {
-      const randomDelay = getRandomDelay(delayMinSeconds, delayMaxSeconds);
-      console.log(`[BACKGROUND] Waiting ${randomDelay} seconds before next message...`);
+    if (i < args.customersToSend.length - 1) {
+      const randomDelay = getRandomDelay(args.delayMinSeconds, args.delayMaxSeconds);
+      console.log(`[BACKGROUND][LEGACY] Waiting ${randomDelay} seconds before next message...`);
       await delay(randomDelay * 1000);
     }
   }
 
-  console.log(`[BACKGROUND] Broadcast completed: ${sent} sent, ${errors} errors, ${duplicateCustomers.length} duplicates skipped, ${alreadySentCustomers.length} already sent skipped`);
+  console.log('[BACKGROUND][LEGACY] Broadcast completed');
 }
 
 Deno.serve(async (req) => {
@@ -206,43 +420,77 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const body: BroadcastRequest = await req.json();
-    const { customer_ids, template_name } = body;
+    const body = (await req.json()) as BroadcastRequestBase & Partial<LegacyBroadcastRequest>;
 
-    let delay_min_seconds = typeof body.delay_min_seconds === 'number' ? body.delay_min_seconds : 1;
-    let delay_max_seconds = typeof body.delay_max_seconds === 'number' ? body.delay_max_seconds : 2;
-
-    // Normalize/clamp delay values
-    delay_min_seconds = Math.max(0, Math.floor(delay_min_seconds));
-    delay_max_seconds = Math.max(delay_min_seconds, Math.floor(delay_max_seconds));
-
-    console.log(`Starting mass broadcast: ${customer_ids.length} customers, template: ${template_name}, delay: ${delay_min_seconds}-${delay_max_seconds}s (random)`);
+    const customer_ids = Array.isArray(body.customer_ids) ? body.customer_ids : [];
+    const template_name = typeof body.template_name === 'string' ? body.template_name : '';
+    const action: BroadcastAction = (body.action as BroadcastAction) || 'start';
 
     if (!customer_ids || customer_ids.length === 0) {
-      return new Response(
-        JSON.stringify({ error: 'No customers specified' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return new Response(JSON.stringify({ error: 'No customers specified' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
     if (!template_name) {
-      return new Response(
-        JSON.stringify({ error: 'No template specified' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return new Response(JSON.stringify({ error: 'No template specified' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
     const zapToken = Deno.env.get('ZAP_RESPONDER_TOKEN');
     if (!zapToken) {
       console.error('ZAP_RESPONDER_TOKEN not configured');
-      return new Response(
-        JSON.stringify({ error: 'ZAP_RESPONDER_TOKEN not configured' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return new Response(JSON.stringify({ error: 'ZAP_RESPONDER_TOKEN not configured' }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+
+    if (action === 'start') {
+      console.log(`Starting broadcast plan: customers=${customer_ids.length}, template=${template_name}`);
+
+      const planned = await startBroadcastPlan({
+        supabaseUrl,
+        supabaseServiceKey,
+        customerIds: customer_ids,
+        templateName: template_name,
+      });
+
+      return new Response(JSON.stringify(planned.body), {
+        status: planned.status,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    if (action === 'batch') {
+      console.log(`Processing broadcast batch: customers=${customer_ids.length}, template=${template_name}`);
+
+      const batched = await processBroadcastBatch({
+        supabaseUrl,
+        supabaseServiceKey,
+        zapToken,
+        customerIds: customer_ids,
+        templateName: template_name,
+      });
+
+      return new Response(JSON.stringify(batched.body), {
+        status: batched.status,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Legacy mode (kept for compatibility)
+    console.log(`Starting legacy mass broadcast: customers=${customer_ids.length}, template=${template_name}`);
+
+    const delay_min_seconds = clampInt((body as any).delay_min_seconds, 1, 0);
+    const delay_max_seconds = Math.max(delay_min_seconds, clampInt((body as any).delay_max_seconds, 2, 0));
+
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     // Fetch customers
@@ -253,16 +501,14 @@ Deno.serve(async (req) => {
 
     if (customersError || !customers) {
       console.error('Error fetching customers:', customersError);
-      return new Response(
-        JSON.stringify({ error: 'Error fetching customers' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return new Response(JSON.stringify({ error: 'Error fetching customers' }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
-    // Get all normalized phones to check
-    const allNormalizedPhones = customers.map(c => normalizePhone(c.phone));
+    const allNormalizedPhones = (customers as any[]).map((c) => normalizePhone(c.phone));
 
-    // Check broadcast_logs for already sent templates
     const { data: existingLogs } = await supabase
       .from('broadcast_logs')
       .select('phone_normalized')
@@ -271,35 +517,25 @@ Deno.serve(async (req) => {
       .in('phone_normalized', allNormalizedPhones);
 
     const alreadySentPhones = new Set((existingLogs || []).map((l: any) => l.phone_normalized));
-    console.log(`Found ${alreadySentPhones.size} phones that already received template "${template_name}"`);
 
-    // Filter customers:
-    // 1) Already sent (same template) -> skip
-    // 2) Duplicate phone in current batch -> skip
-    // 3) New -> send
     const seenPhones = new Set<string>();
     const customersToSend: CustomerInfo[] = [];
     const duplicateCustomers: CustomerInfo[] = [];
     const alreadySentCustomers: CustomerInfo[] = [];
 
-    for (const customer of customers) {
+    for (const customer of customers as any[]) {
       const normalizedPhone = normalizePhone(customer.phone);
 
       if (alreadySentPhones.has(normalizedPhone)) {
         alreadySentCustomers.push(customer);
-        console.log(`Skipping already sent: ${customer.name} (${customer.phone})`);
       } else if (seenPhones.has(normalizedPhone)) {
         duplicateCustomers.push(customer);
-        console.log(`Skipping duplicate phone: ${customer.name} (${customer.phone})`);
       } else {
         seenPhones.add(normalizedPhone);
         customersToSend.push(customer);
       }
     }
 
-    console.log(`To send: ${customersToSend.length}, Duplicates: ${duplicateCustomers.length}, Already sent: ${alreadySentCustomers.length}`);
-
-    // Get Zap Responder settings
     const { data: zapSettings } = await supabase
       .from('zap_responder_settings')
       .select('*')
@@ -307,74 +543,40 @@ Deno.serve(async (req) => {
       .single();
 
     const apiBaseUrl = zapSettings?.api_base_url || 'https://api.zapresponder.com.br/api';
-    const selectedSessionId = zapSettings?.selected_session_id;
+    const departmentId = zapSettings?.selected_department_id;
 
-    console.log(`Using API base URL: ${apiBaseUrl}`);
-    console.log(`Selected session ID: ${selectedSessionId}`);
-
-    // Fetch the attendant info to get the department ID
-    let departmentId: string | undefined;
-    if (selectedSessionId) {
-      try {
-        const atendenteResponse = await fetch(`${apiBaseUrl}/atendentes`, {
-          method: 'GET',
-          headers: {
-            'Accept': 'application/json',
-            'Authorization': `Bearer ${zapToken}`,
-          },
-        });
-        
-        if (atendenteResponse.ok) {
-          const atendentes = await atendenteResponse.json();
-          const selectedAtendente = atendentes?.find((a: any) => a._id === selectedSessionId);
-          if (selectedAtendente?.departamento?.length > 0) {
-            departmentId = selectedAtendente.departamento[0];
-            console.log(`Found department ID for attendant: ${departmentId}`);
-          }
-        }
-      } catch (e) {
-        console.error('Error fetching attendant department:', e);
-      }
-    }
-    
     if (!departmentId) {
-      console.error('No department ID found - cannot send messages');
-      return new Response(
-        JSON.stringify({ error: 'No department ID configured. Please select a session in Billing settings.' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return new Response(JSON.stringify({ error: 'Departamento não configurado. Configure na tela de cobranças.' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
-    // Start background task for processing
-    // @ts-ignore - EdgeRuntime is available in Supabase Edge Functions
+    // @ts-ignore
     (globalThis as any).EdgeRuntime.waitUntil(
-      processBroadcast(
+      processBroadcastLegacy({
         customersToSend,
         alreadySentCustomers,
         duplicateCustomers,
-        template_name,
-        delay_min_seconds,
-        delay_max_seconds,
+        templateName: template_name,
+        delayMinSeconds: delay_min_seconds,
+        delayMaxSeconds: delay_max_seconds,
         supabaseUrl,
         supabaseServiceKey,
         zapToken,
         apiBaseUrl,
-        departmentId
-      )
+        departmentId,
+      })
     );
 
-    // Return immediately with acknowledgment including duplicate and already-sent info
-    console.log('Broadcast task started in background, returning response immediately');
-
-    // Build initial results for UI
     const initialResults: InitialResult[] = [
-      ...alreadySentCustomers.map(c => ({
+      ...alreadySentCustomers.map((c) => ({
         customer: c.name,
         phone: c.phone,
         status: 'skipped' as const,
         error: 'Já enviado anteriormente',
       })),
-      ...duplicateCustomers.map(c => ({
+      ...duplicateCustomers.map((c) => ({
         customer: c.name,
         phone: c.phone,
         status: 'skipped' as const,
@@ -385,8 +587,8 @@ Deno.serve(async (req) => {
     return new Response(
       JSON.stringify({
         success: true,
-        message: 'Broadcast started in background',
-        total: customers.length,
+        message: 'Broadcast started in background (legacy mode)',
+        total: (customers as any[]).length,
         unique: customersToSend.length,
         skipped: alreadySentCustomers.length + duplicateCustomers.length,
         already_sent: alreadySentCustomers.length,
@@ -395,18 +597,17 @@ Deno.serve(async (req) => {
         estimated_time_minutes: Math.ceil((customersToSend.length * ((delay_min_seconds + delay_max_seconds) / 2)) / 60),
         initial_results: initialResults,
       }),
-      { 
-        status: 200, 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      {
+        status: 200,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       }
     );
-
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     console.error('Unexpected error in mass broadcast:', error);
-    return new Response(
-      JSON.stringify({ error: 'Internal server error', details: errorMessage }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    return new Response(JSON.stringify({ error: 'Internal server error', details: errorMessage }), {
+      status: 500,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
   }
 });
