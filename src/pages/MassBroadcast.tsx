@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -69,6 +69,13 @@ interface BroadcastReportData {
   completedAt?: Date;
 }
 
+interface ActiveBroadcast {
+  templateName: string;
+  startedAtIso: string;
+  customerById: Record<string, { name: string; phone: string }>;
+  total: number;
+}
+
 // Custos por tipo de mensagem - Tabela Brasil (válida até 31/12/2025)
 const COST_MARKETING = 0.5895; // R$ 0,5895 por mensagem de marketing (Cloud API)
 const COST_UTILITY = 0.0642; // R$ 0,0642 por mensagem de utilidade (Cloud API)
@@ -92,6 +99,9 @@ export default function MassBroadcast() {
   const [broadcastResults, setBroadcastResults] = useState<BroadcastResult[]>([]);
   const [broadcastStats, setBroadcastStats] = useState({ sent: 0, errors: 0, skipped: 0 });
   const [isBroadcastComplete, setIsBroadcastComplete] = useState(false);
+  const [activeBroadcast, setActiveBroadcast] = useState<ActiveBroadcast | null>(null);
+
+  const initialResultsRef = useRef<BroadcastResult[]>([]);
 
   // Templates from API
   const [templates, setTemplates] = useState<WhatsAppTemplate[]>([]);
@@ -356,9 +366,22 @@ export default function MassBroadcast() {
       return;
     }
 
+    const startedAt = new Date();
+    const startedAtIso = new Date(startedAt.getTime() - 15_000).toISOString();
+    const customerById: Record<string, { name: string; phone: string }> = Object.fromEntries(
+      customersToSend.map((c) => [c.id, { name: c.name, phone: c.phone }])
+    );
+
     // Open progress modal immediately
+    setActiveBroadcast({
+      templateName: selectedTemplate,
+      startedAtIso,
+      customerById,
+      total: customersToSend.length,
+    });
     setIsSending(true);
     setSendingProgress(0);
+    initialResultsRef.current = [];
     setBroadcastResults([]);
     setBroadcastStats({ sent: 0, errors: 0, skipped: 0 });
     setIsBroadcastComplete(false);
@@ -370,13 +393,13 @@ export default function MassBroadcast() {
       skipped: 0,
       details: [],
       templateName: selectedTemplate,
-      startedAt: new Date(),
+      startedAt,
     });
 
     try {
       const response = await supabase.functions.invoke('mass-broadcast', {
         body: {
-          customer_ids: customersToSend.map(c => c.id),
+          customer_ids: customersToSend.map((c) => c.id),
           template_name: selectedTemplate,
           delay_min_seconds: delayMinSeconds,
           delay_max_seconds: delayMaxSeconds,
@@ -387,12 +410,13 @@ export default function MassBroadcast() {
         throw new Error(response.error.message);
       }
 
-      // Background task started - update modal with initial results (skipped duplicates + already sent)
+      // Background task started - update modal with initial skipped results
       const data = response.data;
-      
+
       if (data?.success) {
-        // Set initial results with skipped (already sent + duplicates)
         const initialResults: BroadcastResult[] = data.initial_results || [];
+        initialResultsRef.current = initialResults;
+
         setBroadcastResults(initialResults);
         setBroadcastStats({
           sent: 0,
@@ -400,22 +424,18 @@ export default function MassBroadcast() {
           skipped: data.skipped || 0,
         });
         setBroadcastReport({
-          total: data.total,
+          total: customersToSend.length,
           sent: 0,
           errors: 0,
           skipped: data.skipped || 0,
           details: initialResults,
           templateName: selectedTemplate,
-          startedAt: new Date(),
+          startedAt,
         });
 
-        // Mark as "complete" immediately since it's a background task
-        // The real results will be in billing_logs
-        setIsBroadcastComplete(true);
-        
         const alreadySentCount = data.already_sent || 0;
         const duplicatesCount = data.duplicates || 0;
-        
+
         let description = `${data.unique} mensagens únicas serão enviadas`;
         if (alreadySentCount > 0 || duplicatesCount > 0) {
           const skipParts: string[] = [];
@@ -424,16 +444,15 @@ export default function MassBroadcast() {
           description += ` (${skipParts.join(', ')} ignorados)`;
         }
         description += `. Tempo estimado: ~${data.estimated_time_minutes} min.`;
-        
+
         toast({
           title: 'Disparo iniciado!',
           description,
         });
       }
-      
+
       clearSelection();
       queryClient.invalidateQueries({ queryKey: ['billing-logs'] });
-      
     } catch (error: any) {
       console.error('Broadcast error:', error);
       setIsBroadcastComplete(true);
@@ -446,6 +465,127 @@ export default function MassBroadcast() {
       setIsSending(false);
     }
   };
+
+  const normalizeDigits = (value: string) => value.replace(/\D/g, '');
+
+  const extractIgnoredReason = (message?: string | null) => {
+    if (!message) return undefined;
+    const match = message.match(/IGNORADO\s*\(([^)]+)\)/i);
+    if (!match?.[1]) return undefined;
+    const reason = match[1].trim();
+    return reason ? reason.charAt(0).toUpperCase() + reason.slice(1) : undefined;
+  };
+
+  // Poll billing logs to show progress while the background task runs
+  useEffect(() => {
+    if (!showProgressModal || !activeBroadcast || isBroadcastComplete) return;
+
+    let cancelled = false;
+
+    const poll = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('billing_logs')
+          .select('customer_id, whatsapp_status, message, sent_at')
+          .ilike('message', `%Template: ${activeBroadcast.templateName}%`)
+          .gte('sent_at', activeBroadcast.startedAtIso)
+          .order('sent_at', { ascending: true })
+          .limit(1000);
+
+        if (error) throw error;
+        if (cancelled) return;
+
+        const byCustomerId = new Map<
+          string,
+          { whatsapp_status: string | null; message: string | null; sent_at: string }
+        >();
+
+        for (const row of data || []) {
+          byCustomerId.set(row.customer_id, {
+            whatsapp_status: row.whatsapp_status ?? null,
+            message: row.message ?? null,
+            sent_at: row.sent_at,
+          });
+        }
+
+        const derivedResults: BroadcastResult[] = [];
+        for (const [customerId, entry] of byCustomerId.entries()) {
+          const info = activeBroadcast.customerById[customerId];
+          if (!info) continue;
+
+          const statusRaw = entry.whatsapp_status || '';
+          const status: BroadcastResult['status'] =
+            statusRaw === 'sent'
+              ? 'sent'
+              : statusRaw === 'skipped'
+                ? 'skipped'
+                : 'error';
+
+          const errorText =
+            status === 'error'
+              ? statusRaw.startsWith('error:')
+                ? statusRaw.replace(/^error:\s*/i, '').trim()
+                : statusRaw
+              : extractIgnoredReason(entry.message) || undefined;
+
+          derivedResults.push({
+            customer: info.name,
+            phone: info.phone,
+            status,
+            error: errorText,
+          });
+        }
+
+        // Merge initial skipped results with polled results (dedupe by phone)
+        const byPhone = new Map<string, BroadcastResult>();
+        for (const r of initialResultsRef.current) {
+          byPhone.set(normalizeDigits(r.phone), r);
+        }
+        for (const r of derivedResults) {
+          byPhone.set(normalizeDigits(r.phone), r);
+        }
+
+        const combined = Array.from(byPhone.values()).sort((a, b) =>
+          a.customer.localeCompare(b.customer, 'pt-BR')
+        );
+
+        const sent = combined.filter((r) => r.status === 'sent').length;
+        const errors = combined.filter((r) => r.status === 'error').length;
+        const skipped = combined.filter((r) => r.status === 'skipped').length;
+        const processed = sent + errors + skipped;
+
+        setBroadcastResults(combined);
+        setBroadcastStats({ sent, errors, skipped });
+        setBroadcastReport((prev) =>
+          prev
+            ? {
+                ...prev,
+                sent,
+                errors,
+                skipped,
+                details: combined,
+              }
+            : prev
+        );
+
+        if (processed >= activeBroadcast.total) {
+          setIsBroadcastComplete(true);
+          setBroadcastReport((prev) => (prev ? { ...prev, completedAt: new Date() } : prev));
+          queryClient.invalidateQueries({ queryKey: ['billing-logs'] });
+        }
+      } catch (e) {
+        // Keep modal running even if polling fails briefly
+        console.error('Erro ao acompanhar progresso do disparo:', e);
+      }
+    };
+
+    poll();
+    const interval = window.setInterval(poll, 3000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
+  }, [showProgressModal, activeBroadcast, isBroadcastComplete, queryClient]);
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', {
@@ -943,7 +1083,10 @@ export default function MassBroadcast() {
       {/* Progress Modal */}
       <BroadcastProgressModal
         open={showProgressModal}
-        onClose={() => setShowProgressModal(false)}
+        onClose={() => {
+          setShowProgressModal(false);
+          setActiveBroadcast(null);
+        }}
         templateName={broadcastReport?.templateName || selectedTemplate || ''}
         totalToSend={broadcastReport?.total || 0}
         results={broadcastResults}
