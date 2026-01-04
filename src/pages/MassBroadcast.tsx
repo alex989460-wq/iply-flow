@@ -92,8 +92,8 @@ export default function MassBroadcast() {
   const [searchTerm, setSearchTerm] = useState('');
   const [sendingProgress, setSendingProgress] = useState(0);
   const [isSending, setIsSending] = useState(false);
-  const [delayMinSeconds, setDelayMinSeconds] = useState(5);
-  const [delayMaxSeconds, setDelayMaxSeconds] = useState(10);
+  const [delayMinSeconds, setDelayMinSeconds] = useState(1);
+  const [delayMaxSeconds, setDelayMaxSeconds] = useState(2);
   const [broadcastReport, setBroadcastReport] = useState<BroadcastReportData | null>(null);
   const [showProgressModal, setShowProgressModal] = useState(false);
   const [broadcastResults, setBroadcastResults] = useState<BroadcastResult[]>([]);
@@ -1005,11 +1005,11 @@ export default function MassBroadcast() {
                     <Label className="text-sm text-muted-foreground">Mín:</Label>
                     <Input
                       type="number"
-                      min={3}
+                      min={1}
                       max={delayMaxSeconds - 1}
                       value={delayMinSeconds}
                       onChange={(e) => {
-                        const val = Math.max(3, parseInt(e.target.value) || 5);
+                        const val = Math.max(1, parseInt(e.target.value) || 1);
                         setDelayMinSeconds(Math.min(val, delayMaxSeconds - 1));
                       }}
                       className="w-16"
@@ -1024,7 +1024,7 @@ export default function MassBroadcast() {
                       max={120}
                       value={delayMaxSeconds}
                       onChange={(e) => {
-                        const val = Math.max(delayMinSeconds + 1, parseInt(e.target.value) || 10);
+                        const val = Math.max(delayMinSeconds + 1, parseInt(e.target.value) || delayMinSeconds + 1);
                         setDelayMaxSeconds(Math.min(val, 120));
                       }}
                       className="w-16"

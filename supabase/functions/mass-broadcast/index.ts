@@ -115,27 +115,31 @@ async function processBroadcast(
   let errors = 0;
 
   // Log duplicate skipped customers
-  for (const customer of duplicateCustomers) {
+  if (duplicateCustomers.length > 0) {
     await supabase
       .from('billing_logs')
-      .insert({
-        customer_id: customer.id,
-        billing_type: 'D0' as any,
-        message: `[BROADCAST] ${customer.phone} - Template: ${templateName} - IGNORADO (telefone duplicado)`,
-        whatsapp_status: 'skipped',
-      });
+      .insert(
+        duplicateCustomers.map((customer) => ({
+          customer_id: customer.id,
+          billing_type: 'D0' as any,
+          message: `[BROADCAST] ${customer.phone} - Template: ${templateName} - IGNORADO (telefone duplicado)`,
+          whatsapp_status: 'skipped',
+        }))
+      );
   }
 
   // Log already-sent skipped customers
-  for (const customer of alreadySentCustomers) {
+  if (alreadySentCustomers.length > 0) {
     await supabase
       .from('billing_logs')
-      .insert({
-        customer_id: customer.id,
-        billing_type: 'D0' as any,
-        message: `[BROADCAST] ${customer.phone} - Template: ${templateName} - IGNORADO (já enviado anteriormente)`,
-        whatsapp_status: 'skipped',
-      });
+      .insert(
+        alreadySentCustomers.map((customer) => ({
+          customer_id: customer.id,
+          billing_type: 'D0' as any,
+          message: `[BROADCAST] ${customer.phone} - Template: ${templateName} - IGNORADO (já enviado anteriormente)`,
+          whatsapp_status: 'skipped',
+        }))
+      );
   }
 
   // Process customers one by one with delay
@@ -202,7 +206,15 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { customer_ids, template_name, delay_min_seconds = 5, delay_max_seconds = 10 }: BroadcastRequest = await req.json();
+    const body: BroadcastRequest = await req.json();
+    const { customer_ids, template_name } = body;
+
+    let delay_min_seconds = typeof body.delay_min_seconds === 'number' ? body.delay_min_seconds : 1;
+    let delay_max_seconds = typeof body.delay_max_seconds === 'number' ? body.delay_max_seconds : 2;
+
+    // Normalize/clamp delay values
+    delay_min_seconds = Math.max(0, Math.floor(delay_min_seconds));
+    delay_max_seconds = Math.max(delay_min_seconds, Math.floor(delay_max_seconds));
 
     console.log(`Starting mass broadcast: ${customer_ids.length} customers, template: ${template_name}, delay: ${delay_min_seconds}-${delay_max_seconds}s (random)`);
 
