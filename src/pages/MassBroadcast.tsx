@@ -102,6 +102,7 @@ export default function MassBroadcast() {
   const [activeBroadcast, setActiveBroadcast] = useState<ActiveBroadcast | null>(null);
 
   const initialResultsRef = useRef<BroadcastResult[]>([]);
+  const realtimeResultsRef = useRef<Map<string, BroadcastResult>>(new Map());
 
   // Templates from API
   const [templates, setTemplates] = useState<WhatsAppTemplate[]>([]);
@@ -476,13 +477,15 @@ export default function MassBroadcast() {
     return reason ? reason.charAt(0).toUpperCase() + reason.slice(1) : undefined;
   };
 
-  // Poll billing logs to show progress while the background task runs
+  // Realtime subscription to billing_logs for live progress updates
   useEffect(() => {
-    if (!showProgressModal || !activeBroadcast || isBroadcastComplete) return;
+    if (!showProgressModal || !activeBroadcast) return;
 
-    let cancelled = false;
+    // Reset realtime results when starting new broadcast
+    realtimeResultsRef.current = new Map();
 
-    const poll = async () => {
+    // Load existing logs first (in case some were already inserted)
+    const loadInitialLogs = async () => {
       try {
         const { data, error } = await supabase
           .from('billing_logs')
@@ -493,27 +496,12 @@ export default function MassBroadcast() {
           .limit(1000);
 
         if (error) throw error;
-        if (cancelled) return;
-
-        const byCustomerId = new Map<
-          string,
-          { whatsapp_status: string | null; message: string | null; sent_at: string }
-        >();
 
         for (const row of data || []) {
-          byCustomerId.set(row.customer_id, {
-            whatsapp_status: row.whatsapp_status ?? null,
-            message: row.message ?? null,
-            sent_at: row.sent_at,
-          });
-        }
-
-        const derivedResults: BroadcastResult[] = [];
-        for (const [customerId, entry] of byCustomerId.entries()) {
-          const info = activeBroadcast.customerById[customerId];
+          const info = activeBroadcast.customerById[row.customer_id];
           if (!info) continue;
 
-          const statusRaw = entry.whatsapp_status || '';
+          const statusRaw = row.whatsapp_status || '';
           const status: BroadcastResult['status'] =
             statusRaw === 'sent'
               ? 'sent'
@@ -526,9 +514,9 @@ export default function MassBroadcast() {
               ? statusRaw.startsWith('error:')
                 ? statusRaw.replace(/^error:\s*/i, '').trim()
                 : statusRaw
-              : extractIgnoredReason(entry.message) || undefined;
+              : extractIgnoredReason(row.message) || undefined;
 
-          derivedResults.push({
+          realtimeResultsRef.current.set(row.customer_id, {
             customer: info.name,
             phone: info.phone,
             status,
@@ -536,54 +524,112 @@ export default function MassBroadcast() {
           });
         }
 
-        // Merge initial skipped results with polled results (dedupe by phone)
-        const byPhone = new Map<string, BroadcastResult>();
-        for (const r of initialResultsRef.current) {
-          byPhone.set(normalizeDigits(r.phone), r);
-        }
-        for (const r of derivedResults) {
-          byPhone.set(normalizeDigits(r.phone), r);
-        }
-
-        const combined = Array.from(byPhone.values()).sort((a, b) =>
-          a.customer.localeCompare(b.customer, 'pt-BR')
-        );
-
-        const sent = combined.filter((r) => r.status === 'sent').length;
-        const errors = combined.filter((r) => r.status === 'error').length;
-        const skipped = combined.filter((r) => r.status === 'skipped').length;
-        const processed = sent + errors + skipped;
-
-        setBroadcastResults(combined);
-        setBroadcastStats({ sent, errors, skipped });
-        setBroadcastReport((prev) =>
-          prev
-            ? {
-                ...prev,
-                sent,
-                errors,
-                skipped,
-                details: combined,
-              }
-            : prev
-        );
-
-        if (processed >= activeBroadcast.total) {
-          setIsBroadcastComplete(true);
-          setBroadcastReport((prev) => (prev ? { ...prev, completedAt: new Date() } : prev));
-          queryClient.invalidateQueries({ queryKey: ['billing-logs'] });
-        }
+        updateBroadcastState();
       } catch (e) {
-        // Keep modal running even if polling fails briefly
-        console.error('Erro ao acompanhar progresso do disparo:', e);
+        console.error('Erro ao carregar logs iniciais:', e);
       }
     };
 
-    poll();
-    const interval = window.setInterval(poll, 3000);
+    const updateBroadcastState = () => {
+      // Merge initial skipped results with realtime results
+      const byPhone = new Map<string, BroadcastResult>();
+      for (const r of initialResultsRef.current) {
+        byPhone.set(normalizeDigits(r.phone), r);
+      }
+      for (const r of realtimeResultsRef.current.values()) {
+        byPhone.set(normalizeDigits(r.phone), r);
+      }
+
+      const combined = Array.from(byPhone.values()).sort((a, b) =>
+        a.customer.localeCompare(b.customer, 'pt-BR')
+      );
+
+      const sent = combined.filter((r) => r.status === 'sent').length;
+      const errors = combined.filter((r) => r.status === 'error').length;
+      const skipped = combined.filter((r) => r.status === 'skipped').length;
+      const processed = sent + errors + skipped;
+
+      setBroadcastResults(combined);
+      setBroadcastStats({ sent, errors, skipped });
+      setBroadcastReport((prev) =>
+        prev
+          ? {
+              ...prev,
+              sent,
+              errors,
+              skipped,
+              details: combined,
+            }
+          : prev
+      );
+
+      if (processed >= activeBroadcast.total && !isBroadcastComplete) {
+        setIsBroadcastComplete(true);
+        setBroadcastReport((prev) => (prev ? { ...prev, completedAt: new Date() } : prev));
+        queryClient.invalidateQueries({ queryKey: ['billing-logs'] });
+      }
+    };
+
+    // Subscribe to realtime inserts on billing_logs
+    const channel = supabase
+      .channel('broadcast-progress')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'billing_logs',
+        },
+        (payload) => {
+          const row = payload.new as {
+            customer_id: string;
+            whatsapp_status: string | null;
+            message: string | null;
+            sent_at: string;
+          };
+
+          // Check if this log belongs to the current broadcast
+          if (
+            !row.message?.includes(`Template: ${activeBroadcast.templateName}`) ||
+            row.sent_at < activeBroadcast.startedAtIso
+          ) {
+            return;
+          }
+
+          const info = activeBroadcast.customerById[row.customer_id];
+          if (!info) return;
+
+          const statusRaw = row.whatsapp_status || '';
+          const status: BroadcastResult['status'] =
+            statusRaw === 'sent'
+              ? 'sent'
+              : statusRaw === 'skipped'
+                ? 'skipped'
+                : 'error';
+
+          const errorText =
+            status === 'error'
+              ? statusRaw.startsWith('error:')
+                ? statusRaw.replace(/^error:\s*/i, '').trim()
+                : statusRaw
+              : extractIgnoredReason(row.message) || undefined;
+
+          realtimeResultsRef.current.set(row.customer_id, {
+            customer: info.name,
+            phone: info.phone,
+            status,
+            error: errorText,
+          });
+
+          updateBroadcastState();
+        }
+      )
+      .subscribe();
+
+    loadInitialLogs();
+
     return () => {
-      cancelled = true;
-      window.clearInterval(interval);
+      supabase.removeChannel(channel);
     };
   }, [showProgressModal, activeBroadcast, isBroadcastComplete, queryClient]);
 
