@@ -45,7 +45,7 @@ export function BroadcastProgressModal({
   const progress = totalToSend > 0 ? (processedCount / totalToSend) * 100 : 0;
 
   return (
-    <Dialog open={open} onOpenChange={(isOpen) => !isOpen && isComplete && onClose()}>
+    <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
       <DialogContent className="max-w-2xl max-h-[90vh] sm:max-h-[80vh] flex flex-col mx-2 sm:mx-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-base sm:text-lg">
@@ -162,11 +162,9 @@ export function BroadcastProgressModal({
           </div>
 
           {/* Close Button */}
-          {isComplete && (
-            <Button onClick={onClose} className="w-full">
-              Fechar
-            </Button>
-          )}
+          <Button onClick={onClose} className="w-full">
+            {isComplete ? 'Fechar' : 'Fechar (continua enviando)'}
+          </Button>
         </div>
       </DialogContent>
     </Dialog>
