@@ -85,6 +85,11 @@ export function useDashboardStats() {
 
       const payments = await fetchAllPayments(startOfMonth.toISOString().split('T')[0]);
 
+      // Fetch payments for today specifically
+      const todayPayments = payments?.filter(p => p.payment_date === today) || [];
+      const todayRevenue = todayPayments.reduce((sum, p) => sum + Number(p.amount), 0);
+      const todayPaymentCount = todayPayments.length;
+
       // Calculate stats
       const totalCustomers = customers?.length || 0;
       const activeCustomers = customers?.filter(c => c.status === 'ativa').length || 0;
@@ -145,6 +150,8 @@ export function useDashboardStats() {
         suspendedCustomers,
         monthlyRevenue,
         monthlyProjection,
+        todayRevenue,
+        todayPaymentCount,
         dueTodayCustomers,
         dueTomorrowCustomers,
         overdueOneDayCustomers,
