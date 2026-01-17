@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
-import { ExternalLink, Plus, Trash2, Settings, MonitorPlay, X } from 'lucide-react';
+import { ExternalLink, Plus, Trash2, MonitorPlay, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -39,7 +39,12 @@ export default function Chat() {
   const [isAddingLink, setIsAddingLink] = useState(false);
   const [newLinkName, setNewLinkName] = useState('');
   const [newLinkUrl, setNewLinkUrl] = useState('');
+  const [iframeKey, setIframeKey] = useState(0);
   const queryClient = useQueryClient();
+
+  const refreshIframe = () => {
+    setIframeKey((prev) => prev + 1);
+  };
 
   const { data: panelLinks = [] } = useQuery({
     queryKey: ['panel-links'],
@@ -200,14 +205,20 @@ export default function Chat() {
         <div className="flex-1 flex flex-col min-w-0">
           <div className="flex items-center justify-between px-4 py-2 border-b border-border bg-background/50">
             <h1 className="text-lg font-semibold text-foreground">{currentTitle}</h1>
-            <Button variant="ghost" size="sm" onClick={() => openInNewTab(currentUrl)}>
-              <ExternalLink className="w-4 h-4 mr-1" />
-              Nova Aba
-            </Button>
+            <div className="flex items-center gap-1">
+              <Button variant="ghost" size="sm" onClick={refreshIframe} title="Atualizar">
+                <RefreshCw className="w-4 h-4" />
+              </Button>
+              <Button variant="ghost" size="sm" onClick={() => openInNewTab(currentUrl)}>
+                <ExternalLink className="w-4 h-4 mr-1" />
+                Nova Aba
+              </Button>
+            </div>
           </div>
 
           <div className="flex-1 w-full overflow-hidden">
             <iframe
+              key={iframeKey}
               src={currentUrl}
               className="w-full h-full border-0"
               title={currentTitle}
