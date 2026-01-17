@@ -79,6 +79,7 @@ export default function QuickRenewalPanel() {
   const [isConfigOpen, setIsConfigOpen] = useState(false);
   const [newMessage, setNewMessage] = useState({ title: '', category: '', content: '', icon: 'MessageSquare' });
   const [renewalMessage, setRenewalMessage] = useState<string | null>(null);
+  const [selectedQuickMessage, setSelectedQuickMessage] = useState<QuickMessage | null>(null);
   const queryClient = useQueryClient();
 
   // Fetch quick messages
@@ -166,7 +167,13 @@ export default function QuickRenewalPanel() {
     onSuccess: (data) => {
       const { newDueDate, amount, customer } = data;
       const formattedDate = format(new Date(newDueDate), "dd/MM/yyyy", { locale: ptBR });
-      
+
+      // Update local UI immediately
+      setSelectedCustomer((prev) => {
+        if (!prev || prev.id !== customer.id) return prev;
+        return { ...prev, due_date: newDueDate, status: 'ativa' };
+      });
+
       // Generate renewal message
       const message = `✅ *Renovação Confirmada!*
 
@@ -227,15 +234,47 @@ Obrigado pela preferência! 🙏`;
     onSuccess: () => {
       toast.success('Mensagem removida!');
       queryClient.invalidateQueries({ queryKey: ['quick-messages'] });
+      setSelectedQuickMessage(null);
     },
     onError: (error) => {
       toast.error('Erro ao remover: ' + error.message);
     },
   });
 
+  const copyText = async (text: string) => {
+    // Try modern Clipboard API
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+        return true;
+      }
+    } catch {
+      // ignore and fallback
+    }
+
+    // Fallback for restricted contexts (e.g., some iframes)
+    try {
+      const el = document.createElement('textarea');
+      el.value = text;
+      el.setAttribute('readonly', '');
+      el.style.position = 'fixed';
+      el.style.left = '-9999px';
+      el.style.top = '-9999px';
+      document.body.appendChild(el);
+      el.focus();
+      el.select();
+      const ok = document.execCommand('copy');
+      document.body.removeChild(el);
+      return ok;
+    } catch {
+      return false;
+    }
+  };
+
   const handleSelectCustomer = (customer: Customer) => {
     setSelectedCustomer(customer);
     setSearchPhone(customer.phone);
+    setRenewalMessage(null);
   };
 
   const handleRenew = () => {
@@ -245,11 +284,11 @@ Obrigado pela preferência! 🙏`;
     }
   };
 
-  const handleCopyRenewalMessage = () => {
-    if (renewalMessage) {
-      navigator.clipboard.writeText(renewalMessage);
-      toast.success('Mensagem de renovação copiada!');
-    }
+  const handleCopyRenewalMessage = async () => {
+    if (!renewalMessage) return;
+    const ok = await copyText(renewalMessage);
+    if (ok) toast.success('Mensagem de renovação copiada!');
+    else toast.error('Não foi possível copiar automaticamente. Selecione e copie manualmente.');
   };
 
   const handleCloseRenewal = () => {
@@ -258,9 +297,10 @@ Obrigado pela preferência! 🙏`;
     setSearchPhone('');
   };
 
-  const handleCopyMessage = (content: string) => {
-    navigator.clipboard.writeText(content);
-    toast.success('Mensagem copiada!');
+  const handleCopyMessage = async (content: string) => {
+    const ok = await copyText(content);
+    if (ok) toast.success('Mensagem copiada!');
+    else toast.error('Não foi possível copiar automaticamente. Selecione e copie manualmente.');
   };
 
   const getStatusBadge = (status: string) => {
@@ -420,9 +460,9 @@ Obrigado pela preferência! 🙏`;
 
                   {/* Renewal success message */}
                   {renewalMessage && (
-                    <div className="mt-3 p-3 bg-green-500/10 border border-green-500/30 rounded-lg space-y-2">
-                      <p className="text-xs text-green-400 font-semibold">✅ Renovação realizada!</p>
-                      <pre className="text-xs text-foreground whitespace-pre-wrap bg-background/50 p-2 rounded max-h-32 overflow-auto">
+                    <div className="mt-3 p-3 bg-accent/30 border border-border rounded-lg space-y-2">
+                      <p className="text-xs text-primary font-semibold">✅ Renovação realizada!</p>
+                      <pre className="text-xs text-foreground whitespace-pre-wrap bg-background/50 p-2 rounded max-h-32 overflow-auto select-text">
                         {renewalMessage}
                       </pre>
                       <div className="flex gap-2">
@@ -569,24 +609,61 @@ Obrigado pela preferência! 🙏`;
                 </DialogContent>
               </Dialog>
             </div>
-            <CollapsibleContent className="mt-2 space-y-1">
-              {quickMessages.map((msg) => (
-                <div
-                  key={msg.id}
-                  className="flex items-center justify-between p-2 rounded-md bg-accent/30 hover:bg-accent/50 transition-colors cursor-pointer group"
-                  onClick={() => handleCopyMessage(msg.content)}
-                >
-                  <div className="flex items-center gap-2 min-w-0">
-                    {getIcon(msg.icon)}
-                    <span className="text-sm truncate">{msg.title}</span>
-                  </div>
-                  <Copy className="h-3.5 w-3.5 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground" />
-                </div>
-              ))}
-              {quickMessages.length === 0 && (
-                <p className="text-xs text-muted-foreground text-center py-2">
-                  Nenhuma mensagem configurada
-                </p>
+            <CollapsibleContent className="mt-2 space-y-2">
+              <div className="space-y-1">
+                {quickMessages.map((msg) => {
+                  const isSelected = selectedQuickMessage?.id === msg.id;
+                  return (
+                    <button
+                      key={msg.id}
+                      type="button"
+                      className={`w-full text-left flex items-center justify-between p-2 rounded-md transition-colors group ${
+                        isSelected ? 'bg-accent' : 'bg-accent/30 hover:bg-accent/50'
+                      }`}
+                      onClick={() => setSelectedQuickMessage(msg)}
+                    >
+                      <span className="flex items-center gap-2 min-w-0">
+                        {getIcon(msg.icon)}
+                        <span className="text-sm truncate">{msg.title}</span>
+                      </span>
+                      <Copy
+                        className={`h-3.5 w-3.5 transition-opacity text-muted-foreground ${
+                          isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                        }`}
+                      />
+                    </button>
+                  );
+                })}
+                {quickMessages.length === 0 && (
+                  <p className="text-xs text-muted-foreground text-center py-2">
+                    Nenhuma mensagem configurada
+                  </p>
+                )}
+              </div>
+
+              {selectedQuickMessage && (
+                <Card className="bg-background/40">
+                  <CardContent className="p-3 space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium truncate">{selectedQuickMessage.title}</p>
+                        <p className="text-xs text-muted-foreground">{selectedQuickMessage.category}</p>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-xs"
+                        onClick={() => handleCopyMessage(selectedQuickMessage.content)}
+                      >
+                        <Copy className="h-3 w-3 mr-1" />
+                        Copiar
+                      </Button>
+                    </div>
+                    <pre className="text-xs text-foreground whitespace-pre-wrap bg-background/50 p-2 rounded max-h-40 overflow-auto select-text">
+                      {selectedQuickMessage.content}
+                    </pre>
+                  </CardContent>
+                </Card>
               )}
             </CollapsibleContent>
           </Collapsible>
