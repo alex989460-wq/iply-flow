@@ -1,5 +1,5 @@
 import DashboardLayout from '@/components/layout/DashboardLayout';
-import { MessageCircle, ExternalLink } from 'lucide-react';
+import { ExternalLink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 const ZAP_RESPONDER_URL = 'https://chat.zapresponder.com.br/';
@@ -10,27 +10,20 @@ export default function Chat() {
   };
 
   return (
-    <DashboardLayout>
-      <div className="space-y-4 animate-fade-in h-[calc(100vh-120px)]">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-foreground flex items-center gap-3">
-              <MessageCircle className="w-8 h-8 text-primary" />
-              Chat
-            </h1>
-            <p className="text-muted-foreground mt-1">Converse com seus clientes pelo WhatsApp</p>
-          </div>
-          
-          <Button variant="outline" size="sm" onClick={openInNewTab}>
-            <ExternalLink className="w-4 h-4 mr-2" />
-            Abrir em Nova Aba
+    <DashboardLayout noPadding>
+      <div className="flex flex-col h-[calc(100vh-56px)] animate-fade-in">
+        <div className="flex items-center justify-between px-4 py-2 border-b border-border bg-background/50">
+          <h1 className="text-lg font-semibold text-foreground">Chat</h1>
+          <Button variant="ghost" size="sm" onClick={openInNewTab}>
+            <ExternalLink className="w-4 h-4 mr-1" />
+            Nova Aba
           </Button>
         </div>
 
-        <div className="relative w-full h-full rounded-lg overflow-hidden border border-border bg-card">
+        <div className="flex-1 w-full overflow-hidden">
           <iframe
             src={ZAP_RESPONDER_URL}
-            className="w-full h-full min-h-[600px]"
+            className="w-full h-full border-0"
             title="Zap Responder Chat"
             allow="microphone; camera; clipboard-read; clipboard-write"
           />
