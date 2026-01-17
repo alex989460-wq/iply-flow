@@ -1,5 +1,6 @@
 import { NavLink, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { useSidebar } from '@/contexts/SidebarContext';
 import { cn } from '@/lib/utils';
 import {
   LayoutDashboard,
@@ -10,14 +11,12 @@ import {
   MessageSquare,
   LogOut,
   Tv,
-  Settings,
   ChevronLeft,
   Menu,
   Send,
   MessagesSquare,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { useState } from 'react';
 
 const menuItems = [
   { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
@@ -33,7 +32,7 @@ const menuItems = [
 export default function Sidebar() {
   const { signOut, user } = useAuth();
   const location = useLocation();
-  const [collapsed, setCollapsed] = useState(false);
+  const { collapsed, setCollapsed, toggle } = useSidebar();
 
   return (
     <>
@@ -67,7 +66,7 @@ export default function Sidebar() {
             variant="ghost"
             size="icon"
             className="hidden lg:flex"
-            onClick={() => setCollapsed(!collapsed)}
+            onClick={toggle}
           >
             <ChevronLeft className={cn("w-4 h-4 transition-transform", collapsed && "rotate-180")} />
           </Button>
@@ -131,9 +130,6 @@ export default function Sidebar() {
           <span className="font-bold text-foreground">IPTV CRM</span>
         </div>
       </div>
-
-      {/* Content margin */}
-      <div className={cn("transition-all duration-300", collapsed ? "lg:ml-16" : "lg:ml-64")} />
     </>
   );
 }
