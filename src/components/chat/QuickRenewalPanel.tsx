@@ -11,7 +11,7 @@ import {
   ChevronDown, ChevronUp
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { format } from 'date-fns';
+import { addDays, addMonths, format, startOfDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import {
   Select,
@@ -129,15 +129,21 @@ export default function QuickRenewalPanel() {
     mutationFn: async (customer: Customer) => {
       const amount = customer.custom_price ?? customer.plan?.price ?? 0;
       const durationDays = customer.plan?.duration_days ?? 30;
-      
-      // Calculate new due date based on plan duration
-      const currentDueDate = new Date(customer.due_date);
-      const today = new Date();
+
+      const parseDateOnly = (ymd: string) => {
+        const [y, m, d] = ymd.split('-').map(Number);
+        return new Date(y, (m ?? 1) - 1, d ?? 1);
+      };
+
+      // Calculate new due date based on plan duration (prefer month-based when duration is multiple of 30)
+      const currentDueDate = startOfDay(parseDateOnly(customer.due_date));
+      const today = startOfDay(new Date());
       const baseDate = currentDueDate > today ? currentDueDate : today;
-      const newDueDate = new Date(baseDate);
-      newDueDate.setDate(newDueDate.getDate() + durationDays);
-      const newDueDateStr = newDueDate.toISOString().split('T')[0];
-      
+
+      const months = durationDays % 30 === 0 ? durationDays / 30 : 0;
+      const newDueDate = months > 0 ? addMonths(baseDate, months) : addDays(baseDate, durationDays);
+      const newDueDateStr = format(newDueDate, 'yyyy-MM-dd');
+
       // Register payment
       const { error: paymentError } = await supabase
         .from('payments')
@@ -146,27 +152,27 @@ export default function QuickRenewalPanel() {
           amount,
           method: paymentMethod,
           confirmed: true,
-          payment_date: new Date().toISOString().split('T')[0],
+          payment_date: format(new Date(), 'yyyy-MM-dd'),
         });
 
       if (paymentError) throw paymentError;
-      
+
       // Update customer due_date and status
       const { error: updateError } = await supabase
         .from('customers')
-        .update({ 
+        .update({
           due_date: newDueDateStr,
-          status: 'ativa' as const
+          status: 'ativa' as const,
         })
         .eq('id', customer.id);
 
       if (updateError) throw updateError;
-      
+
       return { newDueDate: newDueDateStr, amount, customer };
     },
     onSuccess: (data) => {
       const { newDueDate, amount, customer } = data;
-      const formattedDate = format(new Date(newDueDate), "dd/MM/yyyy", { locale: ptBR });
+      const formattedDate = formatDate(newDueDate);
 
       // Update local UI immediately
       setSelectedCustomer((prev) => {
@@ -314,7 +320,9 @@ Obrigado pela preferência! 🙏`;
   };
 
   const formatDate = (dateStr: string) => {
-    return format(new Date(dateStr), "dd/MM/yyyy", { locale: ptBR });
+    const [y, m, d] = dateStr.split('-').map(Number);
+    const date = new Date(y, (m ?? 1) - 1, d ?? 1);
+    return format(date, 'dd/MM/yyyy', { locale: ptBR });
   };
 
   const price = selectedCustomer?.custom_price ?? selectedCustomer?.plan?.price ?? 0;
