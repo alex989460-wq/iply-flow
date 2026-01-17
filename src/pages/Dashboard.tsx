@@ -16,7 +16,8 @@ import {
   Loader2,
   TrendingUp,
   CalendarClock,
-  CalendarX
+  CalendarX,
+  Banknote
 } from 'lucide-react';
 
 export default function Dashboard() {
@@ -78,7 +79,14 @@ export default function Dashboard() {
         </div>
 
         {/* Revenue Row */}
-        <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-3 lg:gap-4">
+          <StatsCard
+            title="Recebidos Hoje"
+            value={`R$ ${(stats?.todayRevenue || 0).toFixed(2)}`}
+            description={`${stats?.todayPaymentCount || 0} pagamentos`}
+            icon={Banknote}
+            variant="success"
+          />
           <StatsCard
             title="Receita do Mês"
             value={`R$ ${(stats?.monthlyRevenue || 0).toFixed(2)}`}
