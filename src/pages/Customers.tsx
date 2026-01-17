@@ -37,7 +37,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { 
   Plus, Pencil, Trash2, Loader2, Users, RefreshCw, Search, CalendarIcon,
-  Upload, Phone, FileText, Download, MessageSquare, AlertTriangle, Send
+  Upload, Phone, FileText, Download, MessageSquare, AlertTriangle, Send, Copy, Check
 } from 'lucide-react';
 import {
   AlertDialog,
@@ -78,6 +78,22 @@ export default function Customers() {
   const [selectedCustomerIds, setSelectedCustomerIds] = useState<Set<string>>(new Set());
   const [bulkRenewProgress, setBulkRenewProgress] = useState(0);
   const [isBulkRenewing, setIsBulkRenewing] = useState(false);
+  
+  // Copy message modal state
+  const [isCopyMessageOpen, setIsCopyMessageOpen] = useState(false);
+  const [copyMessageData, setCopyMessageData] = useState<{
+    name: string;
+    dueDate: string;
+    amount: string;
+    username: string;
+    planName: string;
+    screens: string;
+    status: string;
+    notes: string;
+    serverName: string;
+    teamName: string;
+  } | null>(null);
+
   const [formData, setFormData] = useState({
     name: '',
     phone: '',
@@ -325,6 +341,7 @@ export default function Customers() {
 
       // Return payload for UI/cache updates
       const nextDueDateStr = format(newDueDate, 'yyyy-MM-dd');
+      const formattedDueDate = format(newDueDate, "dd/MM/yyyy", { locale: ptBR });
 
       // Enviar mensagem de confirmação via WhatsApp se solicitado
       let sendMessageRequested = false;
@@ -339,7 +356,6 @@ export default function Customers() {
 
       if (sendMessage && zapSettings?.selected_department_id) {
         const serverName = customer.servers?.server_name || '-';
-        const formattedDueDate = format(newDueDate, "dd/MM/yyyy", { locale: ptBR });
         const formattedTime = format(new Date(), "HH:mm", { locale: ptBR });
 
         const message = `✅ Olá, *${customer.name}*. Obrigado por confirmar seu pagamento. Segue abaixo os dados da sua assinatura:\n\n==========================\n📅 Próx. Vencimento: *${formattedDueDate} - ${formattedTime} hrs*\n💰 Valor: *${amount.toFixed(2)}*\n👤 Usuário: *${customer.username || '-'}*\n📦 Plano: *${plan.plan_name}*\n🔌 Status: *Ativo*\n💎 Obs: ${customer.notes || '-'}\n⚡: *${serverName}*\n==========================`;
@@ -381,6 +397,19 @@ export default function Customers() {
         departmentConfigured,
         messageSent,
         messageError,
+        // Data for copy message modal
+        copyData: {
+          name: customer.name,
+          dueDate: formattedDueDate,
+          amount: amount.toFixed(2),
+          username: customer.username || '-',
+          planName: plan.plan_name,
+          screens: '-', // Not available in current schema
+          status: 'Ativa',
+          notes: customer.notes || '-',
+          serverName: customer.servers?.server_name || '-',
+          teamName: '-', // Not available in current schema
+        },
       };
     },
     onSuccess: (result) => {
@@ -419,6 +448,12 @@ export default function Customers() {
       setSelectedPlanId('');
       setCustomAmount('');
       setSendConfirmationMessage(true);
+
+      // Open copy message modal with the data
+      if (result?.copyData) {
+        setCopyMessageData(result.copyData);
+        setIsCopyMessageOpen(true);
+      }
 
       if (result?.sendMessageRequested) {
         if (!result.departmentConfigured) {
@@ -1636,6 +1671,83 @@ export default function Customers() {
                 Confirmar Renovação
               </Button>
             </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Copy Message Modal */}
+        <Dialog open={isCopyMessageOpen} onOpenChange={setIsCopyMessageOpen}>
+          <DialogContent className="bg-card border-border max-w-lg">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <MessageSquare className="w-5 h-5 text-primary" />
+                Mensagem de Confirmação
+              </DialogTitle>
+              <DialogDescription>
+                Copie a mensagem abaixo e envie para o cliente no WhatsApp
+              </DialogDescription>
+            </DialogHeader>
+            {copyMessageData && (
+              <div className="space-y-4">
+                <div className="bg-secondary/50 p-4 rounded-lg font-mono text-sm whitespace-pre-wrap break-words border border-border">
+                  {`✅ Olá, *${copyMessageData.name}*. Obrigado por confirmar seu pagamento. Segue abaixo os dados da sua assinatura:
+
+=========================
+
+🗓 Próx. Vencimento: *${copyMessageData.dueDate}* 
+
+💰Valor: *R$${copyMessageData.amount}*
+
+👨‍💻 Usuário: *${copyMessageData.username}*
+
+📓Plano: *${copyMessageData.planName}*
+
+🚀Telas: *${copyMessageData.screens}*
+
+✔️Status: *${copyMessageData.status}*
+
+🔷Obs: *_${copyMessageData.notes}_*
+
+⚡: ${copyMessageData.serverName}
+
+⚽Time: *${copyMessageData.teamName}*
+
+=========================`}
+                </div>
+                <Button
+                  className="w-full"
+                  onClick={() => {
+                    const message = `✅ Olá, *${copyMessageData.name}*. Obrigado por confirmar seu pagamento. Segue abaixo os dados da sua assinatura:
+
+=========================
+
+🗓 Próx. Vencimento: *${copyMessageData.dueDate}* 
+
+💰Valor: *R$${copyMessageData.amount}*
+
+👨‍💻 Usuário: *${copyMessageData.username}*
+
+📓Plano: *${copyMessageData.planName}*
+
+🚀Telas: *${copyMessageData.screens}*
+
+✔️Status: *${copyMessageData.status}*
+
+🔷Obs: *_${copyMessageData.notes}_*
+
+⚡: ${copyMessageData.serverName}
+
+⚽Time: *${copyMessageData.teamName}*
+
+=========================`;
+                    navigator.clipboard.writeText(message);
+                    toast({ title: 'Mensagem copiada!', description: 'Cole no WhatsApp do cliente.' });
+                  }}
+                >
+                  <Copy className="w-4 h-4 mr-2" />
+                  Copiar Mensagem
+                </Button>
+              </div>
+            )}
           </DialogContent>
         </Dialog>
 
