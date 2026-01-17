@@ -1,10 +1,11 @@
-import { useState, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
-import { ExternalLink, Plus, Trash2, MonitorPlay, RefreshCw } from 'lucide-react';
+import { ExternalLink, Plus, Trash2, MonitorPlay, RefreshCw, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import QuickRenewalPanel from '@/components/chat/QuickRenewalPanel';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -40,11 +41,22 @@ export default function Chat() {
   const [newLinkName, setNewLinkName] = useState('');
   const [newLinkUrl, setNewLinkUrl] = useState('');
   const [iframeKey, setIframeKey] = useState(0);
+  const [iframeBlocked, setIframeBlocked] = useState(false);
   const queryClient = useQueryClient();
 
   const refreshIframe = () => {
     setIframeKey((prev) => prev + 1);
+    setIframeBlocked(false);
   };
+
+  // Reset blocked state when changing panels
+  useEffect(() => {
+    setIframeBlocked(false);
+  }, [activePanel]);
+
+  const handleIframeError = useCallback(() => {
+    setIframeBlocked(true);
+  }, []);
 
   const { data: panelLinks = [] } = useQuery({
     queryKey: ['panel-links'],
@@ -216,13 +228,30 @@ export default function Chat() {
             </div>
           </div>
 
-          <div className="flex-1 w-full overflow-hidden">
+          <div className="flex-1 w-full overflow-hidden relative">
+            {iframeBlocked && (
+              <div className="absolute inset-0 flex items-center justify-center bg-background/95 z-10 p-6">
+                <Alert className="max-w-md">
+                  <AlertTriangle className="h-5 w-5" />
+                  <AlertTitle>Conteúdo bloqueado</AlertTitle>
+                  <AlertDescription className="mt-2 space-y-3">
+                    <p>Este site bloqueia visualização incorporada por questões de segurança (cookies/login).</p>
+                    <Button className="w-full" onClick={() => openInNewTab(currentUrl)}>
+                      <ExternalLink className="w-4 h-4 mr-2" />
+                      Abrir em Nova Aba
+                    </Button>
+                  </AlertDescription>
+                </Alert>
+              </div>
+            )}
             <iframe
               key={iframeKey}
               src={currentUrl}
               className="w-full h-full border-0"
               title={currentTitle}
               allow="microphone; camera; clipboard-read; clipboard-write"
+              onError={handleIframeError}
+              sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox"
             />
           </div>
         </div>
