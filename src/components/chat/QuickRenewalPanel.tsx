@@ -293,6 +293,33 @@ Obrigado pela preferência! 🙏`;
     }
   };
 
+  // Generate payment approved message without renewing
+  const generatePaymentMessage = (customer: Customer) => {
+    const amount = customer.custom_price ?? customer.plan?.price ?? 0;
+    const formattedDate = formatDate(customer.due_date);
+    
+    return `✅ *Pagamento Aprovado!*
+
+Olá ${customer.name}!
+
+Seu pagamento de *R$ ${amount.toFixed(2)}* foi confirmado.
+
+📅 *Vencimento:* ${formattedDate}
+👤 *Usuário:* ${customer.username || '-'}
+📺 *Plano:* ${customer.plan?.plan_name || 'Padrão'}
+🖥️ *Servidor:* ${customer.server?.server_name || '-'}
+
+Obrigado pela preferência! 🙏`;
+  };
+
+  const handleCopyPaymentMessage = async () => {
+    if (!selectedCustomer) return;
+    const message = generatePaymentMessage(selectedCustomer);
+    const ok = await copyText(message);
+    if (ok) toast.success('Mensagem de pagamento copiada!');
+    else toast.error('Não foi possível copiar automaticamente. Selecione e copie manualmente.');
+  };
+
   const handleCopyRenewalMessage = async () => {
     if (!renewalMessage) return;
     const ok = await copyText(renewalMessage);
@@ -456,18 +483,28 @@ Obrigado pela preferência! 🙏`;
                     </SelectContent>
                   </Select>
                   
-                  <Button 
-                    className="w-full h-9" 
-                    onClick={handleRenew}
-                    disabled={registerPayment.isPending}
-                  >
-                    {registerPayment.isPending ? (
-                      <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                    ) : (
-                      <CheckCircle className="h-4 w-4 mr-2" />
-                    )}
-                    Renovar Cliente
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button 
+                      className="flex-1 h-9" 
+                      onClick={handleRenew}
+                      disabled={registerPayment.isPending}
+                    >
+                      {registerPayment.isPending ? (
+                        <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                      ) : (
+                        <CheckCircle className="h-4 w-4 mr-2" />
+                      )}
+                      Renovar
+                    </Button>
+                    <Button 
+                      variant="outline"
+                      className="h-9"
+                      onClick={handleCopyPaymentMessage}
+                      title="Copiar mensagem de pagamento aprovado"
+                    >
+                      <Copy className="h-4 w-4" />
+                    </Button>
+                  </div>
 
                   {/* Renewal success message */}
                   {renewalMessage && (
