@@ -246,6 +246,39 @@ export type Database = {
         }
         Relationships: []
       }
+      quick_messages: {
+        Row: {
+          category: string
+          content: string
+          created_at: string
+          icon: string | null
+          id: string
+          sort_order: number | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          category: string
+          content: string
+          created_at?: string
+          icon?: string | null
+          id?: string
+          sort_order?: number | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          category?: string
+          content?: string
+          created_at?: string
+          icon?: string | null
+          id?: string
+          sort_order?: number | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       servers: {
         Row: {
           created_at: string
