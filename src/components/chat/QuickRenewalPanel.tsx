@@ -37,6 +37,7 @@ interface Customer {
   id: string;
   name: string;
   phone: string;
+  username: string | null;
   status: 'ativa' | 'inativa' | 'suspensa';
   due_date: string;
   custom_price: number | null;
@@ -109,6 +110,7 @@ export default function QuickRenewalPanel() {
           id,
           name,
           phone,
+          username,
           status,
           due_date,
           custom_price,
@@ -188,6 +190,7 @@ Olá ${customer.name}!
 Seu pagamento de *R$ ${amount.toFixed(2)}* foi confirmado.
 
 📅 *Novo vencimento:* ${formattedDate}
+👤 *Usuário:* ${customer.username || '-'}
 📺 *Plano:* ${customer.plan?.plan_name || 'Padrão'}
 🖥️ *Servidor:* ${customer.server?.server_name || '-'}
 
