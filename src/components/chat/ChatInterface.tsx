@@ -84,8 +84,10 @@ const ChatInterface = forwardRef<HTMLDivElement, ChatInterfaceProps>(({ departme
 
   // Auto-load conversations on mount
   useEffect(() => {
-    fetchAllConversations();
-  }, []);
+    if (customers && customers.length > 0) {
+      fetchAllConversations();
+    }
+  }, [customers]);
 
   const fetchAllConversations = async () => {
     setIsLoadingConversations(true);
@@ -163,8 +165,9 @@ const ChatInterface = forwardRef<HTMLDivElement, ChatInterfaceProps>(({ departme
             description: 'Não há conversas no Zap Responder.',
           });
         }
-      } else if (data?.error) {
-        console.log('Direct list failed, falling back to customer-based search');
+      } else {
+        // The listar-conversas often fails with 404, fallback to customer search
+        console.log('Direct list failed or returned error, falling back to customer-based search');
         await fetchConversationsFromCustomers();
       }
     } catch (error: any) {
@@ -177,52 +180,68 @@ const ChatInterface = forwardRef<HTMLDivElement, ChatInterfaceProps>(({ departme
 
   const fetchConversationsFromCustomers = async () => {
     if (!customers || customers.length === 0) {
-      toast({ 
-        title: 'Nenhum cliente cadastrado', 
-        description: 'Cadastre clientes para visualizar conversas.',
-        variant: 'destructive' 
-      });
+      setIsLoadingConversations(false);
       return;
     }
 
     const foundConversations: Conversation[] = [];
 
     try {
-      for (const customer of customers.slice(0, 30)) {
-        const formattedPhone = customer.phone.replace(/\D/g, '');
-        const phoneWithCode = formattedPhone.startsWith('55') ? formattedPhone : `55${formattedPhone}`;
+      // Process in parallel batches for speed
+      const batchSize = 10;
+      for (let i = 0; i < Math.min(customers.length, 50); i += batchSize) {
+        const batch = customers.slice(i, i + batchSize);
         
-        const { data, error } = await supabase.functions.invoke('zap-responder', {
-          body: { 
-            action: 'buscar-conversa-telefone',
-            phone: phoneWithCode,
-            include_closed: true,
-          },
-        });
+        const results = await Promise.allSettled(
+          batch.map(async (customer) => {
+            const formattedPhone = customer.phone.replace(/\D/g, '');
+            const phoneWithCode = formattedPhone.startsWith('55') ? formattedPhone : `55${formattedPhone}`;
+            
+            const { data, error } = await supabase.functions.invoke('zap-responder', {
+              body: { 
+                action: 'buscar-conversa-telefone',
+                phone: phoneWithCode,
+                include_closed: true,
+              },
+            });
 
-        if (!error && data?.success && data?.data) {
-          const conv = data.data.conversation || data.data;
-          const mongoId = conv._id || conv.id || '';
-          const lastMsgDate = conv.lastMessage?.createdAt || conv.lastMessage?.updatedAt;
-          const convUpdatedAt = conv.updatedAt || lastMsgDate || conv.createdAt || conv.atualizadoEm;
-          
-          let status = 'pending';
-          if (conv.isFechado) status = 'closed';
-          else if (conv.atendente) status = 'attending';
-          
-          foundConversations.push({
-            _id: `${phoneWithCode}_${mongoId}`,
-            mongoId: mongoId,
-            chatId: conv.chatId || phoneWithCode,
-            cliente: {
-              nome: customer.name,
-              telefone: customer.phone,
-            },
-            status,
-            lastMessage: conv.lastMessage?.content || conv.lastMessage?.text || conv.ultimaMensagem || '',
-            updatedAt: convUpdatedAt,
-          });
-        }
+            // 404 is expected for customers without conversations - not an error
+            if (error || !data?.success || !data?.data) {
+              return null;
+            }
+
+            const conv = data.data.conversation || data.data;
+            const mongoId = conv._id || conv.id || '';
+            const lastMsgDate = conv.lastMessage?.createdAt || conv.lastMessage?.updatedAt;
+            const convUpdatedAt = conv.updatedAt || lastMsgDate || conv.createdAt || conv.atualizadoEm;
+            
+            let status = 'pending';
+            if (conv.isFechado) status = 'closed';
+            else if (conv.atendente) status = 'attending';
+            
+            return {
+              _id: `${phoneWithCode}_${mongoId}`,
+              mongoId: mongoId,
+              chatId: conv.chatId || phoneWithCode,
+              cliente: {
+                nome: customer.name,
+                telefone: customer.phone,
+              },
+              status,
+              lastMessage: conv.lastMessage?.content || conv.lastMessage?.text || conv.ultimaMensagem || '',
+              updatedAt: convUpdatedAt,
+              isBot: conv.isBotActivated,
+              isGroup: conv.isGroup,
+            };
+          })
+        );
+
+        // Filter successful results
+        results.forEach(result => {
+          if (result.status === 'fulfilled' && result.value) {
+            foundConversations.push(result.value);
+          }
+        });
       }
       
       foundConversations.sort((a, b) => {
@@ -232,13 +251,6 @@ const ChatInterface = forwardRef<HTMLDivElement, ChatInterfaceProps>(({ departme
       });
 
       setConversations(foundConversations);
-      
-      if (foundConversations.length === 0) {
-        toast({ 
-          title: 'Nenhuma conversa encontrada', 
-          description: 'Não há conversas ativas para os clientes cadastrados.',
-        });
-      }
     } catch (error: any) {
       console.error('Error fetching conversations from customers:', error);
       toast({
