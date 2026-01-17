@@ -41,7 +41,6 @@ async function fetchAllPayments(startDate: string) {
     const { data, error } = await supabase
       .from('payments')
       .select('*')
-      .eq('confirmed', true)
       .gte('payment_date', startDate)
       .range(page * pageSize, (page + 1) * pageSize - 1);
 
@@ -184,7 +183,6 @@ export function useRevenueHistory() {
         const { data: payments } = await supabase
           .from('payments')
           .select('amount')
-          .eq('confirmed', true)
           .gte('payment_date', startOfMonth)
           .lte('payment_date', endOfMonth);
 
