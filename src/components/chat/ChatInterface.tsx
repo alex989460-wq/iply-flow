@@ -84,182 +84,117 @@ const ChatInterface = forwardRef<HTMLDivElement, ChatInterfaceProps>(({ departme
 
   // Auto-load conversations on mount
   useEffect(() => {
-    if (customers && customers.length > 0) {
-      fetchAllConversations();
+    fetchAllConversations();
+  }, []);
+
+  const mapConversation = (conv: any, matchedCustomer?: { name: string; phone: string } | null): Conversation => {
+    const chatId = conv.chatId || conv.numero || '';
+    
+    const convName = conv.variaveis?.find((v: any) => v.label === 'nome')?.value || 
+                    conv.pushName ||
+                    conv.lead?.nome ||
+                    conv.nome ||
+                    'Contato';
+    
+    const lastMsgDate = conv.lastMessage?.createdAt || conv.lastMessage?.updatedAt;
+    const convUpdatedAt = conv.updatedAt || conv.atualizadoEm || lastMsgDate || conv.createdAt || conv.criadoEm;
+    
+    // Detect if it's a group or bot conversation
+    const isGroup = chatId.includes('@g.us') || conv.isGroup === true;
+    const isBot = conv.status === 'bot' || conv.isBot === true || conv.isBotActivated === true || conv.atendente === 'bot';
+    
+    // Get status - normalize to pending/attending/closed/bot
+    let status = 'pending';
+    if (conv.isFechado || conv.status === 'closed' || conv.status === 'fechada') {
+      status = 'closed';
+    } else if (isBot) {
+      status = 'bot';
+    } else if (conv.atendente || conv.attendantId || conv.status === 'em_atendimento' || conv.status === 'attending') {
+      status = 'attending';
     }
-  }, [customers]);
+    
+    return {
+      _id: `${chatId}_${conv._id || conv.id}`,
+      mongoId: conv._id || conv.id || '',
+      chatId: chatId,
+      cliente: {
+        nome: matchedCustomer?.name || convName,
+        telefone: matchedCustomer?.phone || chatId,
+      },
+      status,
+      lastMessage: conv.lastMessage?.content || conv.lastMessage?.text || conv.ultimaMensagem || '',
+      updatedAt: convUpdatedAt,
+      isBot,
+      isGroup,
+      departmentName: conv.departamento?.nome || conv.departmentName || '',
+    };
+  };
 
   const fetchAllConversations = async () => {
     setIsLoadingConversations(true);
 
     try {
+      // Try to fetch conversations directly from API
       const { data, error } = await supabase.functions.invoke('zap-responder', {
         body: { 
           action: 'listar-conversas',
-          limit: 100,
+          limit: 200,
         },
       });
 
-      if (error) throw error;
-
-      if (data?.success && data?.data) {
+      if (!error && data?.success && Array.isArray(data?.data) && data.data.length > 0) {
         const convs = data.data;
         
         const mappedConversations: Conversation[] = convs.map((conv: any) => {
           const chatId = conv.chatId || '';
           const matchedCustomer = customers?.find(c => {
             const customerPhone = c.phone.replace(/\D/g, '');
-            return chatId.includes(customerPhone) || customerPhone.includes(chatId.replace(/\D/g, ''));
+            const convPhone = chatId.replace(/\D/g, '');
+            return convPhone.includes(customerPhone) || customerPhone.includes(convPhone);
           });
           
-          const convName = conv.variaveis?.find((v: any) => v.label === 'nome')?.value || 
-                          conv.pushName || 
-                          conv.lead?.nome || 
-                          'Contato';
-          
-          const lastMsgDate = conv.lastMessage?.createdAt || conv.lastMessage?.updatedAt;
-          const convUpdatedAt = conv.updatedAt || lastMsgDate || conv.createdAt;
-          
-          // Detect if it's a group or bot conversation
-          const isGroup = chatId.includes('@g.us') || conv.isGroup === true;
-          const isBot = conv.status === 'bot' || conv.isBot === true || conv.atendente === 'bot';
-          
-          // Get status - normalize to pending/attending/closed/bot
-          let status = 'pending';
-          if (conv.isFechado || conv.status === 'closed' || conv.status === 'fechada') {
-            status = 'closed';
-          } else if (isBot) {
-            status = 'bot';
-          } else if (conv.atendente || conv.attendantId || conv.status === 'em_atendimento' || conv.status === 'attending') {
-            status = 'attending';
-          }
-          
-          return {
-            _id: `${chatId}_${conv._id}`,
-            mongoId: conv._id || conv.id || '',
-            chatId: chatId,
-            cliente: {
-              nome: matchedCustomer?.name || convName,
-              telefone: chatId,
-            },
-            status,
-            lastMessage: conv.lastMessage?.content || conv.lastMessage?.text || '',
-            updatedAt: convUpdatedAt,
-            isBot,
-            isGroup,
-            departmentName: conv.departamento?.nome || conv.departmentName || '',
-          };
+          return mapConversation(conv, matchedCustomer);
         });
 
-        mappedConversations.sort((a, b) => {
+        // Filter out closed conversations and sort by date
+        const openConversations = mappedConversations.filter(c => c.status !== 'closed');
+        openConversations.sort((a, b) => {
           const dateA = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
           const dateB = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
           return dateB - dateA;
         });
 
-        setConversations(mappedConversations);
+        setConversations(openConversations);
         
-        if (mappedConversations.length === 0) {
+        if (openConversations.length === 0) {
           toast({ 
-            title: 'Nenhuma conversa encontrada', 
-            description: 'Não há conversas no Zap Responder.',
+            title: 'Nenhuma conversa aberta', 
+            description: 'Não há conversas ativas no Zap Responder.',
           });
         }
       } else {
-        // The listar-conversas often fails with 404, fallback to customer search
-        console.log('Direct list failed or returned error, falling back to customer-based search');
-        await fetchConversationsFromCustomers();
+        // API returned empty or error - show message
+        console.log('listar-conversas returned:', data);
+        setConversations([]);
+        toast({ 
+          title: 'Erro ao buscar conversas', 
+          description: data?.error || 'Não foi possível carregar as conversas do Zap Responder. Verifique a configuração da API.',
+          variant: 'destructive',
+        });
       }
     } catch (error: any) {
       console.error('Error fetching conversations:', error);
-      await fetchConversationsFromCustomers();
+      setConversations([]);
+      toast({
+        title: 'Erro ao buscar conversas',
+        description: error.message || 'Falha ao conectar com o Zap Responder.',
+        variant: 'destructive',
+      });
     } finally {
       setIsLoadingConversations(false);
     }
   };
 
-  const fetchConversationsFromCustomers = async () => {
-    if (!customers || customers.length === 0) {
-      setIsLoadingConversations(false);
-      return;
-    }
-
-    const foundConversations: Conversation[] = [];
-
-    try {
-      // Process in parallel batches for speed
-      const batchSize = 10;
-      for (let i = 0; i < Math.min(customers.length, 50); i += batchSize) {
-        const batch = customers.slice(i, i + batchSize);
-        
-        const results = await Promise.allSettled(
-          batch.map(async (customer) => {
-            const formattedPhone = customer.phone.replace(/\D/g, '');
-            const phoneWithCode = formattedPhone.startsWith('55') ? formattedPhone : `55${formattedPhone}`;
-            
-            const { data, error } = await supabase.functions.invoke('zap-responder', {
-              body: { 
-                action: 'buscar-conversa-telefone',
-                phone: phoneWithCode,
-                include_closed: true,
-              },
-            });
-
-            // 404 is expected for customers without conversations - not an error
-            if (error || !data?.success || !data?.data) {
-              return null;
-            }
-
-            const conv = data.data.conversation || data.data;
-            const mongoId = conv._id || conv.id || '';
-            const lastMsgDate = conv.lastMessage?.createdAt || conv.lastMessage?.updatedAt;
-            const convUpdatedAt = conv.updatedAt || lastMsgDate || conv.createdAt || conv.atualizadoEm;
-            
-            let status = 'pending';
-            if (conv.isFechado) status = 'closed';
-            else if (conv.atendente) status = 'attending';
-            
-            return {
-              _id: `${phoneWithCode}_${mongoId}`,
-              mongoId: mongoId,
-              chatId: conv.chatId || phoneWithCode,
-              cliente: {
-                nome: customer.name,
-                telefone: customer.phone,
-              },
-              status,
-              lastMessage: conv.lastMessage?.content || conv.lastMessage?.text || conv.ultimaMensagem || '',
-              updatedAt: convUpdatedAt,
-              isBot: conv.isBotActivated,
-              isGroup: conv.isGroup,
-            };
-          })
-        );
-
-        // Filter successful results
-        results.forEach(result => {
-          if (result.status === 'fulfilled' && result.value) {
-            foundConversations.push(result.value);
-          }
-        });
-      }
-      
-      foundConversations.sort((a, b) => {
-        const dateA = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
-        const dateB = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
-        return dateB - dateA;
-      });
-
-      setConversations(foundConversations);
-    } catch (error: any) {
-      console.error('Error fetching conversations from customers:', error);
-      toast({
-        title: 'Erro ao buscar conversas',
-        description: error.message,
-        variant: 'destructive',
-      });
-    }
-  };
 
   const fetchMessages = async (conv: Pick<Conversation, 'mongoId' | 'chatId'>) => {
     setIsLoadingMessages(true);
