@@ -78,6 +78,7 @@ export default function QuickRenewalPanel() {
   const [editingMessage, setEditingMessage] = useState<QuickMessage | null>(null);
   const [isConfigOpen, setIsConfigOpen] = useState(false);
   const [newMessage, setNewMessage] = useState({ title: '', category: '', content: '', icon: 'MessageSquare' });
+  const [renewalMessage, setRenewalMessage] = useState<string | null>(null);
   const queryClient = useQueryClient();
 
   // Fetch quick messages
@@ -122,12 +123,22 @@ export default function QuickRenewalPanel() {
     enabled: searchPhone.length >= 4,
   });
 
-  // Register payment mutation
+  // Register payment and renew customer mutation
   const registerPayment = useMutation({
     mutationFn: async (customer: Customer) => {
       const amount = customer.custom_price ?? customer.plan?.price ?? 0;
+      const durationDays = customer.plan?.duration_days ?? 30;
       
-      const { error } = await supabase
+      // Calculate new due date based on plan duration
+      const currentDueDate = new Date(customer.due_date);
+      const today = new Date();
+      const baseDate = currentDueDate > today ? currentDueDate : today;
+      const newDueDate = new Date(baseDate);
+      newDueDate.setDate(newDueDate.getDate() + durationDays);
+      const newDueDateStr = newDueDate.toISOString().split('T')[0];
+      
+      // Register payment
+      const { error: paymentError } = await supabase
         .from('payments')
         .insert({
           customer_id: customer.id,
@@ -137,16 +148,46 @@ export default function QuickRenewalPanel() {
           payment_date: new Date().toISOString().split('T')[0],
         });
 
-      if (error) throw error;
+      if (paymentError) throw paymentError;
+      
+      // Update customer due_date and status
+      const { error: updateError } = await supabase
+        .from('customers')
+        .update({ 
+          due_date: newDueDateStr,
+          status: 'ativa' as const
+        })
+        .eq('id', customer.id);
+
+      if (updateError) throw updateError;
+      
+      return { newDueDate: newDueDateStr, amount, customer };
     },
-    onSuccess: () => {
-      toast.success('Pagamento registrado e cliente renovado!');
+    onSuccess: (data) => {
+      const { newDueDate, amount, customer } = data;
+      const formattedDate = format(new Date(newDueDate), "dd/MM/yyyy", { locale: ptBR });
+      
+      // Generate renewal message
+      const message = `✅ *Renovação Confirmada!*
+
+Olá ${customer.name}!
+
+Seu pagamento de *R$ ${amount.toFixed(2)}* foi confirmado.
+
+📅 *Novo vencimento:* ${formattedDate}
+📺 *Plano:* ${customer.plan?.plan_name || 'Padrão'}
+🖥️ *Servidor:* ${customer.server?.server_name || '-'}
+
+Obrigado pela preferência! 🙏`;
+
+      setRenewalMessage(message);
+      toast.success('Cliente renovado com sucesso!');
       queryClient.invalidateQueries({ queryKey: ['customer-search'] });
-      setSelectedCustomer(null);
-      setSearchPhone('');
+      queryClient.invalidateQueries({ queryKey: ['customers'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
     },
     onError: (error) => {
-      toast.error('Erro ao registrar pagamento: ' + error.message);
+      toast.error('Erro ao renovar: ' + error.message);
     },
   });
 
@@ -199,8 +240,22 @@ export default function QuickRenewalPanel() {
 
   const handleRenew = () => {
     if (selectedCustomer) {
+      setRenewalMessage(null);
       registerPayment.mutate(selectedCustomer);
     }
+  };
+
+  const handleCopyRenewalMessage = () => {
+    if (renewalMessage) {
+      navigator.clipboard.writeText(renewalMessage);
+      toast.success('Mensagem de renovação copiada!');
+    }
+  };
+
+  const handleCloseRenewal = () => {
+    setRenewalMessage(null);
+    setSelectedCustomer(null);
+    setSearchPhone('');
   };
 
   const handleCopyMessage = (content: string) => {
@@ -362,6 +417,35 @@ export default function QuickRenewalPanel() {
                     )}
                     Renovar Cliente
                   </Button>
+
+                  {/* Renewal success message */}
+                  {renewalMessage && (
+                    <div className="mt-3 p-3 bg-green-500/10 border border-green-500/30 rounded-lg space-y-2">
+                      <p className="text-xs text-green-400 font-semibold">✅ Renovação realizada!</p>
+                      <pre className="text-xs text-foreground whitespace-pre-wrap bg-background/50 p-2 rounded max-h-32 overflow-auto">
+                        {renewalMessage}
+                      </pre>
+                      <div className="flex gap-2">
+                        <Button 
+                          size="sm" 
+                          variant="outline" 
+                          className="flex-1 h-7 text-xs"
+                          onClick={handleCopyRenewalMessage}
+                        >
+                          <Copy className="h-3 w-3 mr-1" />
+                          Copiar
+                        </Button>
+                        <Button 
+                          size="sm" 
+                          variant="ghost" 
+                          className="h-7 text-xs"
+                          onClick={handleCloseRenewal}
+                        >
+                          Fechar
+                        </Button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>
