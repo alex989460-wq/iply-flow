@@ -723,7 +723,8 @@ async function listarConversas(
   offset: number = 0
 ): Promise<{ success: boolean; data?: any[]; error?: string }> {
   try {
-    console.log('Fetching all conversations...', { status, limit, offset, apiBaseUrl });
+    console.log('=== FETCHING ALL CONVERSATIONS ===');
+    console.log('Params:', { status, limit, offset, apiBaseUrl });
 
     const headers = {
       'Authorization': `Bearer ${token}`,
@@ -747,6 +748,11 @@ async function listarConversas(
       const statusQs = status && status !== 'all' ? `&status=${encodeURIComponent(status)}` : '';
 
       return [
+        // Primary v2 endpoints
+        {
+          label: `v2 conversations open [${base}]`,
+          url: `${base}/v2/conversations?${qsBase}&includeClosed=false`,
+        },
         {
           label: `v2 conversations (base) [${base}]`,
           url: `${base}/v2/conversations?${qsBase}${statusQs}`,
@@ -755,7 +761,29 @@ async function listarConversas(
           label: `v2 conversations (includeClosed) [${base}]`,
           url: `${base}/v2/conversations?${qsBase}${statusQs}&includeClosed=true`,
         },
-        // fallbacks (algumas contas usam rotas legacy)
+        // Atendimento endpoints (common in Zap Responder)
+        {
+          label: `atendimentos [${base}]`,
+          url: `${base}/atendimento?${qsBase}`,
+        },
+        {
+          label: `atendimentos all [${base}]`,
+          url: `${base}/atendimento/all?${qsBase}`,
+        },
+        {
+          label: `atendimentos list [${base}]`,
+          url: `${base}/atendimentos?${qsBase}`,
+        },
+        // Fila endpoints (queue)
+        {
+          label: `fila [${base}]`,
+          url: `${base}/fila?${qsBase}`,
+        },
+        {
+          label: `fila atendimento [${base}]`,
+          url: `${base}/fila/atendimento?${qsBase}`,
+        },
+        // Legacy conversa endpoints
         {
           label: `legacy conversa [${base}]`,
           url: `${base}/conversa?${qsBase}${statusQs}`,
@@ -764,56 +792,81 @@ async function listarConversas(
           label: `legacy conversas [${base}]`,
           url: `${base}/conversas?${qsBase}${statusQs}`,
         },
+        {
+          label: `conversa all [${base}]`,
+          url: `${base}/conversa/all?${qsBase}`,
+        },
+        // Chat endpoints
+        {
+          label: `chats [${base}]`,
+          url: `${base}/chats?${qsBase}`,
+        },
+        {
+          label: `chat list [${base}]`,
+          url: `${base}/chat?${qsBase}`,
+        },
       ];
     });
 
     let lastError: string | null = null;
 
     for (const attempt of attempts) {
-      console.log('Trying conversations endpoint...', attempt);
-      const res = await fetch(attempt.url, { method: 'GET', headers });
-      const raw = await res.text();
-
-      if (!res.ok) {
-        console.error(`Zap Responder API error (${attempt.label}): ${res.status} - ${raw}`);
-        lastError = `${attempt.label}: ${res.status} - ${raw}`;
-        continue;
-      }
-
-      let parsed: any;
+      console.log('Trying conversations endpoint:', attempt.label);
+      
       try {
-        parsed = raw ? JSON.parse(raw) : null;
-      } catch {
-        lastError = `${attempt.label}: invalid JSON response`;
+        const res = await fetch(attempt.url, { method: 'GET', headers });
+        const raw = await res.text();
+
+        if (!res.ok) {
+          console.log(`Endpoint ${attempt.label} failed: ${res.status}`);
+          lastError = `${attempt.label}: ${res.status}`;
+          continue;
+        }
+
+        let parsed: any;
+        try {
+          parsed = raw ? JSON.parse(raw) : null;
+        } catch {
+          console.log(`Endpoint ${attempt.label} returned invalid JSON`);
+          lastError = `${attempt.label}: invalid JSON response`;
+          continue;
+        }
+
+        const candidates = [
+          parsed,
+          parsed?.data,
+          parsed?.conversations,
+          parsed?.conversas,
+          parsed?.items,
+          parsed?.atendimentos,
+          parsed?.fila,
+          parsed?.chats,
+          parsed?.data?.conversations,
+          parsed?.data?.conversas,
+          parsed?.data?.items,
+          parsed?.data?.atendimentos,
+        ];
+
+        const conversations = candidates.find((c) => Array.isArray(c)) as any[] | undefined;
+
+        if (!conversations) {
+          console.log(`Endpoint ${attempt.label} returned no array. Keys:`, 
+            parsed && typeof parsed === 'object' ? Object.keys(parsed) : typeof parsed
+          );
+          lastError = `${attempt.label}: response OK but no conversations array`;
+          continue;
+        }
+
+        console.log('SUCCESS! Conversations fetched from:', attempt.label, 'Count:', conversations.length);
+        return { success: true, data: conversations };
+      } catch (fetchErr) {
+        console.error(`Fetch error for ${attempt.label}:`, fetchErr);
+        lastError = `${attempt.label}: fetch error`;
         continue;
       }
-
-      const candidates = [
-        parsed,
-        parsed?.data,
-        parsed?.conversations,
-        parsed?.conversas,
-        parsed?.items,
-        parsed?.data?.conversations,
-        parsed?.data?.conversas,
-        parsed?.data?.items,
-      ];
-
-      const conversations = candidates.find((c) => Array.isArray(c)) as any[] | undefined;
-
-      if (!conversations) {
-        console.log('No conversations array in payload; trying next endpoint', {
-          label: attempt.label,
-          keys: parsed && typeof parsed === 'object' ? Object.keys(parsed) : typeof parsed,
-        });
-        lastError = `${attempt.label}: response OK but no conversations array`;
-        continue;
-      }
-
-      console.log('Conversations fetched successfully:', { label: attempt.label, count: conversations.length });
-      return { success: true, data: conversations };
     }
 
+    console.error('All conversation endpoints failed. Last error:', lastError);
     return {
       success: false,
       error: lastError ? `Não foi possível listar conversas. ${lastError}` : 'Não foi possível listar conversas.',
