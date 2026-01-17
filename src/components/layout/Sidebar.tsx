@@ -14,6 +14,7 @@ import {
   ChevronLeft,
   Menu,
   Send,
+  MessagesSquare,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useState } from 'react';
@@ -26,6 +27,7 @@ const menuItems = [
   { icon: CreditCard, label: 'Pagamentos', path: '/payments' },
   { icon: MessageSquare, label: 'Cobranças', path: '/billing' },
   { icon: Send, label: 'Disparo em Massa', path: '/mass-broadcast' },
+  { icon: MessagesSquare, label: 'Chat', path: '/chat' },
 ];
 
 export default function Sidebar() {
