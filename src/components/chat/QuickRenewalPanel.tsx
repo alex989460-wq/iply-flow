@@ -81,7 +81,22 @@ export default function QuickRenewalPanel() {
   const [newMessage, setNewMessage] = useState({ title: '', category: '', content: '', icon: 'MessageSquare' });
   const [renewalMessage, setRenewalMessage] = useState<string | null>(null);
   const [selectedQuickMessage, setSelectedQuickMessage] = useState<QuickMessage | null>(null);
+  const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
+  const [customRenewalPrice, setCustomRenewalPrice] = useState<string>('');
   const queryClient = useQueryClient();
+
+  // Fetch all plans for selection
+  const { data: allPlans = [] } = useQuery({
+    queryKey: ['plans'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('plans')
+        .select('*')
+        .order('plan_name');
+      if (error) throw error;
+      return data;
+    },
+  });
 
   // Fetch quick messages
   const { data: quickMessages = [] } = useQuery({
@@ -126,11 +141,16 @@ export default function QuickRenewalPanel() {
     enabled: searchPhone.length >= 4,
   });
 
+  // Get selected plan details
+  const selectedPlan = allPlans.find(p => p.id === selectedPlanId);
+  const renewalPrice = customRenewalPrice ? parseFloat(customRenewalPrice) : (selectedPlan?.price ?? 0);
+
   // Register payment and renew customer mutation
   const registerPayment = useMutation({
     mutationFn: async (customer: Customer) => {
-      const amount = customer.custom_price ?? customer.plan?.price ?? 0;
-      const durationDays = customer.plan?.duration_days ?? 30;
+      const amount = renewalPrice;
+      const durationDays = selectedPlan?.duration_days ?? customer.plan?.duration_days ?? 30;
+      const planName = selectedPlan?.plan_name ?? customer.plan?.plan_name ?? 'Padrão';
 
       const parseDateOnly = (ymd: string) => {
         const [y, m, d] = ymd.split('-').map(Number);
@@ -159,21 +179,36 @@ export default function QuickRenewalPanel() {
 
       if (paymentError) throw paymentError;
 
-      // Update customer due_date and status
+      // Update customer due_date, status, plan, and custom_price if changed
+      const updateData: Record<string, unknown> = {
+        due_date: newDueDateStr,
+        status: 'ativa' as const,
+      };
+
+      // Update plan if changed
+      if (selectedPlanId && selectedPlanId !== customer.plan?.id) {
+        updateData.plan_id = selectedPlanId;
+      }
+
+      // Update custom_price if different from plan price
+      const planPrice = selectedPlan?.price ?? customer.plan?.price ?? 0;
+      if (renewalPrice !== planPrice) {
+        updateData.custom_price = renewalPrice;
+      } else {
+        updateData.custom_price = null; // Clear custom price if using plan price
+      }
+
       const { error: updateError } = await supabase
         .from('customers')
-        .update({
-          due_date: newDueDateStr,
-          status: 'ativa' as const,
-        })
+        .update(updateData)
         .eq('id', customer.id);
 
       if (updateError) throw updateError;
 
-      return { newDueDate: newDueDateStr, amount, customer };
+      return { newDueDate: newDueDateStr, amount, customer, planName };
     },
     onSuccess: (data) => {
-      const { newDueDate, amount, customer } = data;
+      const { newDueDate, amount, customer, planName } = data;
       const formattedDate = formatDate(newDueDate);
 
       // Update local UI immediately
@@ -191,7 +226,7 @@ Seu pagamento de *R$ ${amount.toFixed(2)}* foi confirmado.
 
 📅 *Novo vencimento:* ${formattedDate}
 👤 *Usuário:* ${customer.username || '-'}
-📺 *Plano:* ${customer.plan?.plan_name || 'Padrão'}
+📺 *Plano:* ${planName}
 🖥️ *Servidor:* ${customer.server?.server_name || '-'}
 
 Obrigado pela preferência! 🙏`;
@@ -284,6 +319,10 @@ Obrigado pela preferência! 🙏`;
     setSelectedCustomer(customer);
     setSearchPhone(customer.phone);
     setRenewalMessage(null);
+    // Reset plan/price to customer's current values
+    setSelectedPlanId(customer.plan?.id || null);
+    const currentPrice = customer.custom_price ?? customer.plan?.price ?? 0;
+    setCustomRenewalPrice(currentPrice.toString());
   };
 
   const handleRenew = () => {
@@ -295,8 +334,9 @@ Obrigado pela preferência! 🙏`;
 
   // Generate payment approved message without renewing
   const generatePaymentMessage = (customer: Customer) => {
-    const amount = customer.custom_price ?? customer.plan?.price ?? 0;
+    const amount = renewalPrice || customer.custom_price ?? customer.plan?.price ?? 0;
     const formattedDate = formatDate(customer.due_date);
+    const planName = selectedPlan?.plan_name ?? customer.plan?.plan_name ?? 'Padrão';
     
     return `✅ *Pagamento Aprovado!*
 
@@ -306,7 +346,7 @@ Seu pagamento de *R$ ${amount.toFixed(2)}* foi confirmado.
 
 📅 *Vencimento:* ${formattedDate}
 👤 *Usuário:* ${customer.username || '-'}
-📺 *Plano:* ${customer.plan?.plan_name || 'Padrão'}
+📺 *Plano:* ${planName}
 🖥️ *Servidor:* ${customer.server?.server_name || '-'}
 
 Obrigado pela preferência! 🙏`;
@@ -355,7 +395,7 @@ Obrigado pela preferência! 🙏`;
     return format(date, 'dd/MM/yyyy', { locale: ptBR });
   };
 
-  const price = selectedCustomer?.custom_price ?? selectedCustomer?.plan?.price ?? 0;
+  
 
   const getIcon = (iconName: string) => {
     const IconComponent = iconMap[iconName] || MessageSquare;
@@ -442,12 +482,29 @@ Obrigado pela preferência! 🙏`;
                     <span className="font-medium">{formatDate(selectedCustomer.due_date)}</span>
                   </div>
                   
-                  {selectedCustomer.plan && (
-                    <div className="flex items-center justify-between">
-                      <span className="text-muted-foreground">Plano:</span>
-                      <span className="font-medium">{selectedCustomer.plan.plan_name}</span>
-                    </div>
-                  )}
+                  {/* Plan Selector */}
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground">Plano:</label>
+                    <Select 
+                      value={selectedPlanId || ''} 
+                      onValueChange={(v) => {
+                        setSelectedPlanId(v);
+                        const plan = allPlans.find(p => p.id === v);
+                        if (plan) setCustomRenewalPrice(plan.price.toString());
+                      }}
+                    >
+                      <SelectTrigger className="h-8 text-sm">
+                        <SelectValue placeholder="Selecione o plano" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {allPlans.map((plan) => (
+                          <SelectItem key={plan.id} value={plan.id}>
+                            {plan.plan_name} - R$ {plan.price.toFixed(2)}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
 
                   {selectedCustomer.server && (
                     <div className="flex items-center justify-between">
@@ -459,14 +516,20 @@ Obrigado pela preferência! 🙏`;
                     </div>
                   )}
                   
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2 text-muted-foreground">
-                      <CreditCard className="h-3.5 w-3.5" />
-                      <span>Valor:</span>
+                  {/* Editable Price */}
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground">Valor:</label>
+                    <div className="relative">
+                      <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">R$</span>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={customRenewalPrice}
+                        onChange={(e) => setCustomRenewalPrice(e.target.value)}
+                        className="h-8 text-sm pl-8 font-bold text-primary"
+                      />
                     </div>
-                    <span className="font-bold text-primary">
-                      R$ {price.toFixed(2)}
-                    </span>
                   </div>
                 </div>
 
