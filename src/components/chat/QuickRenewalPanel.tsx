@@ -123,31 +123,55 @@ export default function QuickRenewalPanel() {
       // Brazilian mobile numbers may or may not have the 9 after DDD
       const phoneVariations: string[] = [normalizedPhone];
       
-      // If phone has DDD (2 digits) + number, try adding/removing 9 after DDD
-      if (normalizedPhone.length >= 10) {
-        const ddd = normalizedPhone.slice(0, 2);
-        const rest = normalizedPhone.slice(2);
-        
-        // If starts without 9 after DDD, try adding it
-        if (!rest.startsWith('9') && rest.length === 8) {
-          phoneVariations.push(ddd + '9' + rest);
+      // Helper to add variation if not already present
+      const addVariation = (variation: string) => {
+        if (!phoneVariations.includes(variation)) {
+          phoneVariations.push(variation);
         }
-        // If starts with 9 after DDD, try removing it
-        if (rest.startsWith('9') && rest.length === 9) {
-          phoneVariations.push(ddd + rest.slice(1));
-        }
-      }
+      };
       
-      // Also handle with country code (55)
+      // Handle with country code (55) first
       if (normalizedPhone.startsWith('55') && normalizedPhone.length >= 12) {
         const ddd = normalizedPhone.slice(2, 4);
         const rest = normalizedPhone.slice(4);
         
-        if (!rest.startsWith('9') && rest.length === 8) {
-          phoneVariations.push('55' + ddd + '9' + rest);
+        // Try adding 9 after DDD (rest has 8 digits, needs 9)
+        if (rest.length === 8) {
+          addVariation('55' + ddd + '9' + rest);
+        }
+        // Try removing 9 after DDD (rest has 9 digits starting with 9)
+        if (rest.startsWith('9') && rest.length === 9) {
+          addVariation('55' + ddd + rest.slice(1));
+        }
+        // Also try without country code
+        addVariation(ddd + rest);
+        if (rest.length === 8) {
+          addVariation(ddd + '9' + rest);
         }
         if (rest.startsWith('9') && rest.length === 9) {
-          phoneVariations.push('55' + ddd + rest.slice(1));
+          addVariation(ddd + rest.slice(1));
+        }
+      }
+      // Handle without country code (DDD + number)
+      else if (normalizedPhone.length >= 10) {
+        const ddd = normalizedPhone.slice(0, 2);
+        const rest = normalizedPhone.slice(2);
+        
+        // Try adding 9 after DDD
+        if (rest.length === 8) {
+          addVariation(ddd + '9' + rest);
+        }
+        // Try removing 9 after DDD
+        if (rest.startsWith('9') && rest.length === 9) {
+          addVariation(ddd + rest.slice(1));
+        }
+        // Also try with country code
+        addVariation('55' + normalizedPhone);
+        if (rest.length === 8) {
+          addVariation('55' + ddd + '9' + rest);
+        }
+        if (rest.startsWith('9') && rest.length === 9) {
+          addVariation('55' + ddd + rest.slice(1));
         }
       }
       
