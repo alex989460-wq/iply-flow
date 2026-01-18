@@ -125,7 +125,9 @@ export default function QuickRenewalPanel({ isMobile = false, onClose }: QuickRe
       if (searchTerm.length < 3) return [];
       
       const normalizedPhone = searchTerm.replace(/\D/g, '');
-      const isPhoneSearch = normalizedPhone.length >= 4;
+      const hasLetters = /[a-zA-ZÀ-ÿ]/.test(searchTerm);
+      // Only treat as phone search when the term is numeric-only (prevents matching phone digits inside usernames)
+      const isPhoneSearch = !hasLetters && normalizedPhone.length >= 4;
       
       // Generate phone variations to handle the 9th digit issue
       // Brazilian mobile numbers may or may not have the 9 after DDD
@@ -193,14 +195,17 @@ export default function QuickRenewalPanel({ isMobile = false, onClose }: QuickRe
         filters.push(`phone.ilike.%${v}%`);
       });
       
-      // Only search by username/name if search term has letters (not just numbers)
-      const hasLetters = /[a-zA-ZÀ-ÿ]/.test(searchTerm);
-      
+      // Username and name search
+      const trimmed = searchTerm.trim();
+
       if (hasLetters) {
-        // Use exact match for username (eq) to avoid too many results
-        filters.push(`username.eq.${searchTerm}`);
-        // Use starts with for name to be more precise
-        filters.push(`name.ilike.${searchTerm}%`);
+        // Exact (case-insensitive) username match to avoid pulling unrelated people
+        filters.push(`username.ilike.${trimmed}`);
+        // More precise name search (starts with)
+        filters.push(`name.ilike.${trimmed}%`);
+      } else if (trimmed === normalizedPhone) {
+        // If the user typed only digits, allow exact username match for numeric usernames
+        filters.push(`username.eq.${trimmed}`);
       }
       
       const orFilter = filters.join(',');
