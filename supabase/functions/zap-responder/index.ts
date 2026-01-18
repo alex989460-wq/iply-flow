@@ -1216,26 +1216,42 @@ Deno.serve(async (req) => {
     if (authHeader?.startsWith('Bearer ')) {
       const token = authHeader.slice(7);
       try {
-        const { data: { user } } = await supabase.auth.getUser(token);
+        const {
+          data: { user },
+        } = await supabase.auth.getUser(token);
         userId = user?.id || null;
       } catch (e) {
         console.log('Could not extract user from token:', e);
       }
     }
 
-    // Fetch user-specific settings or fall back to global settings
-    let settings: any = null;
-    if (userId) {
-      const { data } = await supabase
-        .from('zap_responder_settings')
-        .select('*')
-        .eq('user_id', userId)
-        .maybeSingle();
-      settings = data;
+    if (!userId) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Usuário não autenticado.' }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
-    
-    // If no user-specific settings, try global settings (for backwards compatibility)
-    if (!settings) {
+
+    // Check if user is admin
+    const { data: adminRows } = await supabase
+      .from('user_roles')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('role', 'admin')
+      .limit(1);
+    const isAdminUser = (adminRows?.length ?? 0) > 0;
+
+    // Load settings for current user
+    const { data: userSettings } = await supabase
+      .from('zap_responder_settings')
+      .select('*')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    let settings: any = userSettings;
+
+    // Admin-only fallback to global settings (backwards compatibility)
+    if (!settings && isAdminUser) {
       const { data } = await supabase
         .from('zap_responder_settings')
         .select('*')
@@ -1245,13 +1261,13 @@ Deno.serve(async (req) => {
       settings = data;
     }
 
-    // Get token from user settings first, then fall back to environment variable
-    const zapToken = settings?.zap_api_token || Deno.env.get('ZAP_RESPONDER_TOKEN');
+    // Token MUST be user-configured for non-admin users
+    const zapToken = settings?.zap_api_token || (isAdminUser ? Deno.env.get('ZAP_RESPONDER_TOKEN') : null);
     if (!zapToken) {
       console.error('API token not configured');
       return new Response(
-        JSON.stringify({ error: 'Token da API não configurado. Configure em Configurações.' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ success: false, error: 'Token da API não configurado. Configure em Configurações.' }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
