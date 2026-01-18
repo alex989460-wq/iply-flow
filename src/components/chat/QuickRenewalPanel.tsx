@@ -71,8 +71,13 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   MessageSquare,
 };
 
-export default function QuickRenewalPanel() {
-  const [searchPhone, setSearchPhone] = useState('');
+interface QuickRenewalPanelProps {
+  isMobile?: boolean;
+  onClose?: () => void;
+}
+
+export default function QuickRenewalPanel({ isMobile = false, onClose }: QuickRenewalPanelProps) {
+  const [searchTerm, setSearchTerm] = useState('');
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('pix');
   const [isLinksOpen, setIsLinksOpen] = useState(true);
@@ -111,17 +116,18 @@ export default function QuickRenewalPanel() {
     },
   });
 
-  // Search customers by phone with flexible 9th digit matching
+  // Search customers by phone or username with flexible 9th digit matching
   const { data: searchResults, isLoading: isSearching } = useQuery({
-    queryKey: ['customer-search', searchPhone],
+    queryKey: ['customer-search', searchTerm],
     queryFn: async () => {
-      if (searchPhone.length < 4) return [];
+      if (searchTerm.length < 3) return [];
       
-      const normalizedPhone = searchPhone.replace(/\D/g, '');
+      const normalizedPhone = searchTerm.replace(/\D/g, '');
+      const isPhoneSearch = normalizedPhone.length >= 4;
       
       // Generate phone variations to handle the 9th digit issue
       // Brazilian mobile numbers may or may not have the 9 after DDD
-      const phoneVariations: string[] = [normalizedPhone];
+      const phoneVariations: string[] = isPhoneSearch ? [normalizedPhone] : [];
       
       // Helper to add variation if not already present
       const addVariation = (variation: string) => {
@@ -130,53 +136,70 @@ export default function QuickRenewalPanel() {
         }
       };
       
-      // Handle with country code (55) first
-      if (normalizedPhone.startsWith('55') && normalizedPhone.length >= 12) {
-        const ddd = normalizedPhone.slice(2, 4);
-        const rest = normalizedPhone.slice(4);
-        
-        // Try adding 9 after DDD (rest has 8 digits, needs 9)
-        if (rest.length === 8) {
-          addVariation('55' + ddd + '9' + rest);
+      if (isPhoneSearch) {
+        // Handle with country code (55) first
+        if (normalizedPhone.startsWith('55') && normalizedPhone.length >= 12) {
+          const ddd = normalizedPhone.slice(2, 4);
+          const rest = normalizedPhone.slice(4);
+          
+          // Try adding 9 after DDD (rest has 8 digits, needs 9)
+          if (rest.length === 8) {
+            addVariation('55' + ddd + '9' + rest);
+          }
+          // Try removing 9 after DDD (rest has 9 digits starting with 9)
+          if (rest.startsWith('9') && rest.length === 9) {
+            addVariation('55' + ddd + rest.slice(1));
+          }
+          // Also try without country code
+          addVariation(ddd + rest);
+          if (rest.length === 8) {
+            addVariation(ddd + '9' + rest);
+          }
+          if (rest.startsWith('9') && rest.length === 9) {
+            addVariation(ddd + rest.slice(1));
+          }
         }
-        // Try removing 9 after DDD (rest has 9 digits starting with 9)
-        if (rest.startsWith('9') && rest.length === 9) {
-          addVariation('55' + ddd + rest.slice(1));
-        }
-        // Also try without country code
-        addVariation(ddd + rest);
-        if (rest.length === 8) {
-          addVariation(ddd + '9' + rest);
-        }
-        if (rest.startsWith('9') && rest.length === 9) {
-          addVariation(ddd + rest.slice(1));
-        }
-      }
-      // Handle without country code (DDD + number)
-      else if (normalizedPhone.length >= 10) {
-        const ddd = normalizedPhone.slice(0, 2);
-        const rest = normalizedPhone.slice(2);
-        
-        // Try adding 9 after DDD
-        if (rest.length === 8) {
-          addVariation(ddd + '9' + rest);
-        }
-        // Try removing 9 after DDD
-        if (rest.startsWith('9') && rest.length === 9) {
-          addVariation(ddd + rest.slice(1));
-        }
-        // Also try with country code
-        addVariation('55' + normalizedPhone);
-        if (rest.length === 8) {
-          addVariation('55' + ddd + '9' + rest);
-        }
-        if (rest.startsWith('9') && rest.length === 9) {
-          addVariation('55' + ddd + rest.slice(1));
+        // Handle without country code (DDD + number)
+        else if (normalizedPhone.length >= 10) {
+          const ddd = normalizedPhone.slice(0, 2);
+          const rest = normalizedPhone.slice(2);
+          
+          // Try adding 9 after DDD
+          if (rest.length === 8) {
+            addVariation(ddd + '9' + rest);
+          }
+          // Try removing 9 after DDD
+          if (rest.startsWith('9') && rest.length === 9) {
+            addVariation(ddd + rest.slice(1));
+          }
+          // Also try with country code
+          addVariation('55' + normalizedPhone);
+          if (rest.length === 8) {
+            addVariation('55' + ddd + '9' + rest);
+          }
+          if (rest.startsWith('9') && rest.length === 9) {
+            addVariation('55' + ddd + rest.slice(1));
+          }
         }
       }
       
-      // Build OR filter for all variations
-      const orFilter = phoneVariations.map(v => `phone.ilike.%${v}%`).join(',');
+      // Build OR filter for phone variations AND username search
+      const filters: string[] = [];
+      
+      // Add phone filters
+      phoneVariations.forEach(v => {
+        filters.push(`phone.ilike.%${v}%`);
+      });
+      
+      // Always add username search
+      filters.push(`username.ilike.%${searchTerm}%`);
+      
+      // Also search by name if it looks like a name (has letters)
+      if (/[a-zA-ZÀ-ÿ]/.test(searchTerm)) {
+        filters.push(`name.ilike.%${searchTerm}%`);
+      }
+      
+      const orFilter = filters.join(',');
       
       const { data, error } = await supabase
         .from('customers')
@@ -192,12 +215,12 @@ export default function QuickRenewalPanel() {
           server:servers(id, server_name)
         `)
         .or(orFilter)
-        .limit(5);
+        .limit(10);
 
       if (error) throw error;
       return data as Customer[];
     },
-    enabled: searchPhone.length >= 4,
+    enabled: searchTerm.length >= 3,
   });
 
   // Get selected plan details
@@ -376,7 +399,7 @@ Obrigado pela preferência! 🙏`;
 
   const handleSelectCustomer = (customer: Customer) => {
     setSelectedCustomer(customer);
-    setSearchPhone(customer.phone);
+    setSearchTerm(customer.username || customer.phone);
     setRenewalMessage(null);
     // Reset plan/price to customer's current values
     setSelectedPlanId(customer.plan?.id || null);
@@ -429,7 +452,8 @@ Obrigado pela preferência! 🙏`;
   const handleCloseRenewal = () => {
     setRenewalMessage(null);
     setSelectedCustomer(null);
-    setSearchPhone('');
+    setSearchTerm('');
+    if (onClose) onClose();
   };
 
   const handleCopyMessage = async (content: string) => {
@@ -462,22 +486,42 @@ Obrigado pela preferência! 🙏`;
   };
 
   return (
-    <div className="w-80 border-l border-border bg-background/50 flex flex-col h-full">
-      <div className="p-3 border-b border-border">
-        <h2 className="text-sm font-semibold text-foreground mb-2">Renovação Rápida</h2>
-        <div className="relative">
-          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Buscar por telefone..."
-            value={searchPhone}
-            onChange={(e) => {
-              setSearchPhone(e.target.value);
-              setSelectedCustomer(null);
-            }}
-            className="pl-9 h-9 text-sm"
-          />
+    <div className={`${isMobile ? 'w-full' : 'w-80 border-l border-border'} bg-background/50 flex flex-col h-full`}>
+      {!isMobile && (
+        <div className="p-3 border-b border-border">
+          <h2 className="text-sm font-semibold text-foreground mb-2">Renovação Rápida</h2>
+          <div className="relative">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Buscar por telefone ou usuário..."
+              value={searchTerm}
+              onChange={(e) => {
+                setSearchTerm(e.target.value);
+                setSelectedCustomer(null);
+              }}
+              className="pl-9 h-9 text-sm"
+            />
+          </div>
         </div>
-      </div>
+      )}
+      
+      {isMobile && (
+        <div className="p-4">
+          <div className="relative">
+            <Search className="absolute left-3 top-3 h-5 w-5 text-muted-foreground" />
+            <Input
+              placeholder="Buscar por telefone ou usuário..."
+              value={searchTerm}
+              onChange={(e) => {
+                setSearchTerm(e.target.value);
+                setSelectedCustomer(null);
+              }}
+              className="pl-10 h-11 text-base"
+              autoFocus
+            />
+          </div>
+        </div>
+      )}
 
       <ScrollArea className="flex-1">
         <div className="p-3 space-y-3">
@@ -506,7 +550,7 @@ Obrigado pela preferência! 🙏`;
           )}
 
           {/* No results */}
-          {!selectedCustomer && searchPhone.length >= 4 && !isSearching && searchResults?.length === 0 && (
+          {!selectedCustomer && searchTerm.length >= 3 && !isSearching && searchResults?.length === 0 && (
             <p className="text-sm text-muted-foreground text-center py-4">
               Nenhum cliente encontrado
             </p>
@@ -662,10 +706,10 @@ Obrigado pela preferência! 🙏`;
           )}
 
           {/* Empty state */}
-          {!selectedCustomer && searchPhone.length < 4 && (
+          {!selectedCustomer && searchTerm.length < 3 && (
             <div className="text-center py-6 text-muted-foreground">
               <Phone className="h-8 w-8 mx-auto mb-2 opacity-50" />
-              <p className="text-sm">Digite o telefone do cliente para buscar</p>
+              <p className="text-sm">Digite telefone ou usuário para buscar</p>
             </div>
           )}
 
