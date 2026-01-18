@@ -15,6 +15,7 @@ import {
   Menu,
   Send,
   MessagesSquare,
+  Settings,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
@@ -27,6 +28,7 @@ const menuItems = [
   { icon: MessageSquare, label: 'Cobranças', path: '/billing' },
   { icon: Send, label: 'Disparo em Massa', path: '/mass-broadcast' },
   { icon: MessagesSquare, label: 'Chat', path: '/chat' },
+  { icon: Settings, label: 'Configurações', path: '/settings' },
 ];
 
 export default function Sidebar() {

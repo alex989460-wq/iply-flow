@@ -263,19 +263,41 @@ async function processBroadcastBatch(args: {
   zapToken: string;
   customerIds: string[];
   templateName: string;
+  userId?: string | null;
 }) {
   const supabase = createClient(args.supabaseUrl, args.supabaseServiceKey);
 
-  // Settings
-  const { data: zapSettings, error: zapSettingsError } = await supabase
-    .from('zap_responder_settings')
-    .select('*')
-    .limit(1)
-    .single();
+  // Fetch user-specific settings or fall back to global settings
+  let zapSettings: any = null;
+  if (args.userId) {
+    const { data } = await supabase
+      .from('zap_responder_settings')
+      .select('*')
+      .eq('user_id', args.userId)
+      .maybeSingle();
+    zapSettings = data;
+  }
+  
+  // If no user-specific settings, try global settings (for backwards compatibility)
+  if (!zapSettings) {
+    const { data, error: zapSettingsError } = await supabase
+      .from('zap_responder_settings')
+      .select('*')
+      .is('user_id', null)
+      .limit(1)
+      .maybeSingle();
+    
+    if (zapSettingsError) {
+      console.error('Error fetching zap settings:', zapSettingsError);
+      return { ok: false as const, status: 500, body: { error: 'Erro ao carregar configurações do Zap' } };
+    }
+    zapSettings = data;
+  }
 
-  if (zapSettingsError) {
-    console.error('Error fetching zap settings:', zapSettingsError);
-    return { ok: false as const, status: 500, body: { error: 'Erro ao carregar configurações do Zap' } };
+  // Get token from user settings first, then use the passed token as fallback
+  const effectiveToken = zapSettings?.zap_api_token || args.zapToken;
+  if (!effectiveToken) {
+    return { ok: false as const, status: 400, body: { error: 'Token da API não configurado. Configure em Configurações.' } };
   }
 
   const apiBaseUrl = zapSettings?.api_base_url || 'https://api.zapresponder.com.br/api';
@@ -285,7 +307,7 @@ async function processBroadcastBatch(args: {
     return {
       ok: false as const,
       status: 400,
-      body: { error: 'Departamento não configurado. Configure na tela de cobranças.' },
+      body: { error: 'Departamento não configurado. Configure em Configurações.' },
     };
   }
 
@@ -308,7 +330,7 @@ async function processBroadcastBatch(args: {
 
   const results = await Promise.all(
     (customers as any[]).map(async (customer) => {
-      const sendResult = await sendWhatsAppTemplate(customer.phone, args.templateName, args.zapToken, apiBaseUrl, departmentId);
+      const sendResult = await sendWhatsAppTemplate(customer.phone, args.templateName, effectiveToken, apiBaseUrl, departmentId);
       return {
         customer,
         normalizedPhone: normalizePhone(customer.phone),
@@ -487,17 +509,25 @@ Deno.serve(async (req) => {
       });
     }
 
-    const zapToken = Deno.env.get('ZAP_RESPONDER_TOKEN');
-    if (!zapToken) {
-      console.error('ZAP_RESPONDER_TOKEN not configured');
-      return new Response(JSON.stringify({ error: 'ZAP_RESPONDER_TOKEN not configured' }), {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    // Extract user_id from JWT token
+    let userId: string | null = null;
+    const authHeader = req.headers.get('Authorization');
+    if (authHeader?.startsWith('Bearer ')) {
+      const token = authHeader.slice(7);
+      try {
+        const { data: { user } } = await supabase.auth.getUser(token);
+        userId = user?.id || null;
+      } catch (e) {
+        console.log('Could not extract user from token:', e);
+      }
+    }
+
+    // Get fallback zapToken from env
+    const zapTokenEnv = Deno.env.get('ZAP_RESPONDER_TOKEN') || '';
 
     if (action === 'start') {
       console.log(`Starting broadcast plan: customers=${customer_ids.length}, template=${template_name}`);
@@ -521,9 +551,10 @@ Deno.serve(async (req) => {
       const batched = await processBroadcastBatch({
         supabaseUrl,
         supabaseServiceKey,
-        zapToken,
+        zapToken: zapTokenEnv,
         customerIds: customer_ids,
         templateName: template_name,
+        userId,
       });
 
       return new Response(JSON.stringify(batched.body), {
@@ -537,8 +568,6 @@ Deno.serve(async (req) => {
 
     const delay_min_seconds = clampInt((body as any).delay_min_seconds, 1, 0);
     const delay_max_seconds = Math.max(delay_min_seconds, clampInt((body as any).delay_max_seconds, 2, 0));
-
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     // Fetch customers (chunked)
     const { customers, error: customersError } = await fetchCustomersByIds(supabase, customer_ids);
@@ -585,17 +614,40 @@ Deno.serve(async (req) => {
       }
     }
 
-    const { data: zapSettings } = await supabase
-      .from('zap_responder_settings')
-      .select('*')
-      .limit(1)
-      .single();
+    // Fetch user-specific settings or fall back to global settings
+    let zapSettingsLegacy: any = null;
+    if (userId) {
+      const { data } = await supabase
+        .from('zap_responder_settings')
+        .select('*')
+        .eq('user_id', userId)
+        .maybeSingle();
+      zapSettingsLegacy = data;
+    }
+    
+    if (!zapSettingsLegacy) {
+      const { data } = await supabase
+        .from('zap_responder_settings')
+        .select('*')
+        .is('user_id', null)
+        .limit(1)
+        .maybeSingle();
+      zapSettingsLegacy = data;
+    }
 
-    const apiBaseUrl = zapSettings?.api_base_url || 'https://api.zapresponder.com.br/api';
-    const departmentId = zapSettings?.selected_department_id;
+    const effectiveLegacyToken = zapSettingsLegacy?.zap_api_token || zapTokenEnv;
+    if (!effectiveLegacyToken) {
+      return new Response(JSON.stringify({ error: 'Token da API não configurado. Configure em Configurações.' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    const apiBaseUrl = zapSettingsLegacy?.api_base_url || 'https://api.zapresponder.com.br/api';
+    const departmentId = zapSettingsLegacy?.selected_department_id;
 
     if (!departmentId) {
-      return new Response(JSON.stringify({ error: 'Departamento não configurado. Configure na tela de cobranças.' }), {
+      return new Response(JSON.stringify({ error: 'Departamento não configurado. Configure em Configurações.' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
@@ -612,7 +664,7 @@ Deno.serve(async (req) => {
         delayMaxSeconds: delay_max_seconds,
         supabaseUrl,
         supabaseServiceKey,
-        zapToken,
+        zapToken: effectiveLegacyToken,
         apiBaseUrl,
         departmentId,
       })

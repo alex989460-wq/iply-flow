@@ -368,6 +368,8 @@ export type Database = {
           selected_session_name: string | null
           selected_session_phone: string | null
           updated_at: string
+          user_id: string | null
+          zap_api_token: string | null
         }
         Insert: {
           api_base_url?: string
@@ -379,6 +381,8 @@ export type Database = {
           selected_session_name?: string | null
           selected_session_phone?: string | null
           updated_at?: string
+          user_id?: string | null
+          zap_api_token?: string | null
         }
         Update: {
           api_base_url?: string
@@ -390,6 +394,8 @@ export type Database = {
           selected_session_name?: string | null
           selected_session_phone?: string | null
           updated_at?: string
+          user_id?: string | null
+          zap_api_token?: string | null
         }
         Relationships: []
       }
