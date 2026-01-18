@@ -497,8 +497,22 @@ Obrigado pela preferência! 🙏`;
   return (
     <div className={`${isMobile ? 'w-full' : 'w-80 border-l border-border'} bg-background/50 flex flex-col h-full`}>
       {!isMobile && (
-        <div className="p-3 border-b border-border">
-          <h2 className="text-sm font-semibold text-foreground mb-2">Renovação Rápida</h2>
+        <div className="p-3 border-b border-border space-y-2">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-foreground">Renovação Rápida</h2>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 text-xs gap-1"
+              onClick={() => {
+                setShowNewCustomerForm(!showNewCustomerForm);
+                setSelectedCustomer(null);
+              }}
+            >
+              <UserPlus className="h-3.5 w-3.5" />
+              Novo
+            </Button>
+          </div>
           <div className="relative">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
@@ -507,6 +521,7 @@ Obrigado pela preferência! 🙏`;
               onChange={(e) => {
                 setSearchTerm(e.target.value);
                 setSelectedCustomer(null);
+                setShowNewCustomerForm(false);
               }}
               className="pl-9 h-9 text-sm"
             />
@@ -515,27 +530,53 @@ Obrigado pela preferência! 🙏`;
       )}
       
       {isMobile && (
-        <div className="p-4">
-          <div className="relative">
-            <Search className="absolute left-3 top-3 h-5 w-5 text-muted-foreground" />
-            <Input
-              placeholder="Buscar por telefone ou usuário..."
-              value={searchTerm}
-              onChange={(e) => {
-                setSearchTerm(e.target.value);
+        <div className="p-4 space-y-3">
+          <div className="flex items-center gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-3 h-5 w-5 text-muted-foreground" />
+              <Input
+                placeholder="Buscar por telefone ou usuário..."
+                value={searchTerm}
+                onChange={(e) => {
+                  setSearchTerm(e.target.value);
+                  setSelectedCustomer(null);
+                  setShowNewCustomerForm(false);
+                }}
+                className="pl-10 h-11 text-base"
+                autoFocus
+              />
+            </div>
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-11 w-11 shrink-0"
+              onClick={() => {
+                setShowNewCustomerForm(!showNewCustomerForm);
                 setSelectedCustomer(null);
               }}
-              className="pl-10 h-11 text-base"
-              autoFocus
-            />
+            >
+              <UserPlus className="h-5 w-5" />
+            </Button>
           </div>
         </div>
       )}
 
       <ScrollArea className="flex-1">
         <div className="p-3 space-y-3">
+          {/* New Customer Form - Always visible when toggled */}
+          {showNewCustomerForm && !selectedCustomer && (
+            <QuickCustomerForm
+              initialPhone={searchTerm.replace(/\D/g, '')}
+              onSuccess={() => {
+                setShowNewCustomerForm(false);
+                setSearchTerm('');
+              }}
+              onCancel={() => setShowNewCustomerForm(false)}
+            />
+          )}
+
           {/* Search Results */}
-          {!selectedCustomer && searchResults && searchResults.length > 0 && (
+          {!selectedCustomer && !showNewCustomerForm && searchResults && searchResults.length > 0 && (
             <div className="space-y-1">
               <p className="text-xs text-muted-foreground mb-2">Resultados:</p>
               {searchResults.map((customer) => (
@@ -558,34 +599,13 @@ Obrigado pela preferência! 🙏`;
             </div>
           )}
 
-          {/* No results - show option to add new customer */}
+          {/* No results message */}
           {!selectedCustomer && !showNewCustomerForm && searchTerm.length >= 3 && !isSearching && searchResults?.length === 0 && (
-            <div className="text-center py-4 space-y-3">
+            <div className="text-center py-4">
               <p className="text-sm text-muted-foreground">
                 Nenhum cliente encontrado
               </p>
-              <Button 
-                variant="outline" 
-                size="sm"
-                onClick={() => setShowNewCustomerForm(true)}
-                className="gap-2"
-              >
-                <UserPlus className="h-4 w-4" />
-                Cadastrar novo cliente
-              </Button>
             </div>
-          )}
-
-          {/* New Customer Form */}
-          {showNewCustomerForm && !selectedCustomer && (
-            <QuickCustomerForm
-              initialPhone={searchTerm.replace(/\D/g, '')}
-              onSuccess={() => {
-                setShowNewCustomerForm(false);
-                setSearchTerm('');
-              }}
-              onCancel={() => setShowNewCustomerForm(false)}
-            />
           )}
 
           {/* Selected Customer Details */}
