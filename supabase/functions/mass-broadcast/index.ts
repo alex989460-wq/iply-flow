@@ -264,10 +264,11 @@ async function processBroadcastBatch(args: {
   customerIds: string[];
   templateName: string;
   userId?: string | null;
+  isAdmin?: boolean;
 }) {
   const supabase = createClient(args.supabaseUrl, args.supabaseServiceKey);
 
-  // Fetch user-specific settings or fall back to global settings
+  // Fetch user-specific settings
   let zapSettings: any = null;
   if (args.userId) {
     const { data } = await supabase
@@ -277,25 +278,30 @@ async function processBroadcastBatch(args: {
       .maybeSingle();
     zapSettings = data;
   }
-  
-  // If no user-specific settings, try global settings (for backwards compatibility)
+
+  // Admin-only fallback to global settings (backwards compatibility)
   if (!zapSettings) {
-    const { data, error: zapSettingsError } = await supabase
-      .from('zap_responder_settings')
-      .select('*')
-      .is('user_id', null)
-      .limit(1)
-      .maybeSingle();
-    
-    if (zapSettingsError) {
-      console.error('Error fetching zap settings:', zapSettingsError);
-      return { ok: false as const, status: 500, body: { error: 'Erro ao carregar configurações do Zap' } };
+    if (args.isAdmin) {
+      const { data, error: zapSettingsError } = await supabase
+        .from('zap_responder_settings')
+        .select('*')
+        .is('user_id', null)
+        .limit(1)
+        .maybeSingle();
+
+      if (zapSettingsError) {
+        console.error('Error fetching zap settings:', zapSettingsError);
+        return { ok: false as const, status: 500, body: { error: 'Erro ao carregar configurações do Zap' } };
+      }
+
+      zapSettings = data;
+    } else {
+      return { ok: false as const, status: 400, body: { error: 'Token da API não configurado. Configure em Configurações.' } };
     }
-    zapSettings = data;
   }
 
-  // Get token from user settings first, then use the passed token as fallback
-  const effectiveToken = zapSettings?.zap_api_token || args.zapToken;
+  // Token MUST be user-configured for non-admin users
+  const effectiveToken = zapSettings?.zap_api_token || (args.isAdmin ? args.zapToken : null);
   if (!effectiveToken) {
     return { ok: false as const, status: 400, body: { error: 'Token da API não configurado. Configure em Configurações.' } };
   }

@@ -154,19 +154,26 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Fetch user-specific settings or fall back to global settings
-    let zapSettings: any = null;
-    if (userId) {
-      const { data } = await supabase
-        .from('zap_responder_settings')
-        .select('*')
-        .eq('user_id', userId)
-        .maybeSingle();
-      zapSettings = data;
-    }
-    
-    // If no user-specific settings, try global settings (for backwards compatibility)
-    if (!zapSettings) {
+    // Check if user is admin
+    const { data: adminRows } = await supabase
+      .from('user_roles')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('role', 'admin')
+      .limit(1);
+    const isAdminUser = (adminRows?.length ?? 0) > 0;
+
+    // Load settings for current user
+    const { data: userSettings } = await supabase
+      .from('zap_responder_settings')
+      .select('*')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    let zapSettings: any = userSettings;
+
+    // Admin-only fallback to global settings (backwards compatibility)
+    if (!zapSettings && isAdminUser) {
       const { data } = await supabase
         .from('zap_responder_settings')
         .select('*')
@@ -176,8 +183,8 @@ Deno.serve(async (req) => {
       zapSettings = data;
     }
 
-    // Get token from user settings first, then fall back to environment variable
-    const zapToken = zapSettings?.zap_api_token || Deno.env.get('ZAP_RESPONDER_TOKEN');
+    // Token MUST be user-configured for non-admin users
+    const zapToken = zapSettings?.zap_api_token || (isAdminUser ? Deno.env.get('ZAP_RESPONDER_TOKEN') : null);
     if (!zapToken) {
       console.error('API token not configured');
       return new Response(
