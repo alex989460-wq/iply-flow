@@ -213,11 +213,14 @@ export default function Customers() {
   const { data: zapSettings } = useQuery({
     queryKey: ['zap-responder-settings'],
     queryFn: async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return null;
+      
       const { data, error } = await supabase
         .from('zap_responder_settings')
         .select('*')
-        .limit(1)
-        .single();
+        .eq('user_id', user.id)
+        .maybeSingle();
       if (error) throw error;
       return data;
     },
