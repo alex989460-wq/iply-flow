@@ -14,7 +14,7 @@ import Payments from "./pages/Payments";
 import Billing from "./pages/Billing";
 import MassBroadcast from "./pages/MassBroadcast";
 import Chat from "./pages/Chat";
-
+import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
 import { Loader2 } from "lucide-react";
 
@@ -60,6 +60,7 @@ function AppRoutes() {
       <Route path="/billing" element={<ProtectedRoute><Billing /></ProtectedRoute>} />
       <Route path="/mass-broadcast" element={<ProtectedRoute><MassBroadcast /></ProtectedRoute>} />
       <Route path="/chat" element={<ProtectedRoute><Chat /></ProtectedRoute>} />
+      <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
       <Route path="*" element={<NotFound />} />
     </Routes>
   );

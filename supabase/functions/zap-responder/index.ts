@@ -1206,24 +1206,54 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const zapToken = Deno.env.get('ZAP_RESPONDER_TOKEN');
-    if (!zapToken) {
-      console.error('ZAP_RESPONDER_TOKEN not configured');
-      return new Response(
-        JSON.stringify({ error: 'ZAP_RESPONDER_TOKEN not configured' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    const { data: settings } = await supabase
-      .from('zap_responder_settings')
-      .select('*')
-      .limit(1)
-      .single();
+    // Extract user_id from JWT token
+    let userId: string | null = null;
+    const authHeader = req.headers.get('Authorization');
+    if (authHeader?.startsWith('Bearer ')) {
+      const token = authHeader.slice(7);
+      try {
+        const { data: { user } } = await supabase.auth.getUser(token);
+        userId = user?.id || null;
+      } catch (e) {
+        console.log('Could not extract user from token:', e);
+      }
+    }
+
+    // Fetch user-specific settings or fall back to global settings
+    let settings: any = null;
+    if (userId) {
+      const { data } = await supabase
+        .from('zap_responder_settings')
+        .select('*')
+        .eq('user_id', userId)
+        .maybeSingle();
+      settings = data;
+    }
+    
+    // If no user-specific settings, try global settings (for backwards compatibility)
+    if (!settings) {
+      const { data } = await supabase
+        .from('zap_responder_settings')
+        .select('*')
+        .is('user_id', null)
+        .limit(1)
+        .maybeSingle();
+      settings = data;
+    }
+
+    // Get token from user settings first, then fall back to environment variable
+    const zapToken = settings?.zap_api_token || Deno.env.get('ZAP_RESPONDER_TOKEN');
+    if (!zapToken) {
+      console.error('API token not configured');
+      return new Response(
+        JSON.stringify({ error: 'Token da API não configurado. Configure em Configurações.' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
     const apiBaseUrl = settings?.api_base_url || 'https://api.zapresponder.com.br/api';
 
