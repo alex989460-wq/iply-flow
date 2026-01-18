@@ -111,13 +111,48 @@ export default function QuickRenewalPanel() {
     },
   });
 
-  // Search customers by phone
+  // Search customers by phone with flexible 9th digit matching
   const { data: searchResults, isLoading: isSearching } = useQuery({
     queryKey: ['customer-search', searchPhone],
     queryFn: async () => {
       if (searchPhone.length < 4) return [];
       
       const normalizedPhone = searchPhone.replace(/\D/g, '');
+      
+      // Generate phone variations to handle the 9th digit issue
+      // Brazilian mobile numbers may or may not have the 9 after DDD
+      const phoneVariations: string[] = [normalizedPhone];
+      
+      // If phone has DDD (2 digits) + number, try adding/removing 9 after DDD
+      if (normalizedPhone.length >= 10) {
+        const ddd = normalizedPhone.slice(0, 2);
+        const rest = normalizedPhone.slice(2);
+        
+        // If starts without 9 after DDD, try adding it
+        if (!rest.startsWith('9') && rest.length === 8) {
+          phoneVariations.push(ddd + '9' + rest);
+        }
+        // If starts with 9 after DDD, try removing it
+        if (rest.startsWith('9') && rest.length === 9) {
+          phoneVariations.push(ddd + rest.slice(1));
+        }
+      }
+      
+      // Also handle with country code (55)
+      if (normalizedPhone.startsWith('55') && normalizedPhone.length >= 12) {
+        const ddd = normalizedPhone.slice(2, 4);
+        const rest = normalizedPhone.slice(4);
+        
+        if (!rest.startsWith('9') && rest.length === 8) {
+          phoneVariations.push('55' + ddd + '9' + rest);
+        }
+        if (rest.startsWith('9') && rest.length === 9) {
+          phoneVariations.push('55' + ddd + rest.slice(1));
+        }
+      }
+      
+      // Build OR filter for all variations
+      const orFilter = phoneVariations.map(v => `phone.ilike.%${v}%`).join(',');
       
       const { data, error } = await supabase
         .from('customers')
@@ -132,7 +167,7 @@ export default function QuickRenewalPanel() {
           plan:plans(id, plan_name, price, duration_days),
           server:servers(id, server_name)
         `)
-        .ilike('phone', `%${normalizedPhone}%`)
+        .or(orFilter)
         .limit(5);
 
       if (error) throw error;
