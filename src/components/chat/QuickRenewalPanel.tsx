@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { 
   Search, User, Calendar, CreditCard, CheckCircle, Phone, RefreshCw, 
   Server, Copy, Settings, Wifi, Download, Key, Bell, Smile, MessageSquare,
-  ChevronDown, ChevronUp
+  ChevronDown, ChevronUp, UserPlus
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { addDays, addMonths, format, startOfDay } from 'date-fns';
@@ -30,6 +30,7 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import QuickCustomerForm from './QuickCustomerForm';
 
 type PaymentMethod = 'pix' | 'dinheiro' | 'transferencia';
 
@@ -88,6 +89,7 @@ export default function QuickRenewalPanel({ isMobile = false, onClose }: QuickRe
   const [selectedQuickMessage, setSelectedQuickMessage] = useState<QuickMessage | null>(null);
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
   const [customRenewalPrice, setCustomRenewalPrice] = useState<string>('');
+  const [showNewCustomerForm, setShowNewCustomerForm] = useState(false);
   const queryClient = useQueryClient();
 
   // Fetch all plans for selection
@@ -183,7 +185,7 @@ export default function QuickRenewalPanel({ isMobile = false, onClose }: QuickRe
         }
       }
       
-      // Build OR filter for phone variations AND username search
+      // Build OR filter for phone variations AND username/name search
       const filters: string[] = [];
       
       // Add phone filters
@@ -191,12 +193,14 @@ export default function QuickRenewalPanel({ isMobile = false, onClose }: QuickRe
         filters.push(`phone.ilike.%${v}%`);
       });
       
-      // Always add username search
-      filters.push(`username.ilike.%${searchTerm}%`);
+      // Only search by username/name if search term has letters (not just numbers)
+      const hasLetters = /[a-zA-ZÀ-ÿ]/.test(searchTerm);
       
-      // Also search by name if it looks like a name (has letters)
-      if (/[a-zA-ZÀ-ÿ]/.test(searchTerm)) {
-        filters.push(`name.ilike.%${searchTerm}%`);
+      if (hasLetters) {
+        // Use exact match for username (eq) to avoid too many results
+        filters.push(`username.eq.${searchTerm}`);
+        // Use starts with for name to be more precise
+        filters.push(`name.ilike.${searchTerm}%`);
       }
       
       const orFilter = filters.join(',');
@@ -549,11 +553,34 @@ Obrigado pela preferência! 🙏`;
             </div>
           )}
 
-          {/* No results */}
-          {!selectedCustomer && searchTerm.length >= 3 && !isSearching && searchResults?.length === 0 && (
-            <p className="text-sm text-muted-foreground text-center py-4">
-              Nenhum cliente encontrado
-            </p>
+          {/* No results - show option to add new customer */}
+          {!selectedCustomer && !showNewCustomerForm && searchTerm.length >= 3 && !isSearching && searchResults?.length === 0 && (
+            <div className="text-center py-4 space-y-3">
+              <p className="text-sm text-muted-foreground">
+                Nenhum cliente encontrado
+              </p>
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={() => setShowNewCustomerForm(true)}
+                className="gap-2"
+              >
+                <UserPlus className="h-4 w-4" />
+                Cadastrar novo cliente
+              </Button>
+            </div>
+          )}
+
+          {/* New Customer Form */}
+          {showNewCustomerForm && !selectedCustomer && (
+            <QuickCustomerForm
+              initialPhone={searchTerm.replace(/\D/g, '')}
+              onSuccess={() => {
+                setShowNewCustomerForm(false);
+                setSearchTerm('');
+              }}
+              onCancel={() => setShowNewCustomerForm(false)}
+            />
           )}
 
           {/* Selected Customer Details */}
