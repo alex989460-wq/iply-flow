@@ -334,7 +334,7 @@ Obrigado pela preferência! 🙏`;
 
   // Generate payment approved message without renewing
   const generatePaymentMessage = (customer: Customer) => {
-    const amount = renewalPrice || customer.custom_price ?? customer.plan?.price ?? 0;
+    const amount = renewalPrice || (customer.custom_price ?? customer.plan?.price ?? 0);
     const formattedDate = formatDate(customer.due_date);
     const planName = selectedPlan?.plan_name ?? customer.plan?.plan_name ?? 'Padrão';
     
