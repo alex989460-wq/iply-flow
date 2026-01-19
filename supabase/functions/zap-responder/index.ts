@@ -240,7 +240,7 @@ async function iniciarBot(
   variaveis?: Record<string, string | number>
 ): Promise<{ success: boolean; data?: any; error?: string }> {
   try {
-    console.log('Starting bot...', { chatId, departamento, aplicacao });
+    console.log('Starting bot...', { chatId, departamento, aplicacao, mensagemInicial });
     
     const body: any = {
       chatId,
@@ -256,6 +256,8 @@ async function iniciarBot(
       body.variaveis = variaveis;
     }
     
+    console.log('iniciarBot request body:', JSON.stringify(body));
+    
     const response = await fetch(`${apiBaseUrl}/conversa/iniciarBot`, {
       method: 'POST',
       headers: {
@@ -266,16 +268,31 @@ async function iniciarBot(
       body: JSON.stringify(body),
     });
 
+    // Read response as text first to handle empty responses
+    const responseText = await response.text();
+    console.log('iniciarBot response status:', response.status, 'body:', responseText || '(empty)');
+
     if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`Zap Responder API error: ${response.status} - ${errorText}`);
-      return { success: false, error: `API error: ${response.status} - ${errorText}` };
+      console.error(`Zap Responder API error: ${response.status} - ${responseText}`);
+      return { success: false, error: `API error: ${response.status} - ${responseText || 'Resposta vazia'}` };
     }
 
-    const result = await response.json();
-    console.log('Bot started successfully:', result);
-    
-    return { success: true, data: result };
+    // Handle empty response (some APIs return 200 with empty body on success)
+    if (!responseText || responseText.trim() === '') {
+      console.log('Bot started successfully (empty response body)');
+      return { success: true, data: { message: 'Bot iniciado com sucesso' } };
+    }
+
+    // Try to parse JSON
+    try {
+      const result = JSON.parse(responseText);
+      console.log('Bot started successfully:', result);
+      return { success: true, data: result };
+    } catch (parseError) {
+      // Response is not JSON but request was successful
+      console.log('Bot started successfully (non-JSON response):', responseText);
+      return { success: true, data: { message: responseText } };
+    }
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     console.error('Error starting bot:', error);
