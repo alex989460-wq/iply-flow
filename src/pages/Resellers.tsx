@@ -132,18 +132,17 @@ export default function Resellers() {
       
       if (profileError) throw profileError;
 
-      // If password is provided, update it via admin API
+      // If password is provided, update it via edge function
       if (data.newPassword && data.newPassword.length >= 6) {
-        const { error: passwordError } = await supabase.auth.admin.updateUserById(
-          data.user_id,
-          { password: data.newPassword }
-        );
+        const { data: result, error: fnError } = await supabase.functions.invoke('update-user-password', {
+          body: { 
+            targetUserId: data.user_id, 
+            newPassword: data.newPassword 
+          }
+        });
         
-        // Note: This requires service_role key which we don't have access to from client
-        // So we'll use a different approach - edge function
-        if (passwordError) {
-          console.log('Password update requires admin privileges');
-        }
+        if (fnError) throw fnError;
+        if (!result?.success) throw new Error(result?.error || 'Erro ao atualizar senha');
       }
     },
     onSuccess: () => {
