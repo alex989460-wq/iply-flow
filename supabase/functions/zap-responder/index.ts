@@ -1104,41 +1104,49 @@ async function enviarMensagemTexto(
     
     // Format phone number - ensure it's in correct format
     const formattedNumber = number.replace(/\D/g, '');
-    const chatId = `${formattedNumber}@s.whatsapp.net`;
+    // Try both formats - @c.us (unofficial API) and @s.whatsapp.net (official API)
+    const chatIdCus = `${formattedNumber}@c.us`;
+    const chatIdNet = `${formattedNumber}@s.whatsapp.net`;
     
-    // List of endpoints to try in order
+    // List of endpoints to try in order (with both chatId formats)
     const endpoints = [
-      // 1. Direct message endpoint (most common for chat apps)
+      // 1. Direct message endpoint with @c.us (unofficial WhatsApp)
       {
         url: `${apiBaseUrl}/mensagem/enviar`,
-        body: { chatId, departamento: departmentId, content: { type: 'text', text } },
-        name: 'mensagem/enviar'
+        body: { chatId: chatIdCus, departamento: departmentId, content: { type: 'text', text } },
+        name: 'mensagem/enviar (@c.us)'
       },
-      // 2. Send message with department
+      // 2. Direct message endpoint with @s.whatsapp.net
+      {
+        url: `${apiBaseUrl}/mensagem/enviar`,
+        body: { chatId: chatIdNet, departamento: departmentId, content: { type: 'text', text } },
+        name: 'mensagem/enviar (@s.whatsapp.net)'
+      },
+      // 3. Send message with department @c.us
       {
         url: `${apiBaseUrl}/mensagem`,
-        body: { chatId, departamento: departmentId, tipo: 'text', texto: text },
-        name: 'mensagem'
+        body: { chatId: chatIdCus, departamento: departmentId, tipo: 'text', texto: text },
+        name: 'mensagem (@c.us)'
       },
-      // 3. Department message endpoint
+      // 4. Department message endpoint @c.us
       {
         url: `${apiBaseUrl}/departamento/${departmentId}/mensagem`,
-        body: { chatId, content: text, type: 'text' },
-        name: 'departamento/mensagem'
+        body: { chatId: chatIdCus, content: text, type: 'text' },
+        name: 'departamento/mensagem (@c.us)'
       },
-      // 4. Send text endpoint
+      // 5. Send text endpoint (numero simples)
       {
         url: `${apiBaseUrl}/enviar-texto`,
         body: { numero: formattedNumber, mensagem: text, departamento: departmentId },
         name: 'enviar-texto'
       },
-      // 5. Chat send endpoint
+      // 6. Chat send endpoint @c.us
       {
         url: `${apiBaseUrl}/chat/send`,
-        body: { to: chatId, message: text, departmentId },
-        name: 'chat/send'
+        body: { to: chatIdCus, message: text, departmentId },
+        name: 'chat/send (@c.us)'
       },
-      // 6. WhatsApp Cloud API-style payload (mais compatível)
+      // 7. WhatsApp Cloud API-style payload
       {
         url: `${apiBaseUrl}/whatsapp/message/${departmentId}`,
         body: {
@@ -1150,13 +1158,13 @@ async function enviarMensagemTexto(
         },
         name: 'whatsapp/message (cloud-api)'
       },
-      // 7. WhatsApp message (simple body format)
+      // 8. WhatsApp message (simple body format)
       {
         url: `${apiBaseUrl}/whatsapp/message/${departmentId}`,
         body: { type: 'text', number: formattedNumber, body: text },
         name: 'whatsapp/message (body)'
       },
-      // 8. WhatsApp message (text object format)
+      // 9. WhatsApp message (text object format)
       {
         url: `${apiBaseUrl}/whatsapp/message/${departmentId}`,
         body: { type: 'text', number: formattedNumber, text: { body: text } },

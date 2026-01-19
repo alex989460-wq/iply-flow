@@ -91,14 +91,14 @@ export async function triggerWelcomeBot(
 
     console.log('Triggering welcome bot for:', phoneWithCode, 'Department:', departmentId);
 
-    // 5. Iniciar o bot (sem mensagem inicial). O envio do texto inicial
-    // será feito via ação `enviar-mensagem`, que usa endpoints mais confiáveis.
+    // 5. Iniciar o bot com a mensagemInicial (a API iniciarBot é a única que entrega)
     const { data: botData, error: botError } = await supabase.functions.invoke('zap-responder', {
       body: {
         action: 'iniciar-bot',
         chat_id: phoneWithCode,
         departamento: departmentId,
         aplicacao: 'whatsapp',
+        mensagem_inicial: mensagemInicial || undefined,
         variaveis: variables,
       },
     });
@@ -113,33 +113,8 @@ export async function triggerWelcomeBot(
       return { success: false, error: botData?.error || 'Falha ao iniciar bot' };
     }
 
-    // 6. Enviar a mensagem inicial (se configurada)
-    const initialText = (mensagemInicial || '').trim();
-    if (initialText) {
-      const { data: msgData, error: msgError } = await supabase.functions.invoke('zap-responder', {
-        body: {
-          action: 'enviar-mensagem',
-          department_id: departmentId,
-          number: phoneWithCode,
-          text: initialText,
-        },
-      });
-
-      if (msgError) {
-        console.error('Error sending welcome initial message:', msgError);
-        return { success: false, error: msgError.message };
-      }
-
-      if (!msgData?.success) {
-        console.error('Failed to send welcome initial message:', msgData);
-        return { success: false, error: msgData?.error || 'Falha ao enviar mensagem inicial' };
-      }
-
-      console.log('Welcome initial message sent successfully:', msgData);
-    }
-
     console.log('Welcome bot triggered successfully:', botData);
-    return { success: true, data: { bot: botData, messageSent: Boolean(initialText) } };
+    return { success: true, data: botData };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
     console.error('Error in triggerWelcomeBot:', error);
