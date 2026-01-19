@@ -234,6 +234,7 @@ export type Database = {
       plans: {
         Row: {
           created_at: string
+          created_by: string | null
           duration_days: number
           id: string
           plan_name: string
@@ -241,6 +242,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          created_by?: string | null
           duration_days: number
           id?: string
           plan_name: string
@@ -248,12 +250,21 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          created_by?: string | null
           duration_days?: number
           id?: string
           plan_name?: string
           price?: number
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "plans_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
       }
       profiles: {
         Row: {
@@ -345,6 +356,7 @@ export type Database = {
       servers: {
         Row: {
           created_at: string
+          created_by: string | null
           description: string | null
           host: string
           id: string
@@ -353,6 +365,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          created_by?: string | null
           description?: string | null
           host: string
           id?: string
@@ -361,13 +374,22 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          created_by?: string | null
           description?: string | null
           host?: string
           id?: string
           server_name?: string
           status?: Database["public"]["Enums"]["server_status"]
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "servers_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
       }
       user_roles: {
         Row: {
