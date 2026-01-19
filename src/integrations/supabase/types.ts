@@ -309,6 +309,39 @@ export type Database = {
         }
         Relationships: []
       }
+      reseller_access: {
+        Row: {
+          access_expires_at: string
+          created_at: string
+          email: string
+          full_name: string | null
+          id: string
+          is_active: boolean
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          access_expires_at?: string
+          created_at?: string
+          email: string
+          full_name?: string | null
+          id?: string
+          is_active?: boolean
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          access_expires_at?: string
+          created_at?: string
+          email?: string
+          full_name?: string | null
+          id?: string
+          is_active?: boolean
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       servers: {
         Row: {
           created_at: string
