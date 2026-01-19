@@ -241,19 +241,47 @@ export default function Customers() {
       
       const { due_date, ...restData } = data;
       
-      const { error } = await supabase.from('customers').insert({
+      const { data: insertedCustomer, error } = await supabase.from('customers').insert({
         ...restData,
         start_date: new Date().toISOString().split('T')[0],
         due_date: dueDate,
         created_by: user?.id,
-      });
+      }).select().single();
       if (error) throw error;
+      
+      // Retornar dados do cliente criado para disparo do bot
+      return { customer: insertedCustomer, dueDate };
     },
-    onSuccess: () => {
+    onSuccess: async (result) => {
       queryClient.invalidateQueries({ queryKey: ['customers'] });
       setIsOpen(false);
       resetForm();
       toast({ title: 'Cliente criado com sucesso!' });
+      
+      // Disparar bot de boas-vindas automaticamente
+      if (user && result?.customer) {
+        try {
+          const { triggerWelcomeBot } = await import('@/hooks/useBotTriggers');
+          const botResult = await triggerWelcomeBot(user.id, {
+            id: result.customer.id,
+            name: result.customer.name,
+            phone: result.customer.phone,
+            due_date: result.dueDate,
+            plan_id: result.customer.plan_id,
+          }, plans || []);
+          
+          if (botResult.success) {
+            toast({ 
+              title: 'Bot de boas-vindas iniciado!',
+              description: 'O bot foi disparado automaticamente para o novo cliente.'
+            });
+          } else if (botResult.error && !botResult.error.includes('não está ativo')) {
+            console.log('Welcome bot not triggered:', botResult.error);
+          }
+        } catch (botError) {
+          console.error('Error triggering welcome bot:', botError);
+        }
+      }
     },
     onError: (error: Error) => {
       toast({ title: 'Erro ao criar cliente', description: error.message, variant: 'destructive' });
