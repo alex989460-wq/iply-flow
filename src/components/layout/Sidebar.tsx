@@ -16,25 +16,29 @@ import {
   Send,
   MessagesSquare,
   Settings,
+  UserCheck,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 const menuItems = [
-  { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
-  { icon: Server, label: 'Servidores', path: '/servers' },
-  { icon: Package, label: 'Planos', path: '/plans' },
-  { icon: Users, label: 'Clientes', path: '/customers' },
-  { icon: CreditCard, label: 'Pagamentos', path: '/payments' },
-  { icon: MessageSquare, label: 'Cobranças', path: '/billing' },
-  { icon: Send, label: 'Disparo em Massa', path: '/mass-broadcast' },
-  { icon: MessagesSquare, label: 'Chat', path: '/chat' },
-  { icon: Settings, label: 'Configurações', path: '/settings' },
+  { icon: LayoutDashboard, label: 'Dashboard', path: '/', adminOnly: false },
+  { icon: Server, label: 'Servidores', path: '/servers', adminOnly: false },
+  { icon: Package, label: 'Planos', path: '/plans', adminOnly: false },
+  { icon: Users, label: 'Clientes', path: '/customers', adminOnly: false },
+  { icon: CreditCard, label: 'Pagamentos', path: '/payments', adminOnly: false },
+  { icon: MessageSquare, label: 'Cobranças', path: '/billing', adminOnly: false },
+  { icon: Send, label: 'Disparo em Massa', path: '/mass-broadcast', adminOnly: false },
+  { icon: MessagesSquare, label: 'Chat', path: '/chat', adminOnly: false },
+  { icon: UserCheck, label: 'Revendedores', path: '/resellers', adminOnly: true },
+  { icon: Settings, label: 'Configurações', path: '/settings', adminOnly: false },
 ];
 
 export default function Sidebar() {
-  const { signOut, user } = useAuth();
+  const { signOut, user, isAdmin } = useAuth();
   const location = useLocation();
   const { collapsed, setCollapsed, toggle } = useSidebar();
+  
+  const filteredMenuItems = menuItems.filter(item => !item.adminOnly || isAdmin);
 
   return (
     <>
@@ -76,7 +80,7 @@ export default function Sidebar() {
 
         {/* Navigation */}
         <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
-          {menuItems.map((item) => {
+          {filteredMenuItems.map((item) => {
             const isActive = location.pathname === item.path;
             return (
               <NavLink
