@@ -7,9 +7,11 @@ interface AuthContextType {
   session: Session | null;
   loading: boolean;
   isAdmin: boolean;
-  signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
+  accessDeniedReason: string | null;
+  signIn: (email: string, password: string) => Promise<{ error: Error | null; accessDenied?: boolean; accessDeniedMessage?: string }>;
   signUp: (email: string, password: string, fullName: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
+  checkResellerAccess: (userId: string) => Promise<{ hasAccess: boolean; reason?: string }>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -19,8 +21,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [accessDeniedReason, setAccessDeniedReason] = useState<string | null>(null);
 
-  const checkAdminRole = async (userId: string) => {
+  const checkAdminRole = async (userId: string): Promise<boolean> => {
     const { data } = await supabase
       .from('user_roles')
       .select('role')
@@ -28,7 +31,49 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       .eq('role', 'admin')
       .maybeSingle();
     
-    setIsAdmin(!!data);
+    const isAdminUser = !!data;
+    setIsAdmin(isAdminUser);
+    return isAdminUser;
+  };
+
+  const checkResellerAccess = async (userId: string): Promise<{ hasAccess: boolean; reason?: string }> => {
+    // First check if user is admin - admins always have access
+    const isAdminUser = await checkAdminRole(userId);
+    if (isAdminUser) {
+      return { hasAccess: true };
+    }
+
+    // Check reseller access
+    const { data: resellerAccess } = await supabase
+      .from('reseller_access')
+      .select('*')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (!resellerAccess) {
+      // No reseller access record - deny access
+      return { 
+        hasAccess: false, 
+        reason: 'Acesso não autorizado. Entre em contato com seu master para ativar seu acesso.' 
+      };
+    }
+
+    if (!resellerAccess.is_active) {
+      return { 
+        hasAccess: false, 
+        reason: 'Seu acesso foi desativado. Entre em contato com seu master para reativar.' 
+      };
+    }
+
+    const expiresAt = new Date(resellerAccess.access_expires_at);
+    if (expiresAt < new Date()) {
+      return { 
+        hasAccess: false, 
+        reason: 'Seu acesso expirou. Entre em contato com seu master para renovar seu acesso.' 
+      };
+    }
+
+    return { hasAccess: true };
   };
 
   useEffect(() => {
@@ -39,8 +84,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setLoading(false);
 
         if (session?.user) {
-          setTimeout(() => {
-            checkAdminRole(session.user.id);
+          // Defer the access check to avoid deadlock
+          setTimeout(async () => {
+            const { hasAccess, reason } = await checkResellerAccess(session.user.id);
+            if (!hasAccess) {
+              setAccessDeniedReason(reason || null);
+              // Sign out if access denied
+              await supabase.auth.signOut();
+              setUser(null);
+              setSession(null);
+            } else {
+              setAccessDeniedReason(null);
+            }
           }, 0);
         } else {
           setIsAdmin(false);
@@ -48,13 +103,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     );
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
       setLoading(false);
 
       if (session?.user) {
-        checkAdminRole(session.user.id);
+        const { hasAccess, reason } = await checkResellerAccess(session.user.id);
+        if (!hasAccess) {
+          setAccessDeniedReason(reason || null);
+          await supabase.auth.signOut();
+          setUser(null);
+          setSession(null);
+        }
       }
     });
 
@@ -62,11 +123,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({
+    const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
-    return { error };
+    
+    if (error) {
+      return { error };
+    }
+
+    // Check reseller access after successful login
+    if (data.user) {
+      const { hasAccess, reason } = await checkResellerAccess(data.user.id);
+      if (!hasAccess) {
+        // Sign out immediately if access denied
+        await supabase.auth.signOut();
+        setAccessDeniedReason(reason || null);
+        return { 
+          error: null, 
+          accessDenied: true, 
+          accessDeniedMessage: reason 
+        };
+      }
+    }
+
+    setAccessDeniedReason(null);
+    return { error: null };
   };
 
   const signUp = async (email: string, password: string, fullName: string) => {
@@ -88,10 +170,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signOut = async () => {
     await supabase.auth.signOut();
     setIsAdmin(false);
+    setAccessDeniedReason(null);
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, loading, isAdmin, signIn, signUp, signOut }}>
+    <AuthContext.Provider value={{ 
+      user, 
+      session, 
+      loading, 
+      isAdmin, 
+      accessDeniedReason,
+      signIn, 
+      signUp, 
+      signOut,
+      checkResellerAccess 
+    }}>
       {children}
     </AuthContext.Provider>
   );
