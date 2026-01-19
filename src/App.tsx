@@ -17,6 +17,8 @@ import MassBroadcast from "./pages/MassBroadcast";
 import Chat from "./pages/Chat";
 import Settings from "./pages/Settings";
 import Resellers from "./pages/Resellers";
+import ServiceDashboard from "./pages/ServiceDashboard";
+import BotTriggers from "./pages/BotTriggers";
 import NotFound from "./pages/NotFound";
 import { Loader2 } from "lucide-react";
 
@@ -55,6 +57,8 @@ function AppRoutes() {
     <Routes>
       <Route path="/auth" element={user ? <Navigate to="/" replace /> : <Auth />} />
       <Route path="/" element={<ProtectedRoute><Index /></ProtectedRoute>} />
+      <Route path="/service-dashboard" element={<ProtectedRoute><ServiceDashboard /></ProtectedRoute>} />
+      <Route path="/bot-triggers" element={<ProtectedRoute><BotTriggers /></ProtectedRoute>} />
       <Route path="/servers" element={<ProtectedRoute><Servers /></ProtectedRoute>} />
       <Route path="/plans" element={<ProtectedRoute><Plans /></ProtectedRoute>} />
       <Route path="/customers" element={<ProtectedRoute><Customers /></ProtectedRoute>} />
