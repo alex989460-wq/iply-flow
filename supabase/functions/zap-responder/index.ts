@@ -1138,13 +1138,25 @@ async function enviarMensagemTexto(
         body: { to: chatId, message: text, departmentId },
         name: 'chat/send'
       },
-      // 6. WhatsApp message (simple body format)
+      // 6. WhatsApp Cloud API-style payload (mais compatível)
+      {
+        url: `${apiBaseUrl}/whatsapp/message/${departmentId}`,
+        body: {
+          messaging_product: 'whatsapp',
+          recipient_type: 'individual',
+          to: formattedNumber,
+          type: 'text',
+          text: { body: text },
+        },
+        name: 'whatsapp/message (cloud-api)'
+      },
+      // 7. WhatsApp message (simple body format)
       {
         url: `${apiBaseUrl}/whatsapp/message/${departmentId}`,
         body: { type: 'text', number: formattedNumber, body: text },
         name: 'whatsapp/message (body)'
       },
-      // 7. WhatsApp message (text object format)
+      // 8. WhatsApp message (text object format)
       {
         url: `${apiBaseUrl}/whatsapp/message/${departmentId}`,
         body: { type: 'text', number: formattedNumber, text: { body: text } },

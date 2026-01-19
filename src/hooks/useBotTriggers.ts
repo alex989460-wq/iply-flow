@@ -91,30 +91,55 @@ export async function triggerWelcomeBot(
 
     console.log('Triggering welcome bot for:', phoneWithCode, 'Department:', departmentId);
 
-    // 5. Chamar a edge function para iniciar o bot
-    const { data, error } = await supabase.functions.invoke('zap-responder', {
+    // 5. Iniciar o bot (sem mensagem inicial). O envio do texto inicial
+    // será feito via ação `enviar-mensagem`, que usa endpoints mais confiáveis.
+    const { data: botData, error: botError } = await supabase.functions.invoke('zap-responder', {
       body: {
         action: 'iniciar-bot',
         chat_id: phoneWithCode,
         departamento: departmentId,
         aplicacao: 'whatsapp',
-        mensagem_inicial: mensagemInicial || undefined,
         variaveis: variables,
       },
     });
 
-    if (error) {
-      console.error('Error triggering welcome bot:', error);
-      return { success: false, error: error.message };
+    if (botError) {
+      console.error('Error triggering welcome bot:', botError);
+      return { success: false, error: botError.message };
     }
 
-    if (!data?.success) {
-      console.error('Failed to trigger welcome bot:', data);
-      return { success: false, error: data?.error || 'Falha ao iniciar bot' };
+    if (!botData?.success) {
+      console.error('Failed to trigger welcome bot:', botData);
+      return { success: false, error: botData?.error || 'Falha ao iniciar bot' };
     }
 
-    console.log('Welcome bot triggered successfully:', data);
-    return { success: true, data };
+    // 6. Enviar a mensagem inicial (se configurada)
+    const initialText = (mensagemInicial || '').trim();
+    if (initialText) {
+      const { data: msgData, error: msgError } = await supabase.functions.invoke('zap-responder', {
+        body: {
+          action: 'enviar-mensagem',
+          department_id: departmentId,
+          number: phoneWithCode,
+          text: initialText,
+        },
+      });
+
+      if (msgError) {
+        console.error('Error sending welcome initial message:', msgError);
+        return { success: false, error: msgError.message };
+      }
+
+      if (!msgData?.success) {
+        console.error('Failed to send welcome initial message:', msgData);
+        return { success: false, error: msgData?.error || 'Falha ao enviar mensagem inicial' };
+      }
+
+      console.log('Welcome initial message sent successfully:', msgData);
+    }
+
+    console.log('Welcome bot triggered successfully:', botData);
+    return { success: true, data: { bot: botData, messageSent: Boolean(initialText) } };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
     console.error('Error in triggerWelcomeBot:', error);
