@@ -1396,7 +1396,7 @@ export default function Customers() {
                   Novo Cliente
                 </Button>
               </DialogTrigger>
-              <DialogContent className="bg-card border-border max-w-md">
+              <DialogContent className="bg-card border-border max-w-md max-h-[85vh] overflow-y-auto">
                 <DialogHeader>
                   <DialogTitle>{editingCustomer ? 'Editar Cliente' : 'Novo Cliente'}</DialogTitle>
                   <DialogDescription>
