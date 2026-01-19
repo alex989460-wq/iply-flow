@@ -14,7 +14,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { format, addDays, isPast, differenceInDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Users, RefreshCw, Search, Calendar, Ban, CheckCircle, Clock, Pencil, Eye, EyeOff } from "lucide-react";
+import { Users, RefreshCw, Search, Calendar, Ban, CheckCircle, Clock, Pencil, Eye, EyeOff, UserPlus } from "lucide-react";
 import { Navigate } from "react-router-dom";
 import { z } from "zod";
 
@@ -36,6 +36,13 @@ const editSchema = z.object({
   newPassword: z.string().min(6, "Senha deve ter no mínimo 6 caracteres").optional().or(z.literal("")),
 });
 
+const createSchema = z.object({
+  full_name: z.string().min(2, "Nome deve ter no mínimo 2 caracteres").max(100),
+  email: z.string().email("Email inválido").max(255),
+  password: z.string().min(6, "Senha deve ter no mínimo 6 caracteres"),
+  access_days: z.number().min(1, "Mínimo de 1 dia"),
+});
+
 export default function Resellers() {
   const { isAdmin } = useAuth();
   const { toast } = useToast();
@@ -45,19 +52,23 @@ export default function Resellers() {
   const [renewDays, setRenewDays] = useState("30");
   const [isRenewDialogOpen, setIsRenewDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [showCreatePassword, setShowCreatePassword] = useState(false);
   const [editForm, setEditForm] = useState({
     full_name: "",
     email: "",
     access_expires_at: "",
     newPassword: "",
   });
+  const [createForm, setCreateForm] = useState({
+    full_name: "",
+    email: "",
+    password: "",
+    access_days: "30",
+  });
   const [editErrors, setEditErrors] = useState<Record<string, string>>({});
-
-  // Redirect non-admin users
-  if (!isAdmin) {
-    return <Navigate to="/" replace />;
-  }
+  const [createErrors, setCreateErrors] = useState<Record<string, string>>({});
 
   const { data: resellers, isLoading } = useQuery({
     queryKey: ['reseller-access'],
@@ -70,6 +81,7 @@ export default function Resellers() {
       if (error) throw error;
       return data as ResellerAccess[];
     },
+    enabled: isAdmin,
   });
 
   const renewMutation = useMutation({
@@ -189,6 +201,47 @@ export default function Resellers() {
     },
   });
 
+  const createMutation = useMutation({
+    mutationFn: async (data: { 
+      full_name: string; 
+      email: string; 
+      password: string;
+      access_days: number;
+    }) => {
+      // Create user via edge function
+      const { data: result, error: fnError } = await supabase.functions.invoke('create-reseller', {
+        body: { 
+          email: data.email, 
+          password: data.password,
+          full_name: data.full_name,
+          access_days: data.access_days,
+        }
+      });
+      
+      if (fnError) throw fnError;
+      if (!result?.success) throw new Error(result?.error || 'Erro ao criar revendedor');
+      
+      return result;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['reseller-access'] });
+      toast({
+        title: "Revendedor cadastrado",
+        description: "Novo revendedor criado com sucesso!",
+      });
+      setIsCreateDialogOpen(false);
+      setCreateForm({ full_name: "", email: "", password: "", access_days: "30" });
+      setCreateErrors({});
+    },
+    onError: (error) => {
+      toast({
+        title: "Erro ao cadastrar",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleRenew = (reseller: ResellerAccess) => {
     setSelectedReseller(reseller);
     setRenewDays("30");
@@ -243,6 +296,40 @@ export default function Resellers() {
       email: editForm.email,
       access_expires_at: editForm.access_expires_at,
       newPassword: editForm.newPassword || undefined,
+  });
+
+  const validateCreateForm = () => {
+    try {
+      createSchema.parse({
+        full_name: createForm.full_name,
+        email: createForm.email,
+        password: createForm.password,
+        access_days: parseInt(createForm.access_days),
+      });
+      setCreateErrors({});
+      return true;
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        const newErrors: Record<string, string> = {};
+        error.errors.forEach((err) => {
+          if (err.path[0]) {
+            newErrors[err.path[0].toString()] = err.message;
+          }
+        });
+        setCreateErrors(newErrors);
+      }
+      return false;
+    }
+  };
+
+  const confirmCreate = () => {
+    if (!validateCreateForm()) return;
+    
+    createMutation.mutate({
+      full_name: createForm.full_name,
+      email: createForm.email,
+      password: createForm.password,
+      access_days: parseInt(createForm.access_days),
     });
   };
 
@@ -273,6 +360,11 @@ export default function Resellers() {
   const activeCount = resellers?.filter(r => r.is_active && !isPast(new Date(r.access_expires_at))).length || 0;
   const expiredCount = resellers?.filter(r => !r.is_active || isPast(new Date(r.access_expires_at))).length || 0;
 
+  // Redirect non-admin users
+  if (!isAdmin) {
+    return <Navigate to="/" replace />;
+  }
+
   return (
     <DashboardLayout>
       <div className="space-y-6 animate-fade-in">
@@ -281,6 +373,10 @@ export default function Resellers() {
             <h1 className="text-3xl font-bold tracking-tight">Revendedores</h1>
             <p className="text-muted-foreground">Gerencie o acesso dos revendedores ao sistema</p>
           </div>
+          <Button onClick={() => setIsCreateDialogOpen(true)}>
+            <UserPlus className="h-4 w-4 mr-2" />
+            Cadastrar Revendedor
+          </Button>
         </div>
 
         {/* Stats Cards */}
@@ -567,6 +663,123 @@ export default function Resellers() {
                   <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
                 ) : null}
                 Confirmar Renovação
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Create Dialog */}
+        <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Cadastrar Revendedor</DialogTitle>
+              <DialogDescription>
+                Preencha os dados para criar um novo revendedor
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="create-name">Nome Completo</Label>
+                <Input
+                  id="create-name"
+                  value={createForm.full_name}
+                  onChange={(e) => setCreateForm({ ...createForm, full_name: e.target.value })}
+                  placeholder="Nome do revendedor"
+                />
+                {createErrors.full_name && (
+                  <p className="text-destructive text-sm">{createErrors.full_name}</p>
+                )}
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="create-email">Email</Label>
+                <Input
+                  id="create-email"
+                  type="email"
+                  value={createForm.email}
+                  onChange={(e) => setCreateForm({ ...createForm, email: e.target.value })}
+                  placeholder="email@exemplo.com"
+                />
+                {createErrors.email && (
+                  <p className="text-destructive text-sm">{createErrors.email}</p>
+                )}
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="create-password">Senha</Label>
+                <div className="relative">
+                  <Input
+                    id="create-password"
+                    type={showCreatePassword ? "text" : "password"}
+                    value={createForm.password}
+                    onChange={(e) => setCreateForm({ ...createForm, password: e.target.value })}
+                    placeholder="••••••••"
+                    className="pr-10"
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
+                    onClick={() => setShowCreatePassword(!showCreatePassword)}
+                  >
+                    {showCreatePassword ? (
+                      <EyeOff className="h-4 w-4 text-muted-foreground" />
+                    ) : (
+                      <Eye className="h-4 w-4 text-muted-foreground" />
+                    )}
+                  </Button>
+                </div>
+                {createErrors.password && (
+                  <p className="text-destructive text-sm">{createErrors.password}</p>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  Mínimo de 6 caracteres
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Período de acesso</Label>
+                <Select value={createForm.access_days} onValueChange={(v) => setCreateForm({ ...createForm, access_days: v })}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="7">7 dias</SelectItem>
+                    <SelectItem value="15">15 dias</SelectItem>
+                    <SelectItem value="30">30 dias</SelectItem>
+                    <SelectItem value="60">60 dias</SelectItem>
+                    <SelectItem value="90">90 dias</SelectItem>
+                    <SelectItem value="180">180 dias</SelectItem>
+                    <SelectItem value="365">365 dias (1 ano)</SelectItem>
+                  </SelectContent>
+                </Select>
+                <div className="mt-2">
+                  <Label>Ou digite um valor customizado (dias)</Label>
+                  <Input
+                    type="number"
+                    min="1"
+                    value={createForm.access_days}
+                    onChange={(e) => setCreateForm({ ...createForm, access_days: e.target.value })}
+                    placeholder="Digite o número de dias"
+                  />
+                </div>
+                {createErrors.access_days && (
+                  <p className="text-destructive text-sm">{createErrors.access_days}</p>
+                )}
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
+                Cancelar
+              </Button>
+              <Button onClick={confirmCreate} disabled={createMutation.isPending}>
+                {createMutation.isPending ? (
+                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <UserPlus className="h-4 w-4 mr-2" />
+                )}
+                Cadastrar
               </Button>
             </DialogFooter>
           </DialogContent>
