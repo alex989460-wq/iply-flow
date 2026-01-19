@@ -60,7 +60,7 @@ export default function Sidebar() {
         {/* Logo */}
         <div className="h-16 flex items-center justify-between px-4 border-b border-sidebar-border">
           <div className={cn("flex items-center gap-3 overflow-hidden", collapsed && "lg:justify-center")}>
-            <img src={logoSg} alt="Super Gestor" className="w-10 h-10 object-contain flex-shrink-0" />
+            <img src={logoSg} alt="Super Gestor" className="w-14 h-14 object-contain flex-shrink-0" />
             {!collapsed && (
               <div className="flex flex-col animate-fade-in">
                 <span className="font-bold text-foreground">Super Gestor</span>
@@ -137,7 +137,7 @@ export default function Sidebar() {
           <Menu className="w-5 h-5" />
         </Button>
         <div className="flex items-center gap-2 ml-3">
-          <img src={logoSg} alt="Super Gestor" className="w-8 h-8 object-contain" />
+          <img src={logoSg} alt="Super Gestor" className="w-12 h-12 object-contain" />
           <span className="font-bold text-foreground">Super Gestor</span>
         </div>
       </div>
