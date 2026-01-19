@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
-import { Mail, Lock, User, Loader2, AlertCircle, Eye, EyeOff } from 'lucide-react';
+import { Mail, Lock, User, Loader2, AlertCircle, Eye, EyeOff, Shield } from 'lucide-react';
 import { z } from 'zod';
 import logoSg from '@/assets/logo-sg.png';
 
@@ -143,6 +143,12 @@ export default function Auth() {
       <div className="w-full max-w-md px-4 z-10">
         {/* Logo and Title */}
         <div className="text-center mb-8 animate-fade-in">
+          <div className="mx-auto w-20 h-20 mb-6 relative">
+            <div className="absolute inset-0 bg-gradient-to-br from-amber-400 to-amber-600 rounded-2xl blur-lg opacity-50" />
+            <div className="relative w-full h-full bg-gradient-to-br from-amber-400 to-amber-600 rounded-2xl flex items-center justify-center shadow-lg shadow-amber-500/25">
+              <Shield className="w-10 h-10 text-background" />
+            </div>
+          </div>
           <h1 className="text-3xl font-bold text-foreground mb-2">
             {isLogin ? 'Bem-vindo de volta' : 'Criar sua conta'}
           </h1>
