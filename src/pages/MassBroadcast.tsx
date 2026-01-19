@@ -281,14 +281,49 @@ export default function MassBroadcast() {
     });
   }, [customers, statusFilter, searchTerm]);
 
+  // Get customers for servers with status filter applied
+  const getCustomersForServers = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const firstDayCurrentMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+
+    return customers.filter(customer => {
+      // Must belong to a selected server
+      if (!customer.server_id || !selectedServers.has(customer.server_id)) {
+        return false;
+      }
+
+      // Apply status filter
+      if (statusFilter === 'ativa') return customer.status === 'ativa';
+      if (statusFilter === 'inativa') return customer.status === 'inativa';
+      if (statusFilter === 'vencidos') {
+        const dueDate = new Date(customer.due_date);
+        dueDate.setHours(0, 0, 0, 0);
+        return dueDate < today;
+      }
+      if (statusFilter === 'vencidos_mes_anterior') {
+        const dueDate = new Date(customer.due_date);
+        dueDate.setHours(0, 0, 0, 0);
+        return dueDate < firstDayCurrentMonth;
+      }
+      if (statusFilter === 'ativos') {
+        const dueDate = new Date(customer.due_date);
+        dueDate.setHours(0, 0, 0, 0);
+        return dueDate >= today;
+      }
+      
+      return true;
+    });
+  }, [customers, selectedServers, statusFilter]);
+
   // Get customers based on selection mode
   const getSelectedCustomersList = useMemo(() => {
     if (selectionMode === 'customers') {
       return filteredCustomers.filter(c => selectedCustomers.has(c.id));
     } else {
-      return filteredCustomers.filter(c => c.server_id && selectedServers.has(c.server_id));
+      return getCustomersForServers;
     }
-  }, [selectionMode, filteredCustomers, selectedCustomers, selectedServers]);
+  }, [selectionMode, filteredCustomers, selectedCustomers, getCustomersForServers]);
 
   // Get selected template info
   const selectedTemplateInfo = useMemo(() => {
@@ -899,7 +934,40 @@ export default function MassBroadcast() {
                       </p>
                     ) : (
                       servers.map(server => {
-                        const customerCount = customers.filter(c => c.server_id === server.id).length;
+                        const serverCustomers = customers.filter(c => c.server_id === server.id);
+                        const today = new Date();
+                        today.setHours(0, 0, 0, 0);
+                        const firstDayCurrentMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+                        
+                        // Count based on current filter
+                        const filteredCount = serverCustomers.filter(customer => {
+                          if (statusFilter === 'ativa') return customer.status === 'ativa';
+                          if (statusFilter === 'inativa') return customer.status === 'inativa';
+                          if (statusFilter === 'vencidos') {
+                            const dueDate = new Date(customer.due_date);
+                            dueDate.setHours(0, 0, 0, 0);
+                            return dueDate < today;
+                          }
+                          if (statusFilter === 'vencidos_mes_anterior') {
+                            const dueDate = new Date(customer.due_date);
+                            dueDate.setHours(0, 0, 0, 0);
+                            return dueDate < firstDayCurrentMonth;
+                          }
+                          if (statusFilter === 'ativos') {
+                            const dueDate = new Date(customer.due_date);
+                            dueDate.setHours(0, 0, 0, 0);
+                            return dueDate >= today;
+                          }
+                          return true;
+                        }).length;
+
+                        const filterLabel = statusFilter === 'all' ? '' : 
+                          statusFilter === 'ativa' ? ' ativos' :
+                          statusFilter === 'inativa' ? ' inativos' :
+                          statusFilter === 'vencidos' ? ' vencidos' :
+                          statusFilter === 'vencidos_mes_anterior' ? ' vencidos mês ant.' :
+                          statusFilter === 'ativos' ? ' em dia' : '';
+
                         return (
                           <div
                             key={server.id}
@@ -919,7 +987,7 @@ export default function MassBroadcast() {
                             <div className="flex-1">
                               <p className="font-medium">{server.server_name}</p>
                               <p className="text-sm text-muted-foreground">
-                                {customerCount} cliente{customerCount !== 1 ? 's' : ''}
+                                {filteredCount} cliente{filteredCount !== 1 ? 's' : ''}{filterLabel}
                               </p>
                             </div>
                           </div>
