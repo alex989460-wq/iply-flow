@@ -91,6 +91,45 @@ export type Database = {
         }
         Relationships: []
       }
+      bot_triggers: {
+        Row: {
+          bot_department_id: string | null
+          bot_department_name: string | null
+          created_at: string
+          days_offset: number | null
+          id: string
+          is_enabled: boolean
+          message_template: string | null
+          trigger_type: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          bot_department_id?: string | null
+          bot_department_name?: string | null
+          created_at?: string
+          days_offset?: number | null
+          id?: string
+          is_enabled?: boolean
+          message_template?: string | null
+          trigger_type: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          bot_department_id?: string | null
+          bot_department_name?: string | null
+          created_at?: string
+          days_offset?: number | null
+          id?: string
+          is_enabled?: boolean
+          message_template?: string | null
+          trigger_type?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       broadcast_logs: {
         Row: {
           created_at: string
