@@ -168,9 +168,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signOut = async () => {
-    await supabase.auth.signOut();
-    setIsAdmin(false);
-    setAccessDeniedReason(null);
+    try {
+      // Clear state first to ensure immediate UI update
+      setUser(null);
+      setSession(null);
+      setIsAdmin(false);
+      setAccessDeniedReason(null);
+      
+      // Then sign out from Supabase
+      const { error } = await supabase.auth.signOut();
+      
+      if (error) {
+        console.error('Erro ao fazer logout:', error);
+      }
+      
+      // Force navigation to auth page
+      window.location.href = '/auth';
+    } catch (error) {
+      console.error('Erro ao fazer logout:', error);
+      // Force navigation even on error
+      window.location.href = '/auth';
+    }
   };
 
   return (
