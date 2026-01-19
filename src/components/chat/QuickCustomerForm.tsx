@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { triggerWelcomeBot } from '@/hooks/useBotTriggers';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -82,6 +83,27 @@ export default function QuickCustomerForm({ onSuccess, onCancel, initialPhone = 
 
       const { error } = await supabase.from('customers').insert(insertData);
       if (error) throw error;
+
+      // Disparar boas-vindas (não falhar o cadastro se o bot não disparar)
+      if (user?.id) {
+        const botResult = await triggerWelcomeBot(
+          user.id,
+          {
+            id: 'new',
+            name: insertData.name,
+            phone: insertData.phone,
+            due_date: dueDate,
+            plan_id: insertData.plan_id,
+          },
+          plans
+        );
+
+        if (botResult.success) {
+          toast.success('Bot de boas-vindas iniciado!');
+        } else if (botResult.error && !botResult.error.includes('não está ativo')) {
+          toast.error('Boas-vindas não enviada: ' + botResult.error);
+        }
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['customers'] });
