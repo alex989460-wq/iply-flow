@@ -10,7 +10,6 @@ import {
   CreditCard,
   MessageSquare,
   LogOut,
-  Tv,
   ChevronLeft,
   Menu,
   Send,
@@ -20,6 +19,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/ThemeToggle';
+import logoSg from '@/assets/logo-sg.png';
 
 const menuItems = [
   { icon: LayoutDashboard, label: 'Dashboard', path: '/', adminOnly: false },
@@ -60,12 +60,10 @@ export default function Sidebar() {
         {/* Logo */}
         <div className="h-16 flex items-center justify-between px-4 border-b border-sidebar-border">
           <div className={cn("flex items-center gap-3 overflow-hidden", collapsed && "lg:justify-center")}>
-            <div className="w-10 h-10 bg-gradient-to-br from-primary/20 to-primary/5 rounded-xl flex items-center justify-center flex-shrink-0 shadow-lg">
-              <Tv className="w-5 h-5 text-primary" />
-            </div>
+            <img src={logoSg} alt="Super Gestor" className="w-10 h-10 object-contain flex-shrink-0" />
             {!collapsed && (
               <div className="flex flex-col animate-fade-in">
-                <span className="font-bold text-foreground">IPTV CRM</span>
+                <span className="font-bold text-foreground">Super Gestor</span>
                 <span className="text-xs text-muted-foreground">Painel Admin</span>
               </div>
             )}
@@ -139,10 +137,8 @@ export default function Sidebar() {
           <Menu className="w-5 h-5" />
         </Button>
         <div className="flex items-center gap-2 ml-3">
-          <div className="w-8 h-8 bg-gradient-to-br from-primary/20 to-primary/5 rounded-lg flex items-center justify-center">
-            <Tv className="w-4 h-4 text-primary" />
-          </div>
-          <span className="font-bold text-foreground">IPTV CRM</span>
+          <img src={logoSg} alt="Super Gestor" className="w-8 h-8 object-contain" />
+          <span className="font-bold text-foreground">Super Gestor</span>
         </div>
       </div>
     </>
