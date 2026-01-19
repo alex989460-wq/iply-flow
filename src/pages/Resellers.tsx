@@ -296,7 +296,8 @@ export default function Resellers() {
       email: editForm.email,
       access_expires_at: editForm.access_expires_at,
       newPassword: editForm.newPassword || undefined,
-  });
+    });
+  };
 
   const validateCreateForm = () => {
     try {
