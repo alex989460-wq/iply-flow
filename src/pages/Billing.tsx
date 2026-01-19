@@ -56,6 +56,7 @@ import { cn } from '@/lib/utils';
 import type { Database } from '@/integrations/supabase/types';
 import { SendProgressModal } from '@/components/billing/SendProgressModal';
 import { BillingReportsTab } from '@/components/billing/BillingReportsTab';
+import { BillingScheduleCard } from '@/components/billing/BillingScheduleCard';
 
 type BillingType = Database['public']['Enums']['billing_type'];
 
@@ -839,6 +840,8 @@ export default function Billing() {
 
           {/* Tab: Configuração */}
           <TabsContent value="config" className="space-y-4">
+            {/* Billing Schedule Card */}
+            <BillingScheduleCard />
             {/* Zap Responder Configuration */}
             <Card className="glass-card border-border/50">
               <CardHeader>
