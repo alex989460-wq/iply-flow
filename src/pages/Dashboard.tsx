@@ -100,54 +100,38 @@ export default function Dashboard() {
 
         {/* Reseller Access Expiration Card - Only for non-admin users */}
         {!isAdmin && resellerAccess && (
-          <Card className={`border-2 ${
+          <div className={`flex items-center gap-3 p-3 rounded-lg border ${
             getExpirationVariant() === 'destructive' 
-              ? 'border-destructive bg-destructive/10' 
+              ? 'border-destructive/50 bg-destructive/10' 
               : getExpirationVariant() === 'warning'
-              ? 'border-yellow-500 bg-yellow-500/10'
-              : 'border-primary/50 bg-primary/5'
+              ? 'border-yellow-500/50 bg-yellow-500/10'
+              : 'border-primary/30 bg-primary/5'
           }`}>
-            <CardContent className="p-4 sm:p-6">
-              <div className="flex items-center gap-4">
-                <div className={`p-3 rounded-xl ${
-                  getExpirationVariant() === 'destructive' 
-                    ? 'bg-destructive/20' 
-                    : getExpirationVariant() === 'warning'
-                    ? 'bg-yellow-500/20'
-                    : 'bg-primary/20'
-                }`}>
-                  <CalendarDays className={`w-6 h-6 ${
-                    getExpirationVariant() === 'destructive' 
-                      ? 'text-destructive' 
-                      : getExpirationVariant() === 'warning'
-                      ? 'text-yellow-500'
-                      : 'text-primary'
-                  }`} />
-                </div>
-                <div className="flex-1">
-                  <h3 className="text-lg font-semibold text-foreground">
-                    Sua Assinatura
-                  </h3>
-                  <p className="text-muted-foreground text-sm">
-                    {getDaysUntilExpiration() !== null && getDaysUntilExpiration()! <= 0 ? (
-                      <span className="text-destructive font-medium">
-                        Sua assinatura expirou! Entre em contato com seu master.
-                      </span>
-                    ) : getDaysUntilExpiration() !== null && getDaysUntilExpiration()! <= 7 ? (
-                      <span className="text-yellow-500 font-medium">
-                        Expira em {getDaysUntilExpiration()} dia(s) - {formatExpirationDate()}
-                      </span>
-                    ) : (
-                      <span>
-                        Válida até <span className="font-medium text-primary">{formatExpirationDate()}</span>
-                        {' '}({getDaysUntilExpiration()} dias restantes)
-                      </span>
-                    )}
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+            <CalendarDays className={`w-5 h-5 ${
+              getExpirationVariant() === 'destructive' 
+                ? 'text-destructive' 
+                : getExpirationVariant() === 'warning'
+                ? 'text-yellow-500'
+                : 'text-primary'
+            }`} />
+            <div className="flex items-center gap-2 text-sm">
+              <span className="font-medium text-foreground">Sua Assinatura:</span>
+              {getDaysUntilExpiration() !== null && getDaysUntilExpiration()! <= 0 ? (
+                <span className="text-destructive font-medium">
+                  Expirada! Entre em contato com seu master.
+                </span>
+              ) : getDaysUntilExpiration() !== null && getDaysUntilExpiration()! <= 7 ? (
+                <span className="text-yellow-500">
+                  Expira em {getDaysUntilExpiration()} dia(s) - {formatExpirationDate()}
+                </span>
+              ) : (
+                <span className="text-muted-foreground">
+                  Válida até <span className="text-primary">{formatExpirationDate()}</span>
+                  {' '}({getDaysUntilExpiration()} dias)
+                </span>
+              )}
+            </div>
+          </div>
         )}
 
         {/* Stats Grid */}
