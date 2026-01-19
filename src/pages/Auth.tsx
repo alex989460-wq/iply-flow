@@ -1,12 +1,13 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
-import { Tv, Mail, Lock, User, Loader2 } from 'lucide-react';
+import { Tv, Mail, Lock, User, Loader2, AlertCircle } from 'lucide-react';
 import { z } from 'zod';
 
 const loginSchema = z.object({
@@ -25,10 +26,18 @@ export default function Auth() {
   const [fullName, setFullName] = useState('');
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [accessDeniedMessage, setAccessDeniedMessage] = useState<string | null>(null);
   
-  const { signIn, signUp } = useAuth();
+  const { signIn, signUp, accessDeniedReason } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
+
+  // Show access denied reason from context if exists
+  useEffect(() => {
+    if (accessDeniedReason) {
+      setAccessDeniedMessage(accessDeniedReason);
+    }
+  }, [accessDeniedReason]);
 
   const validateForm = () => {
     try {
@@ -55,6 +64,7 @@ export default function Auth() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setAccessDeniedMessage(null);
     
     if (!validateForm()) return;
     
@@ -62,13 +72,19 @@ export default function Auth() {
 
     try {
       if (isLogin) {
-        const { error } = await signIn(email, password);
-        if (error) {
+        const result = await signIn(email, password);
+        
+        if (result.accessDenied) {
+          setAccessDeniedMessage(result.accessDeniedMessage || 'Acesso negado');
+          return;
+        }
+        
+        if (result.error) {
           toast({
             title: 'Erro ao entrar',
-            description: error.message === 'Invalid login credentials' 
+            description: result.error.message === 'Invalid login credentials' 
               ? 'Email ou senha incorretos'
-              : error.message,
+              : result.error.message,
             variant: 'destructive',
           });
         } else {
@@ -126,6 +142,15 @@ export default function Auth() {
         </CardHeader>
         
         <CardContent>
+          {accessDeniedMessage && (
+            <Alert variant="destructive" className="mb-4">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                {accessDeniedMessage}
+              </AlertDescription>
+            </Alert>
+          )}
+
           <form onSubmit={handleSubmit} className="space-y-4">
             {!isLogin && (
               <div className="space-y-2">
@@ -206,6 +231,7 @@ export default function Auth() {
               onClick={() => {
                 setIsLogin(!isLogin);
                 setErrors({});
+                setAccessDeniedMessage(null);
               }}
               className="text-sm text-muted-foreground hover:text-primary transition-colors"
             >
