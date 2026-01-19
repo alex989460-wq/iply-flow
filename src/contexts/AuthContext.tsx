@@ -154,7 +154,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signUp = async (email: string, password: string, fullName: string) => {
     const redirectUrl = `${window.location.origin}/`;
     
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
@@ -164,6 +164,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         },
       },
     });
+
+    // If signup successful, create reseller_access with 7-day trial
+    if (!error && data.user) {
+      const trialEndDate = new Date();
+      trialEndDate.setDate(trialEndDate.getDate() + 7);
+
+      await supabase.from('reseller_access').insert({
+        user_id: data.user.id,
+        email: email,
+        full_name: fullName,
+        access_expires_at: trialEndDate.toISOString(),
+        is_active: true,
+      });
+
+      // Also create profile entry
+      await supabase.from('profiles').insert({
+        user_id: data.user.id,
+        full_name: fullName,
+      });
+    }
+
     return { error };
   };
 
