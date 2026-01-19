@@ -49,21 +49,22 @@ export async function triggerWelcomeBot(
       return { success: false, error: 'Gatilho de boas-vindas não está ativo' };
     }
 
-    if (!trigger.bot_department_id) {
-      console.log('No department configured for welcome trigger');
-      return { success: false, error: 'Nenhum departamento configurado para o gatilho' };
-    }
-
-    // 2. Buscar configurações do Zap Responder
+    // 2. Buscar configurações (apenas campos necessários)
     const { data: zapSettings, error: zapError } = await supabase
       .from('zap_responder_settings')
-      .select('*')
+      .select('selected_department_id')
       .eq('user_id', userId)
       .maybeSingle();
 
-    if (zapError || !zapSettings?.zap_api_token) {
-      console.error('Zap Responder not configured');
-      return { success: false, error: 'Zap Responder não configurado' };
+    if (zapError) {
+      console.error('Error fetching Zap Responder settings:', zapError);
+      return { success: false, error: zapError.message };
+    }
+
+    const departmentId = trigger.bot_department_id || zapSettings?.selected_department_id;
+    if (!departmentId) {
+      console.log('No department configured for welcome trigger');
+      return { success: false, error: 'Nenhum departamento configurado para o gatilho' };
     }
 
     // 3. Preparar variáveis para a mensagem
@@ -88,14 +89,14 @@ export async function triggerWelcomeBot(
         .replace(/{plano}/g, variables.plano as string);
     }
 
-    console.log('Triggering welcome bot for:', phoneWithCode, 'Department:', trigger.bot_department_id);
+    console.log('Triggering welcome bot for:', phoneWithCode, 'Department:', departmentId);
 
     // 5. Chamar a edge function para iniciar o bot
     const { data, error } = await supabase.functions.invoke('zap-responder', {
       body: {
         action: 'iniciar-bot',
         chat_id: phoneWithCode,
-        departamento: trigger.bot_department_id,
+        departamento: departmentId,
         aplicacao: 'whatsapp',
         mensagem_inicial: mensagemInicial || undefined,
         variaveis: variables,

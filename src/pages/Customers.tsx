@@ -35,6 +35,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { useToast } from '@/hooks/use-toast';
+import { triggerWelcomeBot } from '@/hooks/useBotTriggers';
 import { 
   Plus, Pencil, Trash2, Loader2, Users, RefreshCw, Search, CalendarIcon,
   Upload, Phone, FileText, Download, MessageSquare, AlertTriangle, Send, Copy, Check
@@ -241,16 +242,23 @@ export default function Customers() {
       
       const { due_date, ...restData } = data;
       
-      const { data: insertedCustomer, error } = await supabase.from('customers').insert({
+      const { error } = await supabase.from('customers').insert({
         ...restData,
         start_date: new Date().toISOString().split('T')[0],
         due_date: dueDate,
         created_by: user?.id,
-      }).select().single();
+      });
       if (error) throw error;
       
-      // Retornar dados do cliente criado para disparo do bot
-      return { customer: insertedCustomer, dueDate };
+      // Retornar dados mínimos para disparo do bot (sem depender de SELECT)
+      return {
+        customer: {
+          name: restData.name,
+          phone: restData.phone,
+          plan_id: restData.plan_id,
+        },
+        dueDate,
+      };
     },
     onSuccess: async (result) => {
       queryClient.invalidateQueries({ queryKey: ['customers'] });
@@ -260,26 +268,29 @@ export default function Customers() {
       
       // Disparar bot de boas-vindas automaticamente
       if (user && result?.customer) {
-        try {
-          const { triggerWelcomeBot } = await import('@/hooks/useBotTriggers');
-          const botResult = await triggerWelcomeBot(user.id, {
-            id: result.customer.id,
+        const botResult = await triggerWelcomeBot(
+          user.id,
+          {
+            id: 'new',
             name: result.customer.name,
             phone: result.customer.phone,
             due_date: result.dueDate,
             plan_id: result.customer.plan_id,
-          }, plans || []);
-          
-          if (botResult.success) {
-            toast({ 
-              title: 'Bot de boas-vindas iniciado!',
-              description: 'O bot foi disparado automaticamente para o novo cliente.'
-            });
-          } else if (botResult.error && !botResult.error.includes('não está ativo')) {
-            console.log('Welcome bot not triggered:', botResult.error);
-          }
-        } catch (botError) {
-          console.error('Error triggering welcome bot:', botError);
+          },
+          plans || []
+        );
+
+        if (botResult.success) {
+          toast({
+            title: 'Bot de boas-vindas iniciado!',
+            description: 'O bot foi disparado automaticamente para o novo cliente.',
+          });
+        } else if (botResult.error && !botResult.error.includes('não está ativo')) {
+          toast({
+            title: 'Boas-vindas não enviada',
+            description: botResult.error,
+            variant: 'destructive',
+          });
         }
       }
     },
