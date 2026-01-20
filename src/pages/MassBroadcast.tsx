@@ -25,7 +25,8 @@ import {
   Loader2,
   MessageSquare,
   RefreshCw,
-  FileText
+  FileText,
+  Phone
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { BroadcastProgressModal, BroadcastResult } from '@/components/broadcast/BroadcastProgressModal';
@@ -110,8 +111,19 @@ export default function MassBroadcast() {
   const [isLoadingTemplates, setIsLoadingTemplates] = useState(false);
   const [templatesLoaded, setTemplatesLoaded] = useState(false);
 
+  // Sessions from API
+  interface Session {
+    id: string;
+    name: string;
+    phone: string;
+    status: string;
+  }
+  const [sessions, setSessions] = useState<Session[]>([]);
+  const [isLoadingSessions, setIsLoadingSessions] = useState(false);
+  const [showSessionSelector, setShowSessionSelector] = useState(false);
+
   // Fetch zap settings for department
-  const { data: zapSettings } = useQuery({
+  const { data: zapSettings, refetch: refetchZapSettings } = useQuery({
     queryKey: ['zap-responder-settings'],
     queryFn: async () => {
       const { data: { user } } = await supabase.auth.getUser();
@@ -125,6 +137,63 @@ export default function MassBroadcast() {
       if (error) throw error;
       return data;
     },
+  });
+
+  // Fetch sessions from API
+  const fetchSessions = async () => {
+    setIsLoadingSessions(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('zap-responder', {
+        body: { action: 'sessions' },
+      });
+
+      if (error) throw error;
+
+      if (data?.success && data?.data) {
+        setSessions(data.data);
+        setShowSessionSelector(true);
+      } else {
+        toast({ 
+          title: 'Erro ao carregar atendentes', 
+          description: data?.error || 'Resposta inválida da API',
+          variant: 'destructive' 
+        });
+      }
+    } catch (error: any) {
+      toast({
+        title: 'Erro ao carregar atendentes',
+        description: error.message || 'Não foi possível conectar à API',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoadingSessions(false);
+    }
+  };
+
+  // Select session mutation
+  const selectSessionMutation = useMutation({
+    mutationFn: async (session: Session) => {
+      const { data, error } = await supabase.functions.invoke('zap-responder', {
+        body: { 
+          action: 'selecionar-sessao',
+          session_id: session.id,
+          session_name: session.name,
+          session_phone: session.phone
+        },
+      });
+
+      if (error) throw error;
+      if (!data?.success) throw new Error(data?.error || 'Erro ao selecionar sessão');
+      return session;
+    },
+    onSuccess: (session) => {
+      toast({ title: 'Atendente selecionado!', description: `${session.name} - ${session.phone}` });
+      setShowSessionSelector(false);
+      refetchZapSettings();
+    },
+    onError: (error: Error) => {
+      toast({ title: 'Erro ao selecionar atendente', description: error.message, variant: 'destructive' });
+    }
   });
 
   // Fetch all customers with pagination to overcome 1000 row limit
@@ -754,18 +823,88 @@ export default function MassBroadcast() {
               Envie mensagens para múltiplos clientes usando templates aprovados
             </p>
           </div>
-          {/* Sender Phone Info */}
-          {zapSettings?.selected_session_phone && (
-            <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary/10 border border-primary/20">
-              <Send className="w-4 h-4 text-primary" />
-              <span className="text-sm text-muted-foreground">Enviando de:</span>
-              <span className="font-medium text-foreground">{zapSettings.selected_session_phone}</span>
-              {zapSettings.selected_session_name && (
-                <Badge variant="outline" className="ml-1">{zapSettings.selected_session_name}</Badge>
-              )}
-            </div>
-          )}
         </div>
+
+        {/* Session Selector Card */}
+        <Card className="border-primary/30">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Phone className="w-5 h-5" />
+              Telefone de Envio
+            </CardTitle>
+            <CardDescription>
+              Selecione qual atendente/sessão será usado para enviar as mensagens
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {/* Current Session Display */}
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+              {zapSettings?.selected_session_phone ? (
+                <div className="flex items-center gap-3 px-4 py-3 rounded-lg bg-success/10 border border-success/30 flex-1">
+                  <CheckCircle className="w-5 h-5 text-success flex-shrink-0" />
+                  <div className="flex-1">
+                    <p className="font-medium text-foreground">{zapSettings.selected_session_phone}</p>
+                    {zapSettings.selected_session_name && (
+                      <p className="text-sm text-muted-foreground">{zapSettings.selected_session_name}</p>
+                    )}
+                  </div>
+                  <Badge className="bg-success/20 text-success border-success/30">Selecionado</Badge>
+                </div>
+              ) : (
+                <div className="flex items-center gap-3 px-4 py-3 rounded-lg bg-warning/10 border border-warning/30 flex-1">
+                  <AlertTriangle className="w-5 h-5 text-warning flex-shrink-0" />
+                  <p className="text-warning-foreground">Nenhum telefone selecionado para envio</p>
+                </div>
+              )}
+              <Button 
+                onClick={fetchSessions}
+                disabled={isLoadingSessions}
+                variant="outline"
+                className="shrink-0"
+              >
+                {isLoadingSessions ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <RefreshCw className="w-4 h-4 mr-2" />
+                )}
+                {zapSettings?.selected_session_phone ? 'Alterar' : 'Selecionar'}
+              </Button>
+            </div>
+
+            {/* Session Selection Grid */}
+            {showSessionSelector && sessions.length > 0 && (
+              <div className="space-y-3 pt-2 border-t">
+                <p className="text-sm font-medium text-muted-foreground">Selecione um atendente:</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                  {sessions.map((session) => (
+                    <button
+                      key={session.id}
+                      onClick={() => selectSessionMutation.mutate(session)}
+                      disabled={selectSessionMutation.isPending}
+                      className={cn(
+                        'p-3 rounded-lg border text-left transition-all hover:border-primary',
+                        zapSettings?.selected_session_id === session.id
+                          ? 'border-primary bg-primary/10'
+                          : 'border-border bg-secondary/50'
+                      )}
+                    >
+                      <p className="font-medium text-foreground">{session.name}</p>
+                      <p className="text-sm text-muted-foreground">{session.phone}</p>
+                      <span className={cn(
+                        'text-xs px-2 py-0.5 rounded-full mt-1 inline-block',
+                        session.status === 'connected' || session.status === 'active'
+                          ? 'bg-success/10 text-success' 
+                          : 'bg-muted text-muted-foreground'
+                      )}>
+                        {session.status}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
         {/* Anti-blocking warning */}
         <Card className="border-warning/50 bg-warning/5">
