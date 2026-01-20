@@ -56,7 +56,7 @@ interface WhatsAppTemplate {
   category?: string;
 }
 
-type StatusFilter = 'all' | 'ativa' | 'inativa' | 'vencidos' | 'vencidos_mes_anterior' | 'ativos';
+type StatusFilter = 'all' | 'ativa' | 'inativa' | 'suspensa' | 'vencidos' | 'vencidos_mes_anterior' | 'ativos';
 type SelectionMode = 'customers' | 'servers';
 
 interface BroadcastReportData {
@@ -364,6 +364,7 @@ export default function MassBroadcast() {
       // Apply status filter
       if (statusFilter === 'ativa') return customer.status === 'ativa';
       if (statusFilter === 'inativa') return customer.status === 'inativa';
+      if (statusFilter === 'suspensa') return customer.status === 'suspensa';
       if (statusFilter === 'vencidos') {
         const dueDate = new Date(customer.due_date);
         dueDate.setHours(0, 0, 0, 0);
@@ -999,6 +1000,13 @@ export default function MassBroadcast() {
                     onClick={() => setStatusFilter('ativos')}
                   >
                     Em dia
+                  </Button>
+                  <Button
+                    variant={statusFilter === 'suspensa' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setStatusFilter('suspensa')}
+                  >
+                    Suspensos
                   </Button>
                 </div>
               </CardContent>
