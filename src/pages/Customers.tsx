@@ -2013,7 +2013,7 @@ export default function Customers() {
                       <TableCell className="font-mono text-sm">{customer.phone}</TableCell>
                       <TableCell>{customer.servers?.server_name || '-'}</TableCell>
                       <TableCell>{customer.plans?.plan_name || '-'}</TableCell>
-                      <TableCell className="text-center">1</TableCell>
+                      <TableCell className="text-center">{customer.screens || 1}</TableCell>
                       <TableCell className="font-medium text-primary">
                         R${Number(customer.custom_price || customer.plans?.price || 0).toFixed(2)}
                       </TableCell>
