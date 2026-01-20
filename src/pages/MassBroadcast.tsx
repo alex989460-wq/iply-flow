@@ -754,6 +754,17 @@ export default function MassBroadcast() {
               Envie mensagens para múltiplos clientes usando templates aprovados
             </p>
           </div>
+          {/* Sender Phone Info */}
+          {zapSettings?.selected_session_phone && (
+            <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary/10 border border-primary/20">
+              <Send className="w-4 h-4 text-primary" />
+              <span className="text-sm text-muted-foreground">Enviando de:</span>
+              <span className="font-medium text-foreground">{zapSettings.selected_session_phone}</span>
+              {zapSettings.selected_session_name && (
+                <Badge variant="outline" className="ml-1">{zapSettings.selected_session_name}</Badge>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Anti-blocking warning */}
