@@ -16,8 +16,6 @@ import {
   MessagesSquare,
   Settings,
   UserCheck,
-  Headphones,
-  Bot,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/ThemeToggle';
@@ -25,7 +23,6 @@ import logoSg from '@/assets/logo-sg.png';
 
 const menuItems = [
   { icon: LayoutDashboard, label: 'Dashboard', path: '/', adminOnly: false },
-  { icon: Headphones, label: 'Atendimentos', path: '/service-dashboard', adminOnly: false },
   { icon: Server, label: 'Servidores', path: '/servers', adminOnly: false },
   { icon: Package, label: 'Planos', path: '/plans', adminOnly: false },
   { icon: Users, label: 'Clientes', path: '/customers', adminOnly: false },
@@ -33,7 +30,6 @@ const menuItems = [
   { icon: MessageSquare, label: 'Cobranças', path: '/billing', adminOnly: false },
   { icon: Send, label: 'Disparo em Massa', path: '/mass-broadcast', adminOnly: false },
   { icon: MessagesSquare, label: 'Chat', path: '/chat', adminOnly: false },
-  { icon: Bot, label: 'Gatilhos de Bot', path: '/bot-triggers', adminOnly: false },
   { icon: UserCheck, label: 'Revendedores', path: '/resellers', adminOnly: true },
   { icon: Settings, label: 'Configurações', path: '/settings', adminOnly: false },
 ];
