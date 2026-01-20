@@ -35,7 +35,6 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { useToast } from '@/hooks/use-toast';
-import { triggerWelcomeBot } from '@/hooks/useBotTriggers';
 import { 
   Plus, Pencil, Trash2, Loader2, Users, RefreshCw, Search, CalendarIcon,
   Upload, Phone, FileText, Download, MessageSquare, AlertTriangle, Send, Copy, Check
@@ -261,39 +260,11 @@ export default function Customers() {
         dueDate,
       };
     },
-    onSuccess: async (result) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['customers'] });
       setIsOpen(false);
       resetForm();
       toast({ title: 'Cliente criado com sucesso!' });
-      
-      // Disparar bot de boas-vindas automaticamente
-      if (user && result?.customer) {
-        const botResult = await triggerWelcomeBot(
-          user.id,
-          {
-            id: 'new',
-            name: result.customer.name,
-            phone: result.customer.phone,
-            due_date: result.dueDate,
-            plan_id: result.customer.plan_id,
-          },
-          plans || []
-        );
-
-        if (botResult.success) {
-          toast({
-            title: 'Bot de boas-vindas iniciado!',
-            description: 'O bot foi disparado automaticamente para o novo cliente.',
-          });
-        } else if (botResult.error && !botResult.error.includes('não está ativo')) {
-          toast({
-            title: 'Boas-vindas não enviada',
-            description: botResult.error,
-            variant: 'destructive',
-          });
-        }
-      }
     },
     onError: (error: Error) => {
       toast({ title: 'Erro ao criar cliente', description: error.message, variant: 'destructive' });
