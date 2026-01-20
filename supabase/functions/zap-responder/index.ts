@@ -1612,7 +1612,8 @@ Deno.serve(async (req) => {
       }
 
       // Selecionar departamento padrão
-      case 'select-department': {
+      case 'select-department':
+      case 'selecionar-departamento': {
         const { department_id, department_name } = body;
         
         if (!department_id) {
