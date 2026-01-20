@@ -3,130 +3,77 @@ import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { 
-  Shield, 
-  Zap, 
-  Users, 
-  MessageSquare, 
-  BarChart3, 
-  Clock, 
-  CheckCircle2, 
-  ArrowRight, 
-  Star, 
-  ChevronDown,
-  Smartphone,
-  Lock,
-  Server,
-  CreditCard,
-  Send,
-  FileText,
-  Bot,
-  Sparkles,
-  Play,
-  Menu,
-  X
-} from 'lucide-react';
+import { Shield, Zap, Users, MessageSquare, BarChart3, Clock, CheckCircle2, ArrowRight, Star, ChevronDown, Smartphone, Lock, Server, CreditCard, Send, FileText, Bot, Sparkles, Play, Menu, X } from 'lucide-react';
 import logoSg from '@/assets/logo-sg.png';
-
-const features = [
-  {
-    icon: Shield,
-    title: 'API Oficial META',
-    description: 'Integração 100% oficial com a API do WhatsApp Business. Sem riscos de banimentos ou bloqueios.',
-    color: 'from-emerald-500 to-teal-500'
-  },
-  {
-    icon: Users,
-    title: 'Gestão de Clientes',
-    description: 'Cadastre, organize e acompanhe todos os seus clientes em um só lugar com informações detalhadas.',
-    color: 'from-blue-500 to-cyan-500'
-  },
-  {
-    icon: MessageSquare,
-    title: 'Cobranças Automáticas',
-    description: 'Envie cobranças D-1, D0 e D+1 automaticamente. Configure uma vez e deixe o sistema trabalhar.',
-    color: 'from-orange-500 to-amber-500'
-  },
-  {
-    icon: BarChart3,
-    title: 'Dashboard Completo',
-    description: 'Visualize métricas em tempo real: faturamento, clientes ativos, vencimentos e muito mais.',
-    color: 'from-purple-500 to-pink-500'
-  },
-  {
-    icon: Server,
-    title: 'Multi-Servidor',
-    description: 'Gerencie múltiplos servidores e organize seus clientes por servidor facilmente.',
-    color: 'from-red-500 to-rose-500'
-  },
-  {
-    icon: CreditCard,
-    title: 'Controle de Pagamentos',
-    description: 'Registre pagamentos, acompanhe inadimplência e tenha controle total do seu financeiro.',
-    color: 'from-indigo-500 to-violet-500'
-  }
-];
-
-const screenshots = [
-  {
-    title: 'Dashboard Intuitivo',
-    description: 'Visão geral completa do seu negócio com gráficos e métricas em tempo real',
-    gradient: 'from-primary/20 to-primary/5'
-  },
-  {
-    title: 'Gestão de Clientes',
-    description: 'Cadastro completo com planos, servidores e datas de vencimento',
-    gradient: 'from-blue-500/20 to-blue-500/5'
-  },
-  {
-    title: 'Chat Integrado',
-    description: 'Envie mensagens e renovações diretamente pelo sistema',
-    gradient: 'from-emerald-500/20 to-emerald-500/5'
-  },
-  {
-    title: 'Cobranças Automáticas',
-    description: 'Configure e esqueça - o sistema envia automaticamente',
-    gradient: 'from-orange-500/20 to-orange-500/5'
-  }
-];
-
-const benefits = [
-  'Sem risco de banimento - API Oficial META',
-  'Cobranças automáticas programadas',
-  'Suporte a múltiplos revendedores',
-  'Dashboard com métricas em tempo real',
-  'Controle financeiro completo',
-  'Mensagens ilimitadas',
-  'Suporte técnico dedicado',
-  'Atualizações constantes'
-];
-
-const testimonials = [
-  {
-    name: 'Carlos Silva',
-    role: 'Revendedor IPTV',
-    content: 'Desde que comecei a usar o Super Gestor, minha organização melhorou 100%. As cobranças automáticas me economizam horas por dia!',
-    rating: 5
-  },
-  {
-    name: 'Amanda Santos',
-    role: 'Revendedora',
-    content: 'A melhor decisão que tomei foi migrar para o Super Gestor. Zero preocupação com banimentos e tudo funciona perfeitamente.',
-    rating: 5
-  },
-  {
-    name: 'Ricardo Oliveira',
-    role: 'Administrador',
-    content: 'O dashboard é incrível! Consigo ver tudo sobre meu negócio em segundos. Recomendo demais!',
-    rating: 5
-  }
-];
-
+const features = [{
+  icon: Shield,
+  title: 'API Oficial META',
+  description: 'Integração 100% oficial com a API do WhatsApp Business. Sem riscos de banimentos ou bloqueios.',
+  color: 'from-emerald-500 to-teal-500'
+}, {
+  icon: Users,
+  title: 'Gestão de Clientes',
+  description: 'Cadastre, organize e acompanhe todos os seus clientes em um só lugar com informações detalhadas.',
+  color: 'from-blue-500 to-cyan-500'
+}, {
+  icon: MessageSquare,
+  title: 'Cobranças Automáticas',
+  description: 'Envie cobranças D-1, D0 e D+1 automaticamente. Configure uma vez e deixe o sistema trabalhar.',
+  color: 'from-orange-500 to-amber-500'
+}, {
+  icon: BarChart3,
+  title: 'Dashboard Completo',
+  description: 'Visualize métricas em tempo real: faturamento, clientes ativos, vencimentos e muito mais.',
+  color: 'from-purple-500 to-pink-500'
+}, {
+  icon: Server,
+  title: 'Multi-Servidor',
+  description: 'Gerencie múltiplos servidores e organize seus clientes por servidor facilmente.',
+  color: 'from-red-500 to-rose-500'
+}, {
+  icon: CreditCard,
+  title: 'Controle de Pagamentos',
+  description: 'Registre pagamentos, acompanhe inadimplência e tenha controle total do seu financeiro.',
+  color: 'from-indigo-500 to-violet-500'
+}];
+const screenshots = [{
+  title: 'Dashboard Intuitivo',
+  description: 'Visão geral completa do seu negócio com gráficos e métricas em tempo real',
+  gradient: 'from-primary/20 to-primary/5'
+}, {
+  title: 'Gestão de Clientes',
+  description: 'Cadastro completo com planos, servidores e datas de vencimento',
+  gradient: 'from-blue-500/20 to-blue-500/5'
+}, {
+  title: 'Chat Integrado',
+  description: 'Envie mensagens e renovações diretamente pelo sistema',
+  gradient: 'from-emerald-500/20 to-emerald-500/5'
+}, {
+  title: 'Cobranças Automáticas',
+  description: 'Configure e esqueça - o sistema envia automaticamente',
+  gradient: 'from-orange-500/20 to-orange-500/5'
+}];
+const benefits = ['Sem risco de banimento - API Oficial META', 'Cobranças automáticas programadas', 'Suporte a múltiplos revendedores', 'Dashboard com métricas em tempo real', 'Controle financeiro completo', 'Mensagens ilimitadas', 'Suporte técnico dedicado', 'Atualizações constantes'];
+const testimonials = [{
+  name: 'Carlos Silva',
+  role: 'Revendedor IPTV',
+  content: 'Desde que comecei a usar o Super Gestor, minha organização melhorou 100%. As cobranças automáticas me economizam horas por dia!',
+  rating: 5
+}, {
+  name: 'Amanda Santos',
+  role: 'Revendedora',
+  content: 'A melhor decisão que tomei foi migrar para o Super Gestor. Zero preocupação com banimentos e tudo funciona perfeitamente.',
+  rating: 5
+}, {
+  name: 'Ricardo Oliveira',
+  role: 'Administrador',
+  content: 'O dashboard é incrível! Consigo ver tudo sobre meu negócio em segundos. Recomendo demais!',
+  rating: 5
+}];
 export default function LandingPage() {
   const navigate = useNavigate();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
-
   useEffect(() => {
     const handleScroll = () => {
       setScrolled(window.scrollY > 50);
@@ -134,13 +81,9 @@ export default function LandingPage() {
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
-
-  return (
-    <div className="min-h-screen bg-background">
+  return <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
-        scrolled ? 'bg-background/95 backdrop-blur-xl shadow-lg border-b border-border' : 'bg-transparent'
-      }`}>
+      <header className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${scrolled ? 'bg-background/95 backdrop-blur-xl shadow-lg border-b border-border' : 'bg-transparent'}`}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16 md:h-20">
             <div className="flex items-center gap-3">
@@ -164,18 +107,14 @@ export default function LandingPage() {
             </nav>
 
             {/* Mobile Menu Button */}
-            <button 
-              className="md:hidden p-2 rounded-lg hover:bg-muted transition-colors"
-              onClick={() => setIsMenuOpen(!isMenuOpen)}
-            >
+            <button className="md:hidden p-2 rounded-lg hover:bg-muted transition-colors" onClick={() => setIsMenuOpen(!isMenuOpen)}>
               {isMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
             </button>
           </div>
         </div>
 
         {/* Mobile Menu */}
-        {isMenuOpen && (
-          <div className="md:hidden bg-background/95 backdrop-blur-xl border-b border-border animate-slide-down">
+        {isMenuOpen && <div className="md:hidden bg-background/95 backdrop-blur-xl border-b border-border animate-slide-down">
             <nav className="flex flex-col gap-4 p-4">
               <a href="#recursos" className="text-muted-foreground hover:text-foreground transition-colors py-2">Recursos</a>
               <a href="#como-funciona" className="text-muted-foreground hover:text-foreground transition-colors py-2">Como Funciona</a>
@@ -187,8 +126,7 @@ export default function LandingPage() {
                 Começar Agora
               </Button>
             </nav>
-          </div>
-        )}
+          </div>}
       </header>
 
       {/* Hero Section */}
@@ -223,19 +161,11 @@ export default function LandingPage() {
 
             {/* CTA Buttons */}
             <div className="flex flex-col sm:flex-row gap-4 justify-center mb-12">
-              <Button 
-                size="lg" 
-                onClick={() => navigate('/auth')}
-                className="bg-gradient-to-r from-primary to-orange-500 hover:from-primary/90 hover:to-orange-500/90 text-lg px-8 py-6 shadow-xl shadow-primary/25"
-              >
+              <Button size="lg" onClick={() => navigate('/auth')} className="bg-gradient-to-r from-primary to-orange-500 hover:from-primary/90 hover:to-orange-500/90 text-lg px-8 py-6 shadow-xl shadow-primary/25">
                 Começar Gratuitamente
                 <ArrowRight className="ml-2 w-5 h-5" />
               </Button>
-              <Button 
-                size="lg" 
-                variant="outline"
-                className="text-lg px-8 py-6"
-              >
+              <Button size="lg" variant="outline" className="text-lg px-8 py-6">
                 <Play className="mr-2 w-5 h-5" />
                 Ver Demonstração
               </Button>
@@ -273,18 +203,31 @@ export default function LandingPage() {
               <div className="aspect-[16/9] bg-gradient-to-br from-muted/30 to-muted/10 flex items-center justify-center">
                 <div className="text-center p-8">
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-                    {[
-                      { label: 'Clientes Ativos', value: '1.234', icon: Users, color: 'text-blue-500' },
-                      { label: 'Faturamento', value: 'R$ 45.670', icon: CreditCard, color: 'text-emerald-500' },
-                      { label: 'Vencendo Hoje', value: '23', icon: Clock, color: 'text-orange-500' },
-                      { label: 'Mensagens Enviadas', value: '5.678', icon: Send, color: 'text-purple-500' }
-                    ].map((stat, i) => (
-                      <Card key={i} className="p-4 bg-background/80 backdrop-blur">
+                    {[{
+                    label: 'Clientes Ativos',
+                    value: '1.234',
+                    icon: Users,
+                    color: 'text-blue-500'
+                  }, {
+                    label: 'Faturamento',
+                    value: 'R$ 45.670',
+                    icon: CreditCard,
+                    color: 'text-emerald-500'
+                  }, {
+                    label: 'Vencendo Hoje',
+                    value: '23',
+                    icon: Clock,
+                    color: 'text-orange-500'
+                  }, {
+                    label: 'Mensagens Enviadas',
+                    value: '5.678',
+                    icon: Send,
+                    color: 'text-purple-500'
+                  }].map((stat, i) => <Card key={i} className="p-4 bg-background/80 backdrop-blur">
                         <stat.icon className={`w-8 h-8 ${stat.color} mb-2`} />
                         <div className="text-2xl font-bold">{stat.value}</div>
                         <div className="text-xs text-muted-foreground">{stat.label}</div>
-                      </Card>
-                    ))}
+                      </Card>)}
                   </div>
                   <p className="text-muted-foreground">Dashboard em tempo real com todas as métricas do seu negócio</p>
                 </div>
@@ -313,18 +256,10 @@ export default function LandingPage() {
                 garantindo total conformidade com as políticas da META.
               </p>
               <ul className="space-y-4">
-                {[
-                  'Integração oficial aprovada pela META',
-                  'Conta comercial verificada e protegida',
-                  'Templates de mensagem aprovados',
-                  'Sem risco de bloqueio ou banimento',
-                  'Suporte técnico da própria META'
-                ].map((item, i) => (
-                  <li key={i} className="flex items-start gap-3">
+                {['Integração oficial aprovada pela META', 'Conta comercial verificada e protegida', 'Templates de mensagem aprovados', 'Sem risco de bloqueio ou banimento', 'Suporte técnico da própria META'].map((item, i) => <li key={i} className="flex items-start gap-3">
                     <CheckCircle2 className="w-5 h-5 text-emerald-500 mt-0.5 flex-shrink-0" />
                     <span>{item}</span>
-                  </li>
-                ))}
+                  </li>)}
               </ul>
             </div>
             <div className="relative">
@@ -376,19 +311,14 @@ export default function LandingPage() {
           </div>
 
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {features.map((feature, i) => (
-              <Card 
-                key={i} 
-                className="group relative overflow-hidden p-6 hover:shadow-xl transition-all duration-300 hover:-translate-y-1 border-border/50"
-              >
+            {features.map((feature, i) => <Card key={i} className="group relative overflow-hidden p-6 hover:shadow-xl transition-all duration-300 hover:-translate-y-1 border-border/50">
                 <div className={`absolute inset-0 bg-gradient-to-br ${feature.color} opacity-0 group-hover:opacity-5 transition-opacity duration-300`} />
                 <div className={`w-14 h-14 rounded-2xl bg-gradient-to-br ${feature.color} flex items-center justify-center mb-4 shadow-lg`}>
                   <feature.icon className="w-7 h-7 text-white" />
                 </div>
                 <h3 className="text-xl font-semibold mb-2">{feature.title}</h3>
                 <p className="text-muted-foreground">{feature.description}</p>
-              </Card>
-            ))}
+              </Card>)}
           </div>
         </div>
       </section>
@@ -410,11 +340,7 @@ export default function LandingPage() {
           </div>
 
           <div className="grid md:grid-cols-2 gap-6">
-            {screenshots.map((screen, i) => (
-              <Card 
-                key={i}
-                className={`group relative overflow-hidden p-8 bg-gradient-to-br ${screen.gradient} border-border/50 hover:shadow-xl transition-all duration-300`}
-              >
+            {screenshots.map((screen, i) => <Card key={i} className={`group relative overflow-hidden p-8 bg-gradient-to-br ${screen.gradient} border-border/50 hover:shadow-xl transition-all duration-300`}>
                 <div className="aspect-video bg-card/80 backdrop-blur rounded-xl border border-border/50 flex items-center justify-center mb-4 overflow-hidden">
                   <div className="text-center p-4">
                     <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary to-orange-500 flex items-center justify-center mx-auto mb-4">
@@ -428,8 +354,7 @@ export default function LandingPage() {
                 </div>
                 <h3 className="text-xl font-semibold mb-2">{screen.title}</h3>
                 <p className="text-muted-foreground">{screen.description}</p>
-              </Card>
-            ))}
+              </Card>)}
           </div>
         </div>
       </section>
@@ -451,12 +376,10 @@ export default function LandingPage() {
                 e criamos a solução perfeita para o seu negócio.
               </p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {benefits.map((benefit, i) => (
-                  <div key={i} className="flex items-center gap-3 p-3 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors">
+                {benefits.map((benefit, i) => <div key={i} className="flex items-center gap-3 p-3 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors">
                     <CheckCircle2 className="w-5 h-5 text-primary flex-shrink-0" />
                     <span className="text-sm">{benefit}</span>
-                  </div>
-                ))}
+                  </div>)}
               </div>
             </div>
             <div className="relative">
@@ -508,12 +431,11 @@ export default function LandingPage() {
           </div>
 
           <div className="grid md:grid-cols-3 gap-6">
-            {testimonials.map((testimonial, i) => (
-              <Card key={i} className="p-6 hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
+            {testimonials.map((testimonial, i) => <Card key={i} className="p-6 hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
                 <div className="flex gap-1 mb-4">
-                  {Array.from({ length: testimonial.rating }).map((_, j) => (
-                    <Star key={j} className="w-5 h-5 fill-amber-500 text-amber-500" />
-                  ))}
+                  {Array.from({
+                length: testimonial.rating
+              }).map((_, j) => <Star key={j} className="w-5 h-5 fill-amber-500 text-amber-500" />)}
                 </div>
                 <p className="text-muted-foreground mb-6 italic">"{testimonial.content}"</p>
                 <div className="flex items-center gap-3">
@@ -525,8 +447,7 @@ export default function LandingPage() {
                     <div className="text-sm text-muted-foreground">{testimonial.role}</div>
                   </div>
                 </div>
-              </Card>
-            ))}
+              </Card>)}
           </div>
         </div>
       </section>
@@ -547,19 +468,11 @@ export default function LandingPage() {
                 e estão crescendo com o Super Gestor.
               </p>
               <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                <Button 
-                  size="lg" 
-                  onClick={() => navigate('/auth')}
-                  className="bg-gradient-to-r from-primary to-orange-500 hover:from-primary/90 hover:to-orange-500/90 text-lg px-8 py-6 shadow-xl shadow-primary/25"
-                >
+                <Button size="lg" onClick={() => navigate('/auth')} className="bg-gradient-to-r from-primary to-orange-500 hover:from-primary/90 hover:to-orange-500/90 text-lg px-8 py-6 shadow-xl shadow-primary/25">
                   Começar Agora - É Grátis
                   <ArrowRight className="ml-2 w-5 h-5" />
                 </Button>
-                <Button 
-                  size="lg" 
-                  variant="outline"
-                  className="text-lg px-8 py-6"
-                >
+                <Button size="lg" variant="outline" className="text-lg px-8 py-6">
                   <MessageSquare className="mr-2 w-5 h-5" />
                   Falar com Suporte
                 </Button>
@@ -582,12 +495,9 @@ export default function LandingPage() {
               <a href="#" className="hover:text-foreground transition-colors">Privacidade</a>
               <a href="#" className="hover:text-foreground transition-colors">Suporte</a>
             </div>
-            <div className="text-sm text-muted-foreground">
-              © 2024 Super Gestor. Todos os direitos reservados.
-            </div>
+            <div className="text-sm text-muted-foreground">© 2026 Super Gestor. Todos os direitos reservados.</div>
           </div>
         </div>
       </footer>
-    </div>
-  );
+    </div>;
 }
