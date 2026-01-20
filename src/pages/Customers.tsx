@@ -105,6 +105,7 @@ export default function Customers() {
     due_date: '',
     custom_price: '',
     username: '',
+    screens: '1',
   });
 
   // Import states
@@ -523,7 +524,7 @@ export default function Customers() {
   });
 
   const resetForm = () => {
-    setFormData({ name: '', phone: '', server_id: '', plan_id: '', status: 'ativa', notes: '', due_date: '', custom_price: '', username: '' });
+    setFormData({ name: '', phone: '', server_id: '', plan_id: '', status: 'ativa', notes: '', due_date: '', custom_price: '', username: '', screens: '1' });
     setEditingCustomer(null);
   };
 
@@ -539,6 +540,7 @@ export default function Customers() {
       due_date: customer.due_date || '',
       custom_price: customer.custom_price ? String(customer.custom_price) : '',
       username: customer.username || '',
+      screens: customer.screens ? String(customer.screens) : '1',
     });
     setIsOpen(true);
   };
@@ -718,6 +720,7 @@ export default function Customers() {
       plan_id: formData.plan_id || null,
       custom_price: formData.custom_price ? parseFloat(formData.custom_price) : null,
       username: formData.username || null,
+      screens: formData.screens ? parseInt(formData.screens, 10) : 1,
       created_by: editingCustomer ? undefined : user?.id,
     };
     if (editingCustomer) {
@@ -1593,6 +1596,24 @@ export default function Customers() {
                         placeholder="Nome de usuário do cliente"
                         className="bg-secondary/50"
                       />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Telas</Label>
+                      <Select
+                        value={formData.screens}
+                        onValueChange={(value) => setFormData({ ...formData, screens: value })}
+                      >
+                        <SelectTrigger className="bg-secondary/50">
+                          <SelectValue placeholder="1" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="1">1 Tela</SelectItem>
+                          <SelectItem value="2">2 Telas</SelectItem>
+                          <SelectItem value="3">3 Telas</SelectItem>
+                          <SelectItem value="4">4 Telas</SelectItem>
+                          <SelectItem value="5">5 Telas</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
                     <div className="space-y-2 col-span-2">
                       <Label>Observações</Label>

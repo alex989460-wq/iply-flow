@@ -42,6 +42,7 @@ interface Customer {
   status: 'ativa' | 'inativa' | 'suspensa';
   due_date: string;
   custom_price: number | null;
+  screens: number;
   plan: {
     id: string;
     plan_name: string;
@@ -220,6 +221,7 @@ export default function QuickRenewalPanel({ isMobile = false, onClose }: QuickRe
           status,
           due_date,
           custom_price,
+          screens,
           plan:plans(id, plan_name, price, duration_days),
           server:servers(id, server_name)
         `)
@@ -437,7 +439,7 @@ Seu pagamento de *R$ ${amount.toFixed(2)}* foi confirmado.
 
 📅 *Vencimento:* ${formattedDate}
 👤 *Usuário:* ${customer.username || '-'}
-🖥️ *Telas:* 1
+🖥️ *Telas:* ${customer.screens || 1}
 📺 *Plano:* ${planName}
 🖥️ *Servidor:* ${customer.server?.server_name || '-'}
 
@@ -694,7 +696,7 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺`;
                       <Monitor className="h-3.5 w-3.5" />
                       <span>Telas:</span>
                     </div>
-                    <span className="font-medium">1</span>
+                    <span className="font-medium">{selectedCustomer.screens || 1}</span>
                   </div>
                   
                   <div className="flex items-center justify-between">

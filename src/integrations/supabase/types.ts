@@ -185,6 +185,7 @@ export type Database = {
           notes: string | null
           phone: string
           plan_id: string | null
+          screens: number
           server_id: string | null
           start_date: string
           status: Database["public"]["Enums"]["customer_status"]
@@ -200,6 +201,7 @@ export type Database = {
           notes?: string | null
           phone: string
           plan_id?: string | null
+          screens?: number
           server_id?: string | null
           start_date?: string
           status?: Database["public"]["Enums"]["customer_status"]
@@ -215,6 +217,7 @@ export type Database = {
           notes?: string | null
           phone?: string
           plan_id?: string | null
+          screens?: number
           server_id?: string | null
           start_date?: string
           status?: Database["public"]["Enums"]["customer_status"]
