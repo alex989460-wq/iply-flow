@@ -67,7 +67,7 @@ async function sendWhatsAppTemplate(
     if (!response.ok) {
       const errorText = await response.text();
       console.error(`Zap Responder API error (template): ${response.status} - ${errorText}`);
-      return { success: false, error: `API error: ${response.status} - ${errorText}` };
+      return { success: false, error: 'Falha ao enviar mensagem' };
     }
 
     const result = await response.json();
@@ -186,9 +186,9 @@ Deno.serve(async (req) => {
     // Token MUST be user-configured for non-admin users
     const zapToken = zapSettings?.zap_api_token || (isAdminUser ? Deno.env.get('ZAP_RESPONDER_TOKEN') : null);
     if (!zapToken) {
-      console.error('API token not configured');
+      console.error('API token not configured for user:', userId);
       return new Response(
-        JSON.stringify({ error: 'Token da API não configurado. Configure em Configurações.' }),
+        JSON.stringify({ error: 'Configuração incompleta. Verifique suas configurações.' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -226,9 +226,9 @@ Deno.serve(async (req) => {
     }
     
     if (!departmentId) {
-      console.error('No department ID found - cannot send messages');
+      console.error('No department ID found for user:', userId);
       return new Response(
-        JSON.stringify({ error: 'No department ID configured. Please select a session in Billing settings.' }),
+        JSON.stringify({ error: 'Configuração incompleta. Selecione uma sessão em Configurações.' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -243,16 +243,24 @@ Deno.serve(async (req) => {
     console.log(`Processing billings for dates: yesterday=${yesterday}, today=${today}, tomorrow=${tomorrow}`);
 
     // Fetch customers (ativa + inativa) with due dates in our range
-    const { data: customers, error: customersError } = await supabase
+    // SECURITY: Filter by created_by to ensure user can only process their own customers
+    let customerQuery = supabase
       .from('customers')
       .select('id, name, phone, due_date, status')
       .in('status', ['ativa', 'inativa'])
       .in('due_date', [yesterday, today, tomorrow]);
+    
+    // Non-admin users can only access their own customers
+    if (!isAdminUser && userId) {
+      customerQuery = customerQuery.eq('created_by', userId);
+    }
+    
+    const { data: customers, error: customersError } = await customerQuery;
 
     if (customersError) {
       console.error('Error fetching customers:', customersError);
       return new Response(
-        JSON.stringify({ error: 'Failed to fetch customers', details: customersError }),
+        JSON.stringify({ error: 'Unable to process billing request' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -379,10 +387,9 @@ Deno.serve(async (req) => {
     );
 
   } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     console.error('Unexpected error in billing process:', error);
     return new Response(
-      JSON.stringify({ error: 'Internal server error', details: errorMessage }),
+      JSON.stringify({ error: 'Unable to process billing request' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }

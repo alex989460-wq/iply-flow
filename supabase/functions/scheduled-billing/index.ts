@@ -88,7 +88,7 @@ async function sendWhatsAppTemplate(
     if (!response.ok) {
       const errorText = await response.text();
       console.error(`[Scheduled] API error: ${response.status} - ${errorText}`);
-      return { success: false, error: `API error: ${response.status}` };
+      return { success: false, error: 'Falha ao enviar mensagem' };
     }
 
     return { success: true };
@@ -126,7 +126,7 @@ Deno.serve(async (req) => {
     if (schedulesError) {
       console.error('[Scheduled Billing] Error fetching schedules:', schedulesError);
       return new Response(
-        JSON.stringify({ error: 'Failed to fetch schedules' }),
+        JSON.stringify({ error: 'Unable to process scheduled billing' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -167,7 +167,7 @@ Deno.serve(async (req) => {
           .from('billing_schedule')
           .update({ 
             last_run_at: new Date().toISOString(),
-            last_run_status: 'error: missing zap settings'
+            last_run_status: 'error: configuração incompleta'
           })
           .eq('id', schedule.id);
         continue;
@@ -201,7 +201,7 @@ Deno.serve(async (req) => {
           .from('billing_schedule')
           .update({ 
             last_run_at: new Date().toISOString(),
-            last_run_status: 'error: no department'
+            last_run_status: 'error: configuração incompleta'
           })
           .eq('id', schedule.id);
         continue;
@@ -316,10 +316,9 @@ Deno.serve(async (req) => {
     );
 
   } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     console.error('[Scheduled Billing] Unexpected error:', error);
     return new Response(
-      JSON.stringify({ error: 'Internal server error', details: errorMessage }),
+      JSON.stringify({ error: 'Unable to process scheduled billing' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
