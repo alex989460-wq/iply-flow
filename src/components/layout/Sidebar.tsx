@@ -23,7 +23,7 @@ import { ThemeToggle } from '@/components/ThemeToggle';
 import logoSg from '@/assets/logo-sg.png';
 
 const menuItems = [
-  { icon: LayoutDashboard, label: 'Dashboard', path: '/', adminOnly: false },
+  { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard', adminOnly: false },
   { icon: Server, label: 'Servidores', path: '/servers', adminOnly: false },
   { icon: Package, label: 'Planos', path: '/plans', adminOnly: false },
   { icon: Users, label: 'Clientes', path: '/customers', adminOnly: false },
