@@ -62,6 +62,93 @@ async function fetchAtendentes(apiBaseUrl: string, token: string): Promise<{ suc
 }
 
 // ===========================================
+// API Functions - Lista instâncias/sessões de WhatsApp
+// ===========================================
+async function fetchInstancias(apiBaseUrl: string, token: string): Promise<{ success: boolean; data?: ZapResponderSession[]; error?: string }> {
+  try {
+    console.log('Fetching Zap Responder instâncias/sessões WhatsApp...');
+    
+    const normalizedBase = apiBaseUrl.replace(/\/+$/, '');
+    const baseCandidates = Array.from(
+      new Set([
+        normalizedBase,
+        normalizedBase.replace(/\/api$/, ''),
+      ].filter(Boolean))
+    );
+
+    const headers = {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+    };
+
+    // Endpoints comuns para listar instâncias/sessões de WhatsApp
+    const attempts = baseCandidates.flatMap((base) => [
+      { label: `instancias [${base}]`, url: `${base}/instancias` },
+      { label: `instances [${base}]`, url: `${base}/instances` },
+      { label: `sessoes [${base}]`, url: `${base}/sessoes` },
+      { label: `sessions/list [${base}]`, url: `${base}/sessions` },
+      { label: `whatsapp/sessions [${base}]`, url: `${base}/whatsapp/sessions` },
+      { label: `whatsapp/instancias [${base}]`, url: `${base}/whatsapp/instancias` },
+      { label: `v2/sessions [${base}]`, url: `${base}/v2/sessions` },
+      { label: `v2/instances [${base}]`, url: `${base}/v2/instances` },
+      { label: `session/all [${base}]`, url: `${base}/session/all` },
+      { label: `session/list [${base}]`, url: `${base}/session/list` },
+    ]);
+
+    for (const attempt of attempts) {
+      console.log('Trying instances endpoint:', attempt.label);
+      
+      try {
+        const res = await fetch(attempt.url, { method: 'GET', headers });
+        
+        if (!res.ok) {
+          console.log(`Endpoint ${attempt.label} failed: ${res.status}`);
+          continue;
+        }
+
+        const raw = await res.text();
+        let parsed: any;
+        try {
+          parsed = raw ? JSON.parse(raw) : null;
+        } catch {
+          console.log(`Endpoint ${attempt.label} returned invalid JSON`);
+          continue;
+        }
+
+        const instances = Array.isArray(parsed) ? parsed : 
+                         (parsed.data || parsed.instances || parsed.instancias || 
+                          parsed.sessions || parsed.sessoes || []);
+
+        if (instances.length > 0) {
+          console.log('Instâncias fetched successfully:', instances);
+          return { 
+            success: true, 
+            data: instances.map((s: any) => ({
+              id: s.id || s._id || s.sessionId || s.session_id,
+              name: s.name || s.nome || s.instanceName || s.instance_name || 'Instância',
+              phone: s.phone || s.telefone || s.numero || s.number || s.jid?.split('@')[0] || '',
+              status: s.status || (s.connected ? 'connected' : 'disconnected'),
+            }))
+          };
+        }
+        
+      } catch (fetchError) {
+        console.error(`Fetch error (${attempt.label}):`, fetchError);
+        continue;
+      }
+    }
+
+    console.log('No instances endpoint found, returning empty list');
+    return { success: true, data: [] };
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.error('Error fetching instâncias:', error);
+    return { success: false, error: errorMessage };
+  }
+}
+
+// ===========================================
 // API Functions - Listar departamentos
 // ===========================================
 async function fetchDepartamentos(apiBaseUrl: string, token: string): Promise<{ success: boolean; data?: Department[]; error?: string }> {
@@ -1316,6 +1403,16 @@ Deno.serve(async (req) => {
     console.log(`Zap Responder action: ${action}`, body);
 
     switch (action) {
+      // Lista instâncias/sessões de WhatsApp (com telefones)
+      case 'instancias':
+      case 'whatsapp-sessions': {
+        const result = await fetchInstancias(apiBaseUrl, zapToken);
+        return new Response(
+          JSON.stringify(result),
+          { status: result.success ? 200 : 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
       // Lista atendentes/sessões
       case 'sessions':
       case 'atendentes': {

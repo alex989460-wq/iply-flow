@@ -139,10 +139,22 @@ export default function MassBroadcast() {
     },
   });
 
-  // Fetch sessions from API
+  // Fetch WhatsApp instances/sessions from API
   const fetchSessions = async () => {
     setIsLoadingSessions(true);
     try {
+      // Primeiro tenta buscar instâncias de WhatsApp (com telefones)
+      const { data: instancesData, error: instancesError } = await supabase.functions.invoke('zap-responder', {
+        body: { action: 'whatsapp-sessions' },
+      });
+
+      if (!instancesError && instancesData?.success && instancesData?.data?.length > 0) {
+        setSessions(instancesData.data);
+        setShowSessionSelector(true);
+        return;
+      }
+
+      // Fallback: busca atendentes
       const { data, error } = await supabase.functions.invoke('zap-responder', {
         body: { action: 'sessions' },
       });
@@ -154,14 +166,14 @@ export default function MassBroadcast() {
         setShowSessionSelector(true);
       } else {
         toast({ 
-          title: 'Erro ao carregar atendentes', 
+          title: 'Erro ao carregar sessões', 
           description: data?.error || 'Resposta inválida da API',
           variant: 'destructive' 
         });
       }
     } catch (error: any) {
       toast({
-        title: 'Erro ao carregar atendentes',
+        title: 'Erro ao carregar sessões',
         description: error.message || 'Não foi possível conectar à API',
         variant: 'destructive',
       });
@@ -874,7 +886,7 @@ export default function MassBroadcast() {
             {/* Session Selection Grid */}
             {showSessionSelector && sessions.length > 0 && (
               <div className="space-y-3 pt-2 border-t">
-                <p className="text-sm font-medium text-muted-foreground">Selecione um atendente:</p>
+                <p className="text-sm font-medium text-muted-foreground">Selecione uma sessão de WhatsApp:</p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
                   {sessions.map((session) => (
                     <button
@@ -889,7 +901,9 @@ export default function MassBroadcast() {
                       )}
                     >
                       <p className="font-medium text-foreground">{session.name}</p>
-                      <p className="text-sm text-muted-foreground">{session.phone}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {session.phone || 'Telefone não disponível'}
+                      </p>
                       <span className={cn(
                         'text-xs px-2 py-0.5 rounded-full mt-1 inline-block',
                         session.status === 'connected' || session.status === 'active'
@@ -901,6 +915,15 @@ export default function MassBroadcast() {
                     </button>
                   ))}
                 </div>
+              </div>
+            )}
+
+            {/* Empty State */}
+            {showSessionSelector && sessions.length === 0 && !isLoadingSessions && (
+              <div className="pt-2 border-t">
+                <p className="text-sm text-muted-foreground text-center py-4">
+                  Nenhuma sessão de WhatsApp encontrada. Configure as instâncias no painel do Zap Responder.
+                </p>
               </div>
             )}
           </CardContent>
