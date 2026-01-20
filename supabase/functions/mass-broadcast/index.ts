@@ -76,7 +76,7 @@ async function sendWhatsAppTemplate(
     if (!response.ok) {
       const errorText = await response.text();
       console.error(`Zap Responder API error (template): ${response.status} - ${errorText}`);
-      return { success: false, error: `API error: ${response.status} - ${errorText}` };
+      return { success: false, error: 'Falha ao enviar mensagem' };
     }
 
     const result = await response.json();
@@ -156,7 +156,7 @@ async function startBroadcastPlan(args: {
 
   if (customersError || !customers) {
     console.error('Error fetching customers:', customersError);
-    return { ok: false as const, status: 500, body: { error: 'Error fetching customers' } };
+    return { ok: false as const, status: 500, body: { error: 'Não foi possível processar o envio' } };
   }
 
   // Get all normalized phones to check
@@ -171,7 +171,7 @@ async function startBroadcastPlan(args: {
 
   if (sentPhonesError || !alreadySentPhones) {
     console.error('Error fetching broadcast logs:', sentPhonesError);
-    return { ok: false as const, status: 500, body: { error: 'Error checking previous sends' } };
+    return { ok: false as const, status: 500, body: { error: 'Não foi possível processar o envio' } };
   }
 
   console.log(`Found ${alreadySentPhones.size} phones that already received template "${args.templateName}"`);
@@ -289,21 +289,21 @@ async function processBroadcastBatch(args: {
         .limit(1)
         .maybeSingle();
 
-      if (zapSettingsError) {
-        console.error('Error fetching zap settings:', zapSettingsError);
-        return { ok: false as const, status: 500, body: { error: 'Erro ao carregar configurações do Zap' } };
-      }
+    if (zapSettingsError) {
+      console.error('Error fetching zap settings:', zapSettingsError);
+      return { ok: false as const, status: 500, body: { error: 'Não foi possível processar o envio' } };
+    }
 
       zapSettings = data;
-    } else {
-      return { ok: false as const, status: 400, body: { error: 'Token da API não configurado. Configure em Configurações.' } };
-    }
+  } else {
+    return { ok: false as const, status: 400, body: { error: 'Configuração incompleta. Verifique suas configurações.' } };
+  }
   }
 
   // Token MUST be user-configured for non-admin users
   const effectiveToken = zapSettings?.zap_api_token || (args.isAdmin ? args.zapToken : null);
   if (!effectiveToken) {
-    return { ok: false as const, status: 400, body: { error: 'Token da API não configurado. Configure em Configurações.' } };
+    return { ok: false as const, status: 400, body: { error: 'Configuração incompleta. Verifique suas configurações.' } };
   }
 
   const apiBaseUrl = zapSettings?.api_base_url || 'https://api.zapresponder.com.br/api';
@@ -313,7 +313,7 @@ async function processBroadcastBatch(args: {
     return {
       ok: false as const,
       status: 400,
-      body: { error: 'Departamento não configurado. Configure em Configurações.' },
+      body: { error: 'Configuração incompleta. Selecione um departamento.' },
     };
   }
 
@@ -325,7 +325,7 @@ async function processBroadcastBatch(args: {
 
   if (customersError || !customers) {
     console.error('Error fetching customers for batch:', customersError);
-    return { ok: false as const, status: 500, body: { error: 'Error fetching customers' } };
+    return { ok: false as const, status: 500, body: { error: 'Não foi possível processar o envio' } };
   }
 
   console.log(
@@ -580,7 +580,7 @@ Deno.serve(async (req) => {
 
     if (customersError || !customers) {
       console.error('Error fetching customers:', customersError);
-      return new Response(JSON.stringify({ error: 'Error fetching customers' }), {
+      return new Response(JSON.stringify({ error: 'Não foi possível processar o envio' }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
@@ -596,7 +596,7 @@ Deno.serve(async (req) => {
 
     if (sentPhonesError || !alreadySentPhones) {
       console.error('Error fetching broadcast logs:', sentPhonesError);
-      return new Response(JSON.stringify({ error: 'Error checking previous sends' }), {
+      return new Response(JSON.stringify({ error: 'Não foi possível processar o envio' }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
@@ -643,7 +643,7 @@ Deno.serve(async (req) => {
 
     const effectiveLegacyToken = zapSettingsLegacy?.zap_api_token || zapTokenEnv;
     if (!effectiveLegacyToken) {
-      return new Response(JSON.stringify({ error: 'Token da API não configurado. Configure em Configurações.' }), {
+      return new Response(JSON.stringify({ error: 'Configuração incompleta. Verifique suas configurações.' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
@@ -653,7 +653,7 @@ Deno.serve(async (req) => {
     const departmentId = zapSettingsLegacy?.selected_department_id;
 
     if (!departmentId) {
-      return new Response(JSON.stringify({ error: 'Departamento não configurado. Configure em Configurações.' }), {
+      return new Response(JSON.stringify({ error: 'Configuração incompleta. Selecione um departamento.' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
@@ -710,9 +710,8 @@ Deno.serve(async (req) => {
       }
     );
   } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     console.error('Unexpected error in mass broadcast:', error);
-    return new Response(JSON.stringify({ error: 'Internal server error', details: errorMessage }), {
+    return new Response(JSON.stringify({ error: 'Não foi possível processar o envio' }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });

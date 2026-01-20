@@ -37,7 +37,7 @@ async function fetchAtendentes(apiBaseUrl: string, token: string): Promise<{ suc
     if (!response.ok) {
       const errorText = await response.text();
       console.error(`Zap Responder API error: ${response.status} - ${errorText}`);
-      return { success: false, error: `API error: ${response.status} - ${errorText}` };
+      return { success: false, error: 'Falha ao conectar com o serviço' };
     }
 
     const result = await response.json();
@@ -80,7 +80,7 @@ async function fetchDepartamentos(apiBaseUrl: string, token: string): Promise<{ 
     if (!response.ok) {
       const errorText = await response.text();
       console.error(`Zap Responder API error: ${response.status} - ${errorText}`);
-      return { success: false, error: `API error: ${response.status} - ${errorText}` };
+      return { success: false, error: 'Falha ao conectar com o serviço' };
     }
 
     const result = await response.json();
@@ -122,7 +122,7 @@ async function fetchDepartamento(apiBaseUrl: string, token: string, departmentId
     if (!response.ok) {
       const errorText = await response.text();
       console.error(`Zap Responder API error: ${response.status} - ${errorText}`);
-      return { success: false, error: `API error: ${response.status} - ${errorText}` };
+      return { success: false, error: 'Falha ao conectar com o serviço' };
     }
 
     const result = await response.json();
@@ -173,7 +173,7 @@ async function criarConversa(
     if (!response.ok) {
       const errorText = await response.text();
       console.error(`Zap Responder API error: ${response.status} - ${errorText}`);
-      return { success: false, error: `API error: ${response.status} - ${errorText}` };
+      return { success: false, error: 'Falha ao criar conversa' };
     }
 
     const result = await response.json();
@@ -213,7 +213,7 @@ async function encerrarConversa(
     if (!response.ok) {
       const errorText = await response.text();
       console.error(`Zap Responder API error: ${response.status} - ${errorText}`);
-      return { success: false, error: `API error: ${response.status} - ${errorText}` };
+      return { success: false, error: 'Falha ao encerrar conversa' };
     }
 
     const result = await response.json();
@@ -274,7 +274,7 @@ async function iniciarBot(
 
     if (!response.ok) {
       console.error(`Zap Responder API error: ${response.status} - ${responseText}`);
-      return { success: false, error: `API error: ${response.status} - ${responseText || 'Resposta vazia'}` };
+      return { success: false, error: 'Falha ao iniciar bot' };
     }
 
     // Handle empty response (some APIs return 200 with empty body on success)
@@ -326,7 +326,7 @@ async function buscarConversaPorTelefone(
     if (!response.ok) {
       const errorText = await response.text();
       console.error(`Zap Responder API error: ${response.status} - ${errorText}`);
-      return { success: false, error: `API error: ${response.status} - ${errorText}` };
+      return { success: false, error: 'Falha ao buscar conversa' };
     }
 
     const result = await response.json();
@@ -366,7 +366,7 @@ async function buscarConversaPorId(
     if (!response.ok) {
       const errorText = await response.text();
       console.error(`Zap Responder API error: ${response.status} - ${errorText}`);
-      return { success: false, error: `API error: ${response.status} - ${errorText}` };
+      return { success: false, error: 'Falha ao buscar conversa' };
     }
 
     const result = await response.json();
@@ -419,7 +419,7 @@ async function enviarTemplateWhatsApp(
     if (!response.ok) {
       const errorText = await response.text();
       console.error(`Zap Responder API error: ${response.status} - ${errorText}`);
-      return { success: false, error: `API error: ${response.status} - ${errorText}` };
+      return { success: false, error: 'Falha ao enviar template' };
     }
 
     const result = await response.json();
@@ -470,7 +470,7 @@ async function criarMensagemInterna(
     if (!response.ok) {
       const errorText = await response.text();
       console.error(`Zap Responder API error: ${response.status} - ${errorText}`);
-      return { success: false, error: `API error: ${response.status} - ${errorText}` };
+      return { success: false, error: 'Falha ao criar mensagem' };
     }
 
     const result = await response.json();
@@ -507,7 +507,7 @@ async function buscarTemplates(
     if (!response.ok) {
       const errorText = await response.text();
       console.error(`Zap Responder API error: ${response.status} - ${errorText}`);
-      return { success: false, error: `API error: ${response.status} - ${errorText}` };
+      return { success: false, error: 'Falha ao buscar templates' };
     }
 
     const result = await response.json();
@@ -1301,9 +1301,9 @@ Deno.serve(async (req) => {
     // Token MUST be user-configured for non-admin users
     const zapToken = settings?.zap_api_token || (isAdminUser ? Deno.env.get('ZAP_RESPONDER_TOKEN') : null);
     if (!zapToken) {
-      console.error('API token not configured');
+      console.error('API token not configured for user:', userId);
       return new Response(
-        JSON.stringify({ success: false, error: 'Token da API não configurado. Configure em Configurações.' }),
+        JSON.stringify({ success: false, error: 'Configuração incompleta. Verifique suas configurações.' }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -1503,7 +1503,7 @@ Deno.serve(async (req) => {
         if (updateError) {
           console.error('Error updating settings:', updateError);
           return new Response(
-            JSON.stringify({ error: 'Failed to update settings', details: updateError }),
+            JSON.stringify({ error: 'Não foi possível salvar as configurações' }),
             { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
         }
@@ -1537,7 +1537,7 @@ Deno.serve(async (req) => {
         if (updateError) {
           console.error('Error updating department settings:', updateError);
           return new Response(
-            JSON.stringify({ error: 'Failed to update department settings', details: updateError }),
+            JSON.stringify({ error: 'Não foi possível salvar as configurações' }),
             { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
         }
@@ -1627,10 +1627,9 @@ Deno.serve(async (req) => {
     }
 
   } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     console.error('Unexpected error:', error);
     return new Response(
-      JSON.stringify({ error: 'Internal server error', details: errorMessage }),
+      JSON.stringify({ error: 'Não foi possível processar a solicitação' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
