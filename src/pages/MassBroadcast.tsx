@@ -111,16 +111,15 @@ export default function MassBroadcast() {
   const [isLoadingTemplates, setIsLoadingTemplates] = useState(false);
   const [templatesLoaded, setTemplatesLoaded] = useState(false);
 
-  // Sessions from API
-  interface Session {
+  // Departments from API
+  interface Department {
     id: string;
     name: string;
-    phone: string;
-    status: string;
+    isActive: boolean;
   }
-  const [sessions, setSessions] = useState<Session[]>([]);
-  const [isLoadingSessions, setIsLoadingSessions] = useState(false);
-  const [showSessionSelector, setShowSessionSelector] = useState(false);
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [isLoadingDepartments, setIsLoadingDepartments] = useState(false);
+  const [showDepartmentSelector, setShowDepartmentSelector] = useState(false);
 
   // Fetch zap settings for department
   const { data: zapSettings, refetch: refetchZapSettings } = useQuery({
@@ -139,72 +138,60 @@ export default function MassBroadcast() {
     },
   });
 
-  // Fetch WhatsApp instances/sessions from API
-  const fetchSessions = async () => {
-    setIsLoadingSessions(true);
+  // Fetch departments from API
+  const fetchDepartments = async () => {
+    setIsLoadingDepartments(true);
     try {
-      // Primeiro tenta buscar instâncias de WhatsApp (com telefones)
-      const { data: instancesData, error: instancesError } = await supabase.functions.invoke('zap-responder', {
-        body: { action: 'whatsapp-sessions' },
-      });
-
-      if (!instancesError && instancesData?.success && instancesData?.data?.length > 0) {
-        setSessions(instancesData.data);
-        setShowSessionSelector(true);
-        return;
-      }
-
-      // Fallback: busca atendentes
       const { data, error } = await supabase.functions.invoke('zap-responder', {
-        body: { action: 'sessions' },
+        body: { action: 'departamentos' },
       });
 
       if (error) throw error;
 
       if (data?.success && data?.data) {
-        setSessions(data.data);
-        setShowSessionSelector(true);
+        setDepartments(data.data);
+        setShowDepartmentSelector(true);
       } else {
         toast({ 
-          title: 'Erro ao carregar sessões', 
+          title: 'Erro ao carregar departamentos', 
           description: data?.error || 'Resposta inválida da API',
           variant: 'destructive' 
         });
       }
     } catch (error: any) {
       toast({
-        title: 'Erro ao carregar sessões',
+        title: 'Erro ao carregar departamentos',
         description: error.message || 'Não foi possível conectar à API',
         variant: 'destructive',
       });
     } finally {
-      setIsLoadingSessions(false);
+      setIsLoadingDepartments(false);
     }
   };
 
-  // Select session mutation
-  const selectSessionMutation = useMutation({
-    mutationFn: async (session: Session) => {
+  // Select department mutation
+  const selectDepartmentMutation = useMutation({
+    mutationFn: async (department: Department) => {
       const { data, error } = await supabase.functions.invoke('zap-responder', {
         body: { 
-          action: 'selecionar-sessao',
-          session_id: session.id,
-          session_name: session.name,
-          session_phone: session.phone
+          action: 'selecionar-departamento',
+          department_id: department.id,
+          department_name: department.name
         },
       });
 
       if (error) throw error;
-      if (!data?.success) throw new Error(data?.error || 'Erro ao selecionar sessão');
-      return session;
+      if (!data?.success) throw new Error(data?.error || 'Erro ao selecionar departamento');
+      return department;
     },
-    onSuccess: (session) => {
-      toast({ title: 'Atendente selecionado!', description: `${session.name} - ${session.phone}` });
-      setShowSessionSelector(false);
+    onSuccess: (department) => {
+      toast({ title: 'Departamento selecionado!', description: department.name });
+      setShowDepartmentSelector(false);
+      setTemplatesLoaded(false); // Force reload templates for new department
       refetchZapSettings();
     },
     onError: (error: Error) => {
-      toast({ title: 'Erro ao selecionar atendente', description: error.message, variant: 'destructive' });
+      toast({ title: 'Erro ao selecionar departamento', description: error.message, variant: 'destructive' });
     }
   });
 
@@ -837,80 +824,75 @@ export default function MassBroadcast() {
           </div>
         </div>
 
-        {/* Session Selector Card */}
+        {/* Department Selector Card */}
         <Card className="border-primary/30">
           <CardHeader className="pb-3">
             <CardTitle className="text-lg flex items-center gap-2">
               <Phone className="w-5 h-5" />
-              Telefone de Envio
+              Departamento de Envio
             </CardTitle>
             <CardDescription>
-              Selecione qual atendente/sessão será usado para enviar as mensagens
+              Selecione qual departamento será usado para enviar as mensagens
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {/* Current Session Display */}
+            {/* Current Department Display */}
             <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
-              {zapSettings?.selected_session_phone ? (
+              {zapSettings?.selected_department_id ? (
                 <div className="flex items-center gap-3 px-4 py-3 rounded-lg bg-success/10 border border-success/30 flex-1">
                   <CheckCircle className="w-5 h-5 text-success flex-shrink-0" />
                   <div className="flex-1">
-                    <p className="font-medium text-foreground">{zapSettings.selected_session_phone}</p>
-                    {zapSettings.selected_session_name && (
-                      <p className="text-sm text-muted-foreground">{zapSettings.selected_session_name}</p>
-                    )}
+                    <p className="font-medium text-foreground">{zapSettings.selected_department_name || 'Departamento Selecionado'}</p>
+                    <p className="text-sm text-muted-foreground">ID: {zapSettings.selected_department_id}</p>
                   </div>
                   <Badge className="bg-success/20 text-success border-success/30">Selecionado</Badge>
                 </div>
               ) : (
                 <div className="flex items-center gap-3 px-4 py-3 rounded-lg bg-warning/10 border border-warning/30 flex-1">
                   <AlertTriangle className="w-5 h-5 text-warning flex-shrink-0" />
-                  <p className="text-warning-foreground">Nenhum telefone selecionado para envio</p>
+                  <p className="text-warning-foreground">Nenhum departamento selecionado para envio</p>
                 </div>
               )}
               <Button 
-                onClick={fetchSessions}
-                disabled={isLoadingSessions}
+                onClick={fetchDepartments}
+                disabled={isLoadingDepartments}
                 variant="outline"
                 className="shrink-0"
               >
-                {isLoadingSessions ? (
+                {isLoadingDepartments ? (
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                 ) : (
                   <RefreshCw className="w-4 h-4 mr-2" />
                 )}
-                {zapSettings?.selected_session_phone ? 'Alterar' : 'Selecionar'}
+                {zapSettings?.selected_department_id ? 'Alterar' : 'Selecionar'}
               </Button>
             </div>
 
-            {/* Session Selection Grid */}
-            {showSessionSelector && sessions.length > 0 && (
+            {/* Department Selection Grid */}
+            {showDepartmentSelector && departments.length > 0 && (
               <div className="space-y-3 pt-2 border-t">
-                <p className="text-sm font-medium text-muted-foreground">Selecione uma sessão de WhatsApp:</p>
+                <p className="text-sm font-medium text-muted-foreground">Selecione um departamento:</p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                  {sessions.map((session) => (
+                  {departments.map((department) => (
                     <button
-                      key={session.id}
-                      onClick={() => selectSessionMutation.mutate(session)}
-                      disabled={selectSessionMutation.isPending}
+                      key={department.id}
+                      onClick={() => selectDepartmentMutation.mutate(department)}
+                      disabled={selectDepartmentMutation.isPending}
                       className={cn(
                         'p-3 rounded-lg border text-left transition-all hover:border-primary',
-                        zapSettings?.selected_session_id === session.id
+                        zapSettings?.selected_department_id === department.id
                           ? 'border-primary bg-primary/10'
                           : 'border-border bg-secondary/50'
                       )}
                     >
-                      <p className="font-medium text-foreground">{session.name}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {session.phone || 'Telefone não disponível'}
-                      </p>
+                      <p className="font-medium text-foreground">{department.name}</p>
                       <span className={cn(
                         'text-xs px-2 py-0.5 rounded-full mt-1 inline-block',
-                        session.status === 'connected' || session.status === 'active'
+                        department.isActive
                           ? 'bg-success/10 text-success' 
                           : 'bg-muted text-muted-foreground'
                       )}>
-                        {session.status}
+                        {department.isActive ? 'Ativo' : 'Inativo'}
                       </span>
                     </button>
                   ))}
@@ -919,10 +901,10 @@ export default function MassBroadcast() {
             )}
 
             {/* Empty State */}
-            {showSessionSelector && sessions.length === 0 && !isLoadingSessions && (
+            {showDepartmentSelector && departments.length === 0 && !isLoadingDepartments && (
               <div className="pt-2 border-t">
                 <p className="text-sm text-muted-foreground text-center py-4">
-                  Nenhuma sessão de WhatsApp encontrada. Configure as instâncias no painel do Zap Responder.
+                  Nenhum departamento encontrado. Configure os departamentos no painel do Zap Responder.
                 </p>
               </div>
             )}
