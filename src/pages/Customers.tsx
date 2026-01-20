@@ -1957,26 +1957,28 @@ export default function Customers() {
                 <p>Nenhum cliente encontrado</p>
               </div>
             ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow className="border-border hover:bg-transparent">
-                    <TableHead className="w-10">
-                      <Checkbox 
-                        checked={paginatedCustomers?.length > 0 && paginatedCustomers.every((c: any) => selectedCustomerIds.has(c.id))}
-                        onCheckedChange={toggleSelectAll}
-                      />
-                    </TableHead>
-                    <TableHead>Nome</TableHead>
-                    <TableHead>Telefone</TableHead>
-                    <TableHead>Servidor</TableHead>
-                    <TableHead>Plano</TableHead>
-                    <TableHead>Valor</TableHead>
-                    <TableHead>Vencimento</TableHead>
-                    <TableHead>Usuário</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Ações</TableHead>
-                  </TableRow>
-                </TableHeader>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="border-border hover:bg-transparent">
+                      <TableHead className="w-10">
+                        <Checkbox 
+                          checked={paginatedCustomers?.length > 0 && paginatedCustomers.every((c: any) => selectedCustomerIds.has(c.id))}
+                          onCheckedChange={toggleSelectAll}
+                        />
+                      </TableHead>
+                      <TableHead>Nome</TableHead>
+                      <TableHead>Telefone</TableHead>
+                      <TableHead>Servidor</TableHead>
+                      <TableHead>Plano</TableHead>
+                      <TableHead>Telas</TableHead>
+                      <TableHead>Valor</TableHead>
+                      <TableHead>Vencimento</TableHead>
+                      <TableHead>Usuário</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className="text-right">Ações</TableHead>
+                    </TableRow>
+                  </TableHeader>
                 <TableBody>
                   {paginatedCustomers?.map((customer: any) => (
                     <TableRow key={customer.id} className="table-row-hover border-border">
@@ -1990,6 +1992,7 @@ export default function Customers() {
                       <TableCell className="font-mono text-sm">{customer.phone}</TableCell>
                       <TableCell>{customer.servers?.server_name || '-'}</TableCell>
                       <TableCell>{customer.plans?.plan_name || '-'}</TableCell>
+                      <TableCell className="text-center">1</TableCell>
                       <TableCell className="font-medium text-primary">
                         R${Number(customer.custom_price || customer.plans?.price || 0).toFixed(2)}
                       </TableCell>
@@ -2052,7 +2055,8 @@ export default function Customers() {
                     </TableRow>
                   ))}
                 </TableBody>
-              </Table>
+                </Table>
+              </div>
             )}
           </CardContent>
 
