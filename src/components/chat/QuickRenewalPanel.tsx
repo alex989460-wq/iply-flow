@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { 
   Search, User, Calendar, CreditCard, CheckCircle, Phone, RefreshCw, 
   Server, Copy, Settings, Wifi, Download, Key, Bell, Smile, MessageSquare,
-  ChevronDown, ChevronUp, UserPlus
+  ChevronDown, ChevronUp, UserPlus, AlertTriangle, Monitor
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { addDays, addMonths, format, startOfDay } from 'date-fns';
@@ -437,10 +437,60 @@ Seu pagamento de *R$ ${amount.toFixed(2)}* foi confirmado.
 
 📅 *Vencimento:* ${formattedDate}
 👤 *Usuário:* ${customer.username || '-'}
+🖥️ *Telas:* 1
 📺 *Plano:* ${planName}
 🖥️ *Servidor:* ${customer.server?.server_name || '-'}
 
 Obrigado pela preferência! 🙏`;
+  };
+
+  // Check if customer is overdue
+  const isCustomerOverdue = (dueDate: string) => {
+    const [y, m, d] = dueDate.split('-').map(Number);
+    const due = new Date(y, (m ?? 1) - 1, d ?? 1);
+    const today = startOfDay(new Date());
+    return due < today;
+  };
+
+  // Generate overdue billing message
+  const generateOverdueMessage = (customer: Customer) => {
+    const formattedDate = formatDate(customer.due_date);
+    const planName = selectedPlan?.plan_name ?? customer.plan?.plan_name ?? 'Mensal';
+    const serverName = customer.server?.server_name || 'NATV';
+    
+    return `⚠️ *Plano Vencido – Ação Necessária*
+
+Olá ${customer.name}!
+
+Identificamos que o seu plano está vencido no momento.
+
+📅 *Vencimento:* ${formattedDate}
+👤 *Usuário:* ${customer.username || '-'}
+📺 *Plano:* ${planName}
+🖥️ *Servidor:* ${serverName}
+
+Para continuar aproveitando o serviço sem interrupções, basta realizar a renovação 👇
+
+🔑 *PAGAMENTO VIA PIX*
+📱 Chave (Celular): 41996360762
+
+💳 *PACOTES DISPONÍVEIS*
+💰 Mensal — R$ 35,00
+💰 Trimestral — R$ 90,00
+💰 Semestral — R$ 175,00
+💰 Anual — R$ 300,00
+
+✅ Após o pagamento, envie o comprovante para que possamos liberar sua conta rapidamente.
+
+Agradecemos a preferência e ficamos à disposição! 🙏📺`;
+  };
+
+  const handleCopyOverdueMessage = async () => {
+    if (!selectedCustomer) return;
+    const message = generateOverdueMessage(selectedCustomer);
+    const ok = await copyText(message);
+    if (ok) toast.success('Mensagem de cobrança copiada!');
+    else toast.error('Não foi possível copiar automaticamente.');
   };
 
   const handleCopyPaymentMessage = async () => {
@@ -629,12 +679,32 @@ Obrigado pela preferência! 🙏`;
                     {getStatusBadge(selectedCustomer.status)}
                   </div>
                   
+                  {/* Username */}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-muted-foreground">
+                      <User className="h-3.5 w-3.5" />
+                      <span>Usuário:</span>
+                    </div>
+                    <span className="font-medium font-mono">{selectedCustomer.username || '-'}</span>
+                  </div>
+
+                  {/* Screens */}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-muted-foreground">
+                      <Monitor className="h-3.5 w-3.5" />
+                      <span>Telas:</span>
+                    </div>
+                    <span className="font-medium">1</span>
+                  </div>
+                  
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2 text-muted-foreground">
                       <Calendar className="h-3.5 w-3.5" />
                       <span>Vencimento:</span>
                     </div>
-                    <span className="font-medium">{formatDate(selectedCustomer.due_date)}</span>
+                    <span className={`font-medium ${isCustomerOverdue(selectedCustomer.due_date) ? 'text-destructive' : ''}`}>
+                      {formatDate(selectedCustomer.due_date)}
+                    </span>
                   </div>
                   
                   {/* Plan Selector */}
@@ -686,6 +756,25 @@ Obrigado pela preferência! 🙏`;
                       />
                     </div>
                   </div>
+
+                  {/* Overdue Warning and Billing Message Button */}
+                  {isCustomerOverdue(selectedCustomer.due_date) && (
+                    <div className="mt-2 p-2 bg-destructive/10 border border-destructive/30 rounded-lg">
+                      <div className="flex items-center gap-2 text-destructive mb-2">
+                        <AlertTriangle className="h-4 w-4" />
+                        <span className="text-xs font-semibold">Plano Vencido</span>
+                      </div>
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        className="w-full h-7 text-xs border-destructive/50 text-destructive hover:bg-destructive/10"
+                        onClick={handleCopyOverdueMessage}
+                      >
+                        <Copy className="h-3 w-3 mr-1" />
+                        Copiar Cobrança
+                      </Button>
+                    </div>
+                  )}
                 </div>
 
                 <div className="pt-2 border-t border-border space-y-2">
