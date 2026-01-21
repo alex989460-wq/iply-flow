@@ -56,6 +56,7 @@ import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import type { Database } from '@/integrations/supabase/types';
+import { triggerWelcomeBot } from '@/hooks/useBotTriggers';
 
 type CustomerStatus = Database['public']['Enums']['customer_status'];
 
@@ -253,18 +254,34 @@ export default function Customers() {
       // Retornar dados mínimos para disparo do bot (sem depender de SELECT)
       return {
         customer: {
+          id: 'new',
           name: restData.name,
           phone: restData.phone,
+          due_date: dueDate,
           plan_id: restData.plan_id,
         },
-        dueDate,
       };
     },
-    onSuccess: () => {
+    onSuccess: (result: any) => {
       queryClient.invalidateQueries({ queryKey: ['customers'] });
       setIsOpen(false);
       resetForm();
       toast({ title: 'Cliente criado com sucesso!' });
+
+      // Disparar boas-vindas (se gatilho estiver ativo)
+      if (user?.id && result?.customer) {
+        (async () => {
+          const res = await triggerWelcomeBot(user.id, result.customer, plans as any);
+          if (!res.success) {
+            // Não falhar o cadastro do cliente caso o bot não inicie
+            toast({
+              title: 'Boas-vindas não enviada',
+              description: res.error || 'Não foi possível iniciar o bot de boas-vindas.',
+              variant: 'destructive',
+            });
+          }
+        })();
+      }
     },
     onError: (error: Error) => {
       toast({ title: 'Erro ao criar cliente', description: error.message, variant: 'destructive' });

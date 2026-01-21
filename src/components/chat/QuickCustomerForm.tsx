@@ -16,6 +16,7 @@ import {
 import { toast } from 'sonner';
 import { Loader2, X, UserPlus } from 'lucide-react';
 import type { Database } from '@/integrations/supabase/types';
+import { triggerWelcomeBot } from '@/hooks/useBotTriggers';
 
 type CustomerStatus = Database['public']['Enums']['customer_status'];
 
@@ -82,11 +83,30 @@ export default function QuickCustomerForm({ onSuccess, onCancel, initialPhone = 
 
       const { error } = await supabase.from('customers').insert(insertData);
       if (error) throw error;
+
+      return {
+        customer: {
+          id: 'new',
+          name: insertData.name,
+          phone: insertData.phone,
+          due_date: dueDate,
+          plan_id: insertData.plan_id,
+        },
+      };
     },
-    onSuccess: () => {
+    onSuccess: (result: any) => {
       queryClient.invalidateQueries({ queryKey: ['customers'] });
       queryClient.invalidateQueries({ queryKey: ['customer-search'] });
       toast.success('Cliente cadastrado com sucesso!');
+
+      if (user?.id && result?.customer) {
+        (async () => {
+          const res = await triggerWelcomeBot(user.id, result.customer, plans as any);
+          if (!res.success) {
+            toast.error(res.error || 'Não foi possível iniciar o bot de boas-vindas.');
+          }
+        })();
+      }
       onSuccess?.();
     },
     onError: (error: Error) => {
