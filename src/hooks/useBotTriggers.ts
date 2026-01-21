@@ -21,6 +21,7 @@ interface TriggerResult {
 
 /**
  * Dispara o gatilho de boas-vindas para um novo cliente
+ * Nota: o cliente Supabase já usa a sessão do usuário logado automaticamente
  */
 export async function triggerWelcomeBot(
   userId: string,
@@ -28,7 +29,15 @@ export async function triggerWelcomeBot(
   plans?: Plan[]
 ): Promise<TriggerResult> {
   try {
-    console.log('Checking welcome bot trigger for new customer:', customer.name);
+    console.log('[triggerWelcomeBot] Iniciando para cliente:', customer.name);
+
+    // Verificar sessão ativa
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+    if (sessionError || !session) {
+      console.error('[triggerWelcomeBot] Sessão não encontrada:', sessionError);
+      return { success: false, error: 'Usuário não autenticado' };
+    }
+    console.log('[triggerWelcomeBot] Sessão ativa para user:', session.user.id);
 
     // 1. Verificar se o gatilho de boas_vindas está ativo
     const { data: trigger, error: triggerError } = await supabase
@@ -40,14 +49,15 @@ export async function triggerWelcomeBot(
       .maybeSingle();
 
     if (triggerError) {
-      console.error('Error fetching welcome trigger:', triggerError);
+      console.error('[triggerWelcomeBot] Erro ao buscar gatilho:', triggerError);
       return { success: false, error: triggerError.message };
     }
 
     if (!trigger) {
-      console.log('Welcome bot trigger not enabled');
+      console.log('[triggerWelcomeBot] Gatilho de boas-vindas não está ativo');
       return { success: false, error: 'Gatilho de boas-vindas não está ativo' };
     }
+    console.log('[triggerWelcomeBot] Gatilho encontrado:', trigger);
 
     // 2. Buscar configurações (apenas campos necessários)
     const { data: zapSettings, error: zapError } = await supabase
@@ -57,15 +67,16 @@ export async function triggerWelcomeBot(
       .maybeSingle();
 
     if (zapError) {
-      console.error('Error fetching Zap Responder settings:', zapError);
+      console.error('[triggerWelcomeBot] Erro ao buscar configurações:', zapError);
       return { success: false, error: zapError.message };
     }
 
     const departmentId = trigger.bot_department_id || zapSettings?.selected_department_id;
     if (!departmentId) {
-      console.log('No department configured for welcome trigger');
+      console.log('[triggerWelcomeBot] Nenhum departamento configurado');
       return { success: false, error: 'Nenhum departamento configurado para o gatilho' };
     }
+    console.log('[triggerWelcomeBot] Departamento:', departmentId);
 
     // 3. Preparar variáveis para a mensagem
     const phone = customer.phone.replace(/\D/g, '');
@@ -89,7 +100,7 @@ export async function triggerWelcomeBot(
         .replace(/{plano}/g, variables.plano as string);
     }
 
-    console.log('Triggering welcome bot for:', phoneWithCode, 'Department:', departmentId);
+    console.log('[triggerWelcomeBot] Disparando bot para:', phoneWithCode, 'Departamento:', departmentId, 'Mensagem:', mensagemInicial);
 
     // 5. Iniciar o bot com a mensagemInicial (a API iniciarBot é a única que entrega)
     const { data: botData, error: botError } = await supabase.functions.invoke('zap-responder', {
@@ -103,21 +114,23 @@ export async function triggerWelcomeBot(
       },
     });
 
+    console.log('[triggerWelcomeBot] Resposta da edge function:', { botData, botError });
+
     if (botError) {
-      console.error('Error triggering welcome bot:', botError);
+      console.error('[triggerWelcomeBot] Erro ao chamar edge function:', botError);
       return { success: false, error: botError.message };
     }
 
     if (!botData?.success) {
-      console.error('Failed to trigger welcome bot:', botData);
+      console.error('[triggerWelcomeBot] Falha ao iniciar bot:', botData);
       return { success: false, error: botData?.error || 'Falha ao iniciar bot' };
     }
 
-    console.log('Welcome bot triggered successfully:', botData);
+    console.log('[triggerWelcomeBot] Bot iniciado com sucesso:', botData);
     return { success: true, data: botData };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
-    console.error('Error in triggerWelcomeBot:', error);
+    console.error('[triggerWelcomeBot] Erro:', error);
     return { success: false, error: errorMessage };
   }
 }
