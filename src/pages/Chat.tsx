@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
-import { ExternalLink, RefreshCw, X, MessageSquare, Globe } from 'lucide-react';
+import { ExternalLink, RefreshCw, X, MessageSquare } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import QuickRenewalPanel from '@/components/chat/QuickRenewalPanel';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -16,10 +16,19 @@ export default function Chat() {
   const [showRenewalPanel, setShowRenewalPanel] = useState(false);
   const [chatMode, setChatMode] = useState<ChatMode>('zap-responder');
 
-  const currentUrl = chatMode === 'zap-responder' ? ZAP_RESPONDER_URL : WHATSAPP_WEB_URL;
+  const handleModeChange = (value: string) => {
+    const mode = value as ChatMode;
+    if (mode === 'whatsapp-web') {
+      // WhatsApp Web não permite iframe, abre em nova aba
+      window.open(WHATSAPP_WEB_URL, '_blank');
+      // Mantém no Zap Responder
+      return;
+    }
+    setChatMode(mode);
+  };
 
   const openInNewTab = () => {
-    window.open(currentUrl, '_blank');
+    window.open(ZAP_RESPONDER_URL, '_blank');
   };
 
   return (
@@ -30,7 +39,7 @@ export default function Chat() {
           <div className="flex items-center justify-between px-3 md:px-4 py-2 border-b border-border bg-background/50">
             <div className="flex items-center gap-3">
               <h1 className="text-base md:text-lg font-semibold text-foreground">Chat</h1>
-              <Tabs value={chatMode} onValueChange={(value) => setChatMode(value as ChatMode)}>
+              <Tabs value={chatMode} onValueChange={handleModeChange}>
                 <TabsList className="h-8">
                   <TabsTrigger value="zap-responder" className="text-xs px-2 md:px-3 h-6 gap-1">
                     <MessageSquare className="w-3.5 h-3.5" />
@@ -38,7 +47,7 @@ export default function Chat() {
                     <span className="sm:hidden">Zap</span>
                   </TabsTrigger>
                   <TabsTrigger value="whatsapp-web" className="text-xs px-2 md:px-3 h-6 gap-1">
-                    <Globe className="w-3.5 h-3.5" />
+                    <ExternalLink className="w-3 h-3" />
                     <span className="hidden sm:inline">WhatsApp Web</span>
                     <span className="sm:hidden">Web</span>
                   </TabsTrigger>
@@ -66,10 +75,9 @@ export default function Chat() {
 
           <div className="flex-1 w-full overflow-hidden">
             <iframe
-              key={chatMode}
-              src={currentUrl}
+              src={ZAP_RESPONDER_URL}
               className="w-full h-full border-0"
-              title={chatMode === 'zap-responder' ? 'Zap Responder Chat' : 'WhatsApp Web'}
+              title="Zap Responder Chat"
               allow="microphone; camera; clipboard-read; clipboard-write"
             />
           </div>
