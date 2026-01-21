@@ -287,13 +287,23 @@ Deno.serve(async (req) => {
       }
 
       // Update schedule with last run info
-      await supabase
+      const statusMessage = `success: ${sent} sent, ${errors} errors, ${skipped} skipped`;
+      console.log(`[Scheduled Billing] Updating schedule ${schedule.id} with status: ${statusMessage}`);
+      
+      const { error: updateError } = await supabase
         .from('billing_schedule')
         .update({ 
           last_run_at: new Date().toISOString(),
-          last_run_status: `success: ${sent} sent, ${errors} errors, ${skipped} skipped`
+          last_run_status: statusMessage,
+          updated_at: new Date().toISOString(),
         })
         .eq('id', schedule.id);
+
+      if (updateError) {
+        console.error(`[Scheduled Billing] Error updating schedule: ${JSON.stringify(updateError)}`);
+      } else {
+        console.log(`[Scheduled Billing] Schedule ${schedule.id} updated successfully`);
+      }
 
       results.push({
         user_id: schedule.user_id,
