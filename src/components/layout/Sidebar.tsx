@@ -17,6 +17,7 @@ import {
   Settings,
   UserCheck,
   BookOpen,
+  Bot,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/ThemeToggle';
@@ -31,6 +32,7 @@ const menuItems = [
   { icon: MessageSquare, label: 'Cobranças', path: '/billing', adminOnly: false },
   { icon: Send, label: 'Disparo em Massa', path: '/mass-broadcast', adminOnly: false },
   { icon: MessagesSquare, label: 'Chat', path: '/chat', adminOnly: false },
+  { icon: Bot, label: 'Gatilhos de Bot', path: '/bot-triggers', adminOnly: false },
   { icon: BookOpen, label: 'Tutorial', path: '/tutorial', adminOnly: false },
   { icon: UserCheck, label: 'Revendedores', path: '/resellers', adminOnly: true },
   { icon: Settings, label: 'Configurações', path: '/settings', adminOnly: false },
