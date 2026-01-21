@@ -90,6 +90,7 @@ export default function QuickRenewalPanel({ isMobile = false, onClose }: QuickRe
   const [selectedQuickMessage, setSelectedQuickMessage] = useState<QuickMessage | null>(null);
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
   const [customRenewalPrice, setCustomRenewalPrice] = useState<string>('');
+  const [selectedScreens, setSelectedScreens] = useState<number>(1);
   const [showNewCustomerForm, setShowNewCustomerForm] = useState(false);
   const queryClient = useQueryClient();
 
@@ -272,10 +273,11 @@ export default function QuickRenewalPanel({ isMobile = false, onClose }: QuickRe
 
       if (paymentError) throw paymentError;
 
-      // Update customer due_date, status, plan, and custom_price if changed
+      // Update customer due_date, status, plan, screens, and custom_price if changed
       const updateData: Record<string, unknown> = {
         due_date: newDueDateStr,
         status: 'ativa' as const,
+        screens: selectedScreens,
       };
 
       // Update plan if changed
@@ -412,10 +414,11 @@ Obrigado pela preferência! 🙏`;
     setSelectedCustomer(customer);
     setSearchTerm(customer.username || customer.phone);
     setRenewalMessage(null);
-    // Reset plan/price to customer's current values
+    // Reset plan/price/screens to customer's current values
     setSelectedPlanId(customer.plan?.id || null);
     const currentPrice = customer.custom_price ?? customer.plan?.price ?? 0;
     setCustomRenewalPrice(currentPrice.toString());
+    setSelectedScreens(customer.screens || 1);
   };
 
   const handleRenew = () => {
@@ -439,7 +442,7 @@ Seu pagamento de *R$ ${amount.toFixed(2)}* foi confirmado.
 
 📅 *Vencimento:* ${formattedDate}
 👤 *Usuário:* ${customer.username || '-'}
-🖥️ *Telas:* ${customer.screens || 1}
+🖥️ *Telas:* ${selectedScreens}
 📺 *Plano:* ${planName}
 🖥️ *Servidor:* ${customer.server?.server_name || '-'}
 
@@ -690,13 +693,24 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺`;
                     <span className="font-medium font-mono">{selectedCustomer.username || '-'}</span>
                   </div>
 
-                  {/* Screens */}
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2 text-muted-foreground">
-                      <Monitor className="h-3.5 w-3.5" />
-                      <span>Telas:</span>
-                    </div>
-                    <span className="font-medium">{selectedCustomer.screens || 1}</span>
+                  {/* Screens Selector */}
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground">Telas:</label>
+                    <Select 
+                      value={selectedScreens.toString()} 
+                      onValueChange={(v) => setSelectedScreens(parseInt(v))}
+                    >
+                      <SelectTrigger className="h-8 text-sm">
+                        <SelectValue placeholder="Quantidade de telas" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {[1, 2, 3, 4, 5].map((num) => (
+                          <SelectItem key={num} value={num.toString()}>
+                            {num} {num === 1 ? 'tela' : 'telas'}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                   
                   <div className="flex items-center justify-between">
