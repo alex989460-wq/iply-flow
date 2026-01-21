@@ -327,59 +327,88 @@ async function iniciarBot(
   variaveis?: Record<string, string | number>
 ): Promise<{ success: boolean; data?: any; error?: string }> {
   try {
-    console.log('Starting bot...', { chatId, departamento, aplicacao, mensagemInicial });
-    
-    const body: any = {
-      chatId,
-      departamento,
-      aplicacao,
-    };
-    
-    if (mensagemInicial) {
-      body.mensagemInicial = mensagemInicial;
-    }
-    
-    if (variaveis) {
-      body.variaveis = variaveis;
-    }
-    
-    console.log('iniciarBot request body:', JSON.stringify(body));
-    
-    const response = await fetch(`${apiBaseUrl}/conversa/iniciarBot`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-      },
-      body: JSON.stringify(body),
-    });
+    const phoneDigits = (chatId || '').split('@')[0].replace(/\D/g, '');
+    const candidates = aplicacao === 'whatsapp'
+      ? [
+          `${phoneDigits}@c.us`,
+          `${phoneDigits}@s.whatsapp.net`,
+          phoneDigits,
+        ]
+      : [chatId];
 
-    // Read response as text first to handle empty responses
-    const responseText = await response.text();
-    console.log('iniciarBot response status:', response.status, 'body:', responseText || '(empty)');
+    console.log('Starting bot...', { chatId, departamento, aplicacao, mensagemInicial, candidates });
 
-    if (!response.ok) {
-      console.error(`Zap Responder API error: ${response.status} - ${responseText}`);
-      return { success: false, error: 'Falha ao iniciar bot' };
-    }
+    let lastStatus: number | null = null;
+    let lastBody: string | null = null;
 
-    // Handle empty response (some APIs return 200 with empty body on success)
-    if (!responseText || responseText.trim() === '') {
+    for (const candidateChatId of candidates) {
+      const body: any = {
+        chatId: candidateChatId,
+        departamento,
+        aplicacao,
+      };
+
+      if (mensagemInicial) body.mensagemInicial = mensagemInicial;
+      if (variaveis) body.variaveis = variaveis;
+
+      console.log('iniciarBot request body:', JSON.stringify(body));
+
+      const response = await fetch(`${apiBaseUrl}/conversa/iniciarBot`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify(body),
+      });
+
+      const responseText = await response.text();
+      lastStatus = response.status;
+      lastBody = responseText;
+      console.log('iniciarBot response status:', response.status, 'body:', responseText || '(empty)');
+
+      if (!response.ok) {
+        console.error(`Zap Responder API error: ${response.status} - ${responseText}`);
+        continue;
+      }
+
+      // Se a API retornou alguma coisa, tentamos parsear; senão assumimos OK.
+      if (responseText && responseText.trim() !== '') {
+        try {
+          const result = JSON.parse(responseText);
+          console.log('Bot started successfully:', result);
+          return { success: true, data: result };
+        } catch {
+          console.log('Bot started successfully (non-JSON response):', responseText);
+          return { success: true, data: { message: responseText } };
+        }
+      }
+
+      // Resposta vazia: confirmamos se a conversa existe; se não existir, tentamos o próximo formato.
+      if (aplicacao === 'whatsapp' && phoneDigits) {
+        const check = await buscarConversaPorTelefone(apiBaseUrl, token, phoneDigits, true);
+        if (check.success) {
+          console.log('Bot started successfully (empty response body, conversation found)');
+          return { success: true, data: { message: 'Bot iniciado com sucesso' } };
+        }
+        console.log('Bot start returned empty body but conversation not found; trying next chatId format', {
+          candidateChatId,
+          phoneDigits,
+          checkError: check.error,
+        });
+        continue;
+      }
+
       console.log('Bot started successfully (empty response body)');
       return { success: true, data: { message: 'Bot iniciado com sucesso' } };
     }
 
-    // Try to parse JSON
-    try {
-      const result = JSON.parse(responseText);
-      console.log('Bot started successfully:', result);
-      return { success: true, data: result };
-    } catch (parseError) {
-      // Response is not JSON but request was successful
-      console.log('Bot started successfully (non-JSON response):', responseText);
-      return { success: true, data: { message: responseText } };
-    }
+    return {
+      success: false,
+      error: lastStatus ? `Falha ao iniciar bot (status ${lastStatus}).` : 'Falha ao iniciar bot.',
+      data: lastBody ? { body: lastBody } : undefined,
+    };
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     console.error('Error starting bot:', error);
