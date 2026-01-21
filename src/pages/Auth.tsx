@@ -11,7 +11,7 @@ import { z } from 'zod';
 import logoSg from '@/assets/logo-sg.png';
 import ReCAPTCHA from 'react-google-recaptcha';
 
-const RECAPTCHA_SITE_KEY = '6Lfe9VEsAAAAAEk4lYwqxrk6kdBOmdC5XUKT7XMh';
+const RECAPTCHA_SITE_KEY = '6Lcf91EsAAAAAGGKsVmiOMQ0Xe8LDK3qITzT8lB9';
 
 const loginSchema = z.object({
   email: z.string().email('Email inválido'),
