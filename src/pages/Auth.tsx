@@ -93,7 +93,7 @@ export default function Auth() {
             title: 'Bem-vindo!',
             description: 'Login realizado com sucesso.',
           });
-          navigate('/');
+          navigate('/dashboard');
         }
       } else {
         const { error } = await signUp(email, password, fullName);
@@ -110,7 +110,7 @@ export default function Auth() {
             title: 'Conta criada!',
             description: 'Você tem 7 dias de teste. Após isso, precisará de ativação.',
           });
-          navigate('/');
+          navigate('/dashboard');
         }
       }
     } finally {
