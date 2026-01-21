@@ -96,6 +96,33 @@ function formatDateSaoPaulo(date: Date): string {
   return `${year}-${month}-${day}`;
 }
 
+// Get dates relative to São Paulo timezone (handles DST correctly)
+function getRelativeDateSaoPaulo(daysOffset: number): string {
+  // Get current date parts in São Paulo
+  const now = new Date();
+  const saoPauloDate = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Sao_Paulo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(now);
+  
+  // Parse and add offset
+  const [year, month, day] = saoPauloDate.split('-').map(Number);
+  const targetDate = new Date(year, month - 1, day + daysOffset);
+  
+  return `${targetDate.getFullYear()}-${String(targetDate.getMonth() + 1).padStart(2, '0')}-${String(targetDate.getDate()).padStart(2, '0')}`;
+}
+
+// Normalize phone number for comparison
+function normalizePhone(phone: string): string {
+  let normalized = phone.replace(/\D/g, '');
+  if (!normalized.startsWith('55') && normalized.length <= 11) {
+    normalized = '55' + normalized;
+  }
+  return normalized;
+}
+
 // Get billing type based on due date comparison with today
 function getBillingType(dueDate: string, today: string): 'D-1' | 'D0' | 'D+1' | null {
   const due = new Date(dueDate);
@@ -235,10 +262,10 @@ Deno.serve(async (req) => {
     
     console.log(`Using department ID: ${departmentId}`);
 
-    // Get today's date in Sao Paulo timezone (YYYY-MM-DD)
-    const today = formatDateSaoPaulo(new Date());
-    const yesterday = formatDateSaoPaulo(new Date(Date.now() - 86400000));
-    const tomorrow = formatDateSaoPaulo(new Date(Date.now() + 86400000));
+    // Get today's date in Sao Paulo timezone (YYYY-MM-DD) using timezone-aware function
+    const today = getRelativeDateSaoPaulo(0);
+    const yesterday = getRelativeDateSaoPaulo(-1);
+    const tomorrow = getRelativeDateSaoPaulo(1);
 
     console.log(`Processing billings for dates: yesterday=${yesterday}, today=${today}, tomorrow=${tomorrow}`);
 
@@ -294,8 +321,8 @@ Deno.serve(async (req) => {
         continue;
       }
 
-      // Check if we already sent this billing type today
-      const { data: existingLog } = await supabase
+      // Check if we already sent this billing type today (by customer_id)
+      const { data: existingLogById } = await supabase
         .from('billing_logs')
         .select('id')
         .eq('customer_id', customer.id)
@@ -304,7 +331,24 @@ Deno.serve(async (req) => {
         .lte('sent_at', `${today}T23:59:59`)
         .maybeSingle();
 
-      if (existingLog) {
+      if (existingLogById) {
+        results.skipped++;
+        continue;
+      }
+
+      // Also check by phone number to prevent duplicate sends to same number
+      const normalizedPhone = normalizePhone(customer.phone);
+      const { data: existingLogByPhone } = await supabase
+        .from('billing_logs')
+        .select('id')
+        .eq('billing_type', billingType)
+        .gte('sent_at', `${today}T00:00:00`)
+        .lte('sent_at', `${today}T23:59:59`)
+        .like('message', `%${normalizedPhone}%`)
+        .maybeSingle();
+
+      if (existingLogByPhone) {
+        console.log(`Skipping ${customer.name} - phone ${normalizedPhone} already received message today`);
         results.skipped++;
         continue;
       }
