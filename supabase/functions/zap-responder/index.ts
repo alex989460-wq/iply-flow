@@ -18,6 +18,48 @@ interface Department {
   phone?: string;
 }
 
+function normalizePhoneDigitsFromChatId(chatId: string): string {
+  const raw = (chatId || '').split('@')[0];
+  return raw.replace(/\D/g, '');
+}
+
+function extractConversationPayload(payload: any): any | null {
+  if (!payload) return null;
+  if (payload.conversation) return payload.conversation;
+  if (payload.data?.conversation) return payload.data.conversation;
+  return payload;
+}
+
+async function resolveConversationContext(
+  apiBaseUrl: string,
+  token: string,
+  chatId: string
+): Promise<{ departmentId?: string; isOfficial?: boolean; origin?: string; conversation?: any }> {
+  const phoneDigits = normalizePhoneDigitsFromChatId(chatId);
+  if (!phoneDigits) return {};
+
+  const convRes = await buscarConversaPorTelefone(apiBaseUrl, token, phoneDigits, true);
+  if (!convRes.success) {
+    return {};
+  }
+
+  const conversation = extractConversationPayload(convRes.data);
+  const departmentId =
+    conversation?.departamento_responsavel_atendimento ||
+    conversation?.departamento ||
+    conversation?.departmentId ||
+    conversation?.department_id;
+
+  const origin = conversation?.origem || conversation?.origin;
+  const isOfficial =
+    origin === 'whatsapp-oficial' ||
+    origin === 'whatsapp_official' ||
+    Boolean(conversation?.last_created_conversa_whatsapp_oficial) ||
+    Boolean(conversation?.lid);
+
+  return { departmentId, isOfficial, origin, conversation };
+}
+
 // ===========================================
 // API Functions - Lista atendentes
 // ===========================================
@@ -1518,7 +1560,78 @@ Deno.serve(async (req) => {
             { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
         }
-        const result = await iniciarBot(apiBaseUrl, zapToken, chat_id, departamento, aplicacao, mensagem_inicial, variaveis);
+
+        // Tenta usar o departamento real da conversa (principalmente p/ whatsapp-oficial)
+        const ctx = await resolveConversationContext(apiBaseUrl, zapToken, chat_id);
+        const resolvedDepartment = ctx.departmentId || departamento;
+        if (ctx.departmentId && ctx.departmentId !== departamento) {
+          console.log('[iniciar-bot] Overriding departamento from request with conversation departamento', {
+            requestDepartamento: departamento,
+            resolvedDepartment,
+            origin: ctx.origin,
+          });
+        }
+
+        const resultBot = await iniciarBot(
+          apiBaseUrl,
+          zapToken,
+          chat_id,
+          resolvedDepartment,
+          aplicacao,
+          mensagem_inicial,
+          variaveis
+        );
+
+        // Para WhatsApp Oficial, iniciarBot pode "abrir" o fluxo mas não necessariamente entregar a 1ª mensagem.
+        // Então garantimos o envio da mensagem inicial via endpoints de envio de texto.
+        if (resultBot.success && mensagem_inicial && ctx.isOfficial) {
+          const phoneDigits = normalizePhoneDigitsFromChatId(chat_id);
+          console.log('[iniciar-bot] WhatsApp Oficial detectado; enviando mensagem inicial via enviarMensagemTexto', {
+            phoneDigits,
+            resolvedDepartment,
+          });
+
+          const sendRes = await enviarMensagemTexto(apiBaseUrl, zapToken, resolvedDepartment, phoneDigits, mensagem_inicial);
+          if (!sendRes.success) {
+            const merged = {
+              success: false,
+              error: sendRes.error || 'Falha ao enviar mensagem inicial no WhatsApp Oficial',
+              data: {
+                bot: resultBot.data,
+                send: sendRes,
+                resolved_department_id: resolvedDepartment,
+                origin: ctx.origin,
+              },
+            };
+            return new Response(
+              JSON.stringify(merged),
+              { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
+          }
+
+          const merged = {
+            success: true,
+            data: {
+              bot: resultBot.data,
+              send: sendRes.data,
+              resolved_department_id: resolvedDepartment,
+              origin: ctx.origin,
+            },
+          };
+          return new Response(
+            JSON.stringify(merged),
+            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        const result = {
+          ...resultBot,
+          data: {
+            ...(resultBot.data ?? {}),
+            resolved_department_id: resolvedDepartment,
+            origin: ctx.origin,
+          },
+        };
         return new Response(
           JSON.stringify(result),
           { status: result.success ? 200 : 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
