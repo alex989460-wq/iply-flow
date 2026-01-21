@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -32,7 +32,7 @@ export default function Auth() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [accessDeniedMessage, setAccessDeniedMessage] = useState<string | null>(null);
   const [recaptchaToken, setRecaptchaToken] = useState<string | null>(null);
-  const recaptchaRef = useRef<ReCAPTCHA>(null);
+  const [recaptchaInstanceKey, setRecaptchaInstanceKey] = useState(0);
   
   const { signIn, signUp, accessDeniedReason } = useAuth();
   const navigate = useNavigate();
@@ -130,7 +130,7 @@ export default function Auth() {
     } finally {
       setLoading(false);
       setRecaptchaToken(null);
-      recaptchaRef.current?.reset();
+      setRecaptchaInstanceKey((v) => v + 1);
     }
   };
 
@@ -276,7 +276,7 @@ export default function Auth() {
 
             <div className="flex justify-center">
               <ReCAPTCHA
-                ref={recaptchaRef}
+                key={recaptchaInstanceKey}
                 sitekey={RECAPTCHA_SITE_KEY}
                 onChange={(token) => setRecaptchaToken(token)}
                 onExpired={() => setRecaptchaToken(null)}
