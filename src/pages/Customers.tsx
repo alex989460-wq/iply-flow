@@ -1252,15 +1252,25 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
   return (
     <DashboardLayout>
       <div className="space-y-4 sm:space-y-6 animate-fade-in">
-        <div className="flex flex-col gap-3">
-          <div>
-            <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-foreground">Clientes</h1>
-            <p className="text-muted-foreground text-sm sm:text-base mt-1">Gerencie seus clientes IPTV</p>
+        {/* Header Section */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div className="space-y-1">
+            <div className="flex items-center gap-3">
+              <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-br from-primary/20 to-primary/5 border border-primary/20">
+                <Users className="w-5 h-5 text-primary" />
+              </div>
+              <div>
+                <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-foreground">Clientes</h1>
+                <p className="text-muted-foreground text-sm">Gerencie seus clientes IPTV</p>
+              </div>
+            </div>
           </div>
+          
+          {/* Action Buttons */}
           <div className="flex gap-2 flex-wrap">
             <AlertDialog open={isDeleteAllOpen} onOpenChange={(open) => !isDeletingAll && setIsDeleteAllOpen(open)}>
               <AlertDialogTrigger asChild>
-                <Button variant="destructive" disabled={!customers || customers.length === 0}>
+                <Button variant="outline" size="sm" className="border-destructive/30 text-destructive hover:bg-destructive/10" disabled={!customers || customers.length === 0}>
                   <Trash2 className="w-4 h-4 mr-2" />
                   Excluir Todos
                 </Button>
@@ -1309,7 +1319,7 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
 
             <Dialog open={isImportOpen} onOpenChange={setIsImportOpen}>
               <DialogTrigger asChild>
-                <Button variant="outline">
+                <Button variant="outline" size="sm">
                   <Upload className="w-4 h-4 mr-2" />
                   Importar
                 </Button>
@@ -1459,7 +1469,7 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
 
             <Dialog open={isOpen} onOpenChange={(open) => { setIsOpen(open); if (!open) resetForm(); }}>
               <DialogTrigger asChild>
-                <Button variant="glow">
+                <Button variant="glow" size="sm" className="shadow-md shadow-primary/20">
                   <Plus className="w-4 h-4 mr-2" />
                   Novo Cliente
                 </Button>
@@ -1840,66 +1850,71 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
           </DialogContent>
         </Dialog>
 
-        {/* Filters */}
-        <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input
-              value={searchTerm}
-              onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
-              placeholder="Buscar por nome, telefone ou usuário..."
-              className="pl-10 bg-secondary/50"
-            />
+        {/* Filters Card */}
+        <Card className="glass-card border-border/50 p-4">
+          <div className="flex flex-col lg:flex-row gap-4 items-start lg:items-center">
+            <div className="relative flex-1 min-w-0">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                value={searchTerm}
+                onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
+                placeholder="Buscar por nome, telefone ou usuário..."
+                className="pl-10 bg-background/50 border-border/50 h-10"
+              />
+            </div>
+            <div className="flex flex-wrap gap-2 items-center">
+              <Select value={statusFilter} onValueChange={(v) => handleFilterChange(setStatusFilter, v)}>
+                <SelectTrigger className="w-[140px] bg-background/50 border-border/50 h-10">
+                  <SelectValue placeholder="Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos Status</SelectItem>
+                  <SelectItem value="ativa">Ativas</SelectItem>
+                  <SelectItem value="inativa">Inativas</SelectItem>
+                  <SelectItem value="suspensa">Suspensas</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={dueDateFilter} onValueChange={(v) => handleFilterChange(setDueDateFilter, v)}>
+                <SelectTrigger className="w-[165px] bg-background/50 border-border/50 h-10">
+                  <SelectValue placeholder="Vencimento" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos Vencimentos</SelectItem>
+                  <SelectItem value="due_today">Vencem Hoje</SelectItem>
+                  <SelectItem value="due_tomorrow">Vencem Amanhã</SelectItem>
+                  <SelectItem value="overdue_1day">Vencidas 1 Dia</SelectItem>
+                  <SelectItem value="overdue">Todas Vencidas</SelectItem>
+                </SelectContent>
+              </Select>
+              <div className="flex items-center gap-2 px-2">
+                <span className="text-xs text-muted-foreground whitespace-nowrap">Mostrar</span>
+                <Select value={String(pageSize)} onValueChange={(v) => { setPageSize(Number(v)); setCurrentPage(1); }}>
+                  <SelectTrigger className="w-[70px] bg-background/50 border-border/50 h-10">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="15">15</SelectItem>
+                    <SelectItem value="25">25</SelectItem>
+                    <SelectItem value="50">50</SelectItem>
+                    <SelectItem value="100">100</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              {selectedCustomerIds.size > 0 && (
+                <Button 
+                  variant="glow" 
+                  size="sm"
+                  onClick={() => setIsBulkRenewOpen(true)}
+                  disabled={isBulkRenewing}
+                  className="shadow-md shadow-primary/20"
+                >
+                  <RefreshCw className="w-4 h-4 mr-2" />
+                  Renovar {selectedCustomerIds.size}
+                </Button>
+              )}
+            </div>
           </div>
-          <Select value={statusFilter} onValueChange={(v) => handleFilterChange(setStatusFilter, v)}>
-            <SelectTrigger className="w-full sm:w-40 bg-secondary/50">
-              <SelectValue placeholder="Status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos Status</SelectItem>
-              <SelectItem value="ativa">Ativas</SelectItem>
-              <SelectItem value="inativa">Inativas</SelectItem>
-              <SelectItem value="suspensa">Suspensas</SelectItem>
-            </SelectContent>
-          </Select>
-          <Select value={dueDateFilter} onValueChange={(v) => handleFilterChange(setDueDateFilter, v)}>
-            <SelectTrigger className="w-full sm:w-48 bg-secondary/50">
-              <SelectValue placeholder="Vencimento" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos Vencimentos</SelectItem>
-              <SelectItem value="due_today">Vencem Hoje</SelectItem>
-              <SelectItem value="due_tomorrow">Vencem Amanhã</SelectItem>
-              <SelectItem value="overdue_1day">Vencidas 1 Dia</SelectItem>
-              <SelectItem value="overdue">Todas Vencidas</SelectItem>
-            </SelectContent>
-          </Select>
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-muted-foreground whitespace-nowrap">Mostrar</span>
-            <Select value={String(pageSize)} onValueChange={(v) => { setPageSize(Number(v)); setCurrentPage(1); }}>
-              <SelectTrigger className="w-20 bg-secondary/50">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="15">15</SelectItem>
-                <SelectItem value="25">25</SelectItem>
-                <SelectItem value="50">50</SelectItem>
-                <SelectItem value="100">100</SelectItem>
-              </SelectContent>
-            </Select>
-            <span className="text-sm text-muted-foreground whitespace-nowrap">Registros</span>
-          </div>
-          {selectedCustomerIds.size > 0 && (
-            <Button 
-              variant="glow" 
-              onClick={() => setIsBulkRenewOpen(true)}
-              disabled={isBulkRenewing}
-            >
-              <RefreshCw className="w-4 h-4 mr-2" />
-              Renovar {selectedCustomerIds.size} selecionado(s)
-            </Button>
-          )}
-        </div>
+        </Card>
 
         {/* Bulk Renew Dialog */}
         <Dialog open={isBulkRenewOpen} onOpenChange={(open) => { if (!isBulkRenewing) setIsBulkRenewOpen(open); }}>
@@ -1992,43 +2007,54 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
           </DialogContent>
         </Dialog>
 
-        <Card className="glass-card border-border/50">
-          <CardContent className="p-0 overflow-x-auto">
+        {/* Table Card */}
+        <Card className="glass-card border-border/50 overflow-hidden">
+          <CardContent className="p-0">
             {isLoading ? (
               <div className="flex items-center justify-center h-48">
                 <Loader2 className="w-8 h-8 animate-spin text-primary" />
               </div>
             ) : filteredCustomers?.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-48 text-muted-foreground">
-                <Users className="w-12 h-12 mb-4 opacity-50" />
-                <p>Nenhum cliente encontrado</p>
+                <div className="flex items-center justify-center w-16 h-16 rounded-full bg-muted/30 mb-4">
+                  <Users className="w-8 h-8 opacity-50" />
+                </div>
+                <p className="font-medium">Nenhum cliente encontrado</p>
+                <p className="text-sm opacity-70">Tente ajustar os filtros ou adicione um novo cliente</p>
               </div>
             ) : (
               <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
-                    <TableRow className="border-border hover:bg-transparent">
+                    <TableRow className="bg-muted/30 border-border hover:bg-muted/30">
                       <TableHead className="w-10">
                         <Checkbox 
                           checked={paginatedCustomers?.length > 0 && paginatedCustomers.every((c: any) => selectedCustomerIds.has(c.id))}
                           onCheckedChange={toggleSelectAll}
                         />
                       </TableHead>
-                      <TableHead>Nome</TableHead>
-                      <TableHead>Telefone</TableHead>
-                      <TableHead>Servidor</TableHead>
-                      <TableHead>Plano</TableHead>
-                      <TableHead>Telas</TableHead>
-                      <TableHead>Valor</TableHead>
-                      <TableHead>Vencimento</TableHead>
-                      <TableHead>Usuário</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead className="text-right">Ações</TableHead>
+                      <TableHead className="font-semibold">Nome</TableHead>
+                      <TableHead className="font-semibold">Telefone</TableHead>
+                      <TableHead className="font-semibold">Servidor</TableHead>
+                      <TableHead className="font-semibold">Plano</TableHead>
+                      <TableHead className="font-semibold text-center">Telas</TableHead>
+                      <TableHead className="font-semibold">Valor</TableHead>
+                      <TableHead className="font-semibold">Vencimento</TableHead>
+                      <TableHead className="font-semibold">Usuário</TableHead>
+                      <TableHead className="font-semibold">Status</TableHead>
+                      <TableHead className="font-semibold text-right">Ações</TableHead>
                     </TableRow>
                   </TableHeader>
                 <TableBody>
-                  {paginatedCustomers?.map((customer: any) => (
-                    <TableRow key={customer.id} className="table-row-hover border-border">
+                  {paginatedCustomers?.map((customer: any, index: number) => (
+                    <TableRow 
+                      key={customer.id} 
+                      className={cn(
+                        "border-border/50 transition-colors duration-150",
+                        index % 2 === 0 ? "bg-transparent" : "bg-muted/10",
+                        "hover:bg-primary/5"
+                      )}
+                    >
                       <TableCell>
                         <Checkbox 
                           checked={selectedCustomerIds.has(customer.id)}
@@ -2036,29 +2062,39 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
                         />
                       </TableCell>
                       <TableCell className="font-medium">{customer.name}</TableCell>
-                      <TableCell className="font-mono text-sm">{customer.phone}</TableCell>
-                      <TableCell>{customer.servers?.server_name || '-'}</TableCell>
-                      <TableCell>{customer.plans?.plan_name || '-'}</TableCell>
-                      <TableCell className="text-center">{customer.screens || 1}</TableCell>
-                      <TableCell className="font-medium text-primary">
-                        R${Number(customer.custom_price || customer.plans?.price || 0).toFixed(2)}
+                      <TableCell>
+                        <span className="font-mono text-xs bg-muted/50 px-2 py-1 rounded">{customer.phone}</span>
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">{customer.servers?.server_name || '-'}</TableCell>
+                      <TableCell className="text-muted-foreground">{customer.plans?.plan_name || '-'}</TableCell>
+                      <TableCell className="text-center">
+                        <span className="inline-flex items-center justify-center w-6 h-6 rounded bg-secondary/50 text-xs font-medium">
+                          {customer.screens || 1}
+                        </span>
+                      </TableCell>
+                      <TableCell>
+                        <span className="font-semibold text-primary">
+                          R${Number(customer.custom_price || customer.plans?.price || 0).toFixed(2)}
+                        </span>
                       </TableCell>
                       <TableCell>
                         <span className={cn(
+                          "font-medium",
                           isOverdue(customer.due_date) && customer.status === 'ativa' && "text-destructive"
                         )}>
                           {format(new Date(customer.due_date + 'T12:00:00'), 'dd/MM/yyyy', { locale: ptBR })}
                         </span>
                       </TableCell>
-                      <TableCell className="font-mono text-sm">
-                        {customer.username || '-'}
+                      <TableCell>
+                        <span className="font-mono text-xs">{customer.username || '-'}</span>
                       </TableCell>
                       <TableCell>{getStatusBadge(customer.status)}</TableCell>
                       <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-1">
+                        <div className="flex items-center justify-end gap-0.5">
                           <Button
                             variant="ghost"
                             size="icon"
+                            className="h-8 w-8 hover:bg-success/10 hover:text-success"
                             title="Abrir WhatsApp"
                             onClick={() => openWhatsApp(customer.phone)}
                           >
@@ -2067,6 +2103,7 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
                           <Button
                             variant="ghost"
                             size="icon"
+                            className="h-8 w-8 hover:bg-primary/10"
                             title="Enviar cobrança"
                             onClick={() => openSendBillingDialog(customer)}
                             disabled={!zapSettings?.selected_department_id}
@@ -2076,6 +2113,7 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
                           <Button
                             variant="ghost"
                             size="icon"
+                            className="h-8 w-8 hover:bg-warning/10 hover:text-warning"
                             title="Renovar plano"
                             onClick={() => handleRenewClick(customer)}
                             disabled={renewMutation.isPending}
@@ -2085,6 +2123,7 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
                           <Button
                             variant="ghost"
                             size="icon"
+                            className="h-8 w-8 hover:bg-muted"
                             onClick={() => handleEdit(customer)}
                           >
                             <Pencil className="w-4 h-4" />
@@ -2092,7 +2131,7 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="text-destructive hover:text-destructive"
+                            className="h-8 w-8 text-destructive/70 hover:text-destructive hover:bg-destructive/10"
                             onClick={() => deleteMutation.mutate(customer.id)}
                           >
                             <Trash2 className="w-4 h-4" />
@@ -2109,41 +2148,47 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
 
           {/* Pagination */}
           {totalFiltered > 0 && (
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 border-t border-border">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 border-t border-border/50 bg-muted/10">
               <div className="text-sm text-muted-foreground">
-                Mostrando {((currentPage - 1) * pageSize) + 1} - {Math.min(currentPage * pageSize, totalFiltered)} de {totalFiltered} registros
+                Mostrando <span className="font-medium text-foreground">{((currentPage - 1) * pageSize) + 1} - {Math.min(currentPage * pageSize, totalFiltered)}</span> de <span className="font-medium text-foreground">{totalFiltered}</span> registros
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1">
                 <Button
-                  variant="outline"
+                  variant="ghost"
                   size="sm"
+                  className="h-8"
                   onClick={() => setCurrentPage(1)}
                   disabled={currentPage === 1}
                 >
                   Primeira
                 </Button>
                 <Button
-                  variant="outline"
+                  variant="ghost"
                   size="sm"
+                  className="h-8"
                   onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
                   disabled={currentPage === 1}
                 >
                   Anterior
                 </Button>
-                <span className="text-sm px-2">
-                  Página {currentPage} de {totalPages}
-                </span>
+                <div className="flex items-center gap-1 px-2">
+                  <span className="text-sm font-medium text-primary">{currentPage}</span>
+                  <span className="text-sm text-muted-foreground">/</span>
+                  <span className="text-sm text-muted-foreground">{totalPages}</span>
+                </div>
                 <Button
-                  variant="outline"
+                  variant="ghost"
                   size="sm"
+                  className="h-8"
                   onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
                   disabled={currentPage === totalPages}
                 >
                   Próxima
                 </Button>
                 <Button
-                  variant="outline"
+                  variant="ghost"
                   size="sm"
+                  className="h-8"
                   onClick={() => setCurrentPage(totalPages)}
                   disabled={currentPage === totalPages}
                 >
