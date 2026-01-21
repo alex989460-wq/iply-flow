@@ -526,7 +526,15 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺`;
     else toast.error('Não foi possível copiar automaticamente. Selecione e copie manualmente.');
   };
 
-  const getStatusBadge = (status: string) => {
+  const getStatusBadge = (status: string, dueDate?: string) => {
+    // Check if customer is overdue (regardless of status)
+    const isOverdue = dueDate ? isCustomerOverdue(dueDate) : false;
+    
+    // If overdue (and not suspended), show "Vencido" badge
+    if (isOverdue && status !== 'suspensa') {
+      return <Badge variant="destructive">Vencido</Badge>;
+    }
+    
     const variants: Record<string, { variant: 'default' | 'secondary' | 'destructive'; label: string }> = {
       ativa: { variant: 'default', label: 'Ativa' },
       inativa: { variant: 'secondary', label: 'Inativa' },
@@ -664,7 +672,7 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺`;
                           </span>
                         </div>
                       </div>
-                      {getStatusBadge(customer.status)}
+                      {getStatusBadge(customer.status, customer.due_date)}
                     </div>
                   </CardContent>
                 </Card>
@@ -699,7 +707,7 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺`;
                   
                   <div className="flex items-center justify-between">
                     <span className="text-muted-foreground">Status:</span>
-                    {getStatusBadge(selectedCustomer.status)}
+                    {getStatusBadge(selectedCustomer.status, selectedCustomer.due_date)}
                   </div>
                   
                   {/* Username */}
