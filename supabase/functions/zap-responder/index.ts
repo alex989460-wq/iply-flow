@@ -1304,6 +1304,18 @@ async function enviarMensagemTexto(
         body: { to: chatIdCus, message: text, departmentId },
         name: 'chat/send (@c.us)'
       },
+      // 7. WhatsApp message (text as string) - algumas APIs esperam string e montam text.body internamente
+      {
+        url: `${apiBaseUrl}/whatsapp/message/${departmentId}`,
+        body: { type: 'text', number: formattedNumber, text },
+        name: 'whatsapp/message (text-string)'
+      },
+      // 8. WhatsApp message (message field)
+      {
+        url: `${apiBaseUrl}/whatsapp/message/${departmentId}`,
+        body: { type: 'text', number: formattedNumber, message: text },
+        name: 'whatsapp/message (message)'
+      },
       // 7. WhatsApp Cloud API-style payload
       {
         url: `${apiBaseUrl}/whatsapp/message/${departmentId}`,
@@ -1561,45 +1573,76 @@ Deno.serve(async (req) => {
           );
         }
 
-        // Tenta usar o departamento real da conversa (principalmente p/ whatsapp-oficial)
+        // Descobrir contexto da conversa (origem/departamento) só para diagnóstico e fallback.
         const ctx = await resolveConversationContext(apiBaseUrl, zapToken, chat_id);
-        const resolvedDepartment = ctx.departmentId || departamento;
-        if (ctx.departmentId && ctx.departmentId !== departamento) {
-          console.log('[iniciar-bot] Overriding departamento from request with conversation departamento', {
-            requestDepartamento: departamento,
-            resolvedDepartment,
+        const departmentCandidates = Array.from(
+          new Set([departamento, ctx.departmentId].filter(Boolean))
+        ) as string[];
+
+        const phoneDigits = normalizePhoneDigitsFromChatId(chat_id);
+
+        // 1) Tentar iniciar o bot (primeiro no departamento do gatilho; se falhar por sessão, tenta o da conversa)
+        let chosenDepartment = departamento;
+        let resultBot: { success: boolean; data?: any; error?: string } | null = null;
+
+        for (const dept of departmentCandidates) {
+          chosenDepartment = dept;
+          console.log('[iniciar-bot] Trying iniciarBot with department candidate', {
+            dept,
             origin: ctx.origin,
           });
+
+          const attempt = await iniciarBot(
+            apiBaseUrl,
+            zapToken,
+            chat_id,
+            dept,
+            aplicacao,
+            mensagem_inicial,
+            variaveis
+          );
+
+          if (attempt.success) {
+            resultBot = attempt;
+            break;
+          }
+
+          const errText = `${attempt.error || ''} ${attempt.data?.body || ''}`;
+          const isNoSession = errText.toLowerCase().includes('nenhuma sessão conectada');
+          console.log('[iniciar-bot] iniciarBot failed', { dept, isNoSession, errText });
+
+          // Se o erro for "sem sessão", tentamos o próximo dept candidato.
+          if (isNoSession) {
+            continue;
+          }
+
+          // Outro tipo de erro: para aqui.
+          resultBot = attempt;
+          break;
         }
 
-        const resultBot = await iniciarBot(
-          apiBaseUrl,
-          zapToken,
-          chat_id,
-          resolvedDepartment,
-          aplicacao,
-          mensagem_inicial,
-          variaveis
-        );
+        if (!resultBot) {
+          resultBot = { success: false, error: 'Falha ao iniciar bot.' };
+        }
 
-        // Para WhatsApp Oficial, iniciarBot pode "abrir" o fluxo mas não necessariamente entregar a 1ª mensagem.
-        // Então garantimos o envio da mensagem inicial via endpoints de envio de texto.
-        if (resultBot.success && mensagem_inicial && ctx.isOfficial) {
-          const phoneDigits = normalizePhoneDigitsFromChatId(chat_id);
-          console.log('[iniciar-bot] WhatsApp Oficial detectado; enviando mensagem inicial via enviarMensagemTexto', {
+        // 2) Garantir entrega da mensagem inicial (mesmo quando iniciarBot "abre" fluxo mas não entrega)
+        if (resultBot.success && mensagem_inicial) {
+          console.log('[iniciar-bot] Sending mensagem_inicial via enviarMensagemTexto', {
+            chosenDepartment,
             phoneDigits,
-            resolvedDepartment,
+            origin: ctx.origin,
           });
 
-          const sendRes = await enviarMensagemTexto(apiBaseUrl, zapToken, resolvedDepartment, phoneDigits, mensagem_inicial);
+          const sendRes = await enviarMensagemTexto(apiBaseUrl, zapToken, chosenDepartment, phoneDigits, mensagem_inicial);
           if (!sendRes.success) {
             const merged = {
               success: false,
-              error: sendRes.error || 'Falha ao enviar mensagem inicial no WhatsApp Oficial',
+              error: sendRes.error || 'Falha ao enviar mensagem inicial.',
               data: {
                 bot: resultBot.data,
                 send: sendRes,
-                resolved_department_id: resolvedDepartment,
+                chosen_department_id: chosenDepartment,
+                candidates: departmentCandidates,
                 origin: ctx.origin,
               },
             };
@@ -1614,7 +1657,8 @@ Deno.serve(async (req) => {
             data: {
               bot: resultBot.data,
               send: sendRes.data,
-              resolved_department_id: resolvedDepartment,
+              chosen_department_id: chosenDepartment,
+              candidates: departmentCandidates,
               origin: ctx.origin,
             },
           };
@@ -1628,7 +1672,8 @@ Deno.serve(async (req) => {
           ...resultBot,
           data: {
             ...(resultBot.data ?? {}),
-            resolved_department_id: resolvedDepartment,
+            chosen_department_id: chosenDepartment,
+            candidates: departmentCandidates,
             origin: ctx.origin,
           },
         };
