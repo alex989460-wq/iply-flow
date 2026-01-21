@@ -243,9 +243,24 @@ export default function BotTriggers() {
   };
 
   const handleDepartmentChange = (triggerType: string, departmentId: string) => {
+    if (!user) return;
+    
     const dept = departments.find(d => d.id === departmentId);
-    updateTriggerField(triggerType, 'bot_department_id', departmentId);
-    updateTriggerField(triggerType, 'bot_department_name', dept?.name || '');
+    const currentTrigger = triggers[triggerType] || {
+      user_id: user.id,
+      trigger_type: triggerType,
+      is_enabled: false,
+      days_offset: 0,
+    };
+
+    setTriggers(prev => ({
+      ...prev,
+      [triggerType]: { 
+        ...currentTrigger, 
+        bot_department_id: departmentId,
+        bot_department_name: dept?.name || '' 
+      },
+    }));
   };
 
   if (loading) {
