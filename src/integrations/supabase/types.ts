@@ -543,6 +543,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      get_dashboard_stats_optimized: { Args: never; Returns: Json }
+      get_monthly_revenue: { Args: never; Returns: Json }
+      get_plan_distribution: { Args: never; Returns: Json }
+      get_server_distribution: { Args: never; Returns: Json }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
