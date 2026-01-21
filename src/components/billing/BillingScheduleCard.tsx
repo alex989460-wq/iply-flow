@@ -62,7 +62,34 @@ export function BillingScheduleCard() {
       return data as BillingSchedule | null;
     },
     enabled: !!user?.id,
+    refetchInterval: 30000, // Refetch every 30 seconds to catch updates
   });
+
+  // Subscribe to realtime updates for this user's billing schedule
+  useEffect(() => {
+    if (!user?.id) return;
+
+    const channel = supabase
+      .channel('billing-schedule-updates')
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'billing_schedule',
+          filter: `user_id=eq.${user.id}`,
+        },
+        () => {
+          // Invalidate query to refetch when schedule is updated
+          queryClient.invalidateQueries({ queryKey: ['billing-schedule', user.id] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user?.id, queryClient]);
 
   // Update local state when schedule is loaded
   useEffect(() => {
