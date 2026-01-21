@@ -641,10 +641,28 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺`;
                   onClick={() => handleSelectCustomer(customer)}
                 >
                   <CardContent className="p-2">
-                    <div className="flex items-center justify-between">
-                      <div className="min-w-0">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="min-w-0 flex-1">
                         <p className="text-sm font-medium truncate">{customer.name}</p>
-                        <p className="text-xs text-muted-foreground">{customer.phone}</p>
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <span>{customer.phone}</span>
+                          {customer.username && (
+                            <>
+                              <span>•</span>
+                              <span className="font-mono">{customer.username}</span>
+                            </>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1 text-xs mt-0.5">
+                          <Calendar className="h-3 w-3 text-muted-foreground" />
+                          <span className={
+                            new Date(customer.due_date + 'T12:00:00') < new Date() 
+                              ? 'text-destructive font-medium' 
+                              : 'text-muted-foreground'
+                          }>
+                            {formatDate(customer.due_date)}
+                          </span>
+                        </div>
                       </div>
                       {getStatusBadge(customer.status)}
                     </div>
