@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -9,6 +9,9 @@ import { useToast } from '@/hooks/use-toast';
 import { Mail, Lock, User, Loader2, AlertCircle, Eye, EyeOff, Shield } from 'lucide-react';
 import { z } from 'zod';
 import logoSg from '@/assets/logo-sg.png';
+import ReCAPTCHA from 'react-google-recaptcha';
+
+const RECAPTCHA_SITE_KEY = '6Lfe9VEsAAAAAEk4lYwqxrk6kdBOmdC5XUKT7XMh';
 
 const loginSchema = z.object({
   email: z.string().email('Email inválido'),
@@ -28,6 +31,8 @@ export default function Auth() {
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [accessDeniedMessage, setAccessDeniedMessage] = useState<string | null>(null);
+  const [recaptchaToken, setRecaptchaToken] = useState<string | null>(null);
+  const recaptchaRef = useRef<ReCAPTCHA>(null);
   
   const { signIn, signUp, accessDeniedReason } = useAuth();
   const navigate = useNavigate();
@@ -68,6 +73,15 @@ export default function Auth() {
     setAccessDeniedMessage(null);
     
     if (!validateForm()) return;
+
+    if (!recaptchaToken) {
+      toast({
+        title: 'Verificação necessária',
+        description: 'Por favor, complete o reCAPTCHA.',
+        variant: 'destructive',
+      });
+      return;
+    }
     
     setLoading(true);
 
@@ -115,6 +129,8 @@ export default function Auth() {
       }
     } finally {
       setLoading(false);
+      setRecaptchaToken(null);
+      recaptchaRef.current?.reset();
     }
   };
 
@@ -258,10 +274,20 @@ export default function Auth() {
               )}
             </div>
 
+            <div className="flex justify-center">
+              <ReCAPTCHA
+                ref={recaptchaRef}
+                sitekey={RECAPTCHA_SITE_KEY}
+                onChange={(token) => setRecaptchaToken(token)}
+                onExpired={() => setRecaptchaToken(null)}
+                theme="dark"
+              />
+            </div>
+
             <Button 
               type="submit" 
               className="w-full h-12 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-background font-semibold rounded-xl shadow-lg shadow-amber-500/25 transition-all hover:shadow-amber-500/40 hover:scale-[1.02] active:scale-[0.98]" 
-              disabled={loading}
+              disabled={loading || !recaptchaToken}
             >
               {loading ? (
                 <Loader2 className="w-5 h-5 animate-spin" />
