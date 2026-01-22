@@ -63,9 +63,22 @@ export default function Sidebar() {
         collapsed ? "-translate-x-full lg:translate-x-0" : "translate-x-0"
       )}>
         {/* Logo */}
-        <div className="h-16 flex items-center justify-between px-4 border-b border-sidebar-border/50 bg-sidebar/50 backdrop-blur-sm">
-          <div className={cn("flex items-center gap-3 overflow-hidden", collapsed && "lg:justify-center")}>
-            <img src={logoSg} alt="Super Gestor" className="w-20 h-20 object-contain flex-shrink-0 -my-2 drop-shadow-lg" />
+        <div className={cn(
+          "flex items-center justify-between border-b border-sidebar-border/50 bg-sidebar/50 backdrop-blur-sm",
+          collapsed ? "h-20 px-2 flex-col py-2" : "h-16 px-4"
+        )}>
+          <div className={cn(
+            "flex items-center overflow-hidden",
+            collapsed ? "lg:flex-col lg:gap-1" : "gap-3"
+          )}>
+            <img 
+              src={logoSg} 
+              alt="Super Gestor" 
+              className={cn(
+                "object-contain flex-shrink-0 drop-shadow-lg transition-all duration-300",
+                collapsed ? "w-10 h-10" : "w-20 h-20 -my-2"
+              )} 
+            />
             {!collapsed && (
               <div className="flex flex-col animate-fade-in">
                 <span className="font-bold text-foreground flex items-center gap-1.5">
@@ -79,7 +92,10 @@ export default function Sidebar() {
           <Button
             variant="ghost"
             size="icon"
-            className="hidden lg:flex hover:bg-secondary/80 transition-colors"
+            className={cn(
+              "hidden lg:flex hover:bg-secondary/80 transition-colors",
+              collapsed && "w-8 h-8"
+            )}
             onClick={toggle}
           >
             <ChevronLeft className={cn("w-4 h-4 transition-transform duration-300", collapsed && "rotate-180")} />
@@ -105,12 +121,13 @@ export default function Sidebar() {
                 )}
               >
                 <div className={cn(
-                  "flex items-center justify-center w-8 h-8 rounded-lg transition-all duration-200",
+                  "flex items-center justify-center rounded-lg transition-all duration-200",
+                  collapsed ? "w-10 h-10" : "w-8 h-8",
                   isActive 
                     ? "bg-primary text-primary-foreground shadow-md shadow-primary/30" 
                     : "bg-secondary/50 group-hover:bg-secondary group-hover:scale-105"
                 )}>
-                  <item.icon className="w-4 h-4" />
+                  <item.icon className={cn(collapsed ? "w-5 h-5" : "w-4 h-4")} />
                 </div>
                 {!collapsed && <span className="truncate">{item.label}</span>}
               </NavLink>
@@ -139,8 +156,11 @@ export default function Sidebar() {
               collapsed && "lg:justify-center lg:px-2"
             )}
           >
-            <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-destructive/10">
-              <LogOut className="w-4 h-4" />
+            <div className={cn(
+              "flex items-center justify-center rounded-lg bg-destructive/10",
+              collapsed ? "w-10 h-10" : "w-8 h-8"
+            )}>
+              <LogOut className={cn(collapsed ? "w-5 h-5" : "w-4 h-4")} />
             </div>
             {!collapsed && <span>Sair</span>}
           </button>
