@@ -14,36 +14,28 @@ interface StatsCardProps {
   onClick?: () => void;
 }
 
-const variantStyles = {
-  default: 'bg-card hover:bg-card/80',
-  primary: 'bg-gradient-to-br from-primary/10 to-primary/5 hover:from-primary/15 hover:to-primary/10',
-  success: 'bg-gradient-to-br from-success/10 to-success/5 hover:from-success/15 hover:to-success/10',
-  warning: 'bg-gradient-to-br from-warning/10 to-warning/5 hover:from-warning/15 hover:to-warning/10',
-  destructive: 'bg-gradient-to-br from-destructive/10 to-destructive/5 hover:from-destructive/15 hover:to-destructive/10',
+const accentColors = {
+  default: 'from-primary via-primary/80 to-primary/60',
+  primary: 'from-amber-500 via-amber-400 to-yellow-500',
+  success: 'from-emerald-500 via-green-400 to-teal-500',
+  warning: 'from-orange-500 via-amber-400 to-yellow-500',
+  destructive: 'from-rose-500 via-red-400 to-pink-500',
 };
 
-const borderStyles = {
-  default: 'border-border/50',
-  primary: 'border-primary/20',
-  success: 'border-success/20',
-  warning: 'border-warning/20',
-  destructive: 'border-destructive/20',
+const iconBgStyles = {
+  default: 'bg-primary/10 text-primary',
+  primary: 'bg-amber-500/10 text-amber-500',
+  success: 'bg-emerald-500/10 text-emerald-500',
+  warning: 'bg-orange-500/10 text-orange-500',
+  destructive: 'bg-rose-500/10 text-rose-500',
 };
 
-const iconStyles = {
-  default: 'text-primary bg-gradient-to-br from-primary/20 to-primary/10',
-  primary: 'text-primary bg-gradient-to-br from-primary/25 to-primary/10',
-  success: 'text-success bg-gradient-to-br from-success/25 to-success/10',
-  warning: 'text-warning bg-gradient-to-br from-warning/25 to-warning/10',
-  destructive: 'text-destructive bg-gradient-to-br from-destructive/25 to-destructive/10',
-};
-
-const glowStyles = {
-  default: '',
-  primary: 'group-hover:shadow-[0_0_20px_hsl(var(--primary)/0.2)]',
-  success: 'group-hover:shadow-[0_0_20px_hsl(var(--success)/0.2)]',
-  warning: 'group-hover:shadow-[0_0_20px_hsl(var(--warning)/0.2)]',
-  destructive: 'group-hover:shadow-[0_0_20px_hsl(var(--destructive)/0.2)]',
+const titleColors = {
+  default: 'text-primary',
+  primary: 'text-amber-500',
+  success: 'text-emerald-500',
+  warning: 'text-orange-500',
+  destructive: 'text-rose-500',
 };
 
 export default function StatsCard({
@@ -58,48 +50,66 @@ export default function StatsCard({
   return (
     <div 
       className={cn(
-        "group relative rounded-xl p-3 sm:p-4 lg:p-5 border overflow-hidden",
+        "group relative rounded-xl overflow-hidden",
+        "bg-gradient-to-br from-card via-card to-card/95",
+        "border border-border/30",
         "transition-all duration-300 ease-out",
-        "hover:scale-[1.02] hover:-translate-y-0.5",
-        variantStyles[variant],
-        borderStyles[variant],
+        "hover:scale-[1.02] hover:-translate-y-1",
+        "hover:shadow-xl hover:shadow-black/20",
+        "dark:hover:shadow-black/40",
         onClick && "cursor-pointer"
       )}
-      style={{ boxShadow: 'var(--shadow-card)' }}
       onClick={onClick}
     >
-      {/* Subtle gradient overlay on hover */}
+      {/* Left accent border with gradient */}
       <div className={cn(
-        "absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none",
-        "bg-gradient-to-br from-white/5 to-transparent"
+        "absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b",
+        accentColors[variant]
       )} />
       
-      <div className="relative flex items-start justify-between gap-2">
-        <div className="space-y-1 sm:space-y-2 min-w-0 flex-1">
-          <p className="text-xs sm:text-sm font-medium text-muted-foreground truncate">{title}</p>
-          <p className="text-lg sm:text-2xl lg:text-3xl font-bold text-foreground truncate tracking-tight">{value}</p>
+      {/* Subtle glow effect on hover */}
+      <div className={cn(
+        "absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500",
+        "bg-gradient-to-br from-white/[0.03] via-transparent to-transparent"
+      )} />
+      
+      <div className="relative p-4 sm:p-5 lg:p-6 flex items-center justify-between gap-3">
+        <div className="space-y-1.5 min-w-0 flex-1">
+          <p className={cn(
+            "text-[11px] sm:text-xs font-semibold uppercase tracking-wider truncate",
+            titleColors[variant]
+          )}>
+            {title}
+          </p>
+          <p className="text-2xl sm:text-3xl lg:text-4xl font-bold text-foreground truncate tracking-tight">
+            {value}
+          </p>
           {description && (
-            <p className="text-xs sm:text-sm text-muted-foreground truncate">{description}</p>
+            <p className="text-xs sm:text-sm text-muted-foreground/80 truncate font-medium">
+              {description}
+            </p>
           )}
           {trend && (
             <div className={cn(
-              "inline-flex items-center gap-1 text-xs sm:text-sm font-medium px-2 py-0.5 rounded-full",
+              "inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full",
               trend.isPositive 
-                ? "text-success bg-success/10" 
-                : "text-destructive bg-destructive/10"
+                ? "text-emerald-500 bg-emerald-500/10" 
+                : "text-rose-500 bg-rose-500/10"
             )}>
               <span>{trend.isPositive ? '+' : ''}{trend.value}%</span>
-              <span className="text-muted-foreground hidden sm:inline">vs mês anterior</span>
+              <span className="text-muted-foreground/70 hidden sm:inline">vs mês anterior</span>
             </div>
           )}
         </div>
+        
+        {/* Icon container with subtle styling */}
         <div className={cn(
-          "w-9 h-9 sm:w-11 sm:h-11 lg:w-12 lg:h-12 rounded-xl flex items-center justify-center flex-shrink-0",
+          "w-10 h-10 sm:w-12 sm:h-12 lg:w-14 lg:h-14 rounded-xl flex items-center justify-center flex-shrink-0",
           "transition-all duration-300",
-          iconStyles[variant],
-          glowStyles[variant]
+          iconBgStyles[variant],
+          "group-hover:scale-110"
         )}>
-          <Icon className="w-4 h-4 sm:w-5 sm:h-5 lg:w-6 lg:h-6 transition-transform duration-300 group-hover:scale-110" />
+          <Icon className="w-5 h-5 sm:w-6 sm:h-6 lg:w-7 lg:h-7" />
         </div>
       </div>
     </div>
