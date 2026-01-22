@@ -5,10 +5,10 @@ import StatsCard from '@/components/dashboard/StatsCard';
 import RevenueChart from '@/components/dashboard/RevenueChart';
 import PlanDistributionChart from '@/components/dashboard/PlanDistributionChart';
 import ServerDistributionChart from '@/components/dashboard/ServerDistributionChart';
+import { ScrollToTop } from '@/components/ui/scroll-to-top';
 import { useDashboardStats, useRevenueHistory } from '@/hooks/useDashboardStats';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
-import { Card, CardContent } from '@/components/ui/card';
 import { 
   Users, 
   UserCheck, 
@@ -231,6 +231,8 @@ export default function Dashboard() {
           <ServerDistributionChart data={stats.serverDistribution} />
         )}
       </div>
+      
+      <ScrollToTop />
     </DashboardLayout>
   );
 }
