@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -31,6 +32,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import QuickCustomerForm from './QuickCustomerForm';
+import BillingSettingsModal from './BillingSettingsModal';
 
 type PaymentMethod = 'pix' | 'dinheiro' | 'transferencia';
 
@@ -79,12 +81,14 @@ interface QuickRenewalPanelProps {
 }
 
 export default function QuickRenewalPanel({ isMobile = false, onClose }: QuickRenewalPanelProps) {
+  const { user } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('pix');
   const [isLinksOpen, setIsLinksOpen] = useState(true);
   const [editingMessage, setEditingMessage] = useState<QuickMessage | null>(null);
   const [isConfigOpen, setIsConfigOpen] = useState(false);
+  const [isBillingSettingsOpen, setIsBillingSettingsOpen] = useState(false);
   const [newMessage, setNewMessage] = useState({ title: '', category: '', content: '', icon: 'MessageSquare' });
   const [renewalMessage, setRenewalMessage] = useState<string | null>(null);
   const [selectedQuickMessage, setSelectedQuickMessage] = useState<QuickMessage | null>(null);
@@ -93,6 +97,30 @@ export default function QuickRenewalPanel({ isMobile = false, onClose }: QuickRe
   const [selectedScreens, setSelectedScreens] = useState<number>(1);
   const [showNewCustomerForm, setShowNewCustomerForm] = useState(false);
   const queryClient = useQueryClient();
+
+  // Fetch user's billing settings
+  const { data: billingSettings } = useQuery({
+    queryKey: ['billing-settings', user?.id],
+    queryFn: async () => {
+      if (!user?.id) return null;
+      const { data, error } = await (supabase
+        .from('billing_settings' as any)
+        .select('*')
+        .eq('user_id', user.id)
+        .maybeSingle() as any);
+      if (error) throw error;
+      return data as {
+        pix_key: string;
+        pix_key_type: string;
+        monthly_price: number;
+        quarterly_price: number;
+        semiannual_price: number;
+        annual_price: number;
+        custom_message: string | null;
+      } | null;
+    },
+    enabled: !!user?.id,
+  });
 
   // Fetch all plans for selection
   const { data: allPlans = [] } = useQuery({
@@ -463,6 +491,17 @@ Obrigado pela preferência! 🙏`;
     const planName = selectedPlan?.plan_name ?? customer.plan?.plan_name ?? 'Mensal';
     const serverName = customer.server?.server_name || 'NATV';
     
+    // Use user's billing settings or defaults
+    const pixKey = billingSettings?.pix_key || '41996360762';
+    const pixKeyType = billingSettings?.pix_key_type || 'celular';
+    const monthly = billingSettings?.monthly_price ?? 35;
+    const quarterly = billingSettings?.quarterly_price ?? 90;
+    const semiannual = billingSettings?.semiannual_price ?? 175;
+    const annual = billingSettings?.annual_price ?? 300;
+    const customMessage = billingSettings?.custom_message || '';
+    
+    const pixKeyTypeLabel = pixKeyType.charAt(0).toUpperCase() + pixKeyType.slice(1);
+    
     return `⚠️ *Plano Vencido – Ação Necessária*
 
 Olá ${customer.name}!
@@ -477,17 +516,17 @@ Identificamos que o seu plano está vencido no momento.
 Para continuar aproveitando o serviço sem interrupções, basta realizar a renovação 👇
 
 🔑 *PAGAMENTO VIA PIX*
-📱 Chave (Celular): 41996360762
+📱 Chave (${pixKeyTypeLabel}): ${pixKey}
 
 💳 *PACOTES DISPONÍVEIS*
-💰 Mensal — R$ 35,00
-💰 Trimestral — R$ 90,00
-💰 Semestral — R$ 175,00
-💰 Anual — R$ 300,00
+💰 Mensal — R$ ${monthly.toFixed(2)}
+💰 Trimestral — R$ ${quarterly.toFixed(2)}
+💰 Semestral — R$ ${semiannual.toFixed(2)}
+💰 Anual — R$ ${annual.toFixed(2)}
 
 ✅ Após o pagamento, envie o comprovante para que possamos liberar sua conta rapidamente.
 
-Agradecemos a preferência e ficamos à disposição! 🙏📺`;
+Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? `\n\n${customMessage}` : ''}`;
   };
 
   // Generate billing message with PIX info (for active customers too)
@@ -496,6 +535,16 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺`;
     const planName = selectedPlan?.plan_name ?? customer.plan?.plan_name ?? 'Mensal';
     const serverName = customer.server?.server_name || 'NATV';
     const price = renewalPrice || (customer.custom_price ?? customer.plan?.price ?? 35);
+    
+    // Use user's billing settings or defaults
+    const pixKey = billingSettings?.pix_key || '41996360762';
+    const pixKeyType = billingSettings?.pix_key_type || 'celular';
+    const monthly = billingSettings?.monthly_price ?? 35;
+    const quarterly = billingSettings?.quarterly_price ?? 90;
+    const semiannual = billingSettings?.semiannual_price ?? 175;
+    const annual = billingSettings?.annual_price ?? 300;
+    
+    const pixKeyTypeLabel = pixKeyType.charAt(0).toUpperCase() + pixKeyType.slice(1);
     
     return `📺 *Dados do Cliente*
 
@@ -508,13 +557,13 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺`;
 💰 *Valor:* R$ ${price.toFixed(2)}
 
 🔑 *PAGAMENTO VIA PIX*
-📱 Chave (Celular): 41996360762
+📱 Chave (${pixKeyTypeLabel}): ${pixKey}
 
 💳 *PACOTES DISPONÍVEIS*
-💰 Mensal — R$ 35,00
-💰 Trimestral — R$ 90,00
-💰 Semestral — R$ 175,00
-💰 Anual — R$ 300,00
+💰 Mensal — R$ ${monthly.toFixed(2)}
+💰 Trimestral — R$ ${quarterly.toFixed(2)}
+💰 Semestral — R$ ${semiannual.toFixed(2)}
+💰 Anual — R$ ${annual.toFixed(2)}
 
 ✅ Após o pagamento, envie o comprovante para liberação! 🙏`;
   };
@@ -600,18 +649,29 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺`;
         <div className="p-3 border-b border-border space-y-2">
           <div className="flex items-center justify-between">
             <h2 className="text-sm font-semibold text-foreground">Renovação Rápida</h2>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-7 text-xs gap-1"
-              onClick={() => {
-                setShowNewCustomerForm(!showNewCustomerForm);
-                setSelectedCustomer(null);
-              }}
-            >
-              <UserPlus className="h-3.5 w-3.5" />
-              Novo
-            </Button>
+            <div className="flex items-center gap-1">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 rounded-full hover:bg-primary/10"
+                onClick={() => setIsBillingSettingsOpen(true)}
+                title="Configurar PIX e Preços"
+              >
+                <CreditCard className="h-3.5 w-3.5" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 text-xs gap-1"
+                onClick={() => {
+                  setShowNewCustomerForm(!showNewCustomerForm);
+                  setSelectedCustomer(null);
+                }}
+              >
+                <UserPlus className="h-3.5 w-3.5" />
+                Novo
+              </Button>
+            </div>
           </div>
           <div className="relative">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -629,6 +689,11 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺`;
         </div>
       )}
       
+      {/* Billing Settings Modal */}
+      <BillingSettingsModal 
+        open={isBillingSettingsOpen} 
+        onOpenChange={setIsBillingSettingsOpen} 
+      />
       {isMobile && (
         <div className="p-4 space-y-3">
           <div className="flex items-center gap-2">
@@ -646,6 +711,15 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺`;
                 autoFocus
               />
             </div>
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-11 w-11 shrink-0"
+              onClick={() => setIsBillingSettingsOpen(true)}
+              title="Configurar PIX"
+            >
+              <CreditCard className="h-5 w-5" />
+            </Button>
             <Button
               variant="outline"
               size="icon"
