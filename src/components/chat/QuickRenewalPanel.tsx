@@ -135,17 +135,21 @@ export default function QuickRenewalPanel({ isMobile = false, onClose }: QuickRe
     },
   });
 
-  // Fetch quick messages
+  // Fetch user's own quick messages
   const { data: quickMessages = [] } = useQuery({
-    queryKey: ['quick-messages'],
-    queryFn: async () => {
-      const { data, error } = await supabase
+    queryKey: ['quick-messages', user?.id],
+    queryFn: async (): Promise<QuickMessage[]> => {
+      if (!user?.id) return [];
+      const client = supabase as any;
+      const { data, error } = await client
         .from('quick_messages')
         .select('*')
+        .eq('created_by', user.id)
         .order('sort_order');
       if (error) throw error;
-      return data as QuickMessage[];
+      return (data || []) as QuickMessage[];
     },
+    enabled: !!user?.id,
   });
 
   // Search customers by phone or username with flexible 9th digit matching
@@ -375,9 +379,17 @@ Obrigado pela preferência! 🙏`;
           .eq('id', message.id);
         if (error) throw error;
       } else {
-        const { error } = await supabase
+        if (!user?.id) throw new Error('Usuário não autenticado');
+        const client = supabase as any;
+        const { error } = await client
           .from('quick_messages')
-          .insert({ title: message.title!, category: message.category!, content: message.content!, icon: message.icon });
+          .insert({ 
+            title: message.title!, 
+            category: message.category!, 
+            content: message.content!, 
+            icon: message.icon,
+            created_by: user.id 
+          });
         if (error) throw error;
       }
     },
@@ -491,13 +503,13 @@ Obrigado pela preferência! 🙏`;
     const planName = selectedPlan?.plan_name ?? customer.plan?.plan_name ?? 'Mensal';
     const serverName = customer.server?.server_name || 'NATV';
     
-    // Use user's billing settings or defaults
-    const pixKey = billingSettings?.pix_key || '41996360762';
+    // Use user's billing settings - NO FALLBACK to admin values
+    const pixKey = billingSettings?.pix_key || '';
     const pixKeyType = billingSettings?.pix_key_type || 'celular';
-    const monthly = billingSettings?.monthly_price ?? 35;
-    const quarterly = billingSettings?.quarterly_price ?? 90;
-    const semiannual = billingSettings?.semiannual_price ?? 175;
-    const annual = billingSettings?.annual_price ?? 300;
+    const monthly = billingSettings?.monthly_price ?? 0;
+    const quarterly = billingSettings?.quarterly_price ?? 0;
+    const semiannual = billingSettings?.semiannual_price ?? 0;
+    const annual = billingSettings?.annual_price ?? 0;
     const customMessage = billingSettings?.custom_message || '';
     
     const pixKeyTypeLabel = pixKeyType.charAt(0).toUpperCase() + pixKeyType.slice(1);
@@ -516,7 +528,7 @@ Identificamos que o seu plano está vencido no momento.
 Para continuar aproveitando o serviço sem interrupções, basta realizar a renovação 👇
 
 🔑 *PAGAMENTO VIA PIX*
-📱 Chave (${pixKeyTypeLabel}): ${pixKey}
+📱 Chave (${pixKeyTypeLabel}): ${pixKey || '⚠️ Não configurada'}
 
 💳 *PACOTES DISPONÍVEIS*
 💰 Mensal — R$ ${monthly.toFixed(2)}
@@ -534,15 +546,15 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
     const formattedDate = formatDate(customer.due_date);
     const planName = selectedPlan?.plan_name ?? customer.plan?.plan_name ?? 'Mensal';
     const serverName = customer.server?.server_name || 'NATV';
-    const price = renewalPrice || (customer.custom_price ?? customer.plan?.price ?? 35);
+    const price = renewalPrice || (customer.custom_price ?? customer.plan?.price ?? 0);
     
-    // Use user's billing settings or defaults
-    const pixKey = billingSettings?.pix_key || '41996360762';
+    // Use user's billing settings - NO FALLBACK to admin values
+    const pixKey = billingSettings?.pix_key || '';
     const pixKeyType = billingSettings?.pix_key_type || 'celular';
-    const monthly = billingSettings?.monthly_price ?? 35;
-    const quarterly = billingSettings?.quarterly_price ?? 90;
-    const semiannual = billingSettings?.semiannual_price ?? 175;
-    const annual = billingSettings?.annual_price ?? 300;
+    const monthly = billingSettings?.monthly_price ?? 0;
+    const quarterly = billingSettings?.quarterly_price ?? 0;
+    const semiannual = billingSettings?.semiannual_price ?? 0;
+    const annual = billingSettings?.annual_price ?? 0;
     
     const pixKeyTypeLabel = pixKeyType.charAt(0).toUpperCase() + pixKeyType.slice(1);
     
@@ -557,7 +569,7 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
 💰 *Valor:* R$ ${price.toFixed(2)}
 
 🔑 *PAGAMENTO VIA PIX*
-📱 Chave (${pixKeyTypeLabel}): ${pixKey}
+📱 Chave (${pixKeyTypeLabel}): ${pixKey || '⚠️ Não configurada'}
 
 💳 *PACOTES DISPONÍVEIS*
 💰 Mensal — R$ ${monthly.toFixed(2)}
@@ -570,6 +582,14 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
 
   const handleCopyOverdueMessage = async () => {
     if (!selectedCustomer) return;
+    if (!billingSettings?.pix_key) {
+      toast.warning('Configure sua chave PIX primeiro!', {
+        action: {
+          label: 'Configurar',
+          onClick: () => setIsBillingSettingsOpen(true),
+        },
+      });
+    }
     const message = generateOverdueMessage(selectedCustomer);
     const ok = await copyText(message);
     if (ok) toast.success('Mensagem de cobrança copiada!');
@@ -578,6 +598,14 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
 
   const handleCopyBillingWithPix = async () => {
     if (!selectedCustomer) return;
+    if (!billingSettings?.pix_key) {
+      toast.warning('Configure sua chave PIX primeiro!', {
+        action: {
+          label: 'Configurar',
+          onClick: () => setIsBillingSettingsOpen(true),
+        },
+      });
+    }
     const message = generateBillingWithPixMessage(selectedCustomer);
     const ok = await copyText(message);
     if (ok) toast.success('Dados com PIX copiados!');
