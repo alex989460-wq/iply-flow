@@ -91,6 +91,48 @@ export type Database = {
         }
         Relationships: []
       }
+      billing_settings: {
+        Row: {
+          annual_price: number | null
+          created_at: string
+          custom_message: string | null
+          id: string
+          monthly_price: number | null
+          pix_key: string | null
+          pix_key_type: string | null
+          quarterly_price: number | null
+          semiannual_price: number | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          annual_price?: number | null
+          created_at?: string
+          custom_message?: string | null
+          id?: string
+          monthly_price?: number | null
+          pix_key?: string | null
+          pix_key_type?: string | null
+          quarterly_price?: number | null
+          semiannual_price?: number | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          annual_price?: number | null
+          created_at?: string
+          custom_message?: string | null
+          id?: string
+          monthly_price?: number | null
+          pix_key?: string | null
+          pix_key_type?: string | null
+          quarterly_price?: number | null
+          semiannual_price?: number | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       bot_triggers: {
         Row: {
           bot_department_id: string | null
