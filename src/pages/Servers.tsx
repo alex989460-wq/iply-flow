@@ -64,6 +64,26 @@ export default function Servers() {
     },
   });
 
+  // Fetch customer counts per server
+  const { data: customerCounts } = useQuery({
+    queryKey: ['server-customer-counts'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('customers')
+        .select('server_id');
+      if (error) throw error;
+      
+      // Count customers per server
+      const counts: Record<string, number> = {};
+      data?.forEach((customer) => {
+        if (customer.server_id) {
+          counts[customer.server_id] = (counts[customer.server_id] || 0) + 1;
+        }
+      });
+      return counts;
+    },
+  });
+
   const createMutation = useMutation({
     mutationFn: async (data: typeof formData) => {
       const { error } = await supabase.from('servers').insert({
@@ -249,6 +269,7 @@ export default function Servers() {
                   <TableRow className="border-border hover:bg-transparent">
                     <TableHead>Nome</TableHead>
                     <TableHead>Host</TableHead>
+                    <TableHead className="text-center">Clientes</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Descrição</TableHead>
                     <TableHead className="text-right">Ações</TableHead>
@@ -259,6 +280,11 @@ export default function Servers() {
                     <TableRow key={server.id} className="table-row-hover border-border">
                       <TableCell className="font-medium">{server.server_name}</TableCell>
                       <TableCell className="font-mono text-sm">{server.host}</TableCell>
+                      <TableCell className="text-center">
+                        <span className="inline-flex items-center justify-center min-w-[2rem] px-2 py-0.5 rounded-full bg-primary/10 text-primary font-medium text-sm">
+                          {customerCounts?.[server.id] || 0}
+                        </span>
+                      </TableCell>
                       <TableCell>{getStatusBadge(server.status)}</TableCell>
                       <TableCell className="text-muted-foreground">{server.description || '-'}</TableCell>
                       <TableCell className="text-right">
