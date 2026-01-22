@@ -37,8 +37,9 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { 
   Plus, Pencil, Trash2, Loader2, Users, RefreshCw, Search, CalendarIcon,
-  Upload, Phone, FileText, Download, MessageSquare, AlertTriangle, Send, Copy, Check
+  Upload, Phone, FileText, Download, MessageSquare, AlertTriangle, Send, Copy, Check, ArrowRightLeft
 } from 'lucide-react';
+import ServerMigrationModal from '@/components/customers/ServerMigrationModal';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -128,6 +129,9 @@ export default function Customers() {
   const [templates, setTemplates] = useState<Array<{ id: string; name: string; language?: string; status?: string }>>([]);
   const [isLoadingTemplates, setIsLoadingTemplates] = useState(false);
   const [isSendingBilling, setIsSendingBilling] = useState(false);
+
+  // Server migration state
+  const [isServerMigrationOpen, setIsServerMigrationOpen] = useState(false);
 
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -1269,6 +1273,16 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
           
           {/* Action Buttons */}
           <div className="flex gap-2 flex-wrap">
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => setIsServerMigrationOpen(true)}
+              disabled={!servers || servers.length < 2}
+            >
+              <ArrowRightLeft className="w-4 h-4 mr-2" />
+              Migrar Servidor
+            </Button>
+
             <AlertDialog open={isDeleteAllOpen} onOpenChange={(open) => !isDeletingAll && setIsDeleteAllOpen(open)}>
               <AlertDialogTrigger asChild>
                 <Button variant="outline" size="sm" className="border-destructive/30 text-destructive hover:bg-destructive/10" disabled={!customers || customers.length === 0}>
@@ -2277,6 +2291,14 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
             </div>
           </DialogContent>
         </Dialog>
+
+        {/* Server Migration Modal */}
+        <ServerMigrationModal
+          open={isServerMigrationOpen}
+          onOpenChange={setIsServerMigrationOpen}
+          servers={servers}
+          customers={customers}
+        />
       </div>
       
       <ScrollToTop />
