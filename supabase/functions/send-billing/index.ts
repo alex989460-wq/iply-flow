@@ -302,7 +302,32 @@ Deno.serve(async (req) => {
       details: [] as any[],
     };
 
-    // Pre-filter customers to avoid duplicate log checks in parallel processing
+    // Pre-fetch ALL billing logs for today in a SINGLE query (optimized)
+    const { data: existingLogs } = await supabase
+      .from('billing_logs')
+      .select('customer_id, billing_type, message')
+      .gte('sent_at', `${today}T00:00:00`)
+      .lte('sent_at', `${today}T23:59:59`);
+
+    // Build sets for fast lookups
+    const sentByCustomerAndType = new Set<string>();
+    const sentByPhoneAndType = new Set<string>();
+    
+    for (const log of existingLogs || []) {
+      // Track customer_id + billing_type
+      sentByCustomerAndType.add(`${log.customer_id}:${log.billing_type}`);
+      
+      // Extract phone from message and track phone + billing_type
+      const phoneMatch = log.message?.match(/\[(\d+)\]/);
+      if (phoneMatch) {
+        const normalizedLogPhone = normalizePhone(phoneMatch[1]);
+        sentByPhoneAndType.add(`${normalizedLogPhone}:${log.billing_type}`);
+      }
+    }
+
+    console.log(`Found ${existingLogs?.length || 0} existing logs for today`);
+
+    // Pre-filter customers to avoid duplicate processing
     const customersToProcess: any[] = [];
     
     for (const customer of customers || []) {
@@ -321,56 +346,30 @@ Deno.serve(async (req) => {
         continue;
       }
 
-      // Check if we already sent this billing type today (by customer_id)
-      const { data: existingLogById } = await supabase
-        .from('billing_logs')
-        .select('id')
-        .eq('customer_id', customer.id)
-        .eq('billing_type', billingType)
-        .gte('sent_at', `${today}T00:00:00`)
-        .lte('sent_at', `${today}T23:59:59`)
-        .maybeSingle();
-
-      if (existingLogById) {
+      // Check if already sent by customer_id + billing_type
+      if (sentByCustomerAndType.has(`${customer.id}:${billingType}`)) {
         results.skipped++;
         continue;
       }
 
-      // Check by normalized phone - but be more precise to avoid false positives
+      // Check if already sent by phone + billing_type
       const normalizedPhone = normalizePhone(customer.phone);
-      
-      // Search for exact phone match in message format [phone]
-      const { data: existingLogByPhone } = await supabase
-        .from('billing_logs')
-        .select('id, message')
-        .eq('billing_type', billingType)
-        .gte('sent_at', `${today}T00:00:00`)
-        .lte('sent_at', `${today}T23:59:59`);
-
-      // Check if this exact phone was already sent by comparing normalized phones
-      const phoneAlreadySent = existingLogByPhone?.some(log => {
-        const phoneMatch = log.message?.match(/\[(\d+)\]/);
-        if (phoneMatch) {
-          const logPhone = phoneMatch[1];
-          const logPhoneNormalized = normalizePhone(logPhone);
-          return logPhoneNormalized === normalizedPhone;
-        }
-        return false;
-      });
-
-      if (phoneAlreadySent) {
+      if (sentByPhoneAndType.has(`${normalizedPhone}:${billingType}`)) {
         console.log(`Skipping ${customer.name} - phone ${normalizedPhone} already received ${billingType} message today`);
         results.skipped++;
         continue;
       }
 
-      customersToProcess.push({ ...customer, billingType });
+      // Add to processing list and mark as "will be sent" to avoid duplicates within batch
+      customersToProcess.push({ ...customer, billingType, normalizedPhone });
+      sentByCustomerAndType.add(`${customer.id}:${billingType}`);
+      sentByPhoneAndType.add(`${normalizedPhone}:${billingType}`);
     }
 
     console.log(`Customers to process after filtering: ${customersToProcess.length}`);
 
-    // Process in parallel batches of 5 to speed up
-    const BATCH_SIZE = 5;
+    // Process in parallel batches of 10 for faster execution
+    const BATCH_SIZE = 10;
     for (let i = 0; i < customersToProcess.length; i += BATCH_SIZE) {
       const batch = customersToProcess.slice(i, i + BATCH_SIZE);
       
@@ -387,7 +386,7 @@ Deno.serve(async (req) => {
           .insert({
             customer_id: customer.id,
             billing_type: billingType,
-            message: `[${customer.phone}] Template: ${templateName}`,
+            message: `[${customer.normalizedPhone}] Template: ${templateName}`,
             whatsapp_status: sendResult.success ? 'sent' : `error: ${sendResult.error}`,
           });
 
