@@ -428,6 +428,25 @@ Deno.serve(async (req) => {
 
     console.log('Billing process completed:', results);
 
+    // Update billing_schedule with last run info (so UI updates automatically)
+    if (userId) {
+      const statusMessage = `success: ${results.sent} sent, ${results.errors} errors, ${results.skipped} skipped`;
+      const { error: updateError } = await supabase
+        .from('billing_schedule')
+        .update({ 
+          last_run_at: new Date().toISOString(),
+          last_run_status: statusMessage,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('user_id', userId);
+
+      if (updateError) {
+        console.error('Error updating billing_schedule:', updateError);
+      } else {
+        console.log('Billing schedule updated with status:', statusMessage);
+      }
+    }
+
     return new Response(
       JSON.stringify({
         success: true,
