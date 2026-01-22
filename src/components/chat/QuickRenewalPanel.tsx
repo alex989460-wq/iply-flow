@@ -490,11 +490,48 @@ Para continuar aproveitando o serviço sem interrupções, basta realizar a reno
 Agradecemos a preferência e ficamos à disposição! 🙏📺`;
   };
 
+  // Generate billing message with PIX info (for active customers too)
+  const generateBillingWithPixMessage = (customer: Customer) => {
+    const formattedDate = formatDate(customer.due_date);
+    const planName = selectedPlan?.plan_name ?? customer.plan?.plan_name ?? 'Mensal';
+    const serverName = customer.server?.server_name || 'NATV';
+    const price = renewalPrice || (customer.custom_price ?? customer.plan?.price ?? 35);
+    
+    return `📺 *Dados do Cliente*
+
+👤 *Nome:* ${customer.name}
+📱 *Usuário:* ${customer.username || '-'}
+📺 *Plano:* ${planName}
+🖥️ *Servidor:* ${serverName}
+🖥️ *Telas:* ${selectedScreens}
+📅 *Vencimento:* ${formattedDate}
+💰 *Valor:* R$ ${price.toFixed(2)}
+
+🔑 *PAGAMENTO VIA PIX*
+📱 Chave (Celular): 41996360762
+
+💳 *PACOTES DISPONÍVEIS*
+💰 Mensal — R$ 35,00
+💰 Trimestral — R$ 90,00
+💰 Semestral — R$ 175,00
+💰 Anual — R$ 300,00
+
+✅ Após o pagamento, envie o comprovante para liberação! 🙏`;
+  };
+
   const handleCopyOverdueMessage = async () => {
     if (!selectedCustomer) return;
     const message = generateOverdueMessage(selectedCustomer);
     const ok = await copyText(message);
     if (ok) toast.success('Mensagem de cobrança copiada!');
+    else toast.error('Não foi possível copiar automaticamente.');
+  };
+
+  const handleCopyBillingWithPix = async () => {
+    if (!selectedCustomer) return;
+    const message = generateBillingWithPixMessage(selectedCustomer);
+    const ok = await copyText(message);
+    if (ok) toast.success('Dados com PIX copiados!');
     else toast.error('Não foi possível copiar automaticamente.');
   };
 
@@ -798,6 +835,17 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺`;
                       />
                     </div>
                   </div>
+
+                  {/* Copy Data with PIX Button (always visible) */}
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="w-full h-8 text-xs border-primary/50 text-primary hover:bg-primary/10"
+                    onClick={handleCopyBillingWithPix}
+                  >
+                    <Copy className="h-3 w-3 mr-1" />
+                    Copiar Dados + PIX
+                  </Button>
 
                   {/* Overdue Warning and Billing Message Button */}
                   {isCustomerOverdue(selectedCustomer.due_date) && (
