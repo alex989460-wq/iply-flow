@@ -64,13 +64,18 @@ export default function Servers() {
     },
   });
 
-  // Fetch customer counts per server
+  // Fetch customer counts per server (only for servers the user owns)
   const { data: customerCounts } = useQuery({
-    queryKey: ['server-customer-counts'],
+    queryKey: ['server-customer-counts', servers?.map(s => s.id)],
+    enabled: !!servers && servers.length > 0,
     queryFn: async () => {
+      if (!servers || servers.length === 0) return {};
+      
+      const serverIds = servers.map(s => s.id);
       const { data, error } = await supabase
         .from('customers')
-        .select('server_id');
+        .select('server_id')
+        .in('server_id', serverIds);
       if (error) throw error;
       
       // Count customers per server
