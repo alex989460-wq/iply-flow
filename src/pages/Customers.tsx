@@ -53,6 +53,7 @@ import {
 import { Progress } from '@/components/ui/progress';
 import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/utils';
+import { ScrollToTop } from '@/components/ui/scroll-to-top';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import type { Database } from '@/integrations/supabase/types';
@@ -2277,6 +2278,8 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
           </DialogContent>
         </Dialog>
       </div>
+      
+      <ScrollToTop />
     </DashboardLayout>
   );
 }
