@@ -26,7 +26,8 @@ import {
   MessageSquare,
   RefreshCw,
   FileText,
-  Phone
+  Phone,
+  Ban
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { BroadcastProgressModal, BroadcastResult } from '@/components/broadcast/BroadcastProgressModal';
@@ -101,6 +102,8 @@ export default function MassBroadcast() {
   const [broadcastStats, setBroadcastStats] = useState({ sent: 0, errors: 0, skipped: 0 });
   const [isBroadcastComplete, setIsBroadcastComplete] = useState(false);
   const [activeBroadcast, setActiveBroadcast] = useState<ActiveBroadcast | null>(null);
+  const [alreadySentCount, setAlreadySentCount] = useState(0);
+  const [isCheckingAlreadySent, setIsCheckingAlreadySent] = useState(false);
 
   const initialResultsRef = useRef<BroadcastResult[]>([]);
   const realtimeResultsRef = useRef<Map<string, BroadcastResult>>(new Map());
@@ -399,23 +402,70 @@ export default function MassBroadcast() {
     return templates.find(t => t.name === selectedTemplate);
   }, [templates, selectedTemplate]);
 
+  // Check how many selected customers already received the template
+  useEffect(() => {
+    const checkAlreadySent = async () => {
+      if (!selectedTemplate || getSelectedCustomersList.length === 0) {
+        setAlreadySentCount(0);
+        return;
+      }
+
+      setIsCheckingAlreadySent(true);
+      try {
+        // Normalize all phone numbers from selected customers
+        const customerPhones = getSelectedCustomersList.map(c => c.phone.replace(/\D/g, ''));
+        
+        // Query broadcast_logs for phones that already received this template
+        const uniquePhones = [...new Set(customerPhones)];
+        const CHUNK_SIZE = 100;
+        let totalAlreadySent = 0;
+
+        for (let i = 0; i < uniquePhones.length; i += CHUNK_SIZE) {
+          const chunk = uniquePhones.slice(i, i + CHUNK_SIZE);
+          const { data, error } = await supabase
+            .from('broadcast_logs')
+            .select('phone_normalized')
+            .eq('template_name', selectedTemplate)
+            .eq('last_status', 'sent')
+            .in('phone_normalized', chunk);
+
+          if (!error && data) {
+            totalAlreadySent += data.length;
+          }
+        }
+
+        setAlreadySentCount(totalAlreadySent);
+      } catch (error) {
+        console.error('Error checking already sent:', error);
+        setAlreadySentCount(0);
+      } finally {
+        setIsCheckingAlreadySent(false);
+      }
+    };
+
+    checkAlreadySent();
+  }, [selectedTemplate, getSelectedCustomersList]);
+
   // Calculate estimated cost based on template category
   const estimatedCost = useMemo(() => {
     const count = getSelectedCustomersList.length;
+    const effectiveCount = Math.max(0, count - alreadySentCount);
     const isMarketing = selectedTemplateInfo?.category?.toUpperCase() === 'MARKETING';
     const costPerMessage = isMarketing ? COST_MARKETING : COST_UTILITY;
 
-    const batches = batchSize > 0 ? Math.ceil(count / batchSize) : 0;
+    const batches = batchSize > 0 ? Math.ceil(effectiveCount / batchSize) : 0;
     const estimatedTime = batches * batchIntervalSeconds;
 
     return {
       count,
-      totalCost: count * costPerMessage,
+      effectiveCount,
+      totalCost: effectiveCount * costPerMessage,
       estimatedTime,
       isMarketing,
       costPerMessage,
+      alreadySent: alreadySentCount,
     };
-  }, [getSelectedCustomersList, batchSize, batchIntervalSeconds, selectedTemplateInfo]);
+  }, [getSelectedCustomersList, batchSize, batchIntervalSeconds, selectedTemplateInfo, alreadySentCount]);
 
   // Toggle customer selection
   const toggleCustomer = (customerId: string) => {
@@ -1310,6 +1360,30 @@ export default function MassBroadcast() {
               </CardContent>
             </Card>
 
+            {/* Already Sent Warning */}
+            {selectedTemplate && estimatedCost.alreadySent > 0 && (
+              <Card className="border-destructive/50 bg-destructive/5">
+                <CardContent className="p-4 flex items-start gap-3">
+                  <Ban className="w-5 h-5 text-destructive flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-medium text-destructive">Clientes já receberam este template</p>
+                    <p className="text-sm text-muted-foreground">
+                      {isCheckingAlreadySent ? (
+                        <span className="flex items-center gap-1">
+                          <Loader2 className="w-3 h-3 animate-spin" /> Verificando...
+                        </span>
+                      ) : (
+                        <>
+                          <strong>{estimatedCost.alreadySent}</strong> de {estimatedCost.count} clientes já receberam o template 
+                          <strong> "{selectedTemplate}"</strong> e serão ignorados automaticamente.
+                        </>
+                      )}
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
             {/* Cost Calculator */}
             <Card className={cn(
               "border-primary/30",
@@ -1337,8 +1411,15 @@ export default function MassBroadcast() {
               <CardContent className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div className="text-center p-3 bg-background rounded-lg">
-                    <p className="text-2xl font-bold text-primary">{estimatedCost.count}</p>
-                    <p className="text-sm text-muted-foreground">Mensagens</p>
+                    <div className="flex flex-col items-center">
+                      <p className="text-2xl font-bold text-primary">{estimatedCost.effectiveCount}</p>
+                      <p className="text-sm text-muted-foreground">A enviar</p>
+                    </div>
+                    {estimatedCost.alreadySent > 0 && (
+                      <p className="text-xs text-destructive mt-1">
+                        ({estimatedCost.alreadySent} bloqueados)
+                      </p>
+                    )}
                   </div>
                   <div className="text-center p-3 bg-background rounded-lg">
                     <p className={cn(
