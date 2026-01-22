@@ -261,8 +261,36 @@ Deno.serve(async (req) => {
       let errors = 0;
       let skipped = 0;
 
+      // Pre-fetch all existing logs for today to avoid individual queries (OPTIMIZATION)
+      const { data: existingLogs } = await supabase
+        .from('billing_logs')
+        .select('customer_id, billing_type, message')
+        .gte('sent_at', `${today}T00:00:00`)
+        .lte('sent_at', `${today}T23:59:59`);
+
+      // Build a set of already processed customer_ids and phones per billing type
+      const processedByType: Record<string, { customerIds: Set<string>; phones: Set<string> }> = {
+        'D-1': { customerIds: new Set(), phones: new Set() },
+        'D0': { customerIds: new Set(), phones: new Set() },
+        'D+1': { customerIds: new Set(), phones: new Set() },
+      };
+
+      for (const log of existingLogs || []) {
+        const type = log.billing_type as string;
+        if (processedByType[type]) {
+          processedByType[type].customerIds.add(log.customer_id);
+          // Extract phone from message format [Agendado] [phone] or [phone]
+          const phoneMatch = log.message?.match(/\[(\d+)\]/);
+          if (phoneMatch) {
+            processedByType[type].phones.add(normalizePhone(phoneMatch[1]));
+          }
+        }
+      }
+
+      // Filter customers to process
+      const customersToProcess: any[] = [];
+      
       for (const customer of customers || []) {
-        // Determine billing type
         let billingType: 'D-1' | 'D0' | 'D+1' | null = null;
         if (customer.due_date === tomorrow) billingType = 'D-1';
         else if (customer.due_date === today) billingType = 'D0';
@@ -273,65 +301,64 @@ Deno.serve(async (req) => {
           continue;
         }
 
-        // Check if already sent today (by customer_id OR by phone number to prevent duplicates)
         const normalizedPhone = normalizePhone(customer.phone);
         
-        // Check by customer_id first
-        const { data: existingLogById } = await supabase
-          .from('billing_logs')
-          .select('id')
-          .eq('customer_id', customer.id)
-          .eq('billing_type', billingType)
-          .gte('sent_at', `${today}T00:00:00`)
-          .lte('sent_at', `${today}T23:59:59`)
-          .maybeSingle();
-
-        if (existingLogById) {
-          console.log(`[Scheduled Billing] Skipping ${customer.name} - already sent by customer_id`);
+        // Check if already sent (by customer_id OR phone)
+        if (processedByType[billingType].customerIds.has(customer.id)) {
+          skipped++;
+          continue;
+        }
+        
+        if (processedByType[billingType].phones.has(normalizedPhone)) {
+          console.log(`[Scheduled Billing] Skipping ${customer.name} - phone already received ${billingType}`);
           skipped++;
           continue;
         }
 
-        // Also check by phone number to prevent duplicate sends to same number
-        const { data: existingLogByPhone } = await supabase
-          .from('billing_logs')
-          .select('id, customer_id')
-          .eq('billing_type', billingType)
-          .gte('sent_at', `${today}T00:00:00`)
-          .lte('sent_at', `${today}T23:59:59`)
-          .like('message', `%${normalizedPhone}%`)
-          .maybeSingle();
+        // Mark as being processed to avoid duplicates within this run
+        processedByType[billingType].customerIds.add(customer.id);
+        processedByType[billingType].phones.add(normalizedPhone);
+        
+        customersToProcess.push({ ...customer, billingType });
+      }
 
-        if (existingLogByPhone) {
-          console.log(`[Scheduled Billing] Skipping ${customer.name} - phone ${normalizedPhone} already received message today`);
-          skipped++;
-          continue;
-        }
+      console.log(`[Scheduled Billing] Customers to process: ${customersToProcess.length}`);
 
-        // Send the template
-        const templateName = TEMPLATE_MAPPING[billingType];
-        const sendResult = await sendWhatsAppTemplate(
-          customer.phone,
-          templateName,
-          zapSettings.zap_api_token,
-          zapSettings.api_base_url,
-          departmentId
-        );
+      // Process in parallel batches of 5 to speed up (CRITICAL OPTIMIZATION)
+      const BATCH_SIZE = 5;
+      for (let i = 0; i < customersToProcess.length; i += BATCH_SIZE) {
+        const batch = customersToProcess.slice(i, i + BATCH_SIZE);
+        
+        const batchPromises = batch.map(async (customer) => {
+          const billingType = customer.billingType as 'D-1' | 'D0' | 'D+1';
+          const templateName = TEMPLATE_MAPPING[billingType];
+          
+          const sendResult = await sendWhatsAppTemplate(
+            customer.phone,
+            templateName,
+            zapSettings.zap_api_token,
+            zapSettings.api_base_url,
+            departmentId
+          );
 
-        // Log the attempt
-        await supabase
-          .from('billing_logs')
-          .insert({
-            customer_id: customer.id,
-            billing_type: billingType,
-            message: `[Agendado] [${customer.phone}] Template: ${templateName}`,
-            whatsapp_status: sendResult.success ? 'sent' : `error: ${sendResult.error}`,
-          });
+          // Log the attempt
+          await supabase
+            .from('billing_logs')
+            .insert({
+              customer_id: customer.id,
+              billing_type: billingType,
+              message: `[Agendado] [${normalizePhone(customer.phone)}] Template: ${templateName}`,
+              whatsapp_status: sendResult.success ? 'sent' : `error: ${sendResult.error}`,
+            });
 
-        if (sendResult.success) {
-          sent++;
-        } else {
-          errors++;
+          return sendResult.success;
+        });
+
+        const results = await Promise.all(batchPromises);
+        
+        for (const success of results) {
+          if (success) sent++;
+          else errors++;
         }
       }
 

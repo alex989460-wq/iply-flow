@@ -336,19 +336,30 @@ Deno.serve(async (req) => {
         continue;
       }
 
-      // Also check by phone number to prevent duplicate sends to same number
+      // Check by normalized phone - but be more precise to avoid false positives
       const normalizedPhone = normalizePhone(customer.phone);
+      
+      // Search for exact phone match in message format [phone]
       const { data: existingLogByPhone } = await supabase
         .from('billing_logs')
-        .select('id')
+        .select('id, message')
         .eq('billing_type', billingType)
         .gte('sent_at', `${today}T00:00:00`)
-        .lte('sent_at', `${today}T23:59:59`)
-        .like('message', `%${normalizedPhone}%`)
-        .maybeSingle();
+        .lte('sent_at', `${today}T23:59:59`);
 
-      if (existingLogByPhone) {
-        console.log(`Skipping ${customer.name} - phone ${normalizedPhone} already received message today`);
+      // Check if this exact phone was already sent by comparing normalized phones
+      const phoneAlreadySent = existingLogByPhone?.some(log => {
+        const phoneMatch = log.message?.match(/\[(\d+)\]/);
+        if (phoneMatch) {
+          const logPhone = phoneMatch[1];
+          const logPhoneNormalized = normalizePhone(logPhone);
+          return logPhoneNormalized === normalizedPhone;
+        }
+        return false;
+      });
+
+      if (phoneAlreadySent) {
+        console.log(`Skipping ${customer.name} - phone ${normalizedPhone} already received ${billingType} message today`);
         results.skipped++;
         continue;
       }
