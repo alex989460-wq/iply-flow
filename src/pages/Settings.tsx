@@ -7,11 +7,20 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { Loader2, Eye, EyeOff, Save, AlertCircle, CheckCircle2, Copy, ExternalLink, Wifi, WifiOff, RefreshCw } from 'lucide-react';
+import { Loader2, Eye, EyeOff, Save, AlertCircle, CheckCircle2, Copy, ExternalLink, Wifi, WifiOff, RefreshCw, Phone, Plus, Check } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
+
+interface MetaPhoneNumber {
+  id: string;
+  name: string;
+  phone: string;
+  departmentId: string;
+  departmentName: string;
+  connectedAt: string;
+}
 
 type ApiType = 'zap_responder' | 'evolution' | 'meta_cloud';
 
@@ -30,6 +39,9 @@ export default function Settings() {
   const [showToken, setShowToken] = useState(false);
   const [checkingConnection, setCheckingConnection] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus | null>(null);
+  const [metaPhones, setMetaPhones] = useState<MetaPhoneNumber[]>([]);
+  const [loadingMetaPhones, setLoadingMetaPhones] = useState(false);
+  const [selectedMetaPhone, setSelectedMetaPhone] = useState<string | null>(null);
   const [apiType, setApiType] = useState<ApiType>('evolution');
   const [settings, setSettings] = useState({
     api_base_url: 'https://api.zapresponder.com.br/api',
@@ -191,6 +203,85 @@ export default function Settings() {
     } finally {
       setCheckingConnection(false);
     }
+  };
+
+  const fetchMetaPhones = async () => {
+    if (!settings.zap_api_token) {
+      toast({
+        title: 'Token obrigatório',
+        description: 'Informe o Token da API do Zap Responder primeiro',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setLoadingMetaPhones(true);
+    try {
+      const response = await fetch(
+        `${settings.api_base_url}/whatsapp-oficial/listar`,
+        {
+          headers: {
+            'Authorization': `Bearer ${settings.zap_api_token}`,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error('Falha ao buscar números do WhatsApp Oficial');
+      }
+
+      const data = await response.json();
+      
+      // Parse the response - adapt to actual API structure
+      const phones: MetaPhoneNumber[] = (data.data || data || []).map((item: any) => ({
+        id: item.id || item.phone_number_id,
+        name: item.name || item.display_name || 'WhatsApp Oficial',
+        phone: item.phone || item.display_phone_number || '',
+        departmentId: item.department_id || item.departamento_id || '',
+        departmentName: item.department_name || item.departamento_nome || 'Não definido',
+        connectedAt: item.connected_at || item.created_at || new Date().toISOString(),
+      }));
+
+      setMetaPhones(phones);
+
+      if (phones.length === 0) {
+        toast({
+          title: 'Nenhum número encontrado',
+          description: 'Você ainda não tem números do WhatsApp Oficial conectados no Zap Responder',
+        });
+      } else {
+        toast({
+          title: 'Números carregados!',
+          description: `${phones.length} número(s) encontrado(s)`,
+        });
+      }
+    } catch (error: any) {
+      console.error('Error fetching meta phones:', error);
+      toast({
+        title: 'Erro',
+        description: error.message || 'Não foi possível buscar os números. Verifique o token.',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoadingMetaPhones(false);
+    }
+  };
+
+  const selectMetaPhone = (phone: MetaPhoneNumber) => {
+    setSelectedMetaPhone(phone.id);
+    setSettings({
+      ...settings,
+      instance_name: phone.id,
+      selected_session_phone: phone.phone,
+      selected_session_name: phone.name,
+      selected_department_id: phone.departmentId,
+      selected_department_name: phone.departmentName,
+    });
+    toast({
+      title: 'Número selecionado',
+      description: `${phone.name} - ${phone.phone}`,
+    });
   };
 
   const copyWebhookUrl = (url: string) => {
@@ -523,84 +614,164 @@ docker-compose up -d`}
         {apiType === 'meta_cloud' && (
           <Tabs defaultValue="config" className="space-y-4">
             <TabsList>
-              <TabsTrigger value="config">Configuração</TabsTrigger>
-              <TabsTrigger value="webhook">Webhook (Facebook)</TabsTrigger>
-              <TabsTrigger value="guide">Guia Passo a Passo</TabsTrigger>
+              <TabsTrigger value="config">Meus Números</TabsTrigger>
+              <TabsTrigger value="guide">Como Funciona</TabsTrigger>
             </TabsList>
 
             <TabsContent value="config">
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
-                    <span>WhatsApp Cloud API (Meta)</span>
-                    <Badge variant="outline">API Oficial</Badge>
+                    <Phone className="w-5 h-5" />
+                    <span>WhatsApp Oficial</span>
+                    <Badge variant="outline">Via Zap Responder</Badge>
                   </CardTitle>
                   <CardDescription>
-                    Configure sua integração com a API oficial do WhatsApp via Meta Business
+                    Gerencie seus números do WhatsApp Business API conectados no Zap Responder
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
                   <Alert>
                     <AlertCircle className="h-4 w-4" />
                     <AlertDescription>
-                      Esta é a API oficial da Meta/Facebook. Requer conta no Meta Business e aprovação.
-                      Há custos por mensagem enviada, mas é a opção mais estável e confiável.
+                      Conecte seus números do WhatsApp Oficial através da sua conta no Zap Responder.
+                      Informe seu token de API para carregar os números disponíveis.
                     </AlertDescription>
                   </Alert>
 
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <div className="space-y-2 md:col-span-2">
-                      <Label htmlFor="meta_access_token">Access Token (Permanente) *</Label>
-                      <div className="relative">
-                        <Input
-                          id="meta_access_token"
-                          type={showToken ? 'text' : 'password'}
-                          value={settings.zap_api_token}
-                          onChange={(e) => setSettings({ ...settings, zap_api_token: e.target.value })}
-                          placeholder="EAAxxxxxxx..."
-                          className="pr-10"
-                        />
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="meta_zap_token">Token da API do Zap Responder *</Label>
+                      <div className="flex gap-2">
+                        <div className="relative flex-1">
+                          <Input
+                            id="meta_zap_token"
+                            type={showToken ? 'text' : 'password'}
+                            value={settings.zap_api_token}
+                            onChange={(e) => setSettings({ ...settings, zap_api_token: e.target.value })}
+                            placeholder="Cole seu token de API aqui"
+                            className="pr-10"
+                          />
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="absolute right-0 top-0 h-full"
+                            onClick={() => setShowToken(!showToken)}
+                          >
+                            {showToken ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                          </Button>
+                        </div>
                         <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          className="absolute right-0 top-0 h-full"
-                          onClick={() => setShowToken(!showToken)}
+                          onClick={fetchMetaPhones}
+                          disabled={loadingMetaPhones || !settings.zap_api_token}
                         >
-                          {showToken ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                          {loadingMetaPhones ? (
+                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          ) : (
+                            <RefreshCw className="w-4 h-4 mr-2" />
+                          )}
+                          Carregar Números
                         </Button>
                       </div>
                       <p className="text-xs text-muted-foreground">
-                        Token de acesso permanente gerado no Meta Business
-                      </p>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="phone_number_id">Phone Number ID *</Label>
-                      <Input
-                        id="phone_number_id"
-                        value={settings.instance_name}
-                        onChange={(e) => setSettings({ ...settings, instance_name: e.target.value })}
-                        placeholder="1234567890123456"
-                      />
-                      <p className="text-xs text-muted-foreground">
-                        ID do número de telefone no Meta Business
-                      </p>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="display_phone">Número de Telefone</Label>
-                      <Input
-                        id="display_phone"
-                        value={settings.selected_session_phone}
-                        onChange={(e) => setSettings({ ...settings, selected_session_phone: e.target.value })}
-                        placeholder="+55 11 99999-9999"
-                      />
-                      <p className="text-xs text-muted-foreground">
-                        Número do WhatsApp Business (para identificação)
+                        Obtenha seu token em Zap Responder → Configurações → API
                       </p>
                     </div>
                   </div>
+
+                  {/* Phone Number Cards */}
+                  {metaPhones.length > 0 && (
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <Label>Seus Números do WhatsApp Oficial</Label>
+                        <Badge variant="secondary">
+                          {metaPhones.length} número(s)
+                        </Badge>
+                      </div>
+                      
+                      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                        {metaPhones.map((phone) => (
+                          <div
+                            key={phone.id}
+                            onClick={() => selectMetaPhone(phone)}
+                            className={`relative p-4 border-2 rounded-lg cursor-pointer transition-all hover:shadow-md ${
+                              selectedMetaPhone === phone.id || settings.instance_name === phone.id
+                                ? 'border-primary bg-primary/5'
+                                : 'border-border hover:border-primary/50'
+                            }`}
+                          >
+                            {(selectedMetaPhone === phone.id || settings.instance_name === phone.id) && (
+                              <div className="absolute top-2 right-2">
+                                <div className="bg-primary text-primary-foreground rounded-full p-1">
+                                  <Check className="w-3 h-3" />
+                                </div>
+                              </div>
+                            )}
+                            
+                            <div className="flex items-start gap-3">
+                              <div className="w-10 h-10 rounded-full bg-green-500 flex items-center justify-center text-white">
+                                <Phone className="w-5 h-5" />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <h4 className="font-semibold text-sm truncate">{phone.name}</h4>
+                                <p className="text-xs text-muted-foreground">
+                                  Conectado em {new Date(phone.connectedAt).toLocaleDateString('pt-BR')}
+                                </p>
+                                <p className="text-xs font-mono text-green-600 dark:text-green-400">
+                                  {phone.phone}
+                                </p>
+                              </div>
+                            </div>
+                            
+                            <div className="mt-3 pt-3 border-t">
+                              <p className="text-xs text-muted-foreground">Departamento</p>
+                              <p className="text-sm font-medium">{phone.departmentName || 'Não definido'}</p>
+                            </div>
+                          </div>
+                        ))}
+
+                        {/* Add New Number Card */}
+                        <a
+                          href="https://zapresponder.com.br"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="p-4 border-2 border-dashed rounded-lg cursor-pointer transition-all hover:border-primary/50 hover:bg-muted/50 flex flex-col items-center justify-center min-h-[140px]"
+                        >
+                          <Plus className="w-8 h-8 text-muted-foreground mb-2" />
+                          <span className="text-sm text-muted-foreground">Adicionar número</span>
+                        </a>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Selected Number Info */}
+                  {settings.instance_name && (
+                    <div className="p-4 bg-muted/50 rounded-lg space-y-2">
+                      <div className="flex items-center gap-2">
+                        <CheckCircle2 className="w-4 h-4 text-green-500" />
+                        <span className="font-medium text-sm">Número Selecionado</span>
+                      </div>
+                      <div className="grid gap-2 text-sm">
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Nome:</span>
+                          <span>{settings.selected_session_name || '-'}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Telefone:</span>
+                          <span className="font-mono">{settings.selected_session_phone || '-'}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Departamento:</span>
+                          <span>{settings.selected_department_name || '-'}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">ID:</span>
+                          <span className="font-mono text-xs">{settings.instance_name}</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
                   <div className="flex justify-end">
                     <Button onClick={handleSave} disabled={saving}>
@@ -616,82 +787,12 @@ docker-compose up -d`}
               </Card>
             </TabsContent>
 
-            <TabsContent value="webhook">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Configurar Webhook no Facebook</CardTitle>
-                  <CardDescription>
-                    Configure o webhook no Meta Business para receber mensagens
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                  <Alert>
-                    <CheckCircle2 className="h-4 w-4 text-green-500" />
-                    <AlertDescription>
-                      Configure estes dados no painel do Meta for Developers para habilitar respostas automáticas.
-                    </AlertDescription>
-                  </Alert>
-
-                  <div className="space-y-4">
-                    <div className="space-y-2">
-                      <Label>URL de Callback (Webhook URL)</Label>
-                      <div className="flex gap-2">
-                        <Input
-                          value={metaWebhookUrl}
-                          readOnly
-                          className="font-mono text-sm"
-                        />
-                        <Button variant="outline" size="icon" onClick={() => copyWebhookUrl(metaWebhookUrl)}>
-                          <Copy className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label>Token de Verificação (Verify Token)</Label>
-                      <div className="flex gap-2">
-                        <Input
-                          value={metaVerifyToken}
-                          readOnly
-                          className="font-mono text-sm"
-                        />
-                        <Button variant="outline" size="icon" onClick={copyVerifyToken}>
-                          <Copy className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="space-y-4 p-4 bg-muted/50 rounded-lg">
-                    <h4 className="font-medium">Como configurar no Facebook:</h4>
-                    <ol className="list-decimal list-inside space-y-2 text-sm text-muted-foreground">
-                      <li>Acesse <a href="https://developers.facebook.com" target="_blank" rel="noopener noreferrer" className="text-primary underline">developers.facebook.com</a></li>
-                      <li>Vá em seu App &gt; WhatsApp &gt; Configuração</li>
-                      <li>Na seção "Webhook", clique em "Editar"</li>
-                      <li>Cole a <strong>URL de Callback</strong> acima</li>
-                      <li>Cole o <strong>Token de Verificação</strong> acima</li>
-                      <li>Clique em "Verificar e Salvar"</li>
-                      <li>Após verificar, clique em "Gerenciar" e ative o evento <code className="bg-muted px-1 rounded">messages</code></li>
-                    </ol>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label>Eventos obrigatórios:</Label>
-                    <div className="flex flex-wrap gap-2">
-                      <Badge variant="secondary">messages</Badge>
-                      <Badge variant="outline">message_status</Badge>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
-
             <TabsContent value="guide">
               <Card>
                 <CardHeader>
-                  <CardTitle>Guia: Configurar WhatsApp Cloud API</CardTitle>
+                  <CardTitle>Como Funciona</CardTitle>
                   <CardDescription>
-                    Passo a passo para configurar a API oficial do WhatsApp
+                    Integração com WhatsApp Oficial via Zap Responder
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
@@ -699,73 +800,59 @@ docker-compose up -d`}
                     <div className="p-4 border rounded-lg space-y-3">
                       <h4 className="font-semibold flex items-center gap-2">
                         <span className="bg-primary text-primary-foreground w-6 h-6 rounded-full flex items-center justify-center text-sm">1</span>
-                        Criar Conta Meta Business
+                        Conecte seu WhatsApp no Zap Responder
                       </h4>
-                      <ol className="list-decimal list-inside text-sm text-muted-foreground space-y-1">
-                        <li>Acesse <a href="https://business.facebook.com" target="_blank" className="text-primary underline">business.facebook.com</a></li>
-                        <li>Crie uma conta Business (se ainda não tiver)</li>
-                        <li>Verifique sua empresa (pode levar alguns dias)</li>
-                      </ol>
+                      <p className="text-sm text-muted-foreground">
+                        Acesse o Zap Responder, vá em <strong>Canais de Atendimento → WhatsApp Oficial</strong> e conecte seu número seguindo as instruções.
+                      </p>
                     </div>
 
                     <div className="p-4 border rounded-lg space-y-3">
                       <h4 className="font-semibold flex items-center gap-2">
                         <span className="bg-primary text-primary-foreground w-6 h-6 rounded-full flex items-center justify-center text-sm">2</span>
-                        Criar App no Meta for Developers
+                        Obtenha seu Token de API
                       </h4>
-                      <ol className="list-decimal list-inside text-sm text-muted-foreground space-y-1">
-                        <li>Acesse <a href="https://developers.facebook.com" target="_blank" className="text-primary underline">developers.facebook.com</a></li>
-                        <li>Clique em "Meus Apps" &gt; "Criar App"</li>
-                        <li>Selecione "Empresa" como tipo</li>
-                        <li>Adicione o produto "WhatsApp"</li>
-                      </ol>
+                      <p className="text-sm text-muted-foreground">
+                        No Zap Responder, vá em <strong>Configurações → API</strong> e copie seu token de acesso.
+                      </p>
                     </div>
 
                     <div className="p-4 border rounded-lg space-y-3">
                       <h4 className="font-semibold flex items-center gap-2">
                         <span className="bg-primary text-primary-foreground w-6 h-6 rounded-full flex items-center justify-center text-sm">3</span>
-                        Obter Credenciais
+                        Selecione o Número Aqui
                       </h4>
-                      <ol className="list-decimal list-inside text-sm text-muted-foreground space-y-1">
-                        <li>No App, vá em WhatsApp &gt; Configuração da API</li>
-                        <li>Copie o <strong>Phone Number ID</strong></li>
-                        <li>Em "Tokens de Acesso", gere um token permanente</li>
-                        <li>Cole as credenciais na aba "Configuração" acima</li>
-                      </ol>
+                      <p className="text-sm text-muted-foreground">
+                        Cole o token acima, clique em "Carregar Números" e selecione qual número deseja usar para enviar mensagens e respostas automáticas.
+                      </p>
                     </div>
 
                     <div className="p-4 border rounded-lg space-y-3">
                       <h4 className="font-semibold flex items-center gap-2">
                         <span className="bg-primary text-primary-foreground w-6 h-6 rounded-full flex items-center justify-center text-sm">4</span>
-                        Configurar Webhook
+                        Pronto!
                       </h4>
-                      <ol className="list-decimal list-inside text-sm text-muted-foreground space-y-1">
-                        <li>Vá na aba "Webhook (Facebook)" acima</li>
-                        <li>Copie a URL de Callback e o Token</li>
-                        <li>Configure no painel do Meta</li>
-                        <li>Ative o evento "messages"</li>
-                      </ol>
+                      <p className="text-sm text-muted-foreground">
+                        As mensagens e cobranças serão enviadas através do número selecionado usando a API oficial do WhatsApp, com toda a estabilidade e confiabilidade da Meta.
+                      </p>
                     </div>
+
+                    <Alert>
+                      <CheckCircle2 className="h-4 w-4 text-green-500" />
+                      <AlertDescription>
+                        Esta integração usa a API oficial do WhatsApp via Zap Responder, garantindo maior estabilidade e conformidade com as políticas do WhatsApp.
+                      </AlertDescription>
+                    </Alert>
 
                     <div className="flex gap-3">
                       <Button variant="outline" asChild>
                         <a 
-                          href="https://developers.facebook.com/docs/whatsapp/cloud-api/get-started" 
+                          href="https://zapresponder.com.br" 
                           target="_blank" 
                           rel="noopener noreferrer"
                         >
                           <ExternalLink className="w-4 h-4 mr-2" />
-                          Documentação Meta
-                        </a>
-                      </Button>
-                      <Button variant="outline" asChild>
-                        <a 
-                          href="https://business.facebook.com/settings/whatsapp-business-accounts" 
-                          target="_blank" 
-                          rel="noopener noreferrer"
-                        >
-                          <ExternalLink className="w-4 h-4 mr-2" />
-                          Meta Business
+                          Acessar Zap Responder
                         </a>
                       </Button>
                     </div>
