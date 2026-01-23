@@ -20,6 +20,7 @@ import Settings from "./pages/Settings";
 import Resellers from "./pages/Resellers";
 import Tutorial from "./pages/Tutorial";
 import BotTriggers from "./pages/BotTriggers";
+import AutoReplies from "./pages/AutoReplies";
 import NotFound from "./pages/NotFound";
 import { Loader2 } from "lucide-react";
 
@@ -67,6 +68,7 @@ function AppRoutes() {
       <Route path="/mass-broadcast" element={<ProtectedRoute><MassBroadcast /></ProtectedRoute>} />
       <Route path="/chat" element={<ProtectedRoute><Chat /></ProtectedRoute>} />
       <Route path="/bot-triggers" element={<ProtectedRoute><BotTriggers /></ProtectedRoute>} />
+      <Route path="/auto-replies" element={<ProtectedRoute><AutoReplies /></ProtectedRoute>} />
       <Route path="/tutorial" element={<ProtectedRoute><Tutorial /></ProtectedRoute>} />
       <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
       <Route path="/resellers" element={<ProtectedRoute><Resellers /></ProtectedRoute>} />
