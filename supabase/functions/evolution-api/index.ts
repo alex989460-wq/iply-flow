@@ -45,8 +45,10 @@ async function fetchInstances(apiBaseUrl: string, apiKey: string): Promise<{ suc
         id: i.instance?.instanceId || i.instanceId || i.id || i.name,
         name: i.instance?.instanceName || i.instanceName || i.name || 'Instância',
         phone: i.instance?.owner || i.owner || i.number || '',
-        status: i.instance?.status || i.status || 'unknown',
+        // connectionStatus is used by Evolution API v2
+        status: i.connectionStatus || i.instance?.status || i.status || 'unknown',
         profilePictureUrl: i.instance?.profilePictureUrl || i.profilePictureUrl || '',
+        integration: i.integration || 'WHATSAPP-BAILEYS',
       }))
     };
   } catch (error: unknown) {
