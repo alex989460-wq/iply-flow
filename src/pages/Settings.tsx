@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 
-type ApiType = 'zap_responder' | 'evolution';
+type ApiType = 'zap_responder' | 'evolution' | 'meta_cloud';
 
 interface ConnectionStatus {
   connected: boolean;
@@ -43,7 +43,9 @@ export default function Settings() {
   });
   const [hasExistingSettings, setHasExistingSettings] = useState(false);
 
-  const webhookUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/evolution-webhook`;
+  const evolutionWebhookUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/evolution-webhook`;
+  const metaWebhookUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/meta-webhook`;
+  const metaVerifyToken = 'supergestor_webhook_2024';
 
   useEffect(() => {
     if (user) {
@@ -191,11 +193,19 @@ export default function Settings() {
     }
   };
 
-  const copyWebhookUrl = () => {
-    navigator.clipboard.writeText(webhookUrl);
+  const copyWebhookUrl = (url: string) => {
+    navigator.clipboard.writeText(url);
     toast({
       title: 'Copiado!',
       description: 'URL do webhook copiada para a área de transferência',
+    });
+  };
+
+  const copyVerifyToken = () => {
+    navigator.clipboard.writeText(metaVerifyToken);
+    toast({
+      title: 'Copiado!',
+      description: 'Token de verificação copiado',
     });
   };
 
@@ -240,6 +250,12 @@ export default function Settings() {
                     <Badge variant="secondary" className="text-xs">Recomendado</Badge>
                   </div>
                 </SelectItem>
+                <SelectItem value="meta_cloud">
+                  <div className="flex items-center gap-2">
+                    <span>📘 WhatsApp Cloud API (Meta/Facebook)</span>
+                    <Badge variant="outline" className="text-xs">Oficial</Badge>
+                  </div>
+                </SelectItem>
                 <SelectItem value="zap_responder">
                   <span>📱 Zap Responder</span>
                 </SelectItem>
@@ -248,7 +264,7 @@ export default function Settings() {
           </CardContent>
         </Card>
 
-        {apiType === 'evolution' ? (
+        {apiType === 'evolution' && (
           <Tabs defaultValue="config" className="space-y-4">
             <TabsList>
               <TabsTrigger value="config">Configuração</TabsTrigger>
@@ -384,11 +400,11 @@ export default function Settings() {
                     <Label>URL do Webhook</Label>
                     <div className="flex gap-2">
                       <Input
-                        value={webhookUrl}
+                        value={evolutionWebhookUrl}
                         readOnly
                         className="font-mono text-sm"
                       />
-                      <Button variant="outline" size="icon" onClick={copyWebhookUrl}>
+                      <Button variant="outline" size="icon" onClick={() => copyWebhookUrl(evolutionWebhookUrl)}>
                         <Copy className="w-4 h-4" />
                       </Button>
                     </div>
@@ -502,7 +518,265 @@ docker-compose up -d`}
               </Card>
             </TabsContent>
           </Tabs>
-        ) : (
+        )}
+
+        {apiType === 'meta_cloud' && (
+          <Tabs defaultValue="config" className="space-y-4">
+            <TabsList>
+              <TabsTrigger value="config">Configuração</TabsTrigger>
+              <TabsTrigger value="webhook">Webhook (Facebook)</TabsTrigger>
+              <TabsTrigger value="guide">Guia Passo a Passo</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="config">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <span>WhatsApp Cloud API (Meta)</span>
+                    <Badge variant="outline">API Oficial</Badge>
+                  </CardTitle>
+                  <CardDescription>
+                    Configure sua integração com a API oficial do WhatsApp via Meta Business
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <Alert>
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription>
+                      Esta é a API oficial da Meta/Facebook. Requer conta no Meta Business e aprovação.
+                      Há custos por mensagem enviada, mas é a opção mais estável e confiável.
+                    </AlertDescription>
+                  </Alert>
+
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div className="space-y-2 md:col-span-2">
+                      <Label htmlFor="meta_access_token">Access Token (Permanente) *</Label>
+                      <div className="relative">
+                        <Input
+                          id="meta_access_token"
+                          type={showToken ? 'text' : 'password'}
+                          value={settings.zap_api_token}
+                          onChange={(e) => setSettings({ ...settings, zap_api_token: e.target.value })}
+                          placeholder="EAAxxxxxxx..."
+                          className="pr-10"
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="absolute right-0 top-0 h-full"
+                          onClick={() => setShowToken(!showToken)}
+                        >
+                          {showToken ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </Button>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Token de acesso permanente gerado no Meta Business
+                      </p>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="phone_number_id">Phone Number ID *</Label>
+                      <Input
+                        id="phone_number_id"
+                        value={settings.instance_name}
+                        onChange={(e) => setSettings({ ...settings, instance_name: e.target.value })}
+                        placeholder="1234567890123456"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        ID do número de telefone no Meta Business
+                      </p>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="display_phone">Número de Telefone</Label>
+                      <Input
+                        id="display_phone"
+                        value={settings.selected_session_phone}
+                        onChange={(e) => setSettings({ ...settings, selected_session_phone: e.target.value })}
+                        placeholder="+55 11 99999-9999"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Número do WhatsApp Business (para identificação)
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end">
+                    <Button onClick={handleSave} disabled={saving}>
+                      {saving ? (
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      ) : (
+                        <Save className="w-4 h-4 mr-2" />
+                      )}
+                      Salvar Configurações
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="webhook">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Configurar Webhook no Facebook</CardTitle>
+                  <CardDescription>
+                    Configure o webhook no Meta Business para receber mensagens
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <Alert>
+                    <CheckCircle2 className="h-4 w-4 text-green-500" />
+                    <AlertDescription>
+                      Configure estes dados no painel do Meta for Developers para habilitar respostas automáticas.
+                    </AlertDescription>
+                  </Alert>
+
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label>URL de Callback (Webhook URL)</Label>
+                      <div className="flex gap-2">
+                        <Input
+                          value={metaWebhookUrl}
+                          readOnly
+                          className="font-mono text-sm"
+                        />
+                        <Button variant="outline" size="icon" onClick={() => copyWebhookUrl(metaWebhookUrl)}>
+                          <Copy className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Token de Verificação (Verify Token)</Label>
+                      <div className="flex gap-2">
+                        <Input
+                          value={metaVerifyToken}
+                          readOnly
+                          className="font-mono text-sm"
+                        />
+                        <Button variant="outline" size="icon" onClick={copyVerifyToken}>
+                          <Copy className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4 p-4 bg-muted/50 rounded-lg">
+                    <h4 className="font-medium">Como configurar no Facebook:</h4>
+                    <ol className="list-decimal list-inside space-y-2 text-sm text-muted-foreground">
+                      <li>Acesse <a href="https://developers.facebook.com" target="_blank" rel="noopener noreferrer" className="text-primary underline">developers.facebook.com</a></li>
+                      <li>Vá em seu App &gt; WhatsApp &gt; Configuração</li>
+                      <li>Na seção "Webhook", clique em "Editar"</li>
+                      <li>Cole a <strong>URL de Callback</strong> acima</li>
+                      <li>Cole o <strong>Token de Verificação</strong> acima</li>
+                      <li>Clique em "Verificar e Salvar"</li>
+                      <li>Após verificar, clique em "Gerenciar" e ative o evento <code className="bg-muted px-1 rounded">messages</code></li>
+                    </ol>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Eventos obrigatórios:</Label>
+                    <div className="flex flex-wrap gap-2">
+                      <Badge variant="secondary">messages</Badge>
+                      <Badge variant="outline">message_status</Badge>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="guide">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Guia: Configurar WhatsApp Cloud API</CardTitle>
+                  <CardDescription>
+                    Passo a passo para configurar a API oficial do WhatsApp
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <div className="space-y-4">
+                    <div className="p-4 border rounded-lg space-y-3">
+                      <h4 className="font-semibold flex items-center gap-2">
+                        <span className="bg-primary text-primary-foreground w-6 h-6 rounded-full flex items-center justify-center text-sm">1</span>
+                        Criar Conta Meta Business
+                      </h4>
+                      <ol className="list-decimal list-inside text-sm text-muted-foreground space-y-1">
+                        <li>Acesse <a href="https://business.facebook.com" target="_blank" className="text-primary underline">business.facebook.com</a></li>
+                        <li>Crie uma conta Business (se ainda não tiver)</li>
+                        <li>Verifique sua empresa (pode levar alguns dias)</li>
+                      </ol>
+                    </div>
+
+                    <div className="p-4 border rounded-lg space-y-3">
+                      <h4 className="font-semibold flex items-center gap-2">
+                        <span className="bg-primary text-primary-foreground w-6 h-6 rounded-full flex items-center justify-center text-sm">2</span>
+                        Criar App no Meta for Developers
+                      </h4>
+                      <ol className="list-decimal list-inside text-sm text-muted-foreground space-y-1">
+                        <li>Acesse <a href="https://developers.facebook.com" target="_blank" className="text-primary underline">developers.facebook.com</a></li>
+                        <li>Clique em "Meus Apps" &gt; "Criar App"</li>
+                        <li>Selecione "Empresa" como tipo</li>
+                        <li>Adicione o produto "WhatsApp"</li>
+                      </ol>
+                    </div>
+
+                    <div className="p-4 border rounded-lg space-y-3">
+                      <h4 className="font-semibold flex items-center gap-2">
+                        <span className="bg-primary text-primary-foreground w-6 h-6 rounded-full flex items-center justify-center text-sm">3</span>
+                        Obter Credenciais
+                      </h4>
+                      <ol className="list-decimal list-inside text-sm text-muted-foreground space-y-1">
+                        <li>No App, vá em WhatsApp &gt; Configuração da API</li>
+                        <li>Copie o <strong>Phone Number ID</strong></li>
+                        <li>Em "Tokens de Acesso", gere um token permanente</li>
+                        <li>Cole as credenciais na aba "Configuração" acima</li>
+                      </ol>
+                    </div>
+
+                    <div className="p-4 border rounded-lg space-y-3">
+                      <h4 className="font-semibold flex items-center gap-2">
+                        <span className="bg-primary text-primary-foreground w-6 h-6 rounded-full flex items-center justify-center text-sm">4</span>
+                        Configurar Webhook
+                      </h4>
+                      <ol className="list-decimal list-inside text-sm text-muted-foreground space-y-1">
+                        <li>Vá na aba "Webhook (Facebook)" acima</li>
+                        <li>Copie a URL de Callback e o Token</li>
+                        <li>Configure no painel do Meta</li>
+                        <li>Ative o evento "messages"</li>
+                      </ol>
+                    </div>
+
+                    <div className="flex gap-3">
+                      <Button variant="outline" asChild>
+                        <a 
+                          href="https://developers.facebook.com/docs/whatsapp/cloud-api/get-started" 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                        >
+                          <ExternalLink className="w-4 h-4 mr-2" />
+                          Documentação Meta
+                        </a>
+                      </Button>
+                      <Button variant="outline" asChild>
+                        <a 
+                          href="https://business.facebook.com/settings/whatsapp-business-accounts" 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                        >
+                          <ExternalLink className="w-4 h-4 mr-2" />
+                          Meta Business
+                        </a>
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+          </Tabs>
+        )}
+
+        {apiType === 'zap_responder' && (
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
