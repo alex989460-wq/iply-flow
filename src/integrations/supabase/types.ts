@@ -14,6 +14,42 @@ export type Database = {
   }
   public: {
     Tables: {
+      auto_replies: {
+        Row: {
+          created_at: string
+          id: string
+          is_enabled: boolean
+          match_type: string
+          priority: number
+          reply_message: string
+          trigger_keyword: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_enabled?: boolean
+          match_type?: string
+          priority?: number
+          reply_message: string
+          trigger_keyword: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_enabled?: boolean
+          match_type?: string
+          priority?: number
+          reply_message?: string
+          trigger_keyword?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       billing_logs: {
         Row: {
           billing_type: Database["public"]["Enums"]["billing_type"]
@@ -538,6 +574,45 @@ export type Database = {
           id?: string
           role?: Database["public"]["Enums"]["app_role"]
           user_id?: string
+        }
+        Relationships: []
+      }
+      webhook_logs: {
+        Row: {
+          auto_reply_sent: boolean
+          created_at: string
+          event_type: string
+          id: string
+          message_content: string | null
+          phone_from: string | null
+          phone_to: string | null
+          processed: boolean
+          raw_payload: Json | null
+          user_id: string | null
+        }
+        Insert: {
+          auto_reply_sent?: boolean
+          created_at?: string
+          event_type: string
+          id?: string
+          message_content?: string | null
+          phone_from?: string | null
+          phone_to?: string | null
+          processed?: boolean
+          raw_payload?: Json | null
+          user_id?: string | null
+        }
+        Update: {
+          auto_reply_sent?: boolean
+          created_at?: string
+          event_type?: string
+          id?: string
+          message_content?: string | null
+          phone_from?: string | null
+          phone_to?: string | null
+          processed?: boolean
+          raw_payload?: Json | null
+          user_id?: string | null
         }
         Relationships: []
       }
