@@ -798,6 +798,9 @@ export default function Billing() {
     });
   };
 
+  // Detect API type
+  const isEvolutionApi = zapSettings?.api_type === 'evolution';
+
   return (
     <DashboardLayout>
       <div className="space-y-4 sm:space-y-6 animate-fade-in">
@@ -806,12 +809,13 @@ export default function Billing() {
             <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-foreground">Cobranças & WhatsApp</h1>
             <p className="text-muted-foreground text-sm sm:text-base mt-1">
               Gerencie cobranças automáticas e comunicações via WhatsApp
+              {isEvolutionApi && <span className="ml-2 text-primary">(Evolution API)</span>}
             </p>
           </div>
           <Button 
             variant="glow" 
             onClick={() => handleSendBillings()}
-            disabled={isSending || totalPending === 0 || !zapSettings?.selected_session_id}
+            disabled={isSending || totalPending === 0 || (!isEvolutionApi && !zapSettings?.selected_session_id) || (isEvolutionApi && !zapSettings?.instance_name)}
             className="w-full sm:w-auto sm:self-start"
           >
             {isSending && sendingType === 'all' ? (
@@ -827,9 +831,15 @@ export default function Billing() {
         <Tabs defaultValue="config" className="space-y-4">
           <TabsList className="grid w-full grid-cols-3 sm:grid-cols-6 h-auto">
             <TabsTrigger value="config" className="text-xs sm:text-sm py-2">Config</TabsTrigger>
-            <TabsTrigger value="departamentos" className="text-xs sm:text-sm py-2">Deptos</TabsTrigger>
-            <TabsTrigger value="conversas" className="text-xs sm:text-sm py-2">Conversas</TabsTrigger>
-            <TabsTrigger value="templates" className="text-xs sm:text-sm py-2">Templates</TabsTrigger>
+            <TabsTrigger value="departamentos" className="text-xs sm:text-sm py-2" disabled={isEvolutionApi}>
+              {isEvolutionApi ? 'N/A' : 'Deptos'}
+            </TabsTrigger>
+            <TabsTrigger value="conversas" className="text-xs sm:text-sm py-2" disabled={isEvolutionApi}>
+              {isEvolutionApi ? 'N/A' : 'Conversas'}
+            </TabsTrigger>
+            <TabsTrigger value="templates" className="text-xs sm:text-sm py-2" disabled={isEvolutionApi}>
+              {isEvolutionApi ? 'N/A' : 'Templates'}
+            </TabsTrigger>
             <TabsTrigger value="relatorios" className="text-xs sm:text-sm py-2 flex items-center gap-1">
               <BarChart3 className="w-3 h-3 sm:w-4 sm:h-4" />
               <span className="hidden sm:inline">Relatórios</span>
@@ -842,75 +852,109 @@ export default function Billing() {
           <TabsContent value="config" className="space-y-4">
             {/* Billing Schedule Card */}
             <BillingScheduleCard />
-            {/* Zap Responder Configuration */}
+            
+            {/* API Configuration Card */}
             <Card className="glass-card border-border/50">
               <CardHeader>
                 <CardTitle className="text-lg flex items-center gap-2">
                   <Phone className="w-5 h-5 text-primary" />
-                  Configuração do Zap Responder
+                  {isEvolutionApi ? 'Configuração Evolution API' : 'Configuração do Zap Responder'}
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="flex flex-col sm:flex-row gap-4">
-                  <div className="flex-1">
-                    <p className="text-sm text-muted-foreground mb-2">Atendente Selecionado:</p>
-                    {zapSettings?.selected_session_id ? (
-                      <div className="flex items-center gap-2 p-3 bg-success/10 border border-success/20 rounded-lg">
-                        <CheckCircle className="w-4 h-4 text-success" />
-                        <span className="font-medium">{zapSettings.selected_session_name}</span>
-                        <span className="text-muted-foreground">({zapSettings.selected_session_phone})</span>
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-2 p-3 bg-destructive/10 border border-destructive/20 rounded-lg">
-                        <AlertCircle className="w-4 h-4 text-destructive" />
-                        <span>Nenhum atendente selecionado</span>
-                      </div>
-                    )}
-                  </div>
-                  <Button 
-                    variant="outline" 
-                    onClick={() => fetchSessions(true)}
-                    disabled={isLoadingSessions}
-                  >
-                    {isLoadingSessions ? (
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    ) : (
-                      <RefreshCw className="w-4 h-4 mr-2" />
-                    )}
-                    Carregar Atendentes
-                  </Button>
-                </div>
-
-                {sessions.length > 0 && (
-                  <div className="space-y-2">
-                    <p className="text-sm font-medium">Selecione um atendente:</p>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                      {sessions.map((session) => (
-                        <button
-                          key={session.id}
-                          onClick={() => selectSessionMutation.mutate(session)}
-                          disabled={selectSessionMutation.isPending}
-                          className={cn(
-                            'p-3 rounded-lg border text-left transition-all hover:border-primary',
-                            zapSettings?.selected_session_id === session.id
-                              ? 'border-primary bg-primary/10'
-                              : 'border-border bg-secondary/50'
+                {isEvolutionApi ? (
+                  // Evolution API Configuration
+                  <div className="flex flex-col sm:flex-row gap-4">
+                    <div className="flex-1">
+                      <p className="text-sm text-muted-foreground mb-2">Instância Selecionada:</p>
+                      {zapSettings?.instance_name ? (
+                        <div className="flex items-center gap-2 p-3 bg-success/10 border border-success/20 rounded-lg">
+                          <CheckCircle className="w-4 h-4 text-success" />
+                          <span className="font-medium">{zapSettings.instance_name}</span>
+                          {zapSettings.selected_session_phone && (
+                            <span className="text-muted-foreground">({zapSettings.selected_session_phone})</span>
                           )}
-                        >
-                          <p className="font-medium">{session.name}</p>
-                          <p className="text-sm text-muted-foreground">{session.phone}</p>
-                          <span className={cn(
-                            'text-xs px-2 py-0.5 rounded-full mt-1 inline-block',
-                            session.status === 'connected' || session.status === 'active'
-                              ? 'bg-success/10 text-success' 
-                              : 'bg-muted text-muted-foreground'
-                          )}>
-                            {session.status}
-                          </span>
-                        </button>
-                      ))}
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2 p-3 bg-destructive/10 border border-destructive/20 rounded-lg">
+                          <AlertCircle className="w-4 h-4 text-destructive" />
+                          <span>Nenhuma instância selecionada</span>
+                        </div>
+                      )}
                     </div>
+                    <Button 
+                      variant="outline" 
+                      onClick={() => window.location.href = '/settings'}
+                    >
+                      <RefreshCw className="w-4 h-4 mr-2" />
+                      Configurar Instância
+                    </Button>
                   </div>
+                ) : (
+                  // Zap Responder Configuration
+                  <>
+                    <div className="flex flex-col sm:flex-row gap-4">
+                      <div className="flex-1">
+                        <p className="text-sm text-muted-foreground mb-2">Atendente Selecionado:</p>
+                        {zapSettings?.selected_session_id ? (
+                          <div className="flex items-center gap-2 p-3 bg-success/10 border border-success/20 rounded-lg">
+                            <CheckCircle className="w-4 h-4 text-success" />
+                            <span className="font-medium">{zapSettings.selected_session_name}</span>
+                            <span className="text-muted-foreground">({zapSettings.selected_session_phone})</span>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2 p-3 bg-destructive/10 border border-destructive/20 rounded-lg">
+                            <AlertCircle className="w-4 h-4 text-destructive" />
+                            <span>Nenhum atendente selecionado</span>
+                          </div>
+                        )}
+                      </div>
+                      <Button 
+                        variant="outline" 
+                        onClick={() => fetchSessions(true)}
+                        disabled={isLoadingSessions}
+                      >
+                        {isLoadingSessions ? (
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        ) : (
+                          <RefreshCw className="w-4 h-4 mr-2" />
+                        )}
+                        Carregar Atendentes
+                      </Button>
+                    </div>
+
+                    {sessions.length > 0 && (
+                      <div className="space-y-2">
+                        <p className="text-sm font-medium">Selecione um atendente:</p>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                          {sessions.map((session) => (
+                            <button
+                              key={session.id}
+                              onClick={() => selectSessionMutation.mutate(session)}
+                              disabled={selectSessionMutation.isPending}
+                              className={cn(
+                                'p-3 rounded-lg border text-left transition-all hover:border-primary',
+                                zapSettings?.selected_session_id === session.id
+                                  ? 'border-primary bg-primary/10'
+                                  : 'border-border bg-secondary/50'
+                              )}
+                            >
+                              <p className="font-medium">{session.name}</p>
+                              <p className="text-sm text-muted-foreground">{session.phone}</p>
+                              <span className={cn(
+                                'text-xs px-2 py-0.5 rounded-full mt-1 inline-block',
+                                session.status === 'connected' || session.status === 'active'
+                                  ? 'bg-success/10 text-success' 
+                                  : 'bg-muted text-muted-foreground'
+                              )}>
+                                {session.status}
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </>
                 )}
               </CardContent>
             </Card>

@@ -28,7 +28,7 @@ interface Customer {
 }
 
 // Send WhatsApp template message via Zap Responder API
-async function sendWhatsAppTemplate(
+async function sendWhatsAppTemplateZapResponder(
   phone: string, 
   templateName: string,
   token: string, 
@@ -36,17 +36,13 @@ async function sendWhatsAppTemplate(
   departmentId: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    // Format phone number (remove non-digits and ensure country code)
     let formattedPhone = phone.replace(/\D/g, '');
-    
-    // Ensure phone has country code (Brazil = 55)
     if (!formattedPhone.startsWith('55') && formattedPhone.length <= 11) {
       formattedPhone = '55' + formattedPhone;
     }
     
-    console.log(`Sending WhatsApp template "${templateName}" to ${formattedPhone} via department ${departmentId}`);
+    console.log(`[ZapResponder] Sending template "${templateName}" to ${formattedPhone}`);
     
-    // Use the WhatsApp template endpoint
     const body = {
       type: 'template',
       template_name: templateName,
@@ -66,12 +62,12 @@ async function sendWhatsAppTemplate(
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error(`Zap Responder API error (template): ${response.status} - ${errorText}`);
+      console.error(`Zap Responder API error: ${response.status} - ${errorText}`);
       return { success: false, error: 'Falha ao enviar mensagem' };
     }
 
     const result = await response.json();
-    console.log(`Template "${templateName}" sent successfully to ${formattedPhone}`, result);
+    console.log(`Template sent successfully to ${formattedPhone}`, result);
     return { success: true };
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -80,7 +76,51 @@ async function sendWhatsAppTemplate(
   }
 }
 
-// Format YYYY-MM-DD in America/Sao_Paulo (prevents UTC day-shift issues)
+// Send WhatsApp text message via Evolution API
+async function sendWhatsAppTextEvolution(
+  phone: string, 
+  text: string,
+  apiKey: string, 
+  apiBaseUrl: string,
+  instanceName: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    let formattedPhone = phone.replace(/\D/g, '');
+    if (!formattedPhone.startsWith('55') && formattedPhone.length <= 11) {
+      formattedPhone = '55' + formattedPhone;
+    }
+    
+    console.log(`[Evolution] Sending text to ${formattedPhone} via instance ${instanceName}`);
+    
+    const response = await fetch(`${apiBaseUrl}/message/sendText/${instanceName}`, {
+      method: 'POST',
+      headers: {
+        'apikey': apiKey,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        number: formattedPhone,
+        text: text,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`Evolution API error: ${response.status} - ${errorText}`);
+      return { success: false, error: `Erro ${response.status}: ${errorText}` };
+    }
+
+    const result = await response.json();
+    console.log(`Message sent successfully to ${formattedPhone}`, result);
+    return { success: true };
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.error(`Error sending message to ${phone}:`, error);
+    return { success: false, error: errorMessage };
+  }
+}
+
+// Format YYYY-MM-DD in America/Sao_Paulo
 function formatDateSaoPaulo(date: Date): string {
   const parts = new Intl.DateTimeFormat('en-US', {
     timeZone: 'America/Sao_Paulo',
@@ -96,9 +136,8 @@ function formatDateSaoPaulo(date: Date): string {
   return `${year}-${month}-${day}`;
 }
 
-// Get dates relative to São Paulo timezone (handles DST correctly)
+// Get dates relative to São Paulo timezone
 function getRelativeDateSaoPaulo(daysOffset: number): string {
-  // Get current date parts in São Paulo
   const now = new Date();
   const saoPauloDate = new Intl.DateTimeFormat('en-CA', {
     timeZone: 'America/Sao_Paulo',
@@ -107,7 +146,6 @@ function getRelativeDateSaoPaulo(daysOffset: number): string {
     day: '2-digit',
   }).format(now);
   
-  // Parse and add offset
   const [year, month, day] = saoPauloDate.split('-').map(Number);
   const targetDate = new Date(year, month - 1, day + daysOffset);
   
@@ -128,28 +166,25 @@ function getBillingType(dueDate: string, today: string): 'D-1' | 'D0' | 'D+1' | 
   const due = new Date(dueDate);
   const todayDate = new Date(today);
 
-  // Reset time for accurate date comparison
   due.setHours(0, 0, 0, 0);
   todayDate.setHours(0, 0, 0, 0);
 
   const diffTime = due.getTime() - todayDate.getTime();
   const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
 
-  if (diffDays === 1) return 'D-1'; // Due tomorrow
-  if (diffDays === 0) return 'D0'; // Due today
-  if (diffDays === -1) return 'D+1'; // Due yesterday
+  if (diffDays === 1) return 'D-1';
+  if (diffDays === 0) return 'D0';
+  if (diffDays === -1) return 'D+1';
 
   return null;
 }
 
 Deno.serve(async (req) => {
-  // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    // Parse request body to get optional billing_type filter
     let filterBillingType: string | null = null;
     if (req.method === 'POST') {
       try {
@@ -157,13 +192,12 @@ Deno.serve(async (req) => {
         filterBillingType = body?.billing_type || null;
         console.log(`Filter billing type: ${filterBillingType}`);
       } catch {
-        // No body or invalid JSON, proceed without filter
+        // No body or invalid JSON
       }
     }
     
     console.log('Starting billing process...');
     
-    // Initialize Supabase client with service role for full access
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
@@ -199,7 +233,7 @@ Deno.serve(async (req) => {
 
     let zapSettings: any = userSettings;
 
-    // Admin-only fallback to global settings (backwards compatibility)
+    // Admin-only fallback
     if (!zapSettings && isAdminUser) {
       const { data } = await supabase
         .from('zap_responder_settings')
@@ -210,74 +244,94 @@ Deno.serve(async (req) => {
       zapSettings = data;
     }
 
-    // Token MUST be user-configured for non-admin users
-    const zapToken = zapSettings?.zap_api_token || (isAdminUser ? Deno.env.get('ZAP_RESPONDER_TOKEN') : null);
-    if (!zapToken) {
-      console.error('API token not configured for user:', userId);
+    const apiType = zapSettings?.api_type || 'zap_responder';
+    const apiKey = zapSettings?.zap_api_token || (isAdminUser ? Deno.env.get('ZAP_RESPONDER_TOKEN') : null);
+    
+    if (!apiKey) {
+      console.error('API key not configured for user:', userId);
       return new Response(
         JSON.stringify({ error: 'Configuração incompleta. Verifique suas configurações.' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    const apiBaseUrl = zapSettings?.api_base_url || 'https://api.zapresponder.com.br/api';
-    const selectedSessionId = zapSettings?.selected_session_id;
-
+    const apiBaseUrl = zapSettings?.api_base_url || (apiType === 'evolution' 
+      ? 'https://api-evolution.supergestor.top' 
+      : 'https://api.zapresponder.com.br/api');
+    
+    console.log(`Using API type: ${apiType}`);
     console.log(`Using API base URL: ${apiBaseUrl}`);
-    console.log(`Selected session ID: ${selectedSessionId}`);
 
-    // Fetch the attendant info to get the department ID
+    // For Evolution API, we need the instance name
+    // For Zap Responder, we need the department ID
     let departmentId: string | undefined;
-    if (selectedSessionId) {
-      try {
-        const atendenteResponse = await fetch(`${apiBaseUrl}/atendentes`, {
-          method: 'GET',
-          headers: {
-            'Accept': 'application/json',
-            'Authorization': `Bearer ${zapToken}`,
-          },
-        });
-        
-        if (atendenteResponse.ok) {
-          const atendentes = await atendenteResponse.json();
-          // Find the selected attendant
-          const selectedAtendente = atendentes?.find((a: any) => a._id === selectedSessionId);
-          if (selectedAtendente?.departamento?.length > 0) {
-            departmentId = selectedAtendente.departamento[0];
-            console.log(`Found department ID for attendant: ${departmentId}`);
-          }
-        }
-      } catch (e) {
-        console.error('Error fetching attendant department:', e);
-      }
-    }
-    
-    if (!departmentId) {
-      console.error('No department ID found for user:', userId);
-      return new Response(
-        JSON.stringify({ error: 'Configuração incompleta. Selecione uma sessão em Configurações.' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-    
-    console.log(`Using department ID: ${departmentId}`);
+    let instanceName: string | undefined;
 
-    // Get today's date in Sao Paulo timezone (YYYY-MM-DD) using timezone-aware function
+    if (apiType === 'evolution') {
+      instanceName = zapSettings?.instance_name;
+      if (!instanceName) {
+        console.error('Instance name not configured for Evolution API user:', userId);
+        return new Response(
+          JSON.stringify({ error: 'Configuração incompleta. Selecione uma instância em Configurações.' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      console.log(`Using Evolution instance: ${instanceName}`);
+    } else {
+      // Zap Responder: Get department ID
+      const selectedSessionId = zapSettings?.selected_session_id;
+      if (selectedSessionId) {
+        try {
+          const atendenteResponse = await fetch(`${apiBaseUrl}/atendentes`, {
+            method: 'GET',
+            headers: {
+              'Accept': 'application/json',
+              'Authorization': `Bearer ${apiKey}`,
+            },
+          });
+          
+          if (atendenteResponse.ok) {
+            const atendentes = await atendenteResponse.json();
+            const selectedAtendente = atendentes?.find((a: any) => a._id === selectedSessionId);
+            if (selectedAtendente?.departamento?.length > 0) {
+              departmentId = selectedAtendente.departamento[0];
+              console.log(`Found department ID: ${departmentId}`);
+            }
+          }
+        } catch (e) {
+          console.error('Error fetching attendant department:', e);
+        }
+      }
+      
+      if (!departmentId) {
+        // Fallback to selected_department_id
+        departmentId = zapSettings?.selected_department_id;
+      }
+      
+      if (!departmentId) {
+        console.error('No department ID found for user:', userId);
+        return new Response(
+          JSON.stringify({ error: 'Configuração incompleta. Selecione uma sessão/departamento em Configurações.' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      console.log(`Using department ID: ${departmentId}`);
+    }
+
+    // Get dates
     const today = getRelativeDateSaoPaulo(0);
     const yesterday = getRelativeDateSaoPaulo(-1);
     const tomorrow = getRelativeDateSaoPaulo(1);
 
-    console.log(`Processing billings for dates: yesterday=${yesterday}, today=${today}, tomorrow=${tomorrow}`);
+    console.log(`Processing billings: yesterday=${yesterday}, today=${today}, tomorrow=${tomorrow}`);
 
-    // Fetch customers (ativa + inativa) with due dates in our range
-    // SECURITY: Filter by created_by to ensure user can only process their own customers
+    // Fetch customers
     let customerQuery = supabase
       .from('customers')
       .select('id, name, phone, due_date, status')
       .in('status', ['ativa', 'inativa'])
       .in('due_date', [yesterday, today, tomorrow]);
     
-    // Non-admin users can only access their own customers
     if (!isAdminUser && userId) {
       customerQuery = customerQuery.eq('created_by', userId);
     }
@@ -302,22 +356,18 @@ Deno.serve(async (req) => {
       details: [] as any[],
     };
 
-    // Pre-fetch ALL billing logs for today in a SINGLE query (optimized)
+    // Pre-fetch billing logs for today
     const { data: existingLogs } = await supabase
       .from('billing_logs')
       .select('customer_id, billing_type, message')
       .gte('sent_at', `${today}T00:00:00`)
       .lte('sent_at', `${today}T23:59:59`);
 
-    // Build sets for fast lookups
     const sentByCustomerAndType = new Set<string>();
     const sentByPhoneAndType = new Set<string>();
     
     for (const log of existingLogs || []) {
-      // Track customer_id + billing_type
       sentByCustomerAndType.add(`${log.customer_id}:${log.billing_type}`);
-      
-      // Extract phone from message and track phone + billing_type
       const phoneMatch = log.message?.match(/\[(\d+)\]/);
       if (phoneMatch) {
         const normalizedLogPhone = normalizePhone(phoneMatch[1]);
@@ -327,7 +377,7 @@ Deno.serve(async (req) => {
 
     console.log(`Found ${existingLogs?.length || 0} existing logs for today`);
 
-    // Pre-filter customers to avoid duplicate processing
+    // Filter customers
     const customersToProcess: any[] = [];
     
     for (const customer of customers || []) {
@@ -340,27 +390,23 @@ Deno.serve(async (req) => {
         continue;
       }
       
-      // If filter is set, skip customers that don't match
       if (filterBillingType && billingType !== filterBillingType) {
         results.skipped++;
         continue;
       }
 
-      // Check if already sent by customer_id + billing_type
       if (sentByCustomerAndType.has(`${customer.id}:${billingType}`)) {
         results.skipped++;
         continue;
       }
 
-      // Check if already sent by phone + billing_type
       const normalizedPhone = normalizePhone(customer.phone);
       if (sentByPhoneAndType.has(`${normalizedPhone}:${billingType}`)) {
-        console.log(`Skipping ${customer.name} - phone ${normalizedPhone} already received ${billingType} message today`);
+        console.log(`Skipping ${customer.name} - phone already received ${billingType} today`);
         results.skipped++;
         continue;
       }
 
-      // Add to processing list and mark as "will be sent" to avoid duplicates within batch
       customersToProcess.push({ ...customer, billingType, normalizedPhone });
       sentByCustomerAndType.add(`${customer.id}:${billingType}`);
       sentByPhoneAndType.add(`${normalizedPhone}:${billingType}`);
@@ -368,17 +414,39 @@ Deno.serve(async (req) => {
 
     console.log(`Customers to process after filtering: ${customersToProcess.length}`);
 
-    // Process in parallel batches of 10 for faster execution
+    // Process in parallel batches
     const BATCH_SIZE = 10;
     for (let i = 0; i < customersToProcess.length; i += BATCH_SIZE) {
       const batch = customersToProcess.slice(i, i + BATCH_SIZE);
       
       const batchPromises = batch.map(async (customer) => {
         const billingType = customer.billingType as 'D-1' | 'D0' | 'D+1';
-        const templateName = TEMPLATE_MAPPING[billingType];
+        let sendResult: { success: boolean; error?: string };
+        let messageIdentifier: string;
         
-        // Send WhatsApp template
-        const sendResult = await sendWhatsAppTemplate(customer.phone, templateName, zapToken, apiBaseUrl, departmentId);
+        if (apiType === 'evolution') {
+          // Use Evolution API - send text message
+          const textMessage = MESSAGES[billingType];
+          sendResult = await sendWhatsAppTextEvolution(
+            customer.phone, 
+            textMessage, 
+            apiKey, 
+            apiBaseUrl, 
+            instanceName!
+          );
+          messageIdentifier = `[${customer.normalizedPhone}] Evolution: ${billingType}`;
+        } else {
+          // Use Zap Responder API - send template
+          const templateName = TEMPLATE_MAPPING[billingType];
+          sendResult = await sendWhatsAppTemplateZapResponder(
+            customer.phone, 
+            templateName, 
+            apiKey, 
+            apiBaseUrl, 
+            departmentId!
+          );
+          messageIdentifier = `[${customer.normalizedPhone}] Template: ${templateName}`;
+        }
         
         // Log the billing attempt
         await supabase
@@ -386,7 +454,7 @@ Deno.serve(async (req) => {
           .insert({
             customer_id: customer.id,
             billing_type: billingType,
-            message: `[${customer.normalizedPhone}] Template: ${templateName}`,
+            message: messageIdentifier,
             whatsapp_status: sendResult.success ? 'sent' : `error: ${sendResult.error}`,
           });
 
@@ -394,7 +462,6 @@ Deno.serve(async (req) => {
           customer: customer.name,
           phone: customer.phone,
           billingType,
-          template: templateName,
           success: sendResult.success,
           error: sendResult.error,
         };
@@ -409,7 +476,6 @@ Deno.serve(async (req) => {
             customer: result.customer,
             phone: result.phone,
             billingType: result.billingType,
-            template: result.template,
             status: 'sent',
           });
         } else {
@@ -418,7 +484,6 @@ Deno.serve(async (req) => {
             customer: result.customer,
             phone: result.phone,
             billingType: result.billingType,
-            template: result.template,
             status: 'error',
             error: result.error,
           });
@@ -428,7 +493,7 @@ Deno.serve(async (req) => {
 
     console.log('Billing process completed:', results);
 
-    // Update billing_schedule with last run info (so UI updates automatically)
+    // Update billing_schedule
     if (userId) {
       const statusMessage = `success: ${results.sent} sent, ${results.errors} errors, ${results.skipped} skipped`;
       const { error: updateError } = await supabase
