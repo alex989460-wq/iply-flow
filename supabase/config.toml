@@ -14,6 +14,3 @@ verify_jwt = false
 
 [functions.scheduled-billing]
 verify_jwt = false
-
-[functions.evolution-api]
-verify_jwt = false

@@ -11,7 +11,6 @@ interface BroadcastRequestBase {
   action?: BroadcastAction;
   customer_ids: string[];
   template_name: string;
-  message_text?: string; // For Evolution API
 }
 
 interface LegacyBroadcastRequest extends BroadcastRequestBase {
@@ -33,13 +32,13 @@ interface InitialResult {
   error: string;
 }
 
-// Normalize phone number for comparison
+// Normalize phone number for comparison (remove non-digits)
 function normalizePhone(phone: string): string {
   return phone.replace(/\D/g, '');
 }
 
 // Send WhatsApp template message via Zap Responder API
-async function sendWhatsAppTemplateZapResponder(
+async function sendWhatsAppTemplate(
   phone: string,
   templateName: string,
   token: string,
@@ -47,12 +46,15 @@ async function sendWhatsAppTemplateZapResponder(
   departmentId: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
+    // Format phone number (remove non-digits and ensure country code)
     let formattedPhone = phone.replace(/\D/g, '');
+
+    // Ensure phone has country code (Brazil = 55)
     if (!formattedPhone.startsWith('55') && formattedPhone.length <= 11) {
       formattedPhone = '55' + formattedPhone;
     }
 
-    console.log(`[ZapResponder] Sending template "${templateName}" to ${formattedPhone}`);
+    console.log(`Sending WhatsApp template "${templateName}" to ${formattedPhone} via department ${departmentId}`);
 
     const body = {
       type: 'template',
@@ -73,60 +75,16 @@ async function sendWhatsAppTemplateZapResponder(
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error(`Zap Responder API error: ${response.status} - ${errorText}`);
+      console.error(`Zap Responder API error (template): ${response.status} - ${errorText}`);
       return { success: false, error: 'Falha ao enviar mensagem' };
     }
 
     const result = await response.json();
-    console.log(`Template sent successfully to ${formattedPhone}`, result);
+    console.log(`Template "${templateName}" sent successfully to ${formattedPhone}`, result);
     return { success: true };
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     console.error(`Error sending template to ${phone}:`, error);
-    return { success: false, error: errorMessage };
-  }
-}
-
-// Send WhatsApp text message via Evolution API
-async function sendWhatsAppTextEvolution(
-  phone: string,
-  text: string,
-  apiKey: string,
-  apiBaseUrl: string,
-  instanceName: string
-): Promise<{ success: boolean; error?: string }> {
-  try {
-    let formattedPhone = phone.replace(/\D/g, '');
-    if (!formattedPhone.startsWith('55') && formattedPhone.length <= 11) {
-      formattedPhone = '55' + formattedPhone;
-    }
-
-    console.log(`[Evolution] Sending text to ${formattedPhone} via instance ${instanceName}`);
-
-    const response = await fetch(`${apiBaseUrl}/message/sendText/${instanceName}`, {
-      method: 'POST',
-      headers: {
-        'apikey': apiKey,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        number: formattedPhone,
-        text: text,
-      }),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`Evolution API error: ${response.status} - ${errorText}`);
-      return { success: false, error: `Erro ${response.status}: ${errorText}` };
-    }
-
-    const result = await response.json();
-    console.log(`Message sent successfully to ${formattedPhone}`, result);
-    return { success: true };
-  } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    console.error(`Error sending message to ${phone}:`, error);
     return { success: false, error: errorMessage };
   }
 }
@@ -147,21 +105,26 @@ function chunkArray<T>(items: T[], chunkSize: number): T[][] {
   return chunks;
 }
 
+// PostgREST can return 400 (Bad Request) when `.in(...)` lists are too large.
+// Chunking avoids URL/query length limits for big broadcasts.
 const CUSTOMER_ID_CHUNK_SIZE = 200;
 const PHONE_CHUNK_SIZE = 500;
 
 async function fetchCustomersByIds(supabase: any, customerIds: string[]) {
   const customers: any[] = [];
+
   for (const chunk of chunkArray(customerIds, CUSTOMER_ID_CHUNK_SIZE)) {
     const { data, error } = await supabase.from('customers').select('id, name, phone').in('id', chunk);
     if (error) return { customers: null as any[] | null, error };
     if (data?.length) customers.push(...data);
   }
+
   return { customers, error: null };
 }
 
 async function fetchAlreadySentPhones(supabase: any, templateName: string, phonesNormalized: string[]) {
   const sentPhones = new Set<string>();
+
   for (const chunk of chunkArray(phonesNormalized, PHONE_CHUNK_SIZE)) {
     const { data, error } = await supabase
       .from('broadcast_logs')
@@ -171,10 +134,12 @@ async function fetchAlreadySentPhones(supabase: any, templateName: string, phone
       .in('phone_normalized', chunk);
 
     if (error) return { sentPhones: null as Set<string> | null, error };
+
     for (const row of data || []) {
       sentPhones.add((row as any).phone_normalized);
     }
   }
+
   return { sentPhones, error: null };
 }
 
@@ -186,6 +151,7 @@ async function startBroadcastPlan(args: {
 }) {
   const supabase = createClient(args.supabaseUrl, args.supabaseServiceKey);
 
+  // Fetch customers (chunked)
   const { customers, error: customersError } = await fetchCustomersByIds(supabase, args.customerIds);
 
   if (customersError || !customers) {
@@ -193,8 +159,10 @@ async function startBroadcastPlan(args: {
     return { ok: false as const, status: 500, body: { error: 'Não foi possível processar o envio' } };
   }
 
+  // Get all normalized phones to check
   const allNormalizedPhones = customers.map((c: any) => normalizePhone(c.phone));
 
+  // Check broadcast_logs for already sent templates (chunked)
   const { sentPhones: alreadySentPhones, error: sentPhonesError } = await fetchAlreadySentPhones(
     supabase,
     args.templateName,
@@ -230,7 +198,7 @@ async function startBroadcastPlan(args: {
     `Broadcast plan: total=${customers.length}, to_send=${customersToSend.length}, duplicates=${duplicateCustomers.length}, already_sent=${alreadySentCustomers.length}`
   );
 
-  // Log skips immediately
+  // Log skips immediately (so UI receives realtime updates)
   if (duplicateCustomers.length > 0) {
     const { error } = await supabase.from('billing_logs').insert(
       duplicateCustomers.map((customer) => ({
@@ -240,6 +208,7 @@ async function startBroadcastPlan(args: {
         whatsapp_status: 'skipped',
       }))
     );
+
     if (error) console.error('Error inserting duplicate skip logs:', error);
   }
 
@@ -252,6 +221,7 @@ async function startBroadcastPlan(args: {
         whatsapp_status: 'skipped',
       }))
     );
+
     if (error) console.error('Error inserting already-sent skip logs:', error);
   }
 
@@ -293,7 +263,6 @@ async function processBroadcastBatch(args: {
   zapToken: string;
   customerIds: string[];
   templateName: string;
-  messageText?: string;
   userId?: string | null;
   isAdmin?: boolean;
 }) {
@@ -310,47 +279,42 @@ async function processBroadcastBatch(args: {
     zapSettings = data;
   }
 
-  // Admin-only fallback
+  // Admin-only fallback to global settings (backwards compatibility)
   if (!zapSettings) {
     if (args.isAdmin) {
-      const { data } = await supabase
+      const { data, error: zapSettingsError } = await supabase
         .from('zap_responder_settings')
         .select('*')
         .is('user_id', null)
         .limit(1)
         .maybeSingle();
-      zapSettings = data;
-    } else {
-      return { ok: false as const, status: 400, body: { error: 'Configuração incompleta. Verifique suas configurações.' } };
+
+    if (zapSettingsError) {
+      console.error('Error fetching zap settings:', zapSettingsError);
+      return { ok: false as const, status: 500, body: { error: 'Não foi possível processar o envio' } };
     }
+
+      zapSettings = data;
+  } else {
+    return { ok: false as const, status: 400, body: { error: 'Configuração incompleta. Verifique suas configurações.' } };
+  }
   }
 
-  const apiType = zapSettings?.api_type || 'zap_responder';
+  // Token MUST be user-configured for non-admin users
   const effectiveToken = zapSettings?.zap_api_token || (args.isAdmin ? args.zapToken : null);
-  
   if (!effectiveToken) {
     return { ok: false as const, status: 400, body: { error: 'Configuração incompleta. Verifique suas configurações.' } };
   }
 
-  const apiBaseUrl = zapSettings?.api_base_url || (apiType === 'evolution' 
-    ? 'https://api-evolution.supergestor.top' 
-    : 'https://api.zapresponder.com.br/api');
+  const apiBaseUrl = zapSettings?.api_base_url || 'https://api.zapresponder.com.br/api';
+  const departmentId = zapSettings?.selected_department_id;
 
-  // For Evolution API, we need the instance name
-  // For Zap Responder, we need the department ID
-  let departmentId: string | undefined;
-  let instanceName: string | undefined;
-
-  if (apiType === 'evolution') {
-    instanceName = zapSettings?.instance_name;
-    if (!instanceName) {
-      return { ok: false as const, status: 400, body: { error: 'Configuração incompleta. Selecione uma instância.' } };
-    }
-  } else {
-    departmentId = zapSettings?.selected_department_id;
-    if (!departmentId) {
-      return { ok: false as const, status: 400, body: { error: 'Configuração incompleta. Selecione um departamento.' } };
-    }
+  if (!departmentId) {
+    return {
+      ok: false as const,
+      status: 400,
+      body: { error: 'Configuração incompleta. Selecione um departamento.' },
+    };
   }
 
   // Customers
@@ -365,36 +329,14 @@ async function processBroadcastBatch(args: {
   }
 
   console.log(
-    `Processing batch: size=${customers.length}, template=${args.templateName}, apiType=${apiType}`
+    `Processing batch: size=${customers.length}, template=${args.templateName}, department=${departmentId}, apiBaseUrl=${apiBaseUrl}`
   );
 
   const nowIso = new Date().toISOString();
 
   const results = await Promise.all(
     (customers as any[]).map(async (customer) => {
-      let sendResult: { success: boolean; error?: string };
-      
-      if (apiType === 'evolution') {
-        // Use Evolution API - send text message
-        const textToSend = args.messageText || `📢 ${args.templateName}`;
-        sendResult = await sendWhatsAppTextEvolution(
-          customer.phone, 
-          textToSend, 
-          effectiveToken, 
-          apiBaseUrl, 
-          instanceName!
-        );
-      } else {
-        // Use Zap Responder API - send template
-        sendResult = await sendWhatsAppTemplateZapResponder(
-          customer.phone, 
-          args.templateName, 
-          effectiveToken, 
-          apiBaseUrl, 
-          departmentId!
-        );
-      }
-      
+      const sendResult = await sendWhatsAppTemplate(customer.phone, args.templateName, effectiveToken, apiBaseUrl, departmentId);
       return {
         customer,
         normalizedPhone: normalizePhone(customer.phone),
@@ -406,7 +348,7 @@ async function processBroadcastBatch(args: {
   const billingRows = results.map(({ customer, sendResult }) => ({
     customer_id: customer.id,
     billing_type: 'D0' as any,
-    message: `[BROADCAST] ${customer.phone} - ${apiType === 'evolution' ? 'Evolution' : 'Template'}: ${args.templateName}`,
+    message: `[BROADCAST] ${customer.phone} - Template: ${args.templateName}`,
     whatsapp_status: sendResult.success ? 'sent' : `error: ${sendResult.error || 'Unknown error'}`,
   }));
 
@@ -445,39 +387,37 @@ async function processBroadcastBatch(args: {
   };
 }
 
-// Delay helper function
+// Delay helper function (legacy mode)
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+// Generate random delay between min and max (legacy mode)
 function getRandomDelay(min: number, max: number): number {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
-// Legacy background task
+// Legacy background task to process the whole broadcast (can time out on long lists)
 async function processBroadcastLegacy(args: {
   customersToSend: CustomerInfo[];
   alreadySentCustomers: CustomerInfo[];
   duplicateCustomers: CustomerInfo[];
   templateName: string;
-  messageText?: string;
   delayMinSeconds: number;
   delayMaxSeconds: number;
   supabaseUrl: string;
   supabaseServiceKey: string;
   zapToken: string;
   apiBaseUrl: string;
-  apiType: string;
-  departmentId?: string;
-  instanceName?: string;
+  departmentId: string;
 }) {
   const supabase = createClient(args.supabaseUrl, args.supabaseServiceKey);
 
   console.log(
-    `[BACKGROUND][LEGACY] Starting broadcast for ${args.customersToSend.length} customers, apiType=${args.apiType}`
+    `[BACKGROUND][LEGACY] Starting broadcast processing for ${args.customersToSend.length} unique customers (${args.duplicateCustomers.length} duplicates, ${args.alreadySentCustomers.length} already sent)`
   );
 
-  // Log skipped customers
+  // Log duplicate skipped customers
   if (args.duplicateCustomers.length > 0) {
     await supabase.from('billing_logs').insert(
       args.duplicateCustomers.map((customer) => ({
@@ -489,6 +429,7 @@ async function processBroadcastLegacy(args: {
     );
   }
 
+  // Log already-sent skipped customers
   if (args.alreadySentCustomers.length > 0) {
     await supabase.from('billing_logs').insert(
       args.alreadySentCustomers.map((customer) => ({
@@ -504,33 +445,20 @@ async function processBroadcastLegacy(args: {
     const customer = args.customersToSend[i];
     const normalizedPhone = normalizePhone(customer.phone);
 
-    console.log(`[BACKGROUND][LEGACY] Processing ${i + 1}/${args.customersToSend.length}: ${customer.name}`);
+    console.log(`[BACKGROUND][LEGACY] Processing ${i + 1}/${args.customersToSend.length}: ${customer.name} (${customer.phone})`);
 
-    let sendResult: { success: boolean; error?: string };
-    
-    if (args.apiType === 'evolution') {
-      const textToSend = args.messageText || `📢 ${args.templateName}`;
-      sendResult = await sendWhatsAppTextEvolution(
-        customer.phone,
-        textToSend,
-        args.zapToken,
-        args.apiBaseUrl,
-        args.instanceName!
-      );
-    } else {
-      sendResult = await sendWhatsAppTemplateZapResponder(
-        customer.phone,
-        args.templateName,
-        args.zapToken,
-        args.apiBaseUrl,
-        args.departmentId!
-      );
-    }
+    const sendResult = await sendWhatsAppTemplate(
+      customer.phone,
+      args.templateName,
+      args.zapToken,
+      args.apiBaseUrl,
+      args.departmentId
+    );
 
     await supabase.from('billing_logs').insert({
       customer_id: customer.id,
       billing_type: 'D0' as any,
-      message: `[BROADCAST] ${customer.phone} - ${args.apiType === 'evolution' ? 'Evolution' : 'Template'}: ${args.templateName}`,
+      message: `[BROADCAST] ${customer.phone} - Template: ${args.templateName}`,
       whatsapp_status: sendResult.success ? 'sent' : `error: ${sendResult.error}`,
     });
 
@@ -552,7 +480,7 @@ async function processBroadcastLegacy(args: {
 
     if (i < args.customersToSend.length - 1) {
       const randomDelay = getRandomDelay(args.delayMinSeconds, args.delayMaxSeconds);
-      console.log(`[BACKGROUND][LEGACY] Waiting ${randomDelay} seconds...`);
+      console.log(`[BACKGROUND][LEGACY] Waiting ${randomDelay} seconds before next message...`);
       await delay(randomDelay * 1000);
     }
   }
@@ -561,6 +489,7 @@ async function processBroadcastLegacy(args: {
 }
 
 Deno.serve(async (req) => {
+  // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
@@ -570,7 +499,6 @@ Deno.serve(async (req) => {
 
     const customer_ids = Array.isArray(body.customer_ids) ? body.customer_ids : [];
     const template_name = typeof body.template_name === 'string' ? body.template_name : '';
-    const message_text = typeof body.message_text === 'string' ? body.message_text : undefined;
     const action: BroadcastAction = (body.action as BroadcastAction) || 'start';
 
     if (!customer_ids || customer_ids.length === 0) {
@@ -604,15 +532,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Check if admin
-    const { data: adminRows } = await supabase
-      .from('user_roles')
-      .select('id')
-      .eq('user_id', userId)
-      .eq('role', 'admin')
-      .limit(1);
-    const isAdmin = (adminRows?.length ?? 0) > 0;
-
+    // Get fallback zapToken from env
     const zapTokenEnv = Deno.env.get('ZAP_RESPONDER_TOKEN') || '';
 
     if (action === 'start') {
@@ -640,9 +560,7 @@ Deno.serve(async (req) => {
         zapToken: zapTokenEnv,
         customerIds: customer_ids,
         templateName: template_name,
-        messageText: message_text,
         userId,
-        isAdmin,
       });
 
       return new Response(JSON.stringify(batched.body), {
@@ -651,12 +569,13 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Legacy mode
+    // Legacy mode (kept for compatibility)
     console.log(`Starting legacy mass broadcast: customers=${customer_ids.length}, template=${template_name}`);
 
     const delay_min_seconds = clampInt((body as any).delay_min_seconds, 1, 0);
     const delay_max_seconds = Math.max(delay_min_seconds, clampInt((body as any).delay_max_seconds, 2, 0));
 
+    // Fetch customers (chunked)
     const { customers, error: customersError } = await fetchCustomersByIds(supabase, customer_ids);
 
     if (customersError || !customers) {
@@ -701,7 +620,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Fetch user-specific settings
+    // Fetch user-specific settings or fall back to global settings
     let zapSettingsLegacy: any = null;
     if (userId) {
       const { data } = await supabase
@@ -712,7 +631,7 @@ Deno.serve(async (req) => {
       zapSettingsLegacy = data;
     }
     
-    if (!zapSettingsLegacy && isAdmin) {
+    if (!zapSettingsLegacy) {
       const { data } = await supabase
         .from('zap_responder_settings')
         .select('*')
@@ -722,9 +641,7 @@ Deno.serve(async (req) => {
       zapSettingsLegacy = data;
     }
 
-    const apiType = zapSettingsLegacy?.api_type || 'zap_responder';
     const effectiveLegacyToken = zapSettingsLegacy?.zap_api_token || zapTokenEnv;
-    
     if (!effectiveLegacyToken) {
       return new Response(JSON.stringify({ error: 'Configuração incompleta. Verifique suas configurações.' }), {
         status: 400,
@@ -732,21 +649,10 @@ Deno.serve(async (req) => {
       });
     }
 
-    const apiBaseUrl = zapSettingsLegacy?.api_base_url || (apiType === 'evolution' 
-      ? 'https://api-evolution.supergestor.top' 
-      : 'https://api.zapresponder.com.br/api');
-    
+    const apiBaseUrl = zapSettingsLegacy?.api_base_url || 'https://api.zapresponder.com.br/api';
     const departmentId = zapSettingsLegacy?.selected_department_id;
-    const instanceName = zapSettingsLegacy?.instance_name;
 
-    if (apiType === 'evolution' && !instanceName) {
-      return new Response(JSON.stringify({ error: 'Configuração incompleta. Selecione uma instância.' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
-    if (apiType !== 'evolution' && !departmentId) {
+    if (!departmentId) {
       return new Response(JSON.stringify({ error: 'Configuração incompleta. Selecione um departamento.' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -760,16 +666,13 @@ Deno.serve(async (req) => {
         alreadySentCustomers,
         duplicateCustomers,
         templateName: template_name,
-        messageText: message_text,
         delayMinSeconds: delay_min_seconds,
         delayMaxSeconds: delay_max_seconds,
         supabaseUrl,
         supabaseServiceKey,
         zapToken: effectiveLegacyToken,
         apiBaseUrl,
-        apiType,
         departmentId,
-        instanceName,
       })
     );
 
