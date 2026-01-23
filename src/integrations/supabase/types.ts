@@ -544,8 +544,10 @@ export type Database = {
       zap_responder_settings: {
         Row: {
           api_base_url: string
+          api_type: string
           created_at: string
           id: string
+          instance_name: string | null
           selected_department_id: string | null
           selected_department_name: string | null
           selected_session_id: string | null
@@ -557,8 +559,10 @@ export type Database = {
         }
         Insert: {
           api_base_url?: string
+          api_type?: string
           created_at?: string
           id?: string
+          instance_name?: string | null
           selected_department_id?: string | null
           selected_department_name?: string | null
           selected_session_id?: string | null
@@ -570,8 +574,10 @@ export type Database = {
         }
         Update: {
           api_base_url?: string
+          api_type?: string
           created_at?: string
           id?: string
+          instance_name?: string | null
           selected_department_id?: string | null
           selected_department_name?: string | null
           selected_session_id?: string | null
