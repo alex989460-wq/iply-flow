@@ -204,13 +204,20 @@ export function useWhatsAppEmbeddedSignup() {
     return new Promise((resolve) => {
       try {
         window.FB.login(
-          async (response: FBLoginResponse) => {
+          (response: FBLoginResponse) => {
             console.log('[Embedded Signup] FB.login response:', response);
             
             if (response.status === 'connected' && response.authResponse) {
-              const success = await processEmbeddedSignupResponse(response.authResponse);
-              setIsLoading(false);
-              resolve(success);
+              // Process asynchronously but don't block the callback
+              processEmbeddedSignupResponse(response.authResponse)
+                .then((success) => {
+                  setIsLoading(false);
+                  resolve(success);
+                })
+                .catch(() => {
+                  setIsLoading(false);
+                  resolve(false);
+                });
             } else {
               console.log('[Embedded Signup] User cancelled or not authorized');
               toast({
