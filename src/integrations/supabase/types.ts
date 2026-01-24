@@ -623,6 +623,13 @@ export type Database = {
           created_at: string
           id: string
           instance_name: string | null
+          meta_access_token: string | null
+          meta_business_id: string | null
+          meta_connected_at: string | null
+          meta_display_phone: string | null
+          meta_phone_number_id: string | null
+          meta_token_expires_at: string | null
+          meta_user_id: string | null
           selected_department_id: string | null
           selected_department_name: string | null
           selected_session_id: string | null
@@ -638,6 +645,13 @@ export type Database = {
           created_at?: string
           id?: string
           instance_name?: string | null
+          meta_access_token?: string | null
+          meta_business_id?: string | null
+          meta_connected_at?: string | null
+          meta_display_phone?: string | null
+          meta_phone_number_id?: string | null
+          meta_token_expires_at?: string | null
+          meta_user_id?: string | null
           selected_department_id?: string | null
           selected_department_name?: string | null
           selected_session_id?: string | null
@@ -653,6 +667,13 @@ export type Database = {
           created_at?: string
           id?: string
           instance_name?: string | null
+          meta_access_token?: string | null
+          meta_business_id?: string | null
+          meta_connected_at?: string | null
+          meta_display_phone?: string | null
+          meta_phone_number_id?: string | null
+          meta_token_expires_at?: string | null
+          meta_user_id?: string | null
           selected_department_id?: string | null
           selected_department_name?: string | null
           selected_session_id?: string | null

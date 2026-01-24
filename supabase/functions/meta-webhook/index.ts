@@ -24,6 +24,7 @@ interface ZapSettings {
   api_base_url: string;
   zap_api_token: string;
   instance_name: string;
+  meta_access_token?: string;
 }
 
 function matchesKeyword(message: string, keyword: string, matchType: string): boolean {
@@ -233,9 +234,12 @@ Deno.serve(async (req) => {
 
           console.log('[Meta Webhook] Found matching reply:', matchingReply.trigger_keyword);
 
+          // Usar o token Meta salvo no banco, não o zap_api_token
+          const accessToken = settings.meta_access_token || settings.zap_api_token;
+          
           // Enviar resposta via Meta Cloud API
           const sent = await sendMetaMessage(
-            settings.zap_api_token, // Access Token do Meta
+            accessToken,
             phoneNumberId,
             phoneFrom,
             matchingReply.reply_message
