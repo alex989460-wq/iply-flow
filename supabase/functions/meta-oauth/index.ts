@@ -204,7 +204,9 @@ Deno.serve(async (req) => {
       // ACTION: get_oauth_url
       // ========================================
       if (action === 'get_oauth_url') {
-        const redirectUri = `${supabaseUrl}/functions/v1/meta-oauth`;
+        // Use the frontend callback URL instead of edge function URL
+        const appUrl = body.app_url || 'https://iply-flow.lovable.app';
+        const redirectUri = `${appUrl}/meta-callback`;
         const state = btoa(JSON.stringify({ user_id: userId }));
         
         // Required scopes for WhatsApp Business
@@ -223,6 +225,134 @@ Deno.serve(async (req) => {
           `&response_type=code`;
 
         return new Response(JSON.stringify({ oauth_url: oauthUrl }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      // ========================================
+      // ACTION: exchange_code
+      // ========================================
+      if (action === 'exchange_code') {
+        const { code, state } = body;
+        
+        if (!code || !state) {
+          return new Response(JSON.stringify({ error: 'Missing code or state' }), {
+            status: 400,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+
+        // Decode state to get user_id
+        let stateData;
+        try {
+          stateData = JSON.parse(atob(state));
+        } catch {
+          return new Response(JSON.stringify({ error: 'Invalid state' }), {
+            status: 400,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+
+        const stateUserId = stateData.user_id;
+        
+        // Verify the user matches
+        if (stateUserId !== userId) {
+          return new Response(JSON.stringify({ error: 'User mismatch' }), {
+            status: 403,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+
+        // The redirect URI must match exactly what was used to get the code
+        const appUrl = body.app_url || 'https://iply-flow.lovable.app';
+        const redirectUri = `${appUrl}/meta-callback`;
+
+        console.log('[Meta OAuth] Exchanging code for token with redirect:', redirectUri);
+
+        // Exchange code for access token
+        const tokenResponse = await fetch(
+          `https://graph.facebook.com/v18.0/oauth/access_token?` +
+          `client_id=${META_APP_ID}` +
+          `&redirect_uri=${encodeURIComponent(redirectUri)}` +
+          `&client_secret=${META_APP_SECRET}` +
+          `&code=${code}`,
+          { method: 'GET' }
+        );
+
+        if (!tokenResponse.ok) {
+          const errorText = await tokenResponse.text();
+          console.error('[Meta OAuth] Token exchange failed:', errorText);
+          return new Response(JSON.stringify({ error: 'Token exchange failed', details: errorText }), {
+            status: 400,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+
+        const tokenData = await tokenResponse.json();
+        const shortLivedToken = tokenData.access_token;
+
+        console.log('[Meta OAuth] Got short-lived token, exchanging for long-lived...');
+
+        // Exchange for long-lived token
+        const longLivedResponse = await fetch(
+          `https://graph.facebook.com/v18.0/oauth/access_token?` +
+          `grant_type=fb_exchange_token` +
+          `&client_id=${META_APP_ID}` +
+          `&client_secret=${META_APP_SECRET}` +
+          `&fb_exchange_token=${shortLivedToken}`,
+          { method: 'GET' }
+        );
+
+        const longLivedData = await longLivedResponse.json();
+        const accessToken = longLivedData.access_token;
+        const expiresIn = longLivedData.expires_in || 5184000; // ~60 days default
+
+        console.log('[Meta OAuth] Got long-lived token, expires in:', expiresIn, 'seconds');
+
+        // Get user info
+        const meResponse = await fetch(
+          `https://graph.facebook.com/v18.0/me?access_token=${accessToken}`
+        );
+        const meData = await meResponse.json();
+
+        // Calculate expiration
+        const expiresAt = new Date(Date.now() + expiresIn * 1000);
+
+        // Save to database
+        const { data: existingSettings } = await supabase
+          .from('zap_responder_settings')
+          .select('*')
+          .eq('user_id', userId)
+          .maybeSingle();
+
+        const settingsPayload = {
+          user_id: userId,
+          api_type: 'meta_cloud',
+          meta_access_token: accessToken,
+          meta_token_expires_at: expiresAt.toISOString(),
+          meta_user_id: meData.id,
+          meta_connected_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+
+        if (existingSettings) {
+          await supabase
+            .from('zap_responder_settings')
+            .update(settingsPayload)
+            .eq('user_id', userId);
+        } else {
+          await supabase
+            .from('zap_responder_settings')
+            .insert(settingsPayload);
+        }
+
+        console.log('[Meta OAuth] Settings saved for user:', userId);
+
+        return new Response(JSON.stringify({ 
+          success: true, 
+          userId: meData.id,
+          name: meData.name || ''
+        }), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }

@@ -275,8 +275,11 @@ export default function Settings() {
   const connectWithFacebook = async () => {
     setConnectingMeta(true);
     try {
+      // Get current app URL for redirect
+      const appUrl = window.location.origin;
+      
       const response = await supabase.functions.invoke('meta-oauth', {
-        body: { action: 'get_oauth_url' },
+        body: { action: 'get_oauth_url', app_url: appUrl },
       });
 
       if (response.error || !response.data?.oauth_url) {
