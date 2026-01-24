@@ -222,13 +222,16 @@ Deno.serve(async (req) => {
 
     const apiBaseUrl = zapSettings?.api_base_url || 'https://api.zapresponder.com.br/api';
     const selectedSessionId = zapSettings?.selected_session_id;
+    const savedDepartmentId = zapSettings?.selected_department_id;
 
     console.log(`Using API base URL: ${apiBaseUrl}`);
     console.log(`Selected session ID: ${selectedSessionId}`);
+    console.log(`Saved department ID: ${savedDepartmentId}`);
 
-    // Fetch the attendant info to get the department ID
-    let departmentId: string | undefined;
-    if (selectedSessionId) {
+    // Use saved department ID first, then try to fetch from API as fallback
+    let departmentId: string | undefined = savedDepartmentId || undefined;
+    
+    if (!departmentId && selectedSessionId) {
       try {
         const atendenteResponse = await fetch(`${apiBaseUrl}/atendentes`, {
           method: 'GET',
@@ -244,8 +247,10 @@ Deno.serve(async (req) => {
           const selectedAtendente = atendentes?.find((a: any) => a._id === selectedSessionId);
           if (selectedAtendente?.departamento?.length > 0) {
             departmentId = selectedAtendente.departamento[0];
-            console.log(`Found department ID for attendant: ${departmentId}`);
+            console.log(`Found department ID from attendant API: ${departmentId}`);
           }
+        } else {
+          console.log('Could not fetch attendants, will use saved department ID if available');
         }
       } catch (e) {
         console.error('Error fetching attendant department:', e);
@@ -255,7 +260,7 @@ Deno.serve(async (req) => {
     if (!departmentId) {
       console.error('No department ID found for user:', userId);
       return new Response(
-        JSON.stringify({ error: 'Configuração incompleta. Selecione uma sessão em Configurações.' }),
+        JSON.stringify({ error: 'Configuração incompleta. Selecione um departamento em Configurações.' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
