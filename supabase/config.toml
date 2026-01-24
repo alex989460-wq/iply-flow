@@ -14,18 +14,3 @@ verify_jwt = false
 
 [functions.scheduled-billing]
 verify_jwt = false
-
-[functions.evolution-webhook]
-verify_jwt = false
-
-[functions.meta-webhook]
-verify_jwt = false
-
-[functions.create-reseller]
-verify_jwt = false
-
-[functions.meta-oauth]
-verify_jwt = false
-
-[functions.meta-send-message]
-verify_jwt = false
