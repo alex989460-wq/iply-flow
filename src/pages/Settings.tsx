@@ -7,11 +7,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { Loader2, Eye, EyeOff, Save, AlertCircle, CheckCircle2, Copy, ExternalLink, Wifi, WifiOff, RefreshCw, Phone, Plus, Check, Facebook, Unplug, Send } from 'lucide-react';
+import { Loader2, Eye, EyeOff, Save, AlertCircle, CheckCircle2, Copy, ExternalLink, Wifi, WifiOff, RefreshCw, Phone, Plus, Check, Facebook, Unplug, Send, MessageCircle } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
+import { useWhatsAppEmbeddedSignup } from '@/hooks/useWhatsAppEmbeddedSignup';
+import { EmbeddedSignupSection } from '@/components/settings/EmbeddedSignupSection';
 
 interface MetaPhoneNumber {
   id: string;
@@ -804,93 +806,14 @@ docker-compose up -d`}
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
-                  {!metaConnectionStatus?.connected ? (
-                    <>
-                      <Alert>
-                        <AlertCircle className="h-4 w-4" />
-                        <AlertDescription>
-                          Clique no botão abaixo para conectar sua conta do Facebook. Você precisará autorizar o acesso ao WhatsApp Business.
-                        </AlertDescription>
-                      </Alert>
-
-                      <div className="flex flex-col items-center gap-4 py-8">
-                        <div className="w-20 h-20 rounded-full bg-blue-600 flex items-center justify-center">
-                          <Facebook className="w-10 h-10 text-white" />
-                        </div>
-                        <Button
-                          size="lg"
-                          onClick={connectWithFacebook}
-                          disabled={connectingMeta}
-                          className="bg-blue-600 hover:bg-blue-700"
-                        >
-                          {connectingMeta ? (
-                            <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                          ) : (
-                            <Facebook className="w-5 h-5 mr-2" />
-                          )}
-                          Conectar com Facebook
-                        </Button>
-                        <p className="text-sm text-muted-foreground text-center max-w-md">
-                          Ao conectar, você autoriza o acesso aos seus números do WhatsApp Business configurados na sua conta Meta.
-                        </p>
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      <Alert>
-                        <CheckCircle2 className="h-4 w-4 text-green-500" />
-                        <AlertDescription>
-                          Sua conta do Facebook está conectada! Agora vá para a aba "Meus Números" para selecionar qual número usar.
-                        </AlertDescription>
-                      </Alert>
-
-                      <div className="p-4 bg-muted/50 rounded-lg space-y-3">
-                        <h4 className="font-medium">Detalhes da Conexão</h4>
-                        <div className="grid gap-2 text-sm">
-                          <div className="flex justify-between">
-                            <span className="text-muted-foreground">Status:</span>
-                            <Badge className="bg-green-500">Conectado</Badge>
-                          </div>
-                          {metaConnectionStatus.display_phone && (
-                            <div className="flex justify-between">
-                              <span className="text-muted-foreground">Número Ativo:</span>
-                              <span className="font-mono">{metaConnectionStatus.display_phone}</span>
-                            </div>
-                          )}
-                          {metaConnectionStatus.connected_at && (
-                            <div className="flex justify-between">
-                              <span className="text-muted-foreground">Conectado em:</span>
-                              <span>{new Date(metaConnectionStatus.connected_at).toLocaleDateString('pt-BR')}</span>
-                            </div>
-                          )}
-                          {metaConnectionStatus.expires_at && (
-                            <div className="flex justify-between">
-                              <span className="text-muted-foreground">Token expira em:</span>
-                              <span>{new Date(metaConnectionStatus.expires_at).toLocaleDateString('pt-BR')}</span>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="flex gap-3">
-                        <Button
-                          variant="outline"
-                          onClick={connectWithFacebook}
-                          disabled={connectingMeta}
-                        >
-                          <RefreshCw className="w-4 h-4 mr-2" />
-                          Reconectar
-                        </Button>
-                        <Button
-                          variant="destructive"
-                          onClick={disconnectMeta}
-                        >
-                          <Unplug className="w-4 h-4 mr-2" />
-                          Desconectar
-                        </Button>
-                      </div>
-                    </>
-                  )}
+                  <EmbeddedSignupSection 
+                    metaConnectionStatus={metaConnectionStatus}
+                    connectingMeta={connectingMeta}
+                    setConnectingMeta={setConnectingMeta}
+                    checkMetaConnectionStatus={checkMetaConnectionStatus}
+                    disconnectMeta={disconnectMeta}
+                    connectWithFacebook={connectWithFacebook}
+                  />
                 </CardContent>
               </Card>
             </TabsContent>
