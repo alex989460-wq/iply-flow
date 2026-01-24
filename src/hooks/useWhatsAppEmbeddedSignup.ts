@@ -73,19 +73,16 @@ export function useWhatsAppEmbeddedSignup() {
   
   // Initialize FB SDK
   useEffect(() => {
+    let checkInterval: ReturnType<typeof setInterval> | null = null;
+    let mounted = true;
+    
     const initSDK = async () => {
       const id = await fetchAppId();
-      if (!id) return;
+      if (!id || !mounted) return;
       
-      // Check if SDK already loaded
-      if (window.FB) {
-        setIsSDKLoaded(true);
-        return;
-      }
-      
-      // Wait for SDK to load
-      const checkSDK = setInterval(() => {
-        if (window.FB) {
+      const initFB = () => {
+        if (window.FB && id) {
+          console.log('[Embedded Signup] Initializing FB SDK with appId:', id);
           window.FB.init({
             appId: id,
             autoLogAppEvents: true,
@@ -93,15 +90,36 @@ export function useWhatsAppEmbeddedSignup() {
             version: 'v21.0',
           });
           setIsSDKLoaded(true);
-          clearInterval(checkSDK);
+          return true;
+        }
+        return false;
+      };
+      
+      // Try immediately if SDK already loaded
+      if (initFB()) {
+        return;
+      }
+      
+      // Wait for SDK to load
+      checkInterval = setInterval(() => {
+        if (initFB()) {
+          if (checkInterval) clearInterval(checkInterval);
         }
       }, 100);
-      
-      // Timeout after 10 seconds
-      setTimeout(() => clearInterval(checkSDK), 10000);
     };
     
     initSDK();
+    
+    // Timeout after 10 seconds
+    const timeout = setTimeout(() => {
+      if (checkInterval) clearInterval(checkInterval);
+    }, 10000);
+    
+    return () => {
+      mounted = false;
+      if (checkInterval) clearInterval(checkInterval);
+      clearTimeout(timeout);
+    };
   }, [fetchAppId]);
   
   // Listen for Embedded Signup session info message
