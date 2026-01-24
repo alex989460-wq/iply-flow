@@ -63,7 +63,7 @@ async function resolveConversationContext(
 // ===========================================
 // API Functions - Lista atendentes
 // ===========================================
-async function fetchAtendentes(apiBaseUrl: string, token: string): Promise<{ success: boolean; data?: ZapResponderSession[]; error?: string }> {
+async function fetchAtendentes(apiBaseUrl: string, token: string): Promise<{ success: boolean; data?: ZapResponderSession[]; error?: string; authError?: boolean }> {
   try {
     console.log('Fetching Zap Responder atendentes...');
     
@@ -79,6 +79,10 @@ async function fetchAtendentes(apiBaseUrl: string, token: string): Promise<{ suc
     if (!response.ok) {
       const errorText = await response.text();
       console.error(`Zap Responder API error: ${response.status} - ${errorText}`);
+      
+      if (response.status === 401) {
+        return { success: false, error: 'Token de API inválido ou expirado. Atualize nas Configurações.', authError: true };
+      }
       return { success: false, error: 'Falha ao conectar com o serviço' };
     }
 
@@ -193,7 +197,7 @@ async function fetchInstancias(apiBaseUrl: string, token: string): Promise<{ suc
 // ===========================================
 // API Functions - Listar departamentos
 // ===========================================
-async function fetchDepartamentos(apiBaseUrl: string, token: string): Promise<{ success: boolean; data?: Department[]; error?: string }> {
+async function fetchDepartamentos(apiBaseUrl: string, token: string): Promise<{ success: boolean; data?: Department[]; error?: string; authError?: boolean }> {
   try {
     console.log('Fetching Zap Responder departamentos...');
     
@@ -209,6 +213,10 @@ async function fetchDepartamentos(apiBaseUrl: string, token: string): Promise<{ 
     if (!response.ok) {
       const errorText = await response.text();
       console.error(`Zap Responder API error: ${response.status} - ${errorText}`);
+      
+      if (response.status === 401) {
+        return { success: false, error: 'Token de API inválido ou expirado. Atualize nas Configurações.', authError: true };
+      }
       return { success: false, error: 'Falha ao conectar com o serviço' };
     }
 
@@ -649,7 +657,7 @@ async function buscarTemplates(
   apiBaseUrl: string, 
   token: string, 
   departmentId: string
-): Promise<{ success: boolean; data?: any[]; error?: string }> {
+): Promise<{ success: boolean; data?: any[]; error?: string; authError?: boolean }> {
   try {
     console.log('Fetching WhatsApp templates...', { departmentId });
     
@@ -665,6 +673,10 @@ async function buscarTemplates(
     if (!response.ok) {
       const errorText = await response.text();
       console.error(`Zap Responder API error: ${response.status} - ${errorText}`);
+      
+      if (response.status === 401) {
+        return { success: false, error: 'Token de API inválido ou expirado. Atualize nas Configurações.', authError: true };
+      }
       return { success: false, error: 'Falha ao buscar templates' };
     }
 
@@ -1500,18 +1512,20 @@ Deno.serve(async (req) => {
       case 'sessions':
       case 'atendentes': {
         const result = await fetchAtendentes(apiBaseUrl, zapToken);
+        const statusCode = result.success ? 200 : (result.authError ? 401 : 500);
         return new Response(
           JSON.stringify(result),
-          { status: result.success ? 200 : 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          { status: statusCode, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
 
       // Listar departamentos
       case 'departamentos': {
         const result = await fetchDepartamentos(apiBaseUrl, zapToken);
+        const statusCode = result.success ? 200 : (result.authError ? 401 : 500);
         return new Response(
           JSON.stringify(result),
-          { status: result.success ? 200 : 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          { status: statusCode, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
 
@@ -1741,9 +1755,10 @@ Deno.serve(async (req) => {
           );
         }
         const result = await buscarTemplates(apiBaseUrl, zapToken, department_id);
+        const statusCode = result.success ? 200 : (result.authError ? 401 : 500);
         return new Response(
           JSON.stringify(result),
-          { status: result.success ? 200 : 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          { status: statusCode, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
 
