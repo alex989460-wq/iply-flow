@@ -8,6 +8,22 @@ const corsHeaders = {
 const META_APP_ID = Deno.env.get('META_APP_ID')!;
 const META_APP_SECRET = Deno.env.get('META_APP_SECRET')!;
 
+async function computeAppSecretProof(accessToken: string): Promise<string> {
+  // Meta: appsecret_proof = HMAC-SHA256(access_token, app_secret)
+  const enc = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    'raw',
+    enc.encode(META_APP_SECRET),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign'],
+  );
+  const signature = await crypto.subtle.sign('HMAC', key, enc.encode(accessToken));
+  return Array.from(new Uint8Array(signature))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
+}
+
 Deno.serve(async (req) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
@@ -112,8 +128,9 @@ Deno.serve(async (req) => {
       console.log('[Meta OAuth] Got long-lived token, expires in:', expiresIn, 'seconds');
 
       // Get user info
+      const appSecretProof = await computeAppSecretProof(accessToken);
       const meResponse = await fetch(
-        `https://graph.facebook.com/v18.0/me?access_token=${accessToken}`
+        `https://graph.facebook.com/v18.0/me?access_token=${accessToken}&appsecret_proof=${appSecretProof}`
       );
       const meData = await meResponse.json();
 
@@ -310,8 +327,9 @@ Deno.serve(async (req) => {
         console.log('[Meta OAuth] Got long-lived token, expires in:', expiresIn, 'seconds');
 
         // Get user info
+        const appSecretProof = await computeAppSecretProof(accessToken);
         const meResponse = await fetch(
-          `https://graph.facebook.com/v18.0/me?access_token=${accessToken}`
+          `https://graph.facebook.com/v18.0/me?access_token=${accessToken}&appsecret_proof=${appSecretProof}`
         );
         const meData = await meResponse.json();
 
@@ -378,33 +396,57 @@ Deno.serve(async (req) => {
 
         const accessToken = settings.meta_access_token;
 
+        // If the Meta app has "Require App Secret Proof" enabled, all server-side Graph calls must include it.
+        const appSecretProof = await computeAppSecretProof(accessToken);
+
         // First get the user's business accounts
         const businessesResponse = await fetch(
-          `https://graph.facebook.com/v18.0/me/businesses?access_token=${accessToken}`
+          `https://graph.facebook.com/v18.0/me/businesses?access_token=${accessToken}&appsecret_proof=${appSecretProof}`
         );
         const businessesData = await businessesResponse.json();
 
         console.log('[Meta OAuth] Businesses:', JSON.stringify(businessesData));
+
+        if (businessesData?.error) {
+          console.error('[Meta OAuth] Businesses error:', JSON.stringify(businessesData.error));
+          return new Response(JSON.stringify({
+            error: 'Não foi possível listar os negócios da sua conta Meta.',
+            details: businessesData.error?.message || 'unknown',
+          }), {
+            status: 400,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
 
         const phoneNumbers: any[] = [];
 
         // For each business, get WhatsApp Business Accounts
         for (const business of businessesData.data || []) {
           const wabaResponse = await fetch(
-            `https://graph.facebook.com/v18.0/${business.id}/owned_whatsapp_business_accounts?access_token=${accessToken}`
+            `https://graph.facebook.com/v18.0/${business.id}/owned_whatsapp_business_accounts?access_token=${accessToken}&appsecret_proof=${appSecretProof}`
           );
           const wabaData = await wabaResponse.json();
 
           console.log('[Meta OAuth] WABAs for business', business.id, ':', JSON.stringify(wabaData));
 
+          if (wabaData?.error) {
+            console.error('[Meta OAuth] WABAs error:', JSON.stringify(wabaData.error));
+            continue;
+          }
+
           // For each WABA, get phone numbers
           for (const waba of wabaData.data || []) {
             const phonesResponse = await fetch(
-              `https://graph.facebook.com/v18.0/${waba.id}/phone_numbers?access_token=${accessToken}`
+              `https://graph.facebook.com/v18.0/${waba.id}/phone_numbers?access_token=${accessToken}&appsecret_proof=${appSecretProof}`
             );
             const phonesData = await phonesResponse.json();
 
             console.log('[Meta OAuth] Phones for WABA', waba.id, ':', JSON.stringify(phonesData));
+
+            if (phonesData?.error) {
+              console.error('[Meta OAuth] Phones error:', JSON.stringify(phonesData.error));
+              continue;
+            }
 
             for (const phone of phonesData.data || []) {
               phoneNumbers.push({
