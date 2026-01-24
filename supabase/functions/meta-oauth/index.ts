@@ -218,6 +218,171 @@ Deno.serve(async (req) => {
       const userId = claims.user.id;
 
       // ========================================
+      // ACTION: get_app_id (for Embedded Signup SDK)
+      // ========================================
+      if (action === 'get_app_id') {
+        return new Response(JSON.stringify({ app_id: META_APP_ID }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      // ========================================
+      // ACTION: process_embedded_signup
+      // ========================================
+      if (action === 'process_embedded_signup') {
+        const { 
+          access_token, 
+          user_id: fbUserId, 
+          code,
+          expires_in,
+          data_access_expiration_time,
+          phone_number_id,
+          waba_id,
+        } = body;
+
+        if (!access_token) {
+          return new Response(JSON.stringify({ error: 'Missing access_token' }), {
+            status: 400,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+
+        console.log('[Meta OAuth] Processing Embedded Signup for user:', userId);
+        console.log('[Meta OAuth] FB User ID:', fbUserId);
+        console.log('[Meta OAuth] Phone Number ID:', phone_number_id);
+        console.log('[Meta OAuth] WABA ID:', waba_id);
+
+        // The token from Embedded Signup is already a long-lived token
+        // But we still need to exchange it for a system user access token for better reliability
+        let finalAccessToken = access_token;
+        let tokenExpiresIn = expires_in || 5184000; // Default ~60 days
+
+        // Try to exchange for a long-lived token (may already be long-lived)
+        try {
+          const longLivedResponse = await fetch(
+            `https://graph.facebook.com/v21.0/oauth/access_token?` +
+            `grant_type=fb_exchange_token` +
+            `&client_id=${META_APP_ID}` +
+            `&client_secret=${META_APP_SECRET}` +
+            `&fb_exchange_token=${access_token}`,
+            { method: 'GET' }
+          );
+
+          const longLivedData = await longLivedResponse.json();
+          if (longLivedData.access_token) {
+            finalAccessToken = longLivedData.access_token;
+            tokenExpiresIn = longLivedData.expires_in || tokenExpiresIn;
+            console.log('[Meta OAuth] Got/confirmed long-lived token, expires in:', tokenExpiresIn, 'seconds');
+          }
+        } catch (e) {
+          console.log('[Meta OAuth] Token exchange skipped (may already be long-lived):', e);
+        }
+
+        // Get user info with app secret proof
+        const appSecretProof = await computeAppSecretProof(finalAccessToken);
+        const meResponse = await fetch(
+          `https://graph.facebook.com/v21.0/me?access_token=${finalAccessToken}&appsecret_proof=${appSecretProof}`
+        );
+        const meData = await meResponse.json();
+        console.log('[Meta OAuth] FB User data:', JSON.stringify(meData));
+
+        // Calculate expiration
+        const expiresAt = new Date(Date.now() + tokenExpiresIn * 1000);
+
+        // Build settings payload
+        const settingsPayload: Record<string, any> = {
+          user_id: userId,
+          api_type: 'meta_cloud',
+          meta_access_token: finalAccessToken,
+          meta_token_expires_at: expiresAt.toISOString(),
+          meta_user_id: meData.id || fbUserId,
+          meta_connected_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+
+        // If we have phone_number_id from the Embedded Signup flow, save it
+        if (phone_number_id) {
+          settingsPayload.meta_phone_number_id = phone_number_id;
+          settingsPayload.instance_name = phone_number_id;
+        }
+
+        if (waba_id) {
+          settingsPayload.meta_business_id = waba_id;
+        }
+
+        // Save to database
+        const { data: existingSettings } = await supabase
+          .from('zap_responder_settings')
+          .select('*')
+          .eq('user_id', userId)
+          .maybeSingle();
+
+        if (existingSettings) {
+          await supabase
+            .from('zap_responder_settings')
+            .update(settingsPayload)
+            .eq('user_id', userId);
+        } else {
+          await supabase
+            .from('zap_responder_settings')
+            .insert(settingsPayload);
+        }
+
+        console.log('[Meta OAuth] Embedded Signup settings saved for user:', userId);
+
+        // If we don't have phone_number_id, try to fetch the first available one
+        let phoneInfo = null;
+        if (!phone_number_id) {
+          try {
+            // Try to get phone numbers from WABAs
+            const businessesResponse = await fetch(
+              `https://graph.facebook.com/v21.0/me/businesses?access_token=${finalAccessToken}&appsecret_proof=${appSecretProof}`
+            );
+            const businessesData = await businessesResponse.json();
+
+            for (const business of businessesData.data || []) {
+              const wabaResponse = await fetch(
+                `https://graph.facebook.com/v21.0/${business.id}/owned_whatsapp_business_accounts?access_token=${finalAccessToken}&appsecret_proof=${appSecretProof}`
+              );
+              const wabaData = await wabaResponse.json();
+
+              for (const waba of wabaData.data || []) {
+                const phonesResponse = await fetch(
+                  `https://graph.facebook.com/v21.0/${waba.id}/phone_numbers?access_token=${finalAccessToken}&appsecret_proof=${appSecretProof}`
+                );
+                const phonesData = await phonesResponse.json();
+
+                if (phonesData.data?.length > 0) {
+                  phoneInfo = {
+                    phone_number_id: phonesData.data[0].id,
+                    display_phone: phonesData.data[0].display_phone_number,
+                    verified_name: phonesData.data[0].verified_name,
+                    waba_id: waba.id,
+                    business_id: business.id,
+                  };
+                  break;
+                }
+              }
+              if (phoneInfo) break;
+            }
+          } catch (e) {
+            console.log('[Meta OAuth] Could not auto-fetch phone numbers:', e);
+          }
+        }
+
+        return new Response(JSON.stringify({ 
+          success: true, 
+          user_id: meData.id || fbUserId,
+          name: meData.name || '',
+          phone_number_id: phone_number_id || phoneInfo?.phone_number_id,
+          display_phone: phoneInfo?.display_phone,
+          has_phone: !!(phone_number_id || phoneInfo?.phone_number_id),
+        }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      // ========================================
       // ACTION: get_oauth_url
       // ========================================
       if (action === 'get_oauth_url') {
@@ -234,7 +399,7 @@ Deno.serve(async (req) => {
         ].join(',');
 
         const oauthUrl = 
-          `https://www.facebook.com/v18.0/dialog/oauth?` +
+          `https://www.facebook.com/v21.0/dialog/oauth?` +
           `client_id=${META_APP_ID}` +
           `&redirect_uri=${encodeURIComponent(redirectUri)}` +
           `&state=${state}` +
