@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { Loader2, Eye, EyeOff, Save, AlertCircle, CheckCircle2, Copy, ExternalLink, Wifi, WifiOff, RefreshCw, Phone, Plus, Check } from 'lucide-react';
+import { Loader2, Eye, EyeOff, Save, AlertCircle, CheckCircle2, Copy, ExternalLink, Wifi, WifiOff, RefreshCw, Phone, Plus, Check, Facebook, Unplug, Send } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -15,11 +15,23 @@ import { Badge } from '@/components/ui/badge';
 
 interface MetaPhoneNumber {
   id: string;
-  name: string;
-  phone: string;
-  departmentId: string;
-  departmentName: string;
-  connectedAt: string;
+  display_phone_number: string;
+  verified_name: string;
+  quality_rating: string;
+  waba_id: string;
+  waba_name: string;
+  business_id: string;
+  business_name: string;
+}
+
+interface MetaConnectionStatus {
+  connected: boolean;
+  expired?: boolean;
+  user_id?: string;
+  phone_number_id?: string;
+  display_phone?: string;
+  connected_at?: string;
+  expires_at?: string;
 }
 
 type ApiType = 'zap_responder' | 'evolution' | 'meta_cloud';
@@ -39,9 +51,15 @@ export default function Settings() {
   const [showToken, setShowToken] = useState(false);
   const [checkingConnection, setCheckingConnection] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus | null>(null);
+  
+  // Meta Cloud specific states
   const [metaPhones, setMetaPhones] = useState<MetaPhoneNumber[]>([]);
   const [loadingMetaPhones, setLoadingMetaPhones] = useState(false);
-  const [selectedMetaPhone, setSelectedMetaPhone] = useState<string | null>(null);
+  const [metaConnectionStatus, setMetaConnectionStatus] = useState<MetaConnectionStatus | null>(null);
+  const [connectingMeta, setConnectingMeta] = useState(false);
+  const [testingMetaSend, setTestingMetaSend] = useState(false);
+  const [testPhoneNumber, setTestPhoneNumber] = useState('');
+  
   const [apiType, setApiType] = useState<ApiType>('evolution');
   const [settings, setSettings] = useState({
     api_base_url: 'https://api.zapresponder.com.br/api',
@@ -59,11 +77,60 @@ export default function Settings() {
   const metaWebhookUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/meta-webhook`;
   const metaVerifyToken = 'supergestor_webhook_2024';
 
+  const checkMetaConnectionStatus = useCallback(async () => {
+    if (!user) return;
+    
+    try {
+      const { data: session } = await supabase.auth.getSession();
+      if (!session?.session?.access_token) return;
+
+      const response = await supabase.functions.invoke('meta-oauth', {
+        body: { action: 'get_connection_status' },
+      });
+
+      if (response.data) {
+        setMetaConnectionStatus(response.data);
+      }
+    } catch (error) {
+      console.error('Error checking Meta connection:', error);
+    }
+  }, [user]);
+
   useEffect(() => {
     if (user) {
       fetchSettings();
     }
   }, [user]);
+
+  useEffect(() => {
+    if (user && apiType === 'meta_cloud') {
+      checkMetaConnectionStatus();
+    }
+  }, [user, apiType, checkMetaConnectionStatus]);
+
+  // Listen for OAuth callback
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data?.type === 'META_OAUTH_SUCCESS') {
+        toast({
+          title: 'Conectado com sucesso!',
+          description: 'Sua conta do Facebook foi conectada. Agora carregue seus números.',
+        });
+        checkMetaConnectionStatus();
+        setConnectingMeta(false);
+      } else if (event.data?.type === 'META_OAUTH_ERROR') {
+        toast({
+          title: 'Erro na conexão',
+          description: event.data.error || 'Não foi possível conectar sua conta.',
+          variant: 'destructive',
+        });
+        setConnectingMeta(false);
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, [toast, checkMetaConnectionStatus]);
 
   const fetchSettings = async () => {
     try {
@@ -205,50 +272,57 @@ export default function Settings() {
     }
   };
 
-  const fetchMetaPhones = async () => {
-    if (!settings.zap_api_token) {
-      toast({
-        title: 'Token obrigatório',
-        description: 'Informe o Token da API do Zap Responder primeiro',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    setLoadingMetaPhones(true);
+  const connectWithFacebook = async () => {
+    setConnectingMeta(true);
     try {
-      const response = await fetch(
-        `${settings.api_base_url}/whatsapp-oficial/listar`,
-        {
-          headers: {
-            'Authorization': `Bearer ${settings.zap_api_token}`,
-            'Content-Type': 'application/json',
-          },
-        }
-      );
+      const response = await supabase.functions.invoke('meta-oauth', {
+        body: { action: 'get_oauth_url' },
+      });
 
-      if (!response.ok) {
-        throw new Error('Falha ao buscar números do WhatsApp Oficial');
+      if (response.error || !response.data?.oauth_url) {
+        throw new Error(response.error?.message || 'Erro ao gerar URL de autenticação');
       }
 
-      const data = await response.json();
+      // Open popup for OAuth
+      const width = 600;
+      const height = 700;
+      const left = window.screenX + (window.outerWidth - width) / 2;
+      const top = window.screenY + (window.outerHeight - height) / 2;
       
-      // Parse the response - adapt to actual API structure
-      const phones: MetaPhoneNumber[] = (data.data || data || []).map((item: any) => ({
-        id: item.id || item.phone_number_id,
-        name: item.name || item.display_name || 'WhatsApp Oficial',
-        phone: item.phone || item.display_phone_number || '',
-        departmentId: item.department_id || item.departamento_id || '',
-        departmentName: item.department_name || item.departamento_nome || 'Não definido',
-        connectedAt: item.connected_at || item.created_at || new Date().toISOString(),
-      }));
+      window.open(
+        response.data.oauth_url,
+        'facebook_oauth',
+        `width=${width},height=${height},left=${left},top=${top}`
+      );
+    } catch (error: any) {
+      console.error('Error connecting to Facebook:', error);
+      toast({
+        title: 'Erro',
+        description: error.message || 'Erro ao conectar com Facebook',
+        variant: 'destructive',
+      });
+      setConnectingMeta(false);
+    }
+  };
 
+  const fetchMetaPhoneNumbers = async () => {
+    setLoadingMetaPhones(true);
+    try {
+      const response = await supabase.functions.invoke('meta-oauth', {
+        body: { action: 'get_phone_numbers' },
+      });
+
+      if (response.error) {
+        throw new Error(response.error.message || 'Erro ao buscar números');
+      }
+
+      const phones = response.data?.phone_numbers || [];
       setMetaPhones(phones);
 
       if (phones.length === 0) {
         toast({
           title: 'Nenhum número encontrado',
-          description: 'Você ainda não tem números do WhatsApp Oficial conectados no Zap Responder',
+          description: 'Sua conta não tem números do WhatsApp Business configurados.',
         });
       } else {
         toast({
@@ -257,10 +331,10 @@ export default function Settings() {
         });
       }
     } catch (error: any) {
-      console.error('Error fetching meta phones:', error);
+      console.error('Error fetching phone numbers:', error);
       toast({
         title: 'Erro',
-        description: error.message || 'Não foi possível buscar os números. Verifique o token.',
+        description: error.message || 'Erro ao buscar números',
         variant: 'destructive',
       });
     } finally {
@@ -268,20 +342,103 @@ export default function Settings() {
     }
   };
 
-  const selectMetaPhone = (phone: MetaPhoneNumber) => {
-    setSelectedMetaPhone(phone.id);
-    setSettings({
-      ...settings,
-      instance_name: phone.id,
-      selected_session_phone: phone.phone,
-      selected_session_name: phone.name,
-      selected_department_id: phone.departmentId,
-      selected_department_name: phone.departmentName,
-    });
-    toast({
-      title: 'Número selecionado',
-      description: `${phone.name} - ${phone.phone}`,
-    });
+  const selectMetaPhone = async (phone: MetaPhoneNumber) => {
+    try {
+      const response = await supabase.functions.invoke('meta-oauth', {
+        body: {
+          action: 'select_phone_number',
+          phone_number_id: phone.id,
+          display_phone: phone.display_phone_number,
+          waba_id: phone.waba_id,
+          business_id: phone.business_id,
+        },
+      });
+
+      if (response.error) {
+        throw new Error(response.error.message);
+      }
+
+      await checkMetaConnectionStatus();
+      
+      toast({
+        title: 'Número selecionado!',
+        description: `${phone.verified_name} - ${phone.display_phone_number}`,
+      });
+    } catch (error: any) {
+      toast({
+        title: 'Erro',
+        description: error.message || 'Erro ao selecionar número',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const disconnectMeta = async () => {
+    try {
+      const response = await supabase.functions.invoke('meta-oauth', {
+        body: { action: 'disconnect' },
+      });
+
+      if (response.error) {
+        throw new Error(response.error.message);
+      }
+
+      setMetaConnectionStatus(null);
+      setMetaPhones([]);
+      
+      toast({
+        title: 'Desconectado',
+        description: 'Sua conta do Facebook foi desconectada.',
+      });
+    } catch (error: any) {
+      toast({
+        title: 'Erro',
+        description: error.message || 'Erro ao desconectar',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const testMetaMessage = async () => {
+    if (!testPhoneNumber) {
+      toast({
+        title: 'Número obrigatório',
+        description: 'Informe um número de telefone para teste',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setTestingMetaSend(true);
+    try {
+      const response = await supabase.functions.invoke('meta-send-message', {
+        body: {
+          to: testPhoneNumber,
+          message: '✅ Teste de conexão realizado com sucesso! Sua integração com o WhatsApp Business API está funcionando.',
+        },
+      });
+
+      if (response.error) {
+        throw new Error(response.error.message || response.data?.error || 'Erro ao enviar mensagem');
+      }
+
+      if (response.data?.error) {
+        throw new Error(response.data.details || response.data.error);
+      }
+
+      toast({
+        title: 'Mensagem enviada!',
+        description: 'Verifique o WhatsApp do número informado.',
+      });
+    } catch (error: any) {
+      toast({
+        title: 'Erro ao enviar',
+        description: error.message || 'Não foi possível enviar a mensagem de teste',
+        variant: 'destructive',
+      });
+    } finally {
+      setTestingMetaSend(false);
+    }
   };
 
   const copyWebhookUrl = (url: string) => {
@@ -612,59 +769,157 @@ docker-compose up -d`}
         )}
 
         {apiType === 'meta_cloud' && (
-          <Tabs defaultValue="config" className="space-y-4">
+          <Tabs defaultValue="connection" className="space-y-4">
             <TabsList>
-              <TabsTrigger value="config">Meus Números</TabsTrigger>
-              <TabsTrigger value="guide">Como Funciona</TabsTrigger>
+              <TabsTrigger value="connection">Conexão</TabsTrigger>
+              <TabsTrigger value="numbers">Meus Números</TabsTrigger>
+              <TabsTrigger value="webhook">Webhook</TabsTrigger>
+              <TabsTrigger value="test">Testar Envio</TabsTrigger>
             </TabsList>
 
-            <TabsContent value="config">
+            <TabsContent value="connection">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Facebook className="w-5 h-5 text-blue-600" />
+                    <span>Conectar com Facebook</span>
+                    {metaConnectionStatus?.connected && (
+                      <Badge className="bg-green-500">
+                        <Wifi className="w-3 h-3 mr-1" />
+                        Conectado
+                      </Badge>
+                    )}
+                    {metaConnectionStatus?.expired && (
+                      <Badge variant="destructive">
+                        <WifiOff className="w-3 h-3 mr-1" />
+                        Token Expirado
+                      </Badge>
+                    )}
+                  </CardTitle>
+                  <CardDescription>
+                    Conecte sua conta do Facebook/Meta para usar a API oficial do WhatsApp Business
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  {!metaConnectionStatus?.connected ? (
+                    <>
+                      <Alert>
+                        <AlertCircle className="h-4 w-4" />
+                        <AlertDescription>
+                          Clique no botão abaixo para conectar sua conta do Facebook. Você precisará autorizar o acesso ao WhatsApp Business.
+                        </AlertDescription>
+                      </Alert>
+
+                      <div className="flex flex-col items-center gap-4 py-8">
+                        <div className="w-20 h-20 rounded-full bg-blue-600 flex items-center justify-center">
+                          <Facebook className="w-10 h-10 text-white" />
+                        </div>
+                        <Button
+                          size="lg"
+                          onClick={connectWithFacebook}
+                          disabled={connectingMeta}
+                          className="bg-blue-600 hover:bg-blue-700"
+                        >
+                          {connectingMeta ? (
+                            <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                          ) : (
+                            <Facebook className="w-5 h-5 mr-2" />
+                          )}
+                          Conectar com Facebook
+                        </Button>
+                        <p className="text-sm text-muted-foreground text-center max-w-md">
+                          Ao conectar, você autoriza o acesso aos seus números do WhatsApp Business configurados na sua conta Meta.
+                        </p>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <Alert>
+                        <CheckCircle2 className="h-4 w-4 text-green-500" />
+                        <AlertDescription>
+                          Sua conta do Facebook está conectada! Agora vá para a aba "Meus Números" para selecionar qual número usar.
+                        </AlertDescription>
+                      </Alert>
+
+                      <div className="p-4 bg-muted/50 rounded-lg space-y-3">
+                        <h4 className="font-medium">Detalhes da Conexão</h4>
+                        <div className="grid gap-2 text-sm">
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Status:</span>
+                            <Badge className="bg-green-500">Conectado</Badge>
+                          </div>
+                          {metaConnectionStatus.display_phone && (
+                            <div className="flex justify-between">
+                              <span className="text-muted-foreground">Número Ativo:</span>
+                              <span className="font-mono">{metaConnectionStatus.display_phone}</span>
+                            </div>
+                          )}
+                          {metaConnectionStatus.connected_at && (
+                            <div className="flex justify-between">
+                              <span className="text-muted-foreground">Conectado em:</span>
+                              <span>{new Date(metaConnectionStatus.connected_at).toLocaleDateString('pt-BR')}</span>
+                            </div>
+                          )}
+                          {metaConnectionStatus.expires_at && (
+                            <div className="flex justify-between">
+                              <span className="text-muted-foreground">Token expira em:</span>
+                              <span>{new Date(metaConnectionStatus.expires_at).toLocaleDateString('pt-BR')}</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex gap-3">
+                        <Button
+                          variant="outline"
+                          onClick={connectWithFacebook}
+                          disabled={connectingMeta}
+                        >
+                          <RefreshCw className="w-4 h-4 mr-2" />
+                          Reconectar
+                        </Button>
+                        <Button
+                          variant="destructive"
+                          onClick={disconnectMeta}
+                        >
+                          <Unplug className="w-4 h-4 mr-2" />
+                          Desconectar
+                        </Button>
+                      </div>
+                    </>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="numbers">
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <Phone className="w-5 h-5" />
-                    <span>WhatsApp Oficial</span>
-                    <Badge variant="outline">Via Zap Responder</Badge>
+                    <span>Números do WhatsApp Business</span>
                   </CardTitle>
                   <CardDescription>
-                    Gerencie seus números do WhatsApp Business API conectados no Zap Responder
+                    Selecione qual número usar para enviar mensagens e cobranças
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
-                  <Alert>
-                    <AlertCircle className="h-4 w-4" />
-                    <AlertDescription>
-                      Conecte seus números do WhatsApp Oficial através da sua conta no Zap Responder.
-                      Informe seu token de API para carregar os números disponíveis.
-                    </AlertDescription>
-                  </Alert>
-
-                  <div className="space-y-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="meta_zap_token">Token da API do Zap Responder *</Label>
-                      <div className="flex gap-2">
-                        <div className="relative flex-1">
-                          <Input
-                            id="meta_zap_token"
-                            type={showToken ? 'text' : 'password'}
-                            value={settings.zap_api_token}
-                            onChange={(e) => setSettings({ ...settings, zap_api_token: e.target.value })}
-                            placeholder="Cole seu token de API aqui"
-                            className="pr-10"
-                          />
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            className="absolute right-0 top-0 h-full"
-                            onClick={() => setShowToken(!showToken)}
-                          >
-                            {showToken ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                          </Button>
-                        </div>
+                  {!metaConnectionStatus?.connected ? (
+                    <Alert>
+                      <AlertCircle className="h-4 w-4" />
+                      <AlertDescription>
+                        Conecte sua conta do Facebook primeiro na aba "Conexão".
+                      </AlertDescription>
+                    </Alert>
+                  ) : (
+                    <>
+                      <div className="flex justify-between items-center">
+                        <p className="text-sm text-muted-foreground">
+                          Clique para carregar os números disponíveis na sua conta
+                        </p>
                         <Button
-                          onClick={fetchMetaPhones}
-                          disabled={loadingMetaPhones || !settings.zap_api_token}
+                          onClick={fetchMetaPhoneNumbers}
+                          disabled={loadingMetaPhones}
                         >
                           {loadingMetaPhones ? (
                             <Loader2 className="w-4 h-4 mr-2 animate-spin" />
@@ -674,189 +929,202 @@ docker-compose up -d`}
                           Carregar Números
                         </Button>
                       </div>
-                      <p className="text-xs text-muted-foreground">
-                        Obtenha seu token em Zap Responder → Configurações → API
-                      </p>
+
+                      {metaPhones.length > 0 && (
+                        <div className="space-y-4">
+                          <div className="flex items-center justify-between">
+                            <Label>Números Disponíveis</Label>
+                            <Badge variant="secondary">
+                              {metaPhones.length} número(s)
+                            </Badge>
+                          </div>
+                          
+                          <div className="grid gap-4 md:grid-cols-2">
+                            {metaPhones.map((phone) => (
+                              <div
+                                key={phone.id}
+                                onClick={() => selectMetaPhone(phone)}
+                                className={`relative p-4 border-2 rounded-lg cursor-pointer transition-all hover:shadow-md ${
+                                  metaConnectionStatus?.phone_number_id === phone.id
+                                    ? 'border-primary bg-primary/5'
+                                    : 'border-border hover:border-primary/50'
+                                }`}
+                              >
+                                {metaConnectionStatus?.phone_number_id === phone.id && (
+                                  <div className="absolute top-2 right-2">
+                                    <div className="bg-primary text-primary-foreground rounded-full p-1">
+                                      <Check className="w-3 h-3" />
+                                    </div>
+                                  </div>
+                                )}
+                                
+                                <div className="flex items-start gap-3">
+                                  <div className="w-10 h-10 rounded-full bg-green-500 flex items-center justify-center text-white">
+                                    <Phone className="w-5 h-5" />
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <h4 className="font-semibold text-sm truncate">{phone.verified_name}</h4>
+                                    <p className="text-xs font-mono text-green-600 dark:text-green-400">
+                                      {phone.display_phone_number}
+                                    </p>
+                                    <p className="text-xs text-muted-foreground mt-1">
+                                      Qualidade: {phone.quality_rating || 'N/A'}
+                                    </p>
+                                  </div>
+                                </div>
+                                
+                                <div className="mt-3 pt-3 border-t">
+                                  <p className="text-xs text-muted-foreground">Empresa</p>
+                                  <p className="text-sm font-medium truncate">{phone.business_name || phone.waba_name}</p>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {metaConnectionStatus?.display_phone && (
+                        <div className="p-4 bg-muted/50 rounded-lg space-y-2">
+                          <div className="flex items-center gap-2">
+                            <CheckCircle2 className="w-4 h-4 text-green-500" />
+                            <span className="font-medium text-sm">Número Ativo</span>
+                          </div>
+                          <p className="text-lg font-mono text-green-600 dark:text-green-400">
+                            {metaConnectionStatus.display_phone}
+                          </p>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="webhook">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Configurar Webhook (Opcional)</CardTitle>
+                  <CardDescription>
+                    Configure o webhook no Facebook para receber mensagens e ativar respostas automáticas
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <Alert>
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription>
+                      O webhook é necessário apenas se você quiser receber mensagens e usar respostas automáticas.
+                    </AlertDescription>
+                  </Alert>
+
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label>URL do Webhook (Callback URL)</Label>
+                      <div className="flex gap-2">
+                        <Input
+                          value={metaWebhookUrl}
+                          readOnly
+                          className="font-mono text-sm"
+                        />
+                        <Button variant="outline" size="icon" onClick={() => copyWebhookUrl(metaWebhookUrl)}>
+                          <Copy className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Token de Verificação (Verify Token)</Label>
+                      <div className="flex gap-2">
+                        <Input
+                          value={metaVerifyToken}
+                          readOnly
+                          className="font-mono text-sm"
+                        />
+                        <Button variant="outline" size="icon" onClick={copyVerifyToken}>
+                          <Copy className="w-4 h-4" />
+                        </Button>
+                      </div>
                     </div>
                   </div>
 
-                  {/* Phone Number Cards */}
-                  {metaPhones.length > 0 && (
-                    <div className="space-y-4">
-                      <div className="flex items-center justify-between">
-                        <Label>Seus Números do WhatsApp Oficial</Label>
-                        <Badge variant="secondary">
-                          {metaPhones.length} número(s)
-                        </Badge>
-                      </div>
-                      
-                      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                        {metaPhones.map((phone) => (
-                          <div
-                            key={phone.id}
-                            onClick={() => selectMetaPhone(phone)}
-                            className={`relative p-4 border-2 rounded-lg cursor-pointer transition-all hover:shadow-md ${
-                              selectedMetaPhone === phone.id || settings.instance_name === phone.id
-                                ? 'border-primary bg-primary/5'
-                                : 'border-border hover:border-primary/50'
-                            }`}
-                          >
-                            {(selectedMetaPhone === phone.id || settings.instance_name === phone.id) && (
-                              <div className="absolute top-2 right-2">
-                                <div className="bg-primary text-primary-foreground rounded-full p-1">
-                                  <Check className="w-3 h-3" />
-                                </div>
-                              </div>
-                            )}
-                            
-                            <div className="flex items-start gap-3">
-                              <div className="w-10 h-10 rounded-full bg-green-500 flex items-center justify-center text-white">
-                                <Phone className="w-5 h-5" />
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <h4 className="font-semibold text-sm truncate">{phone.name}</h4>
-                                <p className="text-xs text-muted-foreground">
-                                  Conectado em {new Date(phone.connectedAt).toLocaleDateString('pt-BR')}
-                                </p>
-                                <p className="text-xs font-mono text-green-600 dark:text-green-400">
-                                  {phone.phone}
-                                </p>
-                              </div>
-                            </div>
-                            
-                            <div className="mt-3 pt-3 border-t">
-                              <p className="text-xs text-muted-foreground">Departamento</p>
-                              <p className="text-sm font-medium">{phone.departmentName || 'Não definido'}</p>
-                            </div>
-                          </div>
-                        ))}
-
-                        {/* Add New Number Card */}
-                        <a
-                          href="https://zapresponder.com.br"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="p-4 border-2 border-dashed rounded-lg cursor-pointer transition-all hover:border-primary/50 hover:bg-muted/50 flex flex-col items-center justify-center min-h-[140px]"
-                        >
-                          <Plus className="w-8 h-8 text-muted-foreground mb-2" />
-                          <span className="text-sm text-muted-foreground">Adicionar número</span>
-                        </a>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Selected Number Info */}
-                  {settings.instance_name && (
-                    <div className="p-4 bg-muted/50 rounded-lg space-y-2">
-                      <div className="flex items-center gap-2">
-                        <CheckCircle2 className="w-4 h-4 text-green-500" />
-                        <span className="font-medium text-sm">Número Selecionado</span>
-                      </div>
-                      <div className="grid gap-2 text-sm">
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">Nome:</span>
-                          <span>{settings.selected_session_name || '-'}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">Telefone:</span>
-                          <span className="font-mono">{settings.selected_session_phone || '-'}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">Departamento:</span>
-                          <span>{settings.selected_department_name || '-'}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">ID:</span>
-                          <span className="font-mono text-xs">{settings.instance_name}</span>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="flex justify-end">
-                    <Button onClick={handleSave} disabled={saving}>
-                      {saving ? (
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      ) : (
-                        <Save className="w-4 h-4 mr-2" />
-                      )}
-                      Salvar Configurações
-                    </Button>
+                  <div className="space-y-4 p-4 bg-muted/50 rounded-lg">
+                    <h4 className="font-medium">Como configurar no Facebook:</h4>
+                    <ol className="list-decimal list-inside space-y-2 text-sm text-muted-foreground">
+                      <li>Acesse <strong>developers.facebook.com</strong></li>
+                      <li>Vá em seu App → WhatsApp → Configuração</li>
+                      <li>Na seção "Webhook", clique em "Editar"</li>
+                      <li>Cole a <strong>Callback URL</strong> e o <strong>Verify Token</strong> acima</li>
+                      <li>Clique em "Verificar e salvar"</li>
+                      <li>Clique em "Gerenciar" e inscreva-se no evento <code className="bg-muted px-1 rounded">messages</code></li>
+                    </ol>
                   </div>
                 </CardContent>
               </Card>
             </TabsContent>
 
-            <TabsContent value="guide">
+            <TabsContent value="test">
               <Card>
                 <CardHeader>
-                  <CardTitle>Como Funciona</CardTitle>
+                  <CardTitle className="flex items-center gap-2">
+                    <Send className="w-5 h-5" />
+                    <span>Testar Envio de Mensagem</span>
+                  </CardTitle>
                   <CardDescription>
-                    Integração com WhatsApp Oficial via Zap Responder
+                    Envie uma mensagem de teste para verificar se a integração está funcionando
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
-                  <div className="space-y-4">
-                    <div className="p-4 border rounded-lg space-y-3">
-                      <h4 className="font-semibold flex items-center gap-2">
-                        <span className="bg-primary text-primary-foreground w-6 h-6 rounded-full flex items-center justify-center text-sm">1</span>
-                        Conecte seu WhatsApp no Zap Responder
-                      </h4>
-                      <p className="text-sm text-muted-foreground">
-                        Acesse o Zap Responder, vá em <strong>Canais de Atendimento → WhatsApp Oficial</strong> e conecte seu número seguindo as instruções.
-                      </p>
-                    </div>
-
-                    <div className="p-4 border rounded-lg space-y-3">
-                      <h4 className="font-semibold flex items-center gap-2">
-                        <span className="bg-primary text-primary-foreground w-6 h-6 rounded-full flex items-center justify-center text-sm">2</span>
-                        Obtenha seu Token de API
-                      </h4>
-                      <p className="text-sm text-muted-foreground">
-                        No Zap Responder, vá em <strong>Configurações → API</strong> e copie seu token de acesso.
-                      </p>
-                    </div>
-
-                    <div className="p-4 border rounded-lg space-y-3">
-                      <h4 className="font-semibold flex items-center gap-2">
-                        <span className="bg-primary text-primary-foreground w-6 h-6 rounded-full flex items-center justify-center text-sm">3</span>
-                        Selecione o Número Aqui
-                      </h4>
-                      <p className="text-sm text-muted-foreground">
-                        Cole o token acima, clique em "Carregar Números" e selecione qual número deseja usar para enviar mensagens e respostas automáticas.
-                      </p>
-                    </div>
-
-                    <div className="p-4 border rounded-lg space-y-3">
-                      <h4 className="font-semibold flex items-center gap-2">
-                        <span className="bg-primary text-primary-foreground w-6 h-6 rounded-full flex items-center justify-center text-sm">4</span>
-                        Pronto!
-                      </h4>
-                      <p className="text-sm text-muted-foreground">
-                        As mensagens e cobranças serão enviadas através do número selecionado usando a API oficial do WhatsApp, com toda a estabilidade e confiabilidade da Meta.
-                      </p>
-                    </div>
-
+                  {!metaConnectionStatus?.connected || !metaConnectionStatus?.phone_number_id ? (
                     <Alert>
-                      <CheckCircle2 className="h-4 w-4 text-green-500" />
+                      <AlertCircle className="h-4 w-4" />
                       <AlertDescription>
-                        Esta integração usa a API oficial do WhatsApp via Zap Responder, garantindo maior estabilidade e conformidade com as políticas do WhatsApp.
+                        Conecte sua conta e selecione um número primeiro.
                       </AlertDescription>
                     </Alert>
+                  ) : (
+                    <>
+                      <Alert>
+                        <CheckCircle2 className="h-4 w-4 text-green-500" />
+                        <AlertDescription>
+                          Enviando de: <strong>{metaConnectionStatus.display_phone}</strong>
+                        </AlertDescription>
+                      </Alert>
 
-                    <div className="flex gap-3">
-                      <Button variant="outline" asChild>
-                        <a 
-                          href="https://zapresponder.com.br" 
-                          target="_blank" 
-                          rel="noopener noreferrer"
+                      <div className="space-y-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="test_phone">Número de Destino *</Label>
+                          <Input
+                            id="test_phone"
+                            value={testPhoneNumber}
+                            onChange={(e) => setTestPhoneNumber(e.target.value)}
+                            placeholder="5511999999999"
+                          />
+                          <p className="text-xs text-muted-foreground">
+                            Informe o número com código do país (ex: 5511999999999)
+                          </p>
+                        </div>
+
+                        <Button
+                          onClick={testMetaMessage}
+                          disabled={testingMetaSend || !testPhoneNumber}
                         >
-                          <ExternalLink className="w-4 h-4 mr-2" />
-                          Acessar Zap Responder
-                        </a>
-                      </Button>
-                    </div>
-                  </div>
+                          {testingMetaSend ? (
+                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          ) : (
+                            <Send className="w-4 h-4 mr-2" />
+                          )}
+                          Enviar Mensagem de Teste
+                        </Button>
+                      </div>
+
+                      <Alert>
+                        <AlertCircle className="h-4 w-4" />
+                        <AlertDescription>
+                          <strong>Importante:</strong> Mensagens só podem ser enviadas para números que iniciaram conversa nas últimas 24h, 
+                          ou usando templates aprovados. Para teste inicial, envie uma mensagem do número de destino para seu número do WhatsApp Business primeiro.
+                        </AlertDescription>
+                      </Alert>
+                    </>
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>
