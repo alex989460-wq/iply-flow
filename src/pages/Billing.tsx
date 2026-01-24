@@ -30,6 +30,17 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { 
@@ -177,6 +188,7 @@ export default function Billing() {
   };
 
   const [isDeletingByType, setIsDeletingByType] = useState<string | null>(null);
+  const [isDeletingAll, setIsDeletingAll] = useState(false);
 
   const deleteLogsByType = async (billingType: 'D-1' | 'D0' | 'D+1') => {
     setIsDeletingByType(billingType);
@@ -201,6 +213,32 @@ export default function Billing() {
       });
     } finally {
       setIsDeletingByType(null);
+    }
+  };
+
+  const deleteAllBillingLogs = async () => {
+    setIsDeletingAll(true);
+    try {
+      const { error } = await supabase
+        .from('billing_logs')
+        .delete()
+        .neq('id', '00000000-0000-0000-0000-000000000000'); // Delete all records
+      
+      if (error) throw error;
+      
+      toast({ 
+        title: 'Histórico limpo!', 
+        description: 'Todos os registros de cobrança foram removidos. Agora você pode reenviar as cobranças.' 
+      });
+      queryClient.invalidateQueries({ queryKey: ['billing-logs'] });
+    } catch (error: any) {
+      toast({
+        title: 'Erro ao limpar',
+        description: error.message || 'Não foi possível limpar o histórico.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsDeletingAll(false);
     }
   };
 
@@ -1474,6 +1512,42 @@ export default function Billing() {
                   Histórico de Cobranças Enviadas
                 </CardTitle>
                 <div className="flex flex-wrap gap-2">
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        disabled={isDeletingAll || !billingLogs?.length}
+                      >
+                        {isDeletingAll ? (
+                          <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                        ) : (
+                          <Trash2 className="w-3 h-3 mr-1" />
+                        )}
+                        Limpar Tudo
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Limpar todo o histórico?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          Esta ação vai remover todos os registros de cobrança do histórico. 
+                          Isso permitirá reenviar as cobranças para todos os clientes novamente.
+                          <br /><br />
+                          <strong>Esta ação não pode ser desfeita.</strong>
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                        <AlertDialogAction 
+                          onClick={deleteAllBillingLogs}
+                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                        >
+                          Sim, limpar tudo
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
                   <Button
                     variant="outline"
                     size="sm"
