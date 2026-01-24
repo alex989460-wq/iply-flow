@@ -188,7 +188,7 @@ Deno.serve(async (req) => {
         .eq('user_id', schedule.user_id)
         .maybeSingle();
 
-      if (!zapSettings?.zap_api_token || !zapSettings?.selected_session_id) {
+      if (!zapSettings?.zap_api_token || (!zapSettings?.selected_session_id && !zapSettings?.selected_department_id)) {
         console.log(`[Scheduled Billing] User ${schedule.user_id} missing zap settings`);
         await supabase
           .from('billing_schedule')
@@ -200,26 +200,31 @@ Deno.serve(async (req) => {
         continue;
       }
 
-      // Get department ID for the selected session
-      let departmentId: string | undefined;
-      try {
-        const atendenteResponse = await fetch(`${zapSettings.api_base_url}/atendentes`, {
-          method: 'GET',
-          headers: {
-            'Accept': 'application/json',
-            'Authorization': `Bearer ${zapSettings.zap_api_token}`,
-          },
-        });
-        
-        if (atendenteResponse.ok) {
-          const atendentes = await atendenteResponse.json();
-          const selectedAtendente = atendentes?.find((a: any) => a._id === zapSettings.selected_session_id);
-          if (selectedAtendente?.departamento?.length > 0) {
-            departmentId = selectedAtendente.departamento[0];
+      // Use saved department ID first, then try to fetch from API as fallback
+      let departmentId: string | undefined = zapSettings.selected_department_id || undefined;
+      
+      if (!departmentId && zapSettings.selected_session_id) {
+        try {
+          const atendenteResponse = await fetch(`${zapSettings.api_base_url}/atendentes`, {
+            method: 'GET',
+            headers: {
+              'Accept': 'application/json',
+              'Authorization': `Bearer ${zapSettings.zap_api_token}`,
+            },
+          });
+          
+          if (atendenteResponse.ok) {
+            const atendentes = await atendenteResponse.json();
+            const selectedAtendente = atendentes?.find((a: any) => a._id === zapSettings.selected_session_id);
+            if (selectedAtendente?.departamento?.length > 0) {
+              departmentId = selectedAtendente.departamento[0];
+            }
+          } else {
+            console.log(`[Scheduled Billing] Could not fetch attendants, will use saved department ID if available`);
           }
+        } catch (e) {
+          console.error('[Scheduled Billing] Error fetching department:', e);
         }
-      } catch (e) {
-        console.error('[Scheduled Billing] Error fetching department:', e);
       }
 
       if (!departmentId) {
@@ -228,11 +233,13 @@ Deno.serve(async (req) => {
           .from('billing_schedule')
           .update({ 
             last_run_at: new Date().toISOString(),
-            last_run_status: 'error: configuração incompleta'
+            last_run_status: 'error: configuração de departamento ausente'
           })
           .eq('id', schedule.id);
         continue;
       }
+
+      console.log(`[Scheduled Billing] Using department ID: ${departmentId}`);
 
       // Get dates using São Paulo timezone-aware function
       const today = getRelativeDateSaoPaulo(0);
