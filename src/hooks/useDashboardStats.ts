@@ -146,3 +146,47 @@ export function useRevenueHistory() {
     refetchOnWindowFocus: false,
   });
 }
+
+export function useDailyRevenueHistory() {
+  return useQuery({
+    queryKey: ['daily-revenue-history'],
+    queryFn: async () => {
+      const currentDate = new Date();
+      const startOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
+      const endOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
+      
+      const startDate = startOfMonth.toISOString().split('T')[0];
+      const endDate = endOfMonth.toISOString().split('T')[0];
+
+      const { data: payments, error } = await supabase
+        .from('payments')
+        .select('amount, payment_date')
+        .gte('payment_date', startDate)
+        .lte('payment_date', endDate);
+
+      if (error) throw error;
+
+      // Initialize all days of the month
+      const daysInMonth = endOfMonth.getDate();
+      const dailyData: { day: number; revenue: number; count: number }[] = [];
+      
+      for (let day = 1; day <= daysInMonth; day++) {
+        dailyData.push({ day, revenue: 0, count: 0 });
+      }
+
+      // Aggregate payments by day
+      payments?.forEach((payment) => {
+        const paymentDay = parseInt(payment.payment_date.split('-')[2], 10);
+        const dayIndex = paymentDay - 1;
+        if (dayIndex >= 0 && dayIndex < dailyData.length) {
+          dailyData[dayIndex].revenue += Number(payment.amount);
+          dailyData[dayIndex].count += 1;
+        }
+      });
+
+      return dailyData;
+    },
+    staleTime: 60000, // Cache for 1 minute
+    refetchOnWindowFocus: false,
+  });
+}

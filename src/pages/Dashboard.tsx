@@ -3,10 +3,11 @@ import { useEffect, useState } from 'react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import StatsCard from '@/components/dashboard/StatsCard';
 import RevenueChart from '@/components/dashboard/RevenueChart';
+import DailyRevenueChart from '@/components/dashboard/DailyRevenueChart';
 import PlanDistributionChart from '@/components/dashboard/PlanDistributionChart';
 import ServerDistributionChart from '@/components/dashboard/ServerDistributionChart';
 import { ScrollToTop } from '@/components/ui/scroll-to-top';
-import { useDashboardStats, useRevenueHistory } from '@/hooks/useDashboardStats';
+import { useDashboardStats, useRevenueHistory, useDailyRevenueHistory } from '@/hooks/useDashboardStats';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { 
@@ -32,6 +33,7 @@ export default function Dashboard() {
   const { user, isAdmin } = useAuth();
   const { data: stats, isLoading: statsLoading } = useDashboardStats();
   const { data: revenueHistory, isLoading: revenueLoading } = useRevenueHistory();
+  const { data: dailyRevenue, isLoading: dailyLoading } = useDailyRevenueHistory();
   const [resellerAccess, setResellerAccess] = useState<{
     access_expires_at: string;
     is_active: boolean;
@@ -217,11 +219,18 @@ export default function Dashboard() {
           />
         </div>
 
-        {/* Charts */}
+        {/* Charts Row 1 - Daily and Monthly Revenue */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 lg:gap-6">
+          {!dailyLoading && dailyRevenue && (
+            <DailyRevenueChart data={dailyRevenue} />
+          )}
           {!revenueLoading && revenueHistory && (
             <RevenueChart data={revenueHistory} />
           )}
+        </div>
+
+        {/* Charts Row 2 - Distribution Charts */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 lg:gap-6">
           {stats?.planDistribution && stats.planDistribution.length > 0 && (
             <PlanDistributionChart data={stats.planDistribution} />
           )}
