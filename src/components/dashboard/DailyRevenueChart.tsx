@@ -85,19 +85,29 @@ export default function DailyRevenueChart({ data }: DailyRevenueChartProps) {
                   color: 'hsl(var(--foreground))',
                   padding: '12px 16px',
                 }}
-                formatter={(value: number, name: string) => {
-                  if (name === 'revenue') {
-                    return [
-                      <span key="value" className="font-bold text-emerald-500">
-                        R$ {value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                      </span>,
-                      'Recebido'
-                    ];
+                content={({ active, payload, label }) => {
+                  if (active && payload && payload.length) {
+                    const dayData = payload[0].payload;
+                    return (
+                      <div className="bg-card border border-border rounded-xl p-3 shadow-lg">
+                        <p className="text-muted-foreground text-sm mb-2">Dia {label}</p>
+                        <p className="text-sm">
+                          <span className="text-muted-foreground">Recebido: </span>
+                          <span className="font-bold text-emerald-500">
+                            R$ {dayData.revenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                          </span>
+                        </p>
+                        <p className="text-sm">
+                          <span className="text-muted-foreground">Renovados: </span>
+                          <span className="font-semibold text-foreground">
+                            {dayData.count} {dayData.count === 1 ? 'cliente' : 'clientes'}
+                          </span>
+                        </p>
+                      </div>
+                    );
                   }
-                  return [value, name];
+                  return null;
                 }}
-                labelFormatter={(label) => `Dia ${label}`}
-                labelStyle={{ color: 'hsl(var(--muted-foreground))', marginBottom: 4 }}
               />
               <Bar 
                 dataKey="revenue" 
