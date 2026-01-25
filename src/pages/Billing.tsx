@@ -144,7 +144,7 @@ export default function Billing() {
     phone: string;
     billingType: string;
     template: string;
-    status: 'sent' | 'error' | 'pending';
+    status: 'sent' | 'error' | 'pending' | 'skipped';
     error?: string;
   }>>([]);
   const [progressStats, setProgressStats] = useState({ sent: 0, errors: 0, skipped: 0, total: 0 });
@@ -661,6 +661,8 @@ export default function Billing() {
   });
 
   const [sendingType, setSendingType] = useState<string | null>(null);
+  const BATCH_SIZE = 8;
+  const BATCH_DELAY_MS = 2000; // 2 seconds between batches
 
   const handleSendBillings = async (billingType?: BillingType) => {
     if (!zapSettings?.selected_session_id) {
@@ -672,23 +674,9 @@ export default function Billing() {
       return;
     }
 
-    // Get total count for progress
-    let totalToSend = 0;
-    if (billingType === 'D-1') {
-      totalToSend = pendingBillings?.dminus1.length || 0;
-    } else if (billingType === 'D0') {
-      totalToSend = pendingBillings?.d0.length || 0;
-    } else if (billingType === 'D+1') {
-      totalToSend = pendingBillings?.dplus1.length || 0;
-    } else {
-      totalToSend = (pendingBillings?.dminus1.length || 0) + 
-                    (pendingBillings?.d0.length || 0) + 
-                    (pendingBillings?.dplus1.length || 0);
-    }
-
     // Reset and open progress modal
     setProgressResults([]);
-    setProgressStats({ sent: 0, errors: 0, skipped: 0, total: totalToSend });
+    setProgressStats({ sent: 0, errors: 0, skipped: 0, total: 0 });
     setIsProgressComplete(false);
     setProgressModalOpen(true);
 
@@ -696,51 +684,151 @@ export default function Billing() {
     setSendingType(billingType || 'all');
     
     try {
-      const { data, error } = await supabase.functions.invoke('send-billing', {
-        body: billingType ? { billing_type: billingType } : {},
+      // Step 1: Get customers to process
+      const { data: startData, error: startError } = await supabase.functions.invoke('send-billing-batch', {
+        body: { action: 'start', billing_type: billingType || null },
       });
       
-      if (error) {
+      if (startError || !startData?.success) {
         toast({
-          title: 'Erro ao enviar cobranças',
-          description: error.message,
+          title: 'Erro ao iniciar envio',
+          description: startError?.message || startData?.error || 'Erro desconhecido',
           variant: 'destructive',
         });
         setProgressModalOpen(false);
-      } else {
-        const results = data?.results;
-        
-        // Update progress with all results at once
-        const formattedResults = (results?.details || []).map((detail: any) => ({
-          customer: detail.customer,
-          phone: detail.phone,
-          billingType: detail.billingType,
-          template: detail.template,
-          status: detail.status as 'sent' | 'error',
-          error: detail.error,
-        }));
-        
-        setProgressResults(formattedResults);
-        setProgressStats({
-          sent: results?.sent || 0,
-          errors: results?.errors || 0,
-          skipped: results?.skipped || 0,
-          total: totalToSend
+        setIsSending(false);
+        setSendingType(null);
+        return;
+      }
+
+      const customers = startData.customers || [];
+      const skippedCount = startData.skipped || 0;
+      const totalToProcess = customers.length;
+
+      setProgressStats({ sent: 0, errors: 0, skipped: skippedCount, total: totalToProcess + skippedCount });
+
+      if (totalToProcess === 0) {
+        toast({
+          title: 'Nenhuma cobrança pendente',
+          description: `${skippedCount} clientes já foram processados hoje.`,
         });
         setIsProgressComplete(true);
-        
-        // Invalidate queries to refresh data
-        queryClient.invalidateQueries({ queryKey: ['billing-logs'] });
-        queryClient.invalidateQueries({ queryKey: ['billing-logs-today'] });
-        queryClient.invalidateQueries({ queryKey: ['pending-billings'] });
+        setIsSending(false);
+        setSendingType(null);
+        return;
       }
+
+      // Step 2: Process in batches of 8 with delay
+      let totalSent = 0;
+      let totalErrors = 0;
+      const allResults: any[] = [];
+
+      for (let i = 0; i < customers.length; i += BATCH_SIZE) {
+        const batch = customers.slice(i, i + BATCH_SIZE);
+        
+        // Add pending items to show they're being processed
+        const pendingItems = batch.map((c: any) => ({
+          customer: c.name,
+          phone: c.normalizedPhone || c.phone,
+          billingType: c.billingType,
+          template: '',
+          status: 'pending' as const,
+        }));
+        
+        setProgressResults(prev => [...prev, ...pendingItems]);
+        
+        const { data: batchData, error: batchError } = await supabase.functions.invoke('send-billing-batch', {
+          body: { action: 'batch', batch },
+        });
+
+        if (batchError) {
+          console.error('Batch error:', batchError);
+          // Mark batch as errors
+          const errorResults = batch.map((c: any) => ({
+            customer: c.name,
+            phone: c.normalizedPhone || c.phone,
+            billingType: c.billingType,
+            template: '',
+            status: 'error' as const,
+            error: 'Erro de conexão',
+          }));
+          totalErrors += batch.length;
+          
+          // Replace pending with error status
+          setProgressResults(prev => {
+            const updated = [...prev];
+            for (let j = 0; j < batch.length; j++) {
+              const idx = updated.findIndex(
+                r => r.customer === batch[j].name && r.status === 'pending'
+              );
+              if (idx !== -1) {
+                updated[idx] = errorResults[j];
+              }
+            }
+            return updated;
+          });
+        } else {
+          const batchResults = batchData?.results || [];
+          allResults.push(...batchResults);
+          
+          totalSent += batchData?.sent || 0;
+          totalErrors += batchData?.errors || 0;
+          
+          // Update results - replace pending with actual status
+          setProgressResults(prev => {
+            const updated = [...prev];
+            for (const result of batchResults) {
+              const idx = updated.findIndex(
+                r => r.customer === result.customer && r.status === 'pending'
+              );
+              if (idx !== -1) {
+                updated[idx] = {
+                  customer: result.customer,
+                  phone: result.phone,
+                  billingType: result.billingType,
+                  template: result.template,
+                  status: result.status,
+                  error: result.error,
+                };
+              }
+            }
+            return updated;
+          });
+        }
+
+        // Update stats
+        setProgressStats({
+          sent: totalSent,
+          errors: totalErrors,
+          skipped: skippedCount,
+          total: totalToProcess + skippedCount,
+        });
+
+        // Delay between batches (except for the last one)
+        if (i + BATCH_SIZE < customers.length) {
+          await new Promise(resolve => setTimeout(resolve, BATCH_DELAY_MS));
+        }
+      }
+
+      // Step 3: Mark as complete
+      await supabase.functions.invoke('send-billing-batch', {
+        body: { action: 'complete', sent: totalSent, errors: totalErrors, skipped: skippedCount },
+      });
+
+      setIsProgressComplete(true);
+      
+      // Invalidate queries to refresh data
+      queryClient.invalidateQueries({ queryKey: ['billing-logs'] });
+      queryClient.invalidateQueries({ queryKey: ['billing-logs-today'] });
+      queryClient.invalidateQueries({ queryKey: ['pending-billings'] });
+
     } catch (error) {
+      console.error('Unexpected error:', error);
       toast({
         title: 'Erro inesperado',
         description: 'Não foi possível processar as cobranças',
         variant: 'destructive',
       });
-      setProgressModalOpen(false);
     } finally {
       setIsSending(false);
       setSendingType(null);

@@ -17,7 +17,7 @@ interface SendResult {
   phone: string;
   billingType: string;
   template: string;
-  status: 'sent' | 'error' | 'pending';
+  status: 'sent' | 'error' | 'pending' | 'skipped';
   error?: string;
 }
 
@@ -124,7 +124,8 @@ export function SendProgressModal({
                       'flex items-center justify-between p-2 rounded-lg text-sm',
                       result.status === 'sent' && 'bg-success/5',
                       result.status === 'error' && 'bg-destructive/5',
-                      result.status === 'pending' && 'bg-muted/50'
+                      result.status === 'skipped' && 'bg-muted/50',
+                      result.status === 'pending' && 'bg-muted/30'
                     )}
                   >
                     <div className="flex items-center gap-2 min-w-0 flex-1">
@@ -134,8 +135,11 @@ export function SendProgressModal({
                       {result.status === 'error' && (
                         <XCircle className="w-4 h-4 text-destructive flex-shrink-0" />
                       )}
+                      {result.status === 'skipped' && (
+                        <AlertCircle className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                      )}
                       {result.status === 'pending' && (
-                        <Loader2 className="w-4 h-4 text-muted-foreground animate-spin flex-shrink-0" />
+                        <Loader2 className="w-4 h-4 text-primary animate-spin flex-shrink-0" />
                       )}
                       <div className="min-w-0 flex-1">
                         <p className="font-medium truncate">{result.customer}</p>
@@ -146,8 +150,15 @@ export function SendProgressModal({
                       </div>
                     </div>
                     <div className="flex items-center gap-2 flex-shrink-0">
-                      <Badge variant={result.status === 'sent' ? 'default' : result.status === 'error' ? 'destructive' : 'secondary'} className="text-xs">
-                        {result.billingType}
+                      <Badge 
+                        variant={
+                          result.status === 'sent' ? 'default' : 
+                          result.status === 'error' ? 'destructive' : 
+                          'secondary'
+                        } 
+                        className="text-xs"
+                      >
+                        {result.status === 'pending' ? 'Enviando...' : result.billingType}
                       </Badge>
                       {result.error && (
                         <span className="text-xs text-destructive max-w-[150px] truncate" title={result.error}>
