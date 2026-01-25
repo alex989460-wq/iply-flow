@@ -64,27 +64,29 @@ export default function Servers() {
     },
   });
 
-  // Fetch customer counts per server (only for servers the user owns)
+  // Fetch customer counts per server using count: exact to bypass 1000 row limit
   const { data: customerCounts } = useQuery({
     queryKey: ['server-customer-counts', servers?.map(s => s.id)],
     enabled: !!servers && servers.length > 0,
     queryFn: async () => {
       if (!servers || servers.length === 0) return {};
       
-      const serverIds = servers.map(s => s.id);
-      const { data, error } = await supabase
-        .from('customers')
-        .select('server_id')
-        .in('server_id', serverIds);
-      if (error) throw error;
-      
-      // Count customers per server
       const counts: Record<string, number> = {};
-      data?.forEach((customer) => {
-        if (customer.server_id) {
-          counts[customer.server_id] = (counts[customer.server_id] || 0) + 1;
-        }
-      });
+      
+      // Fetch count for each server in parallel using head request with count: exact
+      await Promise.all(
+        servers.map(async (server) => {
+          const { count, error } = await supabase
+            .from('customers')
+            .select('*', { count: 'exact', head: true })
+            .eq('server_id', server.id);
+          
+          if (!error && count !== null) {
+            counts[server.id] = count;
+          }
+        })
+      );
+      
       return counts;
     },
   });
