@@ -81,12 +81,34 @@ export default function QuickCustomerForm({ onSuccess, onCancel, initialPhone = 
       if (data.plan_id) insertData.plan_id = data.plan_id;
       if (data.custom_price) insertData.custom_price = parseFloat(data.custom_price);
 
-      const { error } = await supabase.from('customers').insert(insertData);
+      const { data: newCustomer, error } = await supabase
+        .from('customers')
+        .insert(insertData)
+        .select('id')
+        .single();
       if (error) throw error;
+
+      // Criar pagamento automático para o novo cliente
+      const paymentAmount = data.custom_price 
+        ? parseFloat(data.custom_price) 
+        : (plan?.price || 0);
+      
+      if (paymentAmount > 0 && newCustomer?.id) {
+        const { error: paymentError } = await supabase.from('payments').insert({
+          customer_id: newCustomer.id,
+          amount: paymentAmount,
+          payment_date: new Date().toISOString().split('T')[0],
+          method: 'pix',
+          confirmed: true,
+        });
+        if (paymentError) {
+          console.error('Erro ao criar pagamento:', paymentError);
+        }
+      }
 
       return {
         customer: {
-          id: 'new',
+          id: newCustomer.id,
           name: insertData.name,
           phone: insertData.phone,
           due_date: dueDate,
