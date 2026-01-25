@@ -24,31 +24,52 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [accessDeniedReason, setAccessDeniedReason] = useState<string | null>(null);
 
   const checkAdminRole = async (userId: string): Promise<boolean> => {
-    const { data } = await supabase
-      .from('user_roles')
-      .select('role')
-      .eq('user_id', userId)
-      .eq('role', 'admin')
-      .maybeSingle();
-    
-    const isAdminUser = !!data;
-    setIsAdmin(isAdminUser);
-    return isAdminUser;
+    try {
+      const { data, error } = await supabase
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', userId)
+        .eq('role', 'admin')
+        .maybeSingle();
+      
+      if (error) {
+        console.error('Erro ao verificar role de admin:', error);
+        return false;
+      }
+      
+      const isAdminUser = !!data;
+      setIsAdmin(isAdminUser);
+      return isAdminUser;
+    } catch (err) {
+      console.error('Exceção ao verificar role de admin:', err);
+      return false;
+    }
   };
 
   const checkResellerAccess = async (userId: string): Promise<{ hasAccess: boolean; reason?: string }> => {
     // First check if user is admin - admins always have access
     const isAdminUser = await checkAdminRole(userId);
+    
+    // If admin, immediately return with access and ensure state is set
     if (isAdminUser) {
+      setIsAdmin(true);
       return { hasAccess: true };
     }
 
     // Check reseller access
-    const { data: resellerAccess } = await supabase
+    const { data: resellerAccess, error } = await supabase
       .from('reseller_access')
       .select('*')
       .eq('user_id', userId)
       .maybeSingle();
+
+    if (error) {
+      console.error('Erro ao verificar acesso de revendedor:', error);
+      return { 
+        hasAccess: false, 
+        reason: 'Erro ao verificar acesso. Tente novamente.' 
+      };
+    }
 
     if (!resellerAccess) {
       // No reseller access record - deny access
