@@ -531,7 +531,7 @@ export type Database = {
             columns: ["parent_reseller_id"]
             isOneToOne: false
             referencedRelation: "reseller_access"
-            referencedColumns: ["id"]
+            referencedColumns: ["user_id"]
           },
         ]
       }
