@@ -19,6 +19,7 @@ import {
   UserCog,
   Cog,
   Bot,
+  UsersRound,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/ThemeToggle';
@@ -34,6 +35,7 @@ const menuItems = [
   { icon: Megaphone, label: 'Disparo em Massa', path: '/mass-broadcast', adminOnly: false },
   { icon: MessageCircleMore, label: 'Chat', path: '/chat', adminOnly: false },
   { icon: Bot, label: 'Gatilhos de Bot', path: '/bot-triggers', adminOnly: false },
+  { icon: UsersRound, label: 'Sub-Revendedores', path: '/sub-resellers', adminOnly: false },
   { icon: GraduationCap, label: 'Tutorial', path: '/tutorial', adminOnly: false },
   { icon: UserCog, label: 'Revendedores', path: '/resellers', adminOnly: true },
   { icon: Cog, label: 'Configurações', path: '/settings', adminOnly: false },

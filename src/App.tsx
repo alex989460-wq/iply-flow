@@ -18,6 +18,7 @@ import MassBroadcast from "./pages/MassBroadcast";
 import Chat from "./pages/Chat";
 import Settings from "./pages/Settings";
 import Resellers from "./pages/Resellers";
+import SubResellers from "./pages/SubResellers";
 import Tutorial from "./pages/Tutorial";
 import BotTriggers from "./pages/BotTriggers";
 import NotFound from "./pages/NotFound";
@@ -70,6 +71,7 @@ function AppRoutes() {
       <Route path="/tutorial" element={<ProtectedRoute><Tutorial /></ProtectedRoute>} />
       <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
       <Route path="/resellers" element={<ProtectedRoute><Resellers /></ProtectedRoute>} />
+      <Route path="/sub-resellers" element={<ProtectedRoute><SubResellers /></ProtectedRoute>} />
       <Route path="*" element={<NotFound />} />
     </Routes>
   );

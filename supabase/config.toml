@@ -17,3 +17,12 @@ verify_jwt = false
 
 [functions.scheduled-billing]
 verify_jwt = false
+
+[functions.create-reseller]
+verify_jwt = false
+
+[functions.create-sub-reseller]
+verify_jwt = false
+
+[functions.renew-sub-reseller]
+verify_jwt = false
