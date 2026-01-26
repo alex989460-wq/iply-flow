@@ -66,7 +66,10 @@ Deno.serve(async (req) => {
       throw new Error("Créditos inválidos");
     }
 
-    // If not admin, check if user has enough credits
+    // If not admin, check credits BEFORE creating user
+    let parentAccessId: string | null = null;
+    let parentCredits = 0;
+    
     if (!isAdmin) {
       const { data: parentAccess, error: parentError } = await supabaseAdmin
         .from('reseller_access')
@@ -83,16 +86,8 @@ Deno.serve(async (req) => {
         throw new Error(`Créditos insuficientes. Você tem ${parentAccess.credits} créditos, mas precisa de ${creditsNeeded}`);
       }
 
-      // Deduct credits from parent
-      const { error: deductError } = await supabaseAdmin
-        .from('reseller_access')
-        .update({ credits: parentAccess.credits - creditsNeeded })
-        .eq('id', parentAccess.id);
-
-      if (deductError) {
-        console.error("Error deducting credits:", deductError);
-        throw new Error("Erro ao deduzir créditos");
-      }
+      parentAccessId = parentAccess.id;
+      parentCredits = parentAccess.credits;
     }
 
     // Create user in auth.users
@@ -107,23 +102,6 @@ Deno.serve(async (req) => {
 
     if (createUserError) {
       console.error("Error creating user:", createUserError);
-      
-      // Refund credits if user creation failed (for non-admin)
-      if (!isAdmin) {
-        const { data: parentAccess } = await supabaseAdmin
-          .from('reseller_access')
-          .select('id, credits')
-          .eq('user_id', currentUserId)
-          .single();
-        
-        if (parentAccess) {
-          await supabaseAdmin
-            .from('reseller_access')
-            .update({ credits: parentAccess.credits + creditsNeeded })
-            .eq('id', parentAccess.id);
-        }
-      }
-      
       if (createUserError.message.includes("already been registered")) {
         throw new Error("Este email já está cadastrado");
       }
@@ -135,6 +113,21 @@ Deno.serve(async (req) => {
     }
 
     const newUserId = userData.user.id;
+
+    // Now deduct credits (after user creation succeeded)
+    if (!isAdmin && parentAccessId) {
+      const { error: deductError } = await supabaseAdmin
+        .from('reseller_access')
+        .update({ credits: parentCredits - creditsNeeded })
+        .eq('id', parentAccessId);
+
+      if (deductError) {
+        console.error("Error deducting credits:", deductError);
+        // Rollback: delete the created user
+        await supabaseAdmin.auth.admin.deleteUser(newUserId);
+        throw new Error("Erro ao deduzir créditos");
+      }
+    }
 
     // Calculate expiration date based on credits (1 credit = 30 days)
     const expirationDate = new Date();
