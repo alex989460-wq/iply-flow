@@ -258,6 +258,7 @@ export type Database = {
           created_by: string | null
           custom_price: number | null
           due_date: string
+          extra_months: number
           id: string
           name: string
           notes: string | null
@@ -274,6 +275,7 @@ export type Database = {
           created_by?: string | null
           custom_price?: number | null
           due_date: string
+          extra_months?: number
           id?: string
           name: string
           notes?: string | null
@@ -290,6 +292,7 @@ export type Database = {
           created_by?: string | null
           custom_price?: number | null
           due_date?: string
+          extra_months?: number
           id?: string
           name?: string
           notes?: string | null

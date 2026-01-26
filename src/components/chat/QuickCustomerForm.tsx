@@ -36,6 +36,7 @@ export default function QuickCustomerForm({ onSuccess, onCancel, initialPhone = 
     status: 'ativa' as CustomerStatus,
     notes: '',
     custom_price: '',
+    extra_months: '0',
   });
 
   const queryClient = useQueryClient();
@@ -80,6 +81,9 @@ export default function QuickCustomerForm({ onSuccess, onCancel, initialPhone = 
       if (data.server_id) insertData.server_id = data.server_id;
       if (data.plan_id) insertData.plan_id = data.plan_id;
       if (data.custom_price) insertData.custom_price = parseFloat(data.custom_price);
+      if (data.extra_months && parseInt(data.extra_months) > 0) {
+        insertData.extra_months = parseInt(data.extra_months);
+      }
 
       const { data: newCustomer, error } = await supabase
         .from('customers')
@@ -280,6 +284,23 @@ export default function QuickCustomerForm({ onSuccess, onCancel, initialPhone = 
             placeholder="Deixe vazio para usar preço do plano"
             className="h-8 text-sm"
           />
+        </div>
+
+        <div>
+          <Label htmlFor="extra_months" className="text-xs">Meses extras (renovação incorreta)</Label>
+          <Input
+            id="extra_months"
+            type="number"
+            min="0"
+            max="12"
+            value={formData.extra_months}
+            onChange={(e) => setFormData(prev => ({ ...prev, extra_months: e.target.value }))}
+            placeholder="0"
+            className="h-8 text-sm"
+          />
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Informe se o cliente possui meses adicionais já pagos.
+          </p>
         </div>
 
         <div>
