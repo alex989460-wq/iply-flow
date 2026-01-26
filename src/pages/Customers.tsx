@@ -108,6 +108,7 @@ export default function Customers() {
     custom_price: '',
     username: '',
     screens: '1',
+    extra_months: '0',
   });
 
   // Import states
@@ -517,7 +518,7 @@ export default function Customers() {
   });
 
   const resetForm = () => {
-    setFormData({ name: '', phone: '', server_id: '', plan_id: '', status: 'ativa', notes: '', due_date: '', custom_price: '', username: '', screens: '1' });
+    setFormData({ name: '', phone: '', server_id: '', plan_id: '', status: 'ativa', notes: '', due_date: '', custom_price: '', username: '', screens: '1', extra_months: '0' });
     setEditingCustomer(null);
   };
 
@@ -534,6 +535,7 @@ export default function Customers() {
       custom_price: customer.custom_price ? String(customer.custom_price) : '',
       username: customer.username || '',
       screens: customer.screens ? String(customer.screens) : '1',
+      extra_months: customer.extra_months ? String(customer.extra_months) : '0',
     });
     setIsOpen(true);
   };
@@ -752,6 +754,7 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
       custom_price: formData.custom_price ? parseFloat(formData.custom_price) : null,
       username: formData.username || null,
       screens: formData.screens ? parseInt(formData.screens, 10) : 1,
+      extra_months: formData.extra_months ? parseInt(formData.extra_months, 10) : 0,
       created_by: editingCustomer ? undefined : user?.id,
     };
     if (editingCustomer) {
@@ -1665,6 +1668,21 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
                           <SelectItem value="5">5 Telas</SelectItem>
                         </SelectContent>
                       </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Meses Extras</Label>
+                      <Input
+                        type="number"
+                        min="0"
+                        max="12"
+                        value={formData.extra_months}
+                        onChange={(e) => setFormData({ ...formData, extra_months: e.target.value })}
+                        placeholder="0"
+                        className="bg-secondary/50"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Meses adicionais já pagos (renovação incorreta).
+                      </p>
                     </div>
                     <div className="space-y-2 col-span-2">
                       <Label>Observações</Label>

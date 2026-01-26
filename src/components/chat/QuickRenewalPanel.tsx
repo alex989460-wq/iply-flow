@@ -45,6 +45,7 @@ interface Customer {
   due_date: string;
   custom_price: number | null;
   screens: number;
+  extra_months: number;
   plan: {
     id: string;
     plan_name: string;
@@ -96,6 +97,7 @@ export default function QuickRenewalPanel({ isMobile = false, onClose }: QuickRe
   const [customRenewalPrice, setCustomRenewalPrice] = useState<string>('');
   const [selectedScreens, setSelectedScreens] = useState<number>(1);
   const [showNewCustomerForm, setShowNewCustomerForm] = useState(false);
+  const [showExtraMonthsConfirm, setShowExtraMonthsConfirm] = useState(false);
   const queryClient = useQueryClient();
 
   // Fetch user's billing settings
@@ -255,6 +257,7 @@ export default function QuickRenewalPanel({ isMobile = false, onClose }: QuickRe
           due_date,
           custom_price,
           screens,
+          extra_months,
           plan:plans(id, plan_name, price, duration_days),
           server:servers(id, server_name)
         `)
@@ -305,11 +308,13 @@ export default function QuickRenewalPanel({ isMobile = false, onClose }: QuickRe
 
       if (paymentError) throw paymentError;
 
-      // Update customer due_date, status, plan, screens, and custom_price if changed
+      // Update customer due_date, status, plan, screens, extra_months and custom_price if changed
       const updateData: Record<string, unknown> = {
         due_date: newDueDateStr,
         status: 'ativa' as const,
         screens: selectedScreens,
+        // Decrement extra_months if customer has any
+        extra_months: customer.extra_months > 0 ? customer.extra_months - 1 : 0,
       };
 
       // Update plan if changed
@@ -463,9 +468,27 @@ Obrigado pela preferência! 🙏`;
 
   const handleRenew = () => {
     if (selectedCustomer) {
+      // Check if customer has extra months - require confirmation
+      if (selectedCustomer.extra_months > 0 && !showExtraMonthsConfirm) {
+        setShowExtraMonthsConfirm(true);
+        return;
+      }
+      setShowExtraMonthsConfirm(false);
       setRenewalMessage(null);
       registerPayment.mutate(selectedCustomer);
     }
+  };
+
+  const handleConfirmExtraMonthsRenewal = () => {
+    if (selectedCustomer) {
+      setShowExtraMonthsConfirm(false);
+      setRenewalMessage(null);
+      registerPayment.mutate(selectedCustomer);
+    }
+  };
+
+  const handleCancelExtraMonthsRenewal = () => {
+    setShowExtraMonthsConfirm(false);
   };
 
   // Generate payment approved message without renewing
@@ -967,6 +990,20 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                       </Button>
                     </div>
                   )}
+                  {/* Extra Months Warning */}
+                  {selectedCustomer.extra_months > 0 && (
+                    <div className="mt-2 p-2 bg-amber-500/10 border border-amber-500/30 rounded-lg">
+                      <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400 mb-1">
+                        <AlertTriangle className="h-4 w-4" />
+                        <span className="text-xs font-semibold">
+                          {selectedCustomer.extra_months} {selectedCustomer.extra_months === 1 ? 'mês extra' : 'meses extras'}
+                        </span>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Este cliente possui meses adicionais devido a renovação incorreta anterior.
+                      </p>
+                    </div>
+                  )}
                 </div>
 
                 <div className="pt-2 border-t border-border space-y-2">
@@ -982,28 +1019,67 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                     </SelectContent>
                   </Select>
                   
-                  <div className="flex gap-2">
-                    <Button 
-                      className="flex-1 h-9" 
-                      onClick={handleRenew}
-                      disabled={registerPayment.isPending}
-                    >
-                      {registerPayment.isPending ? (
-                        <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                      ) : (
-                        <CheckCircle className="h-4 w-4 mr-2" />
-                      )}
-                      Renovar
-                    </Button>
-                    <Button 
-                      variant="outline"
-                      className="h-9"
-                      onClick={handleCopyPaymentMessage}
-                      title="Copiar mensagem de pagamento aprovado"
-                    >
-                      <Copy className="h-4 w-4" />
-                    </Button>
-                  </div>
+                  {/* Extra Months Confirmation Dialog */}
+                  {showExtraMonthsConfirm && selectedCustomer.extra_months > 0 && (
+                    <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-lg space-y-2">
+                      <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400">
+                        <AlertTriangle className="h-4 w-4" />
+                        <span className="text-sm font-semibold">Confirmar Renovação</span>
+                      </div>
+                      <p className="text-xs text-foreground">
+                        Este cliente ainda possui <strong>{selectedCustomer.extra_months} {selectedCustomer.extra_months === 1 ? 'mês extra' : 'meses extras'}</strong>.
+                        Deseja realmente renovar? O contador será reduzido em 1.
+                      </p>
+                      <div className="flex gap-2">
+                        <Button 
+                          size="sm" 
+                          className="flex-1 h-8 bg-amber-600 hover:bg-amber-700 text-white"
+                          onClick={handleConfirmExtraMonthsRenewal}
+                          disabled={registerPayment.isPending}
+                        >
+                          {registerPayment.isPending ? (
+                            <RefreshCw className="h-3 w-3 mr-1 animate-spin" />
+                          ) : (
+                            <CheckCircle className="h-3 w-3 mr-1" />
+                          )}
+                          Sim, Renovar
+                        </Button>
+                        <Button 
+                          size="sm" 
+                          variant="outline" 
+                          className="h-8"
+                          onClick={handleCancelExtraMonthsRenewal}
+                        >
+                          Cancelar
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {!showExtraMonthsConfirm && (
+                    <div className="flex gap-2">
+                      <Button 
+                        className="flex-1 h-9" 
+                        onClick={handleRenew}
+                        disabled={registerPayment.isPending}
+                      >
+                        {registerPayment.isPending ? (
+                          <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                        ) : (
+                          <CheckCircle className="h-4 w-4 mr-2" />
+                        )}
+                        Renovar
+                      </Button>
+                      <Button 
+                        variant="outline"
+                        className="h-9"
+                        onClick={handleCopyPaymentMessage}
+                        title="Copiar mensagem de pagamento aprovado"
+                      >
+                        <Copy className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  )}
 
                   {/* Renewal success message */}
                   {renewalMessage && (
