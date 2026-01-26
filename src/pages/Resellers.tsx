@@ -14,7 +14,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { format, addDays, isPast, differenceInDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Users, RefreshCw, Search, Calendar, Ban, CheckCircle, Clock, Pencil, Eye, EyeOff, UserPlus } from "lucide-react";
+import { Users, RefreshCw, Search, Calendar, Ban, CheckCircle, Clock, Pencil, Eye, EyeOff, UserPlus, Coins, Plus } from "lucide-react";
 import { Navigate } from "react-router-dom";
 import { z } from "zod";
 
@@ -27,6 +27,8 @@ interface ResellerAccess {
   is_active: boolean;
   created_at: string;
   updated_at: string;
+  credits: number;
+  parent_reseller_id: string | null;
 }
 
 const editSchema = z.object({
@@ -69,7 +71,8 @@ export default function Resellers() {
   });
   const [editErrors, setEditErrors] = useState<Record<string, string>>({});
   const [createErrors, setCreateErrors] = useState<Record<string, string>>({});
-
+  const [isAddCreditsDialogOpen, setIsAddCreditsDialogOpen] = useState(false);
+  const [creditsToAdd, setCreditsToAdd] = useState("10");
   const { data: resellers, isLoading } = useQuery({
     queryKey: ['reseller-access'],
     queryFn: async () => {
@@ -241,6 +244,55 @@ export default function Resellers() {
       });
     },
   });
+
+  const addCreditsMutation = useMutation({
+    mutationFn: async ({ id, credits }: { id: string; credits: number }) => {
+      // First get current credits
+      const { data: current, error: fetchError } = await supabase
+        .from('reseller_access')
+        .select('credits')
+        .eq('id', id)
+        .single();
+      
+      if (fetchError) throw fetchError;
+
+      const { error } = await supabase
+        .from('reseller_access')
+        .update({ credits: (current?.credits || 0) + credits })
+        .eq('id', id);
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['reseller-access'] });
+      toast({
+        title: "Créditos adicionados",
+        description: `${creditsToAdd} créditos adicionados com sucesso!`,
+      });
+      setIsAddCreditsDialogOpen(false);
+      setSelectedReseller(null);
+      setCreditsToAdd("10");
+    },
+    onError: (error) => {
+      toast({
+        title: "Erro ao adicionar créditos",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleAddCredits = (reseller: ResellerAccess) => {
+    setSelectedReseller(reseller);
+    setCreditsToAdd("10");
+    setIsAddCreditsDialogOpen(true);
+  };
+
+  const confirmAddCredits = () => {
+    if (selectedReseller) {
+      addCreditsMutation.mutate({ id: selectedReseller.id, credits: parseInt(creditsToAdd) });
+    }
+  };
 
   const handleRenew = (reseller: ResellerAccess) => {
     setSelectedReseller(reseller);
@@ -447,6 +499,7 @@ export default function Resellers() {
                       <TableHead>Email</TableHead>
                       <TableHead>Nome</TableHead>
                       <TableHead>Status</TableHead>
+                      <TableHead>Créditos</TableHead>
                       <TableHead>Expira em</TableHead>
                       <TableHead>Cadastrado em</TableHead>
                       <TableHead className="text-right">Ações</TableHead>
@@ -468,13 +521,27 @@ export default function Resellers() {
                             </Badge>
                           </TableCell>
                           <TableCell>
+                            <Badge variant="outline" className="gap-1">
+                              <Coins className="h-3 w-3" />
+                              {reseller.credits}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
                             {format(new Date(reseller.access_expires_at), "dd/MM/yyyy", { locale: ptBR })}
                           </TableCell>
                           <TableCell>
                             {format(new Date(reseller.created_at), "dd/MM/yyyy", { locale: ptBR })}
                           </TableCell>
                           <TableCell className="text-right">
-                            <div className="flex justify-end gap-2">
+                            <div className="flex justify-end gap-2 flex-wrap">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleAddCredits(reseller)}
+                              >
+                                <Plus className="h-4 w-4 mr-1" />
+                                Créditos
+                              </Button>
                               <Button
                                 variant="outline"
                                 size="sm"
@@ -781,6 +848,63 @@ export default function Resellers() {
                   <UserPlus className="h-4 w-4 mr-2" />
                 )}
                 Cadastrar
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Add Credits Dialog */}
+        <Dialog open={isAddCreditsDialogOpen} onOpenChange={setIsAddCreditsDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Adicionar Créditos</DialogTitle>
+              <DialogDescription>
+                Adicionar créditos para {selectedReseller?.email}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label>Quantidade de créditos</Label>
+                <Select value={creditsToAdd} onValueChange={setCreditsToAdd}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="1">1 crédito</SelectItem>
+                    <SelectItem value="5">5 créditos</SelectItem>
+                    <SelectItem value="10">10 créditos</SelectItem>
+                    <SelectItem value="20">20 créditos</SelectItem>
+                    <SelectItem value="50">50 créditos</SelectItem>
+                    <SelectItem value="100">100 créditos</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Ou digite um valor customizado</Label>
+                <Input
+                  type="number"
+                  min="1"
+                  value={creditsToAdd}
+                  onChange={(e) => setCreditsToAdd(e.target.value)}
+                  placeholder="Digite a quantidade de créditos"
+                />
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Créditos atuais: <strong>{selectedReseller?.credits || 0}</strong><br />
+                Após adição: <strong>{(selectedReseller?.credits || 0) + parseInt(creditsToAdd || '0')}</strong>
+              </p>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsAddCreditsDialogOpen(false)}>
+                Cancelar
+              </Button>
+              <Button onClick={confirmAddCredits} disabled={addCreditsMutation.isPending}>
+                {addCreditsMutation.isPending ? (
+                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Coins className="h-4 w-4 mr-2" />
+                )}
+                Adicionar Créditos
               </Button>
             </DialogFooter>
           </DialogContent>

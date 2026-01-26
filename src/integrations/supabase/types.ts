@@ -492,34 +492,48 @@ export type Database = {
         Row: {
           access_expires_at: string
           created_at: string
+          credits: number
           email: string
           full_name: string | null
           id: string
           is_active: boolean
+          parent_reseller_id: string | null
           updated_at: string
           user_id: string
         }
         Insert: {
           access_expires_at?: string
           created_at?: string
+          credits?: number
           email: string
           full_name?: string | null
           id?: string
           is_active?: boolean
+          parent_reseller_id?: string | null
           updated_at?: string
           user_id: string
         }
         Update: {
           access_expires_at?: string
           created_at?: string
+          credits?: number
           email?: string
           full_name?: string | null
           id?: string
           is_active?: boolean
+          parent_reseller_id?: string | null
           updated_at?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "reseller_access_parent_reseller_id_fkey"
+            columns: ["parent_reseller_id"]
+            isOneToOne: false
+            referencedRelation: "reseller_access"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       servers: {
         Row: {
