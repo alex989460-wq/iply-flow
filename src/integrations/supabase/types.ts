@@ -600,6 +600,39 @@ export type Database = {
         }
         Relationships: []
       }
+      vplay_servers: {
+        Row: {
+          created_at: string
+          id: string
+          integration_url: string
+          is_default: boolean
+          key_message: string
+          server_name: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          integration_url: string
+          is_default?: boolean
+          key_message?: string
+          server_name: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          integration_url?: string
+          is_default?: boolean
+          key_message?: string
+          server_name?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       webhook_logs: {
         Row: {
           auto_reply_sent: boolean

@@ -100,7 +100,42 @@ export default function QuickRenewalPanel({ isMobile = false, onClose }: QuickRe
   const [showExtraMonthsConfirm, setShowExtraMonthsConfirm] = useState(false);
   const [isGeneratingTest, setIsGeneratingTest] = useState(false);
   const [vplayTestResult, setVplayTestResult] = useState<string | null>(null);
+  const [selectedVplayServerId, setSelectedVplayServerId] = useState<string | null>(null);
   const queryClient = useQueryClient();
+
+  // Fetch vplay servers
+  interface VplayServer {
+    id: string;
+    user_id: string;
+    server_name: string;
+    integration_url: string;
+    key_message: string;
+    is_default: boolean;
+  }
+  
+  const { data: vplayServers = [] } = useQuery({
+    queryKey: ['vplay-servers', user?.id],
+    queryFn: async () => {
+      if (!user?.id) return [];
+      const { data, error } = await supabase
+        .from('vplay_servers')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+      
+      if (error) throw error;
+      return data as VplayServer[];
+    },
+    enabled: !!user?.id,
+  });
+
+  // Set default server when servers load
+  const defaultServer = vplayServers.find(s => s.is_default) || vplayServers[0];
+  if (defaultServer && !selectedVplayServerId && vplayServers.length > 0) {
+    setSelectedVplayServerId(defaultServer.id);
+  }
+
+  const selectedVplayServer = vplayServers.find(s => s.id === selectedVplayServerId);
 
   // Fetch user's billing settings
   const { data: billingSettings } = useQuery({
@@ -475,18 +510,18 @@ Obrigado pela preferência! 🙏`;
   const [vplayTestName, setVplayTestName] = useState('');
   
   const handleGenerateVplayTest = async () => {
-    const vplayUrl = billingSettings?.vplay_integration_url;
-    if (!vplayUrl) {
-      toast.warning('Configure a URL de integração Vplay primeiro!', {
+    if (!selectedVplayServer) {
+      toast.warning('Configure um servidor Vplay primeiro!', {
         action: {
           label: 'Configurar',
-          onClick: () => setIsBillingSettingsOpen(true),
+          onClick: () => window.location.href = '/settings',
         },
       });
       return;
     }
 
-    const keyMessage = billingSettings?.vplay_key_message || 'XCLOUD';
+    const vplayUrl = selectedVplayServer.integration_url;
+    const keyMessage = selectedVplayServer.key_message || 'XCLOUD';
     const testName = vplayTestName.trim() || 'Cliente';
 
     setIsGeneratingTest(true);
@@ -1407,21 +1442,45 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
               <div className="flex-1">
                 <h3 className="text-sm font-semibold text-violet-600 dark:text-violet-400">Gerar Teste Vplay</h3>
                 <p className="text-[10px] text-muted-foreground">
-                  Chave: {billingSettings?.vplay_key_message || 'XCLOUD'}
+                  {vplayServers.length > 0 ? `${vplayServers.length} servidor${vplayServers.length > 1 ? 'es' : ''} configurado${vplayServers.length > 1 ? 's' : ''}` : 'Nenhum servidor'}
                 </p>
               </div>
               <Button
                 variant="ghost"
                 size="icon"
                 className="h-7 w-7 rounded-full hover:bg-violet-500/10"
-                onClick={() => setIsBillingSettingsOpen(true)}
-                title="Configurar Vplay"
+                onClick={() => window.location.href = '/settings'}
+                title="Configurar Servidores Vplay"
               >
                 <Settings className="h-3.5 w-3.5 text-violet-500" />
               </Button>
             </div>
             
             <div className="space-y-2">
+              {/* Server Selector */}
+              {vplayServers.length > 0 ? (
+                <Select
+                  value={selectedVplayServerId || ''}
+                  onValueChange={(value) => setSelectedVplayServerId(value)}
+                >
+                  <SelectTrigger className="h-8 text-sm">
+                    <SelectValue placeholder="Selecione o servidor" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {vplayServers.map((server) => (
+                      <SelectItem key={server.id} value={server.id}>
+                        <div className="flex items-center gap-2">
+                          <span>{server.server_name}</span>
+                          {server.is_default && (
+                            <span className="text-[10px] text-violet-500">(padrão)</span>
+                          )}
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : null}
+              
               <Input
                 placeholder="Nome do cliente (opcional)"
                 value={vplayTestName}
@@ -1433,19 +1492,19 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                 size="sm" 
                 className="w-full h-9 border-violet-500/50 text-violet-600 dark:text-violet-400 hover:bg-violet-500/10"
                 onClick={handleGenerateVplayTest}
-                disabled={isGeneratingTest || !billingSettings?.vplay_integration_url}
+                disabled={isGeneratingTest || vplayServers.length === 0}
               >
                 {isGeneratingTest ? (
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                 ) : (
                   <Play className="h-4 w-4 mr-2" />
                 )}
-                {isGeneratingTest ? 'Gerando...' : 'Gerar Teste'}
+                {isGeneratingTest ? 'Gerando...' : selectedVplayServer ? `Gerar (${selectedVplayServer.server_name})` : 'Gerar Teste'}
               </Button>
               
-              {!billingSettings?.vplay_integration_url && (
+              {vplayServers.length === 0 && (
                 <p className="text-[10px] text-amber-500 text-center">
-                  Configure a URL de integração primeiro
+                  Configure servidores em Configurações &gt; Gerador Vplay
                 </p>
               )}
             </div>
