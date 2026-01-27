@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { 
   Search, User, Calendar, CreditCard, CheckCircle, Phone, RefreshCw, 
   Server, Copy, Settings, Wifi, Download, Key, Bell, Smile, MessageSquare,
-  ChevronDown, ChevronUp, UserPlus, AlertTriangle, Monitor
+  ChevronDown, ChevronUp, UserPlus, AlertTriangle, Monitor, Play, Loader2
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { addDays, addMonths, format, startOfDay } from 'date-fns';
@@ -98,6 +98,8 @@ export default function QuickRenewalPanel({ isMobile = false, onClose }: QuickRe
   const [selectedScreens, setSelectedScreens] = useState<number>(1);
   const [showNewCustomerForm, setShowNewCustomerForm] = useState(false);
   const [showExtraMonthsConfirm, setShowExtraMonthsConfirm] = useState(false);
+  const [isGeneratingTest, setIsGeneratingTest] = useState(false);
+  const [vplayTestResult, setVplayTestResult] = useState<string | null>(null);
   const queryClient = useQueryClient();
 
   // Fetch user's billing settings
@@ -119,6 +121,7 @@ export default function QuickRenewalPanel({ isMobile = false, onClose }: QuickRe
         semiannual_price: number;
         annual_price: number;
         custom_message: string | null;
+        vplay_integration_url: string | null;
       } | null;
     },
     enabled: !!user?.id,
@@ -459,11 +462,74 @@ Obrigado pela preferência! 🙏`;
     setSelectedCustomer(customer);
     setSearchTerm(customer.username || customer.phone);
     setRenewalMessage(null);
+    setVplayTestResult(null);
     // Reset plan/price/screens to customer's current values
     setSelectedPlanId(customer.plan?.id || null);
     const currentPrice = customer.custom_price ?? customer.plan?.price ?? 0;
     setCustomRenewalPrice(currentPrice.toString());
     setSelectedScreens(customer.screens || 1);
+  };
+
+  // Generate Vplay test for the customer
+  const handleGenerateVplayTest = async () => {
+    if (!selectedCustomer) return;
+    
+    const vplayUrl = billingSettings?.vplay_integration_url;
+    if (!vplayUrl) {
+      toast.warning('Configure a URL de integração Vplay primeiro!', {
+        action: {
+          label: 'Configurar',
+          onClick: () => setIsBillingSettingsOpen(true),
+        },
+      });
+      return;
+    }
+
+    setIsGeneratingTest(true);
+    setVplayTestResult(null);
+
+    try {
+      // Extract first name from customer name
+      const firstName = selectedCustomer.name.split(' ')[0];
+      
+      // Build the request body matching Vplay expected format
+      const payload = {
+        senderName: firstName,
+        senderMessage: 'sim, me manda um teste',
+        messageDateTime: Date.now().toString(),
+        isMessageFromGroup: 0,
+        receiveMessageAppId: 'com.whatsapp',
+        receiveMessagePattern: 'Testar Agora',
+      };
+
+      console.log('[Vplay] Sending test request to:', vplayUrl);
+      console.log('[Vplay] Payload:', payload);
+
+      const response = await fetch(vplayUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      console.log('[Vplay] Response:', data);
+
+      // Extract login info from response (data[0].message contains the login)
+      const loginInfo = data?.[0]?.message || data?.message || JSON.stringify(data);
+      setVplayTestResult(loginInfo);
+      toast.success('Teste gerado com sucesso!');
+    } catch (error) {
+      console.error('[Vplay] Error generating test:', error);
+      toast.error('Erro ao gerar teste: ' + (error instanceof Error ? error.message : 'Erro desconhecido'));
+    } finally {
+      setIsGeneratingTest(false);
+    }
   };
 
   const handleRenew = () => {
@@ -971,6 +1037,47 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                     <Copy className="h-3 w-3 mr-1" />
                     Copiar Dados + PIX
                   </Button>
+
+                  {/* Vplay Test Button */}
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="w-full h-8 text-xs border-violet-500/50 text-violet-600 dark:text-violet-400 hover:bg-violet-500/10"
+                    onClick={handleGenerateVplayTest}
+                    disabled={isGeneratingTest}
+                  >
+                    {isGeneratingTest ? (
+                      <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                    ) : (
+                      <Play className="h-3 w-3 mr-1" />
+                    )}
+                    {isGeneratingTest ? 'Gerando...' : 'Gerar Teste Vplay'}
+                  </Button>
+
+                  {/* Vplay Test Result */}
+                  {vplayTestResult && (
+                    <div className="p-2 bg-violet-500/10 border border-violet-500/30 rounded-lg space-y-2">
+                      <div className="flex items-center gap-2 text-violet-600 dark:text-violet-400">
+                        <CheckCircle className="h-4 w-4" />
+                        <span className="text-xs font-semibold">Teste Gerado!</span>
+                      </div>
+                      <pre className="text-xs text-foreground whitespace-pre-wrap bg-background/50 p-2 rounded max-h-24 overflow-auto select-text font-mono">
+                        {vplayTestResult}
+                      </pre>
+                      <Button 
+                        size="sm" 
+                        variant="outline" 
+                        className="w-full h-7 text-xs border-violet-500/50 text-violet-600 dark:text-violet-400"
+                        onClick={async () => {
+                          const ok = await copyText(vplayTestResult);
+                          if (ok) toast.success('Dados do teste copiados!');
+                        }}
+                      >
+                        <Copy className="h-3 w-3 mr-1" />
+                        Copiar Teste
+                      </Button>
+                    </div>
+                  )}
 
                   {/* Overdue Warning and Billing Message Button */}
                   {isCustomerOverdue(selectedCustomer.due_date) && (
