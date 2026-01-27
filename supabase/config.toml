@@ -26,3 +26,6 @@ verify_jwt = false
 
 [functions.renew-sub-reseller]
 verify_jwt = false
+
+[functions.meta-oauth]
+verify_jwt = false
