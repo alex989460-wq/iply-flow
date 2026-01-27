@@ -509,8 +509,9 @@ Obrigado pela preferência! 🙏`;
 
       console.log('[Vplay] Response:', data);
 
-      // Extract login info from response (data[0].message contains the login)
-      const loginInfo = data?.[0]?.message || data?.message || JSON.stringify(data);
+      // Extract login info from response (data.data[0].message contains the login)
+      const responseData = data?.data || data;
+      const loginInfo = responseData?.[0]?.message || responseData?.message || JSON.stringify(data);
       setVplayTestResult(loginInfo);
       toast.success('Teste gerado com sucesso!');
     } catch (error) {
