@@ -271,21 +271,17 @@ export default function Settings() {
 
     setConnectingMeta(true);
 
-    // IMPORTANT: FB.login callback must be a regular function, not async
+    // Standard OAuth flow - works for any Facebook app without BSP/TP requirement
     window.FB.login(
       function(response: any) {
         // Call the async handler separately
         processMetaLoginResponse(response);
       },
       {
-        config_id: '1225471016210896', // WhatsApp Embedded Signup config
+        // Standard OAuth permissions for WhatsApp Business API
+        scope: 'whatsapp_business_management,whatsapp_business_messaging,business_management',
         response_type: 'code',
         override_default_response_type: true,
-        extras: {
-          feature: 'whatsapp_embedded_signup',
-          version: 2,
-          sessionInfoVersion: 2,
-        },
       }
     );
   }, [fbSdkLoaded, toast, processMetaLoginResponse]);
@@ -573,9 +569,12 @@ export default function Settings() {
                     <Alert>
                       <AlertCircle className="h-4 w-4" />
                       <AlertDescription>
-                        <strong>Requisitos:</strong> Você precisa ter uma conta WhatsApp Business verificada no Meta Business Suite.
-                        <br />
-                        Ao clicar em "Conectar", um popup do Facebook abrirá para autorizar a conexão.
+                        <strong>Requisitos:</strong> 
+                        <ul className="list-disc ml-4 mt-1 space-y-1">
+                          <li>Conta WhatsApp Business verificada no Meta Business Suite</li>
+                          <li>App Facebook deve ter as permissões: whatsapp_business_management, whatsapp_business_messaging</li>
+                          <li>Se o app está em modo Development, você deve ser administrador ou tester do app</li>
+                        </ul>
                       </AlertDescription>
                     </Alert>
 
