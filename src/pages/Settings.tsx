@@ -200,6 +200,65 @@ export default function Settings() {
     }
   };
 
+  const processMetaLoginResponse = useCallback(async (response: any) => {
+    console.log('[Settings] FB.login response:', response);
+    
+    if (response.authResponse) {
+      const { code } = response.authResponse;
+      
+      if (!code) {
+        console.error('[Settings] No code in authResponse');
+        toast({
+          title: 'Erro',
+          description: 'Código de autorização não recebido. Tente novamente.',
+          variant: 'destructive',
+        });
+        setConnectingMeta(false);
+        return;
+      }
+
+      try {
+        console.log('[Settings] Exchanging code for token...');
+        const { data, error } = await supabase.functions.invoke('meta-oauth', {
+          body: {
+            action: 'exchange-token',
+            code,
+            redirect_uri: window.location.origin + '/',
+          },
+        });
+
+        if (error) throw error;
+
+        if (data.success) {
+          toast({
+            title: 'Sucesso!',
+            description: `WhatsApp Oficial conectado: ${data.display_phone || 'Número detectado'}`,
+          });
+          
+          // Refresh settings
+          await fetchSettings();
+        } else {
+          throw new Error(data.error || 'Erro desconhecido');
+        }
+      } catch (err: any) {
+        console.error('[Settings] Token exchange error:', err);
+        toast({
+          title: 'Erro',
+          description: err.message || 'Erro ao conectar conta Meta',
+          variant: 'destructive',
+        });
+      }
+    } else {
+      console.log('[Settings] User cancelled login or did not fully authorize.');
+      toast({
+        title: 'Cancelado',
+        description: 'Login cancelado ou não autorizado completamente.',
+        variant: 'destructive',
+      });
+    }
+    setConnectingMeta(false);
+  }, [toast]);
+
   const handleMetaLogin = useCallback(() => {
     if (!fbSdkLoaded || !window.FB) {
       toast({
@@ -212,64 +271,11 @@ export default function Settings() {
 
     setConnectingMeta(true);
 
+    // IMPORTANT: FB.login callback must be a regular function, not async
     window.FB.login(
-      async (response: any) => {
-        console.log('[Settings] FB.login response:', response);
-        
-        if (response.authResponse) {
-          const { code } = response.authResponse;
-          
-          if (!code) {
-            console.error('[Settings] No code in authResponse');
-            toast({
-              title: 'Erro',
-              description: 'Código de autorização não recebido. Tente novamente.',
-              variant: 'destructive',
-            });
-            setConnectingMeta(false);
-            return;
-          }
-
-          try {
-            console.log('[Settings] Exchanging code for token...');
-            const { data, error } = await supabase.functions.invoke('meta-oauth', {
-              body: {
-                action: 'exchange-token',
-                code,
-                redirect_uri: window.location.origin + '/',
-              },
-            });
-
-            if (error) throw error;
-
-            if (data.success) {
-              toast({
-                title: 'Sucesso!',
-                description: `WhatsApp Oficial conectado: ${data.display_phone || 'Número detectado'}`,
-              });
-              
-              // Refresh settings
-              await fetchSettings();
-            } else {
-              throw new Error(data.error || 'Erro desconhecido');
-            }
-          } catch (err: any) {
-            console.error('[Settings] Token exchange error:', err);
-            toast({
-              title: 'Erro',
-              description: err.message || 'Erro ao conectar conta Meta',
-              variant: 'destructive',
-            });
-          }
-        } else {
-          console.log('[Settings] User cancelled login or did not fully authorize.');
-          toast({
-            title: 'Cancelado',
-            description: 'Login cancelado ou não autorizado completamente.',
-            variant: 'destructive',
-          });
-        }
-        setConnectingMeta(false);
+      function(response: any) {
+        // Call the async handler separately
+        processMetaLoginResponse(response);
       },
       {
         config_id: '1128977655381869', // WhatsApp Embedded Signup config
@@ -282,7 +288,7 @@ export default function Settings() {
         },
       }
     );
-  }, [fbSdkLoaded, toast, session]);
+  }, [fbSdkLoaded, toast, processMetaLoginResponse]);
 
   const handleDisconnectMeta = async () => {
     if (!confirm('Tem certeza que deseja desconectar a conta Meta?')) return;
