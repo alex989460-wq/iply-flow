@@ -278,7 +278,7 @@ export default function Settings() {
         processMetaLoginResponse(response);
       },
       {
-        config_id: '1128977655381869', // WhatsApp Embedded Signup config
+        config_id: '1225471016210896', // WhatsApp Embedded Signup config
         response_type: 'code',
         override_default_response_type: true,
         extras: {
