@@ -39,14 +39,9 @@ async function getFunctionsHttpErrorDetails(err: unknown): Promise<{ message?: s
 }
 
 function buildRedirectUriFromCurrentUrl(): string {
-  const url = new URL(window.location.href);
-  // Keep exactly one canonical form to avoid Meta strict redirect mismatch
-  url.search = '';
-  url.hash = '';
-  if (url.pathname.length > 1 && url.pathname.endsWith('/')) {
-    url.pathname = url.pathname.slice(0, -1);
-  }
-  return url.toString();
+  // FB.login with JS SDK uses the page ORIGIN as redirect_uri internally.
+  // We must match that exactly for token exchange.
+  return window.location.origin;
 }
 declare global {
   interface Window {
