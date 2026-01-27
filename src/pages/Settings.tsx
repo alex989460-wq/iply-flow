@@ -13,6 +13,41 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import VplayServersManager from '@/components/settings/VplayServersManager';
+
+async function getFunctionsHttpErrorDetails(err: unknown): Promise<{ message?: string; raw?: any } | null> {
+  // supabase-js / @supabase/functions-js throws FunctionsHttpError with `.context` as a Response
+  const anyErr = err as any;
+  const res: Response | undefined = anyErr?.context;
+
+  if (!res || typeof res?.clone !== 'function') return null;
+
+  try {
+    const contentType = (res.headers.get('Content-Type') ?? '').split(';')[0].trim();
+    if (contentType === 'application/json') {
+      const json = await res.clone().json();
+      return {
+        message: typeof json?.error === 'string' ? json.error : undefined,
+        raw: json,
+      };
+    }
+
+    const text = await res.clone().text();
+    return { message: text };
+  } catch {
+    return null;
+  }
+}
+
+function buildRedirectUriFromCurrentUrl(): string {
+  const url = new URL(window.location.href);
+  // Keep exactly one canonical form to avoid Meta strict redirect mismatch
+  url.search = '';
+  url.hash = '';
+  if (url.pathname.length > 1 && url.pathname.endsWith('/')) {
+    url.pathname = url.pathname.slice(0, -1);
+  }
+  return url.toString();
+}
 declare global {
   interface Window {
     FB: any;
@@ -219,9 +254,9 @@ export default function Settings() {
 
       try {
         console.log('[Settings] Exchanging code for token...');
-        // IMPORTANT: The redirect_uri must match what FB.login used
-        // FB.login without explicit redirect_uri uses window.location.href
-        const redirectUri = window.location.href.split('?')[0]; // Remove query params
+        // IMPORTANT: The redirect_uri must match exactly what Meta considers valid.
+        // We canonicalize current URL (no query/hash, no trailing slash).
+        const redirectUri = buildRedirectUriFromCurrentUrl();
         
         const { data, error } = await supabase.functions.invoke('meta-oauth', {
           body: {
@@ -231,7 +266,13 @@ export default function Settings() {
           },
         });
 
-        if (error) throw error;
+        if (error) {
+          const details = await getFunctionsHttpErrorDetails(error);
+          const message = details?.message || (typeof details?.raw === 'object' ? JSON.stringify(details.raw) : undefined);
+          throw new Error(
+            message || `Erro ao conectar (redirect_uri: ${redirectUri}).`
+          );
+        }
 
         if (data.success) {
           toast({
@@ -248,7 +289,7 @@ export default function Settings() {
         console.error('[Settings] Token exchange error:', err);
         toast({
           title: 'Erro',
-          description: err.message || 'Erro ao conectar conta Meta',
+          description: err?.message || 'Erro ao conectar conta Meta',
           variant: 'destructive',
         });
       }
