@@ -20,7 +20,7 @@ declare global {
   }
 }
 
-const META_APP_ID = '149950796779439';
+const META_APP_ID = '1499507967794395';
 
 interface PhoneNumber {
   id: string;
