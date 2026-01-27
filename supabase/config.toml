@@ -29,3 +29,6 @@ verify_jwt = false
 
 [functions.meta-oauth]
 verify_jwt = false
+
+[functions.vplay-generate-test]
+verify_jwt = false
