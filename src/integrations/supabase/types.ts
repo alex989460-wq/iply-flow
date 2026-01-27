@@ -141,6 +141,7 @@ export type Database = {
           updated_at: string
           user_id: string
           vplay_integration_url: string | null
+          vplay_key_message: string | null
         }
         Insert: {
           annual_price?: number | null
@@ -155,6 +156,7 @@ export type Database = {
           updated_at?: string
           user_id: string
           vplay_integration_url?: string | null
+          vplay_key_message?: string | null
         }
         Update: {
           annual_price?: number | null
@@ -169,6 +171,7 @@ export type Database = {
           updated_at?: string
           user_id?: string
           vplay_integration_url?: string | null
+          vplay_key_message?: string | null
         }
         Relationships: []
       }
