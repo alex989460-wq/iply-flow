@@ -710,24 +710,24 @@ export default function Customers() {
 const validatePhone = (phone: string): { valid: boolean; message: string } => {
     const digitsOnly = phone.replace(/\D/g, '');
     
-    // Telefone brasileiro completo: DDI (55) + DDD (2 dígitos) + número (8-9 dígitos) = 12-13 dígitos
-    if (digitsOnly.length < 12) {
-      return { valid: false, message: 'Telefone incompleto. Insira DDI + DDD + número (ex: 5511999999999)' };
+    // Mínimo de 10 dígitos (DDI + número) e máximo de 15 (padrão E.164)
+    if (digitsOnly.length < 10) {
+      return { valid: false, message: 'Telefone incompleto. Insira DDI + número (ex: 5511999999999 ou 33619827368)' };
     }
     
-    if (digitsOnly.length > 13) {
-      return { valid: false, message: 'Telefone com dígitos a mais. Verifique o número.' };
+    if (digitsOnly.length > 15) {
+      return { valid: false, message: 'Telefone com dígitos a mais. Máximo 15 dígitos.' };
     }
     
-    // Verificar se começa com 55 (Brasil)
-    if (!digitsOnly.startsWith('55')) {
-      return { valid: false, message: 'O telefone deve começar com o DDI 55 (Brasil)' };
-    }
-    
-    // Verificar DDD válido (2 dígitos após o 55, entre 11 e 99)
-    const ddd = parseInt(digitsOnly.substring(2, 4), 10);
-    if (ddd < 11 || ddd > 99) {
-      return { valid: false, message: 'DDD inválido. Verifique o código de área.' };
+    // Validação específica para Brasil (55)
+    if (digitsOnly.startsWith('55')) {
+      if (digitsOnly.length < 12 || digitsOnly.length > 13) {
+        return { valid: false, message: 'Telefone brasileiro deve ter 12-13 dígitos (55 + DDD + número)' };
+      }
+      const ddd = parseInt(digitsOnly.substring(2, 4), 10);
+      if (ddd < 11 || ddd > 99) {
+        return { valid: false, message: 'DDD inválido. Verifique o código de área.' };
+      }
     }
     
     return { valid: true, message: '' };
