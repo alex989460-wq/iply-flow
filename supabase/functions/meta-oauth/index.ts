@@ -101,6 +101,17 @@ Deno.serve(async (req) => {
     if (action === 'exchange-token') {
       // Exchange short-lived token for long-lived token
       console.log('[meta-oauth] Exchanging code for access token...');
+
+      console.log('[meta-oauth] redirect_uri received:', redirect_uri);
+
+      if (!redirect_uri || typeof redirect_uri !== 'string') {
+        return new Response(JSON.stringify({
+          error: 'redirect_uri ausente ou inválida',
+        }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
       
       const tokenUrl = new URL('https://graph.facebook.com/v21.0/oauth/access_token');
       tokenUrl.searchParams.set('client_id', META_APP_ID);
@@ -114,7 +125,9 @@ Deno.serve(async (req) => {
       if (tokenData.error) {
         console.error('[meta-oauth] Token exchange error:', tokenData.error);
         return new Response(JSON.stringify({ 
-          error: tokenData.error.message || 'Erro ao trocar código por token' 
+          error: tokenData.error.message || 'Erro ao trocar código por token',
+          meta_error: tokenData.error,
+          debug_redirect_uri: redirect_uri,
         }), { 
           status: 400, 
           headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
