@@ -140,6 +140,7 @@ export type Database = {
           semiannual_price: number | null
           updated_at: string
           user_id: string
+          vplay_integration_url: string | null
         }
         Insert: {
           annual_price?: number | null
@@ -153,6 +154,7 @@ export type Database = {
           semiannual_price?: number | null
           updated_at?: string
           user_id: string
+          vplay_integration_url?: string | null
         }
         Update: {
           annual_price?: number | null
@@ -166,6 +168,7 @@ export type Database = {
           semiannual_price?: number | null
           updated_at?: string
           user_id?: string
+          vplay_integration_url?: string | null
         }
         Relationships: []
       }

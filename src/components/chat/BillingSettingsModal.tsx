@@ -33,6 +33,7 @@ interface BillingSettings {
   semiannual_price: number;
   annual_price: number;
   custom_message: string | null;
+  vplay_integration_url: string | null;
 }
 
 interface BillingSettingsModalProps {
@@ -52,6 +53,7 @@ export default function BillingSettingsModal({ open, onOpenChange }: BillingSett
     semiannual_price: 175,
     annual_price: 300,
     custom_message: '',
+    vplay_integration_url: '',
   });
 
   // Fetch user's billing settings
@@ -80,6 +82,7 @@ export default function BillingSettingsModal({ open, onOpenChange }: BillingSett
         semiannual_price: settings.semiannual_price || 175,
         annual_price: settings.annual_price || 300,
         custom_message: settings.custom_message || '',
+        vplay_integration_url: (settings as any).vplay_integration_url || '',
       });
     }
   }, [settings]);
@@ -100,6 +103,7 @@ export default function BillingSettingsModal({ open, onOpenChange }: BillingSett
             semiannual_price: data.semiannual_price,
             annual_price: data.annual_price,
             custom_message: data.custom_message,
+            vplay_integration_url: data.vplay_integration_url || null,
           })
           .eq('id', settings.id);
         if (error) throw error;
@@ -116,6 +120,7 @@ export default function BillingSettingsModal({ open, onOpenChange }: BillingSett
             semiannual_price: data.semiannual_price,
             annual_price: data.annual_price,
             custom_message: data.custom_message,
+            vplay_integration_url: data.vplay_integration_url || null,
           });
         if (error) throw error;
       }
@@ -265,6 +270,23 @@ export default function BillingSettingsModal({ open, onOpenChange }: BillingSett
                 onChange={(e) => setFormData({ ...formData, custom_message: e.target.value })}
                 className="min-h-[60px] text-sm"
               />
+            </div>
+
+            {/* Vplay Integration */}
+            <div className="space-y-3 p-3 rounded-lg bg-violet-500/5 border border-violet-500/20">
+              <h4 className="text-sm font-semibold text-violet-500">Integração Vplay (Teste Automático)</h4>
+              <div className="space-y-1.5">
+                <Label className="text-xs">URL de Integração</Label>
+                <Input
+                  placeholder="https://gestorvplay.com/chatbot/1474"
+                  value={formData.vplay_integration_url || ''}
+                  onChange={(e) => setFormData({ ...formData, vplay_integration_url: e.target.value })}
+                  className="h-9 text-sm"
+                />
+                <p className="text-[10px] text-muted-foreground">
+                  Cole aqui a URL de integração do seu Gestor Vplay para gerar testes automáticos.
+                </p>
+              </div>
             </div>
 
             <Button
