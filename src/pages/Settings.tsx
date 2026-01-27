@@ -7,12 +7,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { Loader2, Eye, EyeOff, Save, AlertCircle, CheckCircle2, Unplug, Phone, RefreshCw } from 'lucide-react';
+import { Loader2, Eye, EyeOff, Save, AlertCircle, CheckCircle2, Unplug, Phone, RefreshCw, Server } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-
+import VplayServersManager from '@/components/settings/VplayServersManager';
 declare global {
   interface Window {
     FB: any;
@@ -410,7 +410,7 @@ export default function Settings() {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-2 max-w-md">
+          <TabsList className="grid w-full grid-cols-3 max-w-lg">
             <TabsTrigger value="zap_responder" className="flex items-center gap-2">
               <span className="hidden sm:inline">Zap Responder</span>
               <span className="sm:hidden">ZapResp</span>
@@ -419,6 +419,11 @@ export default function Settings() {
               <span className="hidden sm:inline">WhatsApp Oficial</span>
               <span className="sm:hidden">WA Oficial</span>
               {isMetaConnected && <CheckCircle2 className="w-4 h-4 text-green-500" />}
+            </TabsTrigger>
+            <TabsTrigger value="vplay_test" className="flex items-center gap-2">
+              <Server className="w-4 h-4 text-violet-500" />
+              <span className="hidden sm:inline">Gerador Vplay</span>
+              <span className="sm:hidden">Vplay</span>
             </TabsTrigger>
           </TabsList>
 
@@ -732,6 +737,11 @@ export default function Settings() {
                 )}
               </CardContent>
             </Card>
+          </TabsContent>
+
+          {/* Vplay Test Generator Tab */}
+          <TabsContent value="vplay_test" className="mt-6">
+            <VplayServersManager />
           </TabsContent>
         </Tabs>
       </div>
