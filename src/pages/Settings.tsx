@@ -219,11 +219,15 @@ export default function Settings() {
 
       try {
         console.log('[Settings] Exchanging code for token...');
+        // IMPORTANT: The redirect_uri must match what FB.login used
+        // FB.login without explicit redirect_uri uses window.location.href
+        const redirectUri = window.location.href.split('?')[0]; // Remove query params
+        
         const { data, error } = await supabase.functions.invoke('meta-oauth', {
           body: {
             action: 'exchange-token',
             code,
-            redirect_uri: window.location.origin + '/',
+            redirect_uri: redirectUri,
           },
         });
 
