@@ -52,6 +52,39 @@ declare global {
 
 const META_APP_ID = '1499507967794395';
 
+const META_OAUTH_STATE_KEY = 'meta_oauth_state';
+
+function getMetaCallbackRedirectUri(): string {
+  return `${window.location.origin}/meta-callback`;
+}
+
+function generateState(): string {
+  try {
+    const bytes = new Uint8Array(16);
+    crypto.getRandomValues(bytes);
+    return Array.from(bytes)
+      .map((b) => b.toString(16).padStart(2, '0'))
+      .join('');
+  } catch {
+    return `${Date.now()}_${Math.random().toString(16).slice(2)}`;
+  }
+}
+
+function buildMetaOauthDialogUrl(): { url: string; redirectUri: string; state: string } {
+  const redirectUri = getMetaCallbackRedirectUri();
+  const state = generateState();
+
+  const dialog = new URL('https://www.facebook.com/v21.0/dialog/oauth');
+  dialog.searchParams.set('client_id', META_APP_ID);
+  dialog.searchParams.set('redirect_uri', redirectUri);
+  dialog.searchParams.set('response_type', 'code');
+  dialog.searchParams.set('state', state);
+  dialog.searchParams.set('scope', 'whatsapp_business_management,whatsapp_business_messaging,business_management');
+  dialog.searchParams.set('display', 'popup');
+
+  return { url: dialog.toString(), redirectUri, state };
+}
+
 interface PhoneNumber {
   id: string;
   display_phone_number: string;
@@ -300,31 +333,57 @@ export default function Settings() {
   }, [toast]);
 
   const handleMetaLogin = useCallback(() => {
-    if (!fbSdkLoaded || !window.FB) {
+    setConnectingMeta(true);
+
+    const { url, redirectUri, state } = buildMetaOauthDialogUrl();
+    sessionStorage.setItem(META_OAUTH_STATE_KEY, state);
+
+    const popup = window.open(
+      url,
+      'meta_oauth',
+      'width=600,height=700,menubar=no,toolbar=no,status=no,resizable=yes,scrollbars=yes'
+    );
+
+    if (!popup) {
+      setConnectingMeta(false);
       toast({
-        title: 'Aguarde',
-        description: 'Facebook SDK ainda está carregando...',
+        title: 'Popup bloqueado',
+        description: 'Permita popups para concluir a conexão com o Facebook.',
         variant: 'destructive',
       });
       return;
     }
 
-    setConnectingMeta(true);
-
-    // Standard OAuth flow - works for any Facebook app without BSP/TP requirement
-    window.FB.login(
-      function(response: any) {
-        // Call the async handler separately
-        processMetaLoginResponse(response);
-      },
-      {
-        // Standard OAuth permissions for WhatsApp Business API
-        scope: 'whatsapp_business_management,whatsapp_business_messaging,business_management',
-        response_type: 'code',
-        override_default_response_type: true,
+    const onMessage = (event: MessageEvent) => {
+      if (event.origin !== window.location.origin) return;
+      const type = (event.data as any)?.type;
+      if (type === 'meta_oauth_success') {
+        toast({
+          title: 'Sucesso!',
+          description: 'Conexão autorizada. Finalizando…',
+        });
+        fetchSettings();
       }
-    );
-  }, [fbSdkLoaded, toast, processMetaLoginResponse]);
+      cleanup();
+    };
+
+    const timer = window.setInterval(() => {
+      if (popup.closed) {
+        cleanup();
+      }
+    }, 500);
+
+    const cleanup = () => {
+      window.removeEventListener('message', onMessage);
+      window.clearInterval(timer);
+      setConnectingMeta(false);
+    };
+
+    window.addEventListener('message', onMessage);
+
+    // Helpful hint if user still gets redirect mismatch
+    console.log('[Settings] Meta OAuth dialog opened', { redirectUri, state });
+  }, [toast]);
 
   const handleDisconnectMeta = async () => {
     if (!confirm('Tem certeza que deseja desconectar a conta Meta?')) return;
