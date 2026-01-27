@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { 
   Search, User, Calendar, CreditCard, CheckCircle, Phone, RefreshCw, 
   Server, Copy, Settings, Wifi, Download, Key, Bell, Smile, MessageSquare,
-  ChevronDown, ChevronUp, UserPlus, AlertTriangle, Monitor, Play, Loader2
+  ChevronDown, ChevronUp, UserPlus, AlertTriangle, Monitor, Play, Loader2, X
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { addDays, addMonths, format, startOfDay } from 'date-fns';
@@ -1453,11 +1453,21 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
             {/* Vplay Test Result */}
             {vplayTestResult && (
               <div className="mt-3 p-2.5 bg-violet-500/10 border border-violet-500/30 rounded-lg space-y-2">
-                <div className="flex items-center gap-2 text-violet-600 dark:text-violet-400">
-                  <CheckCircle className="h-4 w-4" />
-                  <span className="text-xs font-semibold">Teste Gerado!</span>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-violet-600 dark:text-violet-400">
+                    <CheckCircle className="h-4 w-4" />
+                    <span className="text-xs font-semibold">Teste Gerado!</span>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                    onClick={() => setVplayTestResult(null)}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
                 </div>
-                <pre className="text-xs text-foreground whitespace-pre-wrap bg-background/50 p-2 rounded max-h-28 overflow-auto select-text font-mono">
+                <pre className="text-xs text-foreground whitespace-pre-wrap bg-background/50 p-2 rounded max-h-32 overflow-y-auto select-text font-mono break-words">
                   {vplayTestResult}
                 </pre>
                 <Button 
