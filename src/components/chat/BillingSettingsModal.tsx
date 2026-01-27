@@ -34,6 +34,7 @@ interface BillingSettings {
   annual_price: number;
   custom_message: string | null;
   vplay_integration_url: string | null;
+  vplay_key_message: string | null;
 }
 
 interface BillingSettingsModalProps {
@@ -54,6 +55,7 @@ export default function BillingSettingsModal({ open, onOpenChange }: BillingSett
     annual_price: 300,
     custom_message: '',
     vplay_integration_url: '',
+    vplay_key_message: 'XCLOUD',
   });
 
   // Fetch user's billing settings
@@ -83,6 +85,7 @@ export default function BillingSettingsModal({ open, onOpenChange }: BillingSett
         annual_price: settings.annual_price || 300,
         custom_message: settings.custom_message || '',
         vplay_integration_url: (settings as any).vplay_integration_url || '',
+        vplay_key_message: (settings as any).vplay_key_message || 'XCLOUD',
       });
     }
   }, [settings]);
@@ -104,6 +107,7 @@ export default function BillingSettingsModal({ open, onOpenChange }: BillingSett
             annual_price: data.annual_price,
             custom_message: data.custom_message,
             vplay_integration_url: data.vplay_integration_url || null,
+            vplay_key_message: data.vplay_key_message || 'XCLOUD',
           })
           .eq('id', settings.id);
         if (error) throw error;
@@ -121,6 +125,7 @@ export default function BillingSettingsModal({ open, onOpenChange }: BillingSett
             annual_price: data.annual_price,
             custom_message: data.custom_message,
             vplay_integration_url: data.vplay_integration_url || null,
+            vplay_key_message: data.vplay_key_message || 'XCLOUD',
           });
         if (error) throw error;
       }
@@ -275,17 +280,31 @@ export default function BillingSettingsModal({ open, onOpenChange }: BillingSett
             {/* Vplay Integration */}
             <div className="space-y-3 p-3 rounded-lg bg-violet-500/5 border border-violet-500/20">
               <h4 className="text-sm font-semibold text-violet-500">Integração Vplay (Teste Automático)</h4>
-              <div className="space-y-1.5">
-                <Label className="text-xs">URL de Integração</Label>
-                <Input
-                  placeholder="https://gestorvplay.com/chatbot/1474"
-                  value={formData.vplay_integration_url || ''}
-                  onChange={(e) => setFormData({ ...formData, vplay_integration_url: e.target.value })}
-                  className="h-9 text-sm"
-                />
-                <p className="text-[10px] text-muted-foreground">
-                  Cole aqui a URL de integração do seu Gestor Vplay para gerar testes automáticos.
-                </p>
+              <div className="space-y-3">
+                <div className="space-y-1.5">
+                  <Label className="text-xs">URL de Integração</Label>
+                  <Input
+                    placeholder="https://gestorvplay.com/chatbot/1474"
+                    value={formData.vplay_integration_url || ''}
+                    onChange={(e) => setFormData({ ...formData, vplay_integration_url: e.target.value })}
+                    className="h-9 text-sm"
+                  />
+                  <p className="text-[10px] text-muted-foreground">
+                    Cole aqui a URL de integração do seu Gestor Vplay.
+                  </p>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Mensagem Chave (Padrão)</Label>
+                  <Input
+                    placeholder="XCLOUD, XC, HD..."
+                    value={formData.vplay_key_message || ''}
+                    onChange={(e) => setFormData({ ...formData, vplay_key_message: e.target.value.toUpperCase() })}
+                    className="h-9 text-sm font-mono uppercase"
+                  />
+                  <p className="text-[10px] text-muted-foreground">
+                    Ex: XCLOUD, XC, HD. Será usada para gerar os testes.
+                  </p>
+                </div>
               </div>
             </div>
 

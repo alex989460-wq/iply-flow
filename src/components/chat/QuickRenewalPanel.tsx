@@ -122,6 +122,7 @@ export default function QuickRenewalPanel({ isMobile = false, onClose }: QuickRe
         annual_price: number;
         custom_message: string | null;
         vplay_integration_url: string | null;
+        vplay_key_message: string | null;
       } | null;
     },
     enabled: !!user?.id,
@@ -470,10 +471,10 @@ Obrigado pela preferência! 🙏`;
     setSelectedScreens(customer.screens || 1);
   };
 
-  // Generate Vplay test for the customer
+  // Generate Vplay test (standalone - not tied to selectedCustomer)
+  const [vplayTestName, setVplayTestName] = useState('');
+  
   const handleGenerateVplayTest = async () => {
-    if (!selectedCustomer) return;
-    
     const vplayUrl = billingSettings?.vplay_integration_url;
     if (!vplayUrl) {
       toast.warning('Configure a URL de integração Vplay primeiro!', {
@@ -485,21 +486,21 @@ Obrigado pela preferência! 🙏`;
       return;
     }
 
+    const keyMessage = billingSettings?.vplay_key_message || 'XCLOUD';
+    const testName = vplayTestName.trim() || 'Cliente';
+
     setIsGeneratingTest(true);
     setVplayTestResult(null);
 
     try {
-      // Extract first name from customer name
-      const firstName = selectedCustomer.name.split(' ')[0];
-      
       // Build the request body matching Vplay expected format
       const payload = {
-        senderName: firstName,
-        senderMessage: 'sim, me manda um teste',
+        senderName: testName,
+        senderMessage: keyMessage,
         messageDateTime: Date.now().toString(),
         isMessageFromGroup: 0,
         receiveMessageAppId: 'com.whatsapp',
-        receiveMessagePattern: 'Testar Agora',
+        receiveMessagePattern: keyMessage,
       };
 
       console.log('[Vplay] Sending test request to:', vplayUrl);
@@ -1038,47 +1039,6 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                     Copiar Dados + PIX
                   </Button>
 
-                  {/* Vplay Test Button */}
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    className="w-full h-8 text-xs border-violet-500/50 text-violet-600 dark:text-violet-400 hover:bg-violet-500/10"
-                    onClick={handleGenerateVplayTest}
-                    disabled={isGeneratingTest}
-                  >
-                    {isGeneratingTest ? (
-                      <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                    ) : (
-                      <Play className="h-3 w-3 mr-1" />
-                    )}
-                    {isGeneratingTest ? 'Gerando...' : 'Gerar Teste Vplay'}
-                  </Button>
-
-                  {/* Vplay Test Result */}
-                  {vplayTestResult && (
-                    <div className="p-2 bg-violet-500/10 border border-violet-500/30 rounded-lg space-y-2">
-                      <div className="flex items-center gap-2 text-violet-600 dark:text-violet-400">
-                        <CheckCircle className="h-4 w-4" />
-                        <span className="text-xs font-semibold">Teste Gerado!</span>
-                      </div>
-                      <pre className="text-xs text-foreground whitespace-pre-wrap bg-background/50 p-2 rounded max-h-24 overflow-auto select-text font-mono">
-                        {vplayTestResult}
-                      </pre>
-                      <Button 
-                        size="sm" 
-                        variant="outline" 
-                        className="w-full h-7 text-xs border-violet-500/50 text-violet-600 dark:text-violet-400"
-                        onClick={async () => {
-                          const ok = await copyText(vplayTestResult);
-                          if (ok) toast.success('Dados do teste copiados!');
-                        }}
-                      >
-                        <Copy className="h-3 w-3 mr-1" />
-                        Copiar Teste
-                      </Button>
-                    </div>
-                  )}
-
                   {/* Overdue Warning and Billing Message Button */}
                   {isCustomerOverdue(selectedCustomer.due_date) && (
                     <div className="mt-2 p-2 bg-destructive/10 border border-destructive/30 rounded-lg">
@@ -1448,6 +1408,83 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
               )}
             </CollapsibleContent>
           </Collapsible>
+
+          {/* Vplay Test Section - Below Quick Messages */}
+          <div className="mt-4 p-3 rounded-lg bg-violet-500/5 border border-violet-500/20">
+            <div className="flex items-center gap-2 mb-3">
+              <div className="p-1.5 rounded-md bg-violet-500/20">
+                <Play className="h-4 w-4 text-violet-500" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-sm font-semibold text-violet-600 dark:text-violet-400">Gerar Teste Vplay</h3>
+                <p className="text-[10px] text-muted-foreground">
+                  Chave: {billingSettings?.vplay_key_message || 'XCLOUD'}
+                </p>
+              </div>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 rounded-full hover:bg-violet-500/10"
+                onClick={() => setIsBillingSettingsOpen(true)}
+                title="Configurar Vplay"
+              >
+                <Settings className="h-3.5 w-3.5 text-violet-500" />
+              </Button>
+            </div>
+            
+            <div className="space-y-2">
+              <Input
+                placeholder="Nome do cliente (opcional)"
+                value={vplayTestName}
+                onChange={(e) => setVplayTestName(e.target.value)}
+                className="h-8 text-sm"
+              />
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="w-full h-9 border-violet-500/50 text-violet-600 dark:text-violet-400 hover:bg-violet-500/10"
+                onClick={handleGenerateVplayTest}
+                disabled={isGeneratingTest || !billingSettings?.vplay_integration_url}
+              >
+                {isGeneratingTest ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Play className="h-4 w-4 mr-2" />
+                )}
+                {isGeneratingTest ? 'Gerando...' : 'Gerar Teste'}
+              </Button>
+              
+              {!billingSettings?.vplay_integration_url && (
+                <p className="text-[10px] text-amber-500 text-center">
+                  Configure a URL de integração primeiro
+                </p>
+              )}
+            </div>
+
+            {/* Vplay Test Result */}
+            {vplayTestResult && (
+              <div className="mt-3 p-2.5 bg-violet-500/10 border border-violet-500/30 rounded-lg space-y-2">
+                <div className="flex items-center gap-2 text-violet-600 dark:text-violet-400">
+                  <CheckCircle className="h-4 w-4" />
+                  <span className="text-xs font-semibold">Teste Gerado!</span>
+                </div>
+                <pre className="text-xs text-foreground whitespace-pre-wrap bg-background/50 p-2 rounded max-h-28 overflow-auto select-text font-mono">
+                  {vplayTestResult}
+                </pre>
+                <Button 
+                  size="sm" 
+                  className="w-full h-8 bg-violet-600 hover:bg-violet-700 text-white"
+                  onClick={async () => {
+                    const ok = await copyText(vplayTestResult);
+                    if (ok) toast.success('Dados do teste copiados!');
+                  }}
+                >
+                  <Copy className="h-3.5 w-3.5 mr-1.5" />
+                  Copiar Teste
+                </Button>
+              </div>
+            )}
+          </div>
         </div>
       </ScrollArea>
     </div>
