@@ -493,32 +493,20 @@ Obrigado pela preferência! 🙏`;
     setVplayTestResult(null);
 
     try {
-      // Build the request body matching Vplay expected format
-      const payload = {
-        senderName: testName,
-        senderMessage: keyMessage,
-        messageDateTime: Date.now().toString(),
-        isMessageFromGroup: 0,
-        receiveMessageAppId: 'com.whatsapp',
-        receiveMessagePattern: keyMessage,
-      };
+      console.log('[Vplay] Calling edge function with URL:', vplayUrl);
 
-      console.log('[Vplay] Sending test request to:', vplayUrl);
-      console.log('[Vplay] Payload:', payload);
-
-      const response = await fetch(vplayUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
+      const { data, error } = await supabase.functions.invoke('vplay-generate-test', {
+        body: {
+          vplayUrl,
+          senderName: testName,
+          keyMessage,
         },
-        body: JSON.stringify(payload),
       });
 
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      if (error) {
+        throw new Error(error.message || 'Erro na edge function');
       }
 
-      const data = await response.json();
       console.log('[Vplay] Response:', data);
 
       // Extract login info from response (data[0].message contains the login)
