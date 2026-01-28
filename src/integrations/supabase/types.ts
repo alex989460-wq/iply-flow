@@ -334,6 +334,60 @@ export type Database = {
           },
         ]
       }
+      expenses: {
+        Row: {
+          amount: number
+          category: string
+          color: string | null
+          created_at: string
+          description: string
+          due_date: string | null
+          icon: string | null
+          id: string
+          notes: string | null
+          paid: boolean
+          paid_at: string | null
+          recurring: boolean
+          recurring_day: number | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          category: string
+          color?: string | null
+          created_at?: string
+          description: string
+          due_date?: string | null
+          icon?: string | null
+          id?: string
+          notes?: string | null
+          paid?: boolean
+          paid_at?: string | null
+          recurring?: boolean
+          recurring_day?: number | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          category?: string
+          color?: string | null
+          created_at?: string
+          description?: string
+          due_date?: string | null
+          icon?: string | null
+          id?: string
+          notes?: string | null
+          paid?: boolean
+          paid_at?: string | null
+          recurring?: boolean
+          recurring_day?: number | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       panel_links: {
         Row: {
           created_at: string
