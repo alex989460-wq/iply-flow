@@ -42,6 +42,8 @@ import {
   CheckCircle2,
   RefreshCcw,
   Filter,
+  Download,
+  FileSpreadsheet,
 } from 'lucide-react';
 
 const CATEGORY_CONFIG: Record<string, { icon: React.ElementType; color: string; label: string }> = {
@@ -266,6 +268,85 @@ export default function Expenses() {
     return CATEGORY_CONFIG[category] || CATEGORY_CONFIG.outros;
   };
 
+  // Export to CSV function
+  const handleExportCSV = () => {
+    if (expenses.length === 0) {
+      toast.error('Não há despesas para exportar');
+      return;
+    }
+
+    const monthName = format(filterMonth, "MMMM 'de' yyyy", { locale: ptBR });
+    
+    // Group expenses by category
+    const groupedByCategory = expenses.reduce((acc, expense) => {
+      const category = getCategoryConfig(expense.category).label;
+      if (!acc[category]) {
+        acc[category] = [];
+      }
+      acc[category].push(expense);
+      return acc;
+    }, {} as Record<string, Expense[]>);
+
+    // Build CSV content
+    let csvContent = '\ufeff'; // BOM for UTF-8
+    csvContent += `EXTRATO DE DESPESAS - ${monthName.toUpperCase()}\n`;
+    csvContent += `Gerado em: ${format(new Date(), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}\n`;
+    csvContent += '\n';
+    
+    // Summary section
+    csvContent += 'RESUMO\n';
+    csvContent += `Total do Mês;R$ ${totalExpenses.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\n`;
+    csvContent += `Total Pago;R$ ${paidExpenses.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\n`;
+    csvContent += `Total Pendente;R$ ${pendingExpenses.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\n`;
+    csvContent += `Despesas Atrasadas;${overdueExpenses.length}\n`;
+    csvContent += '\n';
+
+    // Detailed by category
+    csvContent += 'DETALHAMENTO POR CATEGORIA\n';
+    csvContent += '\n';
+
+    Object.entries(groupedByCategory)
+      .sort(([, a], [, b]) => b.reduce((s, e) => s + e.amount, 0) - a.reduce((s, e) => s + e.amount, 0))
+      .forEach(([category, categoryExpenses]) => {
+        const categoryTotal = categoryExpenses.reduce((sum, e) => sum + e.amount, 0);
+        const categoryPaid = categoryExpenses.filter(e => e.paid).reduce((sum, e) => sum + e.amount, 0);
+        const categoryPending = categoryExpenses.filter(e => !e.paid).reduce((sum, e) => sum + e.amount, 0);
+        
+        csvContent += `═══ ${category.toUpperCase()} ═══\n`;
+        csvContent += `Subtotal: R$ ${categoryTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} | Pago: R$ ${categoryPaid.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} | Pendente: R$ ${categoryPending.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\n`;
+        csvContent += 'Descrição;Vencimento;Valor;Status;Recorrente;Observações\n';
+        
+        categoryExpenses
+          .sort((a, b) => {
+            if (!a.due_date) return 1;
+            if (!b.due_date) return -1;
+            return new Date(a.due_date).getTime() - new Date(b.due_date).getTime();
+          })
+          .forEach(expense => {
+            const dueDate = expense.due_date 
+              ? format(parseISO(expense.due_date), 'dd/MM/yyyy')
+              : '-';
+            const status = expense.paid ? 'PAGO' : (expense.due_date && isBefore(parseISO(expense.due_date), new Date()) ? 'ATRASADO' : 'PENDENTE');
+            const recurring = expense.recurring ? `Sim (dia ${expense.recurring_day})` : 'Não';
+            const notes = expense.notes?.replace(/;/g, ',').replace(/\n/g, ' ') || '-';
+            
+            csvContent += `${expense.description};${dueDate};R$ ${expense.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })};${status};${recurring};${notes}\n`;
+          });
+        
+        csvContent += '\n';
+      });
+
+    // Create and download file
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `extrato-despesas-${format(filterMonth, 'yyyy-MM')}.csv`;
+    link.click();
+    URL.revokeObjectURL(link.href);
+    
+    toast.success('Extrato exportado com sucesso!');
+  };
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
@@ -279,16 +360,27 @@ export default function Expenses() {
               Gerencie suas despesas pessoais e domésticas
             </p>
           </div>
-          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-            <DialogTrigger asChild>
-              <Button 
-                onClick={() => handleOpenDialog()}
-                className="gap-2 bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 shadow-lg shadow-primary/25"
-              >
-                <Plus className="w-4 h-4" />
-                Nova Despesa
-              </Button>
-            </DialogTrigger>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              onClick={handleExportCSV}
+              className="gap-2 border-emerald-500/30 text-emerald-600 hover:bg-emerald-500/10 hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-300"
+              disabled={expenses.length === 0}
+            >
+              <FileSpreadsheet className="w-4 h-4" />
+              <span className="hidden sm:inline">Exportar Extrato</span>
+              <Download className="w-4 h-4 sm:hidden" />
+            </Button>
+            <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+              <DialogTrigger asChild>
+                <Button 
+                  onClick={() => handleOpenDialog()}
+                  className="gap-2 bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 shadow-lg shadow-primary/25"
+                >
+                  <Plus className="w-4 h-4" />
+                  Nova Despesa
+                </Button>
+              </DialogTrigger>
             <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle className="flex items-center gap-2">
@@ -424,7 +516,8 @@ export default function Expenses() {
                 </Button>
               </DialogFooter>
             </DialogContent>
-          </Dialog>
+            </Dialog>
+          </div>
         </div>
 
         {/* Stats Cards */}
