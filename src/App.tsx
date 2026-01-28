@@ -21,6 +21,7 @@ import Resellers from "./pages/Resellers";
 import SubResellers from "./pages/SubResellers";
 import Tutorial from "./pages/Tutorial";
 import BotTriggers from "./pages/BotTriggers";
+import Expenses from "./pages/Expenses";
 import NotFound from "./pages/NotFound";
 import MetaCallback from "./pages/MetaCallback";
 import { Loader2 } from "lucide-react";
@@ -74,6 +75,7 @@ function AppRoutes() {
       <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
       <Route path="/resellers" element={<ProtectedRoute><Resellers /></ProtectedRoute>} />
       <Route path="/sub-resellers" element={<ProtectedRoute><SubResellers /></ProtectedRoute>} />
+      <Route path="/expenses" element={<ProtectedRoute><Expenses /></ProtectedRoute>} />
       <Route path="*" element={<NotFound />} />
     </Routes>
   );
