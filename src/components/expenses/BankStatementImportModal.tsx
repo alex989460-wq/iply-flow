@@ -38,7 +38,7 @@ import {
 } from 'lucide-react';
 
 // Configure PDF.js worker
-pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+pdfjsLib.GlobalWorkerOptions.workerSrc = '//cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
 
 const CATEGORY_CONFIG: Record<string, { icon: React.ElementType; color: string; label: string; keywords: string[] }> = {
   casa: { icon: Home, color: 'bg-amber-500', label: 'Casa', keywords: ['aluguel', 'condominio', 'energia', 'luz', 'agua', 'gas', 'iptu'] },
