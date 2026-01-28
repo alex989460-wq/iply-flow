@@ -18,6 +18,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 import { format, startOfMonth, endOfMonth, isAfter, isBefore, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import {
   Plus,
   Home,
@@ -44,7 +45,13 @@ import {
   Filter,
   Download,
   FileSpreadsheet,
+  FileText,
+  ChevronDown,
+  FileDown,
 } from 'lucide-react';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import * as XLSX from 'xlsx';
 
 const CATEGORY_CONFIG: Record<string, { icon: React.ElementType; color: string; label: string }> = {
   casa: { icon: Home, color: 'bg-amber-500', label: 'Casa' },
@@ -344,7 +351,242 @@ export default function Expenses() {
     link.click();
     URL.revokeObjectURL(link.href);
     
-    toast.success('Extrato exportado com sucesso!');
+    toast.success('Extrato CSV exportado!');
+  };
+
+  // Export to PDF function
+  const handleExportPDF = () => {
+    if (expenses.length === 0) {
+      toast.error('Não há despesas para exportar');
+      return;
+    }
+
+    const monthName = format(filterMonth, "MMMM 'de' yyyy", { locale: ptBR });
+    const doc = new jsPDF();
+    
+    // Title
+    doc.setFontSize(20);
+    doc.setTextColor(40, 40, 40);
+    doc.text(`Extrato de Despesas`, 14, 20);
+    
+    doc.setFontSize(12);
+    doc.setTextColor(100, 100, 100);
+    doc.text(monthName.charAt(0).toUpperCase() + monthName.slice(1), 14, 28);
+    doc.text(`Gerado em: ${format(new Date(), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}`, 14, 35);
+
+    // Summary box
+    doc.setFillColor(245, 245, 245);
+    doc.roundedRect(14, 42, 182, 30, 3, 3, 'F');
+    
+    doc.setFontSize(10);
+    doc.setTextColor(60, 60, 60);
+    
+    const summaryY = 52;
+    doc.text('Total do Mês:', 20, summaryY);
+    doc.setTextColor(40, 40, 40);
+    doc.setFont(undefined, 'bold');
+    doc.text(`R$ ${totalExpenses.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, 50, summaryY);
+    
+    doc.setFont(undefined, 'normal');
+    doc.setTextColor(60, 60, 60);
+    doc.text('Pago:', 85, summaryY);
+    doc.setTextColor(34, 197, 94);
+    doc.text(`R$ ${paidExpenses.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, 100, summaryY);
+    
+    doc.setTextColor(60, 60, 60);
+    doc.text('Pendente:', 140, summaryY);
+    doc.setTextColor(234, 179, 8);
+    doc.text(`R$ ${pendingExpenses.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, 165, summaryY);
+    
+    doc.setTextColor(60, 60, 60);
+    doc.text(`Atrasadas: ${overdueExpenses.length}`, 20, summaryY + 10);
+
+    // Group expenses by category
+    const groupedByCategory = expenses.reduce((acc, expense) => {
+      const category = getCategoryConfig(expense.category).label;
+      if (!acc[category]) acc[category] = [];
+      acc[category].push(expense);
+      return acc;
+    }, {} as Record<string, Expense[]>);
+
+    let startY = 80;
+
+    // Table for each category
+    Object.entries(groupedByCategory)
+      .sort(([, a], [, b]) => b.reduce((s, e) => s + e.amount, 0) - a.reduce((s, e) => s + e.amount, 0))
+      .forEach(([category, categoryExpenses]) => {
+        const categoryTotal = categoryExpenses.reduce((sum, e) => sum + e.amount, 0);
+        
+        // Category header
+        doc.setFontSize(12);
+        doc.setTextColor(40, 40, 40);
+        doc.setFont(undefined, 'bold');
+        doc.text(`${category} - R$ ${categoryTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, 14, startY);
+        doc.setFont(undefined, 'normal');
+
+        // Table data
+        const tableData = categoryExpenses
+          .sort((a, b) => {
+            if (!a.due_date) return 1;
+            if (!b.due_date) return -1;
+            return new Date(a.due_date).getTime() - new Date(b.due_date).getTime();
+          })
+          .map(expense => {
+            const dueDate = expense.due_date ? format(parseISO(expense.due_date), 'dd/MM/yyyy') : '-';
+            const status = expense.paid ? 'Pago' : (expense.due_date && isBefore(parseISO(expense.due_date), new Date()) ? 'Atrasado' : 'Pendente');
+            return [
+              expense.description,
+              dueDate,
+              `R$ ${expense.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
+              status
+            ];
+          });
+
+        autoTable(doc, {
+          startY: startY + 4,
+          head: [['Descrição', 'Vencimento', 'Valor', 'Status']],
+          body: tableData,
+          theme: 'striped',
+          headStyles: { 
+            fillColor: [99, 102, 241],
+            textColor: 255,
+            fontSize: 9,
+            fontStyle: 'bold'
+          },
+          bodyStyles: { fontSize: 9 },
+          columnStyles: {
+            0: { cellWidth: 70 },
+            1: { cellWidth: 30 },
+            2: { cellWidth: 35, halign: 'right' },
+            3: { cellWidth: 25 }
+          },
+          margin: { left: 14, right: 14 },
+          didDrawCell: (data) => {
+            if (data.section === 'body' && data.column.index === 3) {
+              const status = data.cell.raw as string;
+              if (status === 'Pago') {
+                doc.setTextColor(34, 197, 94);
+              } else if (status === 'Atrasado') {
+                doc.setTextColor(239, 68, 68);
+              } else {
+                doc.setTextColor(234, 179, 8);
+              }
+            }
+          }
+        });
+
+        startY = (doc as any).lastAutoTable.finalY + 10;
+        
+        // Check if we need a new page
+        if (startY > 270) {
+          doc.addPage();
+          startY = 20;
+        }
+      });
+
+    // Save the PDF
+    doc.save(`extrato-despesas-${format(filterMonth, 'yyyy-MM')}.pdf`);
+    toast.success('Extrato PDF exportado!');
+  };
+
+  // Export to Excel function
+  const handleExportExcel = () => {
+    if (expenses.length === 0) {
+      toast.error('Não há despesas para exportar');
+      return;
+    }
+
+    const monthName = format(filterMonth, "MMMM 'de' yyyy", { locale: ptBR });
+    
+    // Create workbook
+    const wb = XLSX.utils.book_new();
+    
+    // Summary sheet data
+    const summaryData: (string | number)[][] = [
+      ['EXTRATO DE DESPESAS'],
+      [monthName.charAt(0).toUpperCase() + monthName.slice(1)],
+      [`Gerado em: ${format(new Date(), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}`],
+      [],
+      ['RESUMO'],
+      ['Total do Mês', `R$ ${totalExpenses.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`],
+      ['Total Pago', `R$ ${paidExpenses.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`],
+      ['Total Pendente', `R$ ${pendingExpenses.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`],
+      ['Despesas Atrasadas', overdueExpenses.length.toString()],
+      [],
+      ['DISTRIBUIÇÃO POR CATEGORIA'],
+    ];
+
+    // Add category totals to summary
+    const groupedByCategory = expenses.reduce((acc, expense) => {
+      const category = getCategoryConfig(expense.category).label;
+      if (!acc[category]) acc[category] = [];
+      acc[category].push(expense);
+      return acc;
+    }, {} as Record<string, Expense[]>);
+
+    Object.entries(groupedByCategory)
+      .sort(([, a], [, b]) => b.reduce((s, e) => s + e.amount, 0) - a.reduce((s, e) => s + e.amount, 0))
+      .forEach(([category, categoryExpenses]) => {
+        const categoryTotal = categoryExpenses.reduce((sum, e) => sum + e.amount, 0);
+        summaryData.push([category, `R$ ${categoryTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`]);
+      });
+
+    const summarySheet = XLSX.utils.aoa_to_sheet(summaryData);
+    
+    // Style summary sheet
+    summarySheet['!cols'] = [{ wch: 25 }, { wch: 15 }];
+    
+    XLSX.utils.book_append_sheet(wb, summarySheet, 'Resumo');
+
+    // Detailed sheet data
+    const detailData = [
+      ['Categoria', 'Descrição', 'Vencimento', 'Valor', 'Status', 'Recorrente', 'Observações']
+    ];
+
+    expenses
+      .sort((a, b) => {
+        const catA = getCategoryConfig(a.category).label;
+        const catB = getCategoryConfig(b.category).label;
+        if (catA !== catB) return catA.localeCompare(catB);
+        if (!a.due_date) return 1;
+        if (!b.due_date) return -1;
+        return new Date(a.due_date).getTime() - new Date(b.due_date).getTime();
+      })
+      .forEach(expense => {
+        const category = getCategoryConfig(expense.category).label;
+        const dueDate = expense.due_date ? format(parseISO(expense.due_date), 'dd/MM/yyyy') : '-';
+        const status = expense.paid ? 'Pago' : (expense.due_date && isBefore(parseISO(expense.due_date), new Date()) ? 'Atrasado' : 'Pendente');
+        const recurring = expense.recurring ? `Sim (dia ${expense.recurring_day})` : 'Não';
+        
+        detailData.push([
+          category,
+          expense.description,
+          dueDate,
+          `R$ ${expense.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
+          status,
+          recurring,
+          expense.notes || '-'
+        ]);
+      });
+
+    const detailSheet = XLSX.utils.aoa_to_sheet(detailData);
+    
+    // Style detail sheet
+    detailSheet['!cols'] = [
+      { wch: 15 },  // Categoria
+      { wch: 30 },  // Descrição
+      { wch: 12 },  // Vencimento
+      { wch: 12 },  // Valor
+      { wch: 10 },  // Status
+      { wch: 15 },  // Recorrente
+      { wch: 30 },  // Observações
+    ];
+
+    XLSX.utils.book_append_sheet(wb, detailSheet, 'Detalhado');
+
+    // Save the file
+    XLSX.writeFile(wb, `extrato-despesas-${format(filterMonth, 'yyyy-MM')}.xlsx`);
+    toast.success('Extrato Excel exportado!');
   };
 
   return (
@@ -361,16 +603,33 @@ export default function Expenses() {
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              onClick={handleExportCSV}
-              className="gap-2 border-emerald-500/30 text-emerald-600 hover:bg-emerald-500/10 hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-300"
-              disabled={expenses.length === 0}
-            >
-              <FileSpreadsheet className="w-4 h-4" />
-              <span className="hidden sm:inline">Exportar Extrato</span>
-              <Download className="w-4 h-4 sm:hidden" />
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="outline"
+                  className="gap-2 border-emerald-500/30 text-emerald-600 hover:bg-emerald-500/10 hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-300"
+                  disabled={expenses.length === 0}
+                >
+                  <FileDown className="w-4 h-4" />
+                  <span className="hidden sm:inline">Exportar</span>
+                  <ChevronDown className="w-3 h-3" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48">
+                <DropdownMenuItem onClick={handleExportCSV} className="gap-2 cursor-pointer">
+                  <FileSpreadsheet className="w-4 h-4 text-emerald-500" />
+                  Exportar CSV
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleExportExcel} className="gap-2 cursor-pointer">
+                  <FileSpreadsheet className="w-4 h-4 text-green-600" />
+                  Exportar Excel
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleExportPDF} className="gap-2 cursor-pointer">
+                  <FileText className="w-4 h-4 text-red-500" />
+                  Exportar PDF
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
             <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
               <DialogTrigger asChild>
                 <Button 
