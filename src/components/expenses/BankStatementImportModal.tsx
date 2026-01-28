@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import * as XLSX from 'xlsx';
+import * as pdfjsLib from 'pdfjs-dist';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -32,7 +33,12 @@ import {
   X,
   ChevronRight,
   FileSpreadsheet,
+  FileText,
+  Loader2,
 } from 'lucide-react';
+
+// Configure PDF.js worker
+pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
 
 const CATEGORY_CONFIG: Record<string, { icon: React.ElementType; color: string; label: string; keywords: string[] }> = {
   casa: { icon: Home, color: 'bg-amber-500', label: 'Casa', keywords: ['aluguel', 'condominio', 'energia', 'luz', 'agua', 'gas', 'iptu'] },
@@ -73,6 +79,7 @@ export default function BankStatementImportModal({ open, onOpenChange, onImport 
   const [dateFormat, setDateFormat] = useState('dd/MM/yyyy');
   const [headerRow, setHeaderRow] = useState(true);
   const [rawData, setRawData] = useState<string[][]>([]);
+  const [isLoadingPdf, setIsLoadingPdf] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const detectCategory = (description: string): string => {
@@ -128,10 +135,91 @@ export default function BankStatementImportModal({ open, onOpenChange, onImport 
     return isNaN(value) ? 0 : value;
   };
 
-  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const parsePdfText = (text: string): string[][] => {
+    // Parse bank statement PDF text into structured data
+    const lines = text.split('\n').filter(line => line.trim());
+    const data: string[][] = [];
+    
+    // Common patterns for Brazilian bank statements
+    const datePattern = /(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/;
+    const amountPattern = /R?\$?\s*([\d.,]+(?:,\d{2})?)/;
+    
+    // Add header row
+    data.push(['Data', 'Descrição', 'Valor']);
+    
+    for (const line of lines) {
+      const dateMatch = line.match(datePattern);
+      const amountMatches = line.match(new RegExp(amountPattern.source, 'g'));
+      
+      if (dateMatch && amountMatches && amountMatches.length > 0) {
+        const date = dateMatch[1];
+        // Get the last amount match (usually the transaction value)
+        const amountStr = amountMatches[amountMatches.length - 1];
+        // Extract description (remove date and amounts from the line)
+        let description = line
+          .replace(datePattern, '')
+          .replace(new RegExp(amountPattern.source, 'g'), '')
+          .replace(/[R$]/g, '')
+          .trim();
+        
+        // Clean up excessive whitespace
+        description = description.replace(/\s+/g, ' ').trim();
+        
+        if (description && description.length > 3) {
+          data.push([date, description, amountStr]);
+        }
+      }
+    }
+    
+    return data;
+  };
+
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
+    // Handle PDF files
+    if (file.name.toLowerCase().endsWith('.pdf')) {
+      setIsLoadingPdf(true);
+      try {
+        const arrayBuffer = await file.arrayBuffer();
+        const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+        let fullText = '';
+        
+        for (let i = 1; i <= pdf.numPages; i++) {
+          const page = await pdf.getPage(i);
+          const textContent = await page.getTextContent();
+          const pageText = textContent.items
+            .map((item: any) => item.str)
+            .join(' ');
+          fullText += pageText + '\n';
+        }
+        
+        const data = parsePdfText(fullText);
+        
+        if (data.length < 2) {
+          toast.error('Não foi possível extrair transações do PDF. Tente CSV ou Excel.');
+          setIsLoadingPdf(false);
+          return;
+        }
+        
+        setRawData(data);
+        setDateColumn('0');
+        setDescColumn('1');
+        setAmountColumn('2');
+        setHeaderRow(true);
+        
+        toast.success(`PDF processado! ${data.length - 1} linhas encontradas.`);
+      } catch (error) {
+        console.error('Error parsing PDF:', error);
+        toast.error('Erro ao processar PDF. Tente outro formato.');
+      } finally {
+        setIsLoadingPdf(false);
+      }
+      return;
+    }
+
+    // Handle Excel and CSV files
     const reader = new FileReader();
     reader.onload = (e) => {
       try {
@@ -161,7 +249,7 @@ export default function BankStatementImportModal({ open, onOpenChange, onImport 
         setRawData(data);
         
         // Auto-detect columns based on header
-        const header = data[0].map(h => h.toLowerCase());
+        const header = data[0].map(h => String(h).toLowerCase());
         header.forEach((col, idx) => {
           if (col.includes('data') || col.includes('date')) setDateColumn(idx.toString());
           if (col.includes('descri') || col.includes('histor') || col.includes('memo')) setDescColumn(idx.toString());
@@ -281,7 +369,7 @@ export default function BankStatementImportModal({ open, onOpenChange, onImport 
           </DialogTitle>
           <DialogDescription>
             {step === 'upload' 
-              ? 'Carregue seu extrato bancário (CSV ou Excel) e configure as colunas'
+              ? 'Carregue seu extrato bancário (PDF, CSV ou Excel) e configure as colunas'
               : 'Revise as transações e ajuste as categorias antes de importar'
             }
           </DialogDescription>
@@ -294,15 +382,26 @@ export default function BankStatementImportModal({ open, onOpenChange, onImport 
               <input
                 ref={fileInputRef}
                 type="file"
-                accept=".csv,.xlsx,.xls"
+                accept=".csv,.xlsx,.xls,.pdf"
                 onChange={handleFileUpload}
                 className="hidden"
                 id="bank-statement-upload"
+                disabled={isLoadingPdf}
               />
-              <label htmlFor="bank-statement-upload" className="cursor-pointer">
-                <FileUp className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
-                <p className="text-lg font-medium">Clique para selecionar o arquivo</p>
-                <p className="text-sm text-muted-foreground mt-1">CSV, Excel (.xlsx, .xls)</p>
+              <label htmlFor="bank-statement-upload" className={cn("cursor-pointer", isLoadingPdf && "pointer-events-none")}>
+                {isLoadingPdf ? (
+                  <>
+                    <Loader2 className="w-12 h-12 mx-auto text-primary mb-4 animate-spin" />
+                    <p className="text-lg font-medium">Processando PDF...</p>
+                    <p className="text-sm text-muted-foreground mt-1">Extraindo transações do documento</p>
+                  </>
+                ) : (
+                  <>
+                    <FileUp className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
+                    <p className="text-lg font-medium">Clique para selecionar o arquivo</p>
+                    <p className="text-sm text-muted-foreground mt-1">PDF, CSV, Excel (.xlsx, .xls)</p>
+                  </>
+                )}
               </label>
             </div>
 
