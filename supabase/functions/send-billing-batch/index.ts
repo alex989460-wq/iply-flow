@@ -5,6 +5,8 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+const META_APP_SECRET = Deno.env.get('META_APP_SECRET');
+
 // Mapping of billing types to template names
 const TEMPLATE_MAPPING: Record<string, string> = {
   'D-1': 'vence_amanha',
@@ -22,8 +24,92 @@ interface Customer {
   normalizedPhone?: string;
 }
 
-// Send WhatsApp template message
-async function sendWhatsAppTemplate(
+// Generate appsecret_proof for secure Meta Graph API calls
+async function generateAppSecretProof(accessToken: string, appSecret: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const keyData = encoder.encode(appSecret);
+  const messageData = encoder.encode(accessToken);
+  
+  const key = await crypto.subtle.importKey(
+    'raw',
+    keyData,
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign']
+  );
+  
+  const signature = await crypto.subtle.sign('HMAC', key, messageData);
+  
+  return Array.from(new Uint8Array(signature))
+    .map(b => b.toString(16).padStart(2, '0'))
+    .join('');
+}
+
+// Send WhatsApp template message via Meta Cloud API
+async function sendWhatsAppTemplateMeta(
+  phone: string, 
+  templateName: string,
+  accessToken: string,
+  phoneNumberId: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    let formattedPhone = phone.replace(/\D/g, '');
+    if (!formattedPhone.startsWith('55') && formattedPhone.length <= 11) {
+      formattedPhone = '55' + formattedPhone;
+    }
+    
+    console.log(`[Meta Cloud] Sending template "${templateName}" to ${formattedPhone}`);
+    
+    // Generate appsecret_proof for security
+    let url = `https://graph.facebook.com/v21.0/${phoneNumberId}/messages`;
+    if (META_APP_SECRET) {
+      const proof = await generateAppSecretProof(accessToken, META_APP_SECRET);
+      url += `?appsecret_proof=${proof}`;
+    }
+    
+    const body = {
+      messaging_product: 'whatsapp',
+      recipient_type: 'individual',
+      to: formattedPhone,
+      type: 'template',
+      template: {
+        name: templateName,
+        language: {
+          code: 'pt_BR'
+        }
+      }
+    };
+    
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify(body),
+    });
+
+    const result = await response.json();
+    
+    if (!response.ok || result.error) {
+      console.error(`[Meta Cloud] API error:`, result.error || response.status);
+      return { 
+        success: false, 
+        error: result.error?.message || `Falha ao enviar (${response.status})` 
+      };
+    }
+
+    console.log(`[Meta Cloud] Template sent successfully to ${formattedPhone}`, result);
+    return { success: true };
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.error(`[Meta Cloud] Error sending template to ${phone}:`, error);
+    return { success: false, error: errorMessage };
+  }
+}
+
+// Send WhatsApp template message via Zap Responder API
+async function sendWhatsAppTemplateZap(
   phone: string, 
   templateName: string,
   token: string, 
@@ -36,7 +122,7 @@ async function sendWhatsAppTemplate(
       formattedPhone = '55' + formattedPhone;
     }
     
-    console.log(`Sending template "${templateName}" to ${formattedPhone}`);
+    console.log(`[Zap Responder] Sending template "${templateName}" to ${formattedPhone}`);
     
     const body = {
       type: 'template',
@@ -57,16 +143,16 @@ async function sendWhatsAppTemplate(
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error(`API error: ${response.status} - ${errorText}`);
+      console.error(`[Zap Responder] API error: ${response.status} - ${errorText}`);
       return { success: false, error: 'Falha ao enviar mensagem' };
     }
 
     const result = await response.json();
-    console.log(`Template sent successfully to ${formattedPhone}`, result);
+    console.log(`[Zap Responder] Template sent successfully to ${formattedPhone}`, result);
     return { success: true };
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    console.error(`Error sending template to ${phone}:`, error);
+    console.error(`[Zap Responder] Error sending template to ${phone}:`, error);
     return { success: false, error: errorMessage };
   }
 }
@@ -167,22 +253,36 @@ Deno.serve(async (req) => {
       zapSettings = data;
     }
 
-    const zapToken = zapSettings?.zap_api_token || (isAdminUser ? Deno.env.get('ZAP_RESPONDER_TOKEN') : null);
-    if (!zapToken) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'Token não configurado' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
+    // Detect API type - Meta Cloud or Zap Responder
+    const apiType = zapSettings?.api_type || 'zap_responder';
+    const isMetaCloud = apiType === 'meta_cloud';
+    
+    console.log(`[Billing Batch] API type: ${apiType}, isMetaCloud: ${isMetaCloud}`);
 
-    const apiBaseUrl = zapSettings?.api_base_url || 'https://api.zapresponder.com.br/api';
-    const departmentId = zapSettings?.selected_department_id;
+    // Validate configuration based on API type
+    if (isMetaCloud) {
+      if (!zapSettings?.meta_access_token || !zapSettings?.meta_phone_number_id) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Meta Cloud API não configurada. Conecte seu WhatsApp Oficial em Configurações.' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    } else {
+      const zapToken = zapSettings?.zap_api_token || (isAdminUser ? Deno.env.get('ZAP_RESPONDER_TOKEN') : null);
+      if (!zapToken) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Token não configurado' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
 
-    if (!departmentId) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'Departamento não configurado' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      const departmentId = zapSettings?.selected_department_id;
+      if (!departmentId) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Departamento não configurado' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
     }
 
     const today = getRelativeDateSaoPaulo(0);
@@ -283,6 +383,7 @@ Deno.serve(async (req) => {
           total: customersToProcess.length,
           skipped: skippedCount,
           userId,
+          apiType,
         }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
@@ -291,7 +392,7 @@ Deno.serve(async (req) => {
     // ACTION: BATCH - Process a batch of customers
     if (action === 'batch') {
       const batch: Customer[] = body?.batch || [];
-      console.log(`[Billing Batch] Processing batch of ${batch.length} customers`);
+      console.log(`[Billing Batch] Processing batch of ${batch.length} customers via ${apiType}`);
 
       const results: any[] = [];
 
@@ -300,7 +401,30 @@ Deno.serve(async (req) => {
         const templateName = TEMPLATE_MAPPING[billingType];
         const normalizedPhone = customer.normalizedPhone || normalizePhone(customer.phone);
         
-        const sendResult = await sendWhatsAppTemplate(customer.phone, templateName, zapToken, apiBaseUrl, departmentId);
+        let sendResult: { success: boolean; error?: string };
+        
+        if (isMetaCloud) {
+          // Send via Meta Cloud API
+          sendResult = await sendWhatsAppTemplateMeta(
+            customer.phone, 
+            templateName, 
+            zapSettings.meta_access_token,
+            zapSettings.meta_phone_number_id
+          );
+        } else {
+          // Send via Zap Responder
+          const zapToken = zapSettings?.zap_api_token || Deno.env.get('ZAP_RESPONDER_TOKEN');
+          const apiBaseUrl = zapSettings?.api_base_url || 'https://api.zapresponder.com.br/api';
+          const departmentId = zapSettings?.selected_department_id;
+          
+          sendResult = await sendWhatsAppTemplateZap(
+            customer.phone, 
+            templateName, 
+            zapToken!, 
+            apiBaseUrl, 
+            departmentId!
+          );
+        }
         
         // Log to database
         await supabase
@@ -308,7 +432,7 @@ Deno.serve(async (req) => {
           .insert({
             customer_id: customer.id,
             billing_type: billingType,
-            message: `[${normalizedPhone}] Template: ${templateName}`,
+            message: `[${normalizedPhone}] Template: ${templateName} via ${apiType}`,
             whatsapp_status: sendResult.success ? 'sent' : `error: ${sendResult.error}`,
           });
 
