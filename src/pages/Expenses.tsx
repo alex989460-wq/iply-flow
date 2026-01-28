@@ -48,10 +48,12 @@ import {
   FileText,
   ChevronDown,
   FileDown,
+  Upload,
 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
+import BankStatementImportModal from '@/components/expenses/BankStatementImportModal';
 
 const CATEGORY_CONFIG: Record<string, { icon: React.ElementType; color: string; label: string }> = {
   casa: { icon: Home, color: 'bg-amber-500', label: 'Casa' },
@@ -91,6 +93,7 @@ export default function Expenses() {
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [importModalOpen, setImportModalOpen] = useState(false);
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
   const [filterMonth, setFilterMonth] = useState<Date>(new Date());
   const [filterCategory, setFilterCategory] = useState<string>('all');
@@ -589,6 +592,36 @@ export default function Expenses() {
     toast.success('Extrato Excel exportado!');
   };
 
+  // Handle import from bank statement
+  const handleImportTransactions = async (transactions: { category: string; description: string; amount: number; due_date: string }[]) => {
+    if (!user) return;
+
+    try {
+      const expensesToInsert = transactions.map(t => ({
+        user_id: user.id,
+        category: t.category,
+        description: t.description,
+        amount: t.amount,
+        due_date: t.due_date,
+        paid: false,
+        recurring: false,
+      }));
+
+      const { error } = await supabase
+        .from('expenses')
+        .insert(expensesToInsert);
+
+      if (error) throw error;
+
+      toast.success(`${transactions.length} despesas importadas com sucesso!`);
+      setImportModalOpen(false);
+      fetchExpenses();
+    } catch (error: any) {
+      console.error('Error importing expenses:', error);
+      toast.error('Erro ao importar despesas');
+    }
+  };
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
@@ -603,6 +636,14 @@ export default function Expenses() {
             </p>
           </div>
           <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setImportModalOpen(true)}
+              className="gap-2 border-blue-500/30 text-blue-600 hover:bg-blue-500/10 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+            >
+              <Upload className="w-4 h-4" />
+              <span className="hidden sm:inline">Importar</span>
+            </Button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button
@@ -615,7 +656,7 @@ export default function Expenses() {
                   <ChevronDown className="w-3 h-3" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuContent align="end" className="w-48 bg-popover border shadow-lg">
                 <DropdownMenuItem onClick={handleExportCSV} className="gap-2 cursor-pointer">
                   <FileSpreadsheet className="w-4 h-4 text-emerald-500" />
                   Exportar CSV
@@ -1039,6 +1080,13 @@ export default function Expenses() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Bank Statement Import Modal */}
+      <BankStatementImportModal
+        open={importModalOpen}
+        onOpenChange={setImportModalOpen}
+        onImport={handleImportTransactions}
+      />
     </DashboardLayout>
   );
 }
