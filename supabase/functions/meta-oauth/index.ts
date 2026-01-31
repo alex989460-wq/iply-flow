@@ -374,6 +374,232 @@ Deno.serve(async (req) => {
       });
     }
 
+    if (action === 'fetch-templates') {
+      // Fetch message templates for the connected WABA
+      const { data: settings } = await supabase
+        .from('zap_responder_settings')
+        .select('meta_access_token, meta_business_id')
+        .eq('user_id', userId)
+        .maybeSingle();
+
+      if (!settings?.meta_access_token || !settings?.meta_business_id) {
+        return new Response(JSON.stringify({ 
+          error: 'Conta Meta não conectada' 
+        }), { 
+          status: 400, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        });
+      }
+
+      const appSecretProof = await generateAppSecretProofAsync(settings.meta_access_token, META_APP_SECRET);
+
+      const templatesUrl = new URL(`https://graph.facebook.com/v21.0/${settings.meta_business_id}/message_templates`);
+      templatesUrl.searchParams.set('access_token', settings.meta_access_token);
+      templatesUrl.searchParams.set('appsecret_proof', appSecretProof);
+      templatesUrl.searchParams.set('fields', 'name,status,language,category,components');
+      templatesUrl.searchParams.set('limit', '100');
+
+      const templatesResponse = await fetch(templatesUrl.toString());
+      const templatesData = await templatesResponse.json();
+
+      console.log('[meta-oauth] Templates response:', JSON.stringify(templatesData, null, 2));
+
+      if (templatesData.error) {
+        console.error('[meta-oauth] Templates fetch error:', templatesData.error);
+        return new Response(JSON.stringify({ 
+          error: templatesData.error.message || 'Erro ao buscar templates' 
+        }), { 
+          status: 400, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        });
+      }
+
+      return new Response(JSON.stringify({
+        success: true,
+        templates: templatesData.data || [],
+      }), { 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      });
+    }
+
+    if (action === 'fetch-waba-users') {
+      // Fetch users/agents assigned to the WABA
+      const { data: settings } = await supabase
+        .from('zap_responder_settings')
+        .select('meta_access_token, meta_business_id')
+        .eq('user_id', userId)
+        .maybeSingle();
+
+      if (!settings?.meta_access_token || !settings?.meta_business_id) {
+        return new Response(JSON.stringify({ 
+          error: 'Conta Meta não conectada' 
+        }), { 
+          status: 400, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        });
+      }
+
+      const appSecretProof = await generateAppSecretProofAsync(settings.meta_access_token, META_APP_SECRET);
+
+      const usersUrl = new URL(`https://graph.facebook.com/v21.0/${settings.meta_business_id}/assigned_users`);
+      usersUrl.searchParams.set('access_token', settings.meta_access_token);
+      usersUrl.searchParams.set('appsecret_proof', appSecretProof);
+      usersUrl.searchParams.set('fields', 'id,name,tasks,business{id,name}');
+
+      const usersResponse = await fetch(usersUrl.toString());
+      const usersData = await usersResponse.json();
+
+      console.log('[meta-oauth] WABA Users response:', JSON.stringify(usersData, null, 2));
+
+      if (usersData.error) {
+        console.error('[meta-oauth] Users fetch error:', usersData.error);
+        return new Response(JSON.stringify({ 
+          error: usersData.error.message || 'Erro ao buscar atendentes' 
+        }), { 
+          status: 400, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        });
+      }
+
+      return new Response(JSON.stringify({
+        success: true,
+        users: usersData.data || [],
+      }), { 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      });
+    }
+
+    if (action === 'assign-waba-user') {
+      // Assign a user to the WABA
+      const { user_email, tasks } = body;
+
+      if (!user_email) {
+        return new Response(JSON.stringify({ 
+          error: 'Email do usuário é obrigatório' 
+        }), { 
+          status: 400, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        });
+      }
+
+      const { data: settings } = await supabase
+        .from('zap_responder_settings')
+        .select('meta_access_token, meta_business_id')
+        .eq('user_id', userId)
+        .maybeSingle();
+
+      if (!settings?.meta_access_token || !settings?.meta_business_id) {
+        return new Response(JSON.stringify({ 
+          error: 'Conta Meta não conectada' 
+        }), { 
+          status: 400, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        });
+      }
+
+      const appSecretProof = await generateAppSecretProofAsync(settings.meta_access_token, META_APP_SECRET);
+
+      // First, we need to get the user ID from email via the business
+      // This requires inviting via the Business Manager API
+      const assignUrl = new URL(`https://graph.facebook.com/v21.0/${settings.meta_business_id}/assigned_users`);
+      
+      const assignResponse = await fetch(assignUrl.toString(), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          user: user_email,
+          tasks: tasks || ['MANAGE'],
+          access_token: settings.meta_access_token,
+          appsecret_proof: appSecretProof,
+        }),
+      });
+
+      const assignData = await assignResponse.json();
+
+      console.log('[meta-oauth] Assign user response:', JSON.stringify(assignData, null, 2));
+
+      if (assignData.error) {
+        console.error('[meta-oauth] Assign user error:', assignData.error);
+        return new Response(JSON.stringify({ 
+          error: assignData.error.message || 'Erro ao adicionar atendente' 
+        }), { 
+          status: 400, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        });
+      }
+
+      return new Response(JSON.stringify({
+        success: true,
+        message: 'Atendente adicionado com sucesso',
+        data: assignData,
+      }), { 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      });
+    }
+
+    if (action === 'remove-waba-user') {
+      // Remove a user from the WABA
+      const { waba_user_id } = body;
+
+      if (!waba_user_id) {
+        return new Response(JSON.stringify({ 
+          error: 'ID do usuário é obrigatório' 
+        }), { 
+          status: 400, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        });
+      }
+
+      const { data: settings } = await supabase
+        .from('zap_responder_settings')
+        .select('meta_access_token, meta_business_id')
+        .eq('user_id', userId)
+        .maybeSingle();
+
+      if (!settings?.meta_access_token || !settings?.meta_business_id) {
+        return new Response(JSON.stringify({ 
+          error: 'Conta Meta não conectada' 
+        }), { 
+          status: 400, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        });
+      }
+
+      const appSecretProof = await generateAppSecretProofAsync(settings.meta_access_token, META_APP_SECRET);
+
+      const removeUrl = new URL(`https://graph.facebook.com/v21.0/${settings.meta_business_id}/assigned_users`);
+      removeUrl.searchParams.set('user', waba_user_id);
+      removeUrl.searchParams.set('access_token', settings.meta_access_token);
+      removeUrl.searchParams.set('appsecret_proof', appSecretProof);
+
+      const removeResponse = await fetch(removeUrl.toString(), {
+        method: 'DELETE',
+      });
+
+      const removeData = await removeResponse.json();
+
+      console.log('[meta-oauth] Remove user response:', JSON.stringify(removeData, null, 2));
+
+      if (removeData.error) {
+        console.error('[meta-oauth] Remove user error:', removeData.error);
+        return new Response(JSON.stringify({ 
+          error: removeData.error.message || 'Erro ao remover atendente' 
+        }), { 
+          status: 400, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        });
+      }
+
+      return new Response(JSON.stringify({
+        success: true,
+        message: 'Atendente removido com sucesso',
+      }), { 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      });
+    }
+
     return new Response(JSON.stringify({ 
       error: 'Ação não reconhecida' 
     }), { 
