@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { Loader2, Eye, EyeOff, Save, AlertCircle, CheckCircle2, Unplug, Phone, RefreshCw, Server } from 'lucide-react';
+import { Loader2, Eye, EyeOff, Save, AlertCircle, CheckCircle2, Unplug, Phone, RefreshCw, Server, FileText, Users, UserPlus, Trash2, Mail } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
@@ -92,6 +92,24 @@ interface PhoneNumber {
   quality_rating?: string;
 }
 
+interface MessageTemplate {
+  name: string;
+  status: string;
+  language: string;
+  category: string;
+  components?: any[];
+}
+
+interface WabaUser {
+  id: string;
+  name: string;
+  tasks?: string[];
+  business?: {
+    id: string;
+    name: string;
+  };
+}
+
 export default function Settings() {
   const { user, session } = useAuth();
   const { toast } = useToast();
@@ -127,6 +145,14 @@ export default function Settings() {
   const [connectingMeta, setConnectingMeta] = useState(false);
   const [disconnectingMeta, setDisconnectingMeta] = useState(false);
   const [fbSdkLoaded, setFbSdkLoaded] = useState(false);
+  
+  // Meta Templates & Users
+  const [templates, setTemplates] = useState<MessageTemplate[]>([]);
+  const [loadingTemplates, setLoadingTemplates] = useState(false);
+  const [wabaUsers, setWabaUsers] = useState<WabaUser[]>([]);
+  const [loadingUsers, setLoadingUsers] = useState(false);
+  const [newUserEmail, setNewUserEmail] = useState('');
+  const [addingUser, setAddingUser] = useState(false);
 
   // Load Facebook SDK
   useEffect(() => {
@@ -480,6 +506,135 @@ export default function Settings() {
     }
   };
 
+  const fetchTemplates = async () => {
+    setLoadingTemplates(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('meta-oauth', {
+        body: { action: 'fetch-templates' },
+      });
+
+      if (error) throw error;
+
+      if (data.templates) {
+        setTemplates(data.templates);
+      }
+    } catch (err: any) {
+      console.error('[Settings] Fetch templates error:', err);
+      toast({
+        title: 'Erro',
+        description: err.message || 'Erro ao buscar templates',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoadingTemplates(false);
+    }
+  };
+
+  const fetchWabaUsers = async () => {
+    setLoadingUsers(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('meta-oauth', {
+        body: { action: 'fetch-waba-users' },
+      });
+
+      if (error) throw error;
+
+      if (data.users) {
+        setWabaUsers(data.users);
+      }
+    } catch (err: any) {
+      console.error('[Settings] Fetch users error:', err);
+      toast({
+        title: 'Erro',
+        description: err.message || 'Erro ao buscar atendentes',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoadingUsers(false);
+    }
+  };
+
+  const addWabaUser = async () => {
+    if (!newUserEmail.trim()) {
+      toast({
+        title: 'Erro',
+        description: 'Digite o email do atendente',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setAddingUser(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('meta-oauth', {
+        body: { 
+          action: 'assign-waba-user',
+          user_email: newUserEmail.trim(),
+          tasks: ['MANAGE'],
+        },
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: 'Sucesso',
+        description: 'Convite enviado para o atendente!',
+      });
+      setNewUserEmail('');
+      fetchWabaUsers();
+    } catch (err: any) {
+      console.error('[Settings] Add user error:', err);
+      toast({
+        title: 'Erro',
+        description: err.message || 'Erro ao adicionar atendente',
+        variant: 'destructive',
+      });
+    } finally {
+      setAddingUser(false);
+    }
+  };
+
+  const removeWabaUser = async (wabaUserId: string, userName: string) => {
+    if (!confirm(`Tem certeza que deseja remover ${userName}?`)) return;
+
+    try {
+      const { data, error } = await supabase.functions.invoke('meta-oauth', {
+        body: { 
+          action: 'remove-waba-user',
+          waba_user_id: wabaUserId,
+        },
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: 'Sucesso',
+        description: 'Atendente removido com sucesso!',
+      });
+      fetchWabaUsers();
+    } catch (err: any) {
+      console.error('[Settings] Remove user error:', err);
+      toast({
+        title: 'Erro',
+        description: err.message || 'Erro ao remover atendente',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const getStatusBadge = (status: string) => {
+    switch (status.toUpperCase()) {
+      case 'APPROVED':
+        return <Badge className="bg-green-500/10 text-green-500 border-green-500/30">Aprovado</Badge>;
+      case 'PENDING':
+        return <Badge className="bg-yellow-500/10 text-yellow-500 border-yellow-500/30">Pendente</Badge>;
+      case 'REJECTED':
+        return <Badge className="bg-red-500/10 text-red-500 border-red-500/30">Rejeitado</Badge>;
+      default:
+        return <Badge variant="outline">{status}</Badge>;
+    }
+  };
+
   if (loading) {
     return (
       <DashboardLayout>
@@ -825,6 +980,156 @@ export default function Settings() {
                       ) : (
                         <div className="text-center py-6 text-muted-foreground">
                           <p>Clique em "Atualizar" para buscar seus números</p>
+                        </div>
+                      )}
+                    </div>
+
+                    <Separator />
+
+                    {/* Templates Management */}
+                    <div>
+                      <div className="flex items-center justify-between mb-4">
+                        <div>
+                          <h4 className="font-medium flex items-center gap-2">
+                            <FileText className="w-4 h-4" />
+                            Templates de Mensagem
+                          </h4>
+                          <p className="text-sm text-muted-foreground">
+                            Templates aprovados para envio de cobranças
+                          </p>
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={fetchTemplates}
+                          disabled={loadingTemplates}
+                        >
+                          {loadingTemplates ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <RefreshCw className="w-4 h-4" />
+                          )}
+                          <span className="ml-2">Carregar</span>
+                        </Button>
+                      </div>
+
+                      {templates.length > 0 ? (
+                        <div className="grid gap-3 max-h-64 overflow-y-auto">
+                          {templates.map((template, idx) => (
+                            <div
+                              key={`${template.name}-${idx}`}
+                              className="flex items-center justify-between p-3 rounded-lg border border-border"
+                            >
+                              <div className="flex items-center gap-3">
+                                <FileText className="w-5 h-5 text-muted-foreground" />
+                                <div>
+                                  <p className="font-medium">{template.name}</p>
+                                  <p className="text-xs text-muted-foreground">
+                                    {template.category} • {template.language}
+                                  </p>
+                                </div>
+                              </div>
+                              {getStatusBadge(template.status)}
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="text-center py-6 text-muted-foreground border border-dashed border-border rounded-lg">
+                          <FileText className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                          <p>Clique em "Carregar" para buscar seus templates</p>
+                          <p className="text-xs mt-1">Templates necessários: vence_amanha, hoje01, vencido</p>
+                        </div>
+                      )}
+                    </div>
+
+                    <Separator />
+
+                    {/* WABA Users/Agents Management */}
+                    <div>
+                      <div className="flex items-center justify-between mb-4">
+                        <div>
+                          <h4 className="font-medium flex items-center gap-2">
+                            <Users className="w-4 h-4" />
+                            Atendentes
+                          </h4>
+                          <p className="text-sm text-muted-foreground">
+                            Gerencie os usuários com acesso à API
+                          </p>
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={fetchWabaUsers}
+                          disabled={loadingUsers}
+                        >
+                          {loadingUsers ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <RefreshCw className="w-4 h-4" />
+                          )}
+                          <span className="ml-2">Atualizar</span>
+                        </Button>
+                      </div>
+
+                      {/* Add new user */}
+                      <div className="flex gap-2 mb-4">
+                        <div className="flex-1 relative">
+                          <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                          <Input
+                            type="email"
+                            placeholder="Email do atendente (deve ter conta Facebook)"
+                            value={newUserEmail}
+                            onChange={(e) => setNewUserEmail(e.target.value)}
+                            className="pl-10"
+                          />
+                        </div>
+                        <Button
+                          onClick={addWabaUser}
+                          disabled={addingUser || !newUserEmail.trim()}
+                        >
+                          {addingUser ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <UserPlus className="w-4 h-4" />
+                          )}
+                          <span className="ml-2 hidden sm:inline">Adicionar</span>
+                        </Button>
+                      </div>
+
+                      {wabaUsers.length > 0 ? (
+                        <div className="grid gap-3">
+                          {wabaUsers.map((wuser) => (
+                            <div
+                              key={wuser.id}
+                              className="flex items-center justify-between p-3 rounded-lg border border-border"
+                            >
+                              <div className="flex items-center gap-3">
+                                <Users className="w-5 h-5 text-muted-foreground" />
+                                <div>
+                                  <p className="font-medium">{wuser.name}</p>
+                                  {wuser.tasks && (
+                                    <p className="text-xs text-muted-foreground">
+                                      Permissões: {wuser.tasks.join(', ')}
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => removeWabaUser(wuser.id, wuser.name)}
+                                className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="text-center py-6 text-muted-foreground border border-dashed border-border rounded-lg">
+                          <Users className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                          <p>Nenhum atendente encontrado</p>
+                          <p className="text-xs mt-1">Adicione usuários pelo email da conta Facebook</p>
                         </div>
                       )}
                     </div>
