@@ -114,15 +114,17 @@ export default function MassBroadcast() {
   const [isLoadingTemplates, setIsLoadingTemplates] = useState(false);
   const [templatesLoaded, setTemplatesLoaded] = useState(false);
 
-  // Departments from API
+  // Departments from API (Zap Responder) or local DB (Meta Cloud)
   interface Department {
     id: string;
     name: string;
-    isActive: boolean;
+    isActive?: boolean;
+    is_default?: boolean;
   }
   const [departments, setDepartments] = useState<Department[]>([]);
   const [isLoadingDepartments, setIsLoadingDepartments] = useState(false);
   const [showDepartmentSelector, setShowDepartmentSelector] = useState(false);
+  const [selectedLocalDepartment, setSelectedLocalDepartment] = useState<string>('');
 
   // Fetch zap settings for department
   const { data: zapSettings, refetch: refetchZapSettings } = useQuery({
@@ -141,30 +143,72 @@ export default function MassBroadcast() {
     },
   });
 
-  // Fetch departments from API
+  // Detect if using Meta Cloud API
+  const isMetaCloudApi = zapSettings?.api_type === 'meta_cloud' && zapSettings?.meta_connected_at;
+  const hasValidMetaSession = isMetaCloudApi && !!zapSettings?.meta_phone_number_id;
+  const hasValidZapSession = !isMetaCloudApi && !!zapSettings?.selected_department_id;
+
+  // Fetch departments from API (Zap Responder) or local DB (Meta Cloud)
   const fetchDepartments = async () => {
     setIsLoadingDepartments(true);
     try {
-      const { data, error } = await supabase.functions.invoke('zap-responder', {
-        body: { action: 'departamentos' },
-      });
+      if (isMetaCloudApi) {
+        // Fetch from local departments table
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) throw new Error('Usuário não autenticado');
 
-      if (error) throw error;
+        const { data, error } = await supabase
+          .from('departments')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('created_at');
 
-      if (data?.success && data?.data) {
-        setDepartments(data.data);
-        setShowDepartmentSelector(true);
+        if (error) throw error;
+
+        if (data && data.length > 0) {
+          setDepartments(data.map(d => ({
+            id: d.id,
+            name: d.name,
+            isActive: true,
+            is_default: d.is_default,
+          })));
+          // Auto-select default department
+          const defaultDept = data.find(d => d.is_default);
+          if (defaultDept) {
+            setSelectedLocalDepartment(defaultDept.id);
+          }
+          setShowDepartmentSelector(true);
+        } else {
+          setDepartments([]);
+          toast({ 
+            title: 'Nenhum departamento', 
+            description: 'Crie departamentos em Configurações > WhatsApp Oficial',
+            variant: 'destructive' 
+          });
+        }
       } else {
-        toast({ 
-          title: 'Erro ao carregar departamentos', 
-          description: data?.error || 'Resposta inválida da API',
-          variant: 'destructive' 
+        // Fetch from Zap Responder API
+        const { data, error } = await supabase.functions.invoke('zap-responder', {
+          body: { action: 'departamentos' },
         });
+
+        if (error) throw error;
+
+        if (data?.success && data?.data) {
+          setDepartments(data.data);
+          setShowDepartmentSelector(true);
+        } else {
+          toast({ 
+            title: 'Erro ao carregar departamentos', 
+            description: data?.error || 'Resposta inválida da API',
+            variant: 'destructive' 
+          });
+        }
       }
     } catch (error: any) {
       toast({
         title: 'Erro ao carregar departamentos',
-        description: error.message || 'Não foi possível conectar à API',
+        description: error.message || 'Não foi possível conectar',
         variant: 'destructive',
       });
     } finally {
@@ -252,6 +296,67 @@ export default function MassBroadcast() {
 
   // Fetch templates when department is available
   const fetchTemplates = async (showToast = true) => {
+    // For Meta Cloud API - check if connected
+    if (isMetaCloudApi) {
+      if (!hasValidMetaSession) {
+        if (showToast) {
+          toast({
+            title: 'WhatsApp não configurado',
+            description: 'Configure seu número em Configurações > WhatsApp Oficial.',
+            variant: 'destructive',
+          });
+        }
+        return;
+      }
+
+      setIsLoadingTemplates(true);
+      try {
+        const { data, error } = await supabase.functions.invoke('meta-oauth', {
+          body: { action: 'fetch-templates' },
+        });
+
+        if (error) throw error;
+
+        if (data?.templates) {
+          // Filter only approved templates
+          const approvedTemplates = data.templates.filter((t: any) => 
+            t.status?.toUpperCase() === 'APPROVED'
+          );
+          setTemplates(approvedTemplates.map((t: any) => ({
+            id: t.name,
+            name: t.name,
+            language: t.language,
+            status: t.status,
+            category: t.category,
+          })));
+          setTemplatesLoaded(true);
+          if (showToast) {
+            toast({ title: 'Templates carregados!', description: `${approvedTemplates.length} templates aprovados encontrados.` });
+          }
+        } else {
+          if (showToast) {
+            toast({ 
+              title: 'Erro ao carregar templates', 
+              description: data?.error || 'Nenhum template encontrado',
+              variant: 'destructive' 
+            });
+          }
+        }
+      } catch (error: any) {
+        if (showToast) {
+          toast({
+            title: 'Erro ao carregar templates',
+            description: error.message,
+            variant: 'destructive',
+          });
+        }
+      } finally {
+        setIsLoadingTemplates(false);
+      }
+      return;
+    }
+
+    // For Zap Responder - check department
     if (!zapSettings?.selected_department_id) {
       if (showToast) {
         toast({
@@ -303,12 +408,21 @@ export default function MassBroadcast() {
     }
   };
 
-  // Auto-load templates when department is available
+  // Auto-load templates when appropriate
   useEffect(() => {
-    if (zapSettings?.selected_department_id && !templatesLoaded) {
+    if (templatesLoaded) return;
+    
+    // For Meta Cloud API
+    if (isMetaCloudApi && hasValidMetaSession) {
+      fetchTemplates(false);
+      return;
+    }
+    
+    // For Zap Responder
+    if (!isMetaCloudApi && zapSettings?.selected_department_id) {
       fetchTemplates(false);
     }
-  }, [zapSettings?.selected_department_id, templatesLoaded]);
+  }, [isMetaCloudApi, hasValidMetaSession, zapSettings?.selected_department_id, templatesLoaded]);
 
   // Filter customers based on status and search
   const filteredCustomers = useMemo(() => {
@@ -880,47 +994,73 @@ export default function MassBroadcast() {
           <CardHeader className="pb-3">
             <CardTitle className="text-lg flex items-center gap-2">
               <Phone className="w-5 h-5" />
-              Departamento de Envio
+              {isMetaCloudApi ? 'WhatsApp Oficial' : 'Departamento de Envio'}
             </CardTitle>
             <CardDescription>
-              Selecione qual departamento será usado para enviar as mensagens
+              {isMetaCloudApi 
+                ? 'Conexão Meta Cloud API para envio de mensagens'
+                : 'Selecione qual departamento será usado para enviar as mensagens'}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             {/* Current Department Display */}
             <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
-              {zapSettings?.selected_department_id ? (
-                <div className="flex items-center gap-3 px-4 py-3 rounded-lg bg-success/10 border border-success/30 flex-1">
-                  <CheckCircle className="w-5 h-5 text-success flex-shrink-0" />
-                  <div className="flex-1">
-                    <p className="font-medium text-foreground">{zapSettings.selected_department_name || 'Departamento Selecionado'}</p>
-                    <p className="text-sm text-muted-foreground">ID: {zapSettings.selected_department_id}</p>
+              {/* Meta Cloud API - show phone and local departments */}
+              {isMetaCloudApi ? (
+                hasValidMetaSession ? (
+                  <div className="flex items-center gap-3 px-4 py-3 rounded-lg bg-success/10 border border-success/30 flex-1">
+                    <CheckCircle className="w-5 h-5 text-success flex-shrink-0" />
+                    <div className="flex-1">
+                      <p className="font-medium text-foreground">{zapSettings?.meta_display_phone || 'WhatsApp Oficial'}</p>
+                      <p className="text-sm text-muted-foreground">Meta Cloud API</p>
+                    </div>
+                    <Badge className="bg-success/20 text-success border-success/30">Conectado</Badge>
                   </div>
-                  <Badge className="bg-success/20 text-success border-success/30">Selecionado</Badge>
-                </div>
-              ) : (
-                <div className="flex items-center gap-3 px-4 py-3 rounded-lg bg-warning/10 border border-warning/30 flex-1">
-                  <AlertTriangle className="w-5 h-5 text-warning flex-shrink-0" />
-                  <p className="text-warning-foreground">Nenhum departamento selecionado para envio</p>
-                </div>
-              )}
-              <Button 
-                onClick={fetchDepartments}
-                disabled={isLoadingDepartments}
-                variant="outline"
-                className="shrink-0"
-              >
-                {isLoadingDepartments ? (
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                 ) : (
-                  <RefreshCw className="w-4 h-4 mr-2" />
-                )}
-                {zapSettings?.selected_department_id ? 'Alterar' : 'Selecionar'}
-              </Button>
+                  <div className="flex items-center gap-3 px-4 py-3 rounded-lg bg-destructive/10 border border-destructive/30 flex-1">
+                    <AlertTriangle className="w-5 h-5 text-destructive flex-shrink-0" />
+                    <p className="text-destructive-foreground">Configure o WhatsApp Oficial em Configurações</p>
+                  </div>
+                )
+              ) : (
+                // Zap Responder - show department
+                zapSettings?.selected_department_id ? (
+                  <div className="flex items-center gap-3 px-4 py-3 rounded-lg bg-success/10 border border-success/30 flex-1">
+                    <CheckCircle className="w-5 h-5 text-success flex-shrink-0" />
+                    <div className="flex-1">
+                      <p className="font-medium text-foreground">{zapSettings.selected_department_name || 'Departamento Selecionado'}</p>
+                      <p className="text-sm text-muted-foreground">ID: {zapSettings.selected_department_id}</p>
+                    </div>
+                    <Badge className="bg-success/20 text-success border-success/30">Selecionado</Badge>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-3 px-4 py-3 rounded-lg bg-warning/10 border border-warning/30 flex-1">
+                    <AlertTriangle className="w-5 h-5 text-warning flex-shrink-0" />
+                    <p className="text-warning-foreground">Nenhum departamento selecionado para envio</p>
+                  </div>
+                )
+              )}
+              
+              {/* Only show department selector button for Zap Responder */}
+              {!isMetaCloudApi && (
+                <Button 
+                  onClick={fetchDepartments}
+                  disabled={isLoadingDepartments}
+                  variant="outline"
+                  className="shrink-0"
+                >
+                  {isLoadingDepartments ? (
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  ) : (
+                    <RefreshCw className="w-4 h-4 mr-2" />
+                  )}
+                  {zapSettings?.selected_department_id ? 'Alterar' : 'Selecionar'}
+                </Button>
+              )}
             </div>
 
-            {/* Department Selection Grid */}
-            {showDepartmentSelector && departments.length > 0 && (
+            {/* Department Selection Grid (Zap Responder only) */}
+            {!isMetaCloudApi && showDepartmentSelector && departments.length > 0 && (
               <div className="space-y-3 pt-2 border-t">
                 <p className="text-sm font-medium text-muted-foreground">Selecione um departamento:</p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
@@ -951,8 +1091,8 @@ export default function MassBroadcast() {
               </div>
             )}
 
-            {/* Empty State */}
-            {showDepartmentSelector && departments.length === 0 && !isLoadingDepartments && (
+            {/* Empty State (Zap Responder only) */}
+            {!isMetaCloudApi && showDepartmentSelector && departments.length === 0 && !isLoadingDepartments && (
               <div className="pt-2 border-t">
                 <p className="text-sm text-muted-foreground text-center py-4">
                   Nenhum departamento encontrado. Configure os departamentos no painel do Zap Responder.
