@@ -89,6 +89,14 @@ interface WhatsAppTemplate {
   name: string;
   language?: string;
   status?: string;
+  category?: string;
+}
+
+interface MetaPhoneNumber {
+  id: string;
+  display_phone_number: string;
+  verified_name?: string;
+  quality_rating?: string;
 }
 
 export default function Billing() {
@@ -100,6 +108,12 @@ export default function Billing() {
   const [departments, setDepartments] = useState<Department[]>([]);
   const [templates, setTemplates] = useState<WhatsAppTemplate[]>([]);
   const [selectedDepartment, setSelectedDepartment] = useState<Department | null>(null);
+  
+  // Meta Cloud API states
+  const [metaPhoneNumbers, setMetaPhoneNumbers] = useState<MetaPhoneNumber[]>([]);
+  const [metaTemplates, setMetaTemplates] = useState<WhatsAppTemplate[]>([]);
+  const [isLoadingMetaPhones, setIsLoadingMetaPhones] = useState(false);
+  const [isLoadingMetaTemplates, setIsLoadingMetaTemplates] = useState(false);
   
   // Form states
   const [searchPhone, setSearchPhone] = useState('');
@@ -257,6 +271,12 @@ export default function Billing() {
       return data;
     },
   });
+
+  // Check if using Meta Cloud API
+  const isMetaCloudApi = zapSettings?.api_type === 'meta_cloud' && zapSettings?.meta_connected_at;
+  const hasValidSession = isMetaCloudApi 
+    ? !!zapSettings?.meta_phone_number_id 
+    : !!zapSettings?.selected_session_id;
 
   // Auto-load sessions and departments on mount
   useEffect(() => {
@@ -433,6 +453,86 @@ export default function Billing() {
       });
     } finally {
       setIsLoadingTemplates(false);
+    }
+  };
+
+  // Meta Cloud API: Fetch phone numbers (equivalent to departments)
+  const fetchMetaPhoneNumbers = async () => {
+    setIsLoadingMetaPhones(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('meta-oauth', {
+        body: { action: 'fetch-phone-numbers' },
+      });
+
+      if (error) throw error;
+
+      if (data?.phone_numbers) {
+        setMetaPhoneNumbers(data.phone_numbers);
+        toast({ title: 'Números carregados!', description: `${data.phone_numbers.length} números encontrados.` });
+      }
+    } catch (error: any) {
+      console.error('[Billing] Fetch Meta phones error:', error);
+      toast({
+        title: 'Erro ao carregar números',
+        description: error.message || 'Não foi possível buscar os números',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoadingMetaPhones(false);
+    }
+  };
+
+  // Meta Cloud API: Fetch templates
+  const fetchMetaTemplates = async () => {
+    setIsLoadingMetaTemplates(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('meta-oauth', {
+        body: { action: 'fetch-templates' },
+      });
+
+      if (error) throw error;
+
+      if (data?.templates) {
+        setMetaTemplates(data.templates);
+        toast({ title: 'Templates carregados!', description: `${data.templates.length} templates encontrados.` });
+      }
+    } catch (error: any) {
+      console.error('[Billing] Fetch Meta templates error:', error);
+      toast({
+        title: 'Erro ao carregar templates',
+        description: error.message || 'Não foi possível buscar os templates',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoadingMetaTemplates(false);
+    }
+  };
+
+  // Meta Cloud API: Select phone number
+  const selectMetaPhoneNumber = async (phone: MetaPhoneNumber) => {
+    try {
+      const { data, error } = await supabase.functions.invoke('meta-oauth', {
+        body: {
+          action: 'select-phone',
+          phone_number_id: phone.id,
+          display_phone: phone.display_phone_number,
+        },
+      });
+
+      if (error) throw error;
+
+      refetchSettings();
+      toast({
+        title: 'Número selecionado!',
+        description: `Usando ${phone.display_phone_number} para envios`,
+      });
+    } catch (error: any) {
+      console.error('[Billing] Select Meta phone error:', error);
+      toast({
+        title: 'Erro ao selecionar número',
+        description: error.message || 'Não foi possível selecionar o número',
+        variant: 'destructive',
+      });
     }
   };
 
@@ -665,10 +765,12 @@ export default function Billing() {
   const BATCH_DELAY_MS = 2000; // 2 seconds between batches
 
   const handleSendBillings = async (billingType?: BillingType) => {
-    if (!zapSettings?.selected_session_id) {
+    if (!hasValidSession) {
       toast({
-        title: 'Nenhuma sessão selecionada',
-        description: 'Por favor, selecione um atendente antes de enviar cobranças.',
+        title: isMetaCloudApi ? 'Nenhum número selecionado' : 'Nenhuma sessão selecionada',
+        description: isMetaCloudApi 
+          ? 'Por favor, selecione um número do WhatsApp Oficial antes de enviar cobranças.' 
+          : 'Por favor, selecione um atendente antes de enviar cobranças.',
         variant: 'destructive',
       });
       return;
@@ -937,7 +1039,7 @@ export default function Billing() {
           <Button 
             variant="glow" 
             onClick={() => handleSendBillings()}
-            disabled={isSending || totalPending === 0 || !zapSettings?.selected_session_id}
+            disabled={isSending || totalPending === 0 || !hasValidSession}
             className="w-full sm:w-auto sm:self-start"
           >
             {isSending && sendingType === 'all' ? (
@@ -953,7 +1055,9 @@ export default function Billing() {
         <Tabs defaultValue="config" className="space-y-4">
           <TabsList className="grid w-full grid-cols-3 sm:grid-cols-6 h-auto">
             <TabsTrigger value="config" className="text-xs sm:text-sm py-2">Config</TabsTrigger>
-            <TabsTrigger value="departamentos" className="text-xs sm:text-sm py-2">Deptos</TabsTrigger>
+            <TabsTrigger value="departamentos" className="text-xs sm:text-sm py-2">
+              {isMetaCloudApi ? 'Números' : 'Deptos'}
+            </TabsTrigger>
             <TabsTrigger value="conversas" className="text-xs sm:text-sm py-2">Conversas</TabsTrigger>
             <TabsTrigger value="templates" className="text-xs sm:text-sm py-2">Templates</TabsTrigger>
             <TabsTrigger value="relatorios" className="text-xs sm:text-sm py-2 flex items-center gap-1">
@@ -968,78 +1072,161 @@ export default function Billing() {
           <TabsContent value="config" className="space-y-4">
             {/* Billing Schedule Card */}
             <BillingScheduleCard />
-            {/* Zap Responder Configuration */}
-            <Card className="glass-card border-border/50">
-              <CardHeader>
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <Phone className="w-5 h-5 text-primary" />
-                  Configuração do Zap Responder
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex flex-col sm:flex-row gap-4">
-                  <div className="flex-1">
-                    <p className="text-sm text-muted-foreground mb-2">Atendente Selecionado:</p>
-                    {zapSettings?.selected_session_id ? (
-                      <div className="flex items-center gap-2 p-3 bg-success/10 border border-success/20 rounded-lg">
-                        <CheckCircle className="w-4 h-4 text-success" />
-                        <span className="font-medium">{zapSettings.selected_session_name}</span>
-                        <span className="text-muted-foreground">({zapSettings.selected_session_phone})</span>
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-2 p-3 bg-destructive/10 border border-destructive/20 rounded-lg">
-                        <AlertCircle className="w-4 h-4 text-destructive" />
-                        <span>Nenhum atendente selecionado</span>
-                      </div>
-                    )}
-                  </div>
-                  <Button 
-                    variant="outline" 
-                    onClick={() => fetchSessions(true)}
-                    disabled={isLoadingSessions}
-                  >
-                    {isLoadingSessions ? (
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    ) : (
-                      <RefreshCw className="w-4 h-4 mr-2" />
-                    )}
-                    Carregar Atendentes
-                  </Button>
-                </div>
-
-                {sessions.length > 0 && (
-                  <div className="space-y-2">
-                    <p className="text-sm font-medium">Selecione um atendente:</p>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                      {sessions.map((session) => (
-                        <button
-                          key={session.id}
-                          onClick={() => selectSessionMutation.mutate(session)}
-                          disabled={selectSessionMutation.isPending}
-                          className={cn(
-                            'p-3 rounded-lg border text-left transition-all hover:border-primary',
-                            zapSettings?.selected_session_id === session.id
-                              ? 'border-primary bg-primary/10'
-                              : 'border-border bg-secondary/50'
-                          )}
-                        >
-                          <p className="font-medium">{session.name}</p>
-                          <p className="text-sm text-muted-foreground">{session.phone}</p>
-                          <span className={cn(
-                            'text-xs px-2 py-0.5 rounded-full mt-1 inline-block',
-                            session.status === 'connected' || session.status === 'active'
-                              ? 'bg-success/10 text-success' 
-                              : 'bg-muted text-muted-foreground'
-                          )}>
-                            {session.status}
-                          </span>
-                        </button>
-                      ))}
+            
+            {/* Meta Cloud API Configuration */}
+            {isMetaCloudApi ? (
+              <Card className="glass-card border-border/50">
+                <CardHeader>
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <Phone className="w-5 h-5 text-green-500" />
+                    WhatsApp Oficial (Meta Cloud API)
+                    <span className="ml-2 px-2 py-0.5 text-xs bg-green-500/10 text-green-500 rounded-full border border-green-500/30">
+                      Conectado
+                    </span>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex flex-col sm:flex-row gap-4">
+                    <div className="flex-1">
+                      <p className="text-sm text-muted-foreground mb-2">Número Selecionado:</p>
+                      {zapSettings?.meta_phone_number_id ? (
+                        <div className="flex items-center gap-2 p-3 bg-success/10 border border-success/20 rounded-lg">
+                          <CheckCircle className="w-4 h-4 text-success" />
+                          <span className="font-medium">{zapSettings.meta_display_phone}</span>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2 p-3 bg-destructive/10 border border-destructive/20 rounded-lg">
+                          <AlertCircle className="w-4 h-4 text-destructive" />
+                          <span>Nenhum número selecionado</span>
+                        </div>
+                      )}
                     </div>
+                    <Button 
+                      variant="outline" 
+                      onClick={fetchMetaPhoneNumbers}
+                      disabled={isLoadingMetaPhones}
+                    >
+                      {isLoadingMetaPhones ? (
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      ) : (
+                        <RefreshCw className="w-4 h-4 mr-2" />
+                      )}
+                      Carregar Números
+                    </Button>
                   </div>
-                )}
-              </CardContent>
-            </Card>
+
+                  {metaPhoneNumbers.length > 0 && (
+                    <div className="space-y-2">
+                      <p className="text-sm font-medium">Selecione um número:</p>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                        {metaPhoneNumbers.map((phone) => (
+                          <button
+                            key={phone.id}
+                            onClick={() => selectMetaPhoneNumber(phone)}
+                            className={cn(
+                              'p-3 rounded-lg border text-left transition-all hover:border-primary',
+                              zapSettings?.meta_phone_number_id === phone.id
+                                ? 'border-primary bg-primary/10'
+                                : 'border-border bg-secondary/50'
+                            )}
+                          >
+                            <p className="font-medium">{phone.display_phone_number}</p>
+                            {phone.verified_name && (
+                              <p className="text-sm text-muted-foreground">{phone.verified_name}</p>
+                            )}
+                            {phone.quality_rating && (
+                              <span className={cn(
+                                'text-xs px-2 py-0.5 rounded-full mt-1 inline-block',
+                                phone.quality_rating === 'GREEN' 
+                                  ? 'bg-success/10 text-success' 
+                                  : phone.quality_rating === 'YELLOW'
+                                  ? 'bg-warning/10 text-warning'
+                                  : 'bg-muted text-muted-foreground'
+                              )}>
+                                {phone.quality_rating}
+                              </span>
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            ) : (
+              /* Zap Responder Configuration */
+              <Card className="glass-card border-border/50">
+                <CardHeader>
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <Phone className="w-5 h-5 text-primary" />
+                    Configuração do Zap Responder
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex flex-col sm:flex-row gap-4">
+                    <div className="flex-1">
+                      <p className="text-sm text-muted-foreground mb-2">Atendente Selecionado:</p>
+                      {zapSettings?.selected_session_id ? (
+                        <div className="flex items-center gap-2 p-3 bg-success/10 border border-success/20 rounded-lg">
+                          <CheckCircle className="w-4 h-4 text-success" />
+                          <span className="font-medium">{zapSettings.selected_session_name}</span>
+                          <span className="text-muted-foreground">({zapSettings.selected_session_phone})</span>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2 p-3 bg-destructive/10 border border-destructive/20 rounded-lg">
+                          <AlertCircle className="w-4 h-4 text-destructive" />
+                          <span>Nenhum atendente selecionado</span>
+                        </div>
+                      )}
+                    </div>
+                    <Button 
+                      variant="outline" 
+                      onClick={() => fetchSessions(true)}
+                      disabled={isLoadingSessions}
+                    >
+                      {isLoadingSessions ? (
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      ) : (
+                        <RefreshCw className="w-4 h-4 mr-2" />
+                      )}
+                      Carregar Atendentes
+                    </Button>
+                  </div>
+
+                  {sessions.length > 0 && (
+                    <div className="space-y-2">
+                      <p className="text-sm font-medium">Selecione um atendente:</p>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                        {sessions.map((session) => (
+                          <button
+                            key={session.id}
+                            onClick={() => selectSessionMutation.mutate(session)}
+                            disabled={selectSessionMutation.isPending}
+                            className={cn(
+                              'p-3 rounded-lg border text-left transition-all hover:border-primary',
+                              zapSettings?.selected_session_id === session.id
+                                ? 'border-primary bg-primary/10'
+                                : 'border-border bg-secondary/50'
+                            )}
+                          >
+                            <p className="font-medium">{session.name}</p>
+                            <p className="text-sm text-muted-foreground">{session.phone}</p>
+                            <span className={cn(
+                              'text-xs px-2 py-0.5 rounded-full mt-1 inline-block',
+                              session.status === 'connected' || session.status === 'active'
+                                ? 'bg-success/10 text-success' 
+                                : 'bg-muted text-muted-foreground'
+                            )}>
+                              {session.status}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
 
             {/* Pending Billings Summary */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
@@ -1058,7 +1245,7 @@ export default function Billing() {
                       size="sm"
                       className="flex-1 border-warning/30 text-warning hover:bg-warning/10"
                       onClick={() => handleSendBillings('D-1')}
-                      disabled={isSending || (pendingBillings?.dminus1.length || 0) === 0 || !zapSettings?.selected_session_id}
+                      disabled={isSending || (pendingBillings?.dminus1.length || 0) === 0 || !hasValidSession}
                     >
                       {isSending && sendingType === 'D-1' ? (
                         <Loader2 className="w-3 h-3 mr-1 animate-spin" />
@@ -1095,7 +1282,7 @@ export default function Billing() {
                       size="sm"
                       className="flex-1 border-primary/30 text-primary hover:bg-primary/10"
                       onClick={() => handleSendBillings('D0')}
-                      disabled={isSending || (pendingBillings?.d0.length || 0) === 0 || !zapSettings?.selected_session_id}
+                      disabled={isSending || (pendingBillings?.d0.length || 0) === 0 || !hasValidSession}
                     >
                       {isSending && sendingType === 'D0' ? (
                         <Loader2 className="w-3 h-3 mr-1 animate-spin" />
@@ -1132,7 +1319,7 @@ export default function Billing() {
                       size="sm"
                       className="flex-1 border-destructive/30 text-destructive hover:bg-destructive/10"
                       onClick={() => handleSendBillings('D+1')}
-                      disabled={isSending || (pendingBillings?.dplus1.length || 0) === 0 || !zapSettings?.selected_session_id}
+                      disabled={isSending || (pendingBillings?.dplus1.length || 0) === 0 || !hasValidSession}
                     >
                       {isSending && sendingType === 'D+1' ? (
                         <Loader2 className="w-3 h-3 mr-1 animate-spin" />
@@ -1157,89 +1344,170 @@ export default function Billing() {
             </div>
           </TabsContent>
 
-          {/* Tab: Departamentos */}
+          {/* Tab: Departamentos / Números */}
           <TabsContent value="departamentos" className="space-y-4">
-            <Card className="glass-card border-border/50">
-              <CardHeader className="flex flex-row items-center justify-between">
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <Building2 className="w-5 h-5 text-primary" />
-                  Departamentos
-                </CardTitle>
-                <Button 
-                  variant="outline" 
-                  onClick={fetchDepartments}
-                  disabled={isLoadingDepartments}
-                >
-                  {isLoadingDepartments ? (
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  ) : (
-                    <RefreshCw className="w-4 h-4 mr-2" />
-                  )}
-                  Carregar Departamentos
-                </Button>
-              </CardHeader>
-              <CardContent>
-                {departments.length === 0 ? (
-                  <p className="text-muted-foreground text-center py-8">
-                    Clique em "Carregar Departamentos" para listar os departamentos disponíveis.
-                  </p>
-                ) : (
-                  <>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                      {departments.map((dept) => (
-                        <div
-                          key={dept.id}
-                          className={cn(
-                            'p-4 rounded-lg border transition-all cursor-pointer hover:border-primary',
-                            (selectedDepartment?.id === dept.id || zapSettings?.selected_department_id === dept.id)
-                              ? 'border-primary bg-primary/10'
-                              : 'border-border bg-secondary/30'
-                          )}
-                          onClick={async () => {
-                            setSelectedDepartment(dept);
-                            fetchTemplates(dept.id);
-                            // Save department selection
-                            try {
-                              await supabase.functions.invoke('zap-responder', {
-                                body: { 
-                                  action: 'select-department', 
-                                  department_id: dept.id, 
-                                  department_name: dept.name 
-                                },
-                              });
-                              refetchSettings();
-                              toast({ title: 'Departamento salvo!', description: `${dept.name} definido como padrão.` });
-                            } catch (err) {
-                              console.error('Error saving department:', err);
-                            }
-                          }}
-                        >
-                          <div className="flex items-center justify-between">
-                            <p className="font-medium">{dept.name}</p>
-                            {zapSettings?.selected_department_id === dept.id && (
-                              <CheckCircle className="w-4 h-4 text-success" />
-                            )}
-                          </div>
-                          {dept.phone && (
-                            <p className="text-sm text-muted-foreground">{dept.phone}</p>
-                          )}
-                          <p className="text-xs text-muted-foreground mt-1">ID: {dept.id}</p>
-                        </div>
-                      ))}
-                    </div>
-
-                    {zapSettings?.selected_department_id && (
-                      <div className="mt-4 p-3 bg-success/10 border border-success/20 rounded-lg flex items-center gap-2">
-                        <CheckCircle className="w-4 h-4 text-success" />
-                        <span className="text-sm">
-                          Departamento padrão: <strong>{zapSettings.selected_department_name || zapSettings.selected_department_id}</strong>
-                        </span>
-                      </div>
+            {isMetaCloudApi ? (
+              /* Meta Cloud: Phone Numbers (equivalent to departments) */
+              <Card className="glass-card border-border/50">
+                <CardHeader className="flex flex-row items-center justify-between">
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <Phone className="w-5 h-5 text-green-500" />
+                    Números WhatsApp Oficial
+                  </CardTitle>
+                  <Button 
+                    variant="outline" 
+                    onClick={fetchMetaPhoneNumbers}
+                    disabled={isLoadingMetaPhones}
+                  >
+                    {isLoadingMetaPhones ? (
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    ) : (
+                      <RefreshCw className="w-4 h-4 mr-2" />
                     )}
-                  </>
-                )}
-              </CardContent>
-            </Card>
+                    Carregar Números
+                  </Button>
+                </CardHeader>
+                <CardContent>
+                  {metaPhoneNumbers.length === 0 ? (
+                    <p className="text-muted-foreground text-center py-8">
+                      Clique em "Carregar Números" para listar os números disponíveis.
+                    </p>
+                  ) : (
+                    <>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                        {metaPhoneNumbers.map((phone) => (
+                          <div
+                            key={phone.id}
+                            className={cn(
+                              'p-4 rounded-lg border transition-all cursor-pointer hover:border-green-500',
+                              zapSettings?.meta_phone_number_id === phone.id
+                                ? 'border-green-500 bg-green-500/10'
+                                : 'border-border bg-secondary/30'
+                            )}
+                            onClick={() => selectMetaPhoneNumber(phone)}
+                          >
+                            <div className="flex items-center justify-between">
+                              <p className="font-medium">{phone.display_phone_number}</p>
+                              {zapSettings?.meta_phone_number_id === phone.id && (
+                                <CheckCircle className="w-4 h-4 text-green-500" />
+                              )}
+                            </div>
+                            {phone.verified_name && (
+                              <p className="text-sm text-muted-foreground">{phone.verified_name}</p>
+                            )}
+                            {phone.quality_rating && (
+                              <span className={cn(
+                                'text-xs px-2 py-0.5 rounded-full mt-1 inline-block',
+                                phone.quality_rating === 'GREEN' 
+                                  ? 'bg-success/10 text-success' 
+                                  : phone.quality_rating === 'YELLOW'
+                                  ? 'bg-warning/10 text-warning'
+                                  : 'bg-muted text-muted-foreground'
+                              )}>
+                                Qualidade: {phone.quality_rating}
+                              </span>
+                            )}
+                            <p className="text-xs text-muted-foreground mt-1">ID: {phone.id}</p>
+                          </div>
+                        ))}
+                      </div>
+
+                      {zapSettings?.meta_phone_number_id && (
+                        <div className="mt-4 p-3 bg-green-500/10 border border-green-500/20 rounded-lg flex items-center gap-2">
+                          <CheckCircle className="w-4 h-4 text-green-500" />
+                          <span className="text-sm">
+                            Número ativo: <strong>{zapSettings.meta_display_phone}</strong>
+                          </span>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </CardContent>
+              </Card>
+            ) : (
+              /* Zap Responder: Departments */
+              <Card className="glass-card border-border/50">
+                <CardHeader className="flex flex-row items-center justify-between">
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <Building2 className="w-5 h-5 text-primary" />
+                    Departamentos
+                  </CardTitle>
+                  <Button 
+                    variant="outline" 
+                    onClick={fetchDepartments}
+                    disabled={isLoadingDepartments}
+                  >
+                    {isLoadingDepartments ? (
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    ) : (
+                      <RefreshCw className="w-4 h-4 mr-2" />
+                    )}
+                    Carregar Departamentos
+                  </Button>
+                </CardHeader>
+                <CardContent>
+                  {departments.length === 0 ? (
+                    <p className="text-muted-foreground text-center py-8">
+                      Clique em "Carregar Departamentos" para listar os departamentos disponíveis.
+                    </p>
+                  ) : (
+                    <>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                        {departments.map((dept) => (
+                          <div
+                            key={dept.id}
+                            className={cn(
+                              'p-4 rounded-lg border transition-all cursor-pointer hover:border-primary',
+                              (selectedDepartment?.id === dept.id || zapSettings?.selected_department_id === dept.id)
+                                ? 'border-primary bg-primary/10'
+                                : 'border-border bg-secondary/30'
+                            )}
+                            onClick={async () => {
+                              setSelectedDepartment(dept);
+                              fetchTemplates(dept.id);
+                              // Save department selection
+                              try {
+                                await supabase.functions.invoke('zap-responder', {
+                                  body: { 
+                                    action: 'select-department', 
+                                    department_id: dept.id, 
+                                    department_name: dept.name 
+                                  },
+                                });
+                                refetchSettings();
+                                toast({ title: 'Departamento salvo!', description: `${dept.name} definido como padrão.` });
+                              } catch (err) {
+                                console.error('Error saving department:', err);
+                              }
+                            }}
+                          >
+                            <div className="flex items-center justify-between">
+                              <p className="font-medium">{dept.name}</p>
+                              {zapSettings?.selected_department_id === dept.id && (
+                                <CheckCircle className="w-4 h-4 text-success" />
+                              )}
+                            </div>
+                            {dept.phone && (
+                              <p className="text-sm text-muted-foreground">{dept.phone}</p>
+                            )}
+                            <p className="text-xs text-muted-foreground mt-1">ID: {dept.id}</p>
+                          </div>
+                        ))}
+                      </div>
+
+                      {zapSettings?.selected_department_id && (
+                        <div className="mt-4 p-3 bg-success/10 border border-success/20 rounded-lg flex items-center gap-2">
+                          <CheckCircle className="w-4 h-4 text-success" />
+                          <span className="text-sm">
+                            Departamento padrão: <strong>{zapSettings.selected_department_name || zapSettings.selected_department_id}</strong>
+                          </span>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </CardContent>
+              </Card>
+            )}
           </TabsContent>
 
           {/* Tab: Conversas */}
@@ -1429,166 +1697,234 @@ export default function Billing() {
 
           {/* Tab: Templates */}
           <TabsContent value="templates" className="space-y-4">
-            <Card className="glass-card border-border/50">
-              <CardHeader className="flex flex-row items-center justify-between">
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <FileText className="w-5 h-5 text-primary" />
-                  Templates WhatsApp
-                </CardTitle>
-                <Dialog open={sendTemplateOpen} onOpenChange={setSendTemplateOpen}>
-                  <DialogTrigger asChild>
-                    <Button>
-                      <Send className="w-4 h-4 mr-2" />
-                      Enviar Template
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle>Enviar Template WhatsApp</DialogTitle>
-                      <DialogDescription>
-                        Envie uma mensagem de template aprovado pelo WhatsApp.
-                      </DialogDescription>
-                    </DialogHeader>
-                    <div className="space-y-4">
-                      <div>
-                        <Label>ID do Departamento</Label>
-                        <Input
-                          placeholder="ID do departamento"
-                          value={templateForm.department_id}
-                          onChange={(e) => setTemplateForm({ ...templateForm, department_id: e.target.value })}
-                        />
-                      </div>
-                      <div>
-                        <Label>Nome do Template</Label>
-                        <Input
-                          placeholder="Nome do template"
-                          value={templateForm.template_name}
-                          onChange={(e) => setTemplateForm({ ...templateForm, template_name: e.target.value })}
-                        />
-                      </div>
-                      <div>
-                        <Label>Número do Destinatário</Label>
-                        <Input
-                          placeholder="Ex: 5511999999999"
-                          value={templateForm.number}
-                          onChange={(e) => setTemplateForm({ ...templateForm, number: e.target.value })}
-                        />
-                      </div>
-                      <div>
-                        <Label>Idioma</Label>
-                        <Input
-                          placeholder="pt_BR"
-                          value={templateForm.language}
-                          onChange={(e) => setTemplateForm({ ...templateForm, language: e.target.value })}
-                        />
-                      </div>
+            {isMetaCloudApi ? (
+              /* Meta Cloud: Templates */
+              <Card className="glass-card border-border/50">
+                <CardHeader className="flex flex-row items-center justify-between">
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <FileText className="w-5 h-5 text-green-500" />
+                    Templates Meta WhatsApp
+                  </CardTitle>
+                  <Button 
+                    variant="outline" 
+                    onClick={fetchMetaTemplates}
+                    disabled={isLoadingMetaTemplates}
+                  >
+                    {isLoadingMetaTemplates ? (
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    ) : (
+                      <RefreshCw className="w-4 h-4 mr-2" />
+                    )}
+                    Carregar Templates
+                  </Button>
+                </CardHeader>
+                <CardContent>
+                  {isLoadingMetaTemplates ? (
+                    <div className="flex items-center justify-center py-8">
+                      <Loader2 className="w-6 h-6 animate-spin" />
                     </div>
-                    <DialogFooter>
-                      <Button variant="outline" onClick={() => setSendTemplateOpen(false)}>Cancelar</Button>
-                      <Button onClick={sendTemplate}>
-                        <Send className="w-4 h-4 mr-2" />
-                        Enviar
-                      </Button>
-                    </DialogFooter>
-                  </DialogContent>
-                </Dialog>
-              </CardHeader>
-              <CardContent>
-                {selectedDepartment ? (
-                  <div className="space-y-4">
-                    <p className="text-sm text-muted-foreground">
-                      Templates do departamento: <strong>{selectedDepartment.name}</strong>
+                  ) : metaTemplates.length === 0 ? (
+                    <p className="text-muted-foreground text-center py-8">
+                      Clique em "Carregar Templates" para listar os templates disponíveis na sua conta Meta.
                     </p>
-                    {isLoadingTemplates ? (
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {metaTemplates.map((template, idx) => (
+                        <div
+                          key={`${template.name}-${idx}`}
+                          className="p-4 rounded-lg border border-border bg-secondary/30"
+                        >
+                          <div className="flex items-center justify-between mb-2">
+                            <p className="font-medium">{template.name}</p>
+                            <span className={cn(
+                              'text-xs px-2 py-0.5 rounded-full',
+                              template.status === 'APPROVED' 
+                                ? 'bg-success/10 text-success' 
+                                : template.status === 'PENDING'
+                                ? 'bg-warning/10 text-warning'
+                                : template.status === 'REJECTED'
+                                ? 'bg-destructive/10 text-destructive'
+                                : 'bg-muted text-muted-foreground'
+                            )}>
+                              {template.status === 'APPROVED' ? 'Aprovado' : 
+                               template.status === 'PENDING' ? 'Pendente' :
+                               template.status === 'REJECTED' ? 'Rejeitado' : template.status}
+                            </span>
+                          </div>
+                          <p className="text-sm text-muted-foreground">
+                            {template.category} • {template.language}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            ) : (
+              /* Zap Responder: Templates */
+              <>
+                <Card className="glass-card border-border/50">
+                  <CardHeader className="flex flex-row items-center justify-between">
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      <FileText className="w-5 h-5 text-primary" />
+                      Templates WhatsApp
+                    </CardTitle>
+                    <Dialog open={sendTemplateOpen} onOpenChange={setSendTemplateOpen}>
+                      <DialogTrigger asChild>
+                        <Button>
+                          <Send className="w-4 h-4 mr-2" />
+                          Enviar Template
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent>
+                        <DialogHeader>
+                          <DialogTitle>Enviar Template WhatsApp</DialogTitle>
+                          <DialogDescription>
+                            Envie uma mensagem de template aprovado pelo WhatsApp.
+                          </DialogDescription>
+                        </DialogHeader>
+                        <div className="space-y-4">
+                          <div>
+                            <Label>ID do Departamento</Label>
+                            <Input
+                              placeholder="ID do departamento"
+                              value={templateForm.department_id}
+                              onChange={(e) => setTemplateForm({ ...templateForm, department_id: e.target.value })}
+                            />
+                          </div>
+                          <div>
+                            <Label>Nome do Template</Label>
+                            <Input
+                              placeholder="Nome do template"
+                              value={templateForm.template_name}
+                              onChange={(e) => setTemplateForm({ ...templateForm, template_name: e.target.value })}
+                            />
+                          </div>
+                          <div>
+                            <Label>Número do Destinatário</Label>
+                            <Input
+                              placeholder="Ex: 5511999999999"
+                              value={templateForm.number}
+                              onChange={(e) => setTemplateForm({ ...templateForm, number: e.target.value })}
+                            />
+                          </div>
+                          <div>
+                            <Label>Idioma</Label>
+                            <Input
+                              placeholder="pt_BR"
+                              value={templateForm.language}
+                              onChange={(e) => setTemplateForm({ ...templateForm, language: e.target.value })}
+                            />
+                          </div>
+                        </div>
+                        <DialogFooter>
+                          <Button variant="outline" onClick={() => setSendTemplateOpen(false)}>Cancelar</Button>
+                          <Button onClick={sendTemplate}>
+                            <Send className="w-4 h-4 mr-2" />
+                            Enviar
+                          </Button>
+                        </DialogFooter>
+                      </DialogContent>
+                    </Dialog>
+                  </CardHeader>
+                  <CardContent>
+                    {selectedDepartment ? (
+                      <div className="space-y-4">
+                        <p className="text-sm text-muted-foreground">
+                          Templates do departamento: <strong>{selectedDepartment.name}</strong>
+                        </p>
+                        {isLoadingTemplates ? (
+                          <div className="flex items-center justify-center py-8">
+                            <Loader2 className="w-6 h-6 animate-spin" />
+                          </div>
+                        ) : templates.length === 0 ? (
+                          <p className="text-muted-foreground text-center py-8">
+                            Nenhum template encontrado para este departamento.
+                          </p>
+                        ) : (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            {templates.map((template) => (
+                              <div
+                                key={template.id}
+                                className="p-4 rounded-lg border border-border bg-secondary/30"
+                              >
+                                <p className="font-medium">{template.name}</p>
+                                {template.language && (
+                                  <p className="text-sm text-muted-foreground">Idioma: {template.language}</p>
+                                )}
+                                {template.status && (
+                                  <span className={cn(
+                                    'text-xs px-2 py-0.5 rounded-full mt-1 inline-block',
+                                    template.status === 'APPROVED' 
+                                      ? 'bg-success/10 text-success' 
+                                      : 'bg-muted text-muted-foreground'
+                                  )}>
+                                    {template.status}
+                                  </span>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <p className="text-muted-foreground text-center py-8">
+                        Selecione um departamento na aba "Deptos" para ver os templates disponíveis.
+                      </p>
+                    )}
+                  </CardContent>
+                </Card>
+
+                {/* Approved Templates for Automatic Billing */}
+                <Card className="glass-card border-border/50">
+                  <CardHeader>
+                    <CardTitle className="text-lg">Modelos de Cobrança Automática (Templates Aprovados)</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {!selectedDepartment ? (
+                      <p className="text-muted-foreground text-center py-4">
+                        Selecione um departamento na aba "Deptos" para ver os templates aprovados.
+                      </p>
+                    ) : isLoadingTemplates ? (
                       <div className="flex items-center justify-center py-8">
                         <Loader2 className="w-6 h-6 animate-spin" />
                       </div>
-                    ) : templates.length === 0 ? (
-                      <p className="text-muted-foreground text-center py-8">
-                        Nenhum template encontrado para este departamento.
+                    ) : templates.filter(t => t.status === 'APPROVED').length === 0 ? (
+                      <p className="text-muted-foreground text-center py-4">
+                        Nenhum template aprovado encontrado para este departamento.
                       </p>
                     ) : (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        {templates.map((template) => (
-                          <div
-                            key={template.id}
-                            className="p-4 rounded-lg border border-border bg-secondary/30"
-                          >
-                            <p className="font-medium">{template.name}</p>
-                            {template.language && (
-                              <p className="text-sm text-muted-foreground">Idioma: {template.language}</p>
-                            )}
-                            {template.status && (
-                              <span className={cn(
-                                'text-xs px-2 py-0.5 rounded-full mt-1 inline-block',
-                                template.status === 'APPROVED' 
-                                  ? 'bg-success/10 text-success' 
-                                  : 'bg-muted text-muted-foreground'
-                              )}>
-                                {template.status}
-                              </span>
-                            )}
-                          </div>
-                        ))}
-                      </div>
+                      templates
+                        .filter(t => t.status === 'APPROVED')
+                        .map((template: any) => {
+                          const bodyComponent = template.components?.find((c: any) => c.type === 'BODY');
+                          const bodyText = bodyComponent?.text || 'Sem conteúdo';
+                          
+                          return (
+                            <div 
+                              key={template.id}
+                              className="p-4 rounded-lg bg-success/5 border border-success/20"
+                            >
+                              <div className="flex items-center justify-between mb-2">
+                                <p className="text-sm font-medium text-success">{template.name}</p>
+                                <span className="text-xs px-2 py-0.5 rounded-full bg-success/10 text-success">
+                                  {template.status}
+                                </span>
+                              </div>
+                              <p className="text-sm text-muted-foreground whitespace-pre-line">
+                                {bodyText}
+                              </p>
+                              {template.language && (
+                                <p className="text-xs text-muted-foreground mt-2">Idioma: {template.language}</p>
+                              )}
+                            </div>
+                          );
+                        })
                     )}
-                  </div>
-                ) : (
-                  <p className="text-muted-foreground text-center py-8">
-                    Selecione um departamento na aba "Departamentos" para ver os templates disponíveis.
-                  </p>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Approved Templates for Automatic Billing */}
-            <Card className="glass-card border-border/50">
-              <CardHeader>
-                <CardTitle className="text-lg">Modelos de Cobrança Automática (Templates Aprovados)</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {!selectedDepartment ? (
-                  <p className="text-muted-foreground text-center py-4">
-                    Selecione um departamento na aba "Departamentos" para ver os templates aprovados.
-                  </p>
-                ) : isLoadingTemplates ? (
-                  <div className="flex items-center justify-center py-8">
-                    <Loader2 className="w-6 h-6 animate-spin" />
-                  </div>
-                ) : templates.filter(t => t.status === 'APPROVED').length === 0 ? (
-                  <p className="text-muted-foreground text-center py-4">
-                    Nenhum template aprovado encontrado para este departamento.
-                  </p>
-                ) : (
-                  templates
-                    .filter(t => t.status === 'APPROVED')
-                    .map((template: any) => {
-                      const bodyComponent = template.components?.find((c: any) => c.type === 'BODY');
-                      const bodyText = bodyComponent?.text || 'Sem conteúdo';
-                      
-                      return (
-                        <div 
-                          key={template.id}
-                          className="p-4 rounded-lg bg-success/5 border border-success/20"
-                        >
-                          <div className="flex items-center justify-between mb-2">
-                            <p className="text-sm font-medium text-success">{template.name}</p>
-                            <span className="text-xs px-2 py-0.5 rounded-full bg-success/10 text-success">
-                              {template.status}
-                            </span>
-                          </div>
-                          <p className="text-sm text-muted-foreground whitespace-pre-line">
-                            {bodyText}
-                          </p>
-                          {template.language && (
-                            <p className="text-xs text-muted-foreground mt-2">Idioma: {template.language}</p>
-                          )}
-                        </div>
-                      );
-                    })
-                )}
-              </CardContent>
-            </Card>
+                  </CardContent>
+                </Card>
+              </>
+            )}
           </TabsContent>
 
           {/* Tab: Histórico */}
