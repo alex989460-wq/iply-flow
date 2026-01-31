@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { Loader2, Eye, EyeOff, Save, AlertCircle, CheckCircle2, Unplug, Phone, RefreshCw, Server, FileText, Users, UserPlus, Trash2, Mail } from 'lucide-react';
+import { Loader2, Eye, EyeOff, Save, AlertCircle, CheckCircle2, Unplug, Phone, RefreshCw, Server, FileText, Users, UserPlus, Trash2 } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
@@ -100,14 +100,13 @@ interface MessageTemplate {
   components?: any[];
 }
 
-interface WabaUser {
+interface Department {
   id: string;
+  user_id: string;
   name: string;
-  tasks?: string[];
-  business?: {
-    id: string;
-    name: string;
-  };
+  description: string | null;
+  is_default: boolean;
+  created_at: string;
 }
 
 export default function Settings() {
@@ -146,13 +145,13 @@ export default function Settings() {
   const [disconnectingMeta, setDisconnectingMeta] = useState(false);
   const [fbSdkLoaded, setFbSdkLoaded] = useState(false);
   
-  // Meta Templates & Users
+  // Meta Templates & Departments
   const [templates, setTemplates] = useState<MessageTemplate[]>([]);
   const [loadingTemplates, setLoadingTemplates] = useState(false);
-  const [wabaUsers, setWabaUsers] = useState<WabaUser[]>([]);
-  const [loadingUsers, setLoadingUsers] = useState(false);
-  const [newUserEmail, setNewUserEmail] = useState('');
-  const [addingUser, setAddingUser] = useState(false);
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [loadingDepartments, setLoadingDepartments] = useState(false);
+  const [newDepartmentName, setNewDepartmentName] = useState('');
+  const [addingDepartment, setAddingDepartment] = useState(false);
 
   // Load Facebook SDK
   useEffect(() => {
@@ -188,6 +187,7 @@ export default function Settings() {
   useEffect(() => {
     if (user) {
       fetchSettings();
+      fetchDepartments();
     }
   }, [user]);
 
@@ -530,93 +530,126 @@ export default function Settings() {
     }
   };
 
-  const fetchWabaUsers = async () => {
-    setLoadingUsers(true);
+  const fetchDepartments = async () => {
+    setLoadingDepartments(true);
     try {
-      const { data, error } = await supabase.functions.invoke('meta-oauth', {
-        body: { action: 'fetch-waba-users' },
-      });
+      const { data, error } = await supabase
+        .from('departments')
+        .select('*')
+        .eq('user_id', user?.id)
+        .order('created_at', { ascending: true });
 
       if (error) throw error;
 
-      if (data.users) {
-        setWabaUsers(data.users);
+      if (data) {
+        setDepartments(data);
       }
     } catch (err: any) {
-      console.error('[Settings] Fetch users error:', err);
+      console.error('[Settings] Fetch departments error:', err);
       toast({
         title: 'Erro',
-        description: err.message || 'Erro ao buscar atendentes',
+        description: err.message || 'Erro ao buscar departamentos',
         variant: 'destructive',
       });
     } finally {
-      setLoadingUsers(false);
+      setLoadingDepartments(false);
     }
   };
 
-  const addWabaUser = async () => {
-    if (!newUserEmail.trim()) {
+  const addDepartment = async () => {
+    if (!newDepartmentName.trim()) {
       toast({
         title: 'Erro',
-        description: 'Digite o email do atendente',
+        description: 'Digite o nome do departamento',
         variant: 'destructive',
       });
       return;
     }
 
-    setAddingUser(true);
+    setAddingDepartment(true);
     try {
-      const { data, error } = await supabase.functions.invoke('meta-oauth', {
-        body: { 
-          action: 'assign-waba-user',
-          user_email: newUserEmail.trim(),
-          tasks: ['MANAGE'],
-        },
-      });
+      const { data, error } = await supabase
+        .from('departments')
+        .insert({
+          user_id: user?.id,
+          name: newDepartmentName.trim(),
+          is_default: departments.length === 0, // First one is default
+        })
+        .select()
+        .single();
 
       if (error) throw error;
 
       toast({
         title: 'Sucesso',
-        description: 'Convite enviado para o atendente!',
+        description: 'Departamento criado com sucesso!',
       });
-      setNewUserEmail('');
-      fetchWabaUsers();
+      setNewDepartmentName('');
+      fetchDepartments();
     } catch (err: any) {
-      console.error('[Settings] Add user error:', err);
+      console.error('[Settings] Add department error:', err);
       toast({
         title: 'Erro',
-        description: err.message || 'Erro ao adicionar atendente',
+        description: err.message || 'Erro ao criar departamento',
         variant: 'destructive',
       });
     } finally {
-      setAddingUser(false);
+      setAddingDepartment(false);
     }
   };
 
-  const removeWabaUser = async (wabaUserId: string, userName: string) => {
-    if (!confirm(`Tem certeza que deseja remover ${userName}?`)) return;
+  const removeDepartment = async (departmentId: string, departmentName: string) => {
+    if (!confirm(`Tem certeza que deseja remover "${departmentName}"?`)) return;
 
     try {
-      const { data, error } = await supabase.functions.invoke('meta-oauth', {
-        body: { 
-          action: 'remove-waba-user',
-          waba_user_id: wabaUserId,
-        },
-      });
+      const { error } = await supabase
+        .from('departments')
+        .delete()
+        .eq('id', departmentId);
 
       if (error) throw error;
 
       toast({
         title: 'Sucesso',
-        description: 'Atendente removido com sucesso!',
+        description: 'Departamento removido com sucesso!',
       });
-      fetchWabaUsers();
+      fetchDepartments();
     } catch (err: any) {
-      console.error('[Settings] Remove user error:', err);
+      console.error('[Settings] Remove department error:', err);
       toast({
         title: 'Erro',
-        description: err.message || 'Erro ao remover atendente',
+        description: err.message || 'Erro ao remover departamento',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const setDefaultDepartment = async (departmentId: string) => {
+    try {
+      // First, unset all defaults
+      await supabase
+        .from('departments')
+        .update({ is_default: false })
+        .eq('user_id', user?.id);
+
+      // Then set the new default
+      const { error } = await supabase
+        .from('departments')
+        .update({ is_default: true })
+        .eq('id', departmentId);
+
+      if (error) throw error;
+
+      toast({
+        title: 'Sucesso',
+        description: 'Departamento padrão definido!',
+      });
+      fetchDepartments();
+    } catch (err: any) {
+      console.error('[Settings] Set default department error:', err);
+      toast({
+        title: 'Erro',
+        description: err.message || 'Erro ao definir departamento padrão',
         variant: 'destructive',
       });
     }
@@ -1044,25 +1077,25 @@ export default function Settings() {
 
                     <Separator />
 
-                    {/* WABA Users/Agents Management */}
+                    {/* Departments Management */}
                     <div>
                       <div className="flex items-center justify-between mb-4">
                         <div>
                           <h4 className="font-medium flex items-center gap-2">
                             <Users className="w-4 h-4" />
-                            Atendentes
+                            Departamentos
                           </h4>
                           <p className="text-sm text-muted-foreground">
-                            Gerencie os usuários com acesso à API
+                            Gerencie departamentos para organizar atendimentos
                           </p>
                         </div>
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={fetchWabaUsers}
-                          disabled={loadingUsers}
+                          onClick={fetchDepartments}
+                          disabled={loadingDepartments}
                         >
-                          {loadingUsers ? (
+                          {loadingDepartments ? (
                             <Loader2 className="w-4 h-4 animate-spin" />
                           ) : (
                             <RefreshCw className="w-4 h-4" />
@@ -1071,23 +1104,21 @@ export default function Settings() {
                         </Button>
                       </div>
 
-                      {/* Add new user */}
+                      {/* Add new department */}
                       <div className="flex gap-2 mb-4">
-                        <div className="flex-1 relative">
-                          <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                        <div className="flex-1">
                           <Input
-                            type="email"
-                            placeholder="Email do atendente (deve ter conta Facebook)"
-                            value={newUserEmail}
-                            onChange={(e) => setNewUserEmail(e.target.value)}
-                            className="pl-10"
+                            type="text"
+                            placeholder="Nome do departamento (ex: Suporte, Financeiro)"
+                            value={newDepartmentName}
+                            onChange={(e) => setNewDepartmentName(e.target.value)}
                           />
                         </div>
                         <Button
-                          onClick={addWabaUser}
-                          disabled={addingUser || !newUserEmail.trim()}
+                          onClick={addDepartment}
+                          disabled={addingDepartment || !newDepartmentName.trim()}
                         >
-                          {addingUser ? (
+                          {addingDepartment ? (
                             <Loader2 className="w-4 h-4 animate-spin" />
                           ) : (
                             <UserPlus className="w-4 h-4" />
@@ -1096,40 +1127,56 @@ export default function Settings() {
                         </Button>
                       </div>
 
-                      {wabaUsers.length > 0 ? (
+                      {departments.length > 0 ? (
                         <div className="grid gap-3">
-                          {wabaUsers.map((wuser) => (
+                          {departments.map((dept) => (
                             <div
-                              key={wuser.id}
-                              className="flex items-center justify-between p-3 rounded-lg border border-border"
+                              key={dept.id}
+                              className={`flex items-center justify-between p-3 rounded-lg border ${
+                                dept.is_default
+                                  ? 'border-primary bg-primary/5'
+                                  : 'border-border'
+                              }`}
                             >
                               <div className="flex items-center gap-3">
                                 <Users className="w-5 h-5 text-muted-foreground" />
                                 <div>
-                                  <p className="font-medium">{wuser.name}</p>
-                                  {wuser.tasks && (
-                                    <p className="text-xs text-muted-foreground">
-                                      Permissões: {wuser.tasks.join(', ')}
+                                  <p className="font-medium">{dept.name}</p>
+                                  {dept.is_default && (
+                                    <p className="text-xs text-primary">
+                                      Departamento padrão
                                     </p>
                                   )}
                                 </div>
                               </div>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => removeWabaUser(wuser.id, wuser.name)}
-                                className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </Button>
+                              <div className="flex items-center gap-2">
+                                {!dept.is_default && (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => setDefaultDepartment(dept.id)}
+                                    className="text-muted-foreground hover:text-primary"
+                                  >
+                                    Definir padrão
+                                  </Button>
+                                )}
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => removeDepartment(dept.id, dept.name)}
+                                  className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </Button>
+                              </div>
                             </div>
                           ))}
                         </div>
                       ) : (
                         <div className="text-center py-6 text-muted-foreground border border-dashed border-border rounded-lg">
                           <Users className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                          <p>Nenhum atendente encontrado</p>
-                          <p className="text-xs mt-1">Adicione usuários pelo email da conta Facebook</p>
+                          <p>Nenhum departamento encontrado</p>
+                          <p className="text-xs mt-1">Crie departamentos para organizar seus atendimentos</p>
                         </div>
                       )}
                     </div>
