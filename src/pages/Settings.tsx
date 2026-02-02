@@ -7,12 +7,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { Loader2, Eye, EyeOff, Save, AlertCircle, CheckCircle2, Unplug, Phone, RefreshCw, Server, FileText, Users, UserPlus, Trash2 } from 'lucide-react';
+import { Loader2, Eye, EyeOff, Save, AlertCircle, CheckCircle2, Unplug, Phone, RefreshCw, Server, FileText, Users, UserPlus, Trash2, Target } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import VplayServersManager from '@/components/settings/VplayServersManager';
+import GoalsSettingsCard from '@/components/settings/GoalsSettingsCard';
 
 async function getFunctionsHttpErrorDetails(err: unknown): Promise<{ message?: string; raw?: any } | null> {
   // supabase-js / @supabase/functions-js throws FunctionsHttpError with `.context` as a Response
@@ -693,7 +694,7 @@ export default function Settings() {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-3 max-w-lg">
+          <TabsList className="grid w-full grid-cols-4 max-w-xl">
             <TabsTrigger value="zap_responder" className="flex items-center gap-2">
               <span className="hidden sm:inline">Zap Responder</span>
               <span className="sm:hidden">ZapResp</span>
@@ -707,6 +708,11 @@ export default function Settings() {
               <Server className="w-4 h-4 text-violet-500" />
               <span className="hidden sm:inline">Gerador Vplay</span>
               <span className="sm:hidden">Vplay</span>
+            </TabsTrigger>
+            <TabsTrigger value="metas" className="flex items-center gap-2">
+              <Target className="w-4 h-4 text-amber-500" />
+              <span className="hidden sm:inline">Metas</span>
+              <span className="sm:hidden">Metas</span>
             </TabsTrigger>
           </TabsList>
 
@@ -1189,6 +1195,11 @@ export default function Settings() {
           {/* Vplay Test Generator Tab */}
           <TabsContent value="vplay_test" className="mt-6">
             <VplayServersManager />
+          </TabsContent>
+
+          {/* Metas Tab */}
+          <TabsContent value="metas" className="mt-6">
+            <GoalsSettingsCard />
           </TabsContent>
         </Tabs>
       </div>

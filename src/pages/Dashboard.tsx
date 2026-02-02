@@ -11,6 +11,7 @@ import WelcomeHeader from '@/components/dashboard/WelcomeHeader';
 import ActivityFeed from '@/components/dashboard/ActivityFeed';
 import MonthlyGoals from '@/components/dashboard/MonthlyGoals';
 import FloatingActions from '@/components/dashboard/FloatingActions';
+import ExtraMonthsPopup from '@/components/dashboard/ExtraMonthsPopup';
 import { ScrollToTop } from '@/components/ui/scroll-to-top';
 import { useDashboardStats, useRevenueHistory, useDailyRevenueHistory } from '@/hooks/useDashboardStats';
 import { useAuth } from '@/contexts/AuthContext';
@@ -263,6 +264,7 @@ export default function Dashboard() {
         )}
       </div>
       
+      <ExtraMonthsPopup />
       <FloatingActions />
       <ScrollToTop />
     </DashboardLayout>

@@ -1,7 +1,7 @@
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useEffect, useState } from 'react';
-import { Sparkles, Sun, Moon, Sunset } from 'lucide-react';
+import { Sun, Moon, Sunset } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export default function WelcomeHeader() {
@@ -34,31 +34,20 @@ export default function WelcomeHeader() {
   const displayName = profileName || user?.email?.split('@')[0] || 'Usuário';
 
   return (
-    <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-primary/10 via-primary/5 to-transparent border border-primary/20 p-6 animate-fade-in">
-      {/* Decorative background elements */}
-      <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
-      <div className="absolute bottom-0 left-0 w-32 h-32 bg-primary/10 rounded-full blur-2xl translate-y-1/2 -translate-x-1/2" />
-      
-      <div className="relative flex items-center justify-between">
-        <div className="space-y-1">
+    <div className="flex items-center justify-between gap-4 p-4 rounded-xl bg-gradient-to-r from-primary/10 via-primary/5 to-transparent border border-primary/20 animate-fade-in">
+      <div className="flex items-center gap-3">
+        <div className={cn("p-2 rounded-lg bg-background/50", greeting.color)}>
+          <GreetingIcon className="w-5 h-5" />
+        </div>
+        <div>
           <div className="flex items-center gap-2">
-            <GreetingIcon className={cn("w-5 h-5 animate-pulse-slow", greeting.color)} />
-            <span className={cn("text-sm font-medium", greeting.color)}>
+            <span className={cn("text-xs font-medium", greeting.color)}>
               {greeting.text}
             </span>
           </div>
-          <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-foreground">
-            Olá, <span className="text-primary">{displayName}</span>! 
-            <Sparkles className="inline-block w-6 h-6 ml-2 text-amber-400 animate-pulse" />
+          <h1 className="text-lg sm:text-xl font-bold text-foreground">
+            Olá, <span className="text-primary">{displayName}</span>! ✨
           </h1>
-          <p className="text-muted-foreground text-sm sm:text-base">
-            Confira as novidades do seu sistema IPTV
-          </p>
-        </div>
-        
-        {/* Animated decorative icon */}
-        <div className="hidden sm:flex items-center justify-center w-20 h-20 rounded-2xl bg-gradient-to-br from-primary/20 to-primary/5 border border-primary/20">
-          <GreetingIcon className={cn("w-10 h-10", greeting.color)} />
         </div>
       </div>
     </div>
