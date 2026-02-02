@@ -356,7 +356,8 @@ Deno.serve(async (req) => {
     // ACTION: START - Get list of customers to process
     if (action === 'start') {
       const filterBillingType = body?.billing_type || null;
-      console.log('[Billing Batch] Starting - filter:', filterBillingType);
+      const forceResend = body?.force === true; // Force resend bypasses duplicate check
+      console.log('[Billing Batch] Starting - filter:', filterBillingType, 'force:', forceResend);
 
       // Fetch customers
       let customerQuery = supabase
@@ -378,24 +379,29 @@ Deno.serve(async (req) => {
         );
       }
 
-      // Pre-fetch billing logs for today
-      const { data: existingLogs } = await supabase
-        .from('billing_logs')
-        .select('customer_id, billing_type, message')
-        .gte('sent_at', `${today}T00:00:00`)
-        .lte('sent_at', `${today}T23:59:59`);
+      // Pre-fetch billing logs for today (skip if force resend)
+      let sentByCustomerAndType = new Set<string>();
+      let sentByPhoneAndType = new Set<string>();
 
-      // Build sets for deduplication
-      const sentByCustomerAndType = new Set<string>();
-      const sentByPhoneAndType = new Set<string>();
-      
-      for (const log of existingLogs || []) {
-        sentByCustomerAndType.add(`${log.customer_id}:${log.billing_type}`);
-        const phoneMatch = log.message?.match(/\[(\d+)\]/);
-        if (phoneMatch) {
-          const normalizedLogPhone = normalizePhone(phoneMatch[1]);
-          sentByPhoneAndType.add(`${normalizedLogPhone}:${log.billing_type}`);
+      if (!forceResend) {
+        const { data: existingLogs } = await supabase
+          .from('billing_logs')
+          .select('customer_id, billing_type, message')
+          .gte('sent_at', `${today}T00:00:00`)
+          .lte('sent_at', `${today}T23:59:59`);
+
+        // Build sets for deduplication
+        for (const log of existingLogs || []) {
+          sentByCustomerAndType.add(`${log.customer_id}:${log.billing_type}`);
+          const phoneMatch = log.message?.match(/\[(\d+)\]/);
+          if (phoneMatch) {
+            const normalizedLogPhone = normalizePhone(phoneMatch[1]);
+            sentByPhoneAndType.add(`${normalizedLogPhone}:${log.billing_type}`);
+          }
         }
+        console.log(`[Billing Batch] Found ${sentByCustomerAndType.size} existing logs to skip`);
+      } else {
+        console.log('[Billing Batch] FORCE RESEND enabled - ignoring existing logs');
       }
 
       // Filter customers
@@ -415,17 +421,21 @@ Deno.serve(async (req) => {
           continue;
         }
 
-        if (sentByCustomerAndType.has(`${customer.id}:${billingType}`)) {
-          skippedCount++;
-          continue;
+        // Skip duplicate check only if NOT force resend
+        if (!forceResend) {
+          if (sentByCustomerAndType.has(`${customer.id}:${billingType}`)) {
+            skippedCount++;
+            continue;
+          }
+
+          const normalizedPhone = normalizePhone(customer.phone);
+          if (sentByPhoneAndType.has(`${normalizedPhone}:${billingType}`)) {
+            skippedCount++;
+            continue;
+          }
         }
 
         const normalizedPhone = normalizePhone(customer.phone);
-        if (sentByPhoneAndType.has(`${normalizedPhone}:${billingType}`)) {
-          skippedCount++;
-          continue;
-        }
-
         customersToProcess.push({ 
           ...customer, 
           billingType, 
