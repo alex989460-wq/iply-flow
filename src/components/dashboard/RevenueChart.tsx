@@ -1,114 +1,204 @@
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { useState, useEffect } from 'react';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { TrendingUp } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { TrendingUp, Calendar } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import { format, startOfMonth, endOfMonth, subMonths, eachDayOfInterval } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 
-interface RevenueChartProps {
-  data: { month: string; revenue: number }[];
+interface DayRevenue {
+  day: string;
+  revenue: number;
+  count: number;
+  isToday: boolean;
 }
 
-export default function RevenueChart({ data }: RevenueChartProps) {
-  const maxRevenue = Math.max(...data.map(d => d.revenue));
+export default function RevenueChart() {
+  const [selectedMonth, setSelectedMonth] = useState<string>(format(new Date(), 'yyyy-MM'));
+  const [data, setData] = useState<DayRevenue[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [totalRevenue, setTotalRevenue] = useState(0);
+  const [totalPayments, setTotalPayments] = useState(0);
+
+  // Generate last 12 months for selector
+  const monthOptions = Array.from({ length: 12 }, (_, i) => {
+    const date = subMonths(new Date(), i);
+    return {
+      value: format(date, 'yyyy-MM'),
+      label: format(date, "MMMM 'de' yyyy", { locale: ptBR }),
+    };
+  });
+
+  useEffect(() => {
+    const fetchMonthRevenue = async () => {
+      setIsLoading(true);
+      
+      const [year, month] = selectedMonth.split('-').map(Number);
+      const startDate = startOfMonth(new Date(year, month - 1));
+      const endDate = endOfMonth(new Date(year, month - 1));
+      
+      const { data: payments, error } = await supabase
+        .from('payments')
+        .select('amount, payment_date')
+        .gte('payment_date', format(startDate, 'yyyy-MM-dd'))
+        .lte('payment_date', format(endDate, 'yyyy-MM-dd'));
+
+      if (error) {
+        console.error('Error fetching payments:', error);
+        setIsLoading(false);
+        return;
+      }
+
+      // Initialize all days of the selected month
+      const allDays = eachDayOfInterval({ start: startDate, end: endDate });
+      const today = format(new Date(), 'yyyy-MM-dd');
+      
+      const dailyData: DayRevenue[] = allDays.map(date => ({
+        day: format(date, 'dd'),
+        revenue: 0,
+        count: 0,
+        isToday: format(date, 'yyyy-MM-dd') === today,
+      }));
+
+      // Aggregate payments by day
+      let total = 0;
+      let count = 0;
+      payments?.forEach((payment) => {
+        const paymentDay = parseInt(payment.payment_date.split('-')[2], 10);
+        const dayIndex = paymentDay - 1;
+        if (dayIndex >= 0 && dayIndex < dailyData.length) {
+          dailyData[dayIndex].revenue += Number(payment.amount);
+          dailyData[dayIndex].count += 1;
+          total += Number(payment.amount);
+          count += 1;
+        }
+      });
+
+      setData(dailyData);
+      setTotalRevenue(total);
+      setTotalPayments(count);
+      setIsLoading(false);
+    };
+
+    fetchMonthRevenue();
+  }, [selectedMonth]);
+
+  const maxRevenue = Math.max(...data.map(d => d.revenue), 1);
   
   return (
     <Card className="overflow-hidden border-border/30 bg-gradient-to-br from-card via-card to-primary/5">
       <CardHeader className="pb-2">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <div className="p-2 rounded-xl bg-gradient-to-br from-primary/20 to-primary/5">
               <TrendingUp className="w-5 h-5 text-primary" />
             </div>
             <div>
               <CardTitle className="text-lg font-semibold text-foreground">
-                Receita Mensal
+                Receita por Dia
               </CardTitle>
-              <p className="text-xs text-muted-foreground">Últimos 6 meses</p>
+              <p className="text-xs text-muted-foreground">
+                {totalPayments} pagamentos • R$ {totalRevenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+              </p>
             </div>
           </div>
-          {maxRevenue > 0 && (
-            <div className="text-right">
-              <p className="text-xs text-muted-foreground">Maior receita</p>
-              <p className="text-lg font-bold text-primary">R$ {maxRevenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
-            </div>
-          )}
+          
+          <div className="flex items-center gap-2">
+            <Calendar className="w-4 h-4 text-muted-foreground" />
+            <Select value={selectedMonth} onValueChange={setSelectedMonth}>
+              <SelectTrigger className="w-[180px] h-9 text-sm">
+                <SelectValue placeholder="Selecionar mês" />
+              </SelectTrigger>
+              <SelectContent>
+                {monthOptions.map(option => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
       </CardHeader>
       <CardContent className="pt-0">
         <div className="h-72">
-          <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={data} margin={{ top: 20, right: 20, left: 0, bottom: 0 }}>
-              <defs>
-                <linearGradient id="revenueGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.4} />
-                  <stop offset="50%" stopColor="hsl(var(--primary))" stopOpacity={0.15} />
-                  <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity={0} />
-                </linearGradient>
-                <linearGradient id="lineGradient" x1="0" y1="0" x2="1" y2="0">
-                  <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.8} />
-                  <stop offset="50%" stopColor="hsl(var(--primary))" stopOpacity={1} />
-                  <stop offset="100%" stopColor="hsl(38, 92%, 50%)" stopOpacity={1} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid 
-                strokeDasharray="3 3" 
-                stroke="hsl(var(--border))" 
-                opacity={0.3}
-                vertical={false}
-              />
-              <XAxis 
-                dataKey="month" 
-                stroke="hsl(var(--muted-foreground))"
-                fontSize={12}
-                tickLine={false}
-                axisLine={false}
-                dy={10}
-              />
-              <YAxis 
-                stroke="hsl(var(--muted-foreground))"
-                fontSize={11}
-                tickLine={false}
-                axisLine={false}
-                tickFormatter={(value) => `R$${(value / 1000).toFixed(0)}k`}
-                width={50}
-              />
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: 'hsl(var(--card))',
-                  border: '1px solid hsl(var(--border))',
-                  borderRadius: '12px',
-                  boxShadow: '0 10px 40px -10px hsl(var(--primary) / 0.2)',
-                  color: 'hsl(var(--foreground))',
-                  padding: '12px 16px',
-                }}
-                formatter={(value: number) => [
-                  <span className="font-bold text-primary">
-                    R$ {value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                  </span>, 
-                  'Receita'
-                ]}
-                labelStyle={{ color: 'hsl(var(--muted-foreground))', marginBottom: 4 }}
-              />
-              <Area
-                type="monotone"
-                dataKey="revenue"
-                stroke="url(#lineGradient)"
-                strokeWidth={3}
-                fill="url(#revenueGradient)"
-                dot={{ 
-                  fill: 'hsl(var(--background))', 
-                  stroke: 'hsl(var(--primary))',
-                  strokeWidth: 2,
-                  r: 4
-                }}
-                activeDot={{ 
-                  r: 7, 
-                  fill: 'hsl(var(--primary))',
-                  stroke: 'hsl(var(--background))',
-                  strokeWidth: 3,
-                  filter: 'drop-shadow(0 0 8px hsl(var(--primary) / 0.5))'
-                }}
-              />
-            </AreaChart>
-          </ResponsiveContainer>
+          {isLoading ? (
+            <div className="flex items-center justify-center h-full">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={data} margin={{ top: 20, right: 10, left: -10, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="barGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={1} />
+                    <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity={0.6} />
+                  </linearGradient>
+                  <linearGradient id="barGradientToday" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="hsl(38, 92%, 50%)" stopOpacity={1} />
+                    <stop offset="100%" stopColor="hsl(38, 92%, 50%)" stopOpacity={0.6} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid 
+                  strokeDasharray="3 3" 
+                  stroke="hsl(var(--border))" 
+                  opacity={0.3}
+                  vertical={false}
+                />
+                <XAxis 
+                  dataKey="day" 
+                  stroke="hsl(var(--muted-foreground))"
+                  fontSize={10}
+                  tickLine={false}
+                  axisLine={false}
+                  interval={2}
+                />
+                <YAxis 
+                  stroke="hsl(var(--muted-foreground))"
+                  fontSize={10}
+                  tickLine={false}
+                  axisLine={false}
+                  tickFormatter={(value) => value >= 1000 ? `${(value / 1000).toFixed(0)}k` : value.toString()}
+                  width={35}
+                />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: 'hsl(var(--card))',
+                    border: '1px solid hsl(var(--border))',
+                    borderRadius: '12px',
+                    boxShadow: '0 10px 40px -10px hsl(var(--primary) / 0.2)',
+                    color: 'hsl(var(--foreground))',
+                    padding: '12px 16px',
+                  }}
+                  formatter={(value: number, name: string, props: any) => [
+                    <div key="tooltip" className="space-y-1">
+                      <span className="font-bold text-primary block">
+                        R$ {value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                      </span>
+                      <span className="text-xs text-muted-foreground">
+                        {props.payload.count} renovação(ões)
+                      </span>
+                    </div>,
+                    ''
+                  ]}
+                  labelFormatter={(label) => `Dia ${label}`}
+                />
+                <Bar 
+                  dataKey="revenue" 
+                  radius={[4, 4, 0, 0]}
+                  maxBarSize={20}
+                >
+                  {data.map((entry, index) => (
+                    <Cell 
+                      key={`cell-${index}`} 
+                      fill={entry.isToday ? 'url(#barGradientToday)' : 'url(#barGradient)'}
+                    />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          )}
         </div>
       </CardContent>
     </Card>
