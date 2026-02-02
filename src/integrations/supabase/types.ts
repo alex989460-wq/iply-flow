@@ -418,6 +418,36 @@ export type Database = {
         }
         Relationships: []
       }
+      goals_settings: {
+        Row: {
+          created_at: string
+          customers_goal: number
+          id: string
+          projection_goal: number
+          revenue_goal: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          customers_goal?: number
+          id?: string
+          projection_goal?: number
+          revenue_goal?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          customers_goal?: number
+          id?: string
+          projection_goal?: number
+          revenue_goal?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       panel_links: {
         Row: {
           created_at: string

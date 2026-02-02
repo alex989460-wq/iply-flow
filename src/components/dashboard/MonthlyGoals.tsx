@@ -4,6 +4,8 @@ import { Progress } from '@/components/ui/progress';
 import { Target, Users, DollarSign, TrendingUp } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useDashboardStats } from '@/hooks/useDashboardStats';
+import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
 import confetti from 'canvas-confetti';
 
 interface Goal {
@@ -16,17 +18,51 @@ interface Goal {
   format?: (value: number) => string;
 }
 
+interface GoalsSettings {
+  customers_goal: number;
+  revenue_goal: number;
+  projection_goal: number;
+}
+
 export default function MonthlyGoals() {
   const { data: stats } = useDashboardStats();
+  const { user } = useAuth();
   const [animatedValues, setAnimatedValues] = useState<Record<string, number>>({});
   const [celebratedGoals, setCelebratedGoals] = useState<Set<string>>(new Set());
+  const [goalsSettings, setGoalsSettings] = useState<GoalsSettings>({
+    customers_goal: 200,
+    revenue_goal: 10000,
+    projection_goal: 15000,
+  });
+
+  // Fetch user's goals settings
+  useEffect(() => {
+    if (user) {
+      const fetchGoals = async () => {
+        const { data } = await supabase
+          .from('goals_settings')
+          .select('*')
+          .eq('user_id', user.id)
+          .maybeSingle();
+
+        if (data) {
+          setGoalsSettings({
+            customers_goal: data.customers_goal,
+            revenue_goal: data.revenue_goal,
+            projection_goal: data.projection_goal,
+          });
+        }
+      };
+      fetchGoals();
+    }
+  }, [user]);
 
   const goals: Goal[] = [
     {
       id: 'customers',
       label: 'Meta de Clientes',
       current: stats?.activeCustomers || 0,
-      target: 200,
+      target: goalsSettings.customers_goal,
       icon: Users,
       color: 'from-blue-500 to-cyan-500',
     },
@@ -34,7 +70,7 @@ export default function MonthlyGoals() {
       id: 'revenue',
       label: 'Meta de Receita',
       current: stats?.monthlyRevenue || 0,
-      target: 10000,
+      target: goalsSettings.revenue_goal,
       icon: DollarSign,
       color: 'from-emerald-500 to-green-500',
       format: (v) => `R$ ${v.toFixed(0)}`,
@@ -43,7 +79,7 @@ export default function MonthlyGoals() {
       id: 'projection',
       label: 'Projeção vs Meta',
       current: stats?.monthlyProjection || 0,
-      target: 15000,
+      target: goalsSettings.projection_goal,
       icon: TrendingUp,
       color: 'from-amber-500 to-orange-500',
       format: (v) => `R$ ${v.toFixed(0)}`,
@@ -82,7 +118,7 @@ export default function MonthlyGoals() {
     });
 
     return () => timers.forEach(clearInterval);
-  }, [stats]);
+  }, [stats, goalsSettings]);
 
   const triggerCelebration = () => {
     const count = 200;
@@ -116,7 +152,7 @@ export default function MonthlyGoals() {
           Metas do Mês
         </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-5">
+      <CardContent className="space-y-4">
         {goals.map((goal, index) => {
           const Icon = goal.icon;
           const currentValue = animatedValues[goal.id] || 0;
