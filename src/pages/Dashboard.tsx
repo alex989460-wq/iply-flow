@@ -13,7 +13,7 @@ import MonthlyGoals from '@/components/dashboard/MonthlyGoals';
 import FloatingActions from '@/components/dashboard/FloatingActions';
 import ExtraMonthsPopup from '@/components/dashboard/ExtraMonthsPopup';
 import { ScrollToTop } from '@/components/ui/scroll-to-top';
-import { useDashboardStats, useRevenueHistory, useDailyRevenueHistory } from '@/hooks/useDashboardStats';
+import { useDashboardStats, useDailyRevenueHistory } from '@/hooks/useDashboardStats';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { 
@@ -38,7 +38,6 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const { user, isAdmin } = useAuth();
   const { data: stats, isLoading: statsLoading } = useDashboardStats();
-  const { data: revenueHistory, isLoading: revenueLoading } = useRevenueHistory();
   const { data: dailyRevenue, isLoading: dailyLoading } = useDailyRevenueHistory();
   const [resellerAccess, setResellerAccess] = useState<{
     access_expires_at: string;
@@ -244,9 +243,7 @@ export default function Dashboard() {
           {!dailyLoading && dailyRevenue && (
             <DailyRevenueChart data={dailyRevenue} />
           )}
-          {!revenueLoading && revenueHistory && (
-            <RevenueChart data={revenueHistory} />
-          )}
+          <RevenueChart />
         </div>
 
         {/* Charts Row 2 - Distribution Charts */}
