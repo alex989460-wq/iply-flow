@@ -28,58 +28,39 @@ export default function MetaMessagesStats() {
   const { user, isAdmin } = useAuth();
   const [stats, setStats] = useState<MessageStats | null>(null);
   const [loading, setLoading] = useState(true);
-  const [metaConnected, setMetaConnected] = useState(false);
 
   useEffect(() => {
     const fetchStats = async () => {
-      if (!user) return;
+      if (!user || !isAdmin) {
+        setLoading(false);
+        return;
+      }
 
       try {
-        // Verificar se usuário tem Meta conectado
-        const { data: settings } = await supabase
-          .from('zap_responder_settings')
-          .select('api_type, meta_access_token')
-          .eq('user_id', user.id)
-          .maybeSingle();
-
-        const hasMeta = settings?.api_type === 'meta_cloud' && !!settings?.meta_access_token;
-        setMetaConnected(hasMeta);
-
-        if (!hasMeta) {
-          setLoading(false);
-          return;
-        }
-
         const monthStart = format(startOfMonth(new Date()), 'yyyy-MM-dd');
 
         // Buscar mensagens de cobrança (utility) do mês
-        let utilityCount = 0;
-        if (isAdmin) {
-          const { count } = await supabase
-            .from('billing_logs')
-            .select('*', { count: 'exact', head: true })
-            .gte('sent_at', monthStart);
-          utilityCount = count || 0;
-        }
+        const { count: utilityCount } = await supabase
+          .from('billing_logs')
+          .select('*', { count: 'exact', head: true })
+          .gte('sent_at', monthStart);
 
         // Buscar mensagens de broadcast (marketing) do mês
-        let marketingCount = 0;
-        if (isAdmin) {
-          const { count } = await supabase
-            .from('broadcast_logs')
-            .select('*', { count: 'exact', head: true })
-            .eq('last_status', 'sent')
-            .gte('last_sent_at', monthStart);
-          marketingCount = count || 0;
-        }
+        const { count: marketingCount } = await supabase
+          .from('broadcast_logs')
+          .select('*', { count: 'exact', head: true })
+          .eq('last_status', 'sent')
+          .gte('last_sent_at', monthStart);
 
-        const utilityCost = utilityCount * META_PRICES.utility;
-        const marketingCost = marketingCount * META_PRICES.marketing;
+        const utility = utilityCount || 0;
+        const marketing = marketingCount || 0;
+        const utilityCost = utility * META_PRICES.utility;
+        const marketingCost = marketing * META_PRICES.marketing;
 
         setStats({
-          utility: utilityCount,
-          marketing: marketingCount,
-          total: utilityCount + marketingCount,
+          utility,
+          marketing,
+          total: utility + marketing,
           utilityCost,
           marketingCost,
           totalCost: utilityCost + marketingCost,
@@ -94,8 +75,8 @@ export default function MetaMessagesStats() {
     fetchStats();
   }, [user, isAdmin]);
 
-  // Não mostrar se não tem Meta conectado
-  if (!metaConnected && !loading) {
+  // Só mostrar para admins
+  if (!isAdmin) {
     return null;
   }
 
