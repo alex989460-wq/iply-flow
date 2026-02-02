@@ -122,7 +122,7 @@ async function sendWhatsAppTemplateZap(
       formattedPhone = '55' + formattedPhone;
     }
     
-    console.log(`[Zap Responder] Sending template "${templateName}" to ${formattedPhone}`);
+    console.log(`[Zap Responder] Sending template "${templateName}" to ${formattedPhone} via dept ${departmentId}`);
     
     const body = {
       type: 'template',
@@ -141,13 +141,52 @@ async function sendWhatsAppTemplateZap(
       body: JSON.stringify(body),
     });
 
+    // Check content-type before parsing
+    const contentType = response.headers.get('content-type');
+    
     if (!response.ok) {
       const errorText = await response.text();
       console.error(`[Zap Responder] API error: ${response.status} - ${errorText}`);
-      return { success: false, error: 'Falha ao enviar mensagem' };
+      
+      // Try to parse error details
+      if (contentType?.includes('application/json')) {
+        try {
+          const errorJson = JSON.parse(errorText);
+          return { success: false, error: errorJson.message || errorJson.error || `HTTP ${response.status}` };
+        } catch {
+          // Not valid JSON
+        }
+      }
+      
+      return { success: false, error: `HTTP ${response.status}: ${errorText.substring(0, 100)}` };
     }
 
-    const result = await response.json();
+    // Parse response with error handling
+    let result;
+    if (contentType?.includes('application/json')) {
+      try {
+        result = await response.json();
+      } catch (e) {
+        console.error(`[Zap Responder] Failed to parse JSON response:`, e);
+        return { success: false, error: 'Resposta inválida da API' };
+      }
+    } else {
+      const textResult = await response.text();
+      console.warn(`[Zap Responder] Non-JSON response: ${textResult.substring(0, 200)}`);
+      return { success: false, error: 'Resposta não-JSON da API' };
+    }
+    
+    // Check for error in response body
+    if (result.error || result.success === false) {
+      console.error(`[Zap Responder] API returned error in body:`, result);
+      return { success: false, error: result.error || result.message || 'Erro retornado pela API' };
+    }
+    
+    // Check for queued/sent status
+    if (result.status && !['queued', 'sent', 'delivered', 'read'].includes(result.status.toLowerCase())) {
+      console.warn(`[Zap Responder] Unexpected status: ${result.status}`, result);
+    }
+
     console.log(`[Zap Responder] Template sent successfully to ${formattedPhone}`, result);
     return { success: true };
   } catch (error: unknown) {
@@ -236,13 +275,24 @@ Deno.serve(async (req) => {
     const isAdminUser = (adminRows?.length ?? 0) > 0;
 
     // Load settings
-    const { data: userSettings } = await supabase
+    const { data: userSettings, error: settingsError } = await supabase
       .from('zap_responder_settings')
       .select('*')
       .eq('user_id', userId)
       .maybeSingle();
 
+    if (settingsError) {
+      console.error('[Billing Batch] Error loading settings:', settingsError);
+    }
+
     let zapSettings: any = userSettings;
+    console.log(`[Billing Batch] User settings for ${userId}:`, {
+      api_type: zapSettings?.api_type,
+      meta_connected: !!zapSettings?.meta_connected_at,
+      meta_phone_id: zapSettings?.meta_phone_number_id,
+      zap_dept: zapSettings?.selected_department_id,
+    });
+
     if (!zapSettings && isAdminUser) {
       const { data } = await supabase
         .from('zap_responder_settings')
@@ -251,38 +301,52 @@ Deno.serve(async (req) => {
         .limit(1)
         .maybeSingle();
       zapSettings = data;
+      console.log('[Billing Batch] Using fallback admin settings');
     }
 
     // Detect API type - Meta Cloud or Zap Responder
+    // Meta Cloud is active when api_type is 'meta_cloud' AND meta_connected_at is set
     const apiType = zapSettings?.api_type || 'zap_responder';
-    const isMetaCloud = apiType === 'meta_cloud';
+    const isMetaCloud = apiType === 'meta_cloud' && !!zapSettings?.meta_connected_at;
     
-    console.log(`[Billing Batch] API type: ${apiType}, isMetaCloud: ${isMetaCloud}`);
+    console.log(`[Billing Batch] API detection: apiType=${apiType}, isMetaCloud=${isMetaCloud}, meta_connected_at=${zapSettings?.meta_connected_at}`);
 
     // Validate configuration based on API type
     if (isMetaCloud) {
-      if (!zapSettings?.meta_access_token || !zapSettings?.meta_phone_number_id) {
+      if (!zapSettings?.meta_access_token) {
+        console.error('[Billing Batch] Meta Cloud: Missing access token');
         return new Response(
-          JSON.stringify({ success: false, error: 'Meta Cloud API não configurada. Conecte seu WhatsApp Oficial em Configurações.' }),
+          JSON.stringify({ success: false, error: 'Meta Cloud API: Token de acesso não encontrado. Reconecte seu WhatsApp Oficial em Configurações.' }),
           { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
+      if (!zapSettings?.meta_phone_number_id) {
+        console.error('[Billing Batch] Meta Cloud: Missing phone number ID');
+        return new Response(
+          JSON.stringify({ success: false, error: 'Meta Cloud API: Nenhum número selecionado. Selecione um número em Configurações.' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      console.log(`[Billing Batch] Meta Cloud configured: phone=${zapSettings.meta_display_phone}`);
     } else {
       const zapToken = zapSettings?.zap_api_token || (isAdminUser ? Deno.env.get('ZAP_RESPONDER_TOKEN') : null);
       if (!zapToken) {
+        console.error('[Billing Batch] Zap Responder: Missing API token');
         return new Response(
-          JSON.stringify({ success: false, error: 'Token não configurado' }),
+          JSON.stringify({ success: false, error: 'Token da API não configurado. Configure em Configurações.' }),
           { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
 
       const departmentId = zapSettings?.selected_department_id;
       if (!departmentId) {
+        console.error('[Billing Batch] Zap Responder: Missing department ID');
         return new Response(
-          JSON.stringify({ success: false, error: 'Departamento não configurado' }),
+          JSON.stringify({ success: false, error: 'Departamento não selecionado. Selecione um departamento em Configurações.' }),
           { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
+      console.log(`[Billing Batch] Zap Responder configured: dept=${departmentId}`);
     }
 
     const today = getRelativeDateSaoPaulo(0);
@@ -392,7 +456,8 @@ Deno.serve(async (req) => {
     // ACTION: BATCH - Process a batch of customers
     if (action === 'batch') {
       const batch: Customer[] = body?.batch || [];
-      console.log(`[Billing Batch] Processing batch of ${batch.length} customers via ${apiType}`);
+      const effectiveApiType = isMetaCloud ? 'meta_cloud' : 'zap_responder';
+      console.log(`[Billing Batch] Processing batch of ${batch.length} customers via ${effectiveApiType} (isMetaCloud=${isMetaCloud})`);
 
       const results: any[] = [];
 
@@ -405,6 +470,7 @@ Deno.serve(async (req) => {
         
         if (isMetaCloud) {
           // Send via Meta Cloud API
+          console.log(`[Meta Cloud] Sending ${templateName} to ${normalizedPhone} via phone ${zapSettings.meta_phone_number_id}`);
           sendResult = await sendWhatsAppTemplateMeta(
             customer.phone, 
             templateName, 
@@ -417,6 +483,7 @@ Deno.serve(async (req) => {
           const apiBaseUrl = zapSettings?.api_base_url || 'https://api.zapresponder.com.br/api';
           const departmentId = zapSettings?.selected_department_id;
           
+          console.log(`[Zap Responder] Sending ${templateName} to ${normalizedPhone} via dept ${departmentId}`);
           sendResult = await sendWhatsAppTemplateZap(
             customer.phone, 
             templateName, 
@@ -426,15 +493,18 @@ Deno.serve(async (req) => {
           );
         }
         
-        // Log to database
+        // Log to database with effective API type
+        const logMessage = `[${normalizedPhone}] Template: ${templateName} via ${effectiveApiType}`;
         await supabase
           .from('billing_logs')
           .insert({
             customer_id: customer.id,
             billing_type: billingType,
-            message: `[${normalizedPhone}] Template: ${templateName} via ${apiType}`,
+            message: logMessage,
             whatsapp_status: sendResult.success ? 'sent' : `error: ${sendResult.error}`,
           });
+
+        console.log(`[Billing Batch] ${customer.name}: ${sendResult.success ? 'SENT' : 'ERROR'} - ${sendResult.error || 'OK'}`);
 
         results.push({
           customerId: customer.id,
