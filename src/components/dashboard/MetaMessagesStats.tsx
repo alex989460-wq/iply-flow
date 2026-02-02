@@ -105,52 +105,48 @@ export default function MetaMessagesStats() {
       </CardHeader>
       <CardContent className="space-y-4">
         {/* Total */}
-        <div className="flex items-center justify-between p-3 rounded-lg bg-primary/5 border border-primary/20">
-          <div className="flex items-center gap-2">
-            <TrendingUp className="h-4 w-4 text-primary" />
+        <div className="flex items-center justify-between p-4 rounded-lg bg-primary/5 border border-primary/20">
+          <div className="flex items-center gap-3">
+            <TrendingUp className="h-5 w-5 text-primary" />
             <span className="text-sm font-medium">Total Enviadas</span>
           </div>
-          <div className="text-right">
-            <span className="text-xl font-bold text-foreground">{stats.total}</span>
-            <span className="text-xs text-muted-foreground ml-2">
+          <div className="flex items-center gap-3">
+            <span className="text-3xl font-bold text-foreground tabular-nums">{stats.total}</span>
+            <span className="text-sm text-primary font-semibold">
               R$ {stats.totalCost.toFixed(2)}
             </span>
           </div>
         </div>
 
         {/* Breakdown */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 gap-3">
           {/* Utility Messages */}
-          <div className="flex items-center justify-between p-3 rounded-lg bg-emerald-500/5 border border-emerald-500/20">
-            <div className="space-y-1">
-              <div className="flex items-center gap-2">
-                <Badge variant="outline" className="bg-emerald-500/10 text-emerald-500 border-emerald-500/30 text-xs">
-                  Utilitário
-                </Badge>
-              </div>
-              <p className="text-xs text-muted-foreground">Cobranças</p>
+          <div className="p-4 rounded-lg bg-emerald-500/5 border border-emerald-500/20">
+            <div className="flex items-center gap-2 mb-3">
+              <Badge variant="outline" className="bg-emerald-500/10 text-emerald-500 border-emerald-500/30 text-xs">
+                Utilitário
+              </Badge>
+              <span className="text-xs text-muted-foreground">Cobranças</span>
             </div>
-            <div className="text-right">
-              <p className="text-lg font-bold text-foreground">{stats.utility}</p>
-              <p className="text-xs text-emerald-500 font-medium">
+            <div className="flex items-baseline justify-between">
+              <p className="text-3xl font-bold text-foreground tabular-nums">{stats.utility}</p>
+              <p className="text-base text-emerald-500 font-semibold">
                 R$ {stats.utilityCost.toFixed(2)}
               </p>
             </div>
           </div>
 
           {/* Marketing Messages */}
-          <div className="flex items-center justify-between p-3 rounded-lg bg-amber-500/5 border border-amber-500/20">
-            <div className="space-y-1">
-              <div className="flex items-center gap-2">
-                <Badge variant="outline" className="bg-amber-500/10 text-amber-500 border-amber-500/30 text-xs">
-                  Marketing
-                </Badge>
-              </div>
-              <p className="text-xs text-muted-foreground">Disparos</p>
+          <div className="p-4 rounded-lg bg-amber-500/5 border border-amber-500/20">
+            <div className="flex items-center gap-2 mb-3">
+              <Badge variant="outline" className="bg-amber-500/10 text-amber-500 border-amber-500/30 text-xs">
+                Marketing
+              </Badge>
+              <span className="text-xs text-muted-foreground">Disparos</span>
             </div>
-            <div className="text-right">
-              <p className="text-lg font-bold text-foreground">{stats.marketing}</p>
-              <p className="text-xs text-amber-500 font-medium">
+            <div className="flex items-baseline justify-between">
+              <p className="text-3xl font-bold text-foreground tabular-nums">{stats.marketing}</p>
+              <p className="text-base text-amber-500 font-semibold">
                 R$ {stats.marketingCost.toFixed(2)}
               </p>
             </div>
