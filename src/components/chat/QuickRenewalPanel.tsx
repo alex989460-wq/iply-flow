@@ -96,6 +96,7 @@ export default function QuickRenewalPanel({ isMobile = false, onClose }: QuickRe
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
   const [customRenewalPrice, setCustomRenewalPrice] = useState<string>('');
   const [selectedScreens, setSelectedScreens] = useState<number>(1);
+  const [editedUsername, setEditedUsername] = useState<string>('');
   const [showNewCustomerForm, setShowNewCustomerForm] = useState(false);
   const [showExtraMonthsConfirm, setShowExtraMonthsConfirm] = useState(false);
   const [isGeneratingTest, setIsGeneratingTest] = useState(false);
@@ -347,11 +348,12 @@ export default function QuickRenewalPanel({ isMobile = false, onClose }: QuickRe
 
       if (paymentError) throw paymentError;
 
-      // Update customer due_date, status, plan, screens, extra_months and custom_price if changed
+      // Update customer due_date, status, plan, screens, extra_months, username and custom_price if changed
       const updateData: Record<string, unknown> = {
         due_date: newDueDateStr,
         status: 'ativa' as const,
         screens: selectedScreens,
+        username: editedUsername.trim() || null,
         // Decrement extra_months if customer has any
         extra_months: customer.extra_months > 0 ? customer.extra_months - 1 : 0,
       };
@@ -385,10 +387,11 @@ export default function QuickRenewalPanel({ isMobile = false, onClose }: QuickRe
       // Update local UI immediately
       setSelectedCustomer((prev) => {
         if (!prev || prev.id !== customer.id) return prev;
-        return { ...prev, due_date: newDueDate, status: 'ativa' };
+        return { ...prev, due_date: newDueDate, status: 'ativa', username: editedUsername.trim() || null };
       });
 
-      // Generate renewal message
+      // Generate renewal message with updated username
+      const displayUsername = editedUsername.trim() || '-';
       const message = `✅ *Renovação Confirmada!*
 
 Olá ${customer.name}!
@@ -396,7 +399,7 @@ Olá ${customer.name}!
 Seu pagamento de *R$ ${amount.toFixed(2)}* foi confirmado.
 
 📅 *Novo vencimento:* ${formattedDate}
-👤 *Usuário:* ${customer.username || '-'}
+👤 *Usuário:* ${displayUsername}
 📺 *Plano:* ${planName}
 🖥️ *Servidor:* ${customer.server?.server_name || '-'}
 
@@ -499,11 +502,12 @@ Obrigado pela preferência! 🙏`;
     setSearchTerm(customer.username || customer.phone);
     setRenewalMessage(null);
     setVplayTestResult(null);
-    // Reset plan/price/screens to customer's current values
+    // Reset plan/price/screens/username to customer's current values
     setSelectedPlanId(customer.plan?.id || null);
     const currentPrice = customer.custom_price ?? customer.plan?.price ?? 0;
     setCustomRenewalPrice(currentPrice.toString());
     setSelectedScreens(customer.screens || 1);
+    setEditedUsername(customer.username || '');
   };
 
   // Generate Vplay test (standalone - not tied to selectedCustomer)
@@ -595,7 +599,7 @@ Olá ${customer.name}!
 Seu pagamento de *R$ ${amount.toFixed(2)}* foi confirmado.
 
 📅 *Vencimento:* ${formattedDate}
-👤 *Usuário:* ${customer.username || '-'}
+👤 *Usuário:* ${editedUsername || customer.username || '-'}
 🖥️ *Telas:* ${selectedScreens}
 📺 *Plano:* ${planName}
 🖥️ *Servidor:* ${customer.server?.server_name || '-'}
@@ -635,7 +639,7 @@ Olá ${customer.name}!
 Identificamos que o seu plano está vencido no momento.
 
 📅 *Vencimento:* ${formattedDate}
-👤 *Usuário:* ${customer.username || '-'}
+👤 *Usuário:* ${editedUsername || customer.username || '-'}
 📺 *Plano:* ${planName}
 🖥️ *Servidor:* ${serverName}
 
@@ -675,7 +679,7 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
     return `📺 *Dados do Cliente*
 
 👤 *Nome:* ${customer.name}
-📱 *Usuário:* ${customer.username || '-'}
+📱 *Usuário:* ${editedUsername || customer.username || '-'}
 📺 *Plano:* ${planName}
 🖥️ *Servidor:* ${serverName}
 🖥️ *Telas:* ${selectedScreens}
@@ -963,13 +967,23 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                     {getStatusBadge(selectedCustomer.status, selectedCustomer.due_date)}
                   </div>
                   
-                  {/* Username */}
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2 text-muted-foreground">
-                      <User className="h-3.5 w-3.5" />
-                      <span>Usuário:</span>
-                    </div>
-                    <span className="font-medium font-mono">{selectedCustomer.username || '-'}</span>
+                  {/* Username - Editable for multiple users */}
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground flex items-center gap-1">
+                      <User className="h-3 w-3" />
+                      Usuário(s):
+                    </label>
+                    <Input
+                      value={editedUsername}
+                      onChange={(e) => setEditedUsername(e.target.value)}
+                      placeholder="Ex: user1, user2"
+                      className="h-8 text-sm font-mono"
+                    />
+                    {selectedScreens > 1 && (
+                      <p className="text-[10px] text-muted-foreground">
+                        Separe múltiplos usuários por vírgula
+                      </p>
+                    )}
                   </div>
 
                   {/* Screens Selector */}
