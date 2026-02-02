@@ -7,6 +7,10 @@ import DailyRevenueChart from '@/components/dashboard/DailyRevenueChart';
 import PlanDistributionChart from '@/components/dashboard/PlanDistributionChart';
 import ServerDistributionChart from '@/components/dashboard/ServerDistributionChart';
 import MetaMessagesStats from '@/components/dashboard/MetaMessagesStats';
+import WelcomeHeader from '@/components/dashboard/WelcomeHeader';
+import ActivityFeed from '@/components/dashboard/ActivityFeed';
+import MonthlyGoals from '@/components/dashboard/MonthlyGoals';
+import FloatingActions from '@/components/dashboard/FloatingActions';
 import { ScrollToTop } from '@/components/ui/scroll-to-top';
 import { useDashboardStats, useRevenueHistory, useDailyRevenueHistory } from '@/hooks/useDashboardStats';
 import { useAuth } from '@/contexts/AuthContext';
@@ -92,18 +96,13 @@ export default function Dashboard() {
 
   return (
     <DashboardLayout>
-      <div className="space-y-4 sm:space-y-6 lg:space-y-8 animate-fade-in">
-        {/* Header */}
-        <div>
-          <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-foreground">Dashboard</h1>
-          <p className="text-muted-foreground text-sm sm:text-base mt-1">
-            Visão geral do seu sistema IPTV
-          </p>
-        </div>
+      <div className="space-y-4 sm:space-y-6 lg:space-y-8">
+        {/* Welcome Header */}
+        <WelcomeHeader />
 
         {/* Reseller Access Expiration Card - Only for non-admin users */}
         {!isAdmin && resellerAccess && (
-          <div className={`flex items-center gap-3 p-3 rounded-lg border ${
+          <div className={`flex items-center gap-3 p-3 rounded-lg border animate-fade-in ${
             getExpirationVariant() === 'destructive' 
               ? 'border-destructive/50 bg-destructive/10' 
               : getExpirationVariant() === 'warning'
@@ -137,31 +136,35 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* Stats Grid */}
+        {/* Stats Grid with staggered animations */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3 lg:gap-4">
           <StatsCard
             title="Total de Clientes"
             value={stats?.totalCustomers || 0}
             icon={Users}
             variant="primary"
+            animationDelay={0}
           />
           <StatsCard
             title="Clientes Ativos"
             value={stats?.activeCustomers || 0}
             icon={UserCheck}
             variant="success"
+            animationDelay={50}
           />
           <StatsCard
             title="Clientes Inativos"
             value={stats?.inactiveCustomers || 0}
             icon={UserX}
             variant="warning"
+            animationDelay={100}
           />
           <StatsCard
             title="Clientes Suspensos"
             value={stats?.suspendedCustomers || 0}
             icon={UserMinus}
             variant="destructive"
+            animationDelay={150}
           />
         </div>
 
@@ -173,18 +176,21 @@ export default function Dashboard() {
             description={`${stats?.todayPaymentCount || 0} pagamentos`}
             icon={Banknote}
             variant="success"
+            animationDelay={200}
           />
           <StatsCard
             title="Receita do Mês"
             value={`R$ ${(stats?.monthlyRevenue || 0).toFixed(2)}`}
             icon={DollarSign}
             variant="success"
+            animationDelay={250}
           />
           <StatsCard
             title="Projeção Mensal"
             value={`R$ ${(stats?.monthlyProjection || 0).toFixed(2)}`}
             icon={TrendingUp}
             variant="primary"
+            animationDelay={300}
           />
         </div>
 
@@ -196,6 +202,7 @@ export default function Dashboard() {
             icon={Clock}
             variant="warning"
             onClick={() => navigateToCustomers('due_today')}
+            animationDelay={350}
           />
           <StatsCard
             title="Vencem Amanhã"
@@ -203,6 +210,7 @@ export default function Dashboard() {
             icon={CalendarClock}
             variant="primary"
             onClick={() => navigateToCustomers('due_tomorrow')}
+            animationDelay={400}
           />
           <StatsCard
             title="Vencidas 1 Dia"
@@ -210,6 +218,7 @@ export default function Dashboard() {
             icon={CalendarX}
             variant="warning"
             onClick={() => navigateToCustomers('overdue_1day')}
+            animationDelay={450}
           />
           <StatsCard
             title="Todas Vencidas"
@@ -217,11 +226,20 @@ export default function Dashboard() {
             icon={AlertCircle}
             variant="destructive"
             onClick={() => navigateToCustomers('overdue')}
+            animationDelay={500}
           />
         </div>
 
+        {/* Activity Feed + Monthly Goals Row */}
+        {isAdmin && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 lg:gap-6 animate-fade-in" style={{ animationDelay: '550ms' }}>
+            <ActivityFeed />
+            <MonthlyGoals />
+          </div>
+        )}
+
         {/* Charts Row 1 - Daily and Monthly Revenue */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 lg:gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 lg:gap-6 animate-fade-in" style={{ animationDelay: '600ms' }}>
           {!dailyLoading && dailyRevenue && (
             <DailyRevenueChart data={dailyRevenue} />
           )}
@@ -231,7 +249,7 @@ export default function Dashboard() {
         </div>
 
         {/* Charts Row 2 - Distribution Charts */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 lg:gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 lg:gap-6 animate-fade-in" style={{ animationDelay: '650ms' }}>
           {stats?.planDistribution && stats.planDistribution.length > 0 && (
             <PlanDistributionChart data={stats.planDistribution} />
           )}
@@ -239,10 +257,13 @@ export default function Dashboard() {
         </div>
 
         {stats?.serverDistribution && stats.serverDistribution.length > 0 && (
-          <ServerDistributionChart data={stats.serverDistribution} />
+          <div className="animate-fade-in" style={{ animationDelay: '700ms' }}>
+            <ServerDistributionChart data={stats.serverDistribution} />
+          </div>
         )}
       </div>
       
+      <FloatingActions />
       <ScrollToTop />
     </DashboardLayout>
   );
