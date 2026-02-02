@@ -51,7 +51,7 @@ async function sendWhatsAppTemplateMeta(
   templateName: string,
   accessToken: string,
   phoneNumberId: string
-): Promise<{ success: boolean; error?: string }> {
+): Promise<{ success: boolean; error?: string; isBillingError?: boolean }> {
   try {
     let formattedPhone = phone.replace(/\D/g, '');
     if (!formattedPhone.startsWith('55') && formattedPhone.length <= 11) {
@@ -92,7 +92,41 @@ async function sendWhatsAppTemplateMeta(
     const result = await response.json();
     
     if (!response.ok || result.error) {
-      console.error(`[Meta Cloud] API error:`, result.error || response.status);
+      const errorCode = result.error?.code;
+      const errorMessage = result.error?.message || '';
+      const errorSubcode = result.error?.error_subcode;
+      
+      console.error(`[Meta Cloud] API error:`, { 
+        code: errorCode, 
+        subcode: errorSubcode, 
+        message: errorMessage,
+        full: result.error 
+      });
+      
+      // Detect billing/payment related errors from Meta
+      // Common Meta billing error codes: 130472, 131000-131999, or messages containing billing/payment terms
+      const isBillingError = 
+        errorCode === 130472 ||
+        (errorCode >= 131000 && errorCode <= 131999) ||
+        errorCode === 368 || // Account disabled for policy violation (often payment related)
+        errorSubcode === 2494090 || // Ad account billing issue
+        errorMessage.toLowerCase().includes('billing') ||
+        errorMessage.toLowerCase().includes('payment') ||
+        errorMessage.toLowerCase().includes('charge') ||
+        errorMessage.toLowerCase().includes('credit') ||
+        errorMessage.toLowerCase().includes('pagamento') ||
+        errorMessage.toLowerCase().includes('cobrança') ||
+        errorMessage.includes('spending limit') ||
+        errorMessage.includes('cannot be sent') && (errorCode === 131047 || errorCode === 131026);
+      
+      if (isBillingError) {
+        return { 
+          success: false, 
+          error: `⚠️ ERRO DE PAGAMENTO META: Mensagem não enviada. Verifique se o cartão de crédito da sua conta Meta está ativo e com pagamento automático habilitado. (Código: ${errorCode || response.status})`,
+          isBillingError: true
+        };
+      }
+      
       return { 
         success: false, 
         error: result.error?.message || `Falha ao enviar (${response.status})` 
