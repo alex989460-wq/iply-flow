@@ -6,6 +6,7 @@ import RevenueChart from '@/components/dashboard/RevenueChart';
 import DailyRevenueChart from '@/components/dashboard/DailyRevenueChart';
 import PlanDistributionChart from '@/components/dashboard/PlanDistributionChart';
 import ServerDistributionChart from '@/components/dashboard/ServerDistributionChart';
+import MetaMessagesStats from '@/components/dashboard/MetaMessagesStats';
 import { ScrollToTop } from '@/components/ui/scroll-to-top';
 import { useDashboardStats, useRevenueHistory, useDailyRevenueHistory } from '@/hooks/useDashboardStats';
 import { useAuth } from '@/contexts/AuthContext';
@@ -234,6 +235,7 @@ export default function Dashboard() {
           {stats?.planDistribution && stats.planDistribution.length > 0 && (
             <PlanDistributionChart data={stats.planDistribution} />
           )}
+          <MetaMessagesStats />
         </div>
 
         {stats?.serverDistribution && stats.serverDistribution.length > 0 && (
