@@ -182,9 +182,13 @@ async function sendWhatsAppTemplateZap(
       return { success: false, error: result.error || result.message || 'Erro retornado pela API' };
     }
     
-    // Check for queued/sent status
-    if (result.status && !['queued', 'sent', 'delivered', 'read'].includes(result.status.toLowerCase())) {
-      console.warn(`[Zap Responder] Unexpected status: ${result.status}`, result);
+    // Check for queued/sent status (with proper type checking)
+    const statusValue = result.status;
+    if (statusValue && typeof statusValue === 'string') {
+      const statusLower = statusValue.toLowerCase();
+      if (!['queued', 'sent', 'delivered', 'read'].includes(statusLower)) {
+        console.warn(`[Zap Responder] Unexpected status: ${statusValue}`, result);
+      }
     }
 
     console.log(`[Zap Responder] Template sent successfully to ${formattedPhone}`, result);
