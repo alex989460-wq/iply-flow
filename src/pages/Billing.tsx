@@ -764,7 +764,7 @@ export default function Billing() {
   const BATCH_SIZE = 8;
   const BATCH_DELAY_MS = 2000; // 2 seconds between batches
 
-  const handleSendBillings = async (billingType?: BillingType) => {
+  const handleSendBillings = async (billingType?: BillingType, forceResend: boolean = false) => {
     if (!hasValidSession) {
       toast({
         title: isMetaCloudApi ? 'Nenhum número selecionado' : 'Nenhuma sessão selecionada',
@@ -786,9 +786,9 @@ export default function Billing() {
     setSendingType(billingType || 'all');
     
     try {
-      // Step 1: Get customers to process
+      // Step 1: Get customers to process (with optional force resend)
       const { data: startData, error: startError } = await supabase.functions.invoke('send-billing-batch', {
-        body: { action: 'start', billing_type: billingType || null },
+        body: { action: 'start', billing_type: billingType || null, force: forceResend },
       });
       
       if (startError || !startData?.success) {
@@ -1036,20 +1036,56 @@ export default function Billing() {
               Gerencie cobranças automáticas e comunicações via WhatsApp
             </p>
           </div>
-          <Button 
-            variant="glow" 
-            onClick={() => handleSendBillings()}
-            disabled={isSending || totalPending === 0 || !hasValidSession}
-            className="w-full sm:w-auto sm:self-start"
-          >
-            {isSending && sendingType === 'all' ? (
-              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-            ) : (
-              <Send className="w-4 h-4 mr-2" />
-            )}
-            <span className="hidden sm:inline">Enviar Todas as Cobranças</span>
-            <span className="sm:hidden">Enviar Todas</span>
-          </Button>
+          <div className="flex flex-col sm:flex-row gap-2">
+            <Button 
+              variant="glow" 
+              onClick={() => handleSendBillings()}
+              disabled={isSending || totalPending === 0 || !hasValidSession}
+              className="w-full sm:w-auto"
+            >
+              {isSending && sendingType === 'all' ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
+                <Send className="w-4 h-4 mr-2" />
+              )}
+              <span className="hidden sm:inline">Enviar Todas as Cobranças</span>
+              <span className="sm:hidden">Enviar Todas</span>
+            </Button>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button 
+                  variant="outline" 
+                  disabled={isSending || !hasValidSession}
+                  className="w-full sm:w-auto border-warning/50 text-warning hover:bg-warning/10"
+                >
+                  <RefreshCw className="w-4 h-4 mr-2" />
+                  <span className="hidden sm:inline">Forçar Reenvio</span>
+                  <span className="sm:hidden">Reenviar</span>
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Forçar Reenvio de Cobranças</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Isso irá reenviar cobranças para <strong>todos os clientes</strong> elegíveis (D-1, D0, D+1), 
+                    <strong>mesmo que já tenham sido processados hoje</strong>.
+                    <br /><br />
+                    Use apenas se os clientes não receberam as mensagens anteriores.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                  <AlertDialogAction 
+                    onClick={() => handleSendBillings(undefined, true)}
+                    className="bg-warning hover:bg-warning/90 text-warning-foreground"
+                  >
+                    <RefreshCw className="w-4 h-4 mr-2" />
+                    Forçar Reenvio
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </div>
         </div>
 
         <Tabs defaultValue="config" className="space-y-4">
