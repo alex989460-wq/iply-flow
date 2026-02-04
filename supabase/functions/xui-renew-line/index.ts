@@ -170,6 +170,18 @@ serve(async (req) => {
       
       console.log(`[XUI] Page ${pageCount + 1}: ${resultCount} results (total: ${totalSearched})`);
       
+      // Log first user structure on first page to help debugging
+      if (pageCount === 0 && lines && lines.length > 0) {
+        const sampleUser = lines[0];
+        const fields = Object.keys(sampleUser).join(', ');
+        console.log(`[XUI] User fields available: ${fields}`);
+        // Log first 3 usernames to help debug
+        const sampleUsernames = lines.slice(0, 3).map(l => 
+          `${l.username || l.user || l.login || l.name || 'N/A'}`
+        ).join(', ');
+        console.log(`[XUI] Sample usernames: ${sampleUsernames}`);
+      }
+      
       if (resultCount === 0) break;
       
       if (lines && lines.length > 0) {
