@@ -102,8 +102,6 @@ export default function QuickRenewalPanel({ isMobile = false, onClose }: QuickRe
   const [isGeneratingTest, setIsGeneratingTest] = useState(false);
   const [vplayTestResult, setVplayTestResult] = useState<string | null>(null);
   const [selectedVplayServerId, setSelectedVplayServerId] = useState<string | null>(null);
-  const [isXuiRenewing, setIsXuiRenewing] = useState(false);
-  const [xuiRenewalResult, setXuiRenewalResult] = useState<{ success: boolean; message: string } | null>(null);
   const queryClient = useQueryClient();
 
   // Fetch vplay servers
@@ -504,7 +502,6 @@ Obrigado pela preferência! 🙏`;
     setSearchTerm(customer.username || customer.phone);
     setRenewalMessage(null);
     setVplayTestResult(null);
-    setXuiRenewalResult(null);
     // Reset plan/price/screens/username to customer's current values
     setSelectedPlanId(customer.plan?.id || null);
     const currentPrice = customer.custom_price ?? customer.plan?.price ?? 0;
@@ -587,51 +584,6 @@ Obrigado pela preferência! 🙏`;
 
   const handleCancelExtraMonthsRenewal = () => {
     setShowExtraMonthsConfirm(false);
-  };
-
-  // XUI One renewal function
-  const handleXuiRenewal = async () => {
-    if (!selectedCustomer) return;
-    
-    const username = editedUsername.trim() || selectedCustomer.username;
-    if (!username) {
-      toast.error('Informe o username do cliente para renovar no XUI One');
-      return;
-    }
-
-    // Calculate days to add based on selected plan
-    const durationDays = selectedPlan?.duration_days ?? selectedCustomer.plan?.duration_days ?? 30;
-
-    setIsXuiRenewing(true);
-    setXuiRenewalResult(null);
-
-    try {
-      const { data, error } = await supabase.functions.invoke('xui-renew-line', {
-        body: {
-          username,
-          daysToAdd: durationDays,
-          action: 'renew',
-        },
-      });
-
-      if (error) {
-        throw new Error(error.message || 'Erro na edge function');
-      }
-
-      if (data?.error) {
-        throw new Error(data.error);
-      }
-
-      setXuiRenewalResult({ success: true, message: data.message || 'Renovado com sucesso!' });
-      toast.success(`✅ ${username} renovado no XUI One!`);
-    } catch (error) {
-      console.error('[XUI] Error renewing:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
-      setXuiRenewalResult({ success: false, message: errorMessage });
-      toast.error('Erro ao renovar no XUI One: ' + errorMessage);
-    } finally {
-      setIsXuiRenewing(false);
-    }
   };
 
   // Generate payment approved message without renewing
@@ -1233,39 +1185,6 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                           <Copy className="h-4 w-4" />
                         </Button>
                       </div>
-                      
-                      {/* XUI One Renewal Button */}
-                      <Button 
-                        variant="secondary"
-                        className="w-full h-9 bg-blue-600 hover:bg-blue-700 text-white"
-                        onClick={handleXuiRenewal}
-                        disabled={isXuiRenewing || !editedUsername.trim()}
-                        title={!editedUsername.trim() ? 'Informe o username para renovar no painel' : 'Renovar no XUI One'}
-                      >
-                        {isXuiRenewing ? (
-                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        ) : (
-                          <Play className="h-4 w-4 mr-2" />
-                        )}
-                        Renovar no Painel (XUI)
-                      </Button>
-                      
-                      {/* XUI Renewal Result */}
-                      {xuiRenewalResult && (
-                        <div className={`p-2 rounded-lg text-xs ${xuiRenewalResult.success ? 'bg-green-500/10 border border-green-500/30 text-green-600 dark:text-green-400' : 'bg-destructive/10 border border-destructive/30 text-destructive'}`}>
-                          <div className="flex items-center justify-between">
-                            <span>{xuiRenewalResult.success ? '✅' : '❌'} {xuiRenewalResult.message}</span>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-5 w-5"
-                              onClick={() => setXuiRenewalResult(null)}
-                            >
-                              <X className="h-3 w-3" />
-                            </Button>
-                          </div>
-                        </div>
-                      )}
                     </div>
                   )}
 
