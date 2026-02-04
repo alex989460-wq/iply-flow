@@ -83,11 +83,12 @@ serve(async (req) => {
       );
     }
 
-    // Get global XUI One credentials from environment
+    // Get global XUI One credentials from environment (master reseller)
     const xuiBaseUrl = Deno.env.get('XUI_ONE_BASE_URL');
     const xuiApiKey = Deno.env.get('XUI_ONE_API_KEY');
+    const xuiMasterAccessCode = Deno.env.get('XUI_ONE_ACCESS_CODE'); // vplayXui! - master com acesso à API
 
-    if (!xuiBaseUrl || !xuiApiKey) {
+    if (!xuiBaseUrl || !xuiApiKey || !xuiMasterAccessCode) {
       console.error('[XUI] Missing global XUI One configuration');
       return new Response(
         JSON.stringify({ error: 'Configuração do XUI One não encontrada no sistema.' }),
@@ -95,7 +96,7 @@ serve(async (req) => {
       );
     }
 
-    // Get user's access code from database
+    // Get user's reseller code from database (to filter clients by reseller)
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
     
     const { data: xuiSettings, error: settingsError } = await supabaseAdmin
@@ -108,35 +109,24 @@ serve(async (req) => {
       console.error('[XUI] Error fetching user settings:', settingsError);
     }
 
-    let xuiAccessCode: string;
+    // Reseller filter: if user has configured their code, filter by it
+    // If not configured, show all clients (admin mode)
+    let resellerFilter: string | null = null;
 
-    // Check if user has their own access code configured and enabled
     if (xuiSettings && xuiSettings.is_enabled && xuiSettings.access_code) {
-      console.log('[XUI] Using user-specific access code');
-      xuiAccessCode = xuiSettings.access_code;
+      resellerFilter = xuiSettings.access_code;
+      console.log(`[XUI] Filtering clients by reseller: ${resellerFilter}`);
     } else {
-      // Fallback to global access code (for admin)
-      const globalAccessCode = Deno.env.get('XUI_ONE_ACCESS_CODE');
-      if (!globalAccessCode) {
-        return new Response(
-          JSON.stringify({ 
-            error: 'Configure seu usuário revendedor em Configurações > XUI One',
-            needsConfiguration: true
-          }),
-          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-      console.log('[XUI] Using global access code (admin fallback)');
-      xuiAccessCode = globalAccessCode;
+      console.log('[XUI] No reseller filter (admin mode - sees all clients)');
     }
 
     const baseUrl = xuiBaseUrl.replace(/\/$/, '');
     
     console.log(`[XUI] Base URL: ${baseUrl}`);
-    console.log(`[XUI] Access code: ${xuiAccessCode}`);
-    console.log(`[XUI] Searching for user "${username}"`);
-    
-    // Search with pagination
+    console.log(`[XUI] Master access code: ${xuiMasterAccessCode}`);
+    console.log(`[XUI] Searching for user "${username}"${resellerFilter ? ` (reseller: ${resellerFilter})` : ''}`);
+
+    // Search with pagination using master access code
     let line: Record<string, unknown> | null = null;
     let offset = 0;
     const limit = 100;
@@ -145,7 +135,7 @@ serve(async (req) => {
     let totalSearched = 0;
     
     while (!line && pageCount < maxPages) {
-      const getLineUrl = `${baseUrl}/${xuiAccessCode}/?api_key=${xuiApiKey}&action=get_lines&limit=${limit}&offset=${offset}`;
+      const getLineUrl = `${baseUrl}/${xuiMasterAccessCode}/?api_key=${xuiApiKey}&action=get_lines&limit=${limit}&offset=${offset}`;
       
       console.log(`[XUI] Fetching page ${pageCount + 1} (offset: ${offset})...`);
       
@@ -181,14 +171,33 @@ serve(async (req) => {
       
       if (lines && lines.length > 0) {
         line = lines.find(l => {
+          // Check if username matches
           const possibleFields = ['username', 'user', 'login', 'name'];
+          let usernameMatch = false;
           for (const field of possibleFields) {
             if (l[field] && String(l[field]).toLowerCase() === username.toLowerCase()) {
-              console.log(`[XUI] Found user "${username}" via field "${field}"`);
-              return true;
+              usernameMatch = true;
+              break;
             }
           }
-          return false;
+          
+          if (!usernameMatch) return false;
+          
+          // If reseller filter is set, check if client belongs to this reseller
+          if (resellerFilter) {
+            const clientReseller = l.reseller || l.created_by || l.owner;
+            if (clientReseller && String(clientReseller).toLowerCase() === resellerFilter.toLowerCase()) {
+              console.log(`[XUI] Found user "${username}" belonging to reseller "${resellerFilter}"`);
+              return true;
+            }
+            // Username matches but wrong reseller
+            console.log(`[XUI] User "${username}" found but belongs to reseller "${clientReseller}", not "${resellerFilter}"`);
+            return false;
+          }
+          
+          // No filter = admin mode, accept any match
+          console.log(`[XUI] Found user "${username}" (admin mode)`);
+          return true;
         }) || null;
       }
       
@@ -225,7 +234,7 @@ serve(async (req) => {
     console.log(`[XUI] Renewing: ${baseDate.toISOString()} -> ${newExpDate.toISOString()}`);
 
     // Edit line
-    const editLineUrl = `${baseUrl}/${xuiAccessCode}/?api_key=${xuiApiKey}&action=edit_line`;
+    const editLineUrl = `${baseUrl}/${xuiMasterAccessCode}/?api_key=${xuiApiKey}&action=edit_line`;
     
     const formData = new URLSearchParams();
     formData.append('id', lineId);
