@@ -786,6 +786,39 @@ export type Database = {
         }
         Relationships: []
       }
+      xui_one_settings: {
+        Row: {
+          access_code: string
+          api_key: string
+          base_url: string
+          created_at: string
+          id: string
+          is_enabled: boolean
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          access_code?: string
+          api_key?: string
+          base_url?: string
+          created_at?: string
+          id?: string
+          is_enabled?: boolean
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          access_code?: string
+          api_key?: string
+          base_url?: string
+          created_at?: string
+          id?: string
+          is_enabled?: boolean
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       zap_responder_settings: {
         Row: {
           api_base_url: string
