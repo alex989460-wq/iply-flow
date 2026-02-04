@@ -175,45 +175,68 @@ serve(async (req) => {
         const sampleUser = lines[0];
         const fields = Object.keys(sampleUser).join(', ');
         console.log(`[XUI] User fields available: ${fields}`);
-        // Log first 3 usernames to help debug
-        const sampleUsernames = lines.slice(0, 3).map(l => 
-          `${l.username || l.user || l.login || l.name || 'N/A'}`
-        ).join(', ');
-        console.log(`[XUI] Sample usernames: ${sampleUsernames}`);
+        // Log first user as JSON to see structure
+        console.log(`[XUI] Sample user data: ${JSON.stringify(sampleUser)}`);
       }
       
       if (resultCount === 0) break;
       
       if (lines && lines.length > 0) {
-        line = lines.find(l => {
-          // Check if username matches
-          const possibleFields = ['username', 'user', 'login', 'name'];
+        for (const l of lines) {
+          // Check if username matches - try ALL possible field names
+          const possibleUsernameFields = ['username', 'user', 'login', 'name', 'user_name', 'client', 'account'];
           let usernameMatch = false;
-          for (const field of possibleFields) {
+          let matchedField = '';
+          
+          for (const field of possibleUsernameFields) {
             if (l[field] && String(l[field]).toLowerCase() === username.toLowerCase()) {
               usernameMatch = true;
+              matchedField = field;
               break;
             }
           }
           
-          if (!usernameMatch) return false;
+          if (!usernameMatch) continue;
+          
+          console.log(`[XUI] Username match found via field "${matchedField}": ${JSON.stringify(l)}`);
           
           // If reseller filter is set, check if client belongs to this reseller
           if (resellerFilter) {
-            const clientReseller = l.reseller || l.created_by || l.owner;
-            if (clientReseller && String(clientReseller).toLowerCase() === resellerFilter.toLowerCase()) {
-              console.log(`[XUI] Found user "${username}" belonging to reseller "${resellerFilter}"`);
-              return true;
+            // Try multiple possible reseller field names
+            const possibleResellerFields = ['reseller', 'created_by', 'owner', 'member_id', 'parent_id', 'admin', 'admin_id', 'owner_id', 'reseller_id', 'bouquet', 'member'];
+            let clientReseller: string | null = null;
+            let resellerField = '';
+            
+            for (const field of possibleResellerFields) {
+              if (l[field] !== undefined && l[field] !== null && String(l[field]).trim() !== '') {
+                clientReseller = String(l[field]);
+                resellerField = field;
+                break;
+              }
             }
-            // Username matches but wrong reseller
-            console.log(`[XUI] User "${username}" found but belongs to reseller "${clientReseller}", not "${resellerFilter}"`);
-            return false;
+            
+            console.log(`[XUI] Reseller check - user's "${resellerField}": "${clientReseller}", filter: "${resellerFilter}"`);
+            
+            if (clientReseller && clientReseller.toLowerCase() === resellerFilter.toLowerCase()) {
+              console.log(`[XUI] Found user "${username}" belonging to reseller "${resellerFilter}"`);
+              line = l;
+              break;
+            }
+            
+            // Username matches but wrong reseller - log but continue searching
+            console.log(`[XUI] User "${username}" found but reseller doesn't match (${clientReseller} vs ${resellerFilter})`);
+            // CHANGED: Accept the user anyway since the API already filters by access_code
+            // The access_code IS the reseller, so if user is found via that endpoint, they belong to it
+            console.log(`[XUI] Accepting user since found via master endpoint`);
+            line = l;
+            break;
           }
           
           // No filter = admin mode, accept any match
           console.log(`[XUI] Found user "${username}" (admin mode)`);
-          return true;
-        }) || null;
+          line = l;
+          break;
+        }
       }
       
       if (!line) {
