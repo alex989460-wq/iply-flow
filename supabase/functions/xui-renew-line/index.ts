@@ -12,44 +12,30 @@ interface XUIResponse {
   data?: Record<string, unknown>;
 }
 
-interface XuiOneSettings {
-  base_url: string;
-  api_key: string;
-  access_code: string;
-  is_enabled: boolean;
-}
-
 // Helper to try HTTP with different ports if HTTPS fails due to cert issues
 async function fetchWithFallback(url: string, options?: RequestInit): Promise<Response> {
   try {
     return await fetch(url, options);
   } catch (error) {
-    // If it's a certificate error and URL is HTTPS, try HTTP with common XUI One ports
     if (error instanceof TypeError && 
         (error.message.includes('certificate') || error.message.includes('ssl') || error.message.includes('tls'))) {
       if (url.startsWith('https://')) {
-        // Extract base URL without port
         const urlObj = new URL(url);
         const basePath = urlObj.pathname + urlObj.search;
-        
-        // Common XUI One HTTP ports to try
         const httpPorts = [25461, 25500, 8080, 80];
         
         for (const port of httpPorts) {
           const httpUrl = `http://${urlObj.hostname}:${port}${basePath}`;
-          console.log(`[XUI] SSL error, trying HTTP fallback on port ${port}: ${httpUrl}`);
+          console.log(`[XUI] SSL error, trying HTTP fallback on port ${port}`);
           try {
             const response = await fetch(httpUrl, options);
-            // If we get a response (even 4xx/5xx), return it - the server is responding
             return response;
           } catch (portError) {
-            console.log(`[XUI] Port ${port} failed:`, portError instanceof Error ? portError.message : 'Unknown error');
+            console.log(`[XUI] Port ${port} failed`);
             continue;
           }
         }
-        
-        // If all ports fail, throw the original error
-        throw new Error(`Não foi possível conectar ao servidor XUI One. Verifique se o servidor está online e acessível.`);
+        throw new Error(`Não foi possível conectar ao servidor XUI One.`);
       }
     }
     throw error;
@@ -57,23 +43,19 @@ async function fetchWithFallback(url: string, options?: RequestInit): Promise<Re
 }
 
 serve(async (req) => {
-  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
 
   try {
-    // Get auth header
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
-      console.error('[XUI] Missing authorization header');
       return new Response(
         JSON.stringify({ error: 'Não autorizado' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Create Supabase client to validate user
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -84,7 +66,6 @@ serve(async (req) => {
 
     const { data: { user }, error: userError } = await supabase.auth.getUser();
     if (userError || !user) {
-      console.error('[XUI] User validation failed:', userError);
       return new Response(
         JSON.stringify({ error: 'Usuário não autenticado' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -93,78 +74,71 @@ serve(async (req) => {
 
     console.log(`[XUI] Request from user: ${user.id}`);
 
-    // Parse request body
     const { username, daysToAdd, action = 'renew' } = await req.json();
 
     if (!username) {
-      console.error('[XUI] Missing username');
       return new Response(
         JSON.stringify({ error: 'Username do cliente não informado' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Get user's XUI One settings from database
-    // Use service role to bypass RLS and ensure we can read the settings
+    // Get global XUI One credentials from environment
+    const xuiBaseUrl = Deno.env.get('XUI_ONE_BASE_URL');
+    const xuiApiKey = Deno.env.get('XUI_ONE_API_KEY');
+
+    if (!xuiBaseUrl || !xuiApiKey) {
+      console.error('[XUI] Missing global XUI One configuration');
+      return new Response(
+        JSON.stringify({ error: 'Configuração do XUI One não encontrada no sistema.' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Get user's access code from database
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
     
     const { data: xuiSettings, error: settingsError } = await supabaseAdmin
       .from('xui_one_settings')
-      .select('*')
+      .select('access_code, is_enabled')
       .eq('user_id', user.id)
       .maybeSingle();
 
     if (settingsError) {
       console.error('[XUI] Error fetching user settings:', settingsError);
-      return new Response(
-        JSON.stringify({ error: 'Erro ao buscar configurações do XUI One' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
     }
 
-    let xuiBaseUrl: string;
     let xuiAccessCode: string;
-    let xuiApiKey: string;
 
-    // Check if user has their own XUI One settings configured and enabled
-    if (xuiSettings && xuiSettings.is_enabled && xuiSettings.base_url && xuiSettings.api_key && xuiSettings.access_code) {
-      console.log('[XUI] Using user-specific XUI One settings');
-      xuiBaseUrl = xuiSettings.base_url;
+    // Check if user has their own access code configured and enabled
+    if (xuiSettings && xuiSettings.is_enabled && xuiSettings.access_code) {
+      console.log('[XUI] Using user-specific access code');
       xuiAccessCode = xuiSettings.access_code;
-      xuiApiKey = xuiSettings.api_key;
     } else {
-      // Fallback to global environment variables (for admin or legacy support)
-      console.log('[XUI] User settings not configured or disabled, checking global env vars');
-      const envBaseUrl = Deno.env.get('XUI_ONE_BASE_URL');
-      const envAccessCode = Deno.env.get('XUI_ONE_ACCESS_CODE');
-      const envApiKey = Deno.env.get('XUI_ONE_API_KEY');
-
-      if (!envBaseUrl || !envAccessCode || !envApiKey) {
-        console.error('[XUI] No XUI One configuration available');
+      // Fallback to global access code (for admin)
+      const globalAccessCode = Deno.env.get('XUI_ONE_ACCESS_CODE');
+      if (!globalAccessCode) {
         return new Response(
           JSON.stringify({ 
-            error: 'Configure suas credenciais do XUI One nas Configurações > Integração XUI One',
+            error: 'Configure seu usuário revendedor em Configurações > XUI One',
             needsConfiguration: true
           }),
           { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
-
-      xuiBaseUrl = envBaseUrl;
-      xuiAccessCode = envAccessCode;
-      xuiApiKey = envApiKey;
+      console.log('[XUI] Using global access code (admin fallback)');
+      xuiAccessCode = globalAccessCode;
     }
 
-    // Build XUI One API URL
-    const baseUrl = xuiBaseUrl.replace(/\/$/, ''); // Remove trailing slash
+    const baseUrl = xuiBaseUrl.replace(/\/$/, '');
     
-    console.log(`[XUI] Searching for user "${username}" in XUI One (access_code: ${xuiAccessCode.substring(0, 3)}***)...`);
+    console.log(`[XUI] Searching for user "${username}" with access_code: ${xuiAccessCode.substring(0, 3)}***`);
     
-    // Search with pagination - XUI One returns max ~50 results per page
+    // Search with pagination
     let line: Record<string, unknown> | null = null;
     let offset = 0;
     const limit = 100;
-    const maxPages = 50; // Safety limit to prevent infinite loops
+    const maxPages = 50;
     let pageCount = 0;
     let totalSearched = 0;
     
@@ -180,15 +154,15 @@ serve(async (req) => {
       try {
         linesData = JSON.parse(linesText);
       } catch {
-        console.error('[XUI] Failed to parse lines response:', linesText);
+        console.error('[XUI] Failed to parse response:', linesText.substring(0, 200));
         return new Response(
-          JSON.stringify({ error: 'Erro ao conectar com o servidor XUI One. Verifique a URL e credenciais.' }),
+          JSON.stringify({ error: 'Erro ao conectar com o XUI One. Verifique as credenciais.' }),
           { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
 
       if (linesData.status !== 'STATUS_SUCCESS') {
-        console.error('[XUI] Failed to get lines:', linesData.error);
+        console.error('[XUI] API error:', linesData.error);
         return new Response(
           JSON.stringify({ error: linesData.error || 'Erro ao buscar linhas no XUI One' }),
           { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -199,20 +173,16 @@ serve(async (req) => {
       const resultCount = lines?.length || 0;
       totalSearched += resultCount;
       
-      console.log(`[XUI] Page ${pageCount + 1}: got ${resultCount} results (total searched: ${totalSearched})`);
+      console.log(`[XUI] Page ${pageCount + 1}: ${resultCount} results (total: ${totalSearched})`);
       
-      if (resultCount === 0) {
-        // No more results
-        break;
-      }
+      if (resultCount === 0) break;
       
-      // Search for the user in this page
       if (lines && lines.length > 0) {
         line = lines.find(l => {
           const possibleFields = ['username', 'user', 'login', 'name'];
           for (const field of possibleFields) {
             if (l[field] && String(l[field]).toLowerCase() === username.toLowerCase()) {
-              console.log(`[XUI] Found user "${username}" with field "${field}"`);
+              console.log(`[XUI] Found user "${username}" via field "${field}"`);
               return true;
             }
           }
@@ -227,9 +197,9 @@ serve(async (req) => {
     }
 
     if (!line) {
-      console.error(`[XUI] Line not found for username: ${username} (searched ${totalSearched} users in ${pageCount} pages)`);
+      console.error(`[XUI] User not found: ${username} (searched ${totalSearched})`);
       return new Response(
-        JSON.stringify({ error: `Usuário "${username}" não encontrado no XUI One após buscar ${totalSearched} usuários.` }),
+        JSON.stringify({ error: `Usuário "${username}" não encontrado. Verifique se o usuário pertence ao seu painel.` }),
         { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -237,37 +207,32 @@ serve(async (req) => {
     const lineId = String(line.id);
     const lineExpDate = line.exp_date ? String(line.exp_date) : null;
     
-    console.log(`[XUI] Found line: ID=${lineId}, current exp_date=${lineExpDate}`);
+    console.log(`[XUI] Found line: ID=${lineId}, exp_date=${lineExpDate}`);
 
-    // Calculate new expiration date
+    // Calculate new expiration
     const currentExpDate = lineExpDate ? new Date(parseInt(lineExpDate) * 1000) : new Date();
     const now = new Date();
     const baseDate = currentExpDate > now ? currentExpDate : now;
     
-    // Add days (default 30 days = 1 month)
     const days = daysToAdd || 30;
     const newExpDate = new Date(baseDate);
     newExpDate.setDate(newExpDate.getDate() + days);
     
-    // Convert to Unix timestamp (seconds)
     const newExpTimestamp = Math.floor(newExpDate.getTime() / 1000);
 
-    console.log(`[XUI] Renewing: from ${baseDate.toISOString()} to ${newExpDate.toISOString()}`);
+    console.log(`[XUI] Renewing: ${baseDate.toISOString()} -> ${newExpDate.toISOString()}`);
 
-    // Build edit URL with form data
+    // Edit line
     const editLineUrl = `${baseUrl}/${xuiAccessCode}/?api_key=${xuiApiKey}&action=edit_line`;
     
     const formData = new URLSearchParams();
     formData.append('id', lineId);
     formData.append('exp_date', newExpTimestamp.toString());
     
-    // Also enable the line if it was disabled
     if (action === 'renew' || action === 'enable') {
       formData.append('enabled', '1');
     }
 
-    console.log(`[XUI] Sending edit request...`);
-    
     const editResponse = await fetchWithFallback(editLineUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -280,30 +245,30 @@ serve(async (req) => {
     try {
       editData = JSON.parse(editText);
     } catch {
-      console.error('[XUI] Failed to parse edit response:', editText);
+      console.error('[XUI] Failed to parse edit response');
       return new Response(
-        JSON.stringify({ error: 'Erro na resposta do servidor XUI One' }),
+        JSON.stringify({ error: 'Erro na resposta do XUI One' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
     if (editData.status !== 'STATUS_SUCCESS') {
-      console.error('[XUI] Failed to edit line:', editData.error);
+      console.error('[XUI] Edit failed:', editData.error);
       return new Response(
-        JSON.stringify({ error: editData.error || 'Erro ao renovar linha no XUI One' }),
+        JSON.stringify({ error: editData.error || 'Erro ao renovar linha' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    console.log(`[XUI] Successfully renewed line ${line.id} for user ${username}`);
+    console.log(`[XUI] Success! Renewed ${username}`);
 
     return new Response(
       JSON.stringify({
         success: true,
-        message: `Usuário ${username} renovado com sucesso no XUI One`,
+        message: `Usuário ${username} renovado com sucesso!`,
         data: {
           lineId: line.id,
-          username: username,
+          username,
           previousExpDate: currentExpDate.toISOString(),
           newExpDate: newExpDate.toISOString(),
           daysAdded: days,
@@ -313,8 +278,8 @@ serve(async (req) => {
     );
 
   } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : 'Erro interno do servidor';
-    console.error('[XUI] Unexpected error:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Erro interno';
+    console.error('[XUI] Error:', error);
     return new Response(
       JSON.stringify({ error: errorMessage }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
