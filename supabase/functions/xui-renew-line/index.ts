@@ -111,10 +111,13 @@ serve(async (req) => {
     // Build XUI One API URL
     const baseUrl = xuiBaseUrl.replace(/\/$/, ''); // Remove trailing slash
     
-    // First, get the line info to find the line ID
-    const getLineUrl = `${baseUrl}/${xuiAccessCode}/?api_key=${xuiApiKey}&action=get_lines`;
+    // Try to get the specific line by username filter (more efficient than pagination)
+    console.log(`[XUI] Searching for user "${username}" in XUI One...`);
     
-    console.log(`[XUI] Fetching lines from XUI One...`);
+    // XUI One API supports filtering by username
+    const getLineUrl = `${baseUrl}/${xuiAccessCode}/?api_key=${xuiApiKey}&action=get_lines&username=${encodeURIComponent(username)}`;
+    
+    console.log(`[XUI] Fetching with username filter...`);
     
     const linesResponse = await fetchWithFallback(getLineUrl);
     const linesText = await linesResponse.text();
@@ -138,22 +141,41 @@ serve(async (req) => {
       );
     }
 
-    // Find the line by username
-    const lines = linesData.data as unknown as Array<{ id: number; username: string; exp_date: string; enabled: number }>;
-    const line = lines?.find(l => l.username?.toLowerCase() === username.toLowerCase());
+    const lines = linesData.data as unknown as Array<Record<string, unknown>>;
+    console.log(`[XUI] Got ${lines?.length || 0} results for username filter`);
+    
+    // Find the line in results (filter might return partial matches)
+    let line: Record<string, unknown> | null = null;
+    if (lines && lines.length > 0) {
+      // Log first result to debug
+      console.log('[XUI] First result:', JSON.stringify(lines[0]));
+      
+      line = lines.find(l => {
+        const possibleFields = ['username', 'user', 'login', 'name'];
+        for (const field of possibleFields) {
+          if (l[field] && String(l[field]).toLowerCase() === username.toLowerCase()) {
+            return true;
+          }
+        }
+        return false;
+      }) || null;
+    }
 
     if (!line) {
       console.error(`[XUI] Line not found for username: ${username}`);
       return new Response(
-        JSON.stringify({ error: `Usuário "${username}" não encontrado no XUI One` }),
+        JSON.stringify({ error: `Usuário "${username}" não encontrado no XUI One. Verifique se o username está correto.` }),
         { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    console.log(`[XUI] Found line: ID=${line.id}, current exp_date=${line.exp_date}`);
+    const lineId = String(line.id);
+    const lineExpDate = line.exp_date ? String(line.exp_date) : null;
+    
+    console.log(`[XUI] Found line: ID=${lineId}, current exp_date=${lineExpDate}`);
 
     // Calculate new expiration date
-    const currentExpDate = line.exp_date ? new Date(parseInt(line.exp_date) * 1000) : new Date();
+    const currentExpDate = lineExpDate ? new Date(parseInt(lineExpDate) * 1000) : new Date();
     const now = new Date();
     const baseDate = currentExpDate > now ? currentExpDate : now;
     
@@ -171,7 +193,7 @@ serve(async (req) => {
     const editLineUrl = `${baseUrl}/${xuiAccessCode}/?api_key=${xuiApiKey}&action=edit_line`;
     
     const formData = new URLSearchParams();
-    formData.append('id', line.id.toString());
+    formData.append('id', lineId);
     formData.append('exp_date', newExpTimestamp.toString());
     
     // Also enable the line if it was disabled
