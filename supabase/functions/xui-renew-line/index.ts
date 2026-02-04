@@ -132,7 +132,9 @@ serve(async (req) => {
 
     const baseUrl = xuiBaseUrl.replace(/\/$/, '');
     
-    console.log(`[XUI] Searching for user "${username}" with access_code: ${xuiAccessCode.substring(0, 3)}***`);
+    console.log(`[XUI] Base URL: ${baseUrl}`);
+    console.log(`[XUI] Access code: ${xuiAccessCode}`);
+    console.log(`[XUI] Searching for user "${username}"`);
     
     // Search with pagination
     let line: Record<string, unknown> | null = null;
