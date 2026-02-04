@@ -12,6 +12,24 @@ interface XUIResponse {
   data?: Record<string, unknown>;
 }
 
+// Helper to try HTTP if HTTPS fails due to cert issues
+async function fetchWithFallback(url: string, options?: RequestInit): Promise<Response> {
+  try {
+    return await fetch(url, options);
+  } catch (error) {
+    // If it's a certificate error and URL is HTTPS, try HTTP
+    if (error instanceof TypeError && 
+        (error.message.includes('certificate') || error.message.includes('ssl') || error.message.includes('tls'))) {
+      if (url.startsWith('https://')) {
+        const httpUrl = url.replace('https://', 'http://').replace(':443', '').replace(':9000', ':8000');
+        console.log(`[XUI] SSL certificate error, trying HTTP fallback: ${httpUrl}`);
+        return await fetch(httpUrl, options);
+      }
+    }
+    throw error;
+  }
+}
+
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -79,7 +97,7 @@ serve(async (req) => {
     
     console.log(`[XUI] Fetching lines from XUI One...`);
     
-    const linesResponse = await fetch(getLineUrl);
+    const linesResponse = await fetchWithFallback(getLineUrl);
     const linesText = await linesResponse.text();
     
     let linesData: XUIResponse;
@@ -88,7 +106,7 @@ serve(async (req) => {
     } catch {
       console.error('[XUI] Failed to parse lines response:', linesText);
       return new Response(
-        JSON.stringify({ error: 'Erro ao conectar com o servidor XUI One. Verifique a URL e credenciais.' }),
+        JSON.stringify({ error: 'Erro ao conectar com o servidor XUI One. Verifique a URL e credenciais. Se estiver usando HTTPS, tente usar HTTP.' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -144,7 +162,7 @@ serve(async (req) => {
 
     console.log(`[XUI] Sending edit request...`);
     
-    const editResponse = await fetch(editLineUrl, {
+    const editResponse = await fetchWithFallback(editLineUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: formData.toString(),
