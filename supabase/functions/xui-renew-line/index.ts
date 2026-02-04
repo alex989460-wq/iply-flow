@@ -120,7 +120,18 @@ serve(async (req) => {
       console.log('[XUI] No reseller filter (admin mode - sees all clients)');
     }
 
-    const baseUrl = xuiBaseUrl.replace(/\/$/, '');
+    let baseUrl = xuiBaseUrl.replace(/\/$/, '');
+    
+    // Add default XUI One port if not present
+    const urlObj = new URL(baseUrl);
+    if (!urlObj.port && !baseUrl.includes(':25461') && !baseUrl.includes(':80') && !baseUrl.includes(':443')) {
+      // XUI One API typically uses port 25461
+      baseUrl = `${urlObj.protocol}//${urlObj.hostname}:25461${urlObj.pathname}`;
+      console.log(`[XUI] Added default port 25461`);
+    }
+    
+    // URL encode the access code (handles special chars like !)
+    const encodedAccessCode = encodeURIComponent(xuiMasterAccessCode);
     
     console.log(`[XUI] Base URL: ${baseUrl}`);
     console.log(`[XUI] Master access code: ${xuiMasterAccessCode}`);
@@ -135,7 +146,7 @@ serve(async (req) => {
     let totalSearched = 0;
     
     while (!line && pageCount < maxPages) {
-      const getLineUrl = `${baseUrl}/${xuiMasterAccessCode}/?api_key=${xuiApiKey}&action=get_lines&limit=${limit}&offset=${offset}`;
+      const getLineUrl = `${baseUrl}/${encodedAccessCode}/?api_key=${xuiApiKey}&action=get_lines&limit=${limit}&offset=${offset}`;
       
       console.log(`[XUI] Fetching page ${pageCount + 1} (offset: ${offset})...`);
       
@@ -234,7 +245,7 @@ serve(async (req) => {
     console.log(`[XUI] Renewing: ${baseDate.toISOString()} -> ${newExpDate.toISOString()}`);
 
     // Edit line
-    const editLineUrl = `${baseUrl}/${xuiMasterAccessCode}/?api_key=${xuiApiKey}&action=edit_line`;
+    const editLineUrl = `${baseUrl}/${encodedAccessCode}/?api_key=${xuiApiKey}&action=edit_line`;
     
     const formData = new URLSearchParams();
     formData.append('id', lineId);
