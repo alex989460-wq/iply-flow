@@ -12,8 +12,6 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 
 interface XuiOneSettings {
   id?: string;
-  base_url: string;
-  api_key: string;
   access_code: string;
   is_enabled: boolean;
 }
@@ -23,13 +21,10 @@ export default function XuiOneSettingsCard() {
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [showApiKey, setShowApiKey] = useState(false);
   const [showAccessCode, setShowAccessCode] = useState(false);
   const [hasExisting, setHasExisting] = useState(false);
   
   const [settings, setSettings] = useState<XuiOneSettings>({
-    base_url: '',
-    api_key: '',
     access_code: '',
     is_enabled: false,
   });
@@ -54,8 +49,6 @@ export default function XuiOneSettingsCard() {
         setHasExisting(true);
         setSettings({
           id: data.id,
-          base_url: data.base_url || '',
-          api_key: data.api_key || '',
           access_code: data.access_code || '',
           is_enabled: data.is_enabled || false,
         });
@@ -70,13 +63,22 @@ export default function XuiOneSettingsCard() {
   const handleSave = async () => {
     if (!user) return;
 
+    if (!settings.access_code.trim()) {
+      toast({
+        title: 'Erro',
+        description: 'Preencha o usuário do revendedor',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     setSaving(true);
     try {
       const payload = {
         user_id: user.id,
-        base_url: settings.base_url,
-        api_key: settings.api_key,
-        access_code: settings.access_code,
+        base_url: '', // Not used - global config
+        api_key: '', // Not used - global config
+        access_code: settings.access_code.trim(),
         is_enabled: settings.is_enabled,
         updated_at: new Date().toISOString(),
       };
@@ -99,7 +101,7 @@ export default function XuiOneSettingsCard() {
 
       toast({
         title: 'Sucesso',
-        description: 'Configurações do XUI One salvas com sucesso!',
+        description: 'Configuração salva com sucesso!',
       });
     } catch (error: any) {
       console.error('Error saving XUI One settings:', error);
@@ -123,7 +125,7 @@ export default function XuiOneSettingsCard() {
     );
   }
 
-  const isConfigured = settings.base_url && settings.api_key && settings.access_code;
+  const isConfigured = settings.access_code.trim().length > 0;
 
   return (
     <Card>
@@ -133,7 +135,7 @@ export default function XuiOneSettingsCard() {
           <CardTitle>Integração XUI One</CardTitle>
         </div>
         <CardDescription>
-          Configure suas credenciais do painel XUI One para renovar clientes automaticamente
+          Configure seu usuário de revendedor para renovar clientes automaticamente
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -156,7 +158,7 @@ export default function XuiOneSettingsCard() {
           <Alert>
             <AlertCircle className="h-4 w-4" />
             <AlertDescription>
-              Configure suas credenciais abaixo para ativar a renovação automática
+              Informe seu usuário de revendedor do XUI One para ativar a renovação automática
             </AlertDescription>
           </Alert>
         )}
@@ -175,24 +177,9 @@ export default function XuiOneSettingsCard() {
           />
         </div>
 
-        {/* Base URL */}
-        <div className="space-y-2">
-          <Label htmlFor="xui-base-url">URL Base do Painel</Label>
-          <Input
-            id="xui-base-url"
-            type="url"
-            placeholder="https://seupainel.com:25461"
-            value={settings.base_url}
-            onChange={(e) => setSettings({ ...settings, base_url: e.target.value })}
-          />
-          <p className="text-xs text-muted-foreground">
-            URL completa do seu painel XUI One (ex: https://exemplo.com:25461)
-          </p>
-        </div>
-
         {/* Access Code (username do revendedor) */}
         <div className="space-y-2">
-          <Label htmlFor="xui-access-code">Access Code (Usuário Revendedor)</Label>
+          <Label htmlFor="xui-access-code">Usuário Revendedor</Label>
           <div className="relative">
             <Input
               id="xui-access-code"
@@ -213,34 +200,7 @@ export default function XuiOneSettingsCard() {
             </Button>
           </div>
           <p className="text-xs text-muted-foreground">
-            Seu nome de usuário de revendedor no XUI One
-          </p>
-        </div>
-
-        {/* API Key */}
-        <div className="space-y-2">
-          <Label htmlFor="xui-api-key">API Key</Label>
-          <div className="relative">
-            <Input
-              id="xui-api-key"
-              type={showApiKey ? 'text' : 'password'}
-              placeholder="sua_api_key"
-              value={settings.api_key}
-              onChange={(e) => setSettings({ ...settings, api_key: e.target.value })}
-              className="pr-10"
-            />
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="absolute right-0 top-0 h-full"
-              onClick={() => setShowApiKey(!showApiKey)}
-            >
-              {showApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-            </Button>
-          </div>
-          <p className="text-xs text-muted-foreground">
-            Chave de API do seu painel XUI One
+            Seu nome de usuário de revendedor no XUI One (ex: dream6192)
           </p>
         </div>
 
@@ -254,7 +214,7 @@ export default function XuiOneSettingsCard() {
           ) : (
             <>
               <Save className="mr-2 h-4 w-4" />
-              Salvar Configurações
+              Salvar Configuração
             </>
           )}
         </Button>
