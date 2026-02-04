@@ -12,18 +12,37 @@ interface XUIResponse {
   data?: Record<string, unknown>;
 }
 
-// Helper to try HTTP if HTTPS fails due to cert issues
+// Helper to try HTTP with different ports if HTTPS fails due to cert issues
 async function fetchWithFallback(url: string, options?: RequestInit): Promise<Response> {
   try {
     return await fetch(url, options);
   } catch (error) {
-    // If it's a certificate error and URL is HTTPS, try HTTP
+    // If it's a certificate error and URL is HTTPS, try HTTP with common XUI One ports
     if (error instanceof TypeError && 
         (error.message.includes('certificate') || error.message.includes('ssl') || error.message.includes('tls'))) {
       if (url.startsWith('https://')) {
-        const httpUrl = url.replace('https://', 'http://').replace(':443', '').replace(':9000', ':8000');
-        console.log(`[XUI] SSL certificate error, trying HTTP fallback: ${httpUrl}`);
-        return await fetch(httpUrl, options);
+        // Extract base URL without port
+        const urlObj = new URL(url);
+        const basePath = urlObj.pathname + urlObj.search;
+        
+        // Common XUI One HTTP ports to try
+        const httpPorts = [25461, 25500, 8080, 80];
+        
+        for (const port of httpPorts) {
+          const httpUrl = `http://${urlObj.hostname}:${port}${basePath}`;
+          console.log(`[XUI] SSL error, trying HTTP fallback on port ${port}: ${httpUrl}`);
+          try {
+            const response = await fetch(httpUrl, options);
+            // If we get a response (even 4xx/5xx), return it - the server is responding
+            return response;
+          } catch (portError) {
+            console.log(`[XUI] Port ${port} failed:`, portError instanceof Error ? portError.message : 'Unknown error');
+            continue;
+          }
+        }
+        
+        // If all ports fail, throw the original error
+        throw new Error(`Não foi possível conectar ao servidor XUI One. Verifique se o servidor está online e acessível.`);
       }
     }
     throw error;
