@@ -12,13 +12,32 @@ interface XUIResponse {
   error?: string;
   data?: Record<string, unknown> | Array<Record<string, unknown>>;
   user_data?: Record<string, unknown>;
+  user_info?: Record<string, unknown>;
   api_key?: string;
 }
 
+// Store session cookie for authenticated requests
+let sessionCookie: string | null = null;
+
 // Helper to try HTTP with different ports if HTTPS fails due to cert issues
 async function fetchWithFallback(url: string, options?: RequestInit): Promise<Response> {
+  // Add session cookie to headers if available
+  const headers: Record<string, string> = {
+    ...(options?.headers as Record<string, string> || {}),
+  };
+  
+  if (sessionCookie) {
+    headers['Cookie'] = sessionCookie;
+  }
+  
+  const fetchOptions: RequestInit = {
+    ...options,
+    headers,
+    redirect: 'manual', // Handle redirects manually to capture cookies
+  };
+  
   try {
-    return await fetch(url, options);
+    return await fetch(url, fetchOptions);
   } catch (error) {
     if (error instanceof TypeError && 
         (error.message.includes('certificate') || error.message.includes('ssl') || error.message.includes('tls'))) {
@@ -31,7 +50,7 @@ async function fetchWithFallback(url: string, options?: RequestInit): Promise<Re
           const httpUrl = `http://${urlObj.hostname}:${port}${basePath}`;
           console.log(`[XUI] SSL error, trying HTTP fallback on port ${port}`);
           try {
-            const response = await fetch(httpUrl, options);
+            const response = await fetch(httpUrl, fetchOptions);
             return response;
           } catch (portError) {
             console.log(`[XUI] Port ${port} failed`);
@@ -45,89 +64,166 @@ async function fetchWithFallback(url: string, options?: RequestInit): Promise<Re
   }
 }
 
-// Authenticate with username/password and get session
+// Authenticate with username/password via web login (cookie-based session)
 async function authenticateXUI(baseUrl: string, username: string, password: string): Promise<{ success: boolean; apiKey?: string; error?: string }> {
   console.log(`[XUI] Authenticating user: ${username}`);
   
-  // Try different authentication endpoints
-  const authEndpoints = [
-    { url: `${baseUrl}/api.php`, method: 'POST', body: `username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}&action=login` },
-    { url: `${baseUrl}/api.php?action=login&username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}`, method: 'GET', body: null },
-    { url: `${baseUrl}/player_api.php?username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}`, method: 'GET', body: null },
+  // Clean base URL
+  const cleanBaseUrl = baseUrl.replace(/\/+$/, '');
+  
+  // Try web-based login (most common for GestorVPlay/SuperGestor)
+  const loginUrl = `${cleanBaseUrl}/login`;
+  
+  console.log(`[XUI] Trying web login: ${loginUrl}`);
+  
+  try {
+    // First, get the login page to capture any CSRF tokens
+    const loginPageResponse = await fetch(cleanBaseUrl, { redirect: 'manual' });
+    const loginPageCookie = loginPageResponse.headers.get('set-cookie');
+    
+    if (loginPageCookie) {
+      sessionCookie = loginPageCookie.split(';')[0];
+      console.log(`[XUI] Got initial session cookie`);
+    }
+    
+    // Perform login
+    const formData = new URLSearchParams();
+    formData.append('username', username);
+    formData.append('password', password);
+    
+    const loginHeaders: Record<string, string> = {
+      'Content-Type': 'application/x-www-form-urlencoded',
+    };
+    
+    if (sessionCookie) {
+      loginHeaders['Cookie'] = sessionCookie;
+    }
+    
+    const loginResponse = await fetch(loginUrl, {
+      method: 'POST',
+      headers: loginHeaders,
+      body: formData.toString(),
+      redirect: 'manual', // Important: capture redirect and cookies
+    });
+    
+    console.log(`[XUI] Login response status: ${loginResponse.status}`);
+    
+    // Log response body for debugging
+    const responseBody = await loginResponse.clone().text();
+    console.log(`[XUI] Login response body (first 500 chars): ${responseBody.substring(0, 500)}`);
+    
+    // Get session cookie from response
+    const setCookie = loginResponse.headers.get('set-cookie');
+    if (setCookie) {
+      sessionCookie = setCookie.split(';')[0];
+      console.log(`[XUI] Got session cookie from login`);
+    }
+    
+    // Successful login usually results in redirect (302/303)
+    if (loginResponse.status === 302 || loginResponse.status === 303 || loginResponse.status === 301) {
+      const location = loginResponse.headers.get('location');
+      console.log(`[XUI] Login redirect to: ${location}`);
+      
+      // Check if redirect is to dashboard (success) or back to login (failure)
+      if (location && !location.includes('login') && !location.includes('error')) {
+        console.log(`[XUI] Login successful!`);
+        return { success: true, apiKey: undefined };
+      }
+    }
+    
+    // If 200, check if it's a success page or error page
+    if (loginResponse.status === 200) {
+      const responseText = await loginResponse.text();
+      
+      // Check for success indicators
+      if (responseText.includes('dashboard') || responseText.includes('Dashboard') || 
+          responseText.includes('logout') || responseText.includes('Logout')) {
+        console.log(`[XUI] Login successful (dashboard page)`);
+        return { success: true, apiKey: undefined };
+      }
+      
+      // Check for error messages
+      if (responseText.includes('incorrect') || responseText.includes('invalid') || 
+          responseText.includes('erro') || responseText.includes('Erro')) {
+        return { success: false, error: 'Usuário ou senha incorretos' };
+      }
+    }
+    
+  } catch (error) {
+    console.error(`[XUI] Web login error:`, error);
+  }
+  
+  // Try API-based authentication as fallback
+  const apiEndpoints = [
+    `${cleanBaseUrl}/api.php?username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}&action=get_users&limit=1`,
+    `${cleanBaseUrl}/player_api.php?username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}`,
   ];
 
-  for (const endpoint of authEndpoints) {
+  for (const url of apiEndpoints) {
     try {
-      console.log(`[XUI] Trying auth endpoint: ${endpoint.url.replace(password, '***')}`);
+      const logUrl = url.replace(new RegExp(password, 'g'), '***');
+      console.log(`[XUI] Trying API auth: ${logUrl.substring(0, 100)}...`);
       
-      const options: RequestInit = {
-        method: endpoint.method,
-        headers: endpoint.method === 'POST' ? { 'Content-Type': 'application/x-www-form-urlencoded' } : undefined,
-        body: endpoint.body || undefined,
-      };
-      
-      const response = await fetchWithFallback(endpoint.url, options);
+      const response = await fetchWithFallback(url);
       const text = await response.text();
       
-      console.log(`[XUI] Auth response (${response.status}): ${text.substring(0, 300)}`);
+      if (text.trim().startsWith('<')) continue;
       
-      if (!response.ok && response.status !== 200) {
-        continue;
+      const data: XUIResponse = JSON.parse(text);
+      
+      if (data.result === false && data.error) continue;
+      
+      if (data.user_info || data.user_data || data.status === 'STATUS_SUCCESS' || data.result === true) {
+        console.log(`[XUI] API Authentication successful!`);
+        return { success: true, apiKey: data.api_key };
       }
       
-      let data: XUIResponse;
-      try {
-        data = JSON.parse(text);
-      } catch {
-        // If not JSON, might be HTML login page - try next endpoint
-        continue;
+      if (Array.isArray(data.data) || (data.data && typeof data.data === 'object')) {
+        console.log(`[XUI] API Authentication successful (got data)!`);
+        return { success: true, apiKey: undefined };
       }
       
-      // Check for successful authentication
-      if (data.status === 'STATUS_SUCCESS' || data.result === true || data.user_data || data.api_key) {
-        const apiKey = data.api_key || data.user_data?.api_key as string || '';
-        console.log(`[XUI] Authentication successful! API Key: ${apiKey ? 'obtained' : 'not provided'}`);
-        return { success: true, apiKey };
-      }
-      
-      // Check for authentication error
-      if (data.error) {
-        return { success: false, error: data.error };
-      }
-      
-    } catch (error) {
-      console.log(`[XUI] Auth endpoint failed:`, error);
+    } catch {
       continue;
     }
   }
   
-  return { success: false, error: 'Não foi possível autenticar. Verifique usuário e senha.' };
+  return { success: false, error: 'Não foi possível autenticar. Verifique URL, usuário e senha.' };
 }
 
 // Get lines/users from the panel
 async function getLines(baseUrl: string, username: string, password: string, apiKey: string | null, offset: number, limit: number): Promise<{ success: boolean; lines?: Array<Record<string, unknown>>; error?: string }> {
-  // Try different endpoints for getting lines
-  const endpoints = [];
+  const cleanBaseUrl = baseUrl.replace(/\/+$/, '');
   
-  // If we have an API key, try API key based endpoints first
+  // Try different endpoints for getting lines - ordered by most common for reseller panels
+  const endpoints = [
+    // Username/password auth (most reliable for reseller panels)
+    `${cleanBaseUrl}/api.php?username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}&action=get_users&limit=${limit}&offset=${offset}`,
+    `${cleanBaseUrl}/api.php?username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}&action=get_lines&limit=${limit}&offset=${offset}`,
+    // Panel subpath
+    `${cleanBaseUrl}/panel/api.php?username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}&action=get_users&limit=${limit}&offset=${offset}`,
+  ];
+  
+  // Add API key based endpoints if available
   if (apiKey) {
-    endpoints.push(
-      `${baseUrl}/api.php?api_key=${apiKey}&action=get_lines&limit=${limit}&offset=${offset}`,
-      `${baseUrl}/api.php?api_key=${apiKey}&action=get_users&limit=${limit}&offset=${offset}`,
+    endpoints.unshift(
+      `${cleanBaseUrl}/api.php?api_key=${apiKey}&action=get_users&limit=${limit}&offset=${offset}`,
+      `${cleanBaseUrl}/api.php?api_key=${apiKey}&action=get_lines&limit=${limit}&offset=${offset}`,
     );
   }
-  
-  // Try username/password based endpoints
-  endpoints.push(
-    `${baseUrl}/api.php?username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}&action=get_lines&limit=${limit}&offset=${offset}`,
-    `${baseUrl}/api.php?username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}&action=get_users&limit=${limit}&offset=${offset}`,
-    `${baseUrl}/player_api.php?username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}&action=get_live_streams`,
-  );
 
   for (const url of endpoints) {
     try {
+      const logUrl = url.replace(new RegExp(password, 'g'), '***');
+      console.log(`[XUI] Trying get_users: ${logUrl.substring(0, 150)}...`);
+      
       const response = await fetchWithFallback(url);
       const text = await response.text();
+      
+      // Skip HTML responses
+      if (text.trim().startsWith('<') || text.trim().startsWith('<!')) {
+        continue;
+      }
       
       let data: XUIResponse;
       try {
@@ -136,22 +232,36 @@ async function getLines(baseUrl: string, username: string, password: string, api
         continue;
       }
       
+      // Log first result structure
+      console.log(`[XUI] get_users response status: ${data.status}, result: ${data.result}`);
+      
       // Check for success and data
       if (data.status === 'STATUS_SUCCESS' && data.data) {
         const lines = Array.isArray(data.data) ? data.data : Object.values(data.data);
+        console.log(`[XUI] Got ${lines.length} users`);
         return { success: true, lines: lines as Array<Record<string, unknown>> };
       }
       
       // Some APIs return the data directly as an array
       if (Array.isArray(data)) {
+        console.log(`[XUI] Got ${data.length} users (direct array)`);
         return { success: true, lines: data };
       }
       
+      // If data.data is an object (keyed by ID), convert to array
+      if (typeof data.data === 'object' && data.data !== null && !Array.isArray(data.data)) {
+        const lines = Object.values(data.data) as Array<Record<string, unknown>>;
+        console.log(`[XUI] Got ${lines.length} users (object converted)`);
+        return { success: true, lines };
+      }
+      
       if (data.error) {
-        return { success: false, error: data.error };
+        console.log(`[XUI] get_users error: ${data.error}`);
+        continue;
       }
       
     } catch (error) {
+      console.log(`[XUI] get_users endpoint failed`);
       continue;
     }
   }
