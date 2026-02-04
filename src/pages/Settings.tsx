@@ -14,7 +14,6 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import VplayServersManager from '@/components/settings/VplayServersManager';
 import GoalsSettingsCard from '@/components/settings/GoalsSettingsCard';
-import XuiOneSettingsCard from '@/components/settings/XuiOneSettingsCard';
 
 async function getFunctionsHttpErrorDetails(err: unknown): Promise<{ message?: string; raw?: any } | null> {
   // supabase-js / @supabase/functions-js throws FunctionsHttpError with `.context` as a Response
@@ -715,11 +714,6 @@ export default function Settings() {
               <span className="hidden sm:inline">Metas</span>
               <span className="sm:hidden">Metas</span>
             </TabsTrigger>
-            <TabsTrigger value="xui_one" className="flex items-center gap-2">
-              <Server className="w-4 h-4 text-blue-500" />
-              <span className="hidden sm:inline">XUI One</span>
-              <span className="sm:hidden">XUI</span>
-            </TabsTrigger>
           </TabsList>
 
           {/* Zap Responder Tab */}
@@ -1206,11 +1200,6 @@ export default function Settings() {
           {/* Metas Tab */}
           <TabsContent value="metas" className="mt-6">
             <GoalsSettingsCard />
-          </TabsContent>
-
-          {/* XUI One Tab */}
-          <TabsContent value="xui_one" className="mt-6">
-            <XuiOneSettingsCard />
           </TabsContent>
         </Tabs>
       </div>
