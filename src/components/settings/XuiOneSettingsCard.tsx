@@ -13,8 +13,8 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 interface XuiOneSettings {
   id?: string;
   base_url: string;
-  api_key: string;
-  access_code: string;
+  access_code: string; // username
+  api_key: string; // password (repurposed field)
   is_enabled: boolean;
 }
 
@@ -24,13 +24,13 @@ export default function XuiOneSettingsCard() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
-  const [showApiKey, setShowApiKey] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const [hasExisting, setHasExisting] = useState(false);
   
   const [settings, setSettings] = useState<XuiOneSettings>({
     base_url: '',
-    api_key: '',
-    access_code: '',
+    access_code: '', // username
+    api_key: '', // password
     is_enabled: false,
   });
 
@@ -55,8 +55,8 @@ export default function XuiOneSettingsCard() {
         setSettings({
           id: data.id,
           base_url: data.base_url || '',
-          api_key: data.api_key || '',
           access_code: data.access_code || '',
+          api_key: data.api_key || '',
           is_enabled: data.is_enabled || false,
         });
       }
@@ -82,7 +82,7 @@ export default function XuiOneSettingsCard() {
     if (!settings.access_code.trim()) {
       toast({
         title: 'Erro',
-        description: 'Preencha o usuário do revendedor',
+        description: 'Preencha o usuário',
         variant: 'destructive',
       });
       return;
@@ -91,7 +91,7 @@ export default function XuiOneSettingsCard() {
     if (!settings.api_key.trim()) {
       toast({
         title: 'Erro',
-        description: 'Preencha a API Key',
+        description: 'Preencha a senha',
         variant: 'destructive',
       });
       return;
@@ -102,8 +102,8 @@ export default function XuiOneSettingsCard() {
       const payload = {
         user_id: user.id,
         base_url: settings.base_url.trim().replace(/\/$/, ''), // Remove trailing slash
-        api_key: settings.api_key.trim(),
-        access_code: settings.access_code.trim(),
+        access_code: settings.access_code.trim(), // username
+        api_key: settings.api_key.trim(), // password
         is_enabled: settings.is_enabled,
         updated_at: new Date().toISOString(),
       };
@@ -141,7 +141,7 @@ export default function XuiOneSettingsCard() {
   };
 
   const handleTestConnection = async () => {
-    if (!settings.base_url || !settings.api_key || !settings.access_code) {
+    if (!settings.base_url || !settings.access_code || !settings.api_key) {
       toast({
         title: 'Erro',
         description: 'Preencha todos os campos antes de testar',
@@ -150,11 +150,11 @@ export default function XuiOneSettingsCard() {
       return;
     }
 
+    // Save first to ensure credentials are stored
+    await handleSave();
+
     setTesting(true);
     try {
-      // Test the connection by calling the edge function with a test action
-      const { data: sessionData } = await supabase.auth.getSession();
-      
       const response = await supabase.functions.invoke('xui-renew-line', {
         body: { 
           username: '__test_connection__',
@@ -162,13 +162,13 @@ export default function XuiOneSettingsCard() {
         }
       });
 
-      // If we get a 404 with "not found", it means the API is working (just no user found)
       if (response.error) {
         const errorMsg = response.error.message || '';
+        // If we get "not found", it means the API is working (just no user found)
         if (errorMsg.includes('não encontrado') || errorMsg.includes('not found')) {
           toast({
             title: 'Conexão OK!',
-            description: 'API conectada com sucesso. Suas credenciais estão funcionando.',
+            description: 'Conectado ao painel com sucesso!',
           });
           return;
         }
@@ -177,13 +177,13 @@ export default function XuiOneSettingsCard() {
 
       toast({
         title: 'Conexão OK!',
-        description: 'API conectada com sucesso.',
+        description: response.data?.message || 'API conectada com sucesso.',
       });
     } catch (error: any) {
       console.error('Test connection error:', error);
       toast({
         title: 'Erro na Conexão',
-        description: error.message || 'Não foi possível conectar. Verifique as credenciais.',
+        description: error.message || 'Não foi possível conectar. Verifique usuário e senha.',
         variant: 'destructive',
       });
     } finally {
@@ -201,7 +201,7 @@ export default function XuiOneSettingsCard() {
     );
   }
 
-  const isConfigured = settings.base_url.trim() && settings.api_key.trim() && settings.access_code.trim();
+  const isConfigured = settings.base_url.trim() && settings.access_code.trim() && settings.api_key.trim();
 
   return (
     <Card>
@@ -211,7 +211,7 @@ export default function XuiOneSettingsCard() {
           <CardTitle>Integração XUI One</CardTitle>
         </div>
         <CardDescription>
-          Configure suas credenciais do painel XUI One para renovar clientes automaticamente
+          Configure seu acesso ao painel XUI One para renovar clientes automaticamente
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -259,38 +259,38 @@ export default function XuiOneSettingsCard() {
           <Input
             id="xui-base-url"
             type="url"
-            placeholder="https://seupainel.com"
+            placeholder="https://panel22.gestorvplay.com/SeuPainel"
             value={settings.base_url}
             onChange={(e) => setSettings({ ...settings, base_url: e.target.value })}
           />
           <p className="text-xs text-muted-foreground">
-            URL base do seu painel XUI One (ex: https://panel22.gestorvplay.com)
+            URL completa do seu painel de revendedor (ex: https://panel22.gestorvplay.com/CaVPkkdV)
           </p>
         </div>
 
-        {/* Access Code (username do revendedor) */}
+        {/* Username */}
         <div className="space-y-2">
-          <Label htmlFor="xui-access-code">Usuário Revendedor</Label>
+          <Label htmlFor="xui-username">Usuário</Label>
           <Input
-            id="xui-access-code"
+            id="xui-username"
             type="text"
             placeholder="seu_usuario"
             value={settings.access_code}
             onChange={(e) => setSettings({ ...settings, access_code: e.target.value })}
           />
           <p className="text-xs text-muted-foreground">
-            Seu nome de usuário de revendedor no XUI One (ex: dream6192)
+            Seu nome de usuário para login no painel
           </p>
         </div>
 
-        {/* API Key */}
+        {/* Password */}
         <div className="space-y-2">
-          <Label htmlFor="xui-api-key">API Key</Label>
+          <Label htmlFor="xui-password">Senha</Label>
           <div className="relative">
             <Input
-              id="xui-api-key"
-              type={showApiKey ? 'text' : 'password'}
-              placeholder="Sua API Key do painel"
+              id="xui-password"
+              type={showPassword ? 'text' : 'password'}
+              placeholder="Sua senha do painel"
               value={settings.api_key}
               onChange={(e) => setSettings({ ...settings, api_key: e.target.value })}
               className="pr-10"
@@ -300,13 +300,13 @@ export default function XuiOneSettingsCard() {
               variant="ghost"
               size="icon"
               className="absolute right-0 top-0 h-full"
-              onClick={() => setShowApiKey(!showApiKey)}
+              onClick={() => setShowPassword(!showPassword)}
             >
-              {showApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
             </Button>
           </div>
           <p className="text-xs text-muted-foreground">
-            Sua API Key pessoal do XUI One (encontre em Configurações no painel)
+            Sua senha para login no painel XUI One
           </p>
         </div>
 
