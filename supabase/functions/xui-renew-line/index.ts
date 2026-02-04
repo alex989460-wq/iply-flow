@@ -111,60 +111,78 @@ serve(async (req) => {
     // Build XUI One API URL
     const baseUrl = xuiBaseUrl.replace(/\/$/, ''); // Remove trailing slash
     
-    // Try to get the specific line by username filter (more efficient than pagination)
     console.log(`[XUI] Searching for user "${username}" in XUI One...`);
     
-    // XUI One API supports filtering by username
-    const getLineUrl = `${baseUrl}/${xuiAccessCode}/?api_key=${xuiApiKey}&action=get_lines&username=${encodeURIComponent(username)}`;
-    
-    console.log(`[XUI] Fetching with username filter...`);
-    
-    const linesResponse = await fetchWithFallback(getLineUrl);
-    const linesText = await linesResponse.text();
-    
-    let linesData: XUIResponse;
-    try {
-      linesData = JSON.parse(linesText);
-    } catch {
-      console.error('[XUI] Failed to parse lines response:', linesText);
-      return new Response(
-        JSON.stringify({ error: 'Erro ao conectar com o servidor XUI One. Verifique a URL e credenciais. Se estiver usando HTTPS, tente usar HTTP.' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    if (linesData.status !== 'STATUS_SUCCESS') {
-      console.error('[XUI] Failed to get lines:', linesData.error);
-      return new Response(
-        JSON.stringify({ error: linesData.error || 'Erro ao buscar linhas no XUI One' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    const lines = linesData.data as unknown as Array<Record<string, unknown>>;
-    console.log(`[XUI] Got ${lines?.length || 0} results for username filter`);
-    
-    // Find the line in results (filter might return partial matches)
+    // Search with pagination - XUI One returns max ~50 results per page
     let line: Record<string, unknown> | null = null;
-    if (lines && lines.length > 0) {
-      // Log first result to debug
-      console.log('[XUI] First result:', JSON.stringify(lines[0]));
+    let offset = 0;
+    const limit = 100;
+    const maxPages = 50; // Safety limit to prevent infinite loops
+    let pageCount = 0;
+    let totalSearched = 0;
+    
+    while (!line && pageCount < maxPages) {
+      const getLineUrl = `${baseUrl}/${xuiAccessCode}/?api_key=${xuiApiKey}&action=get_lines&limit=${limit}&offset=${offset}`;
       
-      line = lines.find(l => {
-        const possibleFields = ['username', 'user', 'login', 'name'];
-        for (const field of possibleFields) {
-          if (l[field] && String(l[field]).toLowerCase() === username.toLowerCase()) {
-            return true;
+      console.log(`[XUI] Fetching page ${pageCount + 1} (offset: ${offset})...`);
+      
+      const linesResponse = await fetchWithFallback(getLineUrl);
+      const linesText = await linesResponse.text();
+      
+      let linesData: XUIResponse;
+      try {
+        linesData = JSON.parse(linesText);
+      } catch {
+        console.error('[XUI] Failed to parse lines response:', linesText);
+        return new Response(
+          JSON.stringify({ error: 'Erro ao conectar com o servidor XUI One. Verifique a URL e credenciais.' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      if (linesData.status !== 'STATUS_SUCCESS') {
+        console.error('[XUI] Failed to get lines:', linesData.error);
+        return new Response(
+          JSON.stringify({ error: linesData.error || 'Erro ao buscar linhas no XUI One' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      const lines = linesData.data as unknown as Array<Record<string, unknown>>;
+      const resultCount = lines?.length || 0;
+      totalSearched += resultCount;
+      
+      console.log(`[XUI] Page ${pageCount + 1}: got ${resultCount} results (total searched: ${totalSearched})`);
+      
+      if (resultCount === 0) {
+        // No more results
+        break;
+      }
+      
+      // Search for the user in this page
+      if (lines && lines.length > 0) {
+        line = lines.find(l => {
+          const possibleFields = ['username', 'user', 'login', 'name'];
+          for (const field of possibleFields) {
+            if (l[field] && String(l[field]).toLowerCase() === username.toLowerCase()) {
+              console.log(`[XUI] Found user "${username}" with field "${field}"`);
+              return true;
+            }
           }
-        }
-        return false;
-      }) || null;
+          return false;
+        }) || null;
+      }
+      
+      if (!line) {
+        offset += resultCount;
+        pageCount++;
+      }
     }
 
     if (!line) {
-      console.error(`[XUI] Line not found for username: ${username}`);
+      console.error(`[XUI] Line not found for username: ${username} (searched ${totalSearched} users in ${pageCount} pages)`);
       return new Response(
-        JSON.stringify({ error: `Usuário "${username}" não encontrado no XUI One. Verifique se o username está correto.` }),
+        JSON.stringify({ error: `Usuário "${username}" não encontrado no XUI One após buscar ${totalSearched} usuários.` }),
         { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
