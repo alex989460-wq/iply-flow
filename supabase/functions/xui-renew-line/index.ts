@@ -83,53 +83,82 @@ serve(async (req) => {
       );
     }
 
-    // Get global XUI One credentials from environment (master reseller)
-    const xuiBaseUrl = Deno.env.get('XUI_ONE_BASE_URL');
-    const xuiApiKey = Deno.env.get('XUI_ONE_API_KEY');
-    const xuiMasterAccessCode = Deno.env.get('XUI_ONE_ACCESS_CODE'); // vplayXui! - master com acesso à API
-
-    if (!xuiBaseUrl || !xuiApiKey || !xuiMasterAccessCode) {
-      console.error('[XUI] Missing global XUI One configuration');
-      return new Response(
-        JSON.stringify({ error: 'Configuração do XUI One não encontrada no sistema.' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // Get user's reseller code from database (to filter clients by reseller)
+    // Get user's XUI One credentials from database
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
     
     const { data: xuiSettings, error: settingsError } = await supabaseAdmin
       .from('xui_one_settings')
-      .select('access_code, is_enabled')
+      .select('base_url, api_key, access_code, is_enabled')
       .eq('user_id', user.id)
       .maybeSingle();
 
     if (settingsError) {
       console.error('[XUI] Error fetching user settings:', settingsError);
+      return new Response(
+        JSON.stringify({ error: 'Erro ao buscar configurações do XUI One' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
-    // Reseller filter: if user has configured their code, filter by it
-    // If not configured, show all clients (admin mode)
-    let resellerFilter: string | null = null;
+    if (!xuiSettings || !xuiSettings.is_enabled) {
+      return new Response(
+        JSON.stringify({ error: 'Integração XUI One não está configurada ou habilitada. Configure em Configurações.' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
-    if (xuiSettings && xuiSettings.is_enabled && xuiSettings.access_code) {
-      resellerFilter = xuiSettings.access_code;
-      console.log(`[XUI] Filtering clients by reseller: ${resellerFilter}`);
-    } else {
-      console.log('[XUI] No reseller filter (admin mode - sees all clients)');
+    const { base_url, api_key, access_code } = xuiSettings;
+
+    if (!base_url || !api_key || !access_code) {
+      return new Response(
+        JSON.stringify({ error: 'Credenciais do XUI One incompletas. Configure URL, Usuário e API Key em Configurações.' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
     // Clean base URL (remove trailing slash)
-    const baseUrl = xuiBaseUrl.replace(/\/$/, '');
+    const baseUrl = base_url.replace(/\/$/, '');
     
     // URL format: {baseUrl}/{accessCode}/?api_key={apiKey}&action=xxx
-    // Example: https://panel22.gestorvplay.com/supergestor/?api_key=XXX&action=get_lines
+    // This uses the user's OWN credentials, so they only see their own customers
     console.log(`[XUI] Base URL: ${baseUrl}`);
-    console.log(`[XUI] Master access code: ${xuiMasterAccessCode}`);
-    console.log(`[XUI] Searching for user "${username}"${resellerFilter ? ` (reseller: ${resellerFilter})` : ''}`);
+    console.log(`[XUI] Access code: ${access_code}`);
+    console.log(`[XUI] Searching for user "${username}"`);
 
-    // Search with pagination using master access code
+    // For test action, just verify connection works
+    if (action === 'test') {
+      const testUrl = `${baseUrl}/${access_code}/?api_key=${api_key}&action=get_lines&limit=1`;
+      console.log(`[XUI] Testing connection...`);
+      
+      const testResponse = await fetchWithFallback(testUrl);
+      const testText = await testResponse.text();
+      
+      let testData: XUIResponse;
+      try {
+        testData = JSON.parse(testText);
+      } catch {
+        console.error('[XUI] Failed to parse test response:', testText.substring(0, 200));
+        return new Response(
+          JSON.stringify({ error: 'Erro ao conectar com o XUI One. Verifique as credenciais.' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      if (testData.status !== 'STATUS_SUCCESS') {
+        console.error('[XUI] Test failed:', testData.error);
+        return new Response(
+          JSON.stringify({ error: testData.error || 'Erro ao conectar com o XUI One' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      return new Response(
+        JSON.stringify({ success: true, message: 'Conexão testada com sucesso!' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Search with pagination using USER's credentials (they only see their own customers)
     let line: Record<string, unknown> | null = null;
     let offset = 0;
     const limit = 100;
@@ -138,7 +167,7 @@ serve(async (req) => {
     let totalSearched = 0;
     
     while (!line && pageCount < maxPages) {
-      const getLineUrl = `${baseUrl}/${xuiMasterAccessCode}/?api_key=${xuiApiKey}&action=get_lines&limit=${limit}&offset=${offset}`;
+      const getLineUrl = `${baseUrl}/${access_code}/?api_key=${api_key}&action=get_lines&limit=${limit}&offset=${offset}`;
       
       console.log(`[XUI] Fetching page ${pageCount + 1} (offset: ${offset})...`);
       
@@ -175,67 +204,27 @@ serve(async (req) => {
         const sampleUser = lines[0];
         const fields = Object.keys(sampleUser).join(', ');
         console.log(`[XUI] User fields available: ${fields}`);
-        // Log first user as JSON to see structure
-        console.log(`[XUI] Sample user data: ${JSON.stringify(sampleUser)}`);
+        // Log sample username fields
+        const sampleUsername = sampleUser.username || sampleUser.user || sampleUser.login || sampleUser.name;
+        console.log(`[XUI] Sample user: ${sampleUsername}`);
       }
       
       if (resultCount === 0) break;
       
       if (lines && lines.length > 0) {
+        // Search for the user - try ALL possible field names for username
         for (const l of lines) {
-          // Check if username matches - try ALL possible field names
           const possibleUsernameFields = ['username', 'user', 'login', 'name', 'user_name', 'client', 'account'];
-          let usernameMatch = false;
-          let matchedField = '';
           
           for (const field of possibleUsernameFields) {
             if (l[field] && String(l[field]).toLowerCase() === username.toLowerCase()) {
-              usernameMatch = true;
-              matchedField = field;
-              break;
-            }
-          }
-          
-          if (!usernameMatch) continue;
-          
-          console.log(`[XUI] Username match found via field "${matchedField}": ${JSON.stringify(l)}`);
-          
-          // If reseller filter is set, check if client belongs to this reseller
-          if (resellerFilter) {
-            // Try multiple possible reseller field names
-            const possibleResellerFields = ['reseller', 'created_by', 'owner', 'member_id', 'parent_id', 'admin', 'admin_id', 'owner_id', 'reseller_id', 'bouquet', 'member'];
-            let clientReseller: string | null = null;
-            let resellerField = '';
-            
-            for (const field of possibleResellerFields) {
-              if (l[field] !== undefined && l[field] !== null && String(l[field]).trim() !== '') {
-                clientReseller = String(l[field]);
-                resellerField = field;
-                break;
-              }
-            }
-            
-            console.log(`[XUI] Reseller check - user's "${resellerField}": "${clientReseller}", filter: "${resellerFilter}"`);
-            
-            if (clientReseller && clientReseller.toLowerCase() === resellerFilter.toLowerCase()) {
-              console.log(`[XUI] Found user "${username}" belonging to reseller "${resellerFilter}"`);
+              console.log(`[XUI] Found user "${username}" via field "${field}"`);
               line = l;
               break;
             }
-            
-            // Username matches but wrong reseller - log but continue searching
-            console.log(`[XUI] User "${username}" found but reseller doesn't match (${clientReseller} vs ${resellerFilter})`);
-            // CHANGED: Accept the user anyway since the API already filters by access_code
-            // The access_code IS the reseller, so if user is found via that endpoint, they belong to it
-            console.log(`[XUI] Accepting user since found via master endpoint`);
-            line = l;
-            break;
           }
           
-          // No filter = admin mode, accept any match
-          console.log(`[XUI] Found user "${username}" (admin mode)`);
-          line = l;
-          break;
+          if (line) break;
         }
       }
       
@@ -248,7 +237,7 @@ serve(async (req) => {
     if (!line) {
       console.error(`[XUI] User not found: ${username} (searched ${totalSearched})`);
       return new Response(
-        JSON.stringify({ error: `Usuário "${username}" não encontrado. Verifique se o usuário pertence ao seu painel.` }),
+        JSON.stringify({ error: `Usuário "${username}" não encontrado no seu painel.` }),
         { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -271,8 +260,8 @@ serve(async (req) => {
 
     console.log(`[XUI] Renewing: ${baseDate.toISOString()} -> ${newExpDate.toISOString()}`);
 
-    // Edit line
-    const editLineUrl = `${baseUrl}/${xuiMasterAccessCode}/?api_key=${xuiApiKey}&action=edit_line`;
+    // Edit line using USER's credentials
+    const editLineUrl = `${baseUrl}/${access_code}/?api_key=${api_key}&action=edit_line`;
     
     const formData = new URLSearchParams();
     formData.append('id', lineId);
