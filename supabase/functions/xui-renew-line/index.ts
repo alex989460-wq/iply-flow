@@ -12,6 +12,13 @@ interface XUIResponse {
   data?: Record<string, unknown>;
 }
 
+interface XuiOneSettings {
+  base_url: string;
+  api_key: string;
+  access_code: string;
+  is_enabled: boolean;
+}
+
 // Helper to try HTTP with different ports if HTTPS fails due to cert issues
 async function fetchWithFallback(url: string, options?: RequestInit): Promise<Response> {
   try {
@@ -69,6 +76,8 @@ serve(async (req) => {
     // Create Supabase client to validate user
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    
     const supabase = createClient(supabaseUrl, supabaseAnonKey, {
       global: { headers: { Authorization: authHeader } }
     });
@@ -95,23 +104,61 @@ serve(async (req) => {
       );
     }
 
-    // Get XUI One credentials from environment
-    const xuiBaseUrl = Deno.env.get('XUI_ONE_BASE_URL');
-    const xuiAccessCode = Deno.env.get('XUI_ONE_ACCESS_CODE');
-    const xuiApiKey = Deno.env.get('XUI_ONE_API_KEY');
+    // Get user's XUI One settings from database
+    // Use service role to bypass RLS and ensure we can read the settings
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
+    
+    const { data: xuiSettings, error: settingsError } = await supabaseAdmin
+      .from('xui_one_settings')
+      .select('*')
+      .eq('user_id', user.id)
+      .maybeSingle();
 
-    if (!xuiBaseUrl || !xuiAccessCode || !xuiApiKey) {
-      console.error('[XUI] Missing XUI One configuration');
+    if (settingsError) {
+      console.error('[XUI] Error fetching user settings:', settingsError);
       return new Response(
-        JSON.stringify({ error: 'Configuração do XUI One não encontrada. Configure nas secrets do projeto.' }),
+        JSON.stringify({ error: 'Erro ao buscar configurações do XUI One' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
+    }
+
+    let xuiBaseUrl: string;
+    let xuiAccessCode: string;
+    let xuiApiKey: string;
+
+    // Check if user has their own XUI One settings configured and enabled
+    if (xuiSettings && xuiSettings.is_enabled && xuiSettings.base_url && xuiSettings.api_key && xuiSettings.access_code) {
+      console.log('[XUI] Using user-specific XUI One settings');
+      xuiBaseUrl = xuiSettings.base_url;
+      xuiAccessCode = xuiSettings.access_code;
+      xuiApiKey = xuiSettings.api_key;
+    } else {
+      // Fallback to global environment variables (for admin or legacy support)
+      console.log('[XUI] User settings not configured or disabled, checking global env vars');
+      const envBaseUrl = Deno.env.get('XUI_ONE_BASE_URL');
+      const envAccessCode = Deno.env.get('XUI_ONE_ACCESS_CODE');
+      const envApiKey = Deno.env.get('XUI_ONE_API_KEY');
+
+      if (!envBaseUrl || !envAccessCode || !envApiKey) {
+        console.error('[XUI] No XUI One configuration available');
+        return new Response(
+          JSON.stringify({ 
+            error: 'Configure suas credenciais do XUI One nas Configurações > Integração XUI One',
+            needsConfiguration: true
+          }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      xuiBaseUrl = envBaseUrl;
+      xuiAccessCode = envAccessCode;
+      xuiApiKey = envApiKey;
     }
 
     // Build XUI One API URL
     const baseUrl = xuiBaseUrl.replace(/\/$/, ''); // Remove trailing slash
     
-    console.log(`[XUI] Searching for user "${username}" in XUI One...`);
+    console.log(`[XUI] Searching for user "${username}" in XUI One (access_code: ${xuiAccessCode.substring(0, 3)}***)...`);
     
     // Search with pagination - XUI One returns max ~50 results per page
     let line: Record<string, unknown> | null = null;
