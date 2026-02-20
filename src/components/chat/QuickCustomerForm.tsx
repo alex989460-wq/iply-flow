@@ -63,8 +63,20 @@ export default function QuickCustomerForm({ onSuccess, onCancel, initialPhone = 
   const createMutation = useMutation({
     mutationFn: async (data: typeof formData) => {
       const plan = plans.find(p => p.id === data.plan_id);
+      const durationDays = plan?.duration_days || 30;
       const dueDateObj = new Date();
-      dueDateObj.setDate(dueDateObj.getDate() + (plan?.duration_days || 30));
+      // Use calendar months for standard durations
+      if (durationDays === 30) {
+        dueDateObj.setMonth(dueDateObj.getMonth() + 1);
+      } else if (durationDays === 90) {
+        dueDateObj.setMonth(dueDateObj.getMonth() + 3);
+      } else if (durationDays === 180) {
+        dueDateObj.setMonth(dueDateObj.getMonth() + 6);
+      } else if (durationDays === 365) {
+        dueDateObj.setFullYear(dueDateObj.getFullYear() + 1);
+      } else {
+        dueDateObj.setDate(dueDateObj.getDate() + durationDays);
+      }
       const dueDate = dueDateObj.toISOString().split('T')[0];
 
       const insertData: any = {

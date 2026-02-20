@@ -21,6 +21,7 @@ import {
   UserCheck, 
   UserX, 
   UserMinus, 
+  UserPlus,
   DollarSign, 
   AlertCircle, 
   Clock,
@@ -137,7 +138,7 @@ export default function Dashboard() {
         )}
 
         {/* Stats Grid with staggered animations */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3 lg:gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-2 sm:gap-3 lg:gap-4">
           <StatsCard
             title="Total de Clientes"
             value={stats?.totalCustomers || 0}
@@ -165,6 +166,13 @@ export default function Dashboard() {
             icon={UserMinus}
             variant="destructive"
             animationDelay={150}
+          />
+          <StatsCard
+            title="Novos no Mês"
+            value={stats?.newCustomersThisMonth || 0}
+            icon={UserPlus}
+            variant="success"
+            animationDelay={175}
           />
         </div>
 
