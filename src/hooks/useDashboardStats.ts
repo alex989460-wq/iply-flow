@@ -20,6 +20,7 @@ interface DashboardStats {
   dueTomorrowCustomers: number;
   overdueOneDayCustomers: number;
   overdueCustomers: number;
+  newCustomersThisMonth: number;
   monthlyProjection: number;
 }
 
@@ -90,6 +91,7 @@ export function useDashboardStats() {
         dueTomorrowCustomers: Number(stats.dueTomorrowCustomers) || 0,
         overdueOneDayCustomers: Number(stats.overdueOneDayCustomers) || 0,
         overdueCustomers: Number(stats.overdueCustomers) || 0,
+        newCustomersThisMonth: Number(stats.newCustomersThisMonth) || 0,
         planDistribution,
         serverDistribution: serverDist,
         today,
