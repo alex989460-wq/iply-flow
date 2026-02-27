@@ -75,40 +75,127 @@ serve(async (req) => {
 
     try {
       const expDate = `${new_due_date} 23:59:59`;
+      const normalizedUsername = String(username).trim();
 
-      const [rows] = await connection.execute(
-        `SELECT id, username, exp_date FROM users WHERE username = ?`,
-        [username]
-      );
+      const [tablesResult] = await connection.query(`SHOW TABLES`);
+      const tablesRows = tablesResult as any[];
+      const tableFieldName = Object.keys(tablesRows[0] || {})[0];
+      const allTables = tableFieldName ? tablesRows.map((row) => String(row[tableFieldName])) : [];
 
-      const users = rows as any[];
+      const preferredTables = ['users', 'user', 'clientes', 'clients', 'accounts'];
+      const orderedTables = Array.from(new Set([
+        ...preferredTables.filter((table) => allTables.includes(table)),
+        ...allTables,
+      ]));
 
-      if (!users || users.length === 0) {
-        console.log(`[XUI-Renew] Usuário não encontrado no XUI: ${username}`);
+      let foundTable = '';
+      let foundUser: any = null;
+      let foundColumns = new Set<string>();
+      let identifierColumnsUsed: string[] = [];
+
+      for (const rawTableName of orderedTables) {
+        const tableName = rawTableName.replace(/`/g, '');
+        const [columnsResult] = await connection.query(`SHOW COLUMNS FROM \`${tableName}\``);
+        const tableColumns = new Set((columnsResult as any[]).map((col) => String(col.Field)));
+
+        const identifierColumns = ['username', 'user_name', 'login', 'user', 'email', 'name']
+          .filter((column) => tableColumns.has(column));
+
+        const whereClauses: string[] = [];
+        const queryParams: Array<string | number> = [];
+
+        for (const column of identifierColumns) {
+          whereClauses.push(`TRIM(CAST(\`${column}\` AS CHAR)) = TRIM(?)`);
+          queryParams.push(normalizedUsername);
+        }
+
+        if (/^\d+$/.test(normalizedUsername) && tableColumns.has('id')) {
+          whereClauses.push('`id` = ?');
+          queryParams.push(Number(normalizedUsername));
+        }
+
+        if (whereClauses.length === 0) continue;
+
+        const [rows] = await connection.execute(
+          `SELECT * FROM \`${tableName}\` WHERE ${whereClauses.join(' OR ')} LIMIT 1`,
+          queryParams
+        );
+
+        const users = rows as any[];
+        if (users && users.length > 0) {
+          foundTable = tableName;
+          foundUser = users[0];
+          foundColumns = tableColumns;
+          identifierColumnsUsed = identifierColumns;
+          break;
+        }
+      }
+
+      if (!foundUser) {
+        console.log(`[XUI-Renew] Usuário não encontrado no XUI: ${normalizedUsername}`);
         await connection.end();
         return new Response(
-          JSON.stringify({ success: false, error: `Usuário "${username}" não encontrado no servidor XUI` }),
+          JSON.stringify({
+            success: false,
+            error: `Usuário "${normalizedUsername}" não encontrado no servidor XUI`,
+            database,
+            searched_tables: orderedTables.slice(0, 20),
+          }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
 
-      const xuiUser = users[0];
-      console.log(`[XUI-Renew] Usuário encontrado: ID=${xuiUser.id}, exp_date atual=${xuiUser.exp_date}`);
+      const expiryColumnCandidates = [
+        'exp_date',
+        'expiration',
+        'expiration_date',
+        'expire_date',
+        'expiry_date',
+        'expires_at',
+        'expire_at',
+        'expiracao',
+      ];
 
-      await connection.execute(
-        `UPDATE users SET exp_date = ?, enabled = 1, is_trial = 0 WHERE username = ?`,
-        [expDate, username]
-      );
+      const expiryColumn = expiryColumnCandidates.find((column) => foundColumns.has(column));
 
-      console.log(`[XUI-Renew] Usuário ${username} renovado com sucesso até ${expDate}`);
+      if (!expiryColumn) {
+        throw new Error(`Nenhuma coluna de expiração conhecida foi encontrada na tabela ${foundTable}`);
+      }
+
+      const updateParts = [`\`${expiryColumn}\` = ?`];
+      if (foundColumns.has('enabled')) updateParts.push('enabled = 1');
+      if (foundColumns.has('is_trial')) updateParts.push('is_trial = 0');
+
+      let updateSql = '';
+      let updateParams: Array<string | number> = [expDate];
+
+      if (foundColumns.has('id') && foundUser.id !== undefined && foundUser.id !== null) {
+        updateSql = `UPDATE \`${foundTable}\` SET ${updateParts.join(', ')} WHERE id = ?`;
+        updateParams.push(foundUser.id);
+      } else {
+        const fallbackIdColumn = identifierColumnsUsed[0];
+        if (!fallbackIdColumn) {
+          throw new Error('Não foi possível determinar coluna para atualizar o usuário');
+        }
+        updateSql = `UPDATE \`${foundTable}\` SET ${updateParts.join(', ')} WHERE TRIM(CAST(\`${fallbackIdColumn}\` AS CHAR)) = TRIM(?)`;
+        updateParams.push(normalizedUsername);
+      }
+
+      await connection.execute(updateSql, updateParams);
+
+      const oldExpiration = foundUser[expiryColumn] ?? null;
+      console.log(`[XUI-Renew] Usuário encontrado: tabela=${foundTable}, ID=${foundUser.id}, coluna expiração=${expiryColumn}, valor atual=${oldExpiration}`);
+      console.log(`[XUI-Renew] Usuário ${normalizedUsername} renovado com sucesso até ${expDate}`);
       await connection.end();
 
       return new Response(
         JSON.stringify({
           success: true,
-          message: `Usuário ${username} renovado no servidor até ${new_due_date}`,
-          xui_user_id: xuiUser.id,
-          old_exp_date: xuiUser.exp_date,
+          message: `Usuário ${normalizedUsername} renovado no servidor até ${new_due_date}`,
+          table: foundTable,
+          xui_user_id: foundUser.id,
+          expiration_column: expiryColumn,
+          old_exp_date: oldExpiration,
           new_exp_date: expDate,
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
