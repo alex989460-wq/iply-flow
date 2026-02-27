@@ -704,6 +704,8 @@ export type Database = {
       }
       reseller_api_settings: {
         Row: {
+          cakto_client_id: string | null
+          cakto_client_secret: string | null
           cakto_webhook_secret: string | null
           created_at: string
           id: string
@@ -713,6 +715,8 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          cakto_client_id?: string | null
+          cakto_client_secret?: string | null
           cakto_webhook_secret?: string | null
           created_at?: string
           id?: string
@@ -722,6 +726,8 @@ export type Database = {
           user_id: string
         }
         Update: {
+          cakto_client_id?: string | null
+          cakto_client_secret?: string | null
           cakto_webhook_secret?: string | null
           created_at?: string
           id?: string

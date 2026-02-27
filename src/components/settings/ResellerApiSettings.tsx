@@ -7,7 +7,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { Loader2, Save, Eye, EyeOff, AlertCircle, CheckCircle2, Key } from 'lucide-react';
+import { Loader2, Save, Eye, EyeOff, AlertCircle, CheckCircle2, Key, Copy, ExternalLink } from 'lucide-react';
 
 export default function ResellerApiSettings() {
   const { user } = useAuth();
@@ -17,13 +17,18 @@ export default function ResellerApiSettings() {
   const [hasExisting, setHasExisting] = useState(false);
 
   const [showCaktoSecret, setShowCaktoSecret] = useState(false);
+  const [showCaktoClientSecret, setShowCaktoClientSecret] = useState(false);
   const [showNatvKey, setShowNatvKey] = useState(false);
 
   const [settings, setSettings] = useState({
     cakto_webhook_secret: '',
+    cakto_client_id: '',
+    cakto_client_secret: '',
     natv_api_key: '',
     natv_base_url: '',
   });
+
+  const webhookUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/cakto-webhook`;
 
   useEffect(() => {
     if (user) fetchSettings();
@@ -44,6 +49,8 @@ export default function ResellerApiSettings() {
         const d = data as any;
         setSettings({
           cakto_webhook_secret: d.cakto_webhook_secret || '',
+          cakto_client_id: d.cakto_client_id || '',
+          cakto_client_secret: d.cakto_client_secret || '',
           natv_api_key: d.natv_api_key || '',
           natv_base_url: d.natv_base_url || '',
         });
@@ -62,6 +69,8 @@ export default function ResellerApiSettings() {
       const payload = {
         user_id: user.id,
         cakto_webhook_secret: settings.cakto_webhook_secret || '',
+        cakto_client_id: settings.cakto_client_id || '',
+        cakto_client_secret: settings.cakto_client_secret || '',
         natv_api_key: settings.natv_api_key || '',
         natv_base_url: settings.natv_base_url || '',
         updated_at: new Date().toISOString(),
@@ -90,6 +99,11 @@ export default function ResellerApiSettings() {
     }
   };
 
+  const copyToClipboard = (text: string, label: string) => {
+    navigator.clipboard.writeText(text);
+    toast({ title: 'Copiado!', description: `${label} copiado para a área de transferência` });
+  };
+
   if (loading) {
     return (
       <Card>
@@ -114,38 +128,101 @@ export default function ResellerApiSettings() {
             {hasCakto && <CheckCircle2 className="w-5 h-5 text-green-500" />}
           </CardTitle>
           <CardDescription>
-            Configure seu webhook secret da Cakto para renovação automática
+            Configure sua integração com a Cakto para renovação automática
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <Alert>
             <AlertCircle className="h-4 w-4" />
             <AlertDescription>
-              O Webhook Secret é usado para validar que as notificações vieram realmente da Cakto. 
-              Você encontra essa chave no painel da Cakto em Integrações &gt; Webhooks.
+              <strong>Como configurar:</strong>
+              <ol className="list-decimal ml-4 mt-1 space-y-1 text-sm">
+                <li>Acesse o painel da Cakto em <strong>Integrações &gt; Webhooks</strong></li>
+                <li>Copie a <strong>URL do Webhook</strong> abaixo e cole na Cakto</li>
+                <li>Copie o <strong>Client ID</strong>, <strong>Client Secret</strong> e <strong>Webhook Secret</strong> da Cakto e cole nos campos abaixo</li>
+              </ol>
             </AlertDescription>
           </Alert>
 
+          {/* Webhook URL para copiar */}
           <div className="space-y-2">
-            <Label htmlFor="cakto_secret">Webhook Secret</Label>
-            <div className="relative">
+            <Label>URL do Webhook (cole na Cakto)</Label>
+            <div className="flex gap-2">
               <Input
-                id="cakto_secret"
-                type={showCaktoSecret ? 'text' : 'password'}
-                value={settings.cakto_webhook_secret}
-                onChange={(e) => setSettings({ ...settings, cakto_webhook_secret: e.target.value })}
-                placeholder="Cole seu webhook secret da Cakto"
-                className="pr-10"
+                readOnly
+                value={webhookUrl}
+                className="bg-muted font-mono text-xs"
               />
               <Button
                 type="button"
-                variant="ghost"
+                variant="outline"
                 size="icon"
-                className="absolute right-0 top-0 h-full"
-                onClick={() => setShowCaktoSecret(!showCaktoSecret)}
+                onClick={() => copyToClipboard(webhookUrl, 'URL do Webhook')}
+                title="Copiar URL"
               >
-                {showCaktoSecret ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                <Copy className="w-4 h-4" />
               </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Cole esta URL no campo de webhook da Cakto
+            </p>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="cakto_client_id">Client ID</Label>
+              <Input
+                id="cakto_client_id"
+                value={settings.cakto_client_id}
+                onChange={(e) => setSettings({ ...settings, cakto_client_id: e.target.value })}
+                placeholder="Client ID da Cakto"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="cakto_client_secret">Client Secret</Label>
+              <div className="relative">
+                <Input
+                  id="cakto_client_secret"
+                  type={showCaktoClientSecret ? 'text' : 'password'}
+                  value={settings.cakto_client_secret}
+                  onChange={(e) => setSettings({ ...settings, cakto_client_secret: e.target.value })}
+                  placeholder="Client Secret da Cakto"
+                  className="pr-10"
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="absolute right-0 top-0 h-full"
+                  onClick={() => setShowCaktoClientSecret(!showCaktoClientSecret)}
+                >
+                  {showCaktoClientSecret ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </Button>
+              </div>
+            </div>
+
+            <div className="space-y-2 md:col-span-2">
+              <Label htmlFor="cakto_secret">Webhook Secret</Label>
+              <div className="relative">
+                <Input
+                  id="cakto_secret"
+                  type={showCaktoSecret ? 'text' : 'password'}
+                  value={settings.cakto_webhook_secret}
+                  onChange={(e) => setSettings({ ...settings, cakto_webhook_secret: e.target.value })}
+                  placeholder="Cole seu webhook secret da Cakto"
+                  className="pr-10"
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="absolute right-0 top-0 h-full"
+                  onClick={() => setShowCaktoSecret(!showCaktoSecret)}
+                >
+                  {showCaktoSecret ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </Button>
+              </div>
             </div>
           </div>
         </CardContent>
