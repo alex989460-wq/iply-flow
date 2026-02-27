@@ -85,6 +85,8 @@ serve(async (req) => {
 
     let chargedAccessId: string | null = null;
     let chargedCreditsAmount = 0;
+    let chargedSource: 'backend' | 'xui' | null = null;
+    let externalRefund: { tableName: string; balanceColumn: string; whereColumn: string; whereValue: string | number } | null = null;
 
     try {
       const expDateString = `${new_due_date} 23:59:59`;
@@ -162,22 +164,22 @@ serve(async (req) => {
         );
       }
 
-      // Sempre descontar créditos do responsável pelo cliente, proporcional ao plano
-      if (customer_id && supabaseAdmin) {
-        const { data: customerData, error: customerError } = await supabaseAdmin
-          .from('customers')
-          .select('id, created_by, plan_id')
-          .eq('id', customer_id)
-          .maybeSingle();
+      // Sempre descontar créditos do responsável pela conta antes de renovar
+      if (customer_id) {
+        let creditsToDeduct = 1;
 
-        if (customerError) {
-          throw new Error(`Erro ao validar cliente para crédito: ${customerError.message}`);
-        }
+        if (supabaseAdmin) {
+          const { data: customerData, error: customerError } = await supabaseAdmin
+            .from('customers')
+            .select('id, created_by, plan_id')
+            .eq('id', customer_id)
+            .maybeSingle();
 
-        if (customerData?.created_by) {
-          // Calcular créditos com base no plano (duration_days / 30)
-          let creditsToDeduct = 1;
-          if (customerData.plan_id) {
+          if (customerError) {
+            throw new Error(`Erro ao validar cliente para crédito: ${customerError.message}`);
+          }
+
+          if (customerData?.plan_id) {
             const { data: planData } = await supabaseAdmin
               .from('plans')
               .select('duration_days')
@@ -189,36 +191,142 @@ serve(async (req) => {
             }
           }
 
-          const { data: ownerAccess, error: ownerAccessError } = await supabaseAdmin
-            .from('reseller_access')
-            .select('id, credits')
-            .eq('user_id', customerData.created_by)
-            .maybeSingle();
+          if (customerData?.created_by) {
+            const { data: ownerAccess, error: ownerAccessError } = await supabaseAdmin
+              .from('reseller_access')
+              .select('id, credits')
+              .eq('user_id', customerData.created_by)
+              .maybeSingle();
 
-          if (ownerAccessError) {
-            throw new Error(`Erro ao buscar créditos do revendedor: ${ownerAccessError.message}`);
+            if (ownerAccessError) {
+              throw new Error(`Erro ao buscar créditos do revendedor: ${ownerAccessError.message}`);
+            }
+
+            if (ownerAccess) {
+              if ((ownerAccess.credits ?? 0) < creditsToDeduct) {
+                throw new Error(`Créditos insuficientes. Necessário: ${creditsToDeduct}, disponível: ${ownerAccess.credits ?? 0}`);
+              }
+
+              const newCredits = ownerAccess.credits - creditsToDeduct;
+              const { error: deductError } = await supabaseAdmin
+                .from('reseller_access')
+                .update({ credits: newCredits })
+                .eq('id', ownerAccess.id);
+
+              if (deductError) {
+                throw new Error(`Erro ao descontar crédito: ${deductError.message}`);
+              }
+
+              chargedAccessId = ownerAccess.id;
+              chargedCreditsAmount = creditsToDeduct;
+              chargedSource = 'backend';
+              console.log(`[XUI-Renew] ${creditsToDeduct} crédito(s) descontado(s) no backend do responsável ${customerData.created_by}. Saldo: ${newCredits}`);
+            }
+          }
+        }
+
+        // Fallback: quando o responsável não existe no backend, desconta no próprio painel XUI
+        if (!chargedAccessId) {
+          const ownerIdColumnCandidates = ['user_id', 'uid', 'owner_id', 'reseller_id', 'seller_id', 'admin_id', 'created_by'];
+          const ownerNameColumnCandidates = ['owner', 'owner_username', 'reseller', 'reseller_username', 'seller', 'admin', 'created_by_username'];
+
+          const ownerIdColumn = ownerIdColumnCandidates.find((c) => foundColumns.has(c) && foundUser?.[c] !== undefined && foundUser?.[c] !== null);
+          const ownerNameColumn = ownerNameColumnCandidates.find((c) => {
+            const value = foundUser?.[c];
+            return foundColumns.has(c) && value !== undefined && value !== null && String(value).trim() !== '';
+          });
+
+          const ownerIdValue = ownerIdColumn ? foundUser[ownerIdColumn] : null;
+          const ownerNameValue = ownerNameColumn ? String(foundUser[ownerNameColumn]).trim() : null;
+
+          const preferredOwnerTables = ['users', 'user', 'resellers', 'accounts', 'admins'];
+          const ownerTables = Array.from(new Set([
+            ...preferredOwnerTables.filter((t) => allTables.includes(t)),
+            ...allTables,
+          ]));
+
+          let xuiCreditDebited = false;
+
+          for (const rawTableName of ownerTables) {
+            const tableName = rawTableName.replace(/`/g, '');
+            const [columnsResult] = await connection.query(`SHOW COLUMNS FROM \`${tableName}\``);
+            const columnsArray = columnsResult as any[];
+            const tableColumns = new Set(columnsArray.map((col) => String(col.Field)));
+
+            const balanceColumn = ['credits', 'credit', 'balance', 'wallet', 'money', 'saldo']
+              .find((c) => tableColumns.has(c));
+            if (!balanceColumn) continue;
+
+            const usernameColumn = ['username', 'user_name', 'login', 'name', 'email']
+              .find((c) => tableColumns.has(c));
+
+            const whereClauses: string[] = [];
+            const queryParams: Array<string | number> = [];
+
+            if (ownerIdValue !== null && ownerIdValue !== undefined) {
+              if (tableColumns.has('id')) {
+                whereClauses.push('`id` = ?');
+                queryParams.push(ownerIdValue as string | number);
+              }
+              if (ownerIdColumn && ownerIdColumn !== 'id' && tableColumns.has(ownerIdColumn)) {
+                whereClauses.push(`\`${ownerIdColumn}\` = ?`);
+                queryParams.push(ownerIdValue as string | number);
+              }
+            }
+
+            if (ownerNameValue && usernameColumn) {
+              whereClauses.push(`TRIM(CAST(\`${usernameColumn}\` AS CHAR)) = TRIM(?)`);
+              queryParams.push(ownerNameValue);
+            }
+
+            if (whereClauses.length === 0) continue;
+
+            const [ownerRows] = await connection.execute(
+              `SELECT * FROM \`${tableName}\` WHERE ${whereClauses.join(' OR ')} LIMIT 1`,
+              queryParams,
+            );
+
+            const owners = ownerRows as any[];
+            if (!owners.length) continue;
+
+            const ownerRow = owners[0];
+            const currentCredits = Number(ownerRow[balanceColumn]);
+            if (!Number.isFinite(currentCredits)) continue;
+
+            if (currentCredits < creditsToDeduct) {
+              throw new Error(`Créditos insuficientes no painel XUI. Necessário: ${creditsToDeduct}, disponível: ${currentCredits}`);
+            }
+
+            const newCredits = currentCredits - creditsToDeduct;
+
+            let whereColumn = 'id';
+            let whereValue: string | number = ownerRow.id as string | number;
+
+            if (!tableColumns.has('id') || ownerRow.id === undefined || ownerRow.id === null) {
+              if (usernameColumn && ownerRow[usernameColumn] !== undefined && ownerRow[usernameColumn] !== null) {
+                whereColumn = usernameColumn;
+                whereValue = String(ownerRow[usernameColumn]);
+              } else {
+                continue;
+              }
+            }
+
+            await connection.execute(
+              `UPDATE \`${tableName}\` SET \`${balanceColumn}\` = ? WHERE \`${whereColumn}\` = ? LIMIT 1`,
+              [newCredits, whereValue],
+            );
+
+            chargedCreditsAmount = creditsToDeduct;
+            chargedSource = 'xui';
+            externalRefund = { tableName, balanceColumn, whereColumn, whereValue };
+            xuiCreditDebited = true;
+
+            console.log(`[XUI-Renew] ${creditsToDeduct} crédito(s) descontado(s) no XUI (${tableName}.${balanceColumn}) para ${String(whereValue)}. Saldo: ${newCredits}`);
+            break;
           }
 
-          if (!ownerAccess) {
-            console.warn(`[XUI-Renew] Responsável ${customerData.created_by} não possui registro de acesso, pulando desconto`);
-          } else {
-            if ((ownerAccess.credits ?? 0) < creditsToDeduct) {
-              throw new Error(`Créditos insuficientes. Necessário: ${creditsToDeduct}, disponível: ${ownerAccess.credits ?? 0}`);
-            }
-
-            const newCredits = ownerAccess.credits - creditsToDeduct;
-            const { error: deductError } = await supabaseAdmin
-              .from('reseller_access')
-              .update({ credits: newCredits })
-              .eq('id', ownerAccess.id);
-
-            if (deductError) {
-              throw new Error(`Erro ao descontar crédito: ${deductError.message}`);
-            }
-
-            chargedAccessId = ownerAccess.id;
-            chargedCreditsAmount = creditsToDeduct;
-            console.log(`[XUI-Renew] ${creditsToDeduct} crédito(s) descontado(s) do responsável ${customerData.created_by}. Saldo: ${newCredits}`);
+          if (!xuiCreditDebited) {
+            throw new Error('Não foi possível identificar o revendedor responsável para descontar crédito');
           }
         }
       }
@@ -282,12 +390,14 @@ serve(async (req) => {
           expiration_column_type: expiryColumnType,
           old_exp_date: oldExpiration,
           new_exp_date: expDateValue,
-          credit_charged: Boolean(chargedAccessId),
+          credit_charged: chargedCreditsAmount > 0,
+          credits_debited: chargedCreditsAmount,
+          credit_source: chargedSource,
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
       );
     } catch (dbError) {
-      // Reembolso de crédito em caso de falha após desconto
+      // Reembolso de crédito no backend em caso de falha após desconto
       if (chargedAccessId && supabaseAdmin) {
         try {
           const { data: accessData } = await supabaseAdmin
@@ -303,7 +413,30 @@ serve(async (req) => {
               .eq('id', chargedAccessId);
           }
         } catch (refundError) {
-          console.error('[XUI-Renew] Erro ao reembolsar crédito:', refundError);
+          console.error('[XUI-Renew] Erro ao reembolsar crédito no backend:', refundError);
+        }
+      }
+
+      // Reembolso de crédito no XUI em caso de falha após desconto
+      if (externalRefund) {
+        try {
+          const [rows] = await connection.execute(
+            `SELECT \`${externalRefund.balanceColumn}\` FROM \`${externalRefund.tableName}\` WHERE \`${externalRefund.whereColumn}\` = ? LIMIT 1`,
+            [externalRefund.whereValue],
+          );
+
+          const currentRow = (rows as any[])[0];
+          if (currentRow) {
+            const currentValue = Number(currentRow[externalRefund.balanceColumn]);
+            if (Number.isFinite(currentValue)) {
+              await connection.execute(
+                `UPDATE \`${externalRefund.tableName}\` SET \`${externalRefund.balanceColumn}\` = ? WHERE \`${externalRefund.whereColumn}\` = ? LIMIT 1`,
+                [currentValue + chargedCreditsAmount, externalRefund.whereValue],
+              );
+            }
+          }
+        } catch (refundError) {
+          console.error('[XUI-Renew] Erro ao reembolsar crédito no XUI:', refundError);
         }
       }
 
