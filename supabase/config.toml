@@ -32,3 +32,6 @@ verify_jwt = false
 
 [functions.vplay-generate-test]
 verify_jwt = false
+
+[functions.xui-renew]
+verify_jwt = false

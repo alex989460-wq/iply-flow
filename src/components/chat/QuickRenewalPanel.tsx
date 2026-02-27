@@ -378,6 +378,29 @@ export default function QuickRenewalPanel({ isMobile = false, onClose }: QuickRe
 
       if (updateError) throw updateError;
 
+      // Renovar no servidor XUI automaticamente
+      if (customer.username?.trim()) {
+        try {
+          const { data: xuiResult, error: xuiError } = await supabase.functions.invoke('xui-renew', {
+            body: {
+              username: customer.username.trim(),
+              new_due_date: newDueDateStr,
+            },
+          });
+          if (xuiError) {
+            console.error('[XUI-Renew] Erro:', xuiError);
+            toast.warning(`Renovado localmente, mas falha no servidor XUI: ${xuiError.message}`);
+          } else if (!xuiResult?.success) {
+            console.warn('[XUI-Renew] Falha:', xuiResult?.error);
+            toast.warning(`Renovado localmente, mas: ${xuiResult?.error || 'Falha no servidor XUI'}`);
+          } else {
+            console.log('[XUI-Renew] Sucesso:', xuiResult);
+          }
+        } catch (e) {
+          console.error('[XUI-Renew] Erro inesperado:', e);
+        }
+      }
+
       return { newDueDate: newDueDateStr, amount, customer, planName };
     },
     onSuccess: (data) => {
