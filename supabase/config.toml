@@ -35,3 +35,6 @@ verify_jwt = false
 
 [functions.xui-renew]
 verify_jwt = false
+
+[functions.cakto-webhook]
+verify_jwt = false
