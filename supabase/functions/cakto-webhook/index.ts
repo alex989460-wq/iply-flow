@@ -349,17 +349,24 @@ serve(async (req) => {
           const apiBaseUrl = zapSettings.api_base_url || 'https://api.zapresponder.com.br/api';
           const departmentId = zapSettings.selected_department_id;
 
-          // Simple text message with renewal info
-          const message = `✅ *Pagamento Aprovado!*\n\n` +
-            `Olá *${matchedCustomer.name}*! Seu pagamento foi confirmado.\n\n` +
-            `📋 *Detalhes da renovação:*\n` +
-            `👤 Usuário: ${matchedCustomer.username || 'N/A'}\n` +
-            `🖥️ Servidor: ${serverName}\n` +
-            `📅 Novo vencimento: ${formattedDueDate}\n\n` +
-            `🔗 Comprovante: ${confirmationLink}\n\n` +
-            `Obrigado pela confiança! 🙏`;
+          // Build confirmation link with supergestor.top domain
+          const confirmationUrl = `https://supergestor.top/pedido/${confirmationId}`;
 
-          console.log(`[Cakto] Enviando mensagem simples via Zap Responder para ${metaPhone}`);
+          // Send template "renovacao_aprovada" with 4 body variables + button URL
+          const templatePayload = {
+            type: 'template',
+            number: metaPhone,
+            template: 'renovacao_aprovada',
+            params: [
+              matchedCustomer.name,                    // Corpo #1 - Nome do cliente
+              matchedCustomer.username || 'N/A',       // Corpo #2 - Username
+              serverName,                               // Corpo #3 - Servidor
+              formattedDueDate,                         // Corpo #4 - Data de vencimento
+            ],
+            button_url: confirmationUrl,
+          };
+
+          console.log(`[Cakto] Enviando template renovacao_aprovada via Zap Responder para ${metaPhone}`, JSON.stringify(templatePayload));
           const zapResp = await fetch(`${apiBaseUrl}/whatsapp/message/${departmentId}`, {
             method: 'POST',
             headers: {
@@ -367,14 +374,10 @@ serve(async (req) => {
               'Content-Type': 'application/json',
               'Accept': 'application/json',
             },
-            body: JSON.stringify({
-              type: 'text',
-              number: metaPhone,
-              message,
-            }),
+            body: JSON.stringify(templatePayload),
           });
           const zapResult = await zapResp.text();
-          console.log(`[Cakto] Zap Responder texto: status=${zapResp.status}`, zapResult);
+          console.log(`[Cakto] Zap Responder template: status=${zapResp.status}`, zapResult);
         } else {
           console.log('[Cakto] Nenhum provedor de WhatsApp configurado para este usuário. Mensagem não enviada.');
         }
