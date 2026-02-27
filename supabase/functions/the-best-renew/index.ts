@@ -37,13 +37,54 @@ serve(async (req) => {
       });
     }
 
-    const apiKey = Deno.env.get('THE_BEST_API_KEY');
+    const apiKey = Deno.env.get('THE_BEST_API_KEY')?.trim();
     if (!apiKey) {
       return new Response(
         JSON.stringify({ error: 'THE_BEST_API_KEY não configurada' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
       );
     }
+
+    const fetchWithAuthFallback = async (url: string, method: 'GET' | 'POST', body?: string): Promise<Response> => {
+      const authVariants: Array<Record<string, string>> = [
+        { 'Api-Key': apiKey },
+        { 'X-API-Key': apiKey },
+        { 'Authorization': `Token ${apiKey}` },
+        { 'Authorization': `Bearer ${apiKey}` },
+      ];
+
+      let lastResponse: Response | null = null;
+
+      for (const authHeaders of authVariants) {
+        const headers: Record<string, string> = {
+          ...authHeaders,
+          'Accept': 'application/json',
+        };
+
+        if (body) {
+          headers['Content-Type'] = 'application/json';
+        }
+
+        const response = await fetch(url, {
+          method,
+          headers,
+          ...(body ? { body } : {}),
+        });
+
+        if (response.ok || response.status !== 401) {
+          return response;
+        }
+
+        console.warn(
+          `[TheBest] Auth variant falhou (${Object.keys(authHeaders)[0]}): ${await response.clone().text()}`,
+        );
+        lastResponse = response;
+      }
+
+      return lastResponse ?? new Response(JSON.stringify({ error: 'Falha de autenticação na API The Best' }), {
+        status: 401,
+      });
+    };
 
     const { username, months, customer_id } = await req.json();
 
@@ -61,13 +102,7 @@ serve(async (req) => {
     const searchUrl = `${THE_BEST_API_URL}/lines/?search=${encodeURIComponent(username.trim())}&per_page=10`;
     console.log(`[TheBest] Buscando usuário: ${searchUrl}`);
 
-    const searchResponse = await fetch(searchUrl, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Accept': 'application/json',
-      },
-    });
+    const searchResponse = await fetchWithAuthFallback(searchUrl, 'GET');
 
     if (!searchResponse.ok) {
       const errorText = await searchResponse.text();
@@ -107,15 +142,11 @@ serve(async (req) => {
     const renewUrl = `${THE_BEST_API_URL}/lines/${lineId}/renew/`;
     console.log(`[TheBest] Renovando: ${renewUrl} com ${renewMonths} meses`);
 
-    const renewResponse = await fetch(renewUrl, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-      },
-      body: JSON.stringify({ months: renewMonths }),
-    });
+    const renewResponse = await fetchWithAuthFallback(
+      renewUrl,
+      'POST',
+      JSON.stringify({ months: renewMonths }),
+    );
 
     if (!renewResponse.ok) {
       const errorText = await renewResponse.text();
