@@ -44,12 +44,33 @@ serve(async (req) => {
 
     console.log(`[XUI-Renew] Renovando usuário: ${username}, nova data: ${new_due_date}`);
 
+    const rawDatabase = (Deno.env.get('XUI_MYSQL_DATABASE') || '').trim();
+    const rawPort = (Deno.env.get('XUI_MYSQL_PORT') || '3306').trim();
+
+    let database = rawDatabase;
+    let port = Number.parseInt(rawPort, 10);
+
+    // Auto-heal misconfigured secrets where DB/PORT were accidentally swapped
+    if (/^\d+$/.test(rawDatabase) && !/^\d+$/.test(rawPort)) {
+      console.warn('[XUI-Renew] Detectado XUI_MYSQL_DATABASE numérico e XUI_MYSQL_PORT textual; invertendo valores automaticamente');
+      database = rawPort;
+      port = Number.parseInt(rawDatabase, 10);
+    }
+
+    if (!database) {
+      throw new Error('XUI_MYSQL_DATABASE não configurado');
+    }
+
+    if (!Number.isFinite(port)) {
+      port = 3306;
+    }
+
     const connection = await mysql.createConnection({
       host: Deno.env.get('XUI_MYSQL_HOST')!,
       user: Deno.env.get('XUI_MYSQL_USER')!,
       password: Deno.env.get('XUI_MYSQL_PASSWORD')!,
-      database: Deno.env.get('XUI_MYSQL_DATABASE')!,
-      port: parseInt(Deno.env.get('XUI_MYSQL_PORT') || '3306'),
+      database,
+      port,
     });
 
     try {
