@@ -314,25 +314,16 @@ serve(async (req) => {
       console.error('[Cakto] Erro ao salvar confirmação:', e);
     }
 
-    // ── Send WhatsApp template (via Meta Cloud API or Zap Responder) ──
+    // ── Send WhatsApp simple text message via Zap Responder ──
     if (confirmationId) {
       try {
-        // Get the owner's messaging settings (any api_type)
         const { data: zapSettings } = await supabaseAdmin
           .from('zap_responder_settings')
-          .select('meta_access_token, meta_phone_number_id, api_type, api_base_url, zap_api_token, selected_department_id')
+          .select('api_base_url, zap_api_token, selected_department_id')
           .eq('user_id', matchedCustomer.created_by)
           .maybeSingle();
 
-        // Get template name from billing_settings
-        const { data: billingCfg } = await supabaseAdmin
-          .from('billing_settings')
-          .select('meta_template_name')
-          .eq('user_id', matchedCustomer.created_by)
-          .maybeSingle();
-        const templateName = (billingCfg as any)?.meta_template_name || 'pedido_aprovado';
-
-        // Get server name for template parameter
+        // Get server name
         let serverName = 'N/A';
         if (matchedCustomer.server_id) {
           const { data: serverData } = await supabaseAdmin
@@ -351,131 +342,44 @@ serve(async (req) => {
         let metaPhone = phoneDigits;
         if (!metaPhone.startsWith('55')) metaPhone = '55' + metaPhone;
 
-        if (zapSettings?.api_type === 'meta_cloud' && zapSettings?.meta_access_token && zapSettings?.meta_phone_number_id) {
-          // ── Send via Meta Cloud API directly ──
-          const templatePayload = {
-            messaging_product: 'whatsapp',
-            to: metaPhone,
-            type: 'template',
-            template: {
-              name: templateName,
-              language: { code: 'pt_BR' },
-              components: [
-                {
-                  type: 'body',
-                  parameters: [
-                    { type: 'text', text: matchedCustomer.name },
-                    { type: 'text', text: matchedCustomer.username || 'N/A' },
-                    { type: 'text', text: serverName },
-                    { type: 'text', text: formattedDueDate },
-                  ],
-                },
-                {
-                  type: 'button',
-                  sub_type: 'url',
-                  index: '0',
-                  parameters: [
-                    { type: 'text', text: confirmationId },
-                  ],
-                },
-              ],
-            },
-          };
+        // Build confirmation link
+        const confirmationLink = `https://iply-flow.lovable.app/payment-confirmation?id=${confirmationId}`;
 
-          console.log(`[Cakto] Enviando template '${templateName}' via Meta Cloud API para ${metaPhone}`);
-          const metaResp = await fetch(
-            `https://graph.facebook.com/v21.0/${zapSettings.meta_phone_number_id}/messages`,
-            {
-              method: 'POST',
-              headers: {
-                'Authorization': `Bearer ${zapSettings.meta_access_token}`,
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify(templatePayload),
-            },
-          );
-          const metaResult = await metaResp.json();
-          console.log(`[Cakto] Meta template enviado: status=${metaResp.status}`, JSON.stringify(metaResult));
-
-        } else if (zapSettings?.zap_api_token && zapSettings?.selected_department_id) {
-          // ── Send via Zap Responder API ──
+        if (zapSettings?.zap_api_token && zapSettings?.selected_department_id) {
           const apiBaseUrl = zapSettings.api_base_url || 'https://api.zapresponder.com.br/api';
           const departmentId = zapSettings.selected_department_id;
 
-          const templateComponents = [
-            {
-              type: 'body',
-              parameters: [
-                { type: 'text', text: matchedCustomer.name },
-                { type: 'text', text: matchedCustomer.username || 'N/A' },
-                { type: 'text', text: serverName },
-                { type: 'text', text: formattedDueDate },
-              ],
+          // Simple text message with renewal info
+          const message = `✅ *Pagamento Aprovado!*\n\n` +
+            `Olá *${matchedCustomer.name}*! Seu pagamento foi confirmado.\n\n` +
+            `📋 *Detalhes da renovação:*\n` +
+            `👤 Usuário: ${matchedCustomer.username || 'N/A'}\n` +
+            `🖥️ Servidor: ${serverName}\n` +
+            `📅 Novo vencimento: ${formattedDueDate}\n\n` +
+            `🔗 Comprovante: ${confirmationLink}\n\n` +
+            `Obrigado pela confiança! 🙏`;
+
+          console.log(`[Cakto] Enviando mensagem simples via Zap Responder para ${metaPhone}`);
+          const zapResp = await fetch(`${apiBaseUrl}/whatsapp/message/${departmentId}`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${zapSettings.zap_api_token}`,
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
             },
-            {
-              type: 'button',
-              sub_type: 'url',
-              index: '0',
-              parameters: [{ type: 'text', text: confirmationId }],
-            },
-          ];
-
-          // Try multiple Zap Responder payload formats
-          const zapFormats = [
-            { name: 'body_text', body: { type: 'template', template_name: templateName, number: metaPhone, language: 'pt_BR', body_text: [[ matchedCustomer.name, matchedCustomer.username || 'N/A', serverName, formattedDueDate ]] } },
-            { name: 'components', body: { type: 'template', template_name: templateName, number: metaPhone, language: 'pt_BR', components: templateComponents } },
-            { name: 'variables', body: { type: 'template', template_name: templateName, number: metaPhone, language: 'pt_BR', variables: { '1': matchedCustomer.name, '2': matchedCustomer.username || 'N/A', '3': serverName, '4': formattedDueDate } } },
-          ];
-
-          let zapSent = false;
-          for (const fmt of zapFormats) {
-            console.log(`[Cakto] Tentando formato Zap '${fmt.name}' para ${metaPhone}`);
-            const zapResp = await fetch(`${apiBaseUrl}/whatsapp/message/${departmentId}`, {
-              method: 'POST',
-              headers: { 'Authorization': `Bearer ${zapSettings.zap_api_token}`, 'Content-Type': 'application/json', 'Accept': 'application/json' },
-              body: JSON.stringify(fmt.body),
-            });
-            const zapResult = await zapResp.text();
-            console.log(`[Cakto] Zap '${fmt.name}': status=${zapResp.status}`, zapResult);
-
-            if (zapResp.ok && !zapResult.includes('#132000') && !zapResult.includes('localizable_params')) {
-              const parsed = JSON.parse(zapResult).error;
-              if (!parsed) { zapSent = true; break; }
-            }
-          }
-
-          // Fallback: if all Zap formats failed AND user has Meta credentials, send directly via Meta
-          if (!zapSent && zapSettings?.meta_access_token && zapSettings?.meta_phone_number_id) {
-            console.log('[Cakto] Zap Responder falhou para templates com variáveis. Enviando diretamente via Meta Cloud API...');
-            const templatePayload = {
-              messaging_product: 'whatsapp',
-              to: metaPhone,
-              type: 'template',
-              template: {
-                name: templateName,
-                language: { code: 'pt_BR' },
-                components: templateComponents,
-              },
-            };
-            const metaResp = await fetch(
-              `https://graph.facebook.com/v21.0/${zapSettings.meta_phone_number_id}/messages`,
-              {
-                method: 'POST',
-                headers: { 'Authorization': `Bearer ${zapSettings.meta_access_token}`, 'Content-Type': 'application/json' },
-                body: JSON.stringify(templatePayload),
-              },
-            );
-            const metaResult = await metaResp.json();
-            console.log(`[Cakto] Meta fallback: status=${metaResp.status}`, JSON.stringify(metaResult));
-          } else if (!zapSent) {
-            console.warn('[Cakto] Todos os formatos Zap Responder falharam e Meta Cloud API não configurada. Template não enviado.');
-          }
-
+            body: JSON.stringify({
+              type: 'text',
+              number: metaPhone,
+              message,
+            }),
+          });
+          const zapResult = await zapResp.text();
+          console.log(`[Cakto] Zap Responder texto: status=${zapResp.status}`, zapResult);
         } else {
-          console.log('[Cakto] Nenhum provedor de WhatsApp configurado para este usuário. Template não enviado.');
+          console.log('[Cakto] Nenhum provedor de WhatsApp configurado para este usuário. Mensagem não enviada.');
         }
       } catch (e) {
-        console.error('[Cakto] Erro ao enviar template WhatsApp:', e);
+        console.error('[Cakto] Erro ao enviar mensagem WhatsApp:', e);
       }
     }
 
