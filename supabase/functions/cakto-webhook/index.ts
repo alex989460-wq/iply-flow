@@ -402,7 +402,9 @@ serve(async (req) => {
                   duration: durationDays,
                 }),
               });
-              const result = await vplayResp.json().catch(async () => ({ raw: await vplayResp.text() }));
+              const vplayText = await vplayResp.text();
+              let result: any;
+              try { result = JSON.parse(vplayText); } catch { result = { raw: vplayText }; }
               renewResults.push({ panel: 'vplay', username, success: vplayResp.ok, result });
               console.log(`[Cakto] VPlay renew ${username}:`, JSON.stringify(result));
             } catch (e) {
@@ -437,7 +439,9 @@ serve(async (req) => {
               },
               body: JSON.stringify({ username, months: natvMonths }),
             });
-            const result = await natvResp.json().catch(async () => ({ raw: await natvResp.text() }));
+            const natvText = await natvResp.text();
+            let result: any;
+            try { result = JSON.parse(natvText); } catch { result = { raw: natvText }; }
             renewResults.push({ panel: 'natv', username, success: natvResp.ok, result });
             console.log(`[Cakto] NATV renew ${username}: status=${natvResp.status}`, JSON.stringify(result));
           } catch (e) {
