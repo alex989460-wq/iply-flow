@@ -133,6 +133,7 @@ export type Database = {
           created_at: string
           custom_message: string | null
           id: string
+          meta_template_name: string | null
           monthly_price: number | null
           pix_key: string | null
           pix_key_type: string | null
@@ -148,6 +149,7 @@ export type Database = {
           created_at?: string
           custom_message?: string | null
           id?: string
+          meta_template_name?: string | null
           monthly_price?: number | null
           pix_key?: string | null
           pix_key_type?: string | null
@@ -163,6 +165,7 @@ export type Database = {
           created_at?: string
           custom_message?: string | null
           id?: string
+          meta_template_name?: string | null
           monthly_price?: number | null
           pix_key?: string | null
           pix_key_type?: string | null

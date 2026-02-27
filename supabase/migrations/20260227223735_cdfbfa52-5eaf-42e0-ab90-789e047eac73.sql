@@ -1,0 +1,1 @@
+ALTER TABLE public.billing_settings ADD COLUMN IF NOT EXISTS meta_template_name text DEFAULT 'pedido_aprovado';
