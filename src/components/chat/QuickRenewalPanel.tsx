@@ -378,13 +378,14 @@ export default function QuickRenewalPanel({ isMobile = false, onClose }: QuickRe
 
       if (updateError) throw updateError;
 
-      // Renovar no servidor XUI automaticamente
-      if (customer.username?.trim()) {
+      const xuiUsername = (editedUsername.trim() || customer.username || '').trim();
+      if (xuiUsername) {
         try {
           const { data: xuiResult, error: xuiError } = await supabase.functions.invoke('xui-renew', {
             body: {
-              username: customer.username.trim(),
+              username: xuiUsername,
               new_due_date: newDueDateStr,
+              customer_id: customer.id,
             },
           });
           if (xuiError) {
