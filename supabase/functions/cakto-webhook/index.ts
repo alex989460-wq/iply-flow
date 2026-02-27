@@ -90,16 +90,30 @@ serve(async (req) => {
     // Search customer by phone variants
     let matchedCustomer: any = null;
     for (const variant of searchVariants) {
-      const { data } = await supabaseAdmin
+      const { data: candidates } = await supabaseAdmin
         .from('customers')
-        .select('id, name, phone, username, server_id, plan_id, due_date, created_by, status')
+        .select('id, name, phone, username, server_id, plan_id, due_date, created_by, status, created_at')
         .ilike('phone', `%${variant}%`)
-        .limit(1)
-        .maybeSingle();
+        .order('created_at', { ascending: false })
+        .limit(20);
 
-      if (data) {
-        matchedCustomer = data;
-        console.log(`[Cakto] Cliente encontrado: ${data.name} (${data.phone}) via variante ${variant}`);
+      if (candidates && candidates.length > 0) {
+        const scored = [...candidates].sort((a: any, b: any) => {
+          const score = (c: any) =>
+            (c.username?.trim() ? 2 : 0) +
+            (c.server_id ? 2 : 0) +
+            (c.plan_id ? 1 : 0) +
+            (c.status === 'ativa' ? 1 : 0);
+
+          const scoreDiff = score(b) - score(a);
+          if (scoreDiff !== 0) return scoreDiff;
+          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+        });
+
+        matchedCustomer = scored[0];
+        console.log(
+          `[Cakto] Cliente encontrado: ${matchedCustomer.name} (${matchedCustomer.phone}) via variante ${variant} | id=${matchedCustomer.id} | created_at=${matchedCustomer.created_at}`,
+        );
         break;
       }
     }
@@ -177,6 +191,7 @@ serve(async (req) => {
               headers: {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+                'x-cakto-webhook-secret': webhookSecret,
               },
               body: JSON.stringify({ username: matchedCustomer.username.trim(), months, customer_id: matchedCustomer.id }),
             });
@@ -188,6 +203,7 @@ serve(async (req) => {
               headers: {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+                'x-cakto-webhook-secret': webhookSecret,
               },
               body: JSON.stringify({ username: matchedCustomer.username.trim(), new_due_date: newDueDate, customer_id: matchedCustomer.id }),
             });
