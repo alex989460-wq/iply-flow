@@ -84,6 +84,7 @@ serve(async (req) => {
       : null;
 
     let chargedAccessId: string | null = null;
+    let chargedCreditsAmount = 0;
 
     try {
       const expDateString = `${new_due_date} 23:59:59`;
@@ -161,11 +162,11 @@ serve(async (req) => {
         );
       }
 
-      // Sempre descontar crédito do revendedor responsável (dono do cliente)
+      // Sempre descontar créditos do responsável pelo cliente, proporcional ao plano
       if (customer_id && supabaseAdmin) {
         const { data: customerData, error: customerError } = await supabaseAdmin
           .from('customers')
-          .select('id, created_by')
+          .select('id, created_by, plan_id')
           .eq('id', customer_id)
           .maybeSingle();
 
@@ -174,35 +175,38 @@ serve(async (req) => {
         }
 
         if (customerData?.created_by) {
-          const { data: ownerIsAdmin, error: ownerRoleError } = await supabaseAdmin.rpc('has_role', {
-            _user_id: customerData.created_by,
-            _role: 'admin',
-          });
-
-          if (ownerRoleError) {
-            throw new Error(`Erro ao validar papel do responsável: ${ownerRoleError.message}`);
-          }
-
-          if (!ownerIsAdmin) {
-            const { data: ownerAccess, error: ownerAccessError } = await supabaseAdmin
-              .from('reseller_access')
-              .select('id, credits')
-              .eq('user_id', customerData.created_by)
+          // Calcular créditos com base no plano (duration_days / 30)
+          let creditsToDeduct = 1;
+          if (customerData.plan_id) {
+            const { data: planData } = await supabaseAdmin
+              .from('plans')
+              .select('duration_days')
+              .eq('id', customerData.plan_id)
               .maybeSingle();
 
-            if (ownerAccessError) {
-              throw new Error(`Erro ao buscar créditos do revendedor: ${ownerAccessError.message}`);
+            if (planData?.duration_days) {
+              creditsToDeduct = Math.max(1, Math.round(planData.duration_days / 30));
+            }
+          }
+
+          const { data: ownerAccess, error: ownerAccessError } = await supabaseAdmin
+            .from('reseller_access')
+            .select('id, credits')
+            .eq('user_id', customerData.created_by)
+            .maybeSingle();
+
+          if (ownerAccessError) {
+            throw new Error(`Erro ao buscar créditos do revendedor: ${ownerAccessError.message}`);
+          }
+
+          if (!ownerAccess) {
+            console.warn(`[XUI-Renew] Responsável ${customerData.created_by} não possui registro de acesso, pulando desconto`);
+          } else {
+            if ((ownerAccess.credits ?? 0) < creditsToDeduct) {
+              throw new Error(`Créditos insuficientes. Necessário: ${creditsToDeduct}, disponível: ${ownerAccess.credits ?? 0}`);
             }
 
-            if (!ownerAccess) {
-              throw new Error('Revendedor responsável não possui registro de acesso');
-            }
-
-            if ((ownerAccess.credits ?? 0) < 1) {
-              throw new Error('Créditos insuficientes para renovar este cliente');
-            }
-
-            const newCredits = ownerAccess.credits - 1;
+            const newCredits = ownerAccess.credits - creditsToDeduct;
             const { error: deductError } = await supabaseAdmin
               .from('reseller_access')
               .update({ credits: newCredits })
@@ -213,7 +217,8 @@ serve(async (req) => {
             }
 
             chargedAccessId = ownerAccess.id;
-            console.log(`[XUI-Renew] Crédito descontado do revendedor ${customerData.created_by}. Saldo: ${newCredits}`);
+            chargedCreditsAmount = creditsToDeduct;
+            console.log(`[XUI-Renew] ${creditsToDeduct} crédito(s) descontado(s) do responsável ${customerData.created_by}. Saldo: ${newCredits}`);
           }
         }
       }
@@ -294,7 +299,7 @@ serve(async (req) => {
           if (accessData) {
             await supabaseAdmin
               .from('reseller_access')
-              .update({ credits: (accessData.credits ?? 0) + 1 })
+              .update({ credits: (accessData.credits ?? 0) + chargedCreditsAmount })
               .eq('id', chargedAccessId);
           }
         } catch (refundError) {
