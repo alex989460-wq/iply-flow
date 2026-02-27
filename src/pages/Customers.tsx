@@ -249,18 +249,56 @@ export default function Customers() {
       
       const { due_date, ...restData } = data;
       
-      const { error } = await supabase.from('customers').insert({
+      const { data: insertedRows, error } = await supabase.from('customers').insert({
         ...restData,
         start_date: new Date().toISOString().split('T')[0],
         due_date: dueDate,
         created_by: user?.id,
-      });
+      }).select('id, name, phone, due_date, plan_id, username, server_id');
       if (error) throw error;
-      
-      // Retornar dados mínimos para disparo do bot (sem depender de SELECT)
+
+      const newCustomer = insertedRows?.[0];
+
+      // Auto-renovar no servidor XUI/TheBest ao cadastrar
+      if (newCustomer?.username?.trim() && newCustomer?.server_id) {
+        try {
+          const { data: serverData } = await supabase
+            .from('servers')
+            .select('server_name, host')
+            .eq('id', newCustomer.server_id)
+            .single();
+
+          if (serverData) {
+            const serverHost = serverData.host || '';
+            const serverName = serverData.server_name || '';
+            const isTheBest = serverName.toLowerCase().includes('the best') || serverHost.toLowerCase().includes('the-best') || serverHost.toLowerCase().includes('painel.best');
+            const plan = plans?.find(p => p.id === newCustomer.plan_id);
+
+            if (isTheBest) {
+              const months = Math.max(1, Math.round((plan?.duration_days || 30) / 30));
+              const { data: tbResult, error: tbError } = await supabase.functions.invoke('the-best-renew', {
+                body: { username: newCustomer.username.trim(), months, customer_id: newCustomer.id },
+              });
+              if (tbError) console.error('[TheBest] Erro auto-renew:', tbError);
+              else if (!tbResult?.success) console.warn('[TheBest] Falha auto-renew:', tbResult?.error);
+              else console.log('[TheBest] Auto-renovado ao cadastrar:', tbResult);
+            } else {
+              const { data: xuiResult, error: xuiError } = await supabase.functions.invoke('xui-renew', {
+                body: { username: newCustomer.username.trim(), new_due_date: dueDate, customer_id: newCustomer.id },
+              });
+              if (xuiError) console.error('[XUI-Renew] Erro auto-renew:', xuiError);
+              else if (!xuiResult?.success) console.warn('[XUI-Renew] Falha auto-renew:', xuiResult?.error);
+              else console.log('[XUI-Renew] Auto-renovado ao cadastrar:', xuiResult);
+            }
+          }
+        } catch (e) {
+          console.error('[Auto-Renew] Erro inesperado ao cadastrar:', e);
+        }
+      }
+
       return {
         customer: {
-          id: 'new',
+          id: newCustomer?.id || 'new',
           name: restData.name,
           phone: restData.phone,
           due_date: dueDate,
@@ -279,7 +317,6 @@ export default function Customers() {
         (async () => {
           const res = await triggerWelcomeBot(user.id, result.customer, plans as any);
           if (!res.success) {
-            // Não falhar o cadastro do cliente caso o bot não inicie
             toast({
               title: 'Boas-vindas não enviada',
               description: res.error || 'Não foi possível iniciar o bot de boas-vindas.',
