@@ -302,45 +302,45 @@ serve(async (req) => {
       console.error('[Cakto] Erro ao salvar confirmação:', e);
     }
 
-    // ── Send Meta WhatsApp template ──
+    // ── Send WhatsApp template (via Meta Cloud API or Zap Responder) ──
     if (confirmationId) {
       try {
-        // Get the owner's Meta settings
+        // Get the owner's messaging settings (any api_type)
         const { data: zapSettings } = await supabaseAdmin
           .from('zap_responder_settings')
-          .select('meta_access_token, meta_phone_number_id, api_type')
+          .select('meta_access_token, meta_phone_number_id, api_type, api_base_url, zap_api_token, selected_department_id')
           .eq('user_id', matchedCustomer.created_by)
-          .eq('api_type', 'meta_cloud')
           .maybeSingle();
 
-        if (zapSettings?.meta_access_token && zapSettings?.meta_phone_number_id) {
-          // Format phone for Meta API (must have country code, no +)
-          let metaPhone = phoneDigits;
-          if (!metaPhone.startsWith('55')) metaPhone = '55' + metaPhone;
+        // Get template name from billing_settings
+        const { data: billingCfg } = await supabaseAdmin
+          .from('billing_settings')
+          .select('meta_template_name')
+          .eq('user_id', matchedCustomer.created_by)
+          .maybeSingle();
+        const templateName = (billingCfg as any)?.meta_template_name || 'pedido_aprovado';
 
-          // Get template name from billing_settings (default: pedido_aprovado)
-          const { data: billingCfg } = await supabaseAdmin
-            .from('billing_settings')
-            .select('meta_template_name')
-            .eq('user_id', matchedCustomer.created_by)
+        // Get server name for template parameter
+        let serverName = 'N/A';
+        if (matchedCustomer.server_id) {
+          const { data: serverData } = await supabaseAdmin
+            .from('servers')
+            .select('server_name')
+            .eq('id', matchedCustomer.server_id)
             .maybeSingle();
-          const templateName = (billingCfg as any)?.meta_template_name || 'pedido_aprovado';
+          if (serverData) serverName = serverData.server_name;
+        }
 
-          // Get server name for template parameter
-          let serverName = 'N/A';
-          if (matchedCustomer.server_id) {
-            const { data: serverData } = await supabaseAdmin
-              .from('servers')
-              .select('server_name')
-              .eq('id', matchedCustomer.server_id)
-              .maybeSingle();
-            if (serverData) serverName = serverData.server_name;
-          }
+        // Format due date as DD/MM/YYYY
+        const dueParts = newDueDate.split('-');
+        const formattedDueDate = `${dueParts[2]}/${dueParts[1]}/${dueParts[0]}`;
 
-          // Format due date as DD/MM/YYYY
-          const dueParts = newDueDate.split('-');
-          const formattedDueDate = `${dueParts[2]}/${dueParts[1]}/${dueParts[0]}`;
+        // Format phone with country code
+        let metaPhone = phoneDigits;
+        if (!metaPhone.startsWith('55')) metaPhone = '55' + metaPhone;
 
+        if (zapSettings?.api_type === 'meta_cloud' && zapSettings?.meta_access_token && zapSettings?.meta_phone_number_id) {
+          // ── Send via Meta Cloud API directly ──
           const templatePayload = {
             messaging_product: 'whatsapp',
             to: metaPhone,
@@ -352,10 +352,10 @@ serve(async (req) => {
                 {
                   type: 'body',
                   parameters: [
-                    { type: 'text', text: matchedCustomer.name },          // {{1}} Nome
-                    { type: 'text', text: matchedCustomer.username || 'N/A' }, // {{2}} Username
-                    { type: 'text', text: serverName },                    // {{3}} Servidor
-                    { type: 'text', text: formattedDueDate },              // {{4}} Vencimento
+                    { type: 'text', text: matchedCustomer.name },
+                    { type: 'text', text: matchedCustomer.username || 'N/A' },
+                    { type: 'text', text: serverName },
+                    { type: 'text', text: formattedDueDate },
                   ],
                 },
                 {
@@ -370,8 +370,7 @@ serve(async (req) => {
             },
           };
 
-          console.log(`[Cakto] Enviando template '${templateName}' para ${metaPhone}`);
-
+          console.log(`[Cakto] Enviando template '${templateName}' via Meta Cloud API para ${metaPhone}`);
           const metaResp = await fetch(
             `https://graph.facebook.com/v21.0/${zapSettings.meta_phone_number_id}/messages`,
             {
@@ -385,11 +384,43 @@ serve(async (req) => {
           );
           const metaResult = await metaResp.json();
           console.log(`[Cakto] Meta template enviado: status=${metaResp.status}`, JSON.stringify(metaResult));
+
+        } else if (zapSettings?.zap_api_token && zapSettings?.selected_department_id) {
+          // ── Send via Zap Responder API ──
+          const apiBaseUrl = zapSettings.api_base_url || 'https://api.zapresponder.com.br/api';
+          const departmentId = zapSettings.selected_department_id;
+
+          const zapBody: any = {
+            type: 'template',
+            template_name: templateName,
+            number: metaPhone,
+            language: 'pt_BR',
+            variables: {
+              '1': matchedCustomer.name,
+              '2': matchedCustomer.username || 'N/A',
+              '3': serverName,
+              '4': formattedDueDate,
+            },
+          };
+
+          console.log(`[Cakto] Enviando template '${templateName}' via Zap Responder para ${metaPhone}`);
+          const zapResp = await fetch(`${apiBaseUrl}/whatsapp/message/${departmentId}`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${zapSettings.zap_api_token}`,
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+            },
+            body: JSON.stringify(zapBody),
+          });
+          const zapResult = await zapResp.text();
+          console.log(`[Cakto] Zap Responder template enviado: status=${zapResp.status}`, zapResult);
+
         } else {
-          console.log('[Cakto] Meta Cloud API não configurada para este usuário. Template não enviado.');
+          console.log('[Cakto] Nenhum provedor de WhatsApp configurado para este usuário. Template não enviado.');
         }
       } catch (e) {
-        console.error('[Cakto] Erro ao enviar template Meta:', e);
+        console.error('[Cakto] Erro ao enviar template WhatsApp:', e);
       }
     }
 
