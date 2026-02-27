@@ -302,7 +302,7 @@ serve(async (req) => {
       console.error('[Cakto] Erro ao salvar confirmação:', e);
     }
 
-    // ── Send Meta WhatsApp template (pedido_aprovado) ──
+    // ── Send Meta WhatsApp template ──
     if (confirmationId) {
       try {
         // Get the owner's Meta settings
@@ -318,23 +318,44 @@ serve(async (req) => {
           let metaPhone = phoneDigits;
           if (!metaPhone.startsWith('55')) metaPhone = '55' + metaPhone;
 
-          const siteUrl = 'https://iply-flow.lovable.app';
-          const confirmationUrl = `${siteUrl}/pedido/${confirmationId}`;
+          // Get template name from billing_settings (default: pedido_aprovado)
+          const { data: billingCfg } = await supabaseAdmin
+            .from('billing_settings')
+            .select('meta_template_name')
+            .eq('user_id', matchedCustomer.created_by)
+            .maybeSingle();
+          const templateName = (billingCfg as any)?.meta_template_name || 'pedido_aprovado';
+
+          // Get server name for template parameter
+          let serverName = 'N/A';
+          if (matchedCustomer.server_id) {
+            const { data: serverData } = await supabaseAdmin
+              .from('servers')
+              .select('server_name')
+              .eq('id', matchedCustomer.server_id)
+              .maybeSingle();
+            if (serverData) serverName = serverData.server_name;
+          }
+
+          // Format due date as DD/MM/YYYY
+          const dueParts = newDueDate.split('-');
+          const formattedDueDate = `${dueParts[2]}/${dueParts[1]}/${dueParts[0]}`;
 
           const templatePayload = {
             messaging_product: 'whatsapp',
             to: metaPhone,
             type: 'template',
             template: {
-              name: 'pedido_aprovado',
+              name: templateName,
               language: { code: 'pt_BR' },
               components: [
                 {
                   type: 'body',
                   parameters: [
-                    { type: 'text', text: matchedCustomer.name },
-                    { type: 'text', text: `R$ ${amountNumeric.toFixed(2).replace('.', ',')}` },
-                    { type: 'text', text: matchedPlanName || `${durationDays} dias` },
+                    { type: 'text', text: matchedCustomer.name },          // {{1}} Nome
+                    { type: 'text', text: matchedCustomer.username || 'N/A' }, // {{2}} Username
+                    { type: 'text', text: serverName },                    // {{3}} Servidor
+                    { type: 'text', text: formattedDueDate },              // {{4}} Vencimento
                   ],
                 },
                 {
@@ -348,6 +369,8 @@ serve(async (req) => {
               ],
             },
           };
+
+          console.log(`[Cakto] Enviando template '${templateName}' para ${metaPhone}`);
 
           const metaResp = await fetch(
             `https://graph.facebook.com/v21.0/${zapSettings.meta_phone_number_id}/messages`,

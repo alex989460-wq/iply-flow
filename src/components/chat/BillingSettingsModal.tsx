@@ -35,6 +35,7 @@ interface BillingSettings {
   custom_message: string | null;
   vplay_integration_url: string | null;
   vplay_key_message: string | null;
+  meta_template_name: string | null;
 }
 
 interface BillingSettingsModalProps {
@@ -56,6 +57,7 @@ export default function BillingSettingsModal({ open, onOpenChange }: BillingSett
     custom_message: '',
     vplay_integration_url: '',
     vplay_key_message: 'XCLOUD',
+    meta_template_name: 'pedido_aprovado',
   });
 
   // Fetch user's billing settings
@@ -86,6 +88,7 @@ export default function BillingSettingsModal({ open, onOpenChange }: BillingSett
         custom_message: settings.custom_message || '',
         vplay_integration_url: (settings as any).vplay_integration_url || '',
         vplay_key_message: (settings as any).vplay_key_message || 'XCLOUD',
+        meta_template_name: (settings as any).meta_template_name || 'pedido_aprovado',
       });
     }
   }, [settings]);
@@ -108,6 +111,7 @@ export default function BillingSettingsModal({ open, onOpenChange }: BillingSett
             custom_message: data.custom_message,
             vplay_integration_url: data.vplay_integration_url || null,
             vplay_key_message: data.vplay_key_message || 'XCLOUD',
+            meta_template_name: data.meta_template_name || 'pedido_aprovado',
           })
           .eq('id', settings.id);
         if (error) throw error;
@@ -126,6 +130,7 @@ export default function BillingSettingsModal({ open, onOpenChange }: BillingSett
             custom_message: data.custom_message,
             vplay_integration_url: data.vplay_integration_url || null,
             vplay_key_message: data.vplay_key_message || 'XCLOUD',
+            meta_template_name: data.meta_template_name || 'pedido_aprovado',
           });
         if (error) throw error;
       }
@@ -275,6 +280,23 @@ export default function BillingSettingsModal({ open, onOpenChange }: BillingSett
                 onChange={(e) => setFormData({ ...formData, custom_message: e.target.value })}
                 className="min-h-[60px] text-sm"
               />
+            </div>
+
+            {/* Meta Template Config */}
+            <div className="space-y-3 p-3 rounded-lg bg-blue-500/5 border border-blue-500/20">
+              <h4 className="text-sm font-semibold text-blue-500">Template WhatsApp (Pagamento Aprovado)</h4>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Nome do Template</Label>
+                <Input
+                  placeholder="pedido_aprovado"
+                  value={formData.meta_template_name || ''}
+                  onChange={(e) => setFormData({ ...formData, meta_template_name: e.target.value })}
+                  className="h-9 text-sm font-mono"
+                />
+                <p className="text-[10px] text-muted-foreground">
+                  Nome exato do template aprovado no Meta Business. Variáveis enviadas: {'{{1}}'} Nome, {'{{2}}'} Usuário, {'{{3}}'} Servidor, {'{{4}}'} Vencimento. Botão URL dinâmica: {'{{1}}'} = ID da confirmação.
+                </p>
+              </div>
             </div>
 
             {/* Vplay Integration */}
