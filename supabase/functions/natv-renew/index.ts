@@ -40,6 +40,8 @@ serve(async (req) => {
       }
     }
 
+    const { username, months, duration_days, customer_id } = await req.json();
+
     // Try per-reseller settings first, then fall back to global env vars
     let natvApiKey = '';
     let natvBaseUrl = '';
@@ -50,7 +52,6 @@ serve(async (req) => {
         auth: { autoRefreshToken: false, persistSession: false },
       });
 
-      // Get customer's owner
       const { data: customerOwner } = await supabaseAdminLookup
         .from('customers')
         .select('created_by')
@@ -87,8 +88,6 @@ serve(async (req) => {
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
       );
     }
-
-    const { username, months, duration_days, customer_id } = await req.json();
 
     if (!username) {
       return new Response(
