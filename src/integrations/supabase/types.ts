@@ -702,6 +702,36 @@ export type Database = {
           },
         ]
       }
+      reseller_api_settings: {
+        Row: {
+          cakto_webhook_secret: string | null
+          created_at: string
+          id: string
+          natv_api_key: string | null
+          natv_base_url: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          cakto_webhook_secret?: string | null
+          created_at?: string
+          id?: string
+          natv_api_key?: string | null
+          natv_base_url?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          cakto_webhook_secret?: string | null
+          created_at?: string
+          id?: string
+          natv_api_key?: string | null
+          natv_base_url?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       servers: {
         Row: {
           created_at: string

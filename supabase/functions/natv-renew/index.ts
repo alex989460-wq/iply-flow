@@ -40,8 +40,46 @@ serve(async (req) => {
       }
     }
 
-    const natvApiKey = Deno.env.get('NATV_API_KEY');
-    const natvBaseUrl = (Deno.env.get('NATV_BASE_URL') || '').replace(/\/+$/, '');
+    // Try per-reseller settings first, then fall back to global env vars
+    let natvApiKey = '';
+    let natvBaseUrl = '';
+
+    const serviceRoleKeyForLookup = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    if (serviceRoleKeyForLookup && customer_id) {
+      const supabaseAdminLookup = createClient(Deno.env.get('SUPABASE_URL')!, serviceRoleKeyForLookup, {
+        auth: { autoRefreshToken: false, persistSession: false },
+      });
+
+      // Get customer's owner
+      const { data: customerOwner } = await supabaseAdminLookup
+        .from('customers')
+        .select('created_by')
+        .eq('id', customer_id)
+        .maybeSingle();
+
+      if (customerOwner?.created_by) {
+        const { data: resellerSettings } = await supabaseAdminLookup
+          .from('reseller_api_settings')
+          .select('natv_api_key, natv_base_url')
+          .eq('user_id', customerOwner.created_by)
+          .maybeSingle();
+
+        if (resellerSettings?.natv_api_key && resellerSettings?.natv_base_url) {
+          natvApiKey = resellerSettings.natv_api_key;
+          natvBaseUrl = resellerSettings.natv_base_url.replace(/\/+$/, '');
+          console.log(`[NATV] Usando chaves do revendedor`);
+        }
+      }
+    }
+
+    // Fallback to global env vars
+    if (!natvApiKey || !natvBaseUrl) {
+      natvApiKey = Deno.env.get('NATV_API_KEY') || '';
+      natvBaseUrl = (Deno.env.get('NATV_BASE_URL') || '').replace(/\/+$/, '');
+      if (natvApiKey && natvBaseUrl) {
+        console.log(`[NATV] Usando chaves globais (fallback)`);
+      }
+    }
 
     if (!natvApiKey || !natvBaseUrl) {
       return new Response(

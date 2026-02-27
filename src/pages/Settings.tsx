@@ -14,6 +14,7 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import VplayServersManager from '@/components/settings/VplayServersManager';
 import GoalsSettingsCard from '@/components/settings/GoalsSettingsCard';
+import ResellerApiSettings from '@/components/settings/ResellerApiSettings';
 
 async function getFunctionsHttpErrorDetails(err: unknown): Promise<{ message?: string; raw?: any } | null> {
   // supabase-js / @supabase/functions-js throws FunctionsHttpError with `.context` as a Response
@@ -694,7 +695,7 @@ export default function Settings() {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-4 max-w-xl">
+          <TabsList className="grid w-full grid-cols-5 max-w-2xl">
             <TabsTrigger value="zap_responder" className="flex items-center gap-2">
               <span className="hidden sm:inline">Zap Responder</span>
               <span className="sm:hidden">ZapResp</span>
@@ -703,6 +704,10 @@ export default function Settings() {
               <span className="hidden sm:inline">WhatsApp Oficial</span>
               <span className="sm:hidden">WA Oficial</span>
               {isMetaConnected && <CheckCircle2 className="w-4 h-4 text-green-500" />}
+            </TabsTrigger>
+            <TabsTrigger value="apis_externas" className="flex items-center gap-2">
+              <span className="hidden sm:inline">APIs Externas</span>
+              <span className="sm:hidden">APIs</span>
             </TabsTrigger>
             <TabsTrigger value="vplay_test" className="flex items-center gap-2">
               <Server className="w-4 h-4 text-violet-500" />
@@ -1190,6 +1195,11 @@ export default function Settings() {
                 )}
               </CardContent>
             </Card>
+          </TabsContent>
+
+          {/* APIs Externas Tab */}
+          <TabsContent value="apis_externas" className="mt-6">
+            <ResellerApiSettings />
           </TabsContent>
 
           {/* Vplay Test Generator Tab */}
