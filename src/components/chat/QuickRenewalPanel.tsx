@@ -381,24 +381,40 @@ export default function QuickRenewalPanel({ isMobile = false, onClose }: QuickRe
       const xuiUsername = (editedUsername.trim() || customer.username || '').trim();
       if (xuiUsername) {
         try {
-          const { data: xuiResult, error: xuiError } = await supabase.functions.invoke('xui-renew', {
-            body: {
-              username: xuiUsername,
-              new_due_date: newDueDateStr,
-              customer_id: customer.id,
-            },
-          });
-          if (xuiError) {
-            console.error('[XUI-Renew] Erro:', xuiError);
-            toast.warning(`Renovado localmente, mas falha no servidor XUI: ${xuiError.message}`);
-          } else if (!xuiResult?.success) {
-            console.warn('[XUI-Renew] Falha:', xuiResult?.error);
-            toast.warning(`Renovado localmente, mas: ${xuiResult?.error || 'Falha no servidor XUI'}`);
+          const serverHost = (customer as any).server?.host || '';
+          const serverName = (customer as any).server?.server_name || '';
+          const isTheBest = serverName.toLowerCase().includes('the best') || serverHost.toLowerCase().includes('the-best') || serverHost.toLowerCase().includes('painel.best');
+
+          if (isTheBest) {
+            const months = Math.max(1, Math.round(durationDays / 30));
+            const { data: tbResult, error: tbError } = await supabase.functions.invoke('the-best-renew', {
+              body: { username: xuiUsername, months, customer_id: customer.id },
+            });
+            if (tbError) {
+              console.error('[TheBest] Erro:', tbError);
+              toast.warning(`Renovado localmente, mas falha no servidor The Best: ${tbError.message}`);
+            } else if (!tbResult?.success) {
+              console.warn('[TheBest] Falha:', tbResult?.error);
+              toast.warning(`Renovado localmente, mas: ${tbResult?.error || 'Falha no servidor The Best'}`);
+            } else {
+              console.log('[TheBest] Sucesso:', tbResult);
+            }
           } else {
-            console.log('[XUI-Renew] Sucesso:', xuiResult);
+            const { data: xuiResult, error: xuiError } = await supabase.functions.invoke('xui-renew', {
+              body: { username: xuiUsername, new_due_date: newDueDateStr, customer_id: customer.id },
+            });
+            if (xuiError) {
+              console.error('[XUI-Renew] Erro:', xuiError);
+              toast.warning(`Renovado localmente, mas falha no servidor XUI: ${xuiError.message}`);
+            } else if (!xuiResult?.success) {
+              console.warn('[XUI-Renew] Falha:', xuiResult?.error);
+              toast.warning(`Renovado localmente, mas: ${xuiResult?.error || 'Falha no servidor XUI'}`);
+            } else {
+              console.log('[XUI-Renew] Sucesso:', xuiResult);
+            }
           }
         } catch (e) {
-          console.error('[XUI-Renew] Erro inesperado:', e);
+          console.error('[Renew] Erro inesperado:', e);
         }
       }
 

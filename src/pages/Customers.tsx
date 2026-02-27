@@ -339,7 +339,7 @@ export default function Customers() {
       // Always fetch the latest customer data from the backend (avoids stale cache)
       const { data: customer, error: fetchCustomerError } = await supabase
         .from('customers')
-        .select('id, name, phone, due_date, username, notes, servers(server_name)')
+        .select('id, name, phone, due_date, username, notes, server_id, servers(server_name, host)')
         .eq('id', customerId)
         .single();
       if (fetchCustomerError) throw fetchCustomerError;
@@ -366,25 +366,31 @@ export default function Customers() {
         .eq('id', customerId);
       if (customerError) throw customerError;
 
-      // Renovar no servidor XUI automaticamente
+      // Renovar no servidor automaticamente
       if (customer.username?.trim()) {
         try {
-          const { data: xuiResult, error: xuiError } = await supabase.functions.invoke('xui-renew', {
-            body: {
-              username: customer.username.trim(),
-              new_due_date: newDueDateStr,
-              customer_id: customer.id,
-            },
-          });
-          if (xuiError) {
-            console.error('[XUI-Renew] Erro:', xuiError);
-          } else if (!xuiResult?.success) {
-            console.warn('[XUI-Renew] Falha:', xuiResult?.error);
+          const serverHost = (customer as any).servers?.host || '';
+          const serverName = (customer as any).servers?.server_name || '';
+          const isTheBest = serverName.toLowerCase().includes('the best') || serverHost.toLowerCase().includes('the-best') || serverHost.toLowerCase().includes('painel.best');
+          
+          if (isTheBest) {
+            const months = Math.max(1, Math.round(plan.duration_days / 30));
+            const { data: tbResult, error: tbError } = await supabase.functions.invoke('the-best-renew', {
+              body: { username: customer.username.trim(), months, customer_id: customer.id },
+            });
+            if (tbError) console.error('[TheBest] Erro:', tbError);
+            else if (!tbResult?.success) console.warn('[TheBest] Falha:', tbResult?.error);
+            else console.log('[TheBest] Renovado:', tbResult);
           } else {
-            console.log('[XUI-Renew] Renovado no servidor XUI:', xuiResult);
+            const { data: xuiResult, error: xuiError } = await supabase.functions.invoke('xui-renew', {
+              body: { username: customer.username.trim(), new_due_date: newDueDateStr, customer_id: customer.id },
+            });
+            if (xuiError) console.error('[XUI-Renew] Erro:', xuiError);
+            else if (!xuiResult?.success) console.warn('[XUI-Renew] Falha:', xuiResult?.error);
+            else console.log('[XUI-Renew] Renovado:', xuiResult);
           }
         } catch (e) {
-          console.error('[XUI-Renew] Erro inesperado:', e);
+          console.error('[Renew] Erro inesperado:', e);
         }
       }
       
@@ -608,7 +614,7 @@ export default function Customers() {
         // Fetch latest customer data
         const { data: latestCustomer, error: fetchError } = await supabase
           .from('customers')
-          .select('id, name, phone, due_date, username, notes, servers(server_name)')
+          .select('id, name, phone, due_date, username, notes, server_id, servers(server_name, host)')
           .eq('id', customer.id)
           .single();
         
@@ -640,24 +646,36 @@ export default function Customers() {
           continue;
         }
 
-        // Renovar no servidor XUI automaticamente
+        // Renovar no servidor automaticamente
         const newDueDateStr = format(newDueDate, 'yyyy-MM-dd');
         if (latestCustomer.username?.trim()) {
           try {
-            const { data: xuiResult, error: xuiError } = await supabase.functions.invoke('xui-renew', {
-              body: {
-                username: latestCustomer.username.trim(),
-                new_due_date: newDueDateStr,
-                customer_id: latestCustomer.id,
-              },
-            });
-            if (xuiError || !xuiResult?.success) {
-              console.warn(`[XUI-Renew] Falha para ${latestCustomer.name}:`, xuiError?.message || xuiResult?.error);
+            const serverHost = (latestCustomer as any).servers?.host || '';
+            const serverName = (latestCustomer as any).servers?.server_name || '';
+            const isTheBest = serverName.toLowerCase().includes('the best') || serverHost.toLowerCase().includes('the-best') || serverHost.toLowerCase().includes('painel.best');
+
+            if (isTheBest) {
+              const months = Math.max(1, Math.round(plan.duration_days / 30));
+              const { data: tbResult, error: tbError } = await supabase.functions.invoke('the-best-renew', {
+                body: { username: latestCustomer.username.trim(), months, customer_id: latestCustomer.id },
+              });
+              if (tbError || !tbResult?.success) {
+                console.warn(`[TheBest] Falha para ${latestCustomer.name}:`, tbError?.message || tbResult?.error);
+              } else {
+                console.log(`[TheBest] ${latestCustomer.name} renovado`);
+              }
             } else {
-              console.log(`[XUI-Renew] ${latestCustomer.name} renovado no servidor`);
+              const { data: xuiResult, error: xuiError } = await supabase.functions.invoke('xui-renew', {
+                body: { username: latestCustomer.username.trim(), new_due_date: newDueDateStr, customer_id: latestCustomer.id },
+              });
+              if (xuiError || !xuiResult?.success) {
+                console.warn(`[XUI-Renew] Falha para ${latestCustomer.name}:`, xuiError?.message || xuiResult?.error);
+              } else {
+                console.log(`[XUI-Renew] ${latestCustomer.name} renovado`);
+              }
             }
           } catch (e) {
-            console.error(`[XUI-Renew] Erro para ${latestCustomer.name}:`, e);
+            console.error(`[Renew] Erro para ${latestCustomer.name}:`, e);
           }
         }
         
