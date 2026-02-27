@@ -559,39 +559,122 @@ async function enviarTemplateWhatsApp(
   variables?: Record<string, string>
 ): Promise<{ success: boolean; data?: any; error?: string }> {
   try {
-    console.log('Sending WhatsApp template...', { departmentId, templateName, number });
-    
-    const body: any = {
-      type: 'template',
-      template_name: templateName,
-      number,
-      language,
+    console.log('Sending WhatsApp template...', { departmentId, templateName, number, variables });
+
+    const headers = {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
     };
-    
-    if (variables) {
-      body.variables = variables;
+
+    const url = `${apiBaseUrl}/whatsapp/message/${departmentId}`;
+
+    // Build Meta Cloud API components from variables
+    const bodyParameters = variables
+      ? Object.keys(variables).sort().map((k) => ({ type: 'text', text: variables[k] }))
+      : [];
+
+    // Strategy: try multiple payload formats the Zap Responder API might accept
+    const payloads: Array<{ name: string; body: any }> = [];
+
+    // 1. Native format with body_text array (some Zap Responder versions use this)
+    if (bodyParameters.length > 0) {
+      payloads.push({
+        name: 'body_text array',
+        body: {
+          type: 'template',
+          template_name: templateName,
+          number,
+          language,
+          body_text: [bodyParameters.map(p => p.text)],
+        },
+      });
     }
-    
-    const response = await fetch(`${apiBaseUrl}/whatsapp/message/${departmentId}`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
+
+    // 2. Native with parameters array
+    if (bodyParameters.length > 0) {
+      payloads.push({
+        name: 'parameters array',
+        body: {
+          type: 'template',
+          template_name: templateName,
+          number,
+          language,
+          parameters: bodyParameters,
+        },
+      });
+    }
+
+    // 3. Native with components
+    if (bodyParameters.length > 0) {
+      payloads.push({
+        name: 'components array',
+        body: {
+          type: 'template',
+          template_name: templateName,
+          number,
+          language,
+          components: [{ type: 'body', parameters: bodyParameters }],
+        },
+      });
+    }
+
+    // 4. Native with variables (original format)
+    if (variables) {
+      payloads.push({
+        name: 'variables object',
+        body: {
+          type: 'template',
+          template_name: templateName,
+          number,
+          language,
+          variables,
+        },
+      });
+    }
+
+    // 5. No variables fallback
+    payloads.push({
+      name: 'no variables',
+      body: {
+        type: 'template',
+        template_name: templateName,
+        number,
+        language,
       },
-      body: JSON.stringify(body),
     });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`Zap Responder API error: ${response.status} - ${errorText}`);
-      return { success: false, error: 'Falha ao enviar template' };
+    for (const payload of payloads) {
+      console.log(`[Template] Trying format: ${payload.name}`);
+      const response = await fetch(url, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(payload.body),
+      });
+      const responseText = await response.text();
+      console.log(`[Template] ${payload.name}: status=${response.status} response=${responseText}`);
+
+      // If successful (no Meta error), return
+      if (response.ok && !responseText.includes('#132000') && !responseText.includes('localizable_params')) {
+        let result;
+        try { result = JSON.parse(responseText); } catch { result = { raw: responseText }; }
+        
+        // Check if the result itself indicates an error
+        if (result?.error === true) continue;
+
+        console.log(`[Template] Success with format: ${payload.name}`);
+        return { success: true, data: result };
+      }
+
+      // If it's a meta error about params, try next format
+      if (responseText.includes('#132000') || responseText.includes('localizable_params')) {
+        console.log(`[Template] ${payload.name}: Meta params mismatch, trying next format...`);
+        continue;
+      }
     }
 
-    const result = await response.json();
-    console.log('Template sent successfully:', result);
-    
-    return { success: true, data: result };
+    console.error('[Template] All formats failed');
+    return { success: false, error: 'Falha ao enviar template - nenhum formato aceito pela API' };
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     console.error('Error sending template:', error);
