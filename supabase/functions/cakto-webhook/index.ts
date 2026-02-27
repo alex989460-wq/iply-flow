@@ -356,7 +356,8 @@ serve(async (req) => {
           const templatePayload = {
             type: 'template',
             number: metaPhone,
-            template: 'renovacao_aprovada',
+            template_name: 'renovacao_aprovada',
+            language: 'pt_BR',
             params: [
               matchedCustomer.name,                    // Corpo #1 - Nome do cliente
               matchedCustomer.username || 'N/A',       // Corpo #2 - Username
