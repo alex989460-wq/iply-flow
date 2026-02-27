@@ -37,14 +37,17 @@ serve(async (req) => {
 
     // Check event type - only process purchase_approved
     const event = body?.event || body?.type || body?.status;
-    if (event !== 'purchase_approved' && event !== 'approved' && event !== 'paid') {
-      console.log(`[Cakto] Evento ignorado: ${event}`);
+    const dataStatus = body?.data?.status;
+    // Accept purchase_approved event OR paid status inside data
+    if (event !== 'purchase_approved' && event !== 'approved' && dataStatus !== 'paid') {
+      console.log(`[Cakto] Evento ignorado: ${event} (data.status: ${dataStatus})`);
       return new Response(JSON.stringify({ success: true, message: `Evento ${event} ignorado` }), { headers: jsonHeaders });
     }
 
-    // Extract customer data from Cakto payload
-    const customer = body?.customer || body?.buyer || body?.client || body;
-    const phone = customer?.phone || customer?.phone_number || customer?.cellphone || body?.phone;
+    // Extract customer data - Cakto wraps everything inside body.data
+    const data = body?.data || body;
+    const customer = data?.customer || data?.buyer || body?.customer || body;
+    const phone = customer?.phone || customer?.phone_number || customer?.cellphone || data?.phone || body?.phone;
     
     if (!phone) {
       console.warn('[Cakto] Telefone não encontrado no payload');
@@ -136,19 +139,19 @@ serve(async (req) => {
       .update({ due_date: newDueDate, status: 'ativa' })
       .eq('id', matchedCustomer.id);
 
-    // Register payment
-    const paymentAmount = body?.sale?.amount || body?.amount || body?.price || body?.value || 0;
+    // Register payment - Cakto sends amount in BRL (not cents)
+    const paymentAmount = data?.amount || data?.baseAmount || body?.sale?.amount || body?.amount || 0;
     const amountNumeric = Number(String(paymentAmount).replace(/[^\d.,]/g, '').replace(',', '.')) || 0;
 
     if (amountNumeric > 0) {
       await supabaseAdmin.from('payments').insert({
         customer_id: matchedCustomer.id,
-        amount: amountNumeric / 100, // Cakto sends in cents
+        amount: amountNumeric,
         payment_date: today.toISOString().split('T')[0],
         method: 'pix',
         confirmed: true,
       });
-      console.log(`[Cakto] Pagamento registrado: R$ ${(amountNumeric / 100).toFixed(2)}`);
+      console.log(`[Cakto] Pagamento registrado: R$ ${amountNumeric.toFixed(2)}`);
     }
 
     // Trigger server renewal if username exists
