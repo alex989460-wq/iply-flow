@@ -478,6 +478,53 @@ export type Database = {
         }
         Relationships: []
       }
+      payment_confirmations: {
+        Row: {
+          amount: number
+          created_at: string
+          customer_id: string | null
+          customer_name: string
+          customer_phone: string | null
+          duration_days: number
+          id: string
+          new_due_date: string
+          plan_name: string | null
+          status: string
+        }
+        Insert: {
+          amount?: number
+          created_at?: string
+          customer_id?: string | null
+          customer_name: string
+          customer_phone?: string | null
+          duration_days?: number
+          id?: string
+          new_due_date: string
+          plan_name?: string | null
+          status?: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          customer_id?: string | null
+          customer_name?: string
+          customer_phone?: string | null
+          duration_days?: number
+          id?: string
+          new_due_date?: string
+          plan_name?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payment_confirmations_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       payments: {
         Row: {
           amount: number

@@ -256,6 +256,100 @@ serve(async (req) => {
       console.log(`[Cakto] Pagamento registrado: R$ ${amountNumeric.toFixed(2)}`);
     }
 
+    // ── Save payment confirmation for the dynamic page ──
+    let confirmationId = '';
+    try {
+      const { data: confirmation } = await supabaseAdmin
+        .from('payment_confirmations')
+        .insert({
+          customer_id: matchedCustomer.id,
+          customer_name: matchedCustomer.name,
+          customer_phone: matchedCustomer.phone,
+          amount: amountNumeric,
+          plan_name: matchedPlanName || null,
+          duration_days: durationDays,
+          new_due_date: newDueDate,
+          status: 'approved',
+        })
+        .select('id')
+        .single();
+      
+      if (confirmation) {
+        confirmationId = confirmation.id;
+        console.log(`[Cakto] Confirmação salva: ${confirmationId}`);
+      }
+    } catch (e) {
+      console.error('[Cakto] Erro ao salvar confirmação:', e);
+    }
+
+    // ── Send Meta WhatsApp template (pedido_aprovado) ──
+    if (confirmationId) {
+      try {
+        // Get the owner's Meta settings
+        const { data: zapSettings } = await supabaseAdmin
+          .from('zap_responder_settings')
+          .select('meta_access_token, meta_phone_number_id, api_type')
+          .eq('user_id', matchedCustomer.created_by)
+          .eq('api_type', 'meta_cloud')
+          .maybeSingle();
+
+        if (zapSettings?.meta_access_token && zapSettings?.meta_phone_number_id) {
+          // Format phone for Meta API (must have country code, no +)
+          let metaPhone = phoneDigits;
+          if (!metaPhone.startsWith('55')) metaPhone = '55' + metaPhone;
+
+          const siteUrl = 'https://iply-flow.lovable.app';
+          const confirmationUrl = `${siteUrl}/pedido/${confirmationId}`;
+
+          const templatePayload = {
+            messaging_product: 'whatsapp',
+            to: metaPhone,
+            type: 'template',
+            template: {
+              name: 'pedido_aprovado',
+              language: { code: 'pt_BR' },
+              components: [
+                {
+                  type: 'body',
+                  parameters: [
+                    { type: 'text', text: matchedCustomer.name },
+                    { type: 'text', text: `R$ ${amountNumeric.toFixed(2).replace('.', ',')}` },
+                    { type: 'text', text: matchedPlanName || `${durationDays} dias` },
+                  ],
+                },
+                {
+                  type: 'button',
+                  sub_type: 'url',
+                  index: '0',
+                  parameters: [
+                    { type: 'text', text: confirmationId },
+                  ],
+                },
+              ],
+            },
+          };
+
+          const metaResp = await fetch(
+            `https://graph.facebook.com/v21.0/${zapSettings.meta_phone_number_id}/messages`,
+            {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${zapSettings.meta_access_token}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify(templatePayload),
+            },
+          );
+          const metaResult = await metaResp.json();
+          console.log(`[Cakto] Meta template enviado: status=${metaResp.status}`, JSON.stringify(metaResult));
+        } else {
+          console.log('[Cakto] Meta Cloud API não configurada para este usuário. Template não enviado.');
+        }
+      } catch (e) {
+        console.error('[Cakto] Erro ao enviar template Meta:', e);
+      }
+    }
+
     // ── Trigger server renewals for each username (supports comma-separated) ──
     const renewResults: any[] = [];
     if (matchedCustomer.username?.trim()) {
@@ -325,7 +419,6 @@ serve(async (req) => {
       const natvBaseUrl = (Deno.env.get('NATV_BASE_URL') || '').replace(/\/+$/, '');
 
       if (natvApiKey && natvBaseUrl) {
-        // Convert duration_days to months (NATV accepts 1,2,3,4,5,6,12)
         const daysToMonths: Record<number, number> = { 30: 1, 60: 2, 90: 3, 120: 4, 150: 5, 180: 6, 360: 12, 365: 12 };
         const months = daysToMonths[durationDays] || Math.max(1, Math.round(durationDays / 30));
         const validMonths = [1, 2, 3, 4, 5, 6, 12];
@@ -372,6 +465,7 @@ serve(async (req) => {
       matched_plan: matchedPlanName || null,
       payment_registered: amountNumeric > 0,
       payment_amount: amountNumeric,
+      confirmation_id: confirmationId || null,
       usernames_renewed: renewResults.length,
       server_renewals: renewResults,
     }), { headers: jsonHeaders });
