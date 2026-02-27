@@ -148,16 +148,86 @@ serve(async (req) => {
       }
     }
 
-    // Get plan info for duration
+    // ── Determine duration from paid amount by matching against plans ──
+    const paymentAmount = caktoData?.amount || caktoData?.baseAmount || body?.sale?.amount || body?.amount || 0;
+    const amountNumeric = Number(String(paymentAmount).replace(/[^\d.,]/g, '').replace(',', '.')) || 0;
+
+    // Load all plans for this owner to find the best match by price
+    const { data: allPlans } = await supabaseAdmin
+      .from('plans')
+      .select('id, plan_name, duration_days, price')
+      .eq('created_by', matchedCustomer.created_by)
+      .order('price', { ascending: true });
+
     let durationDays = 30;
-    if (matchedCustomer.plan_id) {
+    let matchedPlanName = '';
+
+    if (amountNumeric > 0 && allPlans && allPlans.length > 0) {
+      // Account for multiple screens: effective price per screen
+      const screens = matchedCustomer.screens || 1;
+      const pricePerScreen = amountNumeric / screens;
+
+      // Find closest plan by price (tolerance ±10%)
+      let bestMatch: any = null;
+      let bestDiff = Infinity;
+      for (const plan of allPlans) {
+        const diff = Math.abs(plan.price - pricePerScreen);
+        const tolerance = plan.price * 0.1;
+        if (diff <= tolerance && diff < bestDiff) {
+          bestDiff = diff;
+          bestMatch = plan;
+        }
+      }
+
+      // Also try matching total amount directly (for custom_price customers)
+      if (!bestMatch) {
+        for (const plan of allPlans) {
+          const diff = Math.abs(plan.price - amountNumeric);
+          const tolerance = plan.price * 0.1;
+          if (diff <= tolerance && diff < bestDiff) {
+            bestDiff = diff;
+            bestMatch = plan;
+          }
+        }
+      }
+
+      // Also check custom_price
+      if (!bestMatch && matchedCustomer.custom_price) {
+        const customerPrice = Number(matchedCustomer.custom_price);
+        if (Math.abs(customerPrice - amountNumeric) <= customerPrice * 0.1) {
+          // Use the customer's plan duration
+          if (matchedCustomer.plan_id) {
+            const { data: plan } = await supabaseAdmin
+              .from('plans')
+              .select('duration_days, plan_name')
+              .eq('id', matchedCustomer.plan_id)
+              .maybeSingle();
+            if (plan) {
+              durationDays = plan.duration_days;
+              matchedPlanName = plan.plan_name;
+            }
+          }
+        }
+      }
+
+      if (bestMatch) {
+        durationDays = bestMatch.duration_days;
+        matchedPlanName = bestMatch.plan_name;
+      }
+    } else if (matchedCustomer.plan_id) {
+      // Fallback to customer's current plan
       const { data: plan } = await supabaseAdmin
         .from('plans')
-        .select('duration_days, price')
+        .select('duration_days, plan_name')
         .eq('id', matchedCustomer.plan_id)
         .maybeSingle();
-      if (plan?.duration_days) durationDays = plan.duration_days;
+      if (plan) {
+        durationDays = plan.duration_days;
+        matchedPlanName = plan.plan_name;
+      }
     }
+
+    console.log(`[Cakto] Plano detectado: ${matchedPlanName || 'padrão'} (${durationDays} dias) | Valor pago: R$ ${amountNumeric.toFixed(2)} | Telas: ${matchedCustomer.screens || 1}`);
 
     // Calculate new due date
     const today = new Date();
@@ -174,10 +244,7 @@ serve(async (req) => {
       .update({ due_date: newDueDate, status: 'ativa' })
       .eq('id', matchedCustomer.id);
 
-    // Register payment - Cakto sends amount in BRL (not cents)
-    const paymentAmount = caktoData?.amount || caktoData?.baseAmount || body?.sale?.amount || body?.amount || 0;
-    const amountNumeric = Number(String(paymentAmount).replace(/[^\d.,]/g, '').replace(',', '.')) || 0;
-
+    // Register payment
     if (amountNumeric > 0) {
       await supabaseAdmin.from('payments').insert({
         customer_id: matchedCustomer.id,
@@ -189,54 +256,48 @@ serve(async (req) => {
       console.log(`[Cakto] Pagamento registrado: R$ ${amountNumeric.toFixed(2)}`);
     }
 
-    // Trigger VPlay server renewal only (if username exists)
-    let renewResult: any = null;
+    // ── Trigger VPlay renewal for each username (supports comma-separated) ──
+    const renewResults: any[] = [];
     if (matchedCustomer.username?.trim() && matchedCustomer.server_id) {
-      try {
-        // Look for VPlay server config for this customer's owner
-        const { data: vplayServer } = await supabaseAdmin
-          .from('vplay_servers')
-          .select('integration_url, key_message')
+      const usernames = matchedCustomer.username
+        .split(',')
+        .map((u: string) => u.trim())
+        .filter((u: string) => u.length > 0);
+
+      console.log(`[Cakto] Usernames para renovar: ${usernames.join(', ')} (${usernames.length} conexões)`);
+
+      // Get VPlay config
+      let vplayUrl = '';
+      let keyMessage = 'XCLOUD';
+
+      const { data: vplayServer } = await supabaseAdmin
+        .from('vplay_servers')
+        .select('integration_url, key_message')
+        .eq('user_id', matchedCustomer.created_by)
+        .eq('is_default', true)
+        .maybeSingle();
+
+      if (vplayServer?.integration_url) {
+        vplayUrl = vplayServer.integration_url.replace(/\/+$/, '');
+        keyMessage = vplayServer.key_message || 'XCLOUD';
+      } else {
+        const { data: billingSettings } = await supabaseAdmin
+          .from('billing_settings')
+          .select('vplay_integration_url, vplay_key_message')
           .eq('user_id', matchedCustomer.created_by)
-          .eq('is_default', true)
           .maybeSingle();
 
-        if (vplayServer?.integration_url) {
-          const vplayUrl = vplayServer.integration_url.replace(/\/+$/, '');
-          const keyMessage = vplayServer.key_message || 'XCLOUD';
-          const username = matchedCustomer.username.trim();
+        if (billingSettings?.vplay_integration_url) {
+          vplayUrl = billingSettings.vplay_integration_url.replace(/\/+$/, '');
+          keyMessage = billingSettings.vplay_key_message || 'XCLOUD';
+        }
+      }
 
-          console.log(`[Cakto] Renovando VPlay: ${username} via ${vplayUrl}`);
-
-          const vplayResp = await fetch(`${vplayUrl}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              key: keyMessage,
-              action: 'renew',
-              username,
-              duration: durationDays,
-            }),
-          });
-
-          renewResult = await vplayResp.json().catch(() => ({ raw: await vplayResp.text() }));
-          console.log(`[Cakto] VPlay renew result:`, JSON.stringify(renewResult));
-        } else {
-          // Fallback: check billing_settings for vplay_integration_url
-          const { data: billingSettings } = await supabaseAdmin
-            .from('billing_settings')
-            .select('vplay_integration_url, vplay_key_message')
-            .eq('user_id', matchedCustomer.created_by)
-            .maybeSingle();
-
-          if (billingSettings?.vplay_integration_url) {
-            const vplayUrl = billingSettings.vplay_integration_url.replace(/\/+$/, '');
-            const keyMessage = billingSettings.vplay_key_message || 'XCLOUD';
-            const username = matchedCustomer.username.trim();
-
-            console.log(`[Cakto] Renovando VPlay (billing_settings): ${username} via ${vplayUrl}`);
-
-            const vplayResp = await fetch(`${vplayUrl}`, {
+      if (vplayUrl) {
+        for (const username of usernames) {
+          try {
+            console.log(`[Cakto] Renovando VPlay: ${username} por ${durationDays} dias`);
+            const vplayResp = await fetch(vplayUrl, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
@@ -246,16 +307,17 @@ serve(async (req) => {
                 duration: durationDays,
               }),
             });
-
-            renewResult = await vplayResp.json().catch(() => ({ raw: await vplayResp.text() }));
-            console.log(`[Cakto] VPlay renew result:`, JSON.stringify(renewResult));
-          } else {
-            console.log(`[Cakto] Nenhum servidor VPlay configurado para o owner ${matchedCustomer.created_by}. Apenas due_date atualizado.`);
+            const result = await vplayResp.json().catch(async () => ({ raw: await vplayResp.text() }));
+            renewResults.push({ username, success: vplayResp.ok, result });
+            console.log(`[Cakto] VPlay renew ${username}:`, JSON.stringify(result));
+          } catch (e) {
+            const errMsg = e instanceof Error ? e.message : 'Erro desconhecido';
+            renewResults.push({ username, success: false, error: errMsg });
+            console.error(`[Cakto] Erro renovando ${username}:`, e);
           }
         }
-      } catch (renewError) {
-        console.error(`[Cakto] Erro ao renovar no VPlay:`, renewError);
-        renewResult = { error: renewError instanceof Error ? renewError.message : 'Erro desconhecido' };
+      } else {
+        console.log(`[Cakto] Nenhum servidor VPlay configurado para owner ${matchedCustomer.created_by}. Apenas due_date atualizado.`);
       }
     }
 
@@ -265,8 +327,12 @@ serve(async (req) => {
       customer_id: matchedCustomer.id,
       customer_name: matchedCustomer.name,
       new_due_date: newDueDate,
+      duration_days: durationDays,
+      matched_plan: matchedPlanName || null,
       payment_registered: amountNumeric > 0,
-      server_renewal: renewResult,
+      payment_amount: amountNumeric,
+      usernames_renewed: renewResults.length,
+      server_renewals: renewResults,
     }), { headers: jsonHeaders });
 
   } catch (error: unknown) {
