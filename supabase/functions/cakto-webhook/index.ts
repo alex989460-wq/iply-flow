@@ -148,18 +148,32 @@ serve(async (req) => {
       }), { status: 404, headers: jsonHeaders });
     }
 
-    // ── Duplicate protection: check if this Cakto transaction was already processed ──
-    if (caktoId) {
+    // ── Determine payment amount early (used for duplicate protection) ──
+    const paymentAmount = caktoData?.amount || caktoData?.baseAmount || body?.sale?.amount || body?.amount || 0;
+    const amountNumeric = Number(String(paymentAmount).replace(/[^\d.,]/g, '').replace(',', '.')) || 0;
+
+    // ── Duplicate protection: only block near-instant retries with same amount ──
+    if (caktoId && amountNumeric > 0) {
+      const twoMinutesAgo = new Date(Date.now() - 2 * 60 * 1000).toISOString();
+      const amountMin = Number((amountNumeric - 0.01).toFixed(2));
+      const amountMax = Number((amountNumeric + 0.01).toFixed(2));
+
       const { data: existingPayment } = await supabaseAdmin
         .from('payments')
-        .select('id')
+        .select('id, amount, created_at')
         .eq('customer_id', matchedCustomer.id)
-        .gte('created_at', new Date(Date.now() - 60 * 60 * 1000).toISOString()) // last 1h
+        .eq('method', 'pix')
+        .gte('created_at', twoMinutesAgo)
+        .gte('amount', amountMin)
+        .lte('amount', amountMax)
+        .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle();
 
       if (existingPayment) {
-        console.warn(`[Cakto] Pagamento duplicado detectado para ${matchedCustomer.name} (caktoId: ${caktoId}). Ignorando.`);
+        console.warn(
+          `[Cakto] Retry duplicado detectado para ${matchedCustomer.name} (caktoId: ${caktoId}, paymentId: ${existingPayment.id}). Ignorando.`,
+        );
         return new Response(JSON.stringify({
           success: true,
           message: `Pagamento já processado para ${matchedCustomer.name}`,
@@ -169,8 +183,6 @@ serve(async (req) => {
     }
 
     // ── Determine duration from paid amount by matching against plans ──
-    const paymentAmount = caktoData?.amount || caktoData?.baseAmount || body?.sale?.amount || body?.amount || 0;
-    const amountNumeric = Number(String(paymentAmount).replace(/[^\d.,]/g, '').replace(',', '.')) || 0;
 
     // Load all plans for this owner to find the best match by price
     const { data: allPlans } = await supabaseAdmin
@@ -390,21 +402,42 @@ serve(async (req) => {
           const apiBaseUrl = zapSettings.api_base_url || 'https://api.zapresponder.com.br/api';
           const departmentId = zapSettings.selected_department_id;
 
+          const templateVariables = {
+            '1': matchedCustomer.name,
+            '2': matchedCustomer.username || 'N/A',
+            '3': serverName,
+            '4': formattedDueDate,
+          };
+
+          const templateComponents = [
+            {
+              type: 'body',
+              parameters: [
+                { type: 'text', text: matchedCustomer.name },
+                { type: 'text', text: matchedCustomer.username || 'N/A' },
+                { type: 'text', text: serverName },
+                { type: 'text', text: formattedDueDate },
+              ],
+            },
+            {
+              type: 'button',
+              sub_type: 'url',
+              index: '0',
+              parameters: [{ type: 'text', text: confirmationId }],
+            },
+          ];
+
           const zapBody: any = {
             type: 'template',
             template_name: templateName,
             number: metaPhone,
             language: 'pt_BR',
-            variables: {
-              '1': matchedCustomer.name,
-              '2': matchedCustomer.username || 'N/A',
-              '3': serverName,
-              '4': formattedDueDate,
-            },
+            variables: templateVariables,
+            components: templateComponents,
           };
 
           console.log(`[Cakto] Enviando template '${templateName}' via Zap Responder para ${metaPhone}`);
-          const zapResp = await fetch(`${apiBaseUrl}/whatsapp/message/${departmentId}`, {
+          let zapResp = await fetch(`${apiBaseUrl}/whatsapp/message/${departmentId}`, {
             method: 'POST',
             headers: {
               'Authorization': `Bearer ${zapSettings.zap_api_token}`,
@@ -413,7 +446,36 @@ serve(async (req) => {
             },
             body: JSON.stringify(zapBody),
           });
-          const zapResult = await zapResp.text();
+
+          let zapResult = await zapResp.text();
+
+          // Fallback: some Zap Responder setups expect Meta Cloud API payload shape
+          if (!zapResp.ok && (zapResult.includes('localizable_params') || zapResult.includes('#132000'))) {
+            const cloudApiPayload = {
+              messaging_product: 'whatsapp',
+              to: metaPhone,
+              type: 'template',
+              template: {
+                name: templateName,
+                language: { code: 'pt_BR' },
+                components: templateComponents,
+              },
+            };
+
+            console.warn('[Cakto] Erro de parâmetros no template via Zap. Tentando fallback Cloud API payload...');
+
+            zapResp = await fetch(`${apiBaseUrl}/whatsapp/message/${departmentId}`, {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${zapSettings.zap_api_token}`,
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+              },
+              body: JSON.stringify(cloudApiPayload),
+            });
+            zapResult = await zapResp.text();
+          }
+
           console.log(`[Cakto] Zap Responder template enviado: status=${zapResp.status}`, zapResult);
 
         } else {
