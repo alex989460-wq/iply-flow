@@ -384,6 +384,8 @@ export default function QuickRenewalPanel({ isMobile = false, onClose }: QuickRe
           const serverHost = (customer as any).server?.host || '';
           const serverName = (customer as any).server?.server_name || '';
           const isTheBest = serverName.toLowerCase().includes('the best') || serverHost.toLowerCase().includes('the-best') || serverHost.toLowerCase().includes('painel.best');
+          const isNatv = serverName.toLowerCase().includes('natv') || serverHost.toLowerCase().includes('pixbot') || serverHost.toLowerCase().includes('natv');
+          const isVplay = serverName.toLowerCase().includes('vplay') || serverHost.toLowerCase().includes('vplay');
 
           if (isTheBest) {
             const months = Math.max(1, Math.round(durationDays / 30));
@@ -398,6 +400,33 @@ export default function QuickRenewalPanel({ isMobile = false, onClose }: QuickRe
               toast.warning(`Renovado localmente, mas: ${tbResult?.error || 'Falha no servidor The Best'}`);
             } else {
               console.log('[TheBest] Sucesso:', tbResult);
+            }
+          } else if (isNatv) {
+            const months = Math.max(1, Math.round(durationDays / 30));
+            const { data: natvResult, error: natvError } = await supabase.functions.invoke('natv-renew', {
+              body: { username: xuiUsername, months, duration_days: durationDays, customer_id: customer.id },
+            });
+            if (natvError) {
+              console.error('[NATV] Erro:', natvError);
+              toast.warning(`Renovado localmente, mas falha no servidor NATV: ${natvError.message}`);
+            } else if (!natvResult?.success) {
+              console.warn('[NATV] Falha:', natvResult?.error);
+              toast.warning(`Renovado localmente, mas: ${natvResult?.error || 'Falha no servidor NATV'}`);
+            } else {
+              console.log('[NATV] Sucesso:', natvResult);
+            }
+          } else if (isVplay) {
+            const { data: vpResult, error: vpError } = await supabase.functions.invoke('vplay-renew', {
+              body: { username: xuiUsername, duration_days: durationDays, customer_id: customer.id },
+            });
+            if (vpError) {
+              console.error('[VPlay] Erro:', vpError);
+              toast.warning(`Renovado localmente, mas falha no servidor VPlay: ${vpError.message}`);
+            } else if (!vpResult?.success) {
+              console.warn('[VPlay] Falha:', vpResult?.error);
+              toast.warning(`Renovado localmente, mas: ${vpResult?.error || 'Falha no servidor VPlay'}`);
+            } else {
+              console.log('[VPlay] Sucesso:', vpResult);
             }
           } else {
             const { data: xuiResult, error: xuiError } = await supabase.functions.invoke('xui-renew', {

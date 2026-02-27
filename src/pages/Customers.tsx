@@ -272,6 +272,8 @@ export default function Customers() {
             const serverHost = serverData.host || '';
             const serverName = serverData.server_name || '';
             const isTheBest = serverName.toLowerCase().includes('the best') || serverHost.toLowerCase().includes('the-best') || serverHost.toLowerCase().includes('painel.best');
+            const isNatv = serverName.toLowerCase().includes('natv') || serverHost.toLowerCase().includes('pixbot') || serverHost.toLowerCase().includes('natv');
+            const isVplay = serverName.toLowerCase().includes('vplay') || serverHost.toLowerCase().includes('vplay');
             const plan = plans?.find(p => p.id === newCustomer.plan_id);
 
             if (isTheBest) {
@@ -282,6 +284,21 @@ export default function Customers() {
               if (tbError) console.error('[TheBest] Erro auto-renew:', tbError);
               else if (!tbResult?.success) console.warn('[TheBest] Falha auto-renew:', tbResult?.error);
               else console.log('[TheBest] Auto-renovado ao cadastrar:', tbResult);
+            } else if (isNatv) {
+              const months = Math.max(1, Math.round((plan?.duration_days || 30) / 30));
+              const { data: natvResult, error: natvError } = await supabase.functions.invoke('natv-renew', {
+                body: { username: newCustomer.username.trim(), months, duration_days: plan?.duration_days || 30, customer_id: newCustomer.id },
+              });
+              if (natvError) console.error('[NATV] Erro auto-renew:', natvError);
+              else if (!natvResult?.success) console.warn('[NATV] Falha auto-renew:', natvResult?.error);
+              else console.log('[NATV] Auto-renovado ao cadastrar:', natvResult);
+            } else if (isVplay) {
+              const { data: vpResult, error: vpError } = await supabase.functions.invoke('vplay-renew', {
+                body: { username: newCustomer.username.trim(), duration_days: plan?.duration_days || 30, customer_id: newCustomer.id },
+              });
+              if (vpError) console.error('[VPlay] Erro auto-renew:', vpError);
+              else if (!vpResult?.success) console.warn('[VPlay] Falha auto-renew:', vpResult?.error);
+              else console.log('[VPlay] Auto-renovado ao cadastrar:', vpResult);
             } else {
               const { data: xuiResult, error: xuiError } = await supabase.functions.invoke('xui-renew', {
                 body: { username: newCustomer.username.trim(), new_due_date: dueDate, customer_id: newCustomer.id },
@@ -409,6 +426,8 @@ export default function Customers() {
           const serverHost = (customer as any).servers?.host || '';
           const serverName = (customer as any).servers?.server_name || '';
           const isTheBest = serverName.toLowerCase().includes('the best') || serverHost.toLowerCase().includes('the-best') || serverHost.toLowerCase().includes('painel.best');
+          const isNatv = serverName.toLowerCase().includes('natv') || serverHost.toLowerCase().includes('pixbot') || serverHost.toLowerCase().includes('natv');
+          const isVplay = serverName.toLowerCase().includes('vplay') || serverHost.toLowerCase().includes('vplay');
           
           if (isTheBest) {
             const months = Math.max(1, Math.round(plan.duration_days / 30));
@@ -418,6 +437,21 @@ export default function Customers() {
             if (tbError) console.error('[TheBest] Erro:', tbError);
             else if (!tbResult?.success) console.warn('[TheBest] Falha:', tbResult?.error);
             else console.log('[TheBest] Renovado:', tbResult);
+          } else if (isNatv) {
+            const months = Math.max(1, Math.round(plan.duration_days / 30));
+            const { data: natvResult, error: natvError } = await supabase.functions.invoke('natv-renew', {
+              body: { username: customer.username.trim(), months, duration_days: plan.duration_days, customer_id: customer.id },
+            });
+            if (natvError) console.error('[NATV] Erro:', natvError);
+            else if (!natvResult?.success) console.warn('[NATV] Falha:', natvResult?.error);
+            else console.log('[NATV] Renovado:', natvResult);
+          } else if (isVplay) {
+            const { data: vpResult, error: vpError } = await supabase.functions.invoke('vplay-renew', {
+              body: { username: customer.username.trim(), duration_days: plan.duration_days, customer_id: customer.id },
+            });
+            if (vpError) console.error('[VPlay] Erro:', vpError);
+            else if (!vpResult?.success) console.warn('[VPlay] Falha:', vpResult?.error);
+            else console.log('[VPlay] Renovado:', vpResult);
           } else {
             const { data: xuiResult, error: xuiError } = await supabase.functions.invoke('xui-renew', {
               body: { username: customer.username.trim(), new_due_date: newDueDateStr, customer_id: customer.id },
@@ -690,6 +724,8 @@ export default function Customers() {
             const serverHost = (latestCustomer as any).servers?.host || '';
             const serverName = (latestCustomer as any).servers?.server_name || '';
             const isTheBest = serverName.toLowerCase().includes('the best') || serverHost.toLowerCase().includes('the-best') || serverHost.toLowerCase().includes('painel.best');
+            const isNatv = serverName.toLowerCase().includes('natv') || serverHost.toLowerCase().includes('pixbot') || serverHost.toLowerCase().includes('natv');
+            const isVplay = serverName.toLowerCase().includes('vplay') || serverHost.toLowerCase().includes('vplay');
 
             if (isTheBest) {
               const months = Math.max(1, Math.round(plan.duration_days / 30));
@@ -700,6 +736,25 @@ export default function Customers() {
                 console.warn(`[TheBest] Falha para ${latestCustomer.name}:`, tbError?.message || tbResult?.error);
               } else {
                 console.log(`[TheBest] ${latestCustomer.name} renovado`);
+              }
+            } else if (isNatv) {
+              const months = Math.max(1, Math.round(plan.duration_days / 30));
+              const { data: natvResult, error: natvError } = await supabase.functions.invoke('natv-renew', {
+                body: { username: latestCustomer.username.trim(), months, duration_days: plan.duration_days, customer_id: latestCustomer.id },
+              });
+              if (natvError || !natvResult?.success) {
+                console.warn(`[NATV] Falha para ${latestCustomer.name}:`, natvError?.message || natvResult?.error);
+              } else {
+                console.log(`[NATV] ${latestCustomer.name} renovado`);
+              }
+            } else if (isVplay) {
+              const { data: vpResult, error: vpError } = await supabase.functions.invoke('vplay-renew', {
+                body: { username: latestCustomer.username.trim(), duration_days: plan.duration_days, customer_id: latestCustomer.id },
+              });
+              if (vpError || !vpResult?.success) {
+                console.warn(`[VPlay] Falha para ${latestCustomer.name}:`, vpError?.message || vpResult?.error);
+              } else {
+                console.log(`[VPlay] ${latestCustomer.name} renovado`);
               }
             } else {
               const { data: xuiResult, error: xuiError } = await supabase.functions.invoke('xui-renew', {
