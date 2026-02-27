@@ -373,6 +373,7 @@ export default function Customers() {
             body: {
               username: customer.username.trim(),
               new_due_date: newDueDateStr,
+              customer_id: customer.id,
             },
           });
           if (xuiError) {
@@ -647,6 +648,7 @@ export default function Customers() {
               body: {
                 username: latestCustomer.username.trim(),
                 new_due_date: newDueDateStr,
+                customer_id: latestCustomer.id,
               },
             });
             if (xuiError || !xuiResult?.success) {
