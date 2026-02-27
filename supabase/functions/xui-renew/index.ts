@@ -227,18 +227,21 @@ serve(async (req) => {
 
         // Fallback: quando o responsável não existe no backend, desconta no próprio painel XUI
         if (!chargedAccessId) {
-          const ownerIdColumnCandidates = ['user_id', 'uid', 'owner_id', 'reseller_id', 'seller_id', 'admin_id', 'created_by'];
-          const ownerNameColumnCandidates = ['owner', 'owner_username', 'reseller', 'reseller_username', 'seller', 'admin', 'created_by_username'];
+          // XUI típico: lines tem member_id/admin_id apontando para users.id
+          const ownerIdColumnCandidates = ['member_id', 'admin_id', 'user_id', 'uid', 'owner_id', 'reseller_id', 'seller_id', 'created_by', 'bouquet'];
 
-          const ownerIdColumn = ownerIdColumnCandidates.find((c) => foundColumns.has(c) && foundUser?.[c] !== undefined && foundUser?.[c] !== null);
-          const ownerNameColumn = ownerNameColumnCandidates.find((c) => {
-            const value = foundUser?.[c];
-            return foundColumns.has(c) && value !== undefined && value !== null && String(value).trim() !== '';
+          const ownerIdColumn = ownerIdColumnCandidates.find((c) => {
+            if (!foundColumns.has(c)) return false;
+            const val = foundUser?.[c];
+            return val !== undefined && val !== null && val !== 0 && val !== '' && String(val).trim() !== '';
           });
 
           const ownerIdValue = ownerIdColumn ? foundUser[ownerIdColumn] : null;
-          const ownerNameValue = ownerNameColumn ? String(foundUser[ownerNameColumn]).trim() : null;
 
+          console.log(`[XUI-Renew] Fallback XUI: foundTable=${foundTable}, ownerIdColumn=${ownerIdColumn}, ownerIdValue=${ownerIdValue}`);
+          console.log(`[XUI-Renew] Fallback XUI: foundUser keys=${Object.keys(foundUser || {}).join(', ')}`);
+
+          // Search for the owner in the XUI database
           const preferredOwnerTables = ['users', 'user', 'resellers', 'accounts', 'admins'];
           const ownerTables = Array.from(new Set([
             ...preferredOwnerTables.filter((t) => allTables.includes(t)),
@@ -248,6 +251,7 @@ serve(async (req) => {
           let xuiCreditDebited = false;
 
           for (const rawTableName of ownerTables) {
+            if (rawTableName === foundTable) continue; // skip same table as the client
             const tableName = rawTableName.replace(/`/g, '');
             const [columnsResult] = await connection.query(`SHOW COLUMNS FROM \`${tableName}\``);
             const columnsArray = columnsResult as any[];
@@ -257,26 +261,15 @@ serve(async (req) => {
               .find((c) => tableColumns.has(c));
             if (!balanceColumn) continue;
 
-            const usernameColumn = ['username', 'user_name', 'login', 'name', 'email']
-              .find((c) => tableColumns.has(c));
-
             const whereClauses: string[] = [];
             const queryParams: Array<string | number> = [];
 
+            // Match by owner ID → table's id column
             if (ownerIdValue !== null && ownerIdValue !== undefined) {
               if (tableColumns.has('id')) {
                 whereClauses.push('`id` = ?');
                 queryParams.push(ownerIdValue as string | number);
               }
-              if (ownerIdColumn && ownerIdColumn !== 'id' && tableColumns.has(ownerIdColumn)) {
-                whereClauses.push(`\`${ownerIdColumn}\` = ?`);
-                queryParams.push(ownerIdValue as string | number);
-              }
-            }
-
-            if (ownerNameValue && usernameColumn) {
-              whereClauses.push(`TRIM(CAST(\`${usernameColumn}\` AS CHAR)) = TRIM(?)`);
-              queryParams.push(ownerNameValue);
             }
 
             if (whereClauses.length === 0) continue;
@@ -293,40 +286,31 @@ serve(async (req) => {
             const currentCredits = Number(ownerRow[balanceColumn]);
             if (!Number.isFinite(currentCredits)) continue;
 
+            const ownerName = ownerRow.username || ownerRow.user_name || ownerRow.login || ownerRow.name || ownerRow.id;
+            console.log(`[XUI-Renew] Revendedor XUI encontrado: ${tableName}.${balanceColumn}, id=${ownerRow.id}, nome=${ownerName}, créditos=${currentCredits}`);
+
             if (currentCredits < creditsToDeduct) {
-              throw new Error(`Créditos insuficientes no painel XUI. Necessário: ${creditsToDeduct}, disponível: ${currentCredits}`);
+              throw new Error(`Créditos insuficientes no painel XUI para ${ownerName}. Necessário: ${creditsToDeduct}, disponível: ${currentCredits}`);
             }
 
             const newCredits = currentCredits - creditsToDeduct;
 
-            let whereColumn = 'id';
-            let whereValue: string | number = ownerRow.id as string | number;
-
-            if (!tableColumns.has('id') || ownerRow.id === undefined || ownerRow.id === null) {
-              if (usernameColumn && ownerRow[usernameColumn] !== undefined && ownerRow[usernameColumn] !== null) {
-                whereColumn = usernameColumn;
-                whereValue = String(ownerRow[usernameColumn]);
-              } else {
-                continue;
-              }
-            }
-
             await connection.execute(
-              `UPDATE \`${tableName}\` SET \`${balanceColumn}\` = ? WHERE \`${whereColumn}\` = ? LIMIT 1`,
-              [newCredits, whereValue],
+              `UPDATE \`${tableName}\` SET \`${balanceColumn}\` = ? WHERE \`id\` = ? LIMIT 1`,
+              [newCredits, ownerRow.id],
             );
 
             chargedCreditsAmount = creditsToDeduct;
             chargedSource = 'xui';
-            externalRefund = { tableName, balanceColumn, whereColumn, whereValue };
+            externalRefund = { tableName, balanceColumn, whereColumn: 'id', whereValue: ownerRow.id as string | number };
             xuiCreditDebited = true;
 
-            console.log(`[XUI-Renew] ${creditsToDeduct} crédito(s) descontado(s) no XUI (${tableName}.${balanceColumn}) para ${String(whereValue)}. Saldo: ${newCredits}`);
+            console.log(`[XUI-Renew] ${creditsToDeduct} crédito(s) descontado(s) no XUI (${tableName}.${balanceColumn}) de ${ownerName}. Saldo: ${newCredits}`);
             break;
           }
 
           if (!xuiCreditDebited) {
-            throw new Error('Não foi possível identificar o revendedor responsável para descontar crédito');
+            console.warn(`[XUI-Renew] Não foi possível encontrar revendedor no XUI. Renovação prossegue sem desconto de crédito.`);
           }
         }
       }
