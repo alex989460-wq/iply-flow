@@ -355,15 +355,37 @@ export default function Customers() {
       const newDueDate = new Date(anchorDate);
       newDueDate.setDate(newDueDate.getDate() + plan.duration_days);
       
+      const newDueDateStr = format(newDueDate, 'yyyy-MM-dd');
       const { error: customerError } = await supabase
         .from('customers')
         .update({ 
-          due_date: format(newDueDate, 'yyyy-MM-dd'),
+          due_date: newDueDateStr,
           status: 'ativa',
           plan_id: planId,
         })
         .eq('id', customerId);
       if (customerError) throw customerError;
+
+      // Renovar no servidor XUI automaticamente
+      if (customer.username?.trim()) {
+        try {
+          const { data: xuiResult, error: xuiError } = await supabase.functions.invoke('xui-renew', {
+            body: {
+              username: customer.username.trim(),
+              new_due_date: newDueDateStr,
+            },
+          });
+          if (xuiError) {
+            console.error('[XUI-Renew] Erro:', xuiError);
+          } else if (!xuiResult?.success) {
+            console.warn('[XUI-Renew] Falha:', xuiResult?.error);
+          } else {
+            console.log('[XUI-Renew] Renovado no servidor XUI:', xuiResult);
+          }
+        } catch (e) {
+          console.error('[XUI-Renew] Erro inesperado:', e);
+        }
+      }
       
       const { error: paymentError } = await supabase
         .from('payments')
@@ -615,6 +637,26 @@ export default function Customers() {
         if (updateError) {
           errorCount++;
           continue;
+        }
+
+        // Renovar no servidor XUI automaticamente
+        const newDueDateStr = format(newDueDate, 'yyyy-MM-dd');
+        if (latestCustomer.username?.trim()) {
+          try {
+            const { data: xuiResult, error: xuiError } = await supabase.functions.invoke('xui-renew', {
+              body: {
+                username: latestCustomer.username.trim(),
+                new_due_date: newDueDateStr,
+              },
+            });
+            if (xuiError || !xuiResult?.success) {
+              console.warn(`[XUI-Renew] Falha para ${latestCustomer.name}:`, xuiError?.message || xuiResult?.error);
+            } else {
+              console.log(`[XUI-Renew] ${latestCustomer.name} renovado no servidor`);
+            }
+          } catch (e) {
+            console.error(`[XUI-Renew] Erro para ${latestCustomer.name}:`, e);
+          }
         }
         
         // Create payment
