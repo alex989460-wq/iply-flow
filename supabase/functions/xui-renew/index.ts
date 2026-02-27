@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { connect } from "https://deno.land/x/mysql@v2.12.1/mod.ts";
+import mysql from "npm:mysql2@3.9.7/promise";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -13,7 +13,6 @@ serve(async (req) => {
   }
 
   try {
-    // Authenticate user
     const authHeader = req.headers.get('Authorization');
     if (!authHeader?.startsWith('Bearer ')) {
       return new Response(JSON.stringify({ error: 'Não autorizado' }), {
@@ -27,9 +26,8 @@ serve(async (req) => {
       { global: { headers: { Authorization: authHeader } } }
     );
 
-    const token = authHeader.replace('Bearer ', '');
-    const { data: claimsData, error: claimsError } = await supabase.auth.getClaims(token);
-    if (claimsError || !claimsData?.claims) {
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (userError || !user) {
       return new Response(JSON.stringify({ error: 'Não autorizado' }), {
         status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
@@ -46,28 +44,27 @@ serve(async (req) => {
 
     console.log(`[XUI-Renew] Renovando usuário: ${username}, nova data: ${new_due_date}`);
 
-    // Connect to XUI MySQL database
-    const client = await connect({
-      hostname: Deno.env.get('XUI_MYSQL_HOST')!,
-      username: Deno.env.get('XUI_MYSQL_USER')!,
+    const connection = await mysql.createConnection({
+      host: Deno.env.get('XUI_MYSQL_HOST')!,
+      user: Deno.env.get('XUI_MYSQL_USER')!,
       password: Deno.env.get('XUI_MYSQL_PASSWORD')!,
-      db: Deno.env.get('XUI_MYSQL_DATABASE')!,
+      database: Deno.env.get('XUI_MYSQL_DATABASE')!,
       port: parseInt(Deno.env.get('XUI_MYSQL_PORT') || '3306'),
     });
 
     try {
-      // Convert date to XUI exp_date format (YYYY-MM-DD HH:MM:SS)
       const expDate = `${new_due_date} 23:59:59`;
 
-      // Find user by username in XUI
-      const users = await client.query(
+      const [rows] = await connection.execute(
         `SELECT id, username, exp_date FROM users WHERE username = ?`,
         [username]
       );
 
+      const users = rows as any[];
+
       if (!users || users.length === 0) {
         console.log(`[XUI-Renew] Usuário não encontrado no XUI: ${username}`);
-        await client.close();
+        await connection.end();
         return new Response(
           JSON.stringify({ success: false, error: `Usuário "${username}" não encontrado no servidor XUI` }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -75,17 +72,15 @@ serve(async (req) => {
       }
 
       const xuiUser = users[0];
-      console.log(`[XUI-Renew] Usuário encontrado no XUI: ID=${xuiUser.id}, exp_date atual=${xuiUser.exp_date}`);
+      console.log(`[XUI-Renew] Usuário encontrado: ID=${xuiUser.id}, exp_date atual=${xuiUser.exp_date}`);
 
-      // Update exp_date and enable user
-      await client.execute(
+      await connection.execute(
         `UPDATE users SET exp_date = ?, enabled = 1, is_trial = 0 WHERE username = ?`,
         [expDate, username]
       );
 
       console.log(`[XUI-Renew] Usuário ${username} renovado com sucesso até ${expDate}`);
-
-      await client.close();
+      await connection.end();
 
       return new Response(
         JSON.stringify({
@@ -98,7 +93,7 @@ serve(async (req) => {
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     } catch (dbError) {
-      await client.close();
+      await connection.end();
       throw dbError;
     }
   } catch (error: unknown) {
