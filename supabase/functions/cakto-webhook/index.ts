@@ -417,8 +417,27 @@ serve(async (req) => {
       }
 
       // ── NATV renewal ──
-      const natvApiKey = Deno.env.get('NATV_API_KEY');
-      const natvBaseUrl = (Deno.env.get('NATV_BASE_URL') || '').replace(/\/+$/, '');
+      // Try per-reseller settings first, then fall back to global env vars
+      let natvApiKey = '';
+      let natvBaseUrl = '';
+
+      const { data: resellerApiSettings } = await supabaseAdmin
+        .from('reseller_api_settings')
+        .select('natv_api_key, natv_base_url')
+        .eq('user_id', matchedCustomer.created_by)
+        .maybeSingle();
+
+      if (resellerApiSettings?.natv_api_key && resellerApiSettings?.natv_base_url) {
+        natvApiKey = resellerApiSettings.natv_api_key;
+        natvBaseUrl = resellerApiSettings.natv_base_url.replace(/\/+$/, '');
+        console.log(`[Cakto] Usando chaves NATV do revendedor`);
+      } else {
+        natvApiKey = Deno.env.get('NATV_API_KEY') || '';
+        natvBaseUrl = (Deno.env.get('NATV_BASE_URL') || '').replace(/\/+$/, '');
+        if (natvApiKey && natvBaseUrl) {
+          console.log(`[Cakto] Usando chaves NATV globais (fallback)`);
+        }
+      }
 
       if (natvApiKey && natvBaseUrl) {
         const daysToMonths: Record<number, number> = { 30: 1, 60: 2, 90: 3, 120: 4, 150: 5, 180: 6, 360: 12, 365: 12 };
