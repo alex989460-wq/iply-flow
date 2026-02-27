@@ -256,9 +256,9 @@ serve(async (req) => {
       console.log(`[Cakto] Pagamento registrado: R$ ${amountNumeric.toFixed(2)}`);
     }
 
-    // ── Trigger VPlay renewal for each username (supports comma-separated) ──
+    // ── Trigger server renewals for each username (supports comma-separated) ──
     const renewResults: any[] = [];
-    if (matchedCustomer.username?.trim() && matchedCustomer.server_id) {
+    if (matchedCustomer.username?.trim()) {
       const usernames = matchedCustomer.username
         .split(',')
         .map((u: string) => u.trim())
@@ -266,58 +266,99 @@ serve(async (req) => {
 
       console.log(`[Cakto] Usernames para renovar: ${usernames.join(', ')} (${usernames.length} conexões)`);
 
-      // Get VPlay config
-      let vplayUrl = '';
-      let keyMessage = 'XCLOUD';
+      // ── VPlay renewal ──
+      if (matchedCustomer.server_id) {
+        let vplayUrl = '';
+        let keyMessage = 'XCLOUD';
 
-      const { data: vplayServer } = await supabaseAdmin
-        .from('vplay_servers')
-        .select('integration_url, key_message')
-        .eq('user_id', matchedCustomer.created_by)
-        .eq('is_default', true)
-        .maybeSingle();
-
-      if (vplayServer?.integration_url) {
-        vplayUrl = vplayServer.integration_url.replace(/\/+$/, '');
-        keyMessage = vplayServer.key_message || 'XCLOUD';
-      } else {
-        const { data: billingSettings } = await supabaseAdmin
-          .from('billing_settings')
-          .select('vplay_integration_url, vplay_key_message')
+        const { data: vplayServer } = await supabaseAdmin
+          .from('vplay_servers')
+          .select('integration_url, key_message')
           .eq('user_id', matchedCustomer.created_by)
+          .eq('is_default', true)
           .maybeSingle();
 
-        if (billingSettings?.vplay_integration_url) {
-          vplayUrl = billingSettings.vplay_integration_url.replace(/\/+$/, '');
-          keyMessage = billingSettings.vplay_key_message || 'XCLOUD';
+        if (vplayServer?.integration_url) {
+          vplayUrl = vplayServer.integration_url.replace(/\/+$/, '');
+          keyMessage = vplayServer.key_message || 'XCLOUD';
+        } else {
+          const { data: billingSettings } = await supabaseAdmin
+            .from('billing_settings')
+            .select('vplay_integration_url, vplay_key_message')
+            .eq('user_id', matchedCustomer.created_by)
+            .maybeSingle();
+
+          if (billingSettings?.vplay_integration_url) {
+            vplayUrl = billingSettings.vplay_integration_url.replace(/\/+$/, '');
+            keyMessage = billingSettings.vplay_key_message || 'XCLOUD';
+          }
+        }
+
+        if (vplayUrl) {
+          for (const username of usernames) {
+            try {
+              console.log(`[Cakto] Renovando VPlay: ${username} por ${durationDays} dias`);
+              const vplayResp = await fetch(vplayUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  key: keyMessage,
+                  action: 'renew',
+                  username,
+                  duration: durationDays,
+                }),
+              });
+              const result = await vplayResp.json().catch(async () => ({ raw: await vplayResp.text() }));
+              renewResults.push({ panel: 'vplay', username, success: vplayResp.ok, result });
+              console.log(`[Cakto] VPlay renew ${username}:`, JSON.stringify(result));
+            } catch (e) {
+              const errMsg = e instanceof Error ? e.message : 'Erro desconhecido';
+              renewResults.push({ panel: 'vplay', username, success: false, error: errMsg });
+              console.error(`[Cakto] Erro renovando VPlay ${username}:`, e);
+            }
+          }
         }
       }
 
-      if (vplayUrl) {
+      // ── NATV renewal ──
+      const natvApiKey = Deno.env.get('NATV_API_KEY');
+      const natvBaseUrl = (Deno.env.get('NATV_BASE_URL') || '').replace(/\/+$/, '');
+
+      if (natvApiKey && natvBaseUrl) {
+        // Convert duration_days to months (NATV accepts 1,2,3,4,5,6,12)
+        const daysToMonths: Record<number, number> = { 30: 1, 60: 2, 90: 3, 120: 4, 150: 5, 180: 6, 360: 12, 365: 12 };
+        const months = daysToMonths[durationDays] || Math.max(1, Math.round(durationDays / 30));
+        const validMonths = [1, 2, 3, 4, 5, 6, 12];
+        const natvMonths = validMonths.includes(months) ? months : validMonths.reduce((prev, curr) =>
+          Math.abs(curr - months) < Math.abs(prev - months) ? curr : prev
+        );
+
         for (const username of usernames) {
           try {
-            console.log(`[Cakto] Renovando VPlay: ${username} por ${durationDays} dias`);
-            const vplayResp = await fetch(vplayUrl, {
+            console.log(`[Cakto] Renovando NATV: ${username} por ${natvMonths} meses`);
+            const natvResp = await fetch(`${natvBaseUrl}/user/activation`, {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                key: keyMessage,
-                action: 'renew',
-                username,
-                duration: durationDays,
-              }),
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${natvApiKey}`,
+              },
+              body: JSON.stringify({ username, months: natvMonths }),
             });
-            const result = await vplayResp.json().catch(async () => ({ raw: await vplayResp.text() }));
-            renewResults.push({ username, success: vplayResp.ok, result });
-            console.log(`[Cakto] VPlay renew ${username}:`, JSON.stringify(result));
+            const result = await natvResp.json().catch(async () => ({ raw: await natvResp.text() }));
+            renewResults.push({ panel: 'natv', username, success: natvResp.ok, result });
+            console.log(`[Cakto] NATV renew ${username}: status=${natvResp.status}`, JSON.stringify(result));
           } catch (e) {
             const errMsg = e instanceof Error ? e.message : 'Erro desconhecido';
-            renewResults.push({ username, success: false, error: errMsg });
-            console.error(`[Cakto] Erro renovando ${username}:`, e);
+            renewResults.push({ panel: 'natv', username, success: false, error: errMsg });
+            console.error(`[Cakto] Erro renovando NATV ${username}:`, e);
           }
         }
       } else {
-        console.log(`[Cakto] Nenhum servidor VPlay configurado para owner ${matchedCustomer.created_by}. Apenas due_date atualizado.`);
+        console.log(`[Cakto] NATV não configurado (API_KEY: ${natvApiKey ? 'sim' : 'não'}, BASE_URL: ${natvBaseUrl ? 'sim' : 'não'})`);
+      }
+
+      if (renewResults.length === 0) {
+        console.log(`[Cakto] Nenhum painel configurado para renovação. Apenas due_date atualizado.`);
       }
     }
 
