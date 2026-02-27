@@ -45,9 +45,10 @@ serve(async (req) => {
     }
 
     // Extract customer data - Cakto wraps everything inside body.data
-    const data = body?.data || body;
-    const customer = data?.customer || data?.buyer || body?.customer || body;
-    const phone = customer?.phone || customer?.phone_number || customer?.cellphone || data?.phone || body?.phone;
+    const caktoData = body?.data || body;
+    const caktoId = caktoData?.id || caktoData?.refId || '';
+    const customer = caktoData?.customer || caktoData?.buyer || body?.customer || body;
+    const phone = customer?.phone || customer?.phone_number || customer?.cellphone || caktoData?.phone || body?.phone;
     
     if (!phone) {
       console.warn('[Cakto] Telefone não encontrado no payload');
@@ -127,6 +128,26 @@ serve(async (req) => {
       }), { status: 404, headers: jsonHeaders });
     }
 
+    // ── Duplicate protection: check if this Cakto transaction was already processed ──
+    if (caktoId) {
+      const { data: existingPayment } = await supabaseAdmin
+        .from('payments')
+        .select('id')
+        .eq('customer_id', matchedCustomer.id)
+        .gte('created_at', new Date(Date.now() - 60 * 60 * 1000).toISOString()) // last 1h
+        .limit(1)
+        .maybeSingle();
+
+      if (existingPayment) {
+        console.warn(`[Cakto] Pagamento duplicado detectado para ${matchedCustomer.name} (caktoId: ${caktoId}). Ignorando.`);
+        return new Response(JSON.stringify({
+          success: true,
+          message: `Pagamento já processado para ${matchedCustomer.name}`,
+          duplicate: true,
+        }), { headers: jsonHeaders });
+      }
+    }
+
     // Get plan info for duration
     let durationDays = 30;
     if (matchedCustomer.plan_id) {
@@ -154,7 +175,7 @@ serve(async (req) => {
       .eq('id', matchedCustomer.id);
 
     // Register payment - Cakto sends amount in BRL (not cents)
-    const paymentAmount = data?.amount || data?.baseAmount || body?.sale?.amount || body?.amount || 0;
+    const paymentAmount = caktoData?.amount || caktoData?.baseAmount || body?.sale?.amount || body?.amount || 0;
     const amountNumeric = Number(String(paymentAmount).replace(/[^\d.,]/g, '').replace(',', '.')) || 0;
 
     if (amountNumeric > 0) {
@@ -168,52 +189,73 @@ serve(async (req) => {
       console.log(`[Cakto] Pagamento registrado: R$ ${amountNumeric.toFixed(2)}`);
     }
 
-    // Trigger server renewal if username exists
+    // Trigger VPlay server renewal only (if username exists)
     let renewResult: any = null;
     if (matchedCustomer.username?.trim() && matchedCustomer.server_id) {
-      const { data: serverData } = await supabaseAdmin
-        .from('servers')
-        .select('server_name, host')
-        .eq('id', matchedCustomer.server_id)
-        .maybeSingle();
+      try {
+        // Look for VPlay server config for this customer's owner
+        const { data: vplayServer } = await supabaseAdmin
+          .from('vplay_servers')
+          .select('integration_url, key_message')
+          .eq('user_id', matchedCustomer.created_by)
+          .eq('is_default', true)
+          .maybeSingle();
 
-      if (serverData) {
-        const serverName = (serverData.server_name || '').toLowerCase();
-        const serverHost = (serverData.host || '').toLowerCase();
-        const isTheBest = serverName.includes('the best') || serverHost.includes('the-best') || serverHost.includes('painel.best');
+        if (vplayServer?.integration_url) {
+          const vplayUrl = vplayServer.integration_url.replace(/\/+$/, '');
+          const keyMessage = vplayServer.key_message || 'XCLOUD';
+          const username = matchedCustomer.username.trim();
 
-        try {
-          if (isTheBest) {
-            const months = Math.max(1, Math.round(durationDays / 30));
-            // Call the-best-renew internally via fetch
-            const renewResp = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/the-best-renew`, {
+          console.log(`[Cakto] Renovando VPlay: ${username} via ${vplayUrl}`);
+
+          const vplayResp = await fetch(`${vplayUrl}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              key: keyMessage,
+              action: 'renew',
+              username,
+              duration: durationDays,
+            }),
+          });
+
+          renewResult = await vplayResp.json().catch(() => ({ raw: await vplayResp.text() }));
+          console.log(`[Cakto] VPlay renew result:`, JSON.stringify(renewResult));
+        } else {
+          // Fallback: check billing_settings for vplay_integration_url
+          const { data: billingSettings } = await supabaseAdmin
+            .from('billing_settings')
+            .select('vplay_integration_url, vplay_key_message')
+            .eq('user_id', matchedCustomer.created_by)
+            .maybeSingle();
+
+          if (billingSettings?.vplay_integration_url) {
+            const vplayUrl = billingSettings.vplay_integration_url.replace(/\/+$/, '');
+            const keyMessage = billingSettings.vplay_key_message || 'XCLOUD';
+            const username = matchedCustomer.username.trim();
+
+            console.log(`[Cakto] Renovando VPlay (billing_settings): ${username} via ${vplayUrl}`);
+
+            const vplayResp = await fetch(`${vplayUrl}`, {
               method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
-                'x-cakto-webhook-secret': webhookSecret,
-              },
-              body: JSON.stringify({ username: matchedCustomer.username.trim(), months, customer_id: matchedCustomer.id }),
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                key: keyMessage,
+                action: 'renew',
+                username,
+                duration: durationDays,
+              }),
             });
-            renewResult = await renewResp.json();
-            console.log(`[Cakto] TheBest renew result:`, JSON.stringify(renewResult));
+
+            renewResult = await vplayResp.json().catch(() => ({ raw: await vplayResp.text() }));
+            console.log(`[Cakto] VPlay renew result:`, JSON.stringify(renewResult));
           } else {
-            const renewResp = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/xui-renew`, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
-                'x-cakto-webhook-secret': webhookSecret,
-              },
-              body: JSON.stringify({ username: matchedCustomer.username.trim(), new_due_date: newDueDate, customer_id: matchedCustomer.id }),
-            });
-            renewResult = await renewResp.json();
-            console.log(`[Cakto] XUI renew result:`, JSON.stringify(renewResult));
+            console.log(`[Cakto] Nenhum servidor VPlay configurado para o owner ${matchedCustomer.created_by}. Apenas due_date atualizado.`);
           }
-        } catch (renewError) {
-          console.error(`[Cakto] Erro ao renovar no servidor:`, renewError);
-          renewResult = { error: renewError instanceof Error ? renewError.message : 'Erro desconhecido' };
         }
+      } catch (renewError) {
+        console.error(`[Cakto] Erro ao renovar no VPlay:`, renewError);
+        renewResult = { error: renewError instanceof Error ? renewError.message : 'Erro desconhecido' };
       }
     }
 
