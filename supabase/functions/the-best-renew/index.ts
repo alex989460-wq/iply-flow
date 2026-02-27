@@ -64,7 +64,7 @@ serve(async (req) => {
     const searchResponse = await fetch(searchUrl, {
       method: 'GET',
       headers: {
-        'Api-Key': apiKey,
+        'Authorization': `Bearer ${apiKey}`,
         'Accept': 'application/json',
       },
     });
@@ -110,7 +110,7 @@ serve(async (req) => {
     const renewResponse = await fetch(renewUrl, {
       method: 'POST',
       headers: {
-        'Api-Key': apiKey,
+        'Authorization': `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
         'Accept': 'application/json',
       },
