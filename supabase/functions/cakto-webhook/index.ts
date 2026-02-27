@@ -14,23 +14,43 @@ serve(async (req) => {
   const jsonHeaders = { ...corsHeaders, 'Content-Type': 'application/json' };
 
   try {
-    // Validate webhook secret
-    const webhookSecret = Deno.env.get('CAKTO_WEBHOOK_SECRET');
-    if (!webhookSecret) {
-      console.error('[Cakto] CAKTO_WEBHOOK_SECRET não configurado');
-      return new Response(JSON.stringify({ error: 'Webhook secret não configurado' }), { status: 500, headers: jsonHeaders });
-    }
-
+    // Validate webhook secret - check global first, then per-reseller
+    const globalWebhookSecret = Deno.env.get('CAKTO_WEBHOOK_SECRET');
     const receivedSecret = req.headers.get('x-webhook-secret') || req.headers.get('X-Webhook-Secret');
     
     const body = await req.json();
     console.log('[Cakto] Payload recebido:', JSON.stringify(body));
 
-    // Cakto pode enviar o secret no header ou no body
     const payloadSecret = body?.secret || body?.webhook_secret;
     const secretToValidate = receivedSecret || payloadSecret;
 
-    if (secretToValidate !== webhookSecret) {
+    // First try global secret
+    let secretValid = false;
+    if (globalWebhookSecret && secretToValidate === globalWebhookSecret) {
+      secretValid = true;
+    }
+
+    // If global didn't match, try all reseller secrets
+    if (!secretValid && secretToValidate) {
+      const supabaseCheck = createClient(
+        Deno.env.get('SUPABASE_URL')!,
+        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+        { auth: { autoRefreshToken: false, persistSession: false } },
+      );
+      const { data: matchingReseller } = await supabaseCheck
+        .from('reseller_api_settings')
+        .select('user_id')
+        .eq('cakto_webhook_secret', secretToValidate)
+        .limit(1)
+        .maybeSingle();
+
+      if (matchingReseller) {
+        secretValid = true;
+        console.log(`[Cakto] Secret validado via revendedor: ${matchingReseller.user_id}`);
+      }
+    }
+
+    if (!secretValid) {
       console.warn('[Cakto] Secret inválido');
       return new Response(JSON.stringify({ error: 'Secret inválido' }), { status: 401, headers: jsonHeaders });
     }
