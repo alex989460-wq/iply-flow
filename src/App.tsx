@@ -24,6 +24,7 @@ import BotTriggers from "./pages/BotTriggers";
 import Expenses from "./pages/Expenses";
 import NotFound from "./pages/NotFound";
 import MetaCallback from "./pages/MetaCallback";
+import PaymentConfirmation from "./pages/PaymentConfirmation";
 import { Loader2 } from "lucide-react";
 
 const queryClient = new QueryClient();
@@ -62,6 +63,7 @@ function AppRoutes() {
       <Route path="/" element={<LandingPage />} />
       <Route path="/auth" element={user ? <Navigate to="/dashboard" replace /> : <Auth />} />
       <Route path="/meta-callback" element={<MetaCallback />} />
+      <Route path="/pedido/:id" element={<PaymentConfirmation />} />
       <Route path="/dashboard" element={<ProtectedRoute><Index /></ProtectedRoute>} />
       <Route path="/servers" element={<ProtectedRoute><Servers /></ProtectedRoute>} />
       <Route path="/plans" element={<ProtectedRoute><Plans /></ProtectedRoute>} />
