@@ -284,6 +284,7 @@ serve(async (req) => {
         payment_date: today.toISOString().split('T')[0],
         method: 'pix',
         confirmed: true,
+        source: 'cakto',
       });
       console.log(`[Cakto] Pagamento registrado: R$ ${amountNumeric.toFixed(2)}`);
     }
@@ -390,15 +391,18 @@ serve(async (req) => {
       if (matchedCustomer.server_id) {
         const { data: serverData } = await supabaseAdmin
           .from('servers')
-          .select('server_name, host')
+          .select('server_name, host, auto_renew')
           .eq('id', matchedCustomer.server_id)
           .maybeSingle();
 
         const serverName = serverData?.server_name || '';
         const serverHost = serverData?.host || '';
+        const autoRenew = serverData?.auto_renew ?? false;
         const isVplay = serverName.toLowerCase().includes('vplay') || serverHost.toLowerCase().includes('vplay');
 
-        if (isVplay) {
+        if (!autoRenew) {
+          console.log(`[Cakto] Servidor "${serverName}" não está habilitado para renovação automática. Pulando.`);
+        } else if (isVplay) {
           for (const username of usernames) {
             try {
               console.log(`[Cakto] Renovando VPlay via MySQL: ${username}, nova data: ${newDueDate}`);
