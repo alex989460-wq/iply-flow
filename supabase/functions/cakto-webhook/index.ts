@@ -128,16 +128,18 @@ serve(async (req) => {
       }
     }
 
-    // Sort by score (best first)
+    // Sort by due_date ascending (closest to expiration / already expired first)
+    // This ensures each payment renews the most urgent customer
     allMatchedCustomers.sort((a: any, b: any) => {
+      const dateA = a.due_date ? new Date(a.due_date + 'T00:00:00').getTime() : 0;
+      const dateB = b.due_date ? new Date(b.due_date + 'T00:00:00').getTime() : 0;
+      if (dateA !== dateB) return dateA - dateB; // expired/closer first
+      // Tiebreaker: prefer customers with username and server configured
       const score = (c: any) =>
         (c.username?.trim() ? 2 : 0) +
         (c.server_id ? 2 : 0) +
-        (c.plan_id ? 1 : 0) +
-        (c.status === 'ativa' ? 1 : 0);
-      const scoreDiff = score(b) - score(a);
-      if (scoreDiff !== 0) return scoreDiff;
-      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+        (c.plan_id ? 1 : 0);
+      return score(b) - score(a);
     });
 
     if (allMatchedCustomers.length === 0) {
@@ -149,11 +151,11 @@ serve(async (req) => {
       }), { status: 404, headers: jsonHeaders });
     }
 
-    // Use the primary (best scored) customer for plan detection and messaging
+    // Pick only the FIRST customer (closest to expiration) for this payment
     const matchedCustomer = allMatchedCustomers[0];
-    console.log(`[Cakto] ${allMatchedCustomers.length} cliente(s) encontrado(s) para telefone ${phone}:`);
+    console.log(`[Cakto] ${allMatchedCustomers.length} cliente(s) encontrado(s) para telefone ${phone}. Renovando apenas: ${matchedCustomer.name} (${matchedCustomer.username || '-'}) due=${matchedCustomer.due_date}`);
     for (const c of allMatchedCustomers) {
-      console.log(`  - ${c.name} (${c.username || '-'}) id=${c.id} status=${c.status}`);
+      console.log(`  - ${c.name} (${c.username || '-'}) id=${c.id} status=${c.status} due=${c.due_date}`);
     }
 
     // ── Determine payment amount early (used for duplicate protection) ──
@@ -276,13 +278,9 @@ serve(async (req) => {
 
     console.log(`[Cakto] ${allMatchedCustomers.length} cliente(s) a renovar (duração: ${durationDays} dias, meses: ${monthsToAdd || 'N/A'})`);
 
-    // Update ALL matched customers' due_date and status, and register payments
-    const perCustomerAmount = allMatchedCustomers.length > 1
-      ? Number((amountNumeric / allMatchedCustomers.length).toFixed(2))
-      : amountNumeric;
-
-    for (const cust of allMatchedCustomers) {
-      // Calculate new due date per customer (each may have different current due_date)
+    // Renew ONLY the single selected customer (closest to expiration)
+    {
+      const cust = matchedCustomer;
       const custCurrentDue = cust.due_date ? new Date(cust.due_date + 'T00:00:00') : today;
       const custBase = new Date(custCurrentDue > today ? custCurrentDue : today);
 
@@ -297,11 +295,11 @@ serve(async (req) => {
       }
       const custNewDue = custBase.toISOString().split('T')[0];
 
-      // Build update payload: always update due_date & status; also update plan_id if a different plan was matched
+      // Build update payload
       const custUpdate: Record<string, unknown> = { due_date: custNewDue, status: 'ativa' };
       if (bestMatch && bestMatch.id !== cust.plan_id) {
         custUpdate.plan_id = bestMatch.id;
-        custUpdate.custom_price = null; // reset custom price when plan changes
+        custUpdate.custom_price = null;
       }
       await supabaseAdmin
         .from('customers')
@@ -310,17 +308,17 @@ serve(async (req) => {
 
       console.log(`[Cakto] Cliente ${cust.name} (${cust.username || '-'}) atualizado: due_date=${custNewDue}`);
 
-      // Register payment per customer
+      // Register payment for this single customer
       if (amountNumeric > 0) {
         await supabaseAdmin.from('payments').insert({
           customer_id: cust.id,
-          amount: perCustomerAmount,
+          amount: amountNumeric,
           payment_date: today.toISOString().split('T')[0],
           method: 'pix',
           confirmed: true,
           source: 'cakto',
         });
-        console.log(`[Cakto] Pagamento registrado para ${cust.name}: R$ ${perCustomerAmount.toFixed(2)}`);
+        console.log(`[Cakto] Pagamento registrado para ${cust.name}: R$ ${amountNumeric.toFixed(2)}`);
       }
     }
 
@@ -468,14 +466,12 @@ serve(async (req) => {
     }
 
     // ── Trigger server renewals for ALL matched customers' usernames ──
-    const renewResults: any[] = [];
+    // Only renew server for the SINGLE selected customer's usernames
     const allUsernames: string[] = [];
-    for (const cust of allMatchedCustomers) {
-      if (cust.username?.trim()) {
-        const parts = cust.username.split(',').map((u: string) => u.trim()).filter((u: string) => u.length > 0);
-        for (const u of parts) {
-          if (!allUsernames.includes(u)) allUsernames.push(u);
-        }
+    if (matchedCustomer.username?.trim()) {
+      const parts = matchedCustomer.username.split(',').map((u: string) => u.trim()).filter((u: string) => u.length > 0);
+      for (const u of parts) {
+        if (!allUsernames.includes(u)) allUsernames.push(u);
       }
     }
 
