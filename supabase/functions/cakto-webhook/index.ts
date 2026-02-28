@@ -352,18 +352,18 @@ serve(async (req) => {
           // Build confirmation link with supergestor.top domain
           const confirmationUrl = `https://supergestor.top/pedido/${confirmationId}`;
 
-          // Send template "renovacao_aprovada" with 4 body variables + button URL
+          // Send template "renovacao_aprovada" with $variavel format
           const templatePayload = {
             type: 'template',
             number: metaPhone,
             template_name: 'renovacao_aprovada',
             language: 'pt_BR',
-            params: [
-              matchedCustomer.name,                    // Corpo #1 - Nome do cliente
-              matchedCustomer.username || 'N/A',       // Corpo #2 - Username
-              serverName,                               // Corpo #3 - Servidor
-              formattedDueDate,                         // Corpo #4 - Data de vencimento
-            ],
+            variables: {
+              nome: matchedCustomer.name,
+              usuario: matchedCustomer.username || 'N/A',
+              servidor: serverName,
+              vencimento: formattedDueDate,
+            },
             button_url: confirmationUrl,
           };
 
