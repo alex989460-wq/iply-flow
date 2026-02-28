@@ -552,7 +552,11 @@ serve(async (req) => {
     if (allUsernames.length > 0) {
       console.log(`[Cakto] Usernames para renovar: ${allUsernames.join(', ')} (${allUsernames.length} conexões)`);
 
-      // ── VPlay renewal via vplay-renew edge function (MySQL) ──
+      // ── Detect server type to only renew on the CORRECT panel ──
+      let serverName = '';
+      let serverHost = '';
+      let autoRenew = false;
+
       if (matchedCustomer.server_id) {
         const { data: serverData } = await supabaseAdmin
           .from('servers')
@@ -560,14 +564,33 @@ serve(async (req) => {
           .eq('id', matchedCustomer.server_id)
           .maybeSingle();
 
-        const serverName = serverData?.server_name || '';
-        const serverHost = serverData?.host || '';
-        const autoRenew = serverData?.auto_renew ?? false;
-        const isVplay = serverName.toLowerCase().includes('vplay') || serverHost.toLowerCase().includes('vplay');
+        serverName = serverData?.server_name || '';
+        serverHost = serverData?.host || '';
+        autoRenew = serverData?.auto_renew ?? false;
+      }
 
-        if (!autoRenew) {
-          console.log(`[Cakto] Servidor "${serverName}" não está habilitado para renovação automática. Pulando.`);
-        } else if (isVplay) {
+      const sNameLower = serverName.toLowerCase();
+      const sHostLower = serverHost.toLowerCase();
+      const isVplay = sNameLower.includes('vplay') || sHostLower.includes('vplay');
+      const isRush = sNameLower.includes('rush') || sHostLower.includes('rush');
+      const isTheBest = sNameLower.includes('best') || sHostLower.includes('best');
+      const isNatv = sNameLower.includes('natv') || sHostLower.includes('natv');
+
+      console.log(`[Cakto] Servidor: "${serverName}" (host: "${serverHost}") | auto_renew: ${autoRenew} | Tipo: ${isVplay ? 'VPlay' : isRush ? 'Rush' : isTheBest ? 'The Best' : isNatv ? 'NATV' : 'desconhecido'}`);
+
+      if (!matchedCustomer.server_id) {
+        console.log(`[Cakto] Cliente sem servidor configurado. Pulando renovação no painel.`);
+      } else if (!autoRenew) {
+        console.log(`[Cakto] Servidor "${serverName}" não está habilitado para renovação automática. Pulando.`);
+      } else {
+        const { data: resellerApiSettings } = await supabaseAdmin
+          .from('reseller_api_settings')
+          .select('natv_api_key, natv_base_url, the_best_username, the_best_password, the_best_base_url, rush_username, rush_password, rush_token, rush_base_url')
+          .eq('user_id', matchedCustomer.created_by)
+          .maybeSingle();
+
+        // ── VPlay renewal ──
+        if (isVplay) {
           for (const username of allUsernames) {
             try {
               console.log(`[Cakto] Renovando VPlay via MySQL: ${username}, nova data: ${newDueDate}`);
@@ -580,11 +603,7 @@ serve(async (req) => {
                     'Authorization': `Bearer ${Deno.env.get('SUPABASE_ANON_KEY')}`,
                     'x-cakto-webhook-secret': globalWebhookSecret || '',
                   },
-                  body: JSON.stringify({
-                    username,
-                    new_due_date: newDueDate,
-                    customer_id: matchedCustomer.id,
-                  }),
+                  body: JSON.stringify({ username, new_due_date: newDueDate, customer_id: matchedCustomer.id }),
                 },
               );
               const vplayResult = await vplayResp.json();
@@ -597,213 +616,176 @@ serve(async (req) => {
             }
           }
         }
-      }
 
-      // ── NATV renewal ──
-      // Try per-reseller settings first, then fall back to global env vars
-      let natvApiKey = '';
-      let natvBaseUrl = '';
-
-      const { data: resellerApiSettings } = await supabaseAdmin
-        .from('reseller_api_settings')
-        .select('natv_api_key, natv_base_url, the_best_username, the_best_password, the_best_base_url, rush_username, rush_password, rush_token, rush_base_url')
-        .eq('user_id', matchedCustomer.created_by)
-        .maybeSingle();
-
-      if (resellerApiSettings?.natv_api_key && resellerApiSettings?.natv_base_url) {
-        natvApiKey = resellerApiSettings.natv_api_key;
-        natvBaseUrl = resellerApiSettings.natv_base_url.replace(/\/+$/, '');
-        console.log(`[Cakto] Usando chaves NATV do revendedor`);
-      } else {
-        natvApiKey = Deno.env.get('NATV_API_KEY') || '';
-        natvBaseUrl = (Deno.env.get('NATV_BASE_URL') || '').replace(/\/+$/, '');
-        if (natvApiKey && natvBaseUrl) {
-          console.log(`[Cakto] Usando chaves NATV globais (fallback)`);
-        }
-      }
-
-      if (natvApiKey && natvBaseUrl) {
-        const daysToMonths: Record<number, number> = { 30: 1, 60: 2, 90: 3, 120: 4, 150: 5, 180: 6, 360: 12, 365: 12 };
-        const months = daysToMonths[durationDays] || Math.max(1, Math.round(durationDays / 30));
-        const validMonths = [1, 2, 3, 4, 5, 6, 12];
-        const natvMonths = validMonths.includes(months) ? months : validMonths.reduce((prev, curr) =>
-          Math.abs(curr - months) < Math.abs(prev - months) ? curr : prev
-        );
-
-        for (const username of allUsernames) {
-          try {
-            console.log(`[Cakto] Renovando NATV: ${username} por ${natvMonths} meses`);
-            const natvResp = await fetch(`${natvBaseUrl}/user/activation`, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${natvApiKey}`,
-              },
-              body: JSON.stringify({ username, months: natvMonths }),
-            });
-            const natvText = await natvResp.text();
-            let result: any;
-            try { result = JSON.parse(natvText); } catch { result = { raw: natvText }; }
-            renewResults.push({ panel: 'natv', username, success: natvResp.ok, result });
-            console.log(`[Cakto] NATV renew ${username}: status=${natvResp.status}`, JSON.stringify(result));
-          } catch (e) {
-            const errMsg = e instanceof Error ? e.message : 'Erro desconhecido';
-            renewResults.push({ panel: 'natv', username, success: false, error: errMsg });
-            console.error(`[Cakto] Erro renovando NATV ${username}:`, e);
-          }
-        }
-      } else {
-        console.log(`[Cakto] NATV não configurado (API_KEY: ${natvApiKey ? 'sim' : 'não'}, BASE_URL: ${natvBaseUrl ? 'sim' : 'não'})`);
-      }
-
-      // ── The Best renewal (JWT login) ──
-      let tbUsername = resellerApiSettings?.the_best_username || '';
-      let tbPassword = resellerApiSettings?.the_best_password || '';
-      let theBestBaseUrl = (resellerApiSettings?.the_best_base_url || '').replace(/\/+$/, '') || 'https://api.painel.best';
-
-      if (tbUsername && tbPassword) {
-        console.log(`[Cakto] Usando credenciais The Best do revendedor`);
-      } else {
-        console.log(`[Cakto] The Best não configurado (sem username/password)`);
-      }
-
-      if (tbUsername && tbPassword) {
-        const tbDaysToMonths: Record<number, number> = { 30: 1, 60: 2, 90: 3, 120: 4, 150: 5, 180: 6, 360: 12, 365: 12 };
-        const tbMonths = tbDaysToMonths[durationDays] || Math.max(1, Math.round(durationDays / 30));
-
-        // Login to get JWT token
-        let tbToken = '';
-        try {
-          const loginResp = await fetch(`${theBestBaseUrl}/auth/token/`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ username: tbUsername, password: tbPassword }),
-          });
-          if (!loginResp.ok) {
-            const errText = await loginResp.text();
-            console.error(`[Cakto] The Best login falhou: ${loginResp.status} - ${errText}`);
+        // ── NATV renewal ──
+        if (isNatv) {
+          let natvApiKey = '';
+          let natvBaseUrl = '';
+          if (resellerApiSettings?.natv_api_key && resellerApiSettings?.natv_base_url) {
+            natvApiKey = resellerApiSettings.natv_api_key;
+            natvBaseUrl = resellerApiSettings.natv_base_url.replace(/\/+$/, '');
+            console.log(`[Cakto] Usando chaves NATV do revendedor`);
           } else {
-            const loginData = await loginResp.json();
-            tbToken = loginData.access || loginData.token || loginData.access_token || '';
-            if (tbToken) console.log(`[Cakto] The Best: token JWT obtido`);
+            natvApiKey = Deno.env.get('NATV_API_KEY') || '';
+            natvBaseUrl = (Deno.env.get('NATV_BASE_URL') || '').replace(/\/+$/, '');
+            if (natvApiKey && natvBaseUrl) console.log(`[Cakto] Usando chaves NATV globais (fallback)`);
           }
-        } catch (loginErr) {
-          console.error(`[Cakto] The Best login erro:`, loginErr);
-        }
-
-        if (tbToken) {
-          for (const username of allUsernames) {
-            try {
-              console.log(`[Cakto] Renovando The Best: ${username} por ${tbMonths} meses`);
-
-              // Search for user
-              const searchUrl = `${theBestBaseUrl}/lines/?search=${encodeURIComponent(username.trim())}&per_page=10`;
-              const searchResponse = await fetch(searchUrl, {
-                method: 'GET',
-                headers: { 'Authorization': `Bearer ${tbToken}`, 'Accept': 'application/json' },
-              });
-
-              if (!searchResponse.ok) {
-                const errText = await searchResponse.text();
-                console.error(`[Cakto] The Best busca falhou: ${searchResponse.status} - ${errText}`);
-                renewResults.push({ panel: 'the_best', username, success: false, error: `Busca falhou: ${searchResponse.status}` });
-                continue;
-              }
-
-              const searchData = await searchResponse.json();
-              const results = searchData.results || searchData.data || searchData;
-              const lines = Array.isArray(results) ? results : [];
-              const normalizedUsername = username.trim().toLowerCase();
-              const matchedLine = lines.find((line: any) =>
-                String(line.username || '').trim().toLowerCase() === normalizedUsername
-              );
-
-              if (!matchedLine) {
-                console.log(`[Cakto] The Best: usuário "${username}" não encontrado`);
-                renewResults.push({ panel: 'the_best', username, success: false, error: 'Usuário não encontrado' });
-                continue;
-              }
-
-              const lineId = matchedLine.id;
-              console.log(`[Cakto] The Best: usuário encontrado id=${lineId}`);
-
-              // Renew
-              const renewUrl = `${theBestBaseUrl}/lines/${lineId}/renew/`;
-              const renewResponse = await fetch(renewUrl, {
-                method: 'POST',
-                headers: { 'Authorization': `Bearer ${tbToken}`, 'Content-Type': 'application/json', 'Accept': 'application/json' },
-                body: JSON.stringify({ months: tbMonths }),
-              });
-
-              if (!renewResponse.ok) {
-                const errText = await renewResponse.text();
-                console.error(`[Cakto] The Best renovação falhou: ${renewResponse.status} - ${errText}`);
-                renewResults.push({ panel: 'the_best', username, success: false, error: `Renovação falhou: ${renewResponse.status}` });
-                continue;
-              }
-
-              const renewData = await renewResponse.json();
-              console.log(`[Cakto] The Best renew ${username}: OK`, JSON.stringify(renewData));
-              renewResults.push({ panel: 'the_best', username, success: true, result: renewData });
-            } catch (e) {
-              const errMsg = e instanceof Error ? e.message : 'Erro desconhecido';
-              renewResults.push({ panel: 'the_best', username, success: false, error: errMsg });
-              console.error(`[Cakto] Erro renovando The Best ${username}:`, e);
-            }
-          }
-        }
-      }
-
-      // ── Rush renewal (P2P / IPTV) ──
-      const rushUsername = resellerApiSettings?.rush_username || '';
-      const rushPassword = resellerApiSettings?.rush_password || '';
-      const rushToken = resellerApiSettings?.rush_token || '';
-      const rushBaseUrl = (resellerApiSettings?.rush_base_url || '').replace(/\/+$/, '') || 'https://api-new.painel.ai';
-
-      if (rushUsername && rushPassword && rushToken) {
-        console.log(`[Cakto] Usando credenciais Rush do revendedor`);
-        const rushDaysToMonths: Record<number, number> = { 30: 1, 60: 2, 90: 3, 120: 4, 150: 5, 180: 6, 360: 12, 365: 12 };
-        const rushMonths = rushDaysToMonths[durationDays] || Math.max(1, Math.round(durationDays / 30));
-
-        for (const username of allUsernames) {
-          try {
-            console.log(`[Cakto] Renovando Rush: ${username} por ${rushMonths} meses`);
-            const rushResp = await fetch(
-              `${Deno.env.get('SUPABASE_URL')}/functions/v1/rush-renew`,
-              {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  'Authorization': `Bearer ${Deno.env.get('SUPABASE_ANON_KEY')}`,
-                  'x-cakto-webhook-secret': globalWebhookSecret || '',
-                },
-                body: JSON.stringify({
-                  username,
-                  months: rushMonths,
-                  customer_id: matchedCustomer.id,
-                  rush_username: rushUsername,
-                  rush_password: rushPassword,
-                  rush_token: rushToken,
-                  rush_base_url: rushBaseUrl,
-                  screens: matchedCustomer.screens || 1,
-                }),
-              },
+          if (natvApiKey && natvBaseUrl) {
+            const daysToMonths: Record<number, number> = { 30: 1, 60: 2, 90: 3, 120: 4, 150: 5, 180: 6, 360: 12, 365: 12 };
+            const months = daysToMonths[durationDays] || Math.max(1, Math.round(durationDays / 30));
+            const validMonths = [1, 2, 3, 4, 5, 6, 12];
+            const natvMonths = validMonths.includes(months) ? months : validMonths.reduce((prev, curr) =>
+              Math.abs(curr - months) < Math.abs(prev - months) ? curr : prev
             );
-            const rushResult = await rushResp.json();
-            renewResults.push({ panel: 'rush', username, success: rushResult?.success ?? false, result: rushResult });
-            console.log(`[Cakto] Rush renew ${username}:`, JSON.stringify(rushResult));
-          } catch (e) {
-            const errMsg = e instanceof Error ? e.message : 'Erro desconhecido';
-            renewResults.push({ panel: 'rush', username, success: false, error: errMsg });
-            console.error(`[Cakto] Erro renovando Rush ${username}:`, e);
+            for (const username of allUsernames) {
+              try {
+                console.log(`[Cakto] Renovando NATV: ${username} por ${natvMonths} meses`);
+                const natvResp = await fetch(`${natvBaseUrl}/user/activation`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${natvApiKey}` },
+                  body: JSON.stringify({ username, months: natvMonths }),
+                });
+                const natvText = await natvResp.text();
+                let result: any;
+                try { result = JSON.parse(natvText); } catch { result = { raw: natvText }; }
+                renewResults.push({ panel: 'natv', username, success: natvResp.ok, result });
+                console.log(`[Cakto] NATV renew ${username}: status=${natvResp.status}`, JSON.stringify(result));
+              } catch (e) {
+                const errMsg = e instanceof Error ? e.message : 'Erro desconhecido';
+                renewResults.push({ panel: 'natv', username, success: false, error: errMsg });
+                console.error(`[Cakto] Erro renovando NATV ${username}:`, e);
+              }
+            }
+          } else {
+            console.log(`[Cakto] NATV não configurado`);
           }
         }
-      } else {
-        console.log(`[Cakto] Rush não configurado`);
+
+        // ── The Best renewal ──
+        if (isTheBest) {
+          const tbUsername = resellerApiSettings?.the_best_username || '';
+          const tbPassword = resellerApiSettings?.the_best_password || '';
+          const theBestBaseUrl = (resellerApiSettings?.the_best_base_url || '').replace(/\/+$/, '') || 'https://api.painel.best';
+          if (tbUsername && tbPassword) {
+            console.log(`[Cakto] Usando credenciais The Best do revendedor`);
+            const tbDaysToMonths: Record<number, number> = { 30: 1, 60: 2, 90: 3, 120: 4, 150: 5, 180: 6, 360: 12, 365: 12 };
+            const tbMonths = tbDaysToMonths[durationDays] || Math.max(1, Math.round(durationDays / 30));
+            let tbToken = '';
+            try {
+              const loginResp = await fetch(`${theBestBaseUrl}/auth/token/`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username: tbUsername, password: tbPassword }),
+              });
+              if (!loginResp.ok) {
+                console.error(`[Cakto] The Best login falhou: ${loginResp.status}`);
+              } else {
+                const loginData = await loginResp.json();
+                tbToken = loginData.access || loginData.token || loginData.access_token || '';
+                if (tbToken) console.log(`[Cakto] The Best: token JWT obtido`);
+              }
+            } catch (loginErr) {
+              console.error(`[Cakto] The Best login erro:`, loginErr);
+            }
+            if (tbToken) {
+              for (const username of allUsernames) {
+                try {
+                  console.log(`[Cakto] Renovando The Best: ${username} por ${tbMonths} meses`);
+                  const searchUrl = `${theBestBaseUrl}/lines/?search=${encodeURIComponent(username.trim())}&per_page=10`;
+                  const searchResponse = await fetch(searchUrl, {
+                    method: 'GET',
+                    headers: { 'Authorization': `Bearer ${tbToken}`, 'Accept': 'application/json' },
+                  });
+                  if (!searchResponse.ok) {
+                    renewResults.push({ panel: 'the_best', username, success: false, error: `Busca falhou: ${searchResponse.status}` });
+                    continue;
+                  }
+                  const searchData = await searchResponse.json();
+                  const results = searchData.results || searchData.data || searchData;
+                  const lines = Array.isArray(results) ? results : [];
+                  const matchedLine = lines.find((line: any) =>
+                    String(line.username || '').trim().toLowerCase() === username.trim().toLowerCase()
+                  );
+                  if (!matchedLine) {
+                    console.log(`[Cakto] The Best: usuário "${username}" não encontrado`);
+                    renewResults.push({ panel: 'the_best', username, success: false, error: 'Usuário não encontrado' });
+                    continue;
+                  }
+                  const renewUrl = `${theBestBaseUrl}/lines/${matchedLine.id}/renew/`;
+                  const renewResponse = await fetch(renewUrl, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${tbToken}`, 'Content-Type': 'application/json', 'Accept': 'application/json' },
+                    body: JSON.stringify({ months: tbMonths }),
+                  });
+                  if (!renewResponse.ok) {
+                    renewResults.push({ panel: 'the_best', username, success: false, error: `Renovação falhou: ${renewResponse.status}` });
+                    continue;
+                  }
+                  const renewData = await renewResponse.json();
+                  console.log(`[Cakto] The Best renew ${username}: OK`, JSON.stringify(renewData));
+                  renewResults.push({ panel: 'the_best', username, success: true, result: renewData });
+                } catch (e) {
+                  const errMsg = e instanceof Error ? e.message : 'Erro desconhecido';
+                  renewResults.push({ panel: 'the_best', username, success: false, error: errMsg });
+                  console.error(`[Cakto] Erro renovando The Best ${username}:`, e);
+                }
+              }
+            }
+          } else {
+            console.log(`[Cakto] The Best não configurado`);
+          }
+        }
+
+        // ── Rush renewal ──
+        if (isRush) {
+          const rushUsername = resellerApiSettings?.rush_username || '';
+          const rushPassword = resellerApiSettings?.rush_password || '';
+          const rushToken = resellerApiSettings?.rush_token || '';
+          const rushBaseUrl = (resellerApiSettings?.rush_base_url || '').replace(/\/+$/, '') || 'https://api-new.painel.ai';
+          if (rushUsername && rushPassword && rushToken) {
+            console.log(`[Cakto] Usando credenciais Rush do revendedor`);
+            const rushDaysToMonths: Record<number, number> = { 30: 1, 60: 2, 90: 3, 120: 4, 150: 5, 180: 6, 360: 12, 365: 12 };
+            const rushMonths = rushDaysToMonths[durationDays] || Math.max(1, Math.round(durationDays / 30));
+            for (const username of allUsernames) {
+              try {
+                console.log(`[Cakto] Renovando Rush: ${username} por ${rushMonths} meses`);
+                const rushResp = await fetch(
+                  `${Deno.env.get('SUPABASE_URL')}/functions/v1/rush-renew`,
+                  {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      'Authorization': `Bearer ${Deno.env.get('SUPABASE_ANON_KEY')}`,
+                      'x-cakto-webhook-secret': globalWebhookSecret || '',
+                    },
+                    body: JSON.stringify({
+                      username, months: rushMonths, customer_id: matchedCustomer.id,
+                      rush_username: rushUsername, rush_password: rushPassword, rush_token: rushToken,
+                      rush_base_url: rushBaseUrl, screens: matchedCustomer.screens || 1,
+                    }),
+                  },
+                );
+                const rushResult = await rushResp.json();
+                renewResults.push({ panel: 'rush', username, success: rushResult?.success ?? false, result: rushResult });
+                console.log(`[Cakto] Rush renew ${username}:`, JSON.stringify(rushResult));
+              } catch (e) {
+                const errMsg = e instanceof Error ? e.message : 'Erro desconhecido';
+                renewResults.push({ panel: 'rush', username, success: false, error: errMsg });
+                console.error(`[Cakto] Erro renovando Rush ${username}:`, e);
+              }
+            }
+          } else {
+            console.log(`[Cakto] Rush não configurado`);
+          }
+        }
+
+        if (!isVplay && !isNatv && !isTheBest && !isRush) {
+          console.log(`[Cakto] Tipo de servidor não reconhecido: "${serverName}". Nenhuma renovação externa. Apenas due_date atualizado.`);
+        }
       }
 
       if (renewResults.length === 0) {
-        console.log(`[Cakto] Nenhum painel configurado para renovação. Apenas due_date atualizado.`);
+        console.log(`[Cakto] Nenhuma renovação no painel externo realizada. Apenas due_date atualizado.`);
       }
     }
 
