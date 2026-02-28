@@ -210,7 +210,7 @@ serve(async (req) => {
       const screens = matchedCustomer.screens || 1;
       const pricePerScreen = amountNumeric / screens;
 
-      // Find closest plan by price (tolerance ±10%)
+      // Find closest plan by price per screen (tolerance ±10%)
       let bestDiff = Infinity;
       for (const plan of allPlans) {
         const diff = Math.abs(plan.price - pricePerScreen);
@@ -221,8 +221,23 @@ serve(async (req) => {
         }
       }
 
-      // Also try matching total amount directly (for custom_price customers)
-      if (!bestMatch) {
+      // If per-screen match failed and customer has multiple screens with an existing plan,
+      // check if current plan price × screens ≈ paid amount → keep current plan
+      if (!bestMatch && matchedCustomer.plan_id && screens > 1) {
+        const currentPlan = allPlans.find((p: any) => p.id === matchedCustomer.plan_id);
+        if (currentPlan) {
+          const expectedTotal = currentPlan.price * screens;
+          const diff = Math.abs(expectedTotal - amountNumeric);
+          const tolerance = expectedTotal * 0.15;
+          if (diff <= tolerance) {
+            bestMatch = currentPlan;
+            console.log(`[Cakto] Match por plano atual × telas: ${currentPlan.plan_name} (${currentPlan.price} × ${screens} = ${expectedTotal}) ≈ ${amountNumeric}`);
+          }
+        }
+      }
+
+      // Only for single-screen customers: try matching total amount directly
+      if (!bestMatch && screens === 1) {
         for (const plan of allPlans) {
           const diff = Math.abs(plan.price - amountNumeric);
           const tolerance = plan.price * 0.1;
