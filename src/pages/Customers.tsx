@@ -274,6 +274,7 @@ export default function Customers() {
             const isTheBest = serverName.toLowerCase().includes('the best') || serverHost.toLowerCase().includes('the-best') || serverHost.toLowerCase().includes('painel.best');
             const isNatv = serverName.toLowerCase().includes('natv') || serverHost.toLowerCase().includes('pixbot') || serverHost.toLowerCase().includes('natv');
             const isVplay = serverName.toLowerCase().includes('vplay') || serverHost.toLowerCase().includes('vplay');
+            const isRush = serverName.toLowerCase().includes('rush') || serverHost.toLowerCase().includes('rush');
             const plan = plans?.find(p => p.id === newCustomer.plan_id);
 
             if (isTheBest) {
@@ -299,6 +300,14 @@ export default function Customers() {
               if (vpError) console.error('[VPlay] Erro auto-renew:', vpError);
               else if (!vpResult?.success) console.warn('[VPlay] Falha auto-renew:', vpResult?.error);
               else console.log('[VPlay] Auto-renovado ao cadastrar:', vpResult);
+            } else if (isRush) {
+              const months = Math.max(1, Math.round((plan?.duration_days || 30) / 30));
+              const { data: rushResult, error: rushError } = await supabase.functions.invoke('rush-renew', {
+                body: { username: newCustomer.username.trim(), months, customer_id: newCustomer.id },
+              });
+              if (rushError) console.error('[Rush] Erro auto-renew:', rushError);
+              else if (!rushResult?.success) console.warn('[Rush] Falha auto-renew:', rushResult?.error);
+              else console.log('[Rush] Auto-renovado ao cadastrar:', rushResult);
             } else {
               const { data: xuiResult, error: xuiError } = await supabase.functions.invoke('xui-renew', {
                 body: { username: newCustomer.username.trim(), new_due_date: dueDate, customer_id: newCustomer.id },
@@ -428,6 +437,7 @@ export default function Customers() {
           const isTheBest = serverName.toLowerCase().includes('the best') || serverHost.toLowerCase().includes('the-best') || serverHost.toLowerCase().includes('painel.best');
           const isNatv = serverName.toLowerCase().includes('natv') || serverHost.toLowerCase().includes('pixbot') || serverHost.toLowerCase().includes('natv');
           const isVplay = serverName.toLowerCase().includes('vplay') || serverHost.toLowerCase().includes('vplay');
+          const isRush = serverName.toLowerCase().includes('rush') || serverHost.toLowerCase().includes('rush');
           
           if (isTheBest) {
             const months = Math.max(1, Math.round(plan.duration_days / 30));
@@ -452,6 +462,14 @@ export default function Customers() {
             if (vpError) console.error('[VPlay] Erro:', vpError);
             else if (!vpResult?.success) console.warn('[VPlay] Falha:', vpResult?.error);
             else console.log('[VPlay] Renovado:', vpResult);
+          } else if (isRush) {
+            const months = Math.max(1, Math.round(plan.duration_days / 30));
+            const { data: rushResult, error: rushError } = await supabase.functions.invoke('rush-renew', {
+              body: { username: customer.username.trim(), months, customer_id: customer.id },
+            });
+            if (rushError) console.error('[Rush] Erro:', rushError);
+            else if (!rushResult?.success) console.warn('[Rush] Falha:', rushResult?.error);
+            else console.log('[Rush] Renovado:', rushResult);
           } else {
             const { data: xuiResult, error: xuiError } = await supabase.functions.invoke('xui-renew', {
               body: { username: customer.username.trim(), new_due_date: newDueDateStr, customer_id: customer.id },
@@ -742,6 +760,7 @@ export default function Customers() {
             const isTheBest = serverName.toLowerCase().includes('the best') || serverHost.toLowerCase().includes('the-best') || serverHost.toLowerCase().includes('painel.best');
             const isNatv = serverName.toLowerCase().includes('natv') || serverHost.toLowerCase().includes('pixbot') || serverHost.toLowerCase().includes('natv');
             const isVplay = serverName.toLowerCase().includes('vplay') || serverHost.toLowerCase().includes('vplay');
+            const isRush = serverName.toLowerCase().includes('rush') || serverHost.toLowerCase().includes('rush');
 
             if (isTheBest) {
               const months = Math.max(1, Math.round(plan.duration_days / 30));
@@ -771,6 +790,16 @@ export default function Customers() {
                 console.warn(`[VPlay] Falha para ${latestCustomer.name}:`, vpError?.message || vpResult?.error);
               } else {
                 console.log(`[VPlay] ${latestCustomer.name} renovado`);
+              }
+            } else if (isRush) {
+              const months = Math.max(1, Math.round(plan.duration_days / 30));
+              const { data: rushResult, error: rushError } = await supabase.functions.invoke('rush-renew', {
+                body: { username: latestCustomer.username.trim(), months, customer_id: latestCustomer.id },
+              });
+              if (rushError || !rushResult?.success) {
+                console.warn(`[Rush] Falha para ${latestCustomer.name}:`, rushError?.message || rushResult?.error);
+              } else {
+                console.log(`[Rush] ${latestCustomer.name} renovado`);
               }
             } else {
               const { data: xuiResult, error: xuiError } = await supabase.functions.invoke('xui-renew', {
