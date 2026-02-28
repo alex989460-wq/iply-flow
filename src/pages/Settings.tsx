@@ -15,6 +15,7 @@ import { Separator } from '@/components/ui/separator';
 import VplayServersManager from '@/components/settings/VplayServersManager';
 import GoalsSettingsCard from '@/components/settings/GoalsSettingsCard';
 import ResellerApiSettings from '@/components/settings/ResellerApiSettings';
+import AutoRenewServersCard from '@/components/settings/AutoRenewServersCard';
 
 async function getFunctionsHttpErrorDetails(err: unknown): Promise<{ message?: string; raw?: any } | null> {
   // supabase-js / @supabase/functions-js throws FunctionsHttpError with `.context` as a Response
@@ -1198,8 +1199,9 @@ export default function Settings() {
           </TabsContent>
 
           {/* APIs Externas Tab */}
-          <TabsContent value="apis_externas" className="mt-6">
+          <TabsContent value="apis_externas" className="mt-6 space-y-6">
             <ResellerApiSettings />
+            <AutoRenewServersCard />
           </TabsContent>
 
           {/* Vplay Test Generator Tab */}

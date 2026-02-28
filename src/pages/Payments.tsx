@@ -29,7 +29,8 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Loader2, CreditCard, Pencil, Trash2 } from 'lucide-react';
+import { Plus, Loader2, CreditCard, Pencil, Trash2, Bot } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 import type { Database } from '@/integrations/supabase/types';
 
 type PaymentMethod = Database['public']['Enums']['payment_method'];
@@ -285,6 +286,7 @@ export default function Payments() {
                     <TableHead>Cliente</TableHead>
                     <TableHead>Valor</TableHead>
                     <TableHead>Método</TableHead>
+                    <TableHead>Origem</TableHead>
                     <TableHead>Data</TableHead>
                     <TableHead className="text-right">Ações</TableHead>
                   </TableRow>
@@ -297,6 +299,18 @@ export default function Payments() {
                         R$ {Number(payment.amount).toFixed(2)}
                       </TableCell>
                       <TableCell>{getMethodLabel(payment.method)}</TableCell>
+                      <TableCell>
+                        {(payment as any).source === 'cakto' ? (
+                          <Badge variant="secondary" className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 gap-1">
+                            <Bot className="w-3 h-3" />
+                            Automático
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-muted-foreground gap-1">
+                            Manual
+                          </Badge>
+                        )}
+                      </TableCell>
                       <TableCell>
                         {payment.payment_date.split('-').reverse().join('/')}
                       </TableCell>

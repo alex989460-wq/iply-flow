@@ -537,6 +537,7 @@ export type Database = {
           id: string
           method: Database["public"]["Enums"]["payment_method"]
           payment_date: string
+          source: string
         }
         Insert: {
           amount: number
@@ -546,6 +547,7 @@ export type Database = {
           id?: string
           method?: Database["public"]["Enums"]["payment_method"]
           payment_date?: string
+          source?: string
         }
         Update: {
           amount?: number
@@ -555,6 +557,7 @@ export type Database = {
           id?: string
           method?: Database["public"]["Enums"]["payment_method"]
           payment_date?: string
+          source?: string
         }
         Relationships: [
           {
@@ -743,6 +746,7 @@ export type Database = {
       }
       servers: {
         Row: {
+          auto_renew: boolean
           created_at: string
           created_by: string | null
           description: string | null
@@ -752,6 +756,7 @@ export type Database = {
           status: Database["public"]["Enums"]["server_status"]
         }
         Insert: {
+          auto_renew?: boolean
           created_at?: string
           created_by?: string | null
           description?: string | null
@@ -761,6 +766,7 @@ export type Database = {
           status?: Database["public"]["Enums"]["server_status"]
         }
         Update: {
+          auto_renew?: boolean
           created_at?: string
           created_by?: string | null
           description?: string | null
