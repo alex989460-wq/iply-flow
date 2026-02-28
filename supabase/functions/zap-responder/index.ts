@@ -570,47 +570,102 @@ async function enviarTemplateWhatsApp(
     // Use the message endpoint (same for templates and regular messages)
     const url = `${apiBaseUrl}/whatsapp/message/${departmentId}`;
 
-    // Build the payload according to Zap Responder API docs:
-    // variables: { body_text: ["valor1", "valor2", ...] }
-    const payload: any = {
+    // Normalize variables into ordered text array
+    const bodyTextValues: string[] = (() => {
+      if (!variables) return [];
+      if (variables?.body_text && Array.isArray(variables.body_text)) {
+        return variables.body_text.map((value: unknown) => String(value));
+      }
+      if (Array.isArray(variables)) {
+        return variables.map((value: unknown) => String(value));
+      }
+      if (typeof variables === 'object') {
+        return Object.values(variables).map((value: unknown) => String(value));
+      }
+      return [];
+    })();
+
+    const basePayload = {
+      type: 'template',
       template_name: templateName,
       number,
       language,
     };
 
-    // Handle variables in different input formats
-    if (variables) {
-      if (variables.body_text && Array.isArray(variables.body_text)) {
-        // Already in correct format: { body_text: [...] }
-        payload.variables = variables;
-      } else if (Array.isArray(variables)) {
-        // Array of values: ["val1", "val2"]
-        payload.variables = { body_text: variables.map(String) };
-      } else if (typeof variables === 'object') {
-        // Object with named keys: { nome: "x", usuario: "y" }
-        payload.variables = { body_text: Object.values(variables).map(String) };
+    const payloadAttempts: Array<{ name: string; body: Record<string, unknown> }> = [
+      {
+        name: 'template + variables.body_text',
+        body: bodyTextValues.length > 0
+          ? { ...basePayload, variables: { body_text: bodyTextValues } }
+          : { ...basePayload },
+      },
+      {
+        name: 'template + params[]',
+        body: bodyTextValues.length > 0
+          ? { ...basePayload, params: bodyTextValues }
+          : { ...basePayload },
+      },
+      {
+        name: 'template + body_text[][]',
+        body: bodyTextValues.length > 0
+          ? { ...basePayload, body_text: [bodyTextValues] }
+          : { ...basePayload },
+      },
+    ];
+
+    let lastError = 'Falha ao enviar template';
+
+    for (const payload of payloadAttempts) {
+      console.log(`[Template] Trying payload: ${payload.name}`, JSON.stringify(payload.body));
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(payload.body),
+      });
+
+      const responseText = await response.text();
+      console.log(`[Template] ${payload.name}: status=${response.status} body=${responseText}`);
+
+      if (!response.ok) {
+        lastError = `HTTP ${response.status} - ${responseText || 'sem resposta'}`;
+        continue;
       }
-    }
 
-    console.log(`[Template] Sending to ${url}`, JSON.stringify(payload));
-    const response = await fetch(url, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(payload),
-    });
-    const responseText = await response.text();
-    console.log(`[Template] Response: status=${response.status} body=${responseText}`);
+      // API returning 200 with empty body has been producing false-positive "sent"
+      if (!responseText.trim()) {
+        lastError = 'API respondeu 200 sem corpo (envio não confirmado)';
+        continue;
+      }
 
-    let result;
-    try { result = JSON.parse(responseText); } catch { result = { raw: responseText }; }
+      let result: any;
+      try {
+        result = JSON.parse(responseText);
+      } catch {
+        // Some providers return plain "ok"
+        if (responseText.trim().toLowerCase() === 'ok') {
+          return { success: true, data: { ok: true } };
+        }
+        lastError = `Resposta inválida da API: ${responseText}`;
+        continue;
+      }
 
-    if (response.ok && result?.error !== true) {
-      console.log('[Template] Success!');
+      const hasParamError = responseText.includes('#132000') || responseText.includes('localizable_params');
+      if (hasParamError) {
+        lastError = 'Template com variáveis rejeitado (erro 132000). O provedor não está repassando variáveis para o WhatsApp.';
+        continue;
+      }
+
+      if (result?.error === true) {
+        lastError = result?.message || result?.error || 'Template rejeitado pela API';
+        continue;
+      }
+
       return { success: true, data: result };
     }
 
-    console.error('[Template] Failed:', responseText);
-    return { success: false, error: result?.message || responseText };
+    console.error('[Template] All payload attempts failed:', lastError);
+    return { success: false, error: lastError };
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     console.error('Error sending template:', error);

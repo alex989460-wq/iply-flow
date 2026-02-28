@@ -354,6 +354,7 @@ serve(async (req) => {
 
           // Send template via Zap Responder API (official format from docs)
           const templatePayload = {
+            type: 'template',
             template_name: 'renovacao_aprovada',
             number: metaPhone,
             language: 'pt_BR',
