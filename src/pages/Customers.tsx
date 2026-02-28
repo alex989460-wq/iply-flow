@@ -1051,6 +1051,14 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
       const phone = sendingBillingCustomer.phone.replace(/\D/g, '');
       const phoneWithCode = phone.startsWith('55') ? phone : `55${phone}`;
       
+      // Build variables for templates that need them (like renovacao_aprovada)
+      const customerName = sendingBillingCustomer.name || '';
+      const customerUsername = sendingBillingCustomer.username || 'N/A';
+      const serverName = sendingBillingCustomer.servers?.server_name || 'N/A';
+      const dueDate = sendingBillingCustomer.due_date 
+        ? new Date(sendingBillingCustomer.due_date + 'T12:00:00').toLocaleDateString('pt-BR')
+        : 'N/A';
+
       const { data, error } = await supabase.functions.invoke('zap-responder', {
         body: { 
           action: 'enviar-template',
@@ -1058,6 +1066,9 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
           template_name: selectedTemplate,
           number: phoneWithCode,
           language: 'pt_BR',
+          variables: {
+            body_text: [customerName, customerUsername, serverName, dueDate],
+          },
         },
       });
 

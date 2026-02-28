@@ -556,10 +556,10 @@ async function enviarTemplateWhatsApp(
   templateName: string,
   number: string,
   language: string = 'pt_BR',
-  variables?: Record<string, string>
+  variables?: any
 ): Promise<{ success: boolean; data?: any; error?: string }> {
   try {
-    console.log('Sending WhatsApp template...', { departmentId, templateName, number, variables });
+    console.log('Sending WhatsApp template...', { departmentId, templateName, number, language, variables });
 
     const headers = {
       'Authorization': `Bearer ${token}`,
@@ -567,114 +567,50 @@ async function enviarTemplateWhatsApp(
       'Accept': 'application/json',
     };
 
-    const url = `${apiBaseUrl}/whatsapp/message/${departmentId}`;
+    // Use the official template endpoint from Zap Responder API docs
+    const url = `${apiBaseUrl}/whatsapp/template/${departmentId}`;
 
-    // Build Meta Cloud API components from variables
-    const bodyParameters = variables
-      ? Object.keys(variables).sort().map((k) => ({ type: 'text', text: variables[k] }))
-      : [];
+    // Build the payload according to Zap Responder API docs:
+    // variables: { body_text: ["valor1", "valor2", ...] }
+    const payload: any = {
+      template_name: templateName,
+      number,
+      language,
+    };
 
-    // Strategy: try multiple payload formats the Zap Responder API might accept
-    const payloads: Array<{ name: string; body: any }> = [];
-
-    // 1. Native format with body_text array (some Zap Responder versions use this)
-    if (bodyParameters.length > 0) {
-      payloads.push({
-        name: 'body_text array',
-        body: {
-          type: 'template',
-          template_name: templateName,
-          number,
-          language,
-          body_text: [bodyParameters.map(p => p.text)],
-        },
-      });
-    }
-
-    // 2. Native with parameters array
-    if (bodyParameters.length > 0) {
-      payloads.push({
-        name: 'parameters array',
-        body: {
-          type: 'template',
-          template_name: templateName,
-          number,
-          language,
-          parameters: bodyParameters,
-        },
-      });
-    }
-
-    // 3. Native with components
-    if (bodyParameters.length > 0) {
-      payloads.push({
-        name: 'components array',
-        body: {
-          type: 'template',
-          template_name: templateName,
-          number,
-          language,
-          components: [{ type: 'body', parameters: bodyParameters }],
-        },
-      });
-    }
-
-    // 4. Native with variables (original format)
+    // Handle variables in different input formats
     if (variables) {
-      payloads.push({
-        name: 'variables object',
-        body: {
-          type: 'template',
-          template_name: templateName,
-          number,
-          language,
-          variables,
-        },
-      });
+      if (variables.body_text && Array.isArray(variables.body_text)) {
+        // Already in correct format: { body_text: [...] }
+        payload.variables = variables;
+      } else if (Array.isArray(variables)) {
+        // Array of values: ["val1", "val2"]
+        payload.variables = { body_text: variables.map(String) };
+      } else if (typeof variables === 'object') {
+        // Object with named keys: { nome: "x", usuario: "y" }
+        payload.variables = { body_text: Object.values(variables).map(String) };
+      }
     }
 
-    // 5. No variables fallback
-    payloads.push({
-      name: 'no variables',
-      body: {
-        type: 'template',
-        template_name: templateName,
-        number,
-        language,
-      },
+    console.log(`[Template] Sending to ${url}`, JSON.stringify(payload));
+    const response = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(payload),
     });
+    const responseText = await response.text();
+    console.log(`[Template] Response: status=${response.status} body=${responseText}`);
 
-    for (const payload of payloads) {
-      console.log(`[Template] Trying format: ${payload.name}`);
-      const response = await fetch(url, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(payload.body),
-      });
-      const responseText = await response.text();
-      console.log(`[Template] ${payload.name}: status=${response.status} response=${responseText}`);
+    let result;
+    try { result = JSON.parse(responseText); } catch { result = { raw: responseText }; }
 
-      // If successful (no Meta error), return
-      if (response.ok && !responseText.includes('#132000') && !responseText.includes('localizable_params')) {
-        let result;
-        try { result = JSON.parse(responseText); } catch { result = { raw: responseText }; }
-        
-        // Check if the result itself indicates an error
-        if (result?.error === true) continue;
-
-        console.log(`[Template] Success with format: ${payload.name}`);
-        return { success: true, data: result };
-      }
-
-      // If it's a meta error about params, try next format
-      if (responseText.includes('#132000') || responseText.includes('localizable_params')) {
-        console.log(`[Template] ${payload.name}: Meta params mismatch, trying next format...`);
-        continue;
-      }
+    if (response.ok && result?.error !== true) {
+      console.log('[Template] Success!');
+      return { success: true, data: result };
     }
 
-    console.error('[Template] All formats failed');
-    return { success: false, error: 'Falha ao enviar template - nenhum formato aceito pela API' };
+    console.error('[Template] Failed:', responseText);
+    return { success: false, error: result?.message || responseText };
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     console.error('Error sending template:', error);
