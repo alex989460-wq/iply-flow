@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { TrendingUp, Calendar } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
-import { format, startOfMonth, endOfMonth, subMonths, eachDayOfInterval } from 'date-fns';
+import { format, subMonths, eachDayOfInterval } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
 interface DayRevenue {
@@ -14,8 +14,38 @@ interface DayRevenue {
   isToday: boolean;
 }
 
+const getSaoPauloNow = () =>
+  new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
+
+const toDateString = (date: Date) =>
+  `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+
+async function fetchAllPaymentsByRange(startDate: string, endDate: string) {
+  const allPayments: { amount: number; payment_date: string }[] = [];
+  const pageSize = 1000;
+  let from = 0;
+
+  while (true) {
+    const { data, error } = await supabase
+      .from('payments')
+      .select('amount, payment_date')
+      .gte('payment_date', startDate)
+      .lte('payment_date', endDate)
+      .range(from, from + pageSize - 1);
+
+    if (error) throw error;
+    if (!data || data.length === 0) break;
+
+    allPayments.push(...(data as { amount: number; payment_date: string }[]));
+    if (data.length < pageSize) break;
+    from += pageSize;
+  }
+
+  return allPayments;
+}
+
 export default function RevenueChart() {
-  const [selectedMonth, setSelectedMonth] = useState<string>(format(new Date(), 'yyyy-MM'));
+  const [selectedMonth, setSelectedMonth] = useState<string>(format(getSaoPauloNow(), 'yyyy-MM'));
   const [data, setData] = useState<DayRevenue[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [totalRevenue, setTotalRevenue] = useState(0);
@@ -23,7 +53,7 @@ export default function RevenueChart() {
 
   // Generate last 12 months for selector
   const monthOptions = Array.from({ length: 12 }, (_, i) => {
-    const date = subMonths(new Date(), i);
+    const date = subMonths(getSaoPauloNow(), i);
     return {
       value: format(date, 'yyyy-MM'),
       label: format(date, "MMMM 'de' yyyy", { locale: ptBR }),
@@ -33,52 +63,50 @@ export default function RevenueChart() {
   useEffect(() => {
     const fetchMonthRevenue = async () => {
       setIsLoading(true);
-      
-      const [year, month] = selectedMonth.split('-').map(Number);
-      const startDate = startOfMonth(new Date(year, month - 1));
-      const endDate = endOfMonth(new Date(year, month - 1));
-      
-      const { data: payments, error } = await supabase
-        .from('payments')
-        .select('amount, payment_date')
-        .gte('payment_date', format(startDate, 'yyyy-MM-dd'))
-        .lte('payment_date', format(endDate, 'yyyy-MM-dd'));
 
-      if (error) {
+      try {
+        const [year, month] = selectedMonth.split('-').map(Number);
+        const startDateObj = new Date(year, month - 1, 1);
+        const endDateObj = new Date(year, month, 0);
+
+        const startDate = toDateString(startDateObj);
+        const endDate = toDateString(endDateObj);
+
+        const payments = await fetchAllPaymentsByRange(startDate, endDate);
+
+        // Initialize all days of the selected month
+        const allDays = eachDayOfInterval({ start: startDateObj, end: endDateObj });
+        const today = toDateString(getSaoPauloNow());
+
+        const dailyData: DayRevenue[] = allDays.map(date => ({
+          day: format(date, 'dd'),
+          revenue: 0,
+          count: 0,
+          isToday: toDateString(date) === today,
+        }));
+
+        // Aggregate payments by day
+        let total = 0;
+        let count = 0;
+        payments.forEach((payment) => {
+          const paymentDay = parseInt(payment.payment_date.split('-')[2], 10);
+          const dayIndex = paymentDay - 1;
+          if (dayIndex >= 0 && dayIndex < dailyData.length) {
+            dailyData[dayIndex].revenue += Number(payment.amount);
+            dailyData[dayIndex].count += 1;
+            total += Number(payment.amount);
+            count += 1;
+          }
+        });
+
+        setData(dailyData);
+        setTotalRevenue(total);
+        setTotalPayments(count);
+      } catch (error) {
         console.error('Error fetching payments:', error);
+      } finally {
         setIsLoading(false);
-        return;
       }
-
-      // Initialize all days of the selected month
-      const allDays = eachDayOfInterval({ start: startDate, end: endDate });
-      const today = format(new Date(), 'yyyy-MM-dd');
-      
-      const dailyData: DayRevenue[] = allDays.map(date => ({
-        day: format(date, 'dd'),
-        revenue: 0,
-        count: 0,
-        isToday: format(date, 'yyyy-MM-dd') === today,
-      }));
-
-      // Aggregate payments by day
-      let total = 0;
-      let count = 0;
-      payments?.forEach((payment) => {
-        const paymentDay = parseInt(payment.payment_date.split('-')[2], 10);
-        const dayIndex = paymentDay - 1;
-        if (dayIndex >= 0 && dayIndex < dailyData.length) {
-          dailyData[dayIndex].revenue += Number(payment.amount);
-          dailyData[dayIndex].count += 1;
-          total += Number(payment.amount);
-          count += 1;
-        }
-      });
-
-      setData(dailyData);
-      setTotalRevenue(total);
-      setTotalPayments(count);
-      setIsLoading(false);
     };
 
     fetchMonthRevenue();
