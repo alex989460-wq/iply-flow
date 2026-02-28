@@ -105,12 +105,12 @@ export function useDashboardStats() {
 }
 
 // Helper to fetch all rows bypassing 1000 limit
-async function fetchAllPayments(query: any) {
+async function fetchAllPayments(buildQuery: () => any) {
   const allRows: any[] = [];
   const pageSize = 1000;
   let from = 0;
   while (true) {
-    const { data, error } = await query.range(from, from + pageSize - 1);
+    const { data, error } = await buildQuery().range(from, from + pageSize - 1);
     if (error) throw error;
     if (!data || data.length === 0) break;
     allRows.push(...data);
@@ -140,7 +140,7 @@ export function useRevenueHistory() {
       // Fetch all months in parallel with pagination
       const results = await Promise.all(
         monthRanges.map(({ start, end }) =>
-          fetchAllPayments(
+          fetchAllPayments(() =>
             supabase
               .from('payments')
               .select('amount')
@@ -179,7 +179,7 @@ export function useDailyRevenueHistory() {
       const endDate = `${endOfMonth.getFullYear()}-${String(endOfMonth.getMonth() + 1).padStart(2, '0')}-${String(endOfMonth.getDate()).padStart(2, '0')}`;
 
       // Fetch ALL payments with pagination (bypass 1000 limit)
-      const payments = await fetchAllPayments(
+      const payments = await fetchAllPayments(() =>
         supabase
           .from('payments')
           .select('amount, payment_date')
