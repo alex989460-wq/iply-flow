@@ -352,23 +352,23 @@ serve(async (req) => {
           // Build confirmation link with supergestor.top domain
           const confirmationUrl = `https://supergestor.top/pedido/${confirmationId}`;
 
-          // Send template "renovacao_aprovada" with $variavel format
+          // Send template via Zap Responder API (official format from docs)
           const templatePayload = {
-            type: 'template',
-            number: metaPhone,
             template_name: 'renovacao_aprovada',
+            number: metaPhone,
             language: 'pt_BR',
             variables: {
-              nome: matchedCustomer.name,
-              usuario: matchedCustomer.username || 'N/A',
-              servidor: serverName,
-              vencimento: formattedDueDate,
+              body_text: [
+                matchedCustomer.name,                    // {{1}} - Nome do cliente
+                matchedCustomer.username || 'N/A',       // {{2}} - Username
+                serverName,                               // {{3}} - Servidor
+                formattedDueDate,                         // {{4}} - Data de vencimento
+              ],
             },
-            button_url: confirmationUrl,
           };
 
           console.log(`[Cakto] Enviando template renovacao_aprovada via Zap Responder para ${metaPhone}`, JSON.stringify(templatePayload));
-          const zapResp = await fetch(`${apiBaseUrl}/whatsapp/message/${departmentId}`, {
+          const zapResp = await fetch(`${apiBaseUrl}/whatsapp/template/${departmentId}`, {
             method: 'POST',
             headers: {
               'Authorization': `Bearer ${zapSettings.zap_api_token}`,
