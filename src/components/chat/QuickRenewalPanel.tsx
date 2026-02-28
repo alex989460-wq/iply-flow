@@ -402,6 +402,7 @@ export default function QuickRenewalPanel({ isMobile = false, onClose }: QuickRe
           const isTheBest = serverName.toLowerCase().includes('the best') || serverHost.toLowerCase().includes('the-best') || serverHost.toLowerCase().includes('painel.best');
           const isNatv = serverName.toLowerCase().includes('natv') || serverHost.toLowerCase().includes('pixbot') || serverHost.toLowerCase().includes('natv');
           const isVplay = serverName.toLowerCase().includes('vplay') || serverHost.toLowerCase().includes('vplay');
+          const isRush = serverName.toLowerCase().includes('rush') || serverHost.toLowerCase().includes('rush');
 
           if (isTheBest) {
             const months = Math.max(1, Math.round(durationDays / 30));
@@ -443,6 +444,20 @@ export default function QuickRenewalPanel({ isMobile = false, onClose }: QuickRe
               toast.warning(`Renovado localmente, mas: ${vpResult?.error || 'Falha no servidor VPlay'}`);
             } else {
               console.log('[VPlay] Sucesso:', vpResult);
+            }
+          } else if (isRush) {
+            const months = Math.max(1, Math.round(durationDays / 30));
+            const { data: rushResult, error: rushError } = await supabase.functions.invoke('rush-renew', {
+              body: { username: xuiUsername, months, customer_id: customer.id },
+            });
+            if (rushError) {
+              console.error('[Rush] Erro:', rushError);
+              toast.warning(`Renovado localmente, mas falha no servidor Rush: ${rushError.message}`);
+            } else if (!rushResult?.success) {
+              console.warn('[Rush] Falha:', rushResult?.error);
+              toast.warning(`Renovado localmente, mas: ${rushResult?.error || 'Falha no servidor Rush'}`);
+            } else {
+              console.log('[Rush] Sucesso:', rushResult);
             }
           } else {
             const { data: xuiResult, error: xuiError } = await supabase.functions.invoke('xui-renew', {
