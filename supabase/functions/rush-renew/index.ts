@@ -60,9 +60,10 @@ serve(async (req) => {
       rush_type, // 'p2p' or 'iptv'
       type_user_id, // 1 for P2P Alt, 2 for P2P Original
       screens,
+      action, // 'list' to list users for debugging
     } = await req.json();
 
-    if (!username) {
+    if (!username && action !== 'list') {
       return new Response(
         JSON.stringify({ error: 'Username é obrigatório' }),
         { status: 400, headers: jsonHeaders },
@@ -121,12 +122,47 @@ serve(async (req) => {
 
     const authParams = `username=${encodeURIComponent(rUsername)}&password=${encodeURIComponent(rPassword)}&token=${encodeURIComponent(rToken)}`;
 
-    // The Rush API uses the username directly as the ID in the extend endpoint
-    const userId = username.trim();
-    console.log(`[Rush] Usando username como ID: ${userId}, tipo: ${userType}`);
+    // Step 1: Find user's internal numeric ID via /list endpoint
+    const userId = (username || '').trim();
+    console.log(`[Rush] Buscando ID interno para username: ${userId}, tipo: ${userType}`);
 
-    // Step 2: Extend the user
-    const extendUrl = `${rBaseUrl}/${userType}/extend/${userId}/?${authParams}`;
+    let internalId = '';
+    const listUrl = `${rBaseUrl}/${userType}/list?${authParams}`;
+    const listResp = await fetch(listUrl, { headers: { 'Accept': 'application/json' } });
+    
+    if (listResp.ok) {
+      const listData = await listResp.json();
+      const items = listData.items || listData.data || (Array.isArray(listData) ? listData : []);
+      const normalizedUsername = userId.toLowerCase();
+      const matchedUser = items.find((u: any) => {
+        const uName = String(u.username || '').trim().toLowerCase();
+        return uName === normalizedUsername;
+      });
+      
+      if (matchedUser) {
+        internalId = String(matchedUser.id);
+        console.log(`[Rush] Usuário encontrado: username=${matchedUser.username}, id=${internalId}`);
+      } else {
+        console.log(`[Rush] Username "${userId}" não encontrado entre ${items.length} usuários`);
+        // Log first few usernames for debugging
+        const sampleUsernames = items.slice(0, 5).map((u: any) => u.username);
+        console.log(`[Rush] Exemplos de usernames: ${JSON.stringify(sampleUsernames)}`);
+        return new Response(
+          JSON.stringify({ success: false, error: `Username "${userId}" não encontrado na lista de ${items.length} usuários ${userType}` }),
+          { headers: jsonHeaders },
+        );
+      }
+    } else {
+      const errText = await listResp.text();
+      console.error(`[Rush] Falha ao listar usuários: ${listResp.status} - ${errText}`);
+      return new Response(
+        JSON.stringify({ error: `Erro ao buscar lista de usuários Rush: ${listResp.status}` }),
+        { status: listResp.status, headers: jsonHeaders },
+      );
+    }
+
+    // Step 2: Extend the user using internal numeric ID
+    const extendUrl = `${rBaseUrl}/${userType}/extend/${internalId}/?${authParams}`;
     console.log(`[Rush] Renovando: ${extendUrl} com ${renewMonths} meses`);
 
     const extendBody: Record<string, unknown> = { month: renewMonths };
