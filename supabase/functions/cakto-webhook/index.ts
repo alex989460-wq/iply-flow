@@ -374,13 +374,25 @@ serve(async (req) => {
         console.log('[Cakto] Nenhum departamento configurado. Mensagem não enviada.');
       }
 
-      // Send admin notification
+      // Send admin notification (uses phoneDigits which is always available)
       if (zapSettings?.selected_department_id) {
         try {
           const adminPhone = '5541991758392';
           const dueParts2 = newDueDate.split('-');
           const fmtDue = `${dueParts2[2]}/${dueParts2[1]}/${dueParts2[0]}`;
-          const adminMsg = `🔔 *Renovação Automática (Cakto)*\n\n👤 Cliente: *${matchedCustomer.name}*\n📞 Tel: ${metaPhone}\n👤 Usuário: *${matchedCustomer.username || '-'}*\n💰 Valor: *R$ ${amountNumeric.toFixed(2)}*\n📦 Plano: *${matchedPlanName || '-'}*\n🖥️ Servidor: *${serverName}*\n📅 Novo vencimento: *${fmtDue}*\n✅ Status: Renovado`;
+          let adminMetaPhone = phoneDigits;
+          if (!adminMetaPhone.startsWith('55')) adminMetaPhone = '55' + adminMetaPhone;
+          // Get server name for admin msg
+          let adminServerName = '-';
+          if (matchedCustomer.server_id) {
+            const { data: srvData } = await supabaseAdmin
+              .from('servers')
+              .select('server_name')
+              .eq('id', matchedCustomer.server_id)
+              .maybeSingle();
+            if (srvData) adminServerName = srvData.server_name;
+          }
+          const adminMsg = `🔔 *Renovação Automática (Cakto)*\n\n👤 Cliente: *${matchedCustomer.name}*\n📞 Tel: ${adminMetaPhone}\n👤 Usuário: *${matchedCustomer.username || '-'}*\n💰 Valor: *R$ ${amountNumeric.toFixed(2)}*\n📦 Plano: *${matchedPlanName || '-'}*\n🖥️ Servidor: *${adminServerName}*\n📅 Novo vencimento: *${fmtDue}*\n✅ Status: Renovado`;
 
           await fetch(
             `${Deno.env.get('SUPABASE_URL')}/functions/v1/zap-responder`,
