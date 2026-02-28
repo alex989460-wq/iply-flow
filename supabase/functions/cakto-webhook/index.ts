@@ -206,38 +206,26 @@ serve(async (req) => {
     let bestMatch: any = null;
 
     if (amountNumeric > 0 && allPlans && allPlans.length > 0) {
-      // Account for multiple screens: effective price per screen
-      const screens = matchedCustomer.screens || 1;
-      const pricePerScreen = amountNumeric / screens;
-
-      // Find closest plan by price per screen (tolerance ±10%)
-      let bestDiff = Infinity;
-      for (const plan of allPlans) {
-        const diff = Math.abs(plan.price - pricePerScreen);
-        const tolerance = plan.price * 0.1;
-        if (diff <= tolerance && diff < bestDiff) {
-          bestDiff = diff;
-          bestMatch = plan;
-        }
-      }
-
-      // If per-screen match failed and customer has multiple screens with an existing plan,
-      // check if current plan price × screens ≈ paid amount → keep current plan
-      if (!bestMatch && matchedCustomer.plan_id && screens > 1) {
+      // 1) If customer already has a plan, prioritize keeping it
+      //    Only switch if paid amount EXACTLY matches a DIFFERENT plan
+      if (matchedCustomer.plan_id) {
         const currentPlan = allPlans.find((p: any) => p.id === matchedCustomer.plan_id);
         if (currentPlan) {
-          const expectedTotal = currentPlan.price * screens;
-          const diff = Math.abs(expectedTotal - amountNumeric);
-          const tolerance = expectedTotal * 0.15;
-          if (diff <= tolerance) {
+          const customerPrice = matchedCustomer.custom_price ? Number(matchedCustomer.custom_price) : null;
+          const isCustomMatch = customerPrice && Math.abs(customerPrice - amountNumeric) <= customerPrice * 0.15;
+          // Check if another plan matches the amount exactly (±1%)
+          const exactOtherPlan = allPlans.find((p: any) => p.id !== currentPlan.id && Math.abs(p.price - amountNumeric) <= p.price * 0.01);
+          
+          if (isCustomMatch || !exactOtherPlan) {
             bestMatch = currentPlan;
-            console.log(`[Cakto] Match por plano atual × telas: ${currentPlan.plan_name} (${currentPlan.price} × ${screens} = ${expectedTotal}) ≈ ${amountNumeric}`);
+            console.log(`[Cakto] Mantendo plano atual: ${currentPlan.plan_name} (R$ ${currentPlan.price}) | Valor pago: R$ ${amountNumeric.toFixed(2)}${isCustomMatch ? ' (custom_price)' : ' (sem match exato com outro plano)'}`);
           }
         }
       }
 
-      // Only for single-screen customers: try matching total amount directly
-      if (!bestMatch && screens === 1) {
+      // 2) If no match yet, try matching total amount against plans (±10%)
+      if (!bestMatch) {
+        let bestDiff = Infinity;
         for (const plan of allPlans) {
           const diff = Math.abs(plan.price - amountNumeric);
           const tolerance = plan.price * 0.1;
@@ -248,11 +236,10 @@ serve(async (req) => {
         }
       }
 
-      // Also check custom_price
+      // 3) custom_price fallback
       if (!bestMatch && matchedCustomer.custom_price) {
         const customerPrice = Number(matchedCustomer.custom_price);
         if (Math.abs(customerPrice - amountNumeric) <= customerPrice * 0.1) {
-          // Use the customer's plan duration
           if (matchedCustomer.plan_id) {
             const { data: plan } = await supabaseAdmin
               .from('plans')
