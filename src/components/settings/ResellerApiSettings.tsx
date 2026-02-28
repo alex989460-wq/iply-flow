@@ -20,6 +20,8 @@ export default function ResellerApiSettings() {
   const [showCaktoClientSecret, setShowCaktoClientSecret] = useState(false);
   const [showNatvKey, setShowNatvKey] = useState(false);
   const [showTheBestPassword, setShowTheBestPassword] = useState(false);
+  const [showRushPassword, setShowRushPassword] = useState(false);
+  const [showRushToken, setShowRushToken] = useState(false);
 
   const [settings, setSettings] = useState({
     cakto_webhook_secret: '',
@@ -30,6 +32,10 @@ export default function ResellerApiSettings() {
     the_best_username: '',
     the_best_password: '',
     the_best_base_url: '',
+    rush_username: '',
+    rush_password: '',
+    rush_token: '',
+    rush_base_url: '',
   });
 
   const webhookUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/cakto-webhook`;
@@ -60,6 +66,10 @@ export default function ResellerApiSettings() {
           the_best_username: d.the_best_username || '',
           the_best_password: d.the_best_password || '',
           the_best_base_url: d.the_best_base_url || '',
+          rush_username: d.rush_username || '',
+          rush_password: d.rush_password || '',
+          rush_token: d.rush_token || '',
+          rush_base_url: d.rush_base_url || '',
         });
       }
     } catch (err) {
@@ -83,6 +93,10 @@ export default function ResellerApiSettings() {
         the_best_username: settings.the_best_username || '',
         the_best_password: settings.the_best_password || '',
         the_best_base_url: settings.the_best_base_url || '',
+        rush_username: settings.rush_username || '',
+        rush_password: settings.rush_password || '',
+        rush_token: settings.rush_token || '',
+        rush_base_url: settings.rush_base_url || '',
         updated_at: new Date().toISOString(),
       };
 
@@ -127,6 +141,7 @@ export default function ResellerApiSettings() {
   const hasCakto = !!settings.cakto_webhook_secret;
   const hasNatv = !!settings.natv_api_key && !!settings.natv_base_url;
   const hasTheBest = !!settings.the_best_username && !!settings.the_best_password;
+  const hasRush = !!settings.rush_username && !!settings.rush_password && !!settings.rush_token;
 
   return (
     <div className="space-y-6">
@@ -360,6 +375,104 @@ export default function ResellerApiSettings() {
             />
             <p className="text-xs text-muted-foreground">
               Padrão: https://api.painel.best
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Rush */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Key className="w-5 h-5 text-purple-500" />
+            Rush (Painel)
+            {hasRush && <CheckCircle2 className="w-5 h-5 text-green-500" />}
+          </CardTitle>
+          <CardDescription>
+            Configure as credenciais do painel Rush para renovação automática (P2P e IPTV)
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <Alert>
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>
+              <strong>Como configurar:</strong>
+              <ol className="list-decimal ml-4 mt-1 space-y-1 text-sm">
+                <li>Use o <strong>usuário</strong> e <strong>senha</strong> da sua revenda Rush</li>
+                <li>Cole o <strong>Token de Autorização</strong> fornecido pelo painel</li>
+                <li>A URL base padrão é <code>https://api-new.painel.ai</code></li>
+              </ol>
+            </AlertDescription>
+          </Alert>
+
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="rush_username">Usuário da Revenda</Label>
+              <Input
+                id="rush_username"
+                value={settings.rush_username}
+                onChange={(e) => setSettings({ ...settings, rush_username: e.target.value })}
+                placeholder="Seu usuário do painel Rush"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="rush_password">Senha da Revenda</Label>
+              <div className="relative">
+                <Input
+                  id="rush_password"
+                  type={showRushPassword ? 'text' : 'password'}
+                  value={settings.rush_password}
+                  onChange={(e) => setSettings({ ...settings, rush_password: e.target.value })}
+                  placeholder="Sua senha do painel Rush"
+                  className="pr-10"
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="absolute right-0 top-0 h-full"
+                  onClick={() => setShowRushPassword(!showRushPassword)}
+                >
+                  {showRushPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="rush_token">Token de Autorização</Label>
+            <div className="relative">
+              <Input
+                id="rush_token"
+                type={showRushToken ? 'text' : 'password'}
+                value={settings.rush_token}
+                onChange={(e) => setSettings({ ...settings, rush_token: e.target.value })}
+                placeholder="Token de autorização do Rush"
+                className="pr-10"
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="absolute right-0 top-0 h-full"
+                onClick={() => setShowRushToken(!showRushToken)}
+              >
+                {showRushToken ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </Button>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="rush_url">URL Base da API</Label>
+            <Input
+              id="rush_url"
+              value={settings.rush_base_url}
+              onChange={(e) => setSettings({ ...settings, rush_base_url: e.target.value })}
+              placeholder="https://api-new.painel.ai"
+            />
+            <p className="text-xs text-muted-foreground">
+              Padrão: https://api-new.painel.ai
             </p>
           </div>
         </CardContent>

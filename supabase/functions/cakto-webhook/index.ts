@@ -536,7 +536,7 @@ serve(async (req) => {
 
       const { data: resellerApiSettings } = await supabaseAdmin
         .from('reseller_api_settings')
-        .select('natv_api_key, natv_base_url, the_best_username, the_best_password, the_best_base_url')
+        .select('natv_api_key, natv_base_url, the_best_username, the_best_password, the_best_base_url, rush_username, rush_password, rush_token, rush_base_url')
         .eq('user_id', matchedCustomer.created_by)
         .maybeSingle();
 
@@ -682,6 +682,54 @@ serve(async (req) => {
             }
           }
         }
+      }
+
+      // ── Rush renewal (P2P / IPTV) ──
+      const rushUsername = resellerApiSettings?.rush_username || '';
+      const rushPassword = resellerApiSettings?.rush_password || '';
+      const rushToken = resellerApiSettings?.rush_token || '';
+      const rushBaseUrl = (resellerApiSettings?.rush_base_url || '').replace(/\/+$/, '') || 'https://api-new.painel.ai';
+
+      if (rushUsername && rushPassword && rushToken) {
+        console.log(`[Cakto] Usando credenciais Rush do revendedor`);
+        const rushDaysToMonths: Record<number, number> = { 30: 1, 60: 2, 90: 3, 120: 4, 150: 5, 180: 6, 360: 12, 365: 12 };
+        const rushMonths = rushDaysToMonths[durationDays] || Math.max(1, Math.round(durationDays / 30));
+
+        for (const username of allUsernames) {
+          try {
+            console.log(`[Cakto] Renovando Rush: ${username} por ${rushMonths} meses`);
+            const rushResp = await fetch(
+              `${Deno.env.get('SUPABASE_URL')}/functions/v1/rush-renew`,
+              {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${Deno.env.get('SUPABASE_ANON_KEY')}`,
+                  'x-cakto-webhook-secret': globalWebhookSecret || '',
+                },
+                body: JSON.stringify({
+                  username,
+                  months: rushMonths,
+                  customer_id: matchedCustomer.id,
+                  rush_username: rushUsername,
+                  rush_password: rushPassword,
+                  rush_token: rushToken,
+                  rush_base_url: rushBaseUrl,
+                  screens: matchedCustomer.screens || 1,
+                }),
+              },
+            );
+            const rushResult = await rushResp.json();
+            renewResults.push({ panel: 'rush', username, success: rushResult?.success ?? false, result: rushResult });
+            console.log(`[Cakto] Rush renew ${username}:`, JSON.stringify(rushResult));
+          } catch (e) {
+            const errMsg = e instanceof Error ? e.message : 'Erro desconhecido';
+            renewResults.push({ panel: 'rush', username, success: false, error: errMsg });
+            console.error(`[Cakto] Erro renovando Rush ${username}:`, e);
+          }
+        }
+      } else {
+        console.log(`[Cakto] Rush não configurado`);
       }
 
       if (renewResults.length === 0) {
