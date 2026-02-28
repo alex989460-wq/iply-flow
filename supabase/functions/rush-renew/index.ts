@@ -130,12 +130,15 @@ serve(async (req) => {
     let internalId = '';
     let userType = '';
     for (const tryType of typesToTry) {
-      const listUrl = `${rBaseUrl}/${tryType}/list?${authParams}`;
-      const listResp = await fetch(listUrl, { headers: { 'Accept': 'application/json' } });
+      // First try with search parameter to avoid pagination issues
+      const searchUrl = `${rBaseUrl}/${tryType}/list?${authParams}&search=${encodeURIComponent(userId)}`;
+      console.log(`[Rush] Buscando em ${tryType} com search=${userId}`);
+      const listResp = await fetch(searchUrl, { headers: { 'Accept': 'application/json' } });
 
       if (listResp.ok) {
         const listData = await listResp.json();
         const items = listData.items || listData.data || (Array.isArray(listData) ? listData : []);
+        console.log(`[Rush] ${tryType} retornou ${items.length} resultado(s) para busca "${userId}"`);
         const normalizedUsername = userId.toLowerCase();
         const matchedUser = items.find((u: any) => {
           const uName = String(u.username || '').trim().toLowerCase();
@@ -148,11 +151,11 @@ serve(async (req) => {
           console.log(`[Rush] Usuário encontrado em ${tryType}: username=${matchedUser.username}, id=${internalId}`);
           break;
         } else {
-          console.log(`[Rush] Username "${userId}" não encontrado em ${tryType} (${items.length} usuários)`);
+          console.log(`[Rush] Username "${userId}" não encontrado em ${tryType} (${items.length} resultados)`);
         }
       } else {
         const errText = await listResp.text();
-        console.error(`[Rush] Falha ao listar ${tryType}: ${listResp.status} - ${errText}`);
+        console.error(`[Rush] Falha ao buscar ${tryType}: ${listResp.status} - ${errText}`);
       }
     }
 
