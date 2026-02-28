@@ -717,6 +717,8 @@ export type Database = {
           id: string
           natv_api_key: string | null
           natv_base_url: string | null
+          the_best_api_key: string | null
+          the_best_base_url: string | null
           updated_at: string
           user_id: string
         }
@@ -728,6 +730,8 @@ export type Database = {
           id?: string
           natv_api_key?: string | null
           natv_base_url?: string | null
+          the_best_api_key?: string | null
+          the_best_base_url?: string | null
           updated_at?: string
           user_id: string
         }
@@ -739,6 +743,8 @@ export type Database = {
           id?: string
           natv_api_key?: string | null
           natv_base_url?: string | null
+          the_best_api_key?: string | null
+          the_best_base_url?: string | null
           updated_at?: string
           user_id?: string
         }
