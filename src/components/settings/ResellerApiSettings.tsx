@@ -19,6 +19,7 @@ export default function ResellerApiSettings() {
   const [showCaktoSecret, setShowCaktoSecret] = useState(false);
   const [showCaktoClientSecret, setShowCaktoClientSecret] = useState(false);
   const [showNatvKey, setShowNatvKey] = useState(false);
+  const [showTheBestKey, setShowTheBestKey] = useState(false);
 
   const [settings, setSettings] = useState({
     cakto_webhook_secret: '',
@@ -26,6 +27,8 @@ export default function ResellerApiSettings() {
     cakto_client_secret: '',
     natv_api_key: '',
     natv_base_url: '',
+    the_best_api_key: '',
+    the_best_base_url: '',
   });
 
   const webhookUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/cakto-webhook`;
@@ -53,6 +56,8 @@ export default function ResellerApiSettings() {
           cakto_client_secret: d.cakto_client_secret || '',
           natv_api_key: d.natv_api_key || '',
           natv_base_url: d.natv_base_url || '',
+          the_best_api_key: d.the_best_api_key || '',
+          the_best_base_url: d.the_best_base_url || '',
         });
       }
     } catch (err) {
@@ -73,6 +78,8 @@ export default function ResellerApiSettings() {
         cakto_client_secret: settings.cakto_client_secret || '',
         natv_api_key: settings.natv_api_key || '',
         natv_base_url: settings.natv_base_url || '',
+        the_best_api_key: settings.the_best_api_key || '',
+        the_best_base_url: settings.the_best_base_url || '',
         updated_at: new Date().toISOString(),
       };
 
@@ -116,6 +123,7 @@ export default function ResellerApiSettings() {
 
   const hasCakto = !!settings.cakto_webhook_secret;
   const hasNatv = !!settings.natv_api_key && !!settings.natv_base_url;
+  const hasTheBest = !!settings.the_best_api_key;
 
   return (
     <div className="space-y-6">
@@ -274,6 +282,69 @@ export default function ResellerApiSettings() {
             />
             <p className="text-xs text-muted-foreground">
               Ex: https://revenda.pixbot.link/api
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* The Best */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Key className="w-5 h-5 text-green-500" />
+            The Best (Painel)
+            {hasTheBest && <CheckCircle2 className="w-5 h-5 text-green-500" />}
+          </CardTitle>
+          <CardDescription>
+            Configure as credenciais do painel The Best para renovação automática
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <Alert>
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>
+              <strong>Como configurar:</strong>
+              <ol className="list-decimal ml-4 mt-1 space-y-1 text-sm">
+                <li>Acesse o painel The Best em <strong>Configurações &gt; API</strong></li>
+                <li>Copie a <strong>API Key</strong> e cole abaixo</li>
+                <li>A URL base padrão é <code>https://api.painel.best</code></li>
+              </ol>
+            </AlertDescription>
+          </Alert>
+
+          <div className="space-y-2">
+            <Label htmlFor="the_best_key">API Key</Label>
+            <div className="relative">
+              <Input
+                id="the_best_key"
+                type={showTheBestKey ? 'text' : 'password'}
+                value={settings.the_best_api_key}
+                onChange={(e) => setSettings({ ...settings, the_best_api_key: e.target.value })}
+                placeholder="Cole sua API Key do The Best"
+                className="pr-10"
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="absolute right-0 top-0 h-full"
+                onClick={() => setShowTheBestKey(!showTheBestKey)}
+              >
+                {showTheBestKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </Button>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="the_best_url">URL Base da API</Label>
+            <Input
+              id="the_best_url"
+              value={settings.the_best_base_url}
+              onChange={(e) => setSettings({ ...settings, the_best_base_url: e.target.value })}
+              placeholder="https://api.painel.best"
+            />
+            <p className="text-xs text-muted-foreground">
+              Padrão: https://api.painel.best
             </p>
           </div>
         </CardContent>
