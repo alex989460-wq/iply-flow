@@ -261,11 +261,28 @@ serve(async (req) => {
 
     console.log(`[Cakto] Plano detectado: ${matchedPlanName || 'padrão'} (${durationDays} dias) | Valor pago: R$ ${amountNumeric.toFixed(2)} | Telas: ${matchedCustomer.screens || 1}`);
 
-    // Calculate new due date
+    // Calculate new due date using calendar months for standard plans
     const today = new Date();
     const currentDueDate = matchedCustomer.due_date ? new Date(matchedCustomer.due_date + 'T00:00:00') : today;
-    const baseDate = currentDueDate > today ? currentDueDate : today;
-    baseDate.setDate(baseDate.getDate() + durationDays);
+    const baseDate = new Date(currentDueDate > today ? currentDueDate : today);
+
+    // Map standard duration_days to calendar months
+    const daysToMonths: Record<number, number> = { 30: 1, 90: 3, 180: 6, 365: 12 };
+    const monthsToAdd = daysToMonths[durationDays];
+
+    if (monthsToAdd) {
+      // Use calendar month logic (e.g. Feb 28 → Mar 28, not Mar 30)
+      const originalDay = baseDate.getDate();
+      baseDate.setMonth(baseDate.getMonth() + monthsToAdd);
+      // If the day changed (e.g. Jan 31 → Mar 3), clamp to last day of target month
+      if (baseDate.getDate() !== originalDay) {
+        baseDate.setDate(0); // go to last day of previous month
+      }
+    } else {
+      // Non-standard durations: use raw days
+      baseDate.setDate(baseDate.getDate() + durationDays);
+    }
+
     const newDueDate = baseDate.toISOString().split('T')[0];
 
     console.log(`[Cakto] Nova data de vencimento: ${newDueDate} (duração: ${durationDays} dias)`);
