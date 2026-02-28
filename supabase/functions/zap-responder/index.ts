@@ -592,26 +592,34 @@ async function enviarTemplateWhatsApp(
       language,
     };
 
-    const payloadAttempts: Array<{ name: string; body: Record<string, unknown> }> = [
-      {
-        name: 'template + variables.body_text',
-        body: bodyTextValues.length > 0
-          ? { ...basePayload, variables: { body_text: bodyTextValues } }
-          : { ...basePayload },
-      },
-      {
-        name: 'template + params[]',
-        body: bodyTextValues.length > 0
-          ? { ...basePayload, params: bodyTextValues }
-          : { ...basePayload },
-      },
-      {
-        name: 'template + body_text[][]',
-        body: bodyTextValues.length > 0
-          ? { ...basePayload, body_text: [bodyTextValues] }
-          : { ...basePayload },
-      },
-    ];
+    const payloadAttempts: Array<{ name: string; body: Record<string, unknown> }> = bodyTextValues.length > 0
+      ? [
+          {
+            name: 'template + components[]',
+            body: {
+              ...basePayload,
+              components: [
+                {
+                  type: 'body',
+                  parameters: bodyTextValues.map((v: string) => ({ type: 'text', text: v })),
+                },
+              ],
+            },
+          },
+          {
+            name: 'template + variables.body_text',
+            body: { ...basePayload, variables: { body_text: bodyTextValues } },
+          },
+          {
+            name: 'template + params[]',
+            body: { ...basePayload, params: bodyTextValues },
+          },
+          {
+            name: 'template + body_text[][]',
+            body: { ...basePayload, body_text: [bodyTextValues] },
+          },
+        ]
+      : [{ name: 'template (no vars)', body: { ...basePayload } }];
 
     let lastError = 'Falha ao enviar template';
 
