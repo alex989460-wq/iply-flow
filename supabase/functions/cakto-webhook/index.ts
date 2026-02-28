@@ -276,7 +276,79 @@ serve(async (req) => {
     const daysToMonths: Record<number, number> = { 30: 1, 90: 3, 180: 6, 365: 12 };
     const monthsToAdd = daysToMonths[durationDays];
 
-    console.log(`[Cakto] ${allMatchedCustomers.length} cliente(s) a renovar (duração: ${durationDays} dias, meses: ${monthsToAdd || 'N/A'})`);
+    console.log(`[Cakto] ${allMatchedCustomers.length} cliente(s) (duração: ${durationDays} dias, meses: ${monthsToAdd || 'N/A'})`);
+
+    // ── Conflict detection: multiple customers with same due_date ──
+    if (allMatchedCustomers.length > 1) {
+      const todayStr = today.toISOString().split('T')[0];
+      // Check if 2+ customers share the same due_date (or both expired)
+      const sameDueCustomers = allMatchedCustomers.filter((c: any) => {
+        const d = c.due_date || '';
+        return d === matchedCustomer.due_date || (d < todayStr && (matchedCustomer.due_date || '') < todayStr);
+      });
+
+      if (sameDueCustomers.length > 1) {
+        console.log(`[Cakto] CONFLITO: ${sameDueCustomers.length} clientes com mesmo vencimento (${matchedCustomer.due_date}). Notificando admin.`);
+
+        // Register payment without confirming (so money isn't lost)
+        if (amountNumeric > 0) {
+          await supabaseAdmin.from('payments').insert({
+            customer_id: matchedCustomer.id,
+            amount: amountNumeric,
+            payment_date: todayStr,
+            method: 'pix',
+            confirmed: false, // NOT confirmed - admin must decide
+            source: 'cakto',
+          });
+          console.log(`[Cakto] Pagamento registrado SEM confirmação para decisão do admin`);
+        }
+
+        // Notify admin via WhatsApp
+        try {
+          const { data: zapSettings } = await supabaseAdmin
+            .from('zap_responder_settings')
+            .select('selected_department_id')
+            .eq('user_id', matchedCustomer.created_by)
+            .maybeSingle();
+
+          if (zapSettings?.selected_department_id) {
+            const customerList = sameDueCustomers.map((c: any) =>
+              `  • ${c.name} (${c.username || '-'}) - Venc: ${c.due_date}`
+            ).join('\n');
+
+            const adminMsg = `⚠️ *Atenção: Pagamento requer decisão manual*\n\n📞 Telefone: ${phoneDigits}\n💰 Valor: *R$ ${amountNumeric.toFixed(2)}*\n📦 Plano: *${matchedPlanName || '-'}*\n\n👥 *${sameDueCustomers.length} clientes com mesmo vencimento:*\n${customerList}\n\n⏳ Pagamento registrado mas *NÃO confirmado*. Confirme manualmente qual cliente renovar.`;
+
+            await fetch(
+              `${Deno.env.get('SUPABASE_URL')}/functions/v1/zap-responder`,
+              {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+                },
+                body: JSON.stringify({
+                  action: 'enviar-mensagem',
+                  department_id: zapSettings.selected_department_id,
+                  number: '5541991758392',
+                  text: adminMsg,
+                  user_id: matchedCustomer.created_by,
+                }),
+              },
+            );
+            console.log('[Cakto] Notificação de conflito enviada ao admin');
+          }
+        } catch (e) {
+          console.error('[Cakto] Erro ao notificar admin sobre conflito:', e);
+        }
+
+        return new Response(JSON.stringify({
+          success: true,
+          message: `Conflito: ${sameDueCustomers.length} clientes com mesmo vencimento. Pagamento registrado sem confirmação. Admin notificado.`,
+          conflict: true,
+          customers: sameDueCustomers.map((c: any) => ({ name: c.name, username: c.username, due_date: c.due_date })),
+        }), { headers: jsonHeaders });
+      }
+    }
 
     // Renew ONLY the single selected customer (closest to expiration)
     {
