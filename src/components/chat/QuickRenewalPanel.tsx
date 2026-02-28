@@ -138,6 +138,22 @@ export default function QuickRenewalPanel({ isMobile = false, onClose }: QuickRe
 
   const selectedVplayServer = vplayServers.find(s => s.id === selectedVplayServerId);
 
+  // Fetch zap responder settings for WhatsApp messaging
+  const { data: zapSettings } = useQuery({
+    queryKey: ['zap-settings', user?.id],
+    queryFn: async () => {
+      if (!user?.id) return null;
+      const { data, error } = await supabase
+        .from('zap_responder_settings')
+        .select('selected_department_id')
+        .eq('user_id', user.id)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!user?.id,
+  });
+
   // Fetch user's billing settings
   const { data: billingSettings } = useQuery({
     queryKey: ['billing-settings', user?.id],
@@ -449,7 +465,7 @@ export default function QuickRenewalPanel({ isMobile = false, onClose }: QuickRe
 
       return { newDueDate: newDueDateStr, amount, customer, planName };
     },
-    onSuccess: (data) => {
+    onSuccess: async (data) => {
       const { newDueDate, amount, customer, planName } = data;
       const formattedDate = formatDate(newDueDate);
 
@@ -460,7 +476,7 @@ export default function QuickRenewalPanel({ isMobile = false, onClose }: QuickRe
       });
 
       // Generate renewal message with updated username
-      const displayUsername = editedUsername.trim() || '-';
+      const displayUsername = editedUsername.trim() || customer.username || '-';
       const message = `✅ *Renovação Confirmada!*
 
 Olá ${customer.name}!
@@ -475,6 +491,40 @@ Seu pagamento de *R$ ${amount.toFixed(2)}* foi confirmado.
 Obrigado pela preferência! 🙏`;
 
       setRenewalMessage(message);
+
+      // Send WhatsApp confirmation message
+      if (zapSettings?.selected_department_id) {
+        try {
+          const phone = customer.phone.replace(/\D/g, '');
+          const phoneWithCode = phone.startsWith('55') ? phone : `55${phone}`;
+          const formattedTime = format(new Date(), 'HH:mm', { locale: ptBR });
+          const formattedDueDate = format(new Date(newDueDate + 'T12:00:00'), 'dd/MM/yyyy', { locale: ptBR });
+          const serverName = customer.server?.server_name || '-';
+
+          const whatsappMessage = `✅ Olá, *${customer.name}*. Obrigado por confirmar seu pagamento. Segue abaixo os dados da sua assinatura:\n\n==========================\n📅 Próx. Vencimento: *${formattedDueDate} - ${formattedTime} hrs*\n💰 Valor: *${amount.toFixed(2)}*\n👤 Usuário: *${displayUsername}*\n📦 Plano: *${planName}*\n🔌 Status: *Ativo*\n💎 Obs: -\n⚡: *${serverName}*\n==========================`;
+
+          const { data: msgData, error: msgError } = await supabase.functions.invoke('zap-responder', {
+            body: {
+              action: 'enviar-mensagem',
+              department_id: zapSettings.selected_department_id,
+              number: phoneWithCode,
+              text: whatsappMessage,
+            },
+          });
+
+          if (msgError) {
+            console.error('Erro ao enviar mensagem WhatsApp:', msgError);
+          } else if (!msgData?.success) {
+            console.error('Falha ao enviar mensagem WhatsApp:', msgData);
+          } else {
+            console.log('Mensagem de confirmação enviada:', msgData);
+            toast.success('Mensagem de confirmação enviada!');
+          }
+        } catch (e) {
+          console.error('Erro ao enviar mensagem WhatsApp:', e);
+        }
+      }
+
       toast.success('Cliente renovado com sucesso!');
       queryClient.invalidateQueries({ queryKey: ['customer-search'] });
       queryClient.invalidateQueries({ queryKey: ['customers'] });
