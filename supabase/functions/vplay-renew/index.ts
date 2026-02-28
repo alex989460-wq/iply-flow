@@ -13,25 +13,35 @@ serve(async (req) => {
   }
 
   try {
-    const authHeader = req.headers.get('Authorization');
-    if (!authHeader?.startsWith('Bearer ')) {
-      return new Response(JSON.stringify({ error: 'Não autorizado' }), {
-        status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
+    // Support both authenticated calls and internal webhook calls
+    const internalSecret = req.headers.get('x-cakto-webhook-secret');
+    const configuredWebhookSecret = Deno.env.get('CAKTO_WEBHOOK_SECRET');
+    const isInternalWebhookCall =
+      !!configuredWebhookSecret && internalSecret === configuredWebhookSecret;
 
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL')!,
-      Deno.env.get('SUPABASE_ANON_KEY')!,
-      { global: { headers: { Authorization: authHeader } } },
-    );
+    if (!isInternalWebhookCall) {
+      const authHeader = req.headers.get('Authorization');
+      if (!authHeader?.startsWith('Bearer ')) {
+        return new Response(JSON.stringify({ error: 'Não autorizado' }), {
+          status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
 
-    const token = authHeader.replace('Bearer ', '');
-    const { error: claimsError } = await supabase.auth.getClaims(token);
-    if (claimsError) {
-      return new Response(JSON.stringify({ error: 'Não autorizado' }), {
-        status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+      const supabase = createClient(
+        Deno.env.get('SUPABASE_URL')!,
+        Deno.env.get('SUPABASE_ANON_KEY')!,
+        { global: { headers: { Authorization: authHeader } } },
+      );
+
+      const token = authHeader.replace('Bearer ', '');
+      const { data: claimsData, error: claimsError } = await supabase.auth.getClaims(token);
+      if (claimsError || !claimsData?.claims) {
+        return new Response(JSON.stringify({ error: 'Não autorizado' }), {
+          status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+    } else {
+      console.log('[VPlay] Chamada interna autorizada pelo webhook da Cakto');
     }
 
     const { username, new_due_date, customer_id } = await req.json();
@@ -74,6 +84,8 @@ serve(async (req) => {
 
     let chargedAccessId: string | null = null;
     let chargedCreditsAmount = 0;
+    let chargedSource: 'backend' | 'xui' | null = null;
+    let externalRefund: { tableName: string; balanceColumn: string; whereColumn: string; whereValue: string | number } | null = null;
 
     try {
       const expDateString = `${new_due_date} 23:59:59`;
@@ -142,60 +154,115 @@ serve(async (req) => {
       }
 
       // ─── CREDIT DEDUCTION ───
-      if (customer_id && supabaseAdmin) {
+      if (customer_id) {
         let creditsToDeduct = 1;
 
-        const { data: customerData } = await supabaseAdmin
-          .from('customers')
-          .select('id, created_by, plan_id')
-          .eq('id', customer_id)
-          .maybeSingle();
-
-        if (customerData?.plan_id) {
-          const { data: planData } = await supabaseAdmin
-            .from('plans')
-            .select('duration_days')
-            .eq('id', customerData.plan_id)
+        if (supabaseAdmin) {
+          const { data: customerData } = await supabaseAdmin
+            .from('customers')
+            .select('id, created_by, plan_id')
+            .eq('id', customer_id)
             .maybeSingle();
 
-          if (planData?.duration_days) {
-            creditsToDeduct = Math.max(1, Math.round(planData.duration_days / 30));
+          if (customerData?.plan_id) {
+            const { data: planData } = await supabaseAdmin
+              .from('plans')
+              .select('duration_days')
+              .eq('id', customerData.plan_id)
+              .maybeSingle();
+
+            if (planData?.duration_days) {
+              creditsToDeduct = Math.max(1, Math.round(planData.duration_days / 30));
+            }
+          }
+
+          // Try deducting from backend (reseller_access)
+          if (customerData?.created_by) {
+            const { data: ownerAccess } = await supabaseAdmin
+              .from('reseller_access')
+              .select('id, credits')
+              .eq('user_id', customerData.created_by)
+              .maybeSingle();
+
+            if (ownerAccess) {
+              if ((ownerAccess.credits ?? 0) < creditsToDeduct) {
+                // Check if admin - admins don't need credits
+                const { data: adminRole } = await supabaseAdmin
+                  .from('user_roles')
+                  .select('role')
+                  .eq('user_id', customerData.created_by)
+                  .eq('role', 'admin')
+                  .maybeSingle();
+
+                if (!adminRole) {
+                  throw new Error(`Créditos insuficientes. Necessário: ${creditsToDeduct}, disponível: ${ownerAccess.credits ?? 0}`);
+                } else {
+                  console.log(`[VPlay] Admin detectado - prosseguindo sem desconto de créditos backend`);
+                }
+              } else {
+                const newCredits = ownerAccess.credits - creditsToDeduct;
+                const { error: deductError } = await supabaseAdmin
+                  .from('reseller_access')
+                  .update({ credits: newCredits })
+                  .eq('id', ownerAccess.id);
+
+                if (deductError) throw new Error(`Erro ao descontar crédito: ${deductError.message}`);
+
+                chargedAccessId = ownerAccess.id;
+                chargedCreditsAmount = creditsToDeduct;
+                chargedSource = 'backend';
+                console.log(`[VPlay] ${creditsToDeduct} crédito(s) descontado(s) no backend. Saldo: ${newCredits}`);
+              }
+            }
           }
         }
 
-        if (customerData?.created_by) {
-          const { data: ownerAccess } = await supabaseAdmin
-            .from('reseller_access')
-            .select('id, credits')
-            .eq('user_id', customerData.created_by)
-            .maybeSingle();
+        // Fallback: deduct from XUI MySQL (table users, column credits)
+        if (!chargedAccessId && chargedSource !== 'backend') {
+          const ownerIdColumn = ['member_id', 'admin_id', 'user_id', 'owner_id', 'reseller_id']
+            .find((c) => foundColumns.has(c) && foundUser[c] !== undefined && foundUser[c] !== null && foundUser[c] !== 0);
 
-          if (ownerAccess) {
-            if ((ownerAccess.credits ?? 0) < creditsToDeduct) {
-              await connection.end();
-              return new Response(
-                JSON.stringify({
-                  success: false,
-                  error: `Créditos insuficientes. Necessário: ${creditsToDeduct}, disponível: ${ownerAccess.credits ?? 0}`,
-                }),
-                { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
-              );
+          if (ownerIdColumn) {
+            const ownerIdValue = foundUser[ownerIdColumn];
+            const ownerTable = 'users';
+
+            try {
+              const [columnsResult] = await connection.query(`SHOW COLUMNS FROM \`${ownerTable}\``);
+              const cols = new Set((columnsResult as any[]).map((c) => String(c.Field)));
+              const balanceCol = ['credits', 'credit', 'balance', 'wallet', 'money', 'saldo'].find((c) => cols.has(c));
+
+              if (balanceCol) {
+                const [ownerRows] = await connection.execute(
+                  `SELECT * FROM \`${ownerTable}\` WHERE \`id\` = ? LIMIT 1`,
+                  [ownerIdValue],
+                );
+                const owners = ownerRows as any[];
+                if (owners.length > 0) {
+                  const ownerRow = owners[0];
+                  const currentCredits = Number(ownerRow[balanceCol]);
+                  if (Number.isFinite(currentCredits)) {
+                    if (currentCredits < creditsToDeduct) {
+                      const ownerName = ownerRow.username || ownerRow.name || ownerRow.id;
+                      throw new Error(`Créditos insuficientes no VPlay para ${ownerName}. Necessário: ${creditsToDeduct}, disponível: ${currentCredits}`);
+                    }
+                    const newCredits = currentCredits - creditsToDeduct;
+                    await connection.execute(
+                      `UPDATE \`${ownerTable}\` SET \`${balanceCol}\` = ? WHERE \`id\` = ? LIMIT 1`,
+                      [newCredits, ownerRow.id],
+                    );
+                    chargedCreditsAmount = creditsToDeduct;
+                    chargedSource = 'xui';
+                    externalRefund = { tableName: ownerTable, balanceColumn: balanceCol, whereColumn: 'id', whereValue: ownerRow.id };
+                    console.log(`[VPlay] ${creditsToDeduct} crédito(s) descontado(s) no MySQL (${ownerTable}.${balanceCol}). Saldo: ${newCredits}`);
+                  }
+                }
+              }
+            } catch (e) {
+              if (e instanceof Error && e.message.includes('Créditos insuficientes')) throw e;
+              console.warn(`[VPlay] Fallback MySQL falhou:`, e);
             }
-
-            const newCredits = ownerAccess.credits - creditsToDeduct;
-            const { error: deductError } = await supabaseAdmin
-              .from('reseller_access')
-              .update({ credits: newCredits })
-              .eq('id', ownerAccess.id);
-
-            if (deductError) {
-              await connection.end();
-              throw new Error(`Erro ao descontar crédito: ${deductError.message}`);
-            }
-
-            chargedAccessId = ownerAccess.id;
-            chargedCreditsAmount = creditsToDeduct;
-            console.log(`[VPlay] ${creditsToDeduct} crédito(s) descontado(s). Saldo: ${newCredits}`);
+          } else {
+            console.warn(`[VPlay] Sem coluna de owner encontrada. Renovação prossegue sem desconto.`);
           }
         }
       }
@@ -248,11 +315,12 @@ serve(async (req) => {
           new_exp_date: expDateValue,
           credit_charged: chargedCreditsAmount > 0,
           credits_debited: chargedCreditsAmount,
+          credit_source: chargedSource,
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
       );
     } catch (dbError) {
-      // Refund credits if renewal failed
+      // Refund backend credits
       if (chargedAccessId && supabaseAdmin) {
         try {
           const { data: accessData } = await supabaseAdmin
@@ -265,10 +333,31 @@ serve(async (req) => {
               .from('reseller_access')
               .update({ credits: (accessData.credits ?? 0) + chargedCreditsAmount })
               .eq('id', chargedAccessId);
-            console.log(`[VPlay] Créditos reembolsados: ${chargedCreditsAmount}`);
           }
         } catch (refundError) {
-          console.error('[VPlay] Erro reembolso:', refundError);
+          console.error('[VPlay] Erro reembolso backend:', refundError);
+        }
+      }
+
+      // Refund XUI MySQL credits
+      if (externalRefund) {
+        try {
+          const [rows] = await connection.execute(
+            `SELECT \`${externalRefund.balanceColumn}\` FROM \`${externalRefund.tableName}\` WHERE \`${externalRefund.whereColumn}\` = ? LIMIT 1`,
+            [externalRefund.whereValue],
+          );
+          const currentRow = (rows as any[])[0];
+          if (currentRow) {
+            const val = Number(currentRow[externalRefund.balanceColumn]);
+            if (Number.isFinite(val)) {
+              await connection.execute(
+                `UPDATE \`${externalRefund.tableName}\` SET \`${externalRefund.balanceColumn}\` = ? WHERE \`${externalRefund.whereColumn}\` = ? LIMIT 1`,
+                [val + chargedCreditsAmount, externalRefund.whereValue],
+              );
+            }
+          }
+        } catch (refundError) {
+          console.error('[VPlay] Erro reembolso MySQL:', refundError);
         }
       }
 

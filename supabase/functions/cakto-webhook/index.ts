@@ -398,53 +398,41 @@ serve(async (req) => {
 
       console.log(`[Cakto] Usernames para renovar: ${usernames.join(', ')} (${usernames.length} conexões)`);
 
-      // ── VPlay renewal ──
+      // ── VPlay renewal via vplay-renew edge function (MySQL) ──
       if (matchedCustomer.server_id) {
-        let vplayUrl = '';
-        let keyMessage = 'XCLOUD';
-
-        const { data: vplayServer } = await supabaseAdmin
-          .from('vplay_servers')
-          .select('integration_url, key_message')
-          .eq('user_id', matchedCustomer.created_by)
-          .eq('is_default', true)
+        const { data: serverData } = await supabaseAdmin
+          .from('servers')
+          .select('server_name, host')
+          .eq('id', matchedCustomer.server_id)
           .maybeSingle();
 
-        if (vplayServer?.integration_url) {
-          vplayUrl = vplayServer.integration_url.replace(/\/+$/, '');
-          keyMessage = vplayServer.key_message || 'XCLOUD';
-        } else {
-          const { data: billingSettings } = await supabaseAdmin
-            .from('billing_settings')
-            .select('vplay_integration_url, vplay_key_message')
-            .eq('user_id', matchedCustomer.created_by)
-            .maybeSingle();
+        const serverName = serverData?.server_name || '';
+        const serverHost = serverData?.host || '';
+        const isVplay = serverName.toLowerCase().includes('vplay') || serverHost.toLowerCase().includes('vplay');
 
-          if (billingSettings?.vplay_integration_url) {
-            vplayUrl = billingSettings.vplay_integration_url.replace(/\/+$/, '');
-            keyMessage = billingSettings.vplay_key_message || 'XCLOUD';
-          }
-        }
-
-        if (vplayUrl) {
+        if (isVplay) {
           for (const username of usernames) {
             try {
-              console.log(`[Cakto] Renovando VPlay: ${username} por ${durationDays} dias`);
-              const vplayResp = await fetch(vplayUrl, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  key: keyMessage,
-                  action: 'renew',
-                  username,
-                  duration: durationDays,
-                }),
-              });
-              const vplayText = await vplayResp.text();
-              let result: any;
-              try { result = JSON.parse(vplayText); } catch { result = { raw: vplayText }; }
-              renewResults.push({ panel: 'vplay', username, success: vplayResp.ok, result });
-              console.log(`[Cakto] VPlay renew ${username}:`, JSON.stringify(result));
+              console.log(`[Cakto] Renovando VPlay via MySQL: ${username}, nova data: ${newDueDate}`);
+              const vplayResp = await fetch(
+                `${Deno.env.get('SUPABASE_URL')}/functions/v1/vplay-renew`,
+                {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${Deno.env.get('SUPABASE_ANON_KEY')}`,
+                    'x-cakto-webhook-secret': configuredWebhookSecret || '',
+                  },
+                  body: JSON.stringify({
+                    username,
+                    new_due_date: newDueDate,
+                    customer_id: matchedCustomer.id,
+                  }),
+                },
+              );
+              const vplayResult = await vplayResp.json();
+              renewResults.push({ panel: 'vplay', username, success: vplayResult?.success ?? false, result: vplayResult });
+              console.log(`[Cakto] VPlay renew ${username}:`, JSON.stringify(vplayResult));
             } catch (e) {
               const errMsg = e instanceof Error ? e.message : 'Erro desconhecido';
               renewResults.push({ panel: 'vplay', username, success: false, error: errMsg });
