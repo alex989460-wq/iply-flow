@@ -41,3 +41,15 @@ verify_jwt = false
 
 [functions.daily-report]
 verify_jwt = false
+
+[functions.the-best-renew]
+verify_jwt = false
+
+[functions.rush-renew]
+verify_jwt = false
+
+[functions.natv-renew]
+verify_jwt = false
+
+[functions.vplay-renew]
+verify_jwt = false
