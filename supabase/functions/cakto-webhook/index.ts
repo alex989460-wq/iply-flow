@@ -108,44 +108,52 @@ serve(async (req) => {
       { auth: { autoRefreshToken: false, persistSession: false } },
     );
 
-    // Search customer by phone variants
-    let matchedCustomer: any = null;
+    // Search ALL customers by phone variants (supports multi-screen / multi-customer)
+    let allMatchedCustomers: any[] = [];
     for (const variant of searchVariants) {
       const { data: candidates } = await supabaseAdmin
         .from('customers')
-        .select('id, name, phone, username, server_id, plan_id, due_date, created_by, status, created_at')
+        .select('id, name, phone, username, server_id, plan_id, due_date, created_by, status, created_at, custom_price, screens')
         .ilike('phone', `%${variant}%`)
         .order('created_at', { ascending: false })
         .limit(20);
 
       if (candidates && candidates.length > 0) {
-        const scored = [...candidates].sort((a: any, b: any) => {
-          const score = (c: any) =>
-            (c.username?.trim() ? 2 : 0) +
-            (c.server_id ? 2 : 0) +
-            (c.plan_id ? 1 : 0) +
-            (c.status === 'ativa' ? 1 : 0);
-
-          const scoreDiff = score(b) - score(a);
-          if (scoreDiff !== 0) return scoreDiff;
-          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-        });
-
-        matchedCustomer = scored[0];
-        console.log(
-          `[Cakto] Cliente encontrado: ${matchedCustomer.name} (${matchedCustomer.phone}) via variante ${variant} | id=${matchedCustomer.id} | created_at=${matchedCustomer.created_at}`,
-        );
-        break;
+        // Deduplicate by id
+        for (const c of candidates) {
+          if (!allMatchedCustomers.find((m: any) => m.id === c.id)) {
+            allMatchedCustomers.push(c);
+          }
+        }
       }
     }
 
-    if (!matchedCustomer) {
+    // Sort by score (best first)
+    allMatchedCustomers.sort((a: any, b: any) => {
+      const score = (c: any) =>
+        (c.username?.trim() ? 2 : 0) +
+        (c.server_id ? 2 : 0) +
+        (c.plan_id ? 1 : 0) +
+        (c.status === 'ativa' ? 1 : 0);
+      const scoreDiff = score(b) - score(a);
+      if (scoreDiff !== 0) return scoreDiff;
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    });
+
+    if (allMatchedCustomers.length === 0) {
       console.warn(`[Cakto] Nenhum cliente encontrado para telefone: ${phone}`);
       return new Response(JSON.stringify({ 
         success: false, 
         error: `Nenhum cliente encontrado com telefone ${phone}`,
         searched_variants: [...searchVariants],
       }), { status: 404, headers: jsonHeaders });
+    }
+
+    // Use the primary (best scored) customer for plan detection and messaging
+    const matchedCustomer = allMatchedCustomers[0];
+    console.log(`[Cakto] ${allMatchedCustomers.length} cliente(s) encontrado(s) para telefone ${phone}:`);
+    for (const c of allMatchedCustomers) {
+      console.log(`  - ${c.name} (${c.username || '-'}) id=${c.id} status=${c.status}`);
     }
 
     // ── Determine payment amount early (used for duplicate protection) ──
@@ -261,50 +269,66 @@ serve(async (req) => {
 
     console.log(`[Cakto] Plano detectado: ${matchedPlanName || 'padrão'} (${durationDays} dias) | Valor pago: R$ ${amountNumeric.toFixed(2)} | Telas: ${matchedCustomer.screens || 1}`);
 
-    // Calculate new due date using calendar months for standard plans
+    // Prepare calendar month mapping
     const today = new Date();
-    const currentDueDate = matchedCustomer.due_date ? new Date(matchedCustomer.due_date + 'T00:00:00') : today;
-    const baseDate = new Date(currentDueDate > today ? currentDueDate : today);
-
-    // Map standard duration_days to calendar months
     const daysToMonths: Record<number, number> = { 30: 1, 90: 3, 180: 6, 365: 12 };
     const monthsToAdd = daysToMonths[durationDays];
 
-    if (monthsToAdd) {
-      // Use calendar month logic (e.g. Feb 28 → Mar 28, not Mar 30)
-      const originalDay = baseDate.getDate();
-      baseDate.setMonth(baseDate.getMonth() + monthsToAdd);
-      // If the day changed (e.g. Jan 31 → Mar 3), clamp to last day of target month
-      if (baseDate.getDate() !== originalDay) {
-        baseDate.setDate(0); // go to last day of previous month
+    console.log(`[Cakto] ${allMatchedCustomers.length} cliente(s) a renovar (duração: ${durationDays} dias, meses: ${monthsToAdd || 'N/A'})`);
+
+    // Update ALL matched customers' due_date and status, and register payments
+    const perCustomerAmount = allMatchedCustomers.length > 1
+      ? Number((amountNumeric / allMatchedCustomers.length).toFixed(2))
+      : amountNumeric;
+
+    for (const cust of allMatchedCustomers) {
+      // Calculate new due date per customer (each may have different current due_date)
+      const custCurrentDue = cust.due_date ? new Date(cust.due_date + 'T00:00:00') : today;
+      const custBase = new Date(custCurrentDue > today ? custCurrentDue : today);
+
+      if (monthsToAdd) {
+        const origDay = custBase.getDate();
+        custBase.setMonth(custBase.getMonth() + monthsToAdd);
+        if (custBase.getDate() !== origDay) {
+          custBase.setDate(0);
+        }
+      } else {
+        custBase.setDate(custBase.getDate() + durationDays);
       }
+      const custNewDue = custBase.toISOString().split('T')[0];
+
+      await supabaseAdmin
+        .from('customers')
+        .update({ due_date: custNewDue, status: 'ativa' })
+        .eq('id', cust.id);
+
+      console.log(`[Cakto] Cliente ${cust.name} (${cust.username || '-'}) atualizado: due_date=${custNewDue}`);
+
+      // Register payment per customer
+      if (amountNumeric > 0) {
+        await supabaseAdmin.from('payments').insert({
+          customer_id: cust.id,
+          amount: perCustomerAmount,
+          payment_date: today.toISOString().split('T')[0],
+          method: 'pix',
+          confirmed: true,
+          source: 'cakto',
+        });
+        console.log(`[Cakto] Pagamento registrado para ${cust.name}: R$ ${perCustomerAmount.toFixed(2)}`);
+      }
+    }
+
+    // Use the primary customer's new due date for notifications
+    const primaryCurrentDue = matchedCustomer.due_date ? new Date(matchedCustomer.due_date + 'T00:00:00') : today;
+    const primaryBase = new Date(primaryCurrentDue > today ? primaryCurrentDue : today);
+    if (monthsToAdd) {
+      const origDay = primaryBase.getDate();
+      primaryBase.setMonth(primaryBase.getMonth() + monthsToAdd);
+      if (primaryBase.getDate() !== origDay) primaryBase.setDate(0);
     } else {
-      // Non-standard durations: use raw days
-      baseDate.setDate(baseDate.getDate() + durationDays);
+      primaryBase.setDate(primaryBase.getDate() + durationDays);
     }
-
-    const newDueDate = baseDate.toISOString().split('T')[0];
-
-    console.log(`[Cakto] Nova data de vencimento: ${newDueDate} (duração: ${durationDays} dias)`);
-
-    // Update customer due_date and status
-    await supabaseAdmin
-      .from('customers')
-      .update({ due_date: newDueDate, status: 'ativa' })
-      .eq('id', matchedCustomer.id);
-
-    // Register payment
-    if (amountNumeric > 0) {
-      await supabaseAdmin.from('payments').insert({
-        customer_id: matchedCustomer.id,
-        amount: amountNumeric,
-        payment_date: today.toISOString().split('T')[0],
-        method: 'pix',
-        confirmed: true,
-        source: 'cakto',
-      });
-      console.log(`[Cakto] Pagamento registrado: R$ ${amountNumeric.toFixed(2)}`);
-    }
+    const newDueDate = primaryBase.toISOString().split('T')[0];
 
     // ── Save payment confirmation for the dynamic page ──
     let confirmationId = '';
@@ -437,15 +461,20 @@ serve(async (req) => {
       console.error('[Cakto] Erro ao enviar mensagem WhatsApp:', e);
     }
 
-    // ── Trigger server renewals for each username (supports comma-separated) ──
+    // ── Trigger server renewals for ALL matched customers' usernames ──
     const renewResults: any[] = [];
-    if (matchedCustomer.username?.trim()) {
-      const usernames = matchedCustomer.username
-        .split(',')
-        .map((u: string) => u.trim())
-        .filter((u: string) => u.length > 0);
+    const allUsernames: string[] = [];
+    for (const cust of allMatchedCustomers) {
+      if (cust.username?.trim()) {
+        const parts = cust.username.split(',').map((u: string) => u.trim()).filter((u: string) => u.length > 0);
+        for (const u of parts) {
+          if (!allUsernames.includes(u)) allUsernames.push(u);
+        }
+      }
+    }
 
-      console.log(`[Cakto] Usernames para renovar: ${usernames.join(', ')} (${usernames.length} conexões)`);
+    if (allUsernames.length > 0) {
+      console.log(`[Cakto] Usernames para renovar: ${allUsernames.join(', ')} (${allUsernames.length} conexões)`);
 
       // ── VPlay renewal via vplay-renew edge function (MySQL) ──
       if (matchedCustomer.server_id) {
@@ -463,7 +492,7 @@ serve(async (req) => {
         if (!autoRenew) {
           console.log(`[Cakto] Servidor "${serverName}" não está habilitado para renovação automática. Pulando.`);
         } else if (isVplay) {
-          for (const username of usernames) {
+          for (const username of allUsernames) {
             try {
               console.log(`[Cakto] Renovando VPlay via MySQL: ${username}, nova data: ${newDueDate}`);
               const vplayResp = await fetch(
@@ -525,7 +554,7 @@ serve(async (req) => {
           Math.abs(curr - months) < Math.abs(prev - months) ? curr : prev
         );
 
-        for (const username of usernames) {
+        for (const username of allUsernames) {
           try {
             console.log(`[Cakto] Renovando NATV: ${username} por ${natvMonths} meses`);
             const natvResp = await fetch(`${natvBaseUrl}/user/activation`, {
