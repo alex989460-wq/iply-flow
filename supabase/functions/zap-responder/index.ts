@@ -1514,6 +1514,10 @@ Deno.serve(async (req) => {
     // Extract user_id from JWT token
     let userId: string | null = null;
     const authHeader = req.headers.get('Authorization');
+    
+    // Parse body early to check for internal service calls with user_id
+    const body = await req.json().catch(() => ({}));
+    
     if (authHeader?.startsWith('Bearer ')) {
       const token = authHeader.slice(7);
       try {
@@ -1524,6 +1528,12 @@ Deno.serve(async (req) => {
       } catch (e) {
         console.log('Could not extract user from token:', e);
       }
+    }
+
+    // Allow internal service-to-service calls that pass user_id in body
+    if (!userId && body.user_id) {
+      console.log('[ZapResponder] Using user_id from body (internal call):', body.user_id);
+      userId = body.user_id;
     }
 
     if (!userId) {
@@ -1574,7 +1584,7 @@ Deno.serve(async (req) => {
 
     const apiBaseUrl = settings?.api_base_url || 'https://api.zapresponder.com.br/api';
 
-    const body = await req.json().catch(() => ({}));
+    // body already parsed above
     const action = body.action || 'sessions';
 
     console.log(`Zap Responder action: ${action}`, body);
