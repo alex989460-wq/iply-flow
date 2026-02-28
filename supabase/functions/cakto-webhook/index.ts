@@ -552,6 +552,21 @@ serve(async (req) => {
       console.error('[Cakto] Erro ao enviar mensagem WhatsApp:', e);
     }
 
+    // ── Check for extra_months: if customer has extra months, skip server renewal and deduct ──
+    const customerExtraMonths = matchedCustomer.extra_months || 0;
+    const renewMonths = monthsToAdd || Math.max(1, Math.round(durationDays / 30));
+    let skipServerRenewal = false;
+
+    if (customerExtraMonths > 0) {
+      const newExtraMonths = Math.max(0, customerExtraMonths - renewMonths);
+      await supabaseAdmin
+        .from('customers')
+        .update({ extra_months: newExtraMonths })
+        .eq('id', matchedCustomer.id);
+      console.log(`[Cakto] Cliente tem ${customerExtraMonths} mês(es) extra. Abatendo ${renewMonths} → restam ${newExtraMonths}. Servidor JÁ possui o tempo, pulando renovação no painel.`);
+      skipServerRenewal = true;
+    }
+
     // ── Trigger server renewals for ALL matched customers' usernames ──
     // Only renew server for the SINGLE selected customer's usernames
     const allUsernames: string[] = [];
@@ -564,7 +579,7 @@ serve(async (req) => {
 
     const renewResults: any[] = [];
 
-    if (allUsernames.length > 0) {
+    if (allUsernames.length > 0 && !skipServerRenewal) {
       console.log(`[Cakto] Usernames para renovar: ${allUsernames.join(', ')} (${allUsernames.length} conexões)`);
 
       // ── Detect server type to only renew on the CORRECT panel ──
