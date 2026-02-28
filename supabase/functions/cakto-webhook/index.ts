@@ -373,6 +373,37 @@ serve(async (req) => {
       } else {
         console.log('[Cakto] Nenhum departamento configurado. Mensagem não enviada.');
       }
+
+      // Send admin notification
+      if (zapSettings?.selected_department_id) {
+        try {
+          const adminPhone = '5541991758392';
+          const dueParts2 = newDueDate.split('-');
+          const fmtDue = `${dueParts2[2]}/${dueParts2[1]}/${dueParts2[0]}`;
+          const adminMsg = `🔔 *Renovação Automática (Cakto)*\n\n👤 Cliente: *${matchedCustomer.name}*\n📞 Tel: ${metaPhone}\n👤 Usuário: *${matchedCustomer.username || '-'}*\n💰 Valor: *R$ ${amountNumeric.toFixed(2)}*\n📦 Plano: *${matchedPlanName || '-'}*\n🖥️ Servidor: *${serverName}*\n📅 Novo vencimento: *${fmtDue}*\n✅ Status: Renovado`;
+
+          await fetch(
+            `${Deno.env.get('SUPABASE_URL')}/functions/v1/zap-responder`,
+            {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+              },
+              body: JSON.stringify({
+                action: 'enviar-mensagem',
+                department_id: zapSettings.selected_department_id,
+                number: adminPhone,
+                text: adminMsg,
+                user_id: matchedCustomer.created_by,
+              }),
+            },
+          );
+          console.log('[Cakto] Notificação admin enviada');
+        } catch (adminErr) {
+          console.error('[Cakto] Erro ao notificar admin:', adminErr);
+        }
+      }
     } catch (e) {
       console.error('[Cakto] Erro ao enviar mensagem WhatsApp:', e);
     }
