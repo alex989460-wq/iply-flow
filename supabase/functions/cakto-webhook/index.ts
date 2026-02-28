@@ -421,7 +421,7 @@ serve(async (req) => {
                   headers: {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${Deno.env.get('SUPABASE_ANON_KEY')}`,
-                    'x-cakto-webhook-secret': configuredWebhookSecret || '',
+                    'x-cakto-webhook-secret': globalWebhookSecret || '',
                   },
                   body: JSON.stringify({
                     username,
