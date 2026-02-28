@@ -19,7 +19,7 @@ export default function ResellerApiSettings() {
   const [showCaktoSecret, setShowCaktoSecret] = useState(false);
   const [showCaktoClientSecret, setShowCaktoClientSecret] = useState(false);
   const [showNatvKey, setShowNatvKey] = useState(false);
-  const [showTheBestKey, setShowTheBestKey] = useState(false);
+  const [showTheBestPassword, setShowTheBestPassword] = useState(false);
 
   const [settings, setSettings] = useState({
     cakto_webhook_secret: '',
@@ -27,7 +27,8 @@ export default function ResellerApiSettings() {
     cakto_client_secret: '',
     natv_api_key: '',
     natv_base_url: '',
-    the_best_api_key: '',
+    the_best_username: '',
+    the_best_password: '',
     the_best_base_url: '',
   });
 
@@ -56,7 +57,8 @@ export default function ResellerApiSettings() {
           cakto_client_secret: d.cakto_client_secret || '',
           natv_api_key: d.natv_api_key || '',
           natv_base_url: d.natv_base_url || '',
-          the_best_api_key: d.the_best_api_key || '',
+          the_best_username: d.the_best_username || '',
+          the_best_password: d.the_best_password || '',
           the_best_base_url: d.the_best_base_url || '',
         });
       }
@@ -78,7 +80,8 @@ export default function ResellerApiSettings() {
         cakto_client_secret: settings.cakto_client_secret || '',
         natv_api_key: settings.natv_api_key || '',
         natv_base_url: settings.natv_base_url || '',
-        the_best_api_key: settings.the_best_api_key || '',
+        the_best_username: settings.the_best_username || '',
+        the_best_password: settings.the_best_password || '',
         the_best_base_url: settings.the_best_base_url || '',
         updated_at: new Date().toISOString(),
       };
@@ -123,7 +126,7 @@ export default function ResellerApiSettings() {
 
   const hasCakto = !!settings.cakto_webhook_secret;
   const hasNatv = !!settings.natv_api_key && !!settings.natv_base_url;
-  const hasTheBest = !!settings.the_best_api_key;
+  const hasTheBest = !!settings.the_best_username && !!settings.the_best_password;
 
   return (
     <div className="space-y-6">
@@ -305,33 +308,45 @@ export default function ResellerApiSettings() {
             <AlertDescription>
               <strong>Como configurar:</strong>
               <ol className="list-decimal ml-4 mt-1 space-y-1 text-sm">
-                <li>Acesse o painel The Best em <strong>Configurações &gt; API</strong></li>
-                <li>Copie a <strong>API Key</strong> e cole abaixo</li>
+                <li>Use o <strong>usuário e senha</strong> do seu painel The Best (revendedor)</li>
+                <li>O sistema fará login automaticamente para obter o token JWT</li>
                 <li>A URL base padrão é <code>https://api.painel.best</code></li>
               </ol>
             </AlertDescription>
           </Alert>
 
-          <div className="space-y-2">
-            <Label htmlFor="the_best_key">API Key</Label>
-            <div className="relative">
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="the_best_username">Usuário do Revendedor</Label>
               <Input
-                id="the_best_key"
-                type={showTheBestKey ? 'text' : 'password'}
-                value={settings.the_best_api_key}
-                onChange={(e) => setSettings({ ...settings, the_best_api_key: e.target.value })}
-                placeholder="Cole sua API Key do The Best"
-                className="pr-10"
+                id="the_best_username"
+                value={settings.the_best_username}
+                onChange={(e) => setSettings({ ...settings, the_best_username: e.target.value })}
+                placeholder="Seu usuário do painel The Best"
               />
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="absolute right-0 top-0 h-full"
-                onClick={() => setShowTheBestKey(!showTheBestKey)}
-              >
-                {showTheBestKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-              </Button>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="the_best_password">Senha do Revendedor</Label>
+              <div className="relative">
+                <Input
+                  id="the_best_password"
+                  type={showTheBestPassword ? 'text' : 'password'}
+                  value={settings.the_best_password}
+                  onChange={(e) => setSettings({ ...settings, the_best_password: e.target.value })}
+                  placeholder="Sua senha do painel The Best"
+                  className="pr-10"
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="absolute right-0 top-0 h-full"
+                  onClick={() => setShowTheBestPassword(!showTheBestPassword)}
+                >
+                  {showTheBestPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </Button>
+              </div>
             </div>
           </div>
 

@@ -536,7 +536,7 @@ serve(async (req) => {
 
       const { data: resellerApiSettings } = await supabaseAdmin
         .from('reseller_api_settings')
-        .select('natv_api_key, natv_base_url, the_best_api_key, the_best_base_url')
+        .select('natv_api_key, natv_base_url, the_best_username, the_best_password, the_best_base_url')
         .eq('user_id', matchedCustomer.created_by)
         .maybeSingle();
 
@@ -586,109 +586,102 @@ serve(async (req) => {
         console.log(`[Cakto] NATV não configurado (API_KEY: ${natvApiKey ? 'sim' : 'não'}, BASE_URL: ${natvBaseUrl ? 'sim' : 'não'})`);
       }
 
-      // ── The Best renewal ──
-      let theBestApiKey = resellerApiSettings?.the_best_api_key || '';
-      let theBestBaseUrl = (resellerApiSettings?.the_best_base_url || '').replace(/\/+$/, '');
+      // ── The Best renewal (JWT login) ──
+      let tbUsername = resellerApiSettings?.the_best_username || '';
+      let tbPassword = resellerApiSettings?.the_best_password || '';
+      let theBestBaseUrl = (resellerApiSettings?.the_best_base_url || '').replace(/\/+$/, '') || 'https://api.painel.best';
 
-      // Fallback to global env var
-      if (!theBestApiKey) {
-        theBestApiKey = Deno.env.get('THE_BEST_API_KEY') || '';
-        theBestBaseUrl = theBestBaseUrl || 'https://api.painel.best';
-        if (theBestApiKey) console.log(`[Cakto] Usando chave The Best global (fallback)`);
+      if (tbUsername && tbPassword) {
+        console.log(`[Cakto] Usando credenciais The Best do revendedor`);
       } else {
-        console.log(`[Cakto] Usando chave The Best do revendedor`);
+        console.log(`[Cakto] The Best não configurado (sem username/password)`);
       }
 
-      if (!theBestBaseUrl) theBestBaseUrl = 'https://api.painel.best';
-
-      if (theBestApiKey) {
+      if (tbUsername && tbPassword) {
         const tbDaysToMonths: Record<number, number> = { 30: 1, 60: 2, 90: 3, 120: 4, 150: 5, 180: 6, 360: 12, 365: 12 };
         const tbMonths = tbDaysToMonths[durationDays] || Math.max(1, Math.round(durationDays / 30));
 
-        for (const username of allUsernames) {
-          try {
-            console.log(`[Cakto] Renovando The Best: ${username} por ${tbMonths} meses`);
+        // Login to get JWT token
+        let tbToken = '';
+        try {
+          const loginResp = await fetch(`${theBestBaseUrl}/auth/token/`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username: tbUsername, password: tbPassword }),
+          });
+          if (!loginResp.ok) {
+            const errText = await loginResp.text();
+            console.error(`[Cakto] The Best login falhou: ${loginResp.status} - ${errText}`);
+          } else {
+            const loginData = await loginResp.json();
+            tbToken = loginData.access || loginData.token || loginData.access_token || '';
+            if (tbToken) console.log(`[Cakto] The Best: token JWT obtido`);
+          }
+        } catch (loginErr) {
+          console.error(`[Cakto] The Best login erro:`, loginErr);
+        }
 
-            // Step 1: Search for user
-            const searchUrl = `${theBestBaseUrl}/lines/?search=${encodeURIComponent(username.trim())}&per_page=10`;
-            const authHeaders: Record<string, string>[] = [
-              { 'Api-Key': theBestApiKey },
-              { 'X-API-Key': theBestApiKey },
-              { 'Authorization': `Token ${theBestApiKey}` },
-              { 'Authorization': `Bearer ${theBestApiKey}` },
-            ];
+        if (tbToken) {
+          for (const username of allUsernames) {
+            try {
+              console.log(`[Cakto] Renovando The Best: ${username} por ${tbMonths} meses`);
 
-            let searchResponse: Response | null = null;
-            for (const ah of authHeaders) {
-              const resp = await fetch(searchUrl, {
+              // Search for user
+              const searchUrl = `${theBestBaseUrl}/lines/?search=${encodeURIComponent(username.trim())}&per_page=10`;
+              const searchResponse = await fetch(searchUrl, {
                 method: 'GET',
-                headers: { ...ah, 'Accept': 'application/json' },
+                headers: { 'Authorization': `Bearer ${tbToken}`, 'Accept': 'application/json' },
               });
-              if (resp.ok || resp.status !== 401) {
-                searchResponse = resp;
-                break;
+
+              if (!searchResponse.ok) {
+                const errText = await searchResponse.text();
+                console.error(`[Cakto] The Best busca falhou: ${searchResponse.status} - ${errText}`);
+                renewResults.push({ panel: 'the_best', username, success: false, error: `Busca falhou: ${searchResponse.status}` });
+                continue;
               }
-              searchResponse = resp;
-            }
 
-            if (!searchResponse || !searchResponse.ok) {
-              const errText = searchResponse ? await searchResponse.text() : 'No response';
-              console.error(`[Cakto] The Best busca falhou: ${searchResponse?.status} - ${errText}`);
-              renewResults.push({ panel: 'the_best', username, success: false, error: `Busca falhou: ${searchResponse?.status}` });
-              continue;
-            }
+              const searchData = await searchResponse.json();
+              const results = searchData.results || searchData.data || searchData;
+              const lines = Array.isArray(results) ? results : [];
+              const normalizedUsername = username.trim().toLowerCase();
+              const matchedLine = lines.find((line: any) =>
+                String(line.username || '').trim().toLowerCase() === normalizedUsername
+              );
 
-            const searchData = await searchResponse.json();
-            const results = searchData.results || searchData.data || searchData;
-            const lines = Array.isArray(results) ? results : [];
-            const normalizedUsername = username.trim().toLowerCase();
-            const matchedLine = lines.find((line: any) =>
-              String(line.username || '').trim().toLowerCase() === normalizedUsername
-            );
+              if (!matchedLine) {
+                console.log(`[Cakto] The Best: usuário "${username}" não encontrado`);
+                renewResults.push({ panel: 'the_best', username, success: false, error: 'Usuário não encontrado' });
+                continue;
+              }
 
-            if (!matchedLine) {
-              console.log(`[Cakto] The Best: usuário "${username}" não encontrado`);
-              renewResults.push({ panel: 'the_best', username, success: false, error: 'Usuário não encontrado' });
-              continue;
-            }
+              const lineId = matchedLine.id;
+              console.log(`[Cakto] The Best: usuário encontrado id=${lineId}`);
 
-            const lineId = matchedLine.id;
-            console.log(`[Cakto] The Best: usuário encontrado id=${lineId}`);
-
-            // Step 2: Renew
-            const renewUrl = `${theBestBaseUrl}/lines/${lineId}/renew/`;
-            let renewResponse: Response | null = null;
-            for (const ah of authHeaders) {
-              const resp = await fetch(renewUrl, {
+              // Renew
+              const renewUrl = `${theBestBaseUrl}/lines/${lineId}/renew/`;
+              const renewResponse = await fetch(renewUrl, {
                 method: 'POST',
-                headers: { ...ah, 'Content-Type': 'application/json', 'Accept': 'application/json' },
+                headers: { 'Authorization': `Bearer ${tbToken}`, 'Content-Type': 'application/json', 'Accept': 'application/json' },
                 body: JSON.stringify({ months: tbMonths }),
               });
-              if (resp.ok || resp.status !== 401) {
-                renewResponse = resp;
-                break;
+
+              if (!renewResponse.ok) {
+                const errText = await renewResponse.text();
+                console.error(`[Cakto] The Best renovação falhou: ${renewResponse.status} - ${errText}`);
+                renewResults.push({ panel: 'the_best', username, success: false, error: `Renovação falhou: ${renewResponse.status}` });
+                continue;
               }
-              renewResponse = resp;
-            }
 
-            if (!renewResponse || !renewResponse.ok) {
-              const errText = renewResponse ? await renewResponse.text() : 'No response';
-              console.error(`[Cakto] The Best renovação falhou: ${renewResponse?.status} - ${errText}`);
-              renewResults.push({ panel: 'the_best', username, success: false, error: `Renovação falhou: ${renewResponse?.status}` });
-              continue;
+              const renewData = await renewResponse.json();
+              console.log(`[Cakto] The Best renew ${username}: OK`, JSON.stringify(renewData));
+              renewResults.push({ panel: 'the_best', username, success: true, result: renewData });
+            } catch (e) {
+              const errMsg = e instanceof Error ? e.message : 'Erro desconhecido';
+              renewResults.push({ panel: 'the_best', username, success: false, error: errMsg });
+              console.error(`[Cakto] Erro renovando The Best ${username}:`, e);
             }
-
-            const renewData = await renewResponse.json();
-            console.log(`[Cakto] The Best renew ${username}: OK`, JSON.stringify(renewData));
-            renewResults.push({ panel: 'the_best', username, success: true, result: renewData });
-          } catch (e) {
-            const errMsg = e instanceof Error ? e.message : 'Erro desconhecido';
-            renewResults.push({ panel: 'the_best', username, success: false, error: errMsg });
-            console.error(`[Cakto] Erro renovando The Best ${username}:`, e);
           }
         }
-      } else {
-        console.log(`[Cakto] The Best não configurado`);
       }
 
       if (renewResults.length === 0) {
