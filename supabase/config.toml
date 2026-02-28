@@ -38,3 +38,6 @@ verify_jwt = false
 
 [functions.cakto-webhook]
 verify_jwt = false
+
+[functions.daily-report]
+verify_jwt = false
