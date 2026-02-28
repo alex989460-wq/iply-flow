@@ -121,96 +121,9 @@ serve(async (req) => {
 
     const authParams = `username=${encodeURIComponent(rUsername)}&password=${encodeURIComponent(rPassword)}&token=${encodeURIComponent(rToken)}`;
 
-    // Step 1: Search for the user by listing users
-    // Try to find user by fetching user list and searching by userline
-    console.log(`[Rush] Buscando usuário: ${username} no tipo ${userType}`);
-    
-    let userId = '';
-    
-    // Try search via GET endpoint
-    const searchUrl = `${rBaseUrl}/${userType}/?${authParams}`;
-    console.log(`[Rush] Buscando lista de usuários: ${rBaseUrl}/${userType}/`);
-    
-    const searchResponse = await fetch(searchUrl, {
-      method: 'GET',
-      headers: { 'Accept': 'application/json' },
-    });
-
-    if (searchResponse.ok) {
-      const searchData = await searchResponse.json();
-      const users = Array.isArray(searchData) ? searchData : (searchData.data || searchData.users || searchData.results || []);
-      
-      const normalizedUsername = username.trim().toLowerCase();
-      const matchedUser = users.find((u: any) => {
-        const uName = String(u.userline || u.username || u.user || '').trim().toLowerCase();
-        return uName === normalizedUsername;
-      });
-
-      if (matchedUser) {
-        userId = matchedUser._id || matchedUser.id || matchedUser.userId || '';
-        console.log(`[Rush] Usuário encontrado via lista: id=${userId}`);
-      }
-    } else {
-      const errText = await searchResponse.text();
-      console.log(`[Rush] Lista GET falhou (${searchResponse.status}): ${errText}`);
-    }
-
-    // Try search endpoint if list didn't work
-    if (!userId) {
-      const searchUrl2 = `${rBaseUrl}/${userType}/search/${encodeURIComponent(username.trim())}?${authParams}`;
-      console.log(`[Rush] Tentando endpoint de busca: ${searchUrl2}`);
-      
-      const searchResp2 = await fetch(searchUrl2, {
-        method: 'GET',
-        headers: { 'Accept': 'application/json' },
-      });
-      
-      if (searchResp2.ok) {
-        const data2 = await searchResp2.json();
-        const users2 = Array.isArray(data2) ? data2 : [data2];
-        if (users2.length > 0 && (users2[0]._id || users2[0].id)) {
-          userId = users2[0]._id || users2[0].id;
-          console.log(`[Rush] Usuário encontrado via search: id=${userId}`);
-        }
-      } else {
-        const errText = await searchResp2.text();
-        console.log(`[Rush] Search endpoint falhou (${searchResp2.status}): ${errText}`);
-      }
-    }
-
-    // Try find endpoint
-    if (!userId) {
-      const searchUrl3 = `${rBaseUrl}/${userType}/find?${authParams}&userline=${encodeURIComponent(username.trim())}`;
-      console.log(`[Rush] Tentando endpoint find`);
-      
-      const searchResp3 = await fetch(searchUrl3, {
-        method: 'GET',
-        headers: { 'Accept': 'application/json' },
-      });
-      
-      if (searchResp3.ok) {
-        const data3 = await searchResp3.json();
-        const found = Array.isArray(data3) ? data3[0] : data3;
-        if (found && (found._id || found.id)) {
-          userId = found._id || found.id;
-          console.log(`[Rush] Usuário encontrado via find: id=${userId}`);
-        }
-      } else {
-        const errText = await searchResp3.text();
-        console.log(`[Rush] Find endpoint falhou (${searchResp3.status}): ${errText}`);
-      }
-    }
-
-    if (!userId) {
-      console.log(`[Rush] Usuário não encontrado: ${username}`);
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: `Usuário "${username}" não encontrado na API Rush (${userType})`,
-        }),
-        { headers: jsonHeaders },
-      );
-    }
+    // The Rush API uses the username directly as the ID in the extend endpoint
+    const userId = username.trim();
+    console.log(`[Rush] Usando username como ID: ${userId}, tipo: ${userType}`);
 
     // Step 2: Extend the user
     const extendUrl = `${rBaseUrl}/${userType}/extend/${userId}/?${authParams}`;
