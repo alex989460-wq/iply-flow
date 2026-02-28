@@ -201,6 +201,7 @@ serve(async (req) => {
 
     let durationDays = 30;
     let matchedPlanName = '';
+    let bestMatch: any = null;
 
     if (amountNumeric > 0 && allPlans && allPlans.length > 0) {
       // Account for multiple screens: effective price per screen
@@ -208,7 +209,6 @@ serve(async (req) => {
       const pricePerScreen = amountNumeric / screens;
 
       // Find closest plan by price (tolerance ±10%)
-      let bestMatch: any = null;
       let bestDiff = Infinity;
       for (const plan of allPlans) {
         const diff = Math.abs(plan.price - pricePerScreen);
@@ -297,9 +297,15 @@ serve(async (req) => {
       }
       const custNewDue = custBase.toISOString().split('T')[0];
 
+      // Build update payload: always update due_date & status; also update plan_id if a different plan was matched
+      const custUpdate: Record<string, unknown> = { due_date: custNewDue, status: 'ativa' };
+      if (bestMatch && bestMatch.id !== cust.plan_id) {
+        custUpdate.plan_id = bestMatch.id;
+        custUpdate.custom_price = null; // reset custom price when plan changes
+      }
       await supabaseAdmin
         .from('customers')
-        .update({ due_date: custNewDue, status: 'ativa' })
+        .update(custUpdate)
         .eq('id', cust.id);
 
       console.log(`[Cakto] Cliente ${cust.name} (${cust.username || '-'}) atualizado: due_date=${custNewDue}`);
