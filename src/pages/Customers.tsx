@@ -294,7 +294,7 @@ export default function Customers() {
               else console.log('[NATV] Auto-renovado ao cadastrar:', natvResult);
             } else if (isVplay) {
               const { data: vpResult, error: vpError } = await supabase.functions.invoke('vplay-renew', {
-                body: { username: newCustomer.username.trim(), duration_days: plan?.duration_days || 30, customer_id: newCustomer.id },
+                body: { username: newCustomer.username.trim(), new_due_date: dueDate, customer_id: newCustomer.id },
               });
               if (vpError) console.error('[VPlay] Erro auto-renew:', vpError);
               else if (!vpResult?.success) console.warn('[VPlay] Falha auto-renew:', vpResult?.error);
@@ -447,7 +447,7 @@ export default function Customers() {
             else console.log('[NATV] Renovado:', natvResult);
           } else if (isVplay) {
             const { data: vpResult, error: vpError } = await supabase.functions.invoke('vplay-renew', {
-              body: { username: customer.username.trim(), duration_days: plan.duration_days, customer_id: customer.id },
+              body: { username: customer.username.trim(), new_due_date: newDueDateStr, customer_id: customer.id },
             });
             if (vpError) console.error('[VPlay] Erro:', vpError);
             else if (!vpResult?.success) console.warn('[VPlay] Falha:', vpResult?.error);
@@ -749,7 +749,7 @@ export default function Customers() {
               }
             } else if (isVplay) {
               const { data: vpResult, error: vpError } = await supabase.functions.invoke('vplay-renew', {
-                body: { username: latestCustomer.username.trim(), duration_days: plan.duration_days, customer_id: latestCustomer.id },
+                body: { username: latestCustomer.username.trim(), new_due_date: newDueDateStr, customer_id: latestCustomer.id },
               });
               if (vpError || !vpResult?.success) {
                 console.warn(`[VPlay] Falha para ${latestCustomer.name}:`, vpError?.message || vpResult?.error);

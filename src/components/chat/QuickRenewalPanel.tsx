@@ -417,7 +417,7 @@ export default function QuickRenewalPanel({ isMobile = false, onClose }: QuickRe
             }
           } else if (isVplay) {
             const { data: vpResult, error: vpError } = await supabase.functions.invoke('vplay-renew', {
-              body: { username: xuiUsername, duration_days: durationDays, customer_id: customer.id },
+              body: { username: xuiUsername, new_due_date: newDueDateStr, customer_id: customer.id },
             });
             if (vpError) {
               console.error('[VPlay] Erro:', vpError);

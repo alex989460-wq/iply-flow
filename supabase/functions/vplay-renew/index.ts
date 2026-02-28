@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import mysql from "npm:mysql2@3.9.7/promise";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -33,132 +34,247 @@ serve(async (req) => {
       });
     }
 
-    const { username, duration_days, customer_id } = await req.json();
+    const { username, new_due_date, customer_id } = await req.json();
 
-    if (!username) {
+    if (!username || !new_due_date) {
       return new Response(
-        JSON.stringify({ error: 'Username é obrigatório' }),
+        JSON.stringify({ error: 'Username e nova data de vencimento são obrigatórios' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
       );
     }
 
-    const durationDays = duration_days || 30;
+    console.log(`[VPlay] Renovando usuário: ${username}, nova data: ${new_due_date}`);
 
-    // Get user_id from customer to find VPlay settings
-    const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-    if (!serviceRoleKey) {
-      return new Response(JSON.stringify({ error: 'Configuração interna ausente' }), {
-        status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
+    // Connect to VPlay MySQL database
+    const host = Deno.env.get('VPLAY_MYSQL_HOST');
+    const user = Deno.env.get('VPLAY_MYSQL_USER');
+    const password = Deno.env.get('VPLAY_MYSQL_PASSWORD');
+    const database = (Deno.env.get('VPLAY_MYSQL_DATABASE') || '').trim();
+    const port = Number.parseInt((Deno.env.get('VPLAY_MYSQL_PORT') || '3306').trim(), 10);
 
-    const supabaseAdmin = createClient(Deno.env.get('SUPABASE_URL')!, serviceRoleKey, {
-      auth: { autoRefreshToken: false, persistSession: false },
-    });
-
-    let createdBy: string | null = null;
-    if (customer_id) {
-      const { data: customerData } = await supabaseAdmin
-        .from('customers')
-        .select('created_by')
-        .eq('id', customer_id)
-        .maybeSingle();
-      createdBy = customerData?.created_by || null;
-    }
-
-    if (!createdBy) {
-      return new Response(JSON.stringify({ error: 'Cliente não encontrado' }), {
-        status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
-    // Find VPlay integration URL
-    let vplayUrl = '';
-    let keyMessage = 'XCLOUD';
-
-    const { data: vplayServer } = await supabaseAdmin
-      .from('vplay_servers')
-      .select('integration_url, key_message')
-      .eq('user_id', createdBy)
-      .eq('is_default', true)
-      .maybeSingle();
-
-    if (vplayServer?.integration_url) {
-      vplayUrl = vplayServer.integration_url.replace(/\/+$/, '');
-      keyMessage = vplayServer.key_message || 'XCLOUD';
-    } else {
-      const { data: billingSettings } = await supabaseAdmin
-        .from('billing_settings')
-        .select('vplay_integration_url, vplay_key_message')
-        .eq('user_id', createdBy)
-        .maybeSingle();
-
-      if (billingSettings?.vplay_integration_url) {
-        vplayUrl = billingSettings.vplay_integration_url.replace(/\/+$/, '');
-        keyMessage = billingSettings.vplay_key_message || 'XCLOUD';
-      }
-    }
-
-    if (!vplayUrl) {
+    if (!host || !user || !password || !database) {
       return new Response(
-        JSON.stringify({ success: false, error: 'URL de integração VPlay não configurada' }),
+        JSON.stringify({ success: false, error: 'Credenciais MySQL do VPlay não configuradas' }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
       );
     }
 
-    console.log(`[VPlay] Renovando usuário: ${username} por ${durationDays} dias, URL: ${vplayUrl}`);
-
-    const vplayResp = await fetch(vplayUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        key: keyMessage,
-        action: 'renew',
-        username: username.trim(),
-        duration: durationDays,
-      }),
+    const connection = await mysql.createConnection({
+      host, user, password, database,
+      port: Number.isFinite(port) ? port : 3306,
+      connectTimeout: 10000,
     });
 
-    const vplayText = await vplayResp.text();
-    let result: any;
-    try { result = JSON.parse(vplayText); } catch { result = { raw: vplayText }; }
+    const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    const supabaseAdmin = serviceRoleKey
+      ? createClient(Deno.env.get('SUPABASE_URL')!, serviceRoleKey, {
+          auth: { autoRefreshToken: false, persistSession: false },
+        })
+      : null;
 
-    console.log(`[VPlay] Resposta: status=${vplayResp.status}`, JSON.stringify(result));
+    let chargedAccessId: string | null = null;
+    let chargedCreditsAmount = 0;
 
-    if (!vplayResp.ok) {
-      return new Response(
-        JSON.stringify({ success: false, error: `Erro VPlay: ${vplayResp.status}`, result }),
-        { status: vplayResp.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
-      );
-    }
+    try {
+      const expDateString = `${new_due_date} 23:59:59`;
+      const normalizedUsername = String(username).trim();
 
-    // Credit deduction
-    if (createdBy) {
-      const months = Math.max(1, Math.round(durationDays / 30));
-      const { data: ownerAccess } = await supabaseAdmin
-        .from('reseller_access')
-        .select('id, credits')
-        .eq('user_id', createdBy)
-        .maybeSingle();
+      // Search for user in standard XUI/VPlay tables
+      const targetTables = ['lines', 'users', 'user'];
+      let foundTable = '';
+      let foundUser: any = null;
+      let foundColumns = new Set<string>();
+      let foundColumnMeta = new Map<string, any>();
 
-      if (ownerAccess && (ownerAccess.credits ?? 0) >= months) {
-        const newCredits = ownerAccess.credits - months;
-        await supabaseAdmin
-          .from('reseller_access')
-          .update({ credits: newCredits })
-          .eq('id', ownerAccess.id);
-        console.log(`[VPlay] ${months} crédito(s) descontado(s). Saldo: ${newCredits}`);
+      for (const tableName of targetTables) {
+        try {
+          const [columnsResult] = await connection.query(`SHOW COLUMNS FROM \`${tableName}\``);
+          const columnsArray = columnsResult as any[];
+          const tableColumns = new Set(columnsArray.map((col) => String(col.Field)));
+          const columnMeta = new Map(columnsArray.map((col) => [String(col.Field), col]));
+
+          const identifierColumns = ['username', 'user_name', 'login', 'user', 'email', 'name']
+            .filter((c) => tableColumns.has(c));
+
+          const whereClauses: string[] = [];
+          const queryParams: Array<string | number> = [];
+
+          for (const column of identifierColumns) {
+            whereClauses.push(`TRIM(CAST(\`${column}\` AS CHAR)) = TRIM(?)`);
+            queryParams.push(normalizedUsername);
+          }
+
+          if (/^\d+$/.test(normalizedUsername) && tableColumns.has('id')) {
+            whereClauses.push('`id` = ?');
+            queryParams.push(Number(normalizedUsername));
+          }
+
+          if (whereClauses.length === 0) continue;
+
+          const [rows] = await connection.execute(
+            `SELECT * FROM \`${tableName}\` WHERE ${whereClauses.join(' OR ')} LIMIT 1`,
+            queryParams,
+          );
+
+          const results = rows as any[];
+          if (results.length > 0) {
+            foundTable = tableName;
+            foundUser = results[0];
+            foundColumns = tableColumns;
+            foundColumnMeta = columnMeta;
+            console.log(`[VPlay] Usuário encontrado em ${tableName}, id=${foundUser.id}`);
+            break;
+          }
+        } catch {
+          // table doesn't exist, continue
+        }
       }
-    }
 
-    return new Response(
-      JSON.stringify({
-        success: true,
-        message: `Usuário ${username} renovado por ${durationDays} dias no VPlay`,
-        result,
-      }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
-    );
+      if (!foundUser) {
+        await connection.end();
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: `Usuário "${normalizedUsername}" não encontrado no servidor VPlay`,
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        );
+      }
+
+      // ─── CREDIT DEDUCTION ───
+      if (customer_id && supabaseAdmin) {
+        let creditsToDeduct = 1;
+
+        const { data: customerData } = await supabaseAdmin
+          .from('customers')
+          .select('id, created_by, plan_id')
+          .eq('id', customer_id)
+          .maybeSingle();
+
+        if (customerData?.plan_id) {
+          const { data: planData } = await supabaseAdmin
+            .from('plans')
+            .select('duration_days')
+            .eq('id', customerData.plan_id)
+            .maybeSingle();
+
+          if (planData?.duration_days) {
+            creditsToDeduct = Math.max(1, Math.round(planData.duration_days / 30));
+          }
+        }
+
+        if (customerData?.created_by) {
+          const { data: ownerAccess } = await supabaseAdmin
+            .from('reseller_access')
+            .select('id, credits')
+            .eq('user_id', customerData.created_by)
+            .maybeSingle();
+
+          if (ownerAccess) {
+            if ((ownerAccess.credits ?? 0) < creditsToDeduct) {
+              await connection.end();
+              return new Response(
+                JSON.stringify({
+                  success: false,
+                  error: `Créditos insuficientes. Necessário: ${creditsToDeduct}, disponível: ${ownerAccess.credits ?? 0}`,
+                }),
+                { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+              );
+            }
+
+            const newCredits = ownerAccess.credits - creditsToDeduct;
+            const { error: deductError } = await supabaseAdmin
+              .from('reseller_access')
+              .update({ credits: newCredits })
+              .eq('id', ownerAccess.id);
+
+            if (deductError) {
+              await connection.end();
+              throw new Error(`Erro ao descontar crédito: ${deductError.message}`);
+            }
+
+            chargedAccessId = ownerAccess.id;
+            chargedCreditsAmount = creditsToDeduct;
+            console.log(`[VPlay] ${creditsToDeduct} crédito(s) descontado(s). Saldo: ${newCredits}`);
+          }
+        }
+      }
+
+      // ─── RENEWAL (update expiry in MySQL) ───
+      const expiryColumnCandidates = ['exp_date', 'expiration', 'expiration_date', 'expire_date', 'expiry_date', 'expires_at', 'expire_at'];
+      const expiryColumn = expiryColumnCandidates.find((c) => foundColumns.has(c));
+
+      if (!expiryColumn) {
+        throw new Error(`Nenhuma coluna de expiração encontrada na tabela ${foundTable}`);
+      }
+
+      const expiryColumnType = String(foundColumnMeta.get(expiryColumn)?.Type || '').toLowerCase();
+      const shouldUseUnix = /(int|bigint|tinyint|smallint|mediumint|decimal|numeric)/.test(expiryColumnType);
+      const expDateValue = shouldUseUnix
+        ? Math.floor(new Date(`${new_due_date}T23:59:59-03:00`).getTime() / 1000)
+        : expDateString;
+
+      const updateParts = [`\`${expiryColumn}\` = ?`];
+      if (foundColumns.has('enabled')) updateParts.push('enabled = 1');
+      if (foundColumns.has('is_trial')) updateParts.push('is_trial = 0');
+
+      const updateParams: Array<string | number> = [expDateValue as string | number];
+
+      let updateSql: string;
+      if (foundColumns.has('id') && foundUser.id != null) {
+        updateSql = `UPDATE \`${foundTable}\` SET ${updateParts.join(', ')} WHERE id = ?`;
+        updateParams.push(foundUser.id);
+      } else {
+        const fallbackCol = ['username', 'user_name', 'login'].find((c) => foundColumns.has(c));
+        if (!fallbackCol) throw new Error('Não foi possível determinar coluna para atualizar');
+        updateSql = `UPDATE \`${foundTable}\` SET ${updateParts.join(', ')} WHERE TRIM(CAST(\`${fallbackCol}\` AS CHAR)) = TRIM(?)`;
+        updateParams.push(normalizedUsername);
+      }
+
+      await connection.execute(updateSql, updateParams);
+
+      const oldExpiration = foundUser[expiryColumn] ?? null;
+      console.log(`[VPlay] Renovado: ${normalizedUsername}, tabela=${foundTable}, ${expiryColumn}: ${oldExpiration} → ${expDateValue}`);
+      await connection.end();
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          message: `Usuário ${normalizedUsername} renovado no VPlay até ${new_due_date}`,
+          table: foundTable,
+          xui_user_id: foundUser.id,
+          expiration_column: expiryColumn,
+          old_exp_date: oldExpiration,
+          new_exp_date: expDateValue,
+          credit_charged: chargedCreditsAmount > 0,
+          credits_debited: chargedCreditsAmount,
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      );
+    } catch (dbError) {
+      // Refund credits if renewal failed
+      if (chargedAccessId && supabaseAdmin) {
+        try {
+          const { data: accessData } = await supabaseAdmin
+            .from('reseller_access')
+            .select('credits')
+            .eq('id', chargedAccessId)
+            .maybeSingle();
+          if (accessData) {
+            await supabaseAdmin
+              .from('reseller_access')
+              .update({ credits: (accessData.credits ?? 0) + chargedCreditsAmount })
+              .eq('id', chargedAccessId);
+            console.log(`[VPlay] Créditos reembolsados: ${chargedCreditsAmount}`);
+          }
+        } catch (refundError) {
+          console.error('[VPlay] Erro reembolso:', refundError);
+        }
+      }
+
+      try { await connection.end(); } catch { /* ignore */ }
+      throw dbError;
+    }
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
     console.error('[VPlay] Erro:', error);
