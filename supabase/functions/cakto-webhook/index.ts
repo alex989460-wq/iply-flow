@@ -314,17 +314,17 @@ serve(async (req) => {
       console.error('[Cakto] Erro ao salvar confirmação:', e);
     }
 
-    // ── Send WhatsApp simple text message via Zap Responder ──
-    if (confirmationId) {
-      try {
-        const { data: zapSettings } = await supabaseAdmin
-          .from('zap_responder_settings')
-          .select('api_base_url, zap_api_token, selected_department_id')
-          .eq('user_id', matchedCustomer.created_by)
-          .maybeSingle();
+    // ── Send WhatsApp plain text message via zap-responder edge function ──
+    try {
+      const { data: zapSettings } = await supabaseAdmin
+        .from('zap_responder_settings')
+        .select('selected_department_id')
+        .eq('user_id', matchedCustomer.created_by)
+        .maybeSingle();
 
+      if (zapSettings?.selected_department_id) {
         // Get server name
-        let serverName = 'N/A';
+        let serverName = '-';
         if (matchedCustomer.server_id) {
           const { data: serverData } = await supabaseAdmin
             .from('servers')
@@ -334,58 +334,46 @@ serve(async (req) => {
           if (serverData) serverName = serverData.server_name;
         }
 
-        // Format due date as DD/MM/YYYY
+        // Format due date and time
         const dueParts = newDueDate.split('-');
         const formattedDueDate = `${dueParts[2]}/${dueParts[1]}/${dueParts[0]}`;
+        const now = new Date();
+        const formattedTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
         // Format phone with country code
         let metaPhone = phoneDigits;
         if (!metaPhone.startsWith('55')) metaPhone = '55' + metaPhone;
 
-        // Build confirmation link
-        const confirmationLink = `https://iply-flow.lovable.app/payment-confirmation?id=${confirmationId}`;
+        const displayUsername = matchedCustomer.username || '-';
 
-        if (zapSettings?.zap_api_token && zapSettings?.selected_department_id) {
-          const apiBaseUrl = zapSettings.api_base_url || 'https://api.zapresponder.com.br/api';
-          const departmentId = zapSettings.selected_department_id;
+        const whatsappMessage = `✅ Olá, *${matchedCustomer.name}*. Obrigado por confirmar seu pagamento. Segue abaixo os dados da sua assinatura:\n\n==========================\n📅 Próx. Vencimento: *${formattedDueDate} - ${formattedTime} hrs*\n💰 Valor: *${amountNumeric.toFixed(2)}*\n👤 Usuário: *${displayUsername}*\n📦 Plano: *${matchedPlanName || '-'}*\n🔌 Status: *Ativo*\n💎 Obs: -\n⚡: *${serverName}*\n==========================`;
 
-          // Build confirmation link with supergestor.top domain
-          const confirmationUrl = `https://supergestor.top/pedido/${confirmationId}`;
+        console.log(`[Cakto] Enviando mensagem texto plano para ${metaPhone}`);
 
-          // Send template via Zap Responder API (official format from docs)
-          const templatePayload = {
-            type: 'template',
-            template_name: 'renovacao_aprovada',
-            number: metaPhone,
-            language: 'pt_BR',
-            variables: {
-              body_text: [
-                matchedCustomer.name,                    // {{1}} - Nome do cliente
-                matchedCustomer.username || 'N/A',       // {{2}} - Username
-                serverName,                               // {{3}} - Servidor
-                formattedDueDate,                         // {{4}} - Data de vencimento
-              ],
-            },
-          };
-
-          console.log(`[Cakto] Enviando template renovacao_aprovada via Zap Responder para ${metaPhone}`, JSON.stringify(templatePayload));
-          const zapResp = await fetch(`${apiBaseUrl}/whatsapp/message/${departmentId}`, {
+        const msgResp = await fetch(
+          `${Deno.env.get('SUPABASE_URL')}/functions/v1/zap-responder`,
+          {
             method: 'POST',
             headers: {
-              'Authorization': `Bearer ${zapSettings.zap_api_token}`,
               'Content-Type': 'application/json',
-              'Accept': 'application/json',
+              'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
             },
-            body: JSON.stringify(templatePayload),
-          });
-          const zapResult = await zapResp.text();
-          console.log(`[Cakto] Zap Responder template: status=${zapResp.status}`, zapResult);
-        } else {
-          console.log('[Cakto] Nenhum provedor de WhatsApp configurado para este usuário. Mensagem não enviada.');
-        }
-      } catch (e) {
-        console.error('[Cakto] Erro ao enviar mensagem WhatsApp:', e);
+            body: JSON.stringify({
+              action: 'enviar-mensagem',
+              department_id: zapSettings.selected_department_id,
+              number: metaPhone,
+              text: whatsappMessage,
+              user_id: matchedCustomer.created_by,
+            }),
+          },
+        );
+        const msgResult = await msgResp.json();
+        console.log(`[Cakto] Mensagem WhatsApp: status=${msgResp.status}`, JSON.stringify(msgResult));
+      } else {
+        console.log('[Cakto] Nenhum departamento configurado. Mensagem não enviada.');
       }
+    } catch (e) {
+      console.error('[Cakto] Erro ao enviar mensagem WhatsApp:', e);
     }
 
     // ── Trigger server renewals for each username (supports comma-separated) ──
