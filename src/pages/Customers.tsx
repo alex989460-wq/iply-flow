@@ -127,7 +127,7 @@ export default function Customers() {
   const [isSendBillingOpen, setIsSendBillingOpen] = useState(false);
   const [sendingBillingCustomer, setSendingBillingCustomer] = useState<any | null>(null);
   const [selectedTemplate, setSelectedTemplate] = useState('');
-  const [templates, setTemplates] = useState<Array<{ id: string; name: string; language?: string; status?: string }>>([]);
+  const [templates, setTemplates] = useState<Array<{ id?: string; name: string; language?: string; status?: string; parameter_format?: string; components?: Array<{ type?: string; text?: string; format?: string; buttons?: Array<{ url?: string }> }> }>>([]);
   const [isLoadingTemplates, setIsLoadingTemplates] = useState(false);
   const [isSendingBilling, setIsSendingBilling] = useState(false);
 
@@ -1051,24 +1051,68 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
       const phone = sendingBillingCustomer.phone.replace(/\D/g, '');
       const phoneWithCode = phone.startsWith('55') ? phone : `55${phone}`;
       
-      // Build variables for templates that need them (like renovacao_aprovada)
+      const selectedTemplateConfig = templates.find((template) => template.name === selectedTemplate);
+      const bodyComponent = selectedTemplateConfig?.components?.find((component) => component.type === 'BODY');
+      const bodyText = typeof bodyComponent?.text === 'string' ? bodyComponent.text : '';
+      const requiredBodyVars = (bodyText.match(/\{\{\d+\}\}/g) || []).length;
+
+      const hasNamedVariables = selectedTemplateConfig?.parameter_format === 'NAMED';
+      if (hasNamedVariables) {
+        toast({
+          title: 'Template não suportado neste envio',
+          description: 'Esse template usa variáveis nomeadas (NAMED). Selecione um template POSITIONAL ou sem variáveis.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      const hasImageHeader = selectedTemplateConfig?.components?.some(
+        (component) => component.type === 'HEADER' && component.format === 'IMAGE'
+      );
+      if (hasImageHeader) {
+        toast({
+          title: 'Template exige imagem no cabeçalho',
+          description: 'Esse template precisa de header_image. Use um template sem mídia para envio manual.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      const hasDynamicButton = selectedTemplateConfig?.components?.some(
+        (component) =>
+          component.type === 'BUTTONS' &&
+          Array.isArray(component.buttons) &&
+          component.buttons.some((button) => typeof button?.url === 'string' && button.url.includes('{{'))
+      );
+      if (hasDynamicButton) {
+        toast({
+          title: 'Template exige variável no botão',
+          description: 'Esse template precisa de parâmetro de URL no botão. Use um template sem botão dinâmico no envio manual.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
       const customerName = sendingBillingCustomer.name || '';
       const customerUsername = sendingBillingCustomer.username || 'N/A';
       const serverName = sendingBillingCustomer.servers?.server_name || 'N/A';
-      const dueDate = sendingBillingCustomer.due_date 
+      const dueDate = sendingBillingCustomer.due_date
         ? new Date(sendingBillingCustomer.due_date + 'T12:00:00').toLocaleDateString('pt-BR')
         : 'N/A';
 
+      const availableBodyValues = [customerName, customerUsername, serverName, dueDate];
+      const templateVariables = requiredBodyVars > 0
+        ? { body_text: availableBodyValues.slice(0, requiredBodyVars) }
+        : undefined;
+
       const { data, error } = await supabase.functions.invoke('zap-responder', {
-        body: { 
+        body: {
           action: 'enviar-template',
           department_id: zapSettings.selected_department_id,
           template_name: selectedTemplate,
           number: phoneWithCode,
           language: 'pt_BR',
-          variables: {
-            body_text: [customerName, customerUsername, serverName, dueDate],
-          },
+          ...(templateVariables ? { variables: templateVariables } : {}),
         },
       });
 
