@@ -1066,6 +1066,15 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
         return;
       }
 
+      if (requiredBodyVars > 0) {
+        toast({
+          title: 'Variáveis não entregues por este provedor',
+          description: 'No Zap Responder, templates com variáveis estão sendo rejeitados (erro 132000). Use um template sem variáveis.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
       const hasImageHeader = selectedTemplateConfig?.components?.some(
         (component) => component.type === 'HEADER' && component.format === 'IMAGE'
       );
