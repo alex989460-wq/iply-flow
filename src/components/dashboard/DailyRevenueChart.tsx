@@ -9,7 +9,7 @@ interface DailyRevenueChartProps {
 export default function DailyRevenueChart({ data }: DailyRevenueChartProps) {
   const maxRevenue = Math.max(...data.map(d => d.revenue));
   const totalRevenue = data.reduce((sum, d) => sum + d.revenue, 0);
-  const today = new Date().getDate();
+  const today = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' })).getDate();
   
   return (
     <Card className="overflow-hidden border-border/30 bg-gradient-to-br from-card via-card to-emerald-500/5">

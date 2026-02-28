@@ -68,15 +68,15 @@ export function useDashboardStats() {
         color: CHART_COLORS[index % CHART_COLORS.length],
       }));
 
-      // Calculate dates for filtering
-      const now = new Date();
-      const today = now.toISOString().split('T')[0];
-      const tomorrow = new Date(now);
+      // Calculate dates using Brasília timezone
+      const spNow = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
+      const today = `${spNow.getFullYear()}-${String(spNow.getMonth() + 1).padStart(2, '0')}-${String(spNow.getDate()).padStart(2, '0')}`;
+      const tomorrow = new Date(spNow);
       tomorrow.setDate(tomorrow.getDate() + 1);
-      const tomorrowStr = tomorrow.toISOString().split('T')[0];
-      const yesterday = new Date(now);
+      const tomorrowStr = `${tomorrow.getFullYear()}-${String(tomorrow.getMonth() + 1).padStart(2, '0')}-${String(tomorrow.getDate()).padStart(2, '0')}`;
+      const yesterday = new Date(spNow);
       yesterday.setDate(yesterday.getDate() - 1);
-      const yesterdayStr = yesterday.toISOString().split('T')[0];
+      const yesterdayStr = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, '0')}-${String(yesterday.getDate()).padStart(2, '0')}`;
 
       return {
         totalCustomers: Number(stats.totalCustomers) || 0,
@@ -104,37 +104,55 @@ export function useDashboardStats() {
   });
 }
 
+// Helper to fetch all rows bypassing 1000 limit
+async function fetchAllPayments(query: any) {
+  const allRows: any[] = [];
+  const pageSize = 1000;
+  let from = 0;
+  while (true) {
+    const { data, error } = await query.range(from, from + pageSize - 1);
+    if (error) throw error;
+    if (!data || data.length === 0) break;
+    allRows.push(...data);
+    if (data.length < pageSize) break;
+    from += pageSize;
+  }
+  return allRows;
+}
+
 export function useRevenueHistory() {
   return useQuery({
     queryKey: ['revenue-history'],
     queryFn: async () => {
+      const spNow = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
       const months = [];
-      const currentDate = new Date();
 
       // Build date ranges for all 6 months
       const monthRanges = [];
       for (let i = 5; i >= 0; i--) {
-        const date = new Date(currentDate.getFullYear(), currentDate.getMonth() - i, 1);
-        const startOfMonth = date.toISOString().split('T')[0];
+        const date = new Date(spNow.getFullYear(), spNow.getMonth() - i, 1);
+        const startOfMonth = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-01`;
         const endDate = new Date(date.getFullYear(), date.getMonth() + 1, 0);
-        const endOfMonth = endDate.toISOString().split('T')[0];
+        const endOfMonth = `${endDate.getFullYear()}-${String(endDate.getMonth() + 1).padStart(2, '0')}-${String(endDate.getDate()).padStart(2, '0')}`;
         monthRanges.push({ start: startOfMonth, end: endOfMonth });
       }
 
-      // Fetch all months in parallel
+      // Fetch all months in parallel with pagination
       const results = await Promise.all(
         monthRanges.map(({ start, end }) =>
-          supabase
-            .from('payments')
-            .select('amount')
-            .gte('payment_date', start)
-            .lte('payment_date', end)
+          fetchAllPayments(
+            supabase
+              .from('payments')
+              .select('amount')
+              .gte('payment_date', start)
+              .lte('payment_date', end)
+          )
         )
       );
 
       for (let i = 0; i < results.length; i++) {
-        const { data: payments } = results[i];
-        const revenue = payments?.reduce((sum, p) => sum + Number(p.amount), 0) || 0;
+        const payments = results[i];
+        const revenue = payments.reduce((sum, p) => sum + Number(p.amount), 0);
         
         months.push({
           month: new Date(monthRanges[i].start).toLocaleDateString('pt-BR', { month: 'short' }),
@@ -144,7 +162,7 @@ export function useRevenueHistory() {
 
       return months;
     },
-    staleTime: 300000, // Cache for 5 minutes
+    staleTime: 300000,
     refetchOnWindowFocus: false,
   });
 }
@@ -153,20 +171,21 @@ export function useDailyRevenueHistory() {
   return useQuery({
     queryKey: ['daily-revenue-history'],
     queryFn: async () => {
-      const currentDate = new Date();
-      const startOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
-      const endOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
+      const spNow = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
+      const startOfMonth = new Date(spNow.getFullYear(), spNow.getMonth(), 1);
+      const endOfMonth = new Date(spNow.getFullYear(), spNow.getMonth() + 1, 0);
       
-      const startDate = startOfMonth.toISOString().split('T')[0];
-      const endDate = endOfMonth.toISOString().split('T')[0];
+      const startDate = `${startOfMonth.getFullYear()}-${String(startOfMonth.getMonth() + 1).padStart(2, '0')}-01`;
+      const endDate = `${endOfMonth.getFullYear()}-${String(endOfMonth.getMonth() + 1).padStart(2, '0')}-${String(endOfMonth.getDate()).padStart(2, '0')}`;
 
-      const { data: payments, error } = await supabase
-        .from('payments')
-        .select('amount, payment_date')
-        .gte('payment_date', startDate)
-        .lte('payment_date', endDate);
-
-      if (error) throw error;
+      // Fetch ALL payments with pagination (bypass 1000 limit)
+      const payments = await fetchAllPayments(
+        supabase
+          .from('payments')
+          .select('amount, payment_date')
+          .gte('payment_date', startDate)
+          .lte('payment_date', endDate)
+      );
 
       // Initialize all days of the month
       const daysInMonth = endOfMonth.getDate();
@@ -177,7 +196,7 @@ export function useDailyRevenueHistory() {
       }
 
       // Aggregate payments by day
-      payments?.forEach((payment) => {
+      payments.forEach((payment) => {
         const paymentDay = parseInt(payment.payment_date.split('-')[2], 10);
         const dayIndex = paymentDay - 1;
         if (dayIndex >= 0 && dayIndex < dailyData.length) {
@@ -188,7 +207,7 @@ export function useDailyRevenueHistory() {
 
       return dailyData;
     },
-    staleTime: 60000, // Cache for 1 minute
+    staleTime: 60000,
     refetchOnWindowFocus: false,
   });
 }
