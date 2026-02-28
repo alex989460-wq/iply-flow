@@ -567,8 +567,8 @@ async function enviarTemplateWhatsApp(
       'Accept': 'application/json',
     };
 
-    // Use the official template endpoint from Zap Responder API docs
-    const url = `${apiBaseUrl}/whatsapp/template/${departmentId}`;
+    // Use the message endpoint (same for templates and regular messages)
+    const url = `${apiBaseUrl}/whatsapp/message/${departmentId}`;
 
     // Build the payload according to Zap Responder API docs:
     // variables: { body_text: ["valor1", "valor2", ...] }

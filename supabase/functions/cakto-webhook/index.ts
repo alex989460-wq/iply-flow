@@ -368,7 +368,7 @@ serve(async (req) => {
           };
 
           console.log(`[Cakto] Enviando template renovacao_aprovada via Zap Responder para ${metaPhone}`, JSON.stringify(templatePayload));
-          const zapResp = await fetch(`${apiBaseUrl}/whatsapp/template/${departmentId}`, {
+          const zapResp = await fetch(`${apiBaseUrl}/whatsapp/message/${departmentId}`, {
             method: 'POST',
             headers: {
               'Authorization': `Bearer ${zapSettings.zap_api_token}`,
