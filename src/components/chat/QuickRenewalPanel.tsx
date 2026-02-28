@@ -520,6 +520,22 @@ Obrigado pela preferência! 🙏`;
             console.log('Mensagem de confirmação enviada:', msgData);
             toast.success('Mensagem de confirmação enviada!');
           }
+
+          // Send admin notification
+          try {
+            const adminPhone = '5541991758392';
+            const adminMsg = `🔔 *Renovação Manual (Chat)*\n\n👤 Cliente: *${customer.name}*\n📞 Tel: ${phoneWithCode}\n👤 Usuário: *${displayUsername}*\n💰 Valor: *R$ ${amount.toFixed(2)}*\n📦 Plano: *${planName}*\n🖥️ Servidor: *${customer.server?.server_name || '-'}*\n📅 Novo vencimento: *${formattedDueDate}*\n✅ Status: Renovado`;
+            await supabase.functions.invoke('zap-responder', {
+              body: {
+                action: 'enviar-mensagem',
+                department_id: zapSettings.selected_department_id,
+                number: adminPhone,
+                text: adminMsg,
+              },
+            });
+          } catch (adminErr) {
+            console.error('Erro ao notificar admin:', adminErr);
+          }
         } catch (e) {
           console.error('Erro ao enviar mensagem WhatsApp:', e);
         }

@@ -520,6 +520,22 @@ export default function Customers() {
             messageSent = true;
             console.log('Mensagem de confirmação enviada:', data);
           }
+
+          // Send admin notification
+          try {
+            const adminPhone = '5541991758392';
+            const adminMsg = `🔔 *Renovação Manual (Clientes)*\n\n👤 Cliente: *${customer.name}*\n📞 Tel: ${phoneWithCode}\n👤 Usuário: *${customer.username || '-'}*\n💰 Valor: *R$ ${amount.toFixed(2)}*\n📦 Plano: *${plan.plan_name}*\n🖥️ Servidor: *${customer.servers?.server_name || '-'}*\n📅 Novo vencimento: *${formattedDueDate}*\n✅ Status: Renovado`;
+            await supabase.functions.invoke('zap-responder', {
+              body: {
+                action: 'enviar-mensagem',
+                department_id: zapSettings.selected_department_id,
+                number: adminPhone,
+                text: adminMsg,
+              },
+            });
+          } catch (adminErr) {
+            console.error('Erro ao notificar admin:', adminErr);
+          }
         } catch (msgError) {
           messageError = msgError instanceof Error ? msgError.message : 'Erro desconhecido ao enviar mensagem.';
           console.error('Erro ao enviar mensagem:', msgError);
