@@ -547,6 +547,8 @@ serve(async (req) => {
       }
     }
 
+    const renewResults: any[] = [];
+
     if (allUsernames.length > 0) {
       console.log(`[Cakto] Usernames para renovar: ${allUsernames.join(', ')} (${allUsernames.length} conexões)`);
 

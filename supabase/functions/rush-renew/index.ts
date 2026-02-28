@@ -71,8 +71,8 @@ serve(async (req) => {
     }
 
     const renewMonths = months || 1;
-    const userType = rush_type || 'iptv';
-    console.log(`[Rush] Renovando usuário: ${username}, tipo: ${userType}, meses: ${renewMonths}`);
+    const requestedType = rush_type || '';
+    console.log(`[Rush] Renovando usuário: ${username}, tipo solicitado: ${requestedType || 'auto'}, meses: ${renewMonths}`);
 
     // Determine credentials
     let rUsername = rush_username || '';
@@ -124,40 +124,42 @@ serve(async (req) => {
 
     // Step 1: Find user's internal numeric ID via /list endpoint
     const userId = (username || '').trim();
-    console.log(`[Rush] Buscando ID interno para username: ${userId}, tipo: ${userType}`);
+    const typesToTry = requestedType ? [requestedType] : ['iptv', 'p2p'];
+    console.log(`[Rush] Buscando ID interno para username: ${userId}, tipos a tentar: ${typesToTry.join(', ')}`);
 
     let internalId = '';
-    const listUrl = `${rBaseUrl}/${userType}/list?${authParams}`;
-    const listResp = await fetch(listUrl, { headers: { 'Accept': 'application/json' } });
-    
-    if (listResp.ok) {
-      const listData = await listResp.json();
-      const items = listData.items || listData.data || (Array.isArray(listData) ? listData : []);
-      const normalizedUsername = userId.toLowerCase();
-      const matchedUser = items.find((u: any) => {
-        const uName = String(u.username || '').trim().toLowerCase();
-        return uName === normalizedUsername;
-      });
-      
-      if (matchedUser) {
-        internalId = String(matchedUser.id);
-        console.log(`[Rush] Usuário encontrado: username=${matchedUser.username}, id=${internalId}`);
+    let userType = '';
+    for (const tryType of typesToTry) {
+      const listUrl = `${rBaseUrl}/${tryType}/list?${authParams}`;
+      const listResp = await fetch(listUrl, { headers: { 'Accept': 'application/json' } });
+
+      if (listResp.ok) {
+        const listData = await listResp.json();
+        const items = listData.items || listData.data || (Array.isArray(listData) ? listData : []);
+        const normalizedUsername = userId.toLowerCase();
+        const matchedUser = items.find((u: any) => {
+          const uName = String(u.username || '').trim().toLowerCase();
+          return uName === normalizedUsername;
+        });
+
+        if (matchedUser) {
+          internalId = String(matchedUser.id);
+          userType = tryType;
+          console.log(`[Rush] Usuário encontrado em ${tryType}: username=${matchedUser.username}, id=${internalId}`);
+          break;
+        } else {
+          console.log(`[Rush] Username "${userId}" não encontrado em ${tryType} (${items.length} usuários)`);
+        }
       } else {
-        console.log(`[Rush] Username "${userId}" não encontrado entre ${items.length} usuários`);
-        // Log first few usernames for debugging
-        const sampleUsernames = items.slice(0, 5).map((u: any) => u.username);
-        console.log(`[Rush] Exemplos de usernames: ${JSON.stringify(sampleUsernames)}`);
-        return new Response(
-          JSON.stringify({ success: false, error: `Username "${userId}" não encontrado na lista de ${items.length} usuários ${userType}` }),
-          { headers: jsonHeaders },
-        );
+        const errText = await listResp.text();
+        console.error(`[Rush] Falha ao listar ${tryType}: ${listResp.status} - ${errText}`);
       }
-    } else {
-      const errText = await listResp.text();
-      console.error(`[Rush] Falha ao listar usuários: ${listResp.status} - ${errText}`);
+    }
+
+    if (!internalId) {
       return new Response(
-        JSON.stringify({ error: `Erro ao buscar lista de usuários Rush: ${listResp.status}` }),
-        { status: listResp.status, headers: jsonHeaders },
+        JSON.stringify({ success: false, error: `Username "${userId}" não encontrado em nenhum tipo (${typesToTry.join(', ')})` }),
+        { headers: jsonHeaders },
       );
     }
 
