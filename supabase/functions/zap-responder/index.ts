@@ -1988,7 +1988,7 @@ Deno.serve(async (req) => {
         let imageSent = false;
         let imageResult: { method: string; data: any } | null = null;
 
-        // If image_url is provided, prioritize image with caption and fallback to separate text when caption isn't guaranteed
+        // If image_url is provided, try to send image first
         if (image_url) {
           try {
             const formattedNumber = number.replace(/\D/g, '');
@@ -2005,11 +2005,6 @@ Deno.serve(async (req) => {
                 url: `${apiBaseUrl}/mensagem/enviar`,
                 body: { chatId: chatIdNet, departamento: department_id, content: { type: 'image', url: image_url, caption: text } },
                 name: 'mensagem/enviar image+caption (@s.whatsapp.net)'
-              },
-              {
-                url: `${apiBaseUrl}/mensagem/enviar`,
-                body: { chatId: chatIdCus, departamento: department_id, content: { type: 'image', url: image_url, message: text } },
-                name: 'mensagem/enviar image+message (@c.us)'
               },
               {
                 url: `${apiBaseUrl}/whatsapp/message/${department_id}`,
@@ -2061,40 +2056,24 @@ Deno.serve(async (req) => {
           }
         }
 
-        const captionLikelyDelivered =
-          !!imageResult?.method &&
-          (imageResult.method.includes('image+caption') || imageResult.method.includes('image (caption)'));
-
-        // If image was sent but caption format is uncertain, also send text as safety fallback
-        const mustSendText = !imageSent || !captionLikelyDelivered;
-
-        if (mustSendText) {
-          if (imageSent) {
-            // Small delay keeps image first and text right after
-            await new Promise((resolve) => setTimeout(resolve, 300));
-          }
-
-          const result = await enviarMensagemTexto(apiBaseUrl, zapToken, department_id, number, text);
-          const overallSuccess = imageSent || result.success;
-
-          return new Response(
-            JSON.stringify({
-              success: overallSuccess,
-              data: result.data,
-              error: result.error,
-              image_sent: imageSent,
-              image_result: imageResult,
-              text_sent: result.success,
-              caption_likely_delivered: captionLikelyDelivered,
-            }),
-            { status: overallSuccess ? 200 : 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
+        // Always send text after image attempt (expected behavior: image first, then text)
+        if (imageSent) {
+          await new Promise((resolve) => setTimeout(resolve, 300));
         }
 
-        // Caption sent with image (no separate text needed)
+        const result = await enviarMensagemTexto(apiBaseUrl, zapToken, department_id, number, text);
+        const overallSuccess = imageSent || result.success;
+
         return new Response(
-          JSON.stringify({ success: true, data: imageResult?.data ?? null, image_sent: true, image_result: imageResult, text_sent: false, caption_likely_delivered: true }),
-          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          JSON.stringify({
+            success: overallSuccess,
+            data: result.data,
+            error: result.error,
+            image_sent: imageSent,
+            image_result: imageResult,
+            text_sent: result.success,
+          }),
+          { status: overallSuccess ? 200 : 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
 
