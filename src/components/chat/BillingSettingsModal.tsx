@@ -36,6 +36,8 @@ interface BillingSettings {
   vplay_integration_url: string | null;
   vplay_key_message: string | null;
   meta_template_name: string | null;
+  notification_phone: string | null;
+  renewal_message_template: string | null;
 }
 
 interface BillingSettingsModalProps {
@@ -58,6 +60,8 @@ export default function BillingSettingsModal({ open, onOpenChange }: BillingSett
     vplay_integration_url: '',
     vplay_key_message: 'XCLOUD',
     meta_template_name: 'pedido_aprovado',
+    notification_phone: '',
+    renewal_message_template: '',
   });
 
   // Fetch user's billing settings
@@ -89,6 +93,8 @@ export default function BillingSettingsModal({ open, onOpenChange }: BillingSett
         vplay_integration_url: (settings as any).vplay_integration_url || '',
         vplay_key_message: (settings as any).vplay_key_message || 'XCLOUD',
         meta_template_name: (settings as any).meta_template_name || 'pedido_aprovado',
+        notification_phone: (settings as any).notification_phone || '',
+        renewal_message_template: (settings as any).renewal_message_template || '',
       });
     }
   }, [settings]);
@@ -112,6 +118,8 @@ export default function BillingSettingsModal({ open, onOpenChange }: BillingSett
             vplay_integration_url: data.vplay_integration_url || null,
             vplay_key_message: data.vplay_key_message || 'XCLOUD',
             meta_template_name: data.meta_template_name || 'pedido_aprovado',
+            notification_phone: data.notification_phone || '',
+            renewal_message_template: data.renewal_message_template || null,
           })
           .eq('id', settings.id);
         if (error) throw error;
@@ -131,6 +139,8 @@ export default function BillingSettingsModal({ open, onOpenChange }: BillingSett
             vplay_integration_url: data.vplay_integration_url || null,
             vplay_key_message: data.vplay_key_message || 'XCLOUD',
             meta_template_name: data.meta_template_name || 'pedido_aprovado',
+            notification_phone: data.notification_phone || '',
+            renewal_message_template: data.renewal_message_template || null,
           });
         if (error) throw error;
       }
@@ -271,9 +281,43 @@ export default function BillingSettingsModal({ open, onOpenChange }: BillingSett
               </div>
             </div>
 
+            {/* Notification Phone */}
+            <div className="space-y-3 p-3 rounded-lg bg-green-500/5 border border-green-500/20">
+              <h4 className="text-sm font-semibold text-green-600">📞 Telefone de Notificação</h4>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Número para receber confirmações de renovação</Label>
+                <Input
+                  placeholder="5541999999999"
+                  value={formData.notification_phone || ''}
+                  onChange={(e) => setFormData({ ...formData, notification_phone: e.target.value.replace(/\D/g, '') })}
+                  className="h-9 text-sm font-mono"
+                />
+                <p className="text-[10px] text-muted-foreground">
+                  Número com DDD (ex: 5541999999999). Receberá notificações de cada renovação.
+                </p>
+              </div>
+            </div>
+
+            {/* Renewal Message Template */}
+            <div className="space-y-3 p-3 rounded-lg bg-orange-500/5 border border-orange-500/20">
+              <h4 className="text-sm font-semibold text-orange-600">📝 Mensagem de Renovação</h4>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Template da mensagem enviada ao cliente</Label>
+                <Textarea
+                  placeholder={'✅ Olá, *{{nome}}*. Obrigado por confirmar...\n\nVariáveis: {{nome}}, {{vencimento}}, {{hora}}, {{valor}}, {{usuario}}, {{plano}}, {{servidor}}'}
+                  value={formData.renewal_message_template || ''}
+                  onChange={(e) => setFormData({ ...formData, renewal_message_template: e.target.value })}
+                  className="min-h-[120px] text-sm font-mono"
+                />
+                <p className="text-[10px] text-muted-foreground">
+                  Variáveis disponíveis: {'{{nome}}'}, {'{{vencimento}}'}, {'{{hora}}'}, {'{{valor}}'}, {'{{usuario}}'}, {'{{plano}}'}, {'{{servidor}}'}. Deixe vazio para usar a mensagem padrão.
+                </p>
+              </div>
+            </div>
+
             {/* Custom Message */}
             <div className="space-y-1.5">
-              <Label className="text-xs">Mensagem Personalizada (opcional)</Label>
+              <Label className="text-xs">Mensagem Personalizada da Cobrança (opcional)</Label>
               <Textarea
                 placeholder="Mensagem adicional que aparecerá no final da cobrança..."
                 value={formData.custom_message || ''}

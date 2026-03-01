@@ -135,9 +135,11 @@ export type Database = {
           id: string
           meta_template_name: string | null
           monthly_price: number | null
+          notification_phone: string | null
           pix_key: string | null
           pix_key_type: string | null
           quarterly_price: number | null
+          renewal_message_template: string | null
           semiannual_price: number | null
           updated_at: string
           user_id: string
@@ -151,9 +153,11 @@ export type Database = {
           id?: string
           meta_template_name?: string | null
           monthly_price?: number | null
+          notification_phone?: string | null
           pix_key?: string | null
           pix_key_type?: string | null
           quarterly_price?: number | null
+          renewal_message_template?: string | null
           semiannual_price?: number | null
           updated_at?: string
           user_id: string
@@ -167,9 +171,11 @@ export type Database = {
           id?: string
           meta_template_name?: string | null
           monthly_price?: number | null
+          notification_phone?: string | null
           pix_key?: string | null
           pix_key_type?: string | null
           quarterly_price?: number | null
+          renewal_message_template?: string | null
           semiannual_price?: number | null
           updated_at?: string
           user_id?: string

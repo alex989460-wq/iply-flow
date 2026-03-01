@@ -175,6 +175,8 @@ export default function QuickRenewalPanel({ isMobile = false, onClose }: QuickRe
         custom_message: string | null;
         vplay_integration_url: string | null;
         vplay_key_message: string | null;
+        notification_phone: string | null;
+        renewal_message_template: string | null;
       } | null;
     },
     enabled: !!user?.id,
@@ -516,7 +518,16 @@ Obrigado pela preferência! 🙏`;
           const formattedDueDate = format(new Date(newDueDate + 'T12:00:00'), 'dd/MM/yyyy', { locale: ptBR });
           const serverName = customer.server?.server_name || '-';
 
-          const whatsappMessage = `✅ Olá, *${customer.name}*. Obrigado por confirmar seu pagamento. Segue abaixo os dados da sua assinatura:\n\n==========================\n📅 Próx. Vencimento: *${formattedDueDate} - ${formattedTime} hrs*\n💰 Valor: *${amount.toFixed(2)}*\n👤 Usuário: *${displayUsername}*\n📦 Plano: *${planName}*\n🔌 Status: *Ativo*\n💎 Obs: -\n⚡: *${serverName}*\n==========================`;
+          const defaultTemplate = `✅ Olá, *{{nome}}*. Obrigado por confirmar seu pagamento. Segue abaixo os dados da sua assinatura:\n\n==========================\n📅 Próx. Vencimento: *{{vencimento}} - {{hora}} hrs*\n💰 Valor: *{{valor}}*\n👤 Usuário: *{{usuario}}*\n📦 Plano: *{{plano}}*\n🔌 Status: *Ativo*\n💎 Obs: -\n⚡: *{{servidor}}*\n==========================`;
+          const template = billingSettings?.renewal_message_template || defaultTemplate;
+          const whatsappMessage = template
+            .replace(/\{\{nome\}\}/g, customer.name)
+            .replace(/\{\{vencimento\}\}/g, formattedDueDate)
+            .replace(/\{\{hora\}\}/g, formattedTime)
+            .replace(/\{\{valor\}\}/g, amount.toFixed(2))
+            .replace(/\{\{usuario\}\}/g, displayUsername)
+            .replace(/\{\{plano\}\}/g, planName)
+            .replace(/\{\{servidor\}\}/g, serverName);
 
           const { data: msgData, error: msgError } = await supabase.functions.invoke('zap-responder', {
             body: {
@@ -536,20 +547,22 @@ Obrigado pela preferência! 🙏`;
             toast.success('Mensagem de confirmação enviada!');
           }
 
-          // Send admin notification
-          try {
-            const adminPhone = '5541991758392';
-            const adminMsg = `🔔 *Renovação Manual (Chat)*\n\n👤 Cliente: *${customer.name}*\n📞 Tel: ${phoneWithCode}\n👤 Usuário: *${displayUsername}*\n💰 Valor: *R$ ${amount.toFixed(2)}*\n📦 Plano: *${planName}*\n🖥️ Servidor: *${customer.server?.server_name || '-'}*\n📅 Novo vencimento: *${formattedDueDate}*\n✅ Status: Renovado`;
-            await supabase.functions.invoke('zap-responder', {
-              body: {
-                action: 'enviar-mensagem',
-                department_id: zapSettings.selected_department_id,
-                number: adminPhone,
-                text: adminMsg,
-              },
-            });
-          } catch (adminErr) {
-            console.error('Erro ao notificar admin:', adminErr);
+          // Send admin/reseller notification
+          const notificationPhone = billingSettings?.notification_phone;
+          if (notificationPhone) {
+            try {
+              const adminMsg = `🔔 *Renovação Manual (Chat)*\n\n👤 Cliente: *${customer.name}*\n📞 Tel: ${phoneWithCode}\n👤 Usuário: *${displayUsername}*\n💰 Valor: *R$ ${amount.toFixed(2)}*\n📦 Plano: *${planName}*\n🖥️ Servidor: *${customer.server?.server_name || '-'}*\n📅 Novo vencimento: *${formattedDueDate}*\n✅ Status: Renovado`;
+              await supabase.functions.invoke('zap-responder', {
+                body: {
+                  action: 'enviar-mensagem',
+                  department_id: zapSettings.selected_department_id,
+                  number: notificationPhone,
+                  text: adminMsg,
+                },
+              });
+            } catch (adminErr) {
+              console.error('Erro ao notificar:', adminErr);
+            }
           }
         } catch (e) {
           console.error('Erro ao enviar mensagem WhatsApp:', e);

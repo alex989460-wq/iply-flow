@@ -129,8 +129,14 @@ Deno.serve(async (req) => {
         status: 400,
       });
     }
+    // Fetch notification phone from billing_settings
+    const { data: bSettings } = await supabaseAdmin
+      .from('billing_settings')
+      .select('notification_phone')
+      .eq('user_id', adminRole.user_id)
+      .maybeSingle();
 
-    const adminPhone = '5541991758392';
+    const adminPhone = bSettings?.notification_phone || '5541991758392';
 
     const sendResp = await fetch(
       `${Deno.env.get('SUPABASE_URL')}/functions/v1/zap-responder`,
