@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { Loader2, Eye, EyeOff, Save, AlertCircle, CheckCircle2, Unplug, Phone, RefreshCw, Server, FileText, Users, UserPlus, Trash2, Target } from 'lucide-react';
+import { Loader2, Eye, EyeOff, Save, AlertCircle, CheckCircle2, Unplug, Phone, RefreshCw, Server, FileText, Users, UserPlus, Trash2, Target, CreditCard } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
@@ -16,6 +16,7 @@ import VplayServersManager from '@/components/settings/VplayServersManager';
 import GoalsSettingsCard from '@/components/settings/GoalsSettingsCard';
 import ResellerApiSettings from '@/components/settings/ResellerApiSettings';
 import AutoRenewServersCard from '@/components/settings/AutoRenewServersCard';
+import BillingSettingsCard from '@/components/settings/BillingSettingsCard';
 
 async function getFunctionsHttpErrorDetails(err: unknown): Promise<{ message?: string; raw?: any } | null> {
   // supabase-js / @supabase/functions-js throws FunctionsHttpError with `.context` as a Response
@@ -118,7 +119,7 @@ export default function Settings() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [showToken, setShowToken] = useState(false);
-  const [activeTab, setActiveTab] = useState('zap_responder');
+  const [activeTab, setActiveTab] = useState('cobranca');
   
   // Zap Responder settings
   const [settings, setSettings] = useState({
@@ -696,7 +697,12 @@ export default function Settings() {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-5 max-w-2xl">
+          <TabsList className="grid w-full grid-cols-6 max-w-3xl">
+            <TabsTrigger value="cobranca" className="flex items-center gap-2">
+              <CreditCard className="w-4 h-4 text-green-500" />
+              <span className="hidden sm:inline">Cobrança</span>
+              <span className="sm:hidden">Cobr.</span>
+            </TabsTrigger>
             <TabsTrigger value="zap_responder" className="flex items-center gap-2">
               <span className="hidden sm:inline">Zap Responder</span>
               <span className="sm:hidden">ZapResp</span>
@@ -721,6 +727,11 @@ export default function Settings() {
               <span className="sm:hidden">Metas</span>
             </TabsTrigger>
           </TabsList>
+
+          {/* Cobrança Tab */}
+          <TabsContent value="cobranca" className="mt-6">
+            <BillingSettingsCard />
+          </TabsContent>
 
           {/* Zap Responder Tab */}
           <TabsContent value="zap_responder" className="mt-6">

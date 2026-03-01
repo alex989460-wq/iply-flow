@@ -177,6 +177,7 @@ export default function QuickRenewalPanel({ isMobile = false, onClose }: QuickRe
         vplay_key_message: string | null;
         notification_phone: string | null;
         renewal_message_template: string | null;
+        renewal_image_url: string | null;
       } | null;
     },
     enabled: !!user?.id,
@@ -535,6 +536,7 @@ Obrigado pela preferência! 🙏`;
               department_id: zapSettings.selected_department_id,
               number: phoneWithCode,
               text: whatsappMessage,
+              image_url: billingSettings?.renewal_image_url || undefined,
             },
           });
 

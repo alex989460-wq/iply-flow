@@ -453,7 +453,7 @@ serve(async (req) => {
       // Fetch billing settings for custom message template and notification phone
       const { data: billingSettings } = await supabaseAdmin
         .from('billing_settings')
-        .select('notification_phone, renewal_message_template')
+        .select('notification_phone, renewal_message_template, renewal_image_url')
         .eq('user_id', matchedCustomer.created_by)
         .maybeSingle();
 
@@ -508,6 +508,7 @@ serve(async (req) => {
               number: metaPhone,
               text: whatsappMessage,
               user_id: matchedCustomer.created_by,
+              image_url: billingSettings?.renewal_image_url || undefined,
             }),
           },
         );

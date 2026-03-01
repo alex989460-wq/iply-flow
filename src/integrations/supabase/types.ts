@@ -139,6 +139,7 @@ export type Database = {
           pix_key: string | null
           pix_key_type: string | null
           quarterly_price: number | null
+          renewal_image_url: string | null
           renewal_message_template: string | null
           semiannual_price: number | null
           updated_at: string
@@ -157,6 +158,7 @@ export type Database = {
           pix_key?: string | null
           pix_key_type?: string | null
           quarterly_price?: number | null
+          renewal_image_url?: string | null
           renewal_message_template?: string | null
           semiannual_price?: number | null
           updated_at?: string
@@ -175,6 +177,7 @@ export type Database = {
           pix_key?: string | null
           pix_key_type?: string | null
           quarterly_price?: number | null
+          renewal_image_url?: string | null
           renewal_message_template?: string | null
           semiannual_price?: number | null
           updated_at?: string
