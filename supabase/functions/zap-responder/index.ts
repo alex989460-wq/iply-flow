@@ -1985,7 +1985,10 @@ Deno.serve(async (req) => {
           );
         }
 
-        // If image_url is provided, send image with caption first, then text as fallback
+        let imageSent = false;
+        let imageResult: { method: string; data: any } | null = null;
+
+        // If image_url is provided, try to send image first
         if (image_url) {
           try {
             const formattedNumber = number.replace(/\D/g, '');
@@ -2010,7 +2013,6 @@ Deno.serve(async (req) => {
               },
             ];
 
-            let imageSent = false;
             for (const ep of imageEndpoints) {
               try {
                 console.log(`[Image] Trying: ${ep.name}`);
@@ -2021,30 +2023,33 @@ Deno.serve(async (req) => {
                 });
                 const respText = await resp.text();
                 console.log(`[Image] ${ep.name}: status=${resp.status}, body=${respText.substring(0, 200)}`);
+
                 if (resp.ok && respText.length > 0) {
                   imageSent = true;
-                  return new Response(
-                    JSON.stringify({ success: true, data: JSON.parse(respText), method: ep.name }),
-                    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-                  );
+                  try {
+                    imageResult = { method: ep.name, data: JSON.parse(respText) };
+                  } catch {
+                    imageResult = { method: ep.name, data: { raw: respText } };
+                  }
+                  break;
                 }
               } catch (e) {
                 console.error(`[Image] ${ep.name} error:`, e);
               }
             }
 
-            // Fallback: send text only if image failed
             if (!imageSent) {
-              console.log('[Image] All image endpoints failed, falling back to text');
+              console.log('[Image] All image endpoints failed, proceeding with text only');
             }
           } catch (imgErr) {
             console.error('[Image] Error sending image:', imgErr);
           }
         }
 
+        // Always send text so user receives full confirmation even when image caption is ignored by provider
         const result = await enviarMensagemTexto(apiBaseUrl, zapToken, department_id, number, text);
         return new Response(
-          JSON.stringify(result),
+          JSON.stringify({ ...result, image_sent: imageSent, image_result: imageResult }),
           { status: result.success ? 200 : 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
