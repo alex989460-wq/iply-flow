@@ -303,7 +303,7 @@ export default function BillingSettingsCard() {
               className="min-h-[150px] font-mono text-sm"
             />
             <p className="text-xs text-muted-foreground">
-              Variáveis: {'{{nome}}'}, {'{{vencimento}}'}, {'{{hora}}'}, {'{{valor}}'}, {'{{usuario}}'}, {'{{plano}}'}, {'{{servidor}}'}. Deixe vazio para mensagem padrão.
+              Variáveis: {'{{nome}}'}, {'{{vencimento}}'}, {'{{hora}}'}, {'{{valor}}'}, {'{{usuario}}'}, {'{{plano}}'}, {'{{servidor}}'}, {'{{telas}}'}, {'{{telefone}}'}, {'{{obs}}'}, {'{{inicio}}'}, {'{{status}}'}. Deixe vazio para mensagem padrão.
             </p>
           </div>
 

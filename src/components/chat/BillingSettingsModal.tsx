@@ -310,7 +310,7 @@ export default function BillingSettingsModal({ open, onOpenChange }: BillingSett
                   className="min-h-[120px] text-sm font-mono"
                 />
                 <p className="text-[10px] text-muted-foreground">
-                  Variáveis disponíveis: {'{{nome}}'}, {'{{vencimento}}'}, {'{{hora}}'}, {'{{valor}}'}, {'{{usuario}}'}, {'{{plano}}'}, {'{{servidor}}'}. Deixe vazio para usar a mensagem padrão.
+                  Variáveis disponíveis: {'{{nome}}'}, {'{{vencimento}}'}, {'{{hora}}'}, {'{{valor}}'}, {'{{usuario}}'}, {'{{plano}}'}, {'{{servidor}}'}, {'{{telas}}'}, {'{{telefone}}'}, {'{{obs}}'}, {'{{inicio}}'}, {'{{status}}'}. Deixe vazio para usar a mensagem padrão.
                 </p>
               </div>
             </div>
