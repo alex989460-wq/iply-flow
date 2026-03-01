@@ -499,26 +499,45 @@ serve(async (req) => {
 
         console.log(`[Cakto] Enviando mensagem texto plano para ${metaPhone}`);
 
-        const msgResp = await fetch(
-          `${Deno.env.get('SUPABASE_URL')}/functions/v1/zap-responder`,
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
-            },
-            body: JSON.stringify({
-              action: 'enviar-mensagem',
-              department_id: zapSettings.selected_department_id,
-              number: metaPhone,
-              text: whatsappMessage,
-              user_id: matchedCustomer.created_by,
-              image_url: billingSettings?.renewal_image_url || undefined,
-            }),
-          },
-        );
-        const msgResult = await msgResp.json();
-        console.log(`[Cakto] Mensagem WhatsApp: status=${msgResp.status}`, JSON.stringify(msgResult));
+        // Send with retry (up to 2 attempts) to handle transient failures
+        let msgSuccess = false;
+        for (let attempt = 1; attempt <= 2; attempt++) {
+          try {
+            const msgResp = await fetch(
+              `${Deno.env.get('SUPABASE_URL')}/functions/v1/zap-responder`,
+              {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+                },
+                body: JSON.stringify({
+                  action: 'enviar-mensagem',
+                  department_id: zapSettings.selected_department_id,
+                  number: metaPhone,
+                  text: whatsappMessage,
+                  user_id: matchedCustomer.created_by,
+                  image_url: billingSettings?.renewal_image_url || undefined,
+                }),
+              },
+            );
+            const msgResult = await msgResp.json();
+            console.log(`[Cakto] Mensagem WhatsApp (tentativa ${attempt}): status=${msgResp.status}`, JSON.stringify(msgResult));
+            
+            if (msgResp.ok && msgResult?.success !== false) {
+              msgSuccess = true;
+              break;
+            }
+            console.warn(`[Cakto] Tentativa ${attempt} falhou para cliente ${metaPhone}. ${attempt < 2 ? 'Tentando novamente em 3s...' : 'Sem mais tentativas.'}`);
+            if (attempt < 2) await new Promise(r => setTimeout(r, 3000));
+          } catch (retryErr) {
+            console.error(`[Cakto] Erro tentativa ${attempt} para ${metaPhone}:`, retryErr);
+            if (attempt < 2) await new Promise(r => setTimeout(r, 3000));
+          }
+        }
+        if (!msgSuccess) {
+          console.error(`[Cakto] FALHA: Mensagem de confirmação NÃO enviada para cliente ${matchedCustomer.name} (${metaPhone})`);
+        }
       } else {
         console.log('[Cakto] Nenhum departamento configurado. Mensagem não enviada.');
       }
