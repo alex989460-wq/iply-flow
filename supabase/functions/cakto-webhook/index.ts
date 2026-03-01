@@ -113,7 +113,7 @@ serve(async (req) => {
     for (const variant of searchVariants) {
       const { data: candidates } = await supabaseAdmin
         .from('customers')
-        .select('id, name, phone, username, server_id, plan_id, due_date, created_by, status, created_at, custom_price, screens')
+        .select('id, name, phone, username, server_id, plan_id, due_date, created_by, status, created_at, custom_price, screens, notes, start_date')
         .ilike('phone', `%${variant}%`)
         .order('created_at', { ascending: false })
         .limit(20);

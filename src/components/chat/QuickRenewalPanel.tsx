@@ -319,6 +319,8 @@ export default function QuickRenewalPanel({ isMobile = false, onClose }: QuickRe
           custom_price,
           screens,
           extra_months,
+          notes,
+          start_date,
           plan:plans(id, plan_name, price, duration_days),
           server:servers(id, server_name)
         `)
