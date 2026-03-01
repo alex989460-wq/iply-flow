@@ -305,7 +305,7 @@ serve(async (req) => {
           console.log(`[Cakto] Pagamento registrado SEM confirmação para decisão do admin`);
         }
 
-        // Notify admin via WhatsApp
+        // Notify reseller via WhatsApp
         try {
           const { data: zapSettings } = await supabaseAdmin
             .from('zap_responder_settings')
@@ -313,7 +313,15 @@ serve(async (req) => {
             .eq('user_id', matchedCustomer.created_by)
             .maybeSingle();
 
-          if (zapSettings?.selected_department_id) {
+          const { data: bSettings } = await supabaseAdmin
+            .from('billing_settings')
+            .select('notification_phone')
+            .eq('user_id', matchedCustomer.created_by)
+            .maybeSingle();
+
+          const conflictPhone = bSettings?.notification_phone;
+
+          if (zapSettings?.selected_department_id && conflictPhone) {
             const customerList = sameDueCustomers.map((c: any) =>
               `  • ${c.name} (${c.username || '-'}) - Venc: ${c.due_date}`
             ).join('\n');
@@ -331,16 +339,16 @@ serve(async (req) => {
                 body: JSON.stringify({
                   action: 'enviar-mensagem',
                   department_id: zapSettings.selected_department_id,
-                  number: '5541991758392',
+                  number: conflictPhone,
                   text: adminMsg,
                   user_id: matchedCustomer.created_by,
                 }),
               },
             );
-            console.log('[Cakto] Notificação de conflito enviada ao admin');
+            console.log('[Cakto] Notificação de conflito enviada para:', conflictPhone);
           }
         } catch (e) {
-          console.error('[Cakto] Erro ao notificar admin sobre conflito:', e);
+          console.error('[Cakto] Erro ao notificar sobre conflito:', e);
         }
 
         return new Response(JSON.stringify({
@@ -442,6 +450,13 @@ serve(async (req) => {
         .eq('user_id', matchedCustomer.created_by)
         .maybeSingle();
 
+      // Fetch billing settings for custom message template and notification phone
+      const { data: billingSettings } = await supabaseAdmin
+        .from('billing_settings')
+        .select('notification_phone, renewal_message_template')
+        .eq('user_id', matchedCustomer.created_by)
+        .maybeSingle();
+
       if (zapSettings?.selected_department_id) {
         // Get server name
         let serverName = '-';
@@ -466,7 +481,16 @@ serve(async (req) => {
 
         const displayUsername = matchedCustomer.username || '-';
 
-        const whatsappMessage = `✅ Olá, *${matchedCustomer.name}*. Obrigado por confirmar seu pagamento. Segue abaixo os dados da sua assinatura:\n\n==========================\n📅 Próx. Vencimento: *${formattedDueDate} - ${formattedTime} hrs*\n💰 Valor: *${amountNumeric.toFixed(2)}*\n👤 Usuário: *${displayUsername}*\n📦 Plano: *${matchedPlanName || '-'}*\n🔌 Status: *Ativo*\n💎 Obs: -\n⚡: *${serverName}*\n==========================`;
+        const defaultTemplate = `✅ Olá, *{{nome}}*. Obrigado por confirmar seu pagamento. Segue abaixo os dados da sua assinatura:\n\n==========================\n📅 Próx. Vencimento: *{{vencimento}} - {{hora}} hrs*\n💰 Valor: *{{valor}}*\n👤 Usuário: *{{usuario}}*\n📦 Plano: *{{plano}}*\n🔌 Status: *Ativo*\n💎 Obs: -\n⚡: *{{servidor}}*\n==========================`;
+        const template = billingSettings?.renewal_message_template || defaultTemplate;
+        const whatsappMessage = template
+          .replace(/\{\{nome\}\}/g, matchedCustomer.name)
+          .replace(/\{\{vencimento\}\}/g, formattedDueDate)
+          .replace(/\{\{hora\}\}/g, formattedTime)
+          .replace(/\{\{valor\}\}/g, amountNumeric.toFixed(2))
+          .replace(/\{\{usuario\}\}/g, displayUsername)
+          .replace(/\{\{plano\}\}/g, matchedPlanName || '-')
+          .replace(/\{\{servidor\}\}/g, serverName);
 
         console.log(`[Cakto] Enviando mensagem texto plano para ${metaPhone}`);
 
@@ -493,15 +517,14 @@ serve(async (req) => {
         console.log('[Cakto] Nenhum departamento configurado. Mensagem não enviada.');
       }
 
-      // Send admin notification (uses phoneDigits which is always available)
-      if (zapSettings?.selected_department_id) {
+      // Send notification to reseller/admin phone
+      const notificationPhone = billingSettings?.notification_phone;
+      if (zapSettings?.selected_department_id && notificationPhone) {
         try {
-          const adminPhone = '5541991758392';
           const dueParts2 = newDueDate.split('-');
           const fmtDue = `${dueParts2[2]}/${dueParts2[1]}/${dueParts2[0]}`;
           let adminMetaPhone = phoneDigits;
           if (!adminMetaPhone.startsWith('55')) adminMetaPhone = '55' + adminMetaPhone;
-          // Get server name for admin msg
           let adminServerName = '-';
           if (matchedCustomer.server_id) {
             const { data: srvData } = await supabaseAdmin
@@ -524,15 +547,15 @@ serve(async (req) => {
               body: JSON.stringify({
                 action: 'enviar-mensagem',
                 department_id: zapSettings.selected_department_id,
-                number: adminPhone,
+                number: notificationPhone,
                 text: adminMsg,
                 user_id: matchedCustomer.created_by,
               }),
             },
           );
-          console.log('[Cakto] Notificação admin enviada');
+          console.log('[Cakto] Notificação enviada para:', notificationPhone);
         } catch (adminErr) {
-          console.error('[Cakto] Erro ao notificar admin:', adminErr);
+          console.error('[Cakto] Erro ao notificar:', adminErr);
         }
       }
     } catch (e) {
