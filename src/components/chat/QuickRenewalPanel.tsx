@@ -46,6 +46,8 @@ interface Customer {
   custom_price: number | null;
   screens: number;
   extra_months: number;
+  notes: string | null;
+  start_date: string;
   plan: {
     id: string;
     plan_name: string;
@@ -537,7 +539,12 @@ Obrigado pela preferência! 🙏`;
             .replace(/\{\{valor\}\}/g, amount.toFixed(2))
             .replace(/\{\{usuario\}\}/g, displayUsername)
             .replace(/\{\{plano\}\}/g, planName)
-            .replace(/\{\{servidor\}\}/g, serverName);
+            .replace(/\{\{servidor\}\}/g, serverName)
+            .replace(/\{\{obs\}\}/g, customer.notes || '-')
+            .replace(/\{\{telas\}\}/g, String(customer.screens || 1))
+            .replace(/\{\{telefone\}\}/g, customer.phone || '-')
+            .replace(/\{\{inicio\}\}/g, customer.start_date ? new Date(customer.start_date + 'T12:00:00').toLocaleDateString('pt-BR') : '-')
+            .replace(/\{\{status\}\}/g, customer.status || '-');
 
           const imageUrl = settings?.renewal_image_url && settings.renewal_image_url.trim() !== '' 
             ? settings.renewal_image_url 

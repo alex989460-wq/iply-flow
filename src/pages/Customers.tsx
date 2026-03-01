@@ -402,7 +402,7 @@ export default function Customers() {
       // Always fetch the latest customer data from the backend (avoids stale cache)
       const { data: customer, error: fetchCustomerError } = await supabase
         .from('customers')
-        .select('id, name, phone, due_date, username, notes, server_id, created_by, servers(server_name, host)')
+        .select('id, name, phone, due_date, username, notes, server_id, created_by, screens, start_date, status, servers(server_name, host)')
         .eq('id', customerId)
         .single();
       if (fetchCustomerError) throw fetchCustomerError;
@@ -539,7 +539,11 @@ export default function Customers() {
           .replace(/\{\{usuario\}\}/g, customer.username || '-')
           .replace(/\{\{plano\}\}/g, plan.plan_name)
           .replace(/\{\{servidor\}\}/g, serverName)
-          .replace(/\{\{obs\}\}/g, customer.notes || '-');
+          .replace(/\{\{obs\}\}/g, customer.notes || '-')
+          .replace(/\{\{telas\}\}/g, String(customer.screens || 1))
+          .replace(/\{\{telefone\}\}/g, customer.phone || '-')
+          .replace(/\{\{inicio\}\}/g, customer.start_date ? new Date(customer.start_date + 'T12:00:00').toLocaleDateString('pt-BR') : '-')
+          .replace(/\{\{status\}\}/g, customer.status || '-');
 
         try {
           const phone = customer.phone.replace(/\D/g, '');
@@ -752,7 +756,7 @@ export default function Customers() {
         // Fetch latest customer data
         const { data: latestCustomer, error: fetchError } = await supabase
           .from('customers')
-          .select('id, name, phone, due_date, username, notes, server_id, servers(server_name, host)')
+          .select('id, name, phone, due_date, username, notes, server_id, screens, start_date, status, servers(server_name, host)')
           .eq('id', customer.id)
           .single();
         

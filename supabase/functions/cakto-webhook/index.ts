@@ -490,7 +490,12 @@ serve(async (req) => {
           .replace(/\{\{valor\}\}/g, amountNumeric.toFixed(2))
           .replace(/\{\{usuario\}\}/g, displayUsername)
           .replace(/\{\{plano\}\}/g, matchedPlanName || '-')
-          .replace(/\{\{servidor\}\}/g, serverName);
+          .replace(/\{\{servidor\}\}/g, serverName)
+          .replace(/\{\{obs\}\}/g, matchedCustomer.notes || '-')
+          .replace(/\{\{telas\}\}/g, String(matchedCustomer.screens || 1))
+          .replace(/\{\{telefone\}\}/g, matchedCustomer.phone || '-')
+          .replace(/\{\{inicio\}\}/g, matchedCustomer.start_date ? new Date(matchedCustomer.start_date + 'T12:00:00').toLocaleDateString('pt-BR') : '-')
+          .replace(/\{\{status\}\}/g, matchedCustomer.status || '-');
 
         console.log(`[Cakto] Enviando mensagem texto plano para ${metaPhone}`);
 
