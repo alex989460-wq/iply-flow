@@ -402,7 +402,7 @@ export default function Customers() {
       // Always fetch the latest customer data from the backend (avoids stale cache)
       const { data: customer, error: fetchCustomerError } = await supabase
         .from('customers')
-        .select('id, name, phone, due_date, username, notes, server_id, servers(server_name, host)')
+        .select('id, name, phone, due_date, username, notes, server_id, created_by, servers(server_name, host)')
         .eq('id', customerId)
         .single();
       if (fetchCustomerError) throw fetchCustomerError;
@@ -513,11 +513,38 @@ export default function Customers() {
         const serverName = customer.servers?.server_name || '-';
         const formattedTime = format(new Date(), "HH:mm", { locale: ptBR });
 
-        const message = `✅ Olá, *${customer.name}*. Obrigado por confirmar seu pagamento. Segue abaixo os dados da sua assinatura:\n\n==========================\n📅 Próx. Vencimento: *${formattedDueDate} - ${formattedTime} hrs*\n💰 Valor: *${amount.toFixed(2)}*\n👤 Usuário: *${customer.username || '-'}*\n📦 Plano: *${plan.plan_name}*\n🔌 Status: *Ativo*\n💎 Obs: ${customer.notes || '-'}\n⚡: *${serverName}*\n==========================`;
+        const settingsUserId = (customer as any).created_by || user?.id;
+        let ownerBillingSettings: {
+          notification_phone?: string | null;
+          renewal_message_template?: string | null;
+          renewal_image_url?: string | null;
+        } | null = null;
+
+        if (settingsUserId) {
+          const { data: settingsData } = await (supabase
+            .from('billing_settings' as any)
+            .select('notification_phone, renewal_message_template, renewal_image_url')
+            .eq('user_id', settingsUserId)
+            .maybeSingle() as any);
+          ownerBillingSettings = settingsData || null;
+        }
+
+        const defaultTemplate = `✅ Olá, *{{nome}}*. Obrigado por confirmar seu pagamento. Segue abaixo os dados da sua assinatura:\n\n==========================\n📅 Próx. Vencimento: *{{vencimento}} - {{hora}} hrs*\n💰 Valor: *{{valor}}*\n👤 Usuário: *{{usuario}}*\n📦 Plano: *{{plano}}*\n🔌 Status: *Ativo*\n💎 Obs: -\n⚡: *{{servidor}}*\n==========================`;
+        const template = ownerBillingSettings?.renewal_message_template || defaultTemplate;
+        const message = template
+          .replace(/\{\{nome\}\}/g, customer.name)
+          .replace(/\{\{vencimento\}\}/g, formattedDueDate)
+          .replace(/\{\{hora\}\}/g, formattedTime)
+          .replace(/\{\{valor\}\}/g, amount.toFixed(2))
+          .replace(/\{\{usuario\}\}/g, customer.username || '-')
+          .replace(/\{\{plano\}\}/g, plan.plan_name)
+          .replace(/\{\{servidor\}\}/g, serverName)
+          .replace(/\{\{obs\}\}/g, customer.notes || '-');
 
         try {
           const phone = customer.phone.replace(/\D/g, '');
           const phoneWithCode = phone.startsWith('55') ? phone : `55${phone}`;
+          const imageUrl = ownerBillingSettings?.renewal_image_url?.trim() || undefined;
 
           const { data, error } = await supabase.functions.invoke('zap-responder', {
             body: {
@@ -525,6 +552,7 @@ export default function Customers() {
               department_id: zapSettings.selected_department_id,
               number: phoneWithCode,
               text: message,
+              image_url: imageUrl,
             },
           });
 
@@ -539,20 +567,25 @@ export default function Customers() {
             console.log('Mensagem de confirmação enviada:', data);
           }
 
-          // Send admin notification
-          try {
-            const adminPhone = '5541991758392';
-            const adminMsg = `🔔 *Renovação Manual (Clientes)*\n\n👤 Cliente: *${customer.name}*\n📞 Tel: ${phoneWithCode}\n👤 Usuário: *${customer.username || '-'}*\n💰 Valor: *R$ ${amount.toFixed(2)}*\n📦 Plano: *${plan.plan_name}*\n🖥️ Servidor: *${customer.servers?.server_name || '-'}*\n📅 Novo vencimento: *${formattedDueDate}*\n✅ Status: Renovado`;
-            await supabase.functions.invoke('zap-responder', {
-              body: {
-                action: 'enviar-mensagem',
-                department_id: zapSettings.selected_department_id,
-                number: adminPhone,
-                text: adminMsg,
-              },
-            });
-          } catch (adminErr) {
-            console.error('Erro ao notificar admin:', adminErr);
+          // Send reseller/admin notification
+          const notificationPhoneDigits = ownerBillingSettings?.notification_phone?.replace(/\D/g, '');
+          if (notificationPhoneDigits) {
+            try {
+              const notificationPhone = notificationPhoneDigits.startsWith('55')
+                ? notificationPhoneDigits
+                : `55${notificationPhoneDigits}`;
+              const adminMsg = `🔔 *Renovação Manual (Clientes)*\n\n👤 Cliente: *${customer.name}*\n📞 Tel: ${phoneWithCode}\n👤 Usuário: *${customer.username || '-'}*\n💰 Valor: *R$ ${amount.toFixed(2)}*\n📦 Plano: *${plan.plan_name}*\n🖥️ Servidor: *${customer.servers?.server_name || '-'}*\n📅 Novo vencimento: *${formattedDueDate}*\n✅ Status: Renovado`;
+              await supabase.functions.invoke('zap-responder', {
+                body: {
+                  action: 'enviar-mensagem',
+                  department_id: zapSettings.selected_department_id,
+                  number: notificationPhone,
+                  text: adminMsg,
+                },
+              });
+            } catch (adminErr) {
+              console.error('Erro ao notificar admin:', adminErr);
+            }
           }
         } catch (msgError) {
           messageError = msgError instanceof Error ? msgError.message : 'Erro desconhecido ao enviar mensagem.';
