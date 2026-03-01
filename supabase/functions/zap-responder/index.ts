@@ -1977,13 +1977,71 @@ Deno.serve(async (req) => {
 
       // Enviar mensagem de texto
       case 'enviar-mensagem': {
-        const { department_id, number, text } = body;
+        const { department_id, number, text, image_url } = body;
         if (!department_id || !number || !text) {
           return new Response(
             JSON.stringify({ success: false, error: 'department_id, number, and text are required' }),
             { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
         }
+
+        // If image_url is provided, send image with caption first, then text as fallback
+        if (image_url) {
+          try {
+            const formattedNumber = number.replace(/\D/g, '');
+            const chatIdCus = `${formattedNumber}@c.us`;
+            const chatIdNet = `${formattedNumber}@s.whatsapp.net`;
+
+            const imageEndpoints = [
+              {
+                url: `${apiBaseUrl}/mensagem/enviar`,
+                body: { chatId: chatIdCus, departamento: department_id, content: { type: 'image', url: image_url, caption: text } },
+                name: 'mensagem/enviar image (@c.us)'
+              },
+              {
+                url: `${apiBaseUrl}/mensagem/enviar`,
+                body: { chatId: chatIdNet, departamento: department_id, content: { type: 'image', url: image_url, caption: text } },
+                name: 'mensagem/enviar image (@s.whatsapp.net)'
+              },
+              {
+                url: `${apiBaseUrl}/whatsapp/message/${department_id}`,
+                body: { type: 'image', number: formattedNumber, url: image_url, caption: text },
+                name: 'whatsapp/message image'
+              },
+            ];
+
+            let imageSent = false;
+            for (const ep of imageEndpoints) {
+              try {
+                console.log(`[Image] Trying: ${ep.name}`);
+                const resp = await fetch(ep.url, {
+                  method: 'POST',
+                  headers: { 'Authorization': `Bearer ${zapToken}`, 'Content-Type': 'application/json' },
+                  body: JSON.stringify(ep.body),
+                });
+                const respText = await resp.text();
+                console.log(`[Image] ${ep.name}: status=${resp.status}, body=${respText.substring(0, 200)}`);
+                if (resp.ok && respText.length > 0) {
+                  imageSent = true;
+                  return new Response(
+                    JSON.stringify({ success: true, data: JSON.parse(respText), method: ep.name }),
+                    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+                  );
+                }
+              } catch (e) {
+                console.error(`[Image] ${ep.name} error:`, e);
+              }
+            }
+
+            // Fallback: send text only if image failed
+            if (!imageSent) {
+              console.log('[Image] All image endpoints failed, falling back to text');
+            }
+          } catch (imgErr) {
+            console.error('[Image] Error sending image:', imgErr);
+          }
+        }
+
         const result = await enviarMensagemTexto(apiBaseUrl, zapToken, department_id, number, text);
         return new Response(
           JSON.stringify(result),
