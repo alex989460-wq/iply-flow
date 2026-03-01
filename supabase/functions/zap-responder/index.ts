@@ -1988,7 +1988,7 @@ Deno.serve(async (req) => {
         let imageSent = false;
         let imageResult: { method: string; data: any } | null = null;
 
-        // If image_url is provided, try to send image first
+        // If image_url is provided, prioritize image with caption and only fallback to text when image fails
         if (image_url) {
           try {
             const formattedNumber = number.replace(/\D/g, '');
@@ -1997,19 +1997,34 @@ Deno.serve(async (req) => {
 
             const imageEndpoints = [
               {
-                url: `${apiBaseUrl}/mensagem/enviar`,
-                body: { chatId: chatIdCus, departamento: department_id, content: { type: 'image', url: image_url, caption: text } },
-                name: 'mensagem/enviar image (@c.us)'
-              },
-              {
-                url: `${apiBaseUrl}/mensagem/enviar`,
-                body: { chatId: chatIdNet, departamento: department_id, content: { type: 'image', url: image_url, caption: text } },
-                name: 'mensagem/enviar image (@s.whatsapp.net)'
+                url: `${apiBaseUrl}/whatsapp/message/${department_id}`,
+                body: { type: 'image', number: formattedNumber, url: image_url, message: text },
+                name: 'whatsapp/message image (message)'
               },
               {
                 url: `${apiBaseUrl}/whatsapp/message/${department_id}`,
                 body: { type: 'image', number: formattedNumber, url: image_url, caption: text },
-                name: 'whatsapp/message image'
+                name: 'whatsapp/message image (caption)'
+              },
+              {
+                url: `${apiBaseUrl}/whatsapp/message/${department_id}`,
+                body: { type: 'image', number: formattedNumber, url: image_url, text },
+                name: 'whatsapp/message image (text-string)'
+              },
+              {
+                url: `${apiBaseUrl}/mensagem/enviar`,
+                body: { chatId: chatIdCus, departamento: department_id, content: { type: 'image', url: image_url, message: text } },
+                name: 'mensagem/enviar image+message (@c.us)'
+              },
+              {
+                url: `${apiBaseUrl}/mensagem/enviar`,
+                body: { chatId: chatIdNet, departamento: department_id, content: { type: 'image', url: image_url, message: text } },
+                name: 'mensagem/enviar image+message (@s.whatsapp.net)'
+              },
+              {
+                url: `${apiBaseUrl}/mensagem/enviar`,
+                body: { chatId: chatIdCus, departamento: department_id, content: { type: 'image', url: image_url, caption: text } },
+                name: 'mensagem/enviar image+caption (@c.us)'
               },
             ];
 
@@ -2046,10 +2061,18 @@ Deno.serve(async (req) => {
           }
         }
 
-        // Always send text so user receives full confirmation even when image caption is ignored by provider
+        // If image was successfully sent, do not send a separate text to keep caption attached to image
+        if (imageSent) {
+          return new Response(
+            JSON.stringify({ success: true, data: imageResult?.data ?? null, image_sent: true, image_result: imageResult, text_sent: false }),
+            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        // Fallback: send text when image is not sent or image_url is absent
         const result = await enviarMensagemTexto(apiBaseUrl, zapToken, department_id, number, text);
         return new Response(
-          JSON.stringify({ ...result, image_sent: imageSent, image_result: imageResult }),
+          JSON.stringify({ ...result, image_sent: false, image_result: imageResult, text_sent: true }),
           { status: result.success ? 200 : 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
