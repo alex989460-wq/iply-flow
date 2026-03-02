@@ -167,9 +167,14 @@ serve(async (req) => {
       console.log(`  - ${c.name} (${c.username || '-'}) id=${c.id} status=${c.status} due=${c.due_date}`);
     }
 
-    // ── Determine payment amount early (used for duplicate protection) ──
+    // ── Determine payment amount and method early ──
     const paymentAmount = caktoData?.amount || caktoData?.baseAmount || body?.sale?.amount || body?.amount || 0;
     const amountNumeric = Number(String(paymentAmount).replace(/[^\d.,]/g, '').replace(',', '.')) || 0;
+
+    // Detect payment method from Cakto payload
+    const rawMethod = (caktoData?.payment_method || caktoData?.paymentMethod || caktoData?.method || body?.payment_method || '').toString().toLowerCase();
+    const isCreditCard = rawMethod.includes('credit') || rawMethod.includes('cartao') || rawMethod.includes('cartão') || rawMethod.includes('card');
+    const paymentMethodDb = isCreditCard ? 'cartao_credito' : 'pix';
 
     // ── Duplicate protection: only block near-instant retries with same amount ──
     if (caktoId && amountNumeric > 0) {
@@ -181,7 +186,7 @@ serve(async (req) => {
         .from('payments')
         .select('id, amount, created_at')
         .eq('customer_id', matchedCustomer.id)
-        .eq('method', 'pix')
+        .eq('method', paymentMethodDb)
         .gte('created_at', twoMinutesAgo)
         .gte('amount', amountMin)
         .lte('amount', amountMax)
@@ -307,7 +312,7 @@ serve(async (req) => {
             customer_id: matchedCustomer.id,
             amount: amountNumeric,
             payment_date: todayStr,
-            method: 'pix',
+            method: paymentMethodDb,
             confirmed: false, // NOT confirmed - admin must decide
             source: 'cakto',
           });
@@ -405,7 +410,7 @@ serve(async (req) => {
           customer_id: cust.id,
           amount: amountNumeric,
           payment_date: today.toISOString().split('T')[0],
-          method: 'pix',
+          method: paymentMethodDb,
           confirmed: true,
           source: 'cakto',
         });
