@@ -460,6 +460,59 @@ export type Database = {
         }
         Relationships: []
       }
+      message_logs: {
+        Row: {
+          created_at: string
+          customer_id: string | null
+          customer_name: string | null
+          customer_phone: string | null
+          error_message: string | null
+          id: string
+          message_type: string
+          metadata: Json | null
+          source: string
+          status: string
+          user_id: string | null
+          whatsapp_response: Json | null
+        }
+        Insert: {
+          created_at?: string
+          customer_id?: string | null
+          customer_name?: string | null
+          customer_phone?: string | null
+          error_message?: string | null
+          id?: string
+          message_type?: string
+          metadata?: Json | null
+          source?: string
+          status?: string
+          user_id?: string | null
+          whatsapp_response?: Json | null
+        }
+        Update: {
+          created_at?: string
+          customer_id?: string | null
+          customer_name?: string | null
+          customer_phone?: string | null
+          error_message?: string | null
+          id?: string
+          message_type?: string
+          metadata?: Json | null
+          source?: string
+          status?: string
+          user_id?: string | null
+          whatsapp_response?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "message_logs_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       panel_links: {
         Row: {
           created_at: string
