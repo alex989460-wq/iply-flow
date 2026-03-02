@@ -34,7 +34,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import QuickCustomerForm from './QuickCustomerForm';
 import BillingSettingsModal from './BillingSettingsModal';
 
-type PaymentMethod = 'pix' | 'dinheiro' | 'transferencia';
+type PaymentMethod = 'pix' | 'dinheiro' | 'transferencia' | 'cartao_credito';
 
 interface Customer {
   id: string;
@@ -1310,6 +1310,7 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                       <SelectItem value="pix">PIX</SelectItem>
                       <SelectItem value="dinheiro">Dinheiro</SelectItem>
                       <SelectItem value="transferencia">Transferência</SelectItem>
+                      <SelectItem value="cartao_credito">Cartão de Crédito</SelectItem>
                     </SelectContent>
                   </Select>
                   

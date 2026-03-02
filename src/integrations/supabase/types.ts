@@ -1085,7 +1085,7 @@ export type Database = {
       app_role: "admin" | "user"
       billing_type: "D-1" | "D0" | "D+1"
       customer_status: "ativa" | "inativa" | "suspensa"
-      payment_method: "pix" | "dinheiro" | "transferencia"
+      payment_method: "pix" | "dinheiro" | "transferencia" | "cartao_credito"
       server_status: "online" | "offline" | "manutencao"
     }
     CompositeTypes: {
@@ -1217,7 +1217,7 @@ export const Constants = {
       app_role: ["admin", "user"],
       billing_type: ["D-1", "D0", "D+1"],
       customer_status: ["ativa", "inativa", "suspensa"],
-      payment_method: ["pix", "dinheiro", "transferencia"],
+      payment_method: ["pix", "dinheiro", "transferencia", "cartao_credito"],
       server_status: ["online", "offline", "manutencao"],
     },
   },

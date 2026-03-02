@@ -168,12 +168,13 @@ export default function Payments() {
   };
 
   const getMethodLabel = (method: PaymentMethod) => {
-    const labels = {
+    const labels: Record<string, string> = {
       pix: 'PIX',
       dinheiro: 'Dinheiro',
       transferencia: 'Transferência',
+      cartao_credito: 'Cartão de Crédito',
     };
-    return labels[method];
+    return labels[method] || method;
   };
 
   return (
@@ -240,6 +241,7 @@ export default function Payments() {
                       <SelectItem value="pix">PIX</SelectItem>
                       <SelectItem value="dinheiro">Dinheiro</SelectItem>
                       <SelectItem value="transferencia">Transferência</SelectItem>
+                      <SelectItem value="cartao_credito">Cartão de Crédito</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
