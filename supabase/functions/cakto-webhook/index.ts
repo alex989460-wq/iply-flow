@@ -144,6 +144,15 @@ serve(async (req) => {
 
     if (allMatchedCustomers.length === 0) {
       console.warn(`[Cakto] Nenhum cliente encontrado para telefone: ${phone}`);
+      // Log not found
+      await supabaseAdmin.from('message_logs').insert({
+        customer_phone: phoneDigits,
+        message_type: 'confirmation',
+        source: 'cakto',
+        status: 'not_found',
+        error_message: `Nenhum cliente encontrado. Variantes: ${[...searchVariants].join(', ')}`,
+        metadata: { phone_original: phone, searched_variants: [...searchVariants], amount: amountNumeric },
+      });
       return new Response(JSON.stringify({ 
         success: false, 
         error: `Nenhum cliente encontrado com telefone ${phone}`,
@@ -501,6 +510,8 @@ serve(async (req) => {
 
         // Send with retry (up to 2 attempts) to handle transient failures
         let msgSuccess = false;
+        let lastError = '';
+        let lastResponse: any = null;
         for (let attempt = 1; attempt <= 2; attempt++) {
           try {
             const msgResp = await fetch(
@@ -522,24 +533,53 @@ serve(async (req) => {
               },
             );
             const msgResult = await msgResp.json();
+            lastResponse = msgResult;
             console.log(`[Cakto] Mensagem WhatsApp (tentativa ${attempt}): status=${msgResp.status}`, JSON.stringify(msgResult));
             
             if (msgResp.ok && msgResult?.success !== false) {
               msgSuccess = true;
               break;
             }
+            lastError = msgResult?.message || msgResult?.error || `HTTP ${msgResp.status}`;
             console.warn(`[Cakto] Tentativa ${attempt} falhou para cliente ${metaPhone}. ${attempt < 2 ? 'Tentando novamente em 3s...' : 'Sem mais tentativas.'}`);
             if (attempt < 2) await new Promise(r => setTimeout(r, 3000));
           } catch (retryErr) {
+            lastError = String(retryErr);
             console.error(`[Cakto] Erro tentativa ${attempt} para ${metaPhone}:`, retryErr);
             if (attempt < 2) await new Promise(r => setTimeout(r, 3000));
           }
         }
+        
+        // Log message attempt to database
+        await supabaseAdmin.from('message_logs').insert({
+          user_id: matchedCustomer.created_by,
+          customer_id: matchedCustomer.id,
+          customer_name: matchedCustomer.name,
+          customer_phone: metaPhone,
+          message_type: 'confirmation',
+          source: 'cakto',
+          status: msgSuccess ? 'success' : 'error',
+          error_message: msgSuccess ? null : lastError,
+          whatsapp_response: lastResponse,
+          metadata: { amount: amountNumeric, plan: matchedPlanName, server: serverName },
+        });
+
         if (!msgSuccess) {
           console.error(`[Cakto] FALHA: Mensagem de confirmação NÃO enviada para cliente ${matchedCustomer.name} (${metaPhone})`);
         }
       } else {
         console.log('[Cakto] Nenhum departamento configurado. Mensagem não enviada.');
+        // Log skipped
+        await supabaseAdmin.from('message_logs').insert({
+          user_id: matchedCustomer.created_by,
+          customer_id: matchedCustomer.id,
+          customer_name: matchedCustomer.name,
+          customer_phone: matchedCustomer.phone,
+          message_type: 'confirmation',
+          source: 'cakto',
+          status: 'skipped',
+          error_message: 'Nenhum departamento configurado',
+        });
       }
 
       // Send notification to reseller/admin phone

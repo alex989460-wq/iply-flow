@@ -22,6 +22,7 @@ import SubResellers from "./pages/SubResellers";
 import Tutorial from "./pages/Tutorial";
 import BotTriggers from "./pages/BotTriggers";
 import Expenses from "./pages/Expenses";
+import MessageLogs from "./pages/MessageLogs";
 import NotFound from "./pages/NotFound";
 import MetaCallback from "./pages/MetaCallback";
 import PaymentConfirmation from "./pages/PaymentConfirmation";
@@ -78,6 +79,7 @@ function AppRoutes() {
       <Route path="/resellers" element={<ProtectedRoute><Resellers /></ProtectedRoute>} />
       <Route path="/sub-resellers" element={<ProtectedRoute><SubResellers /></ProtectedRoute>} />
       <Route path="/expenses" element={<ProtectedRoute><Expenses /></ProtectedRoute>} />
+      <Route path="/message-logs" element={<ProtectedRoute><MessageLogs /></ProtectedRoute>} />
       <Route path="*" element={<NotFound />} />
     </Routes>
   );

@@ -21,6 +21,7 @@ import {
   Bot,
   UsersRound,
   PiggyBank,
+  ScrollText,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/ThemeToggle';
@@ -39,6 +40,7 @@ const menuItems = [
   { icon: UsersRound, label: 'Sub-Revendedores', path: '/sub-resellers', adminOnly: false },
   { icon: GraduationCap, label: 'Tutorial', path: '/tutorial', adminOnly: false },
   { icon: PiggyBank, label: 'Despesas', path: '/expenses', adminOnly: true },
+  { icon: ScrollText, label: 'Logs de Mensagens', path: '/message-logs', adminOnly: true },
   { icon: UserCog, label: 'Revendedores', path: '/resellers', adminOnly: true },
   { icon: Cog, label: 'Configurações', path: '/settings', adminOnly: false },
 ];
