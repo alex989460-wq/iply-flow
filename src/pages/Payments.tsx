@@ -53,7 +53,7 @@ export default function Payments() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('payments')
-        .select('*, customers(name, phone)')
+        .select('*, customers(name, phone, username)')
         .order('created_at', { ascending: false });
       if (error) throw error;
       return data;
@@ -283,18 +283,20 @@ export default function Payments() {
               <Table>
                 <TableHeader>
                   <TableRow className="border-border hover:bg-transparent">
-                    <TableHead>Cliente</TableHead>
-                    <TableHead>Valor</TableHead>
-                    <TableHead>Método</TableHead>
-                    <TableHead>Origem</TableHead>
-                    <TableHead>Data</TableHead>
-                    <TableHead className="text-right">Ações</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {payments?.map((payment) => (
-                    <TableRow key={payment.id} className="table-row-hover border-border">
-                      <TableCell className="font-medium">{payment.customers?.name}</TableCell>
+                     <TableHead>Cliente</TableHead>
+                     <TableHead>Usuário</TableHead>
+                     <TableHead>Valor</TableHead>
+                     <TableHead>Método</TableHead>
+                     <TableHead>Origem</TableHead>
+                     <TableHead>Data</TableHead>
+                     <TableHead className="text-right">Ações</TableHead>
+                   </TableRow>
+                 </TableHeader>
+                 <TableBody>
+                   {payments?.map((payment) => (
+                     <TableRow key={payment.id} className="table-row-hover border-border">
+                       <TableCell className="font-medium">{payment.customers?.name}</TableCell>
+                       <TableCell className="text-muted-foreground">{payment.customers?.username || '—'}</TableCell>
                       <TableCell className="text-success font-semibold">
                         R$ {Number(payment.amount).toFixed(2)}
                       </TableCell>
