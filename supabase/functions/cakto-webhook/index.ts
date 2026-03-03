@@ -343,30 +343,66 @@ serve(async (req) => {
               `  • ${c.name} (${c.username || '-'}) - Venc: ${c.due_date}`
             ).join('\n');
 
-            // Single link to app page with buttons
-            const appUrl = 'https://iply-flow.lovable.app';
-            const conflictLink = `${appUrl}/confirmar-renovacao?payment_id=${conflictPaymentId}`;
+            // Try interactive buttons first (max 3 customers, 20 char button titles)
+            const buttonsToSend = sameDueCustomers.slice(0, 3).map((c: any) => ({
+              id: `renew_${conflictPaymentId}_${c.id}`,
+              title: (c.username || c.name).substring(0, 20),
+            }));
 
-            const adminMsg = `⚠️ *Atenção: Pagamento requer decisão manual*\n\n📞 Telefone: ${phoneDigits}\n💰 Valor: *R$ ${amountNumeric.toFixed(2)}*\n📦 Plano: *${matchedPlanName || '-'}*\n\n👥 *${sameDueCustomers.length} clientes com mesmo vencimento:*\n${customerList}\n\n📲 *Clique no link abaixo para escolher qual renovar:*\n${conflictLink}\n\n⏳ Pagamento registrado mas *NÃO confirmado*.`;
+            const interactiveText = `⚠️ *Pagamento requer decisão*\n\n📞 Telefone: ${phoneDigits}\n💰 Valor: *R$ ${amountNumeric.toFixed(2)}*\n📦 Plano: *${matchedPlanName || '-'}*\n\n👥 *${sameDueCustomers.length} clientes:*\n${customerList}\n\n👇 Escolha qual renovar:`;
 
-            await fetch(
-              `${supabaseUrl}/functions/v1/zap-responder`,
-              {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+            let buttonsSent = false;
+            try {
+              const interactiveRes = await fetch(
+                `${supabaseUrl}/functions/v1/zap-responder`,
+                {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+                  },
+                  body: JSON.stringify({
+                    action: 'enviar-interativo',
+                    department_id: zapSettings.selected_department_id,
+                    number: conflictPhone,
+                    text: interactiveText,
+                    buttons: buttonsToSend,
+                    user_id: matchedCustomer.created_by,
+                  }),
                 },
-                body: JSON.stringify({
-                  action: 'enviar-mensagem',
-                  department_id: zapSettings.selected_department_id,
-                  number: conflictPhone,
-                  text: adminMsg,
-                  user_id: matchedCustomer.created_by,
-                }),
-              },
-            );
-            console.log('[Cakto] Notificação de conflito com links enviada para:', conflictPhone);
+              );
+              const interactiveBody = await interactiveRes.json().catch(() => ({}));
+              buttonsSent = interactiveBody?.success === true;
+              console.log(`[Cakto] Botões interativos: ${buttonsSent ? 'ENVIADOS' : 'FALHOU'}`);
+            } catch (e) {
+              console.error('[Cakto] Erro ao enviar botões interativos:', e);
+            }
+
+            // Fallback: send text with link if buttons failed
+            if (!buttonsSent) {
+              const appUrl = 'https://iply-flow.lovable.app';
+              const conflictLink = `${appUrl}/confirmar-renovacao?payment_id=${conflictPaymentId}`;
+              const adminMsg = `⚠️ *Atenção: Pagamento requer decisão manual*\n\n📞 Telefone: ${phoneDigits}\n💰 Valor: *R$ ${amountNumeric.toFixed(2)}*\n📦 Plano: *${matchedPlanName || '-'}*\n\n👥 *${sameDueCustomers.length} clientes com mesmo vencimento:*\n${customerList}\n\n📲 *Clique no link abaixo para escolher qual renovar:*\n${conflictLink}\n\n⏳ Pagamento registrado mas *NÃO confirmado*.`;
+
+              await fetch(
+                `${supabaseUrl}/functions/v1/zap-responder`,
+                {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+                  },
+                  body: JSON.stringify({
+                    action: 'enviar-mensagem',
+                    department_id: zapSettings.selected_department_id,
+                    number: conflictPhone,
+                    text: adminMsg,
+                    user_id: matchedCustomer.created_by,
+                  }),
+                },
+              );
+              console.log('[Cakto] Fallback: notificação com link enviada para:', conflictPhone);
+            }
           }
         } catch (e) {
           console.error('[Cakto] Erro ao notificar sobre conflito:', e);

@@ -1499,6 +1499,113 @@ async function enviarMensagemTexto(
 }
 
 // ===========================================
+// API Functions - Enviar mensagem interativa com botões
+// ===========================================
+async function enviarMensagemInterativa(
+  apiBaseUrl: string,
+  token: string,
+  departmentId: string,
+  number: string,
+  bodyText: string,
+  buttons: { id: string; title: string }[],
+  headerText?: string
+): Promise<{ success: boolean; data?: any; error?: string }> {
+  try {
+    console.log('=== SENDING INTERACTIVE BUTTON MESSAGE ===');
+    console.log('Params:', { departmentId, number, bodyText, buttons });
+
+    const formattedNumber = number.replace(/\D/g, '');
+
+    // Build WhatsApp interactive message payload
+    const interactivePayload: any = {
+      type: 'button',
+      body: { text: bodyText },
+      action: {
+        buttons: buttons.slice(0, 3).map((btn) => ({
+          type: 'reply',
+          reply: { id: btn.id, title: btn.title.substring(0, 20) },
+        })),
+      },
+    };
+
+    if (headerText) {
+      interactivePayload.header = { type: 'text', text: headerText };
+    }
+
+    const endpoints = [
+      // 1. ZapResponder /whatsapp/message endpoint (interactive type)
+      {
+        url: `${apiBaseUrl}/whatsapp/message/${departmentId}`,
+        body: { type: 'interactive', number: formattedNumber, interactive: interactivePayload },
+        name: 'whatsapp/message (interactive)',
+      },
+      // 2. Meta Cloud API style
+      {
+        url: `${apiBaseUrl}/whatsapp/message/${departmentId}`,
+        body: {
+          messaging_product: 'whatsapp',
+          recipient_type: 'individual',
+          to: formattedNumber,
+          type: 'interactive',
+          interactive: interactivePayload,
+        },
+        name: 'whatsapp/message (cloud-api interactive)',
+      },
+      // 3. mensagem/enviar style
+      {
+        url: `${apiBaseUrl}/mensagem/enviar`,
+        body: {
+          chatId: `${formattedNumber}@s.whatsapp.net`,
+          departamento: departmentId,
+          content: { type: 'interactive', interactive: interactivePayload },
+        },
+        name: 'mensagem/enviar (interactive)',
+      },
+    ];
+
+    for (const endpoint of endpoints) {
+      console.log(`Trying interactive endpoint: ${endpoint.name}`);
+      try {
+        const response = await fetch(endpoint.url, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
+          },
+          body: JSON.stringify(endpoint.body),
+        });
+
+        const responseText = await response.text();
+        console.log(`Interactive ${endpoint.name}: status=${response.status}, body=${responseText.substring(0, 300)}`);
+
+        if (response.ok) {
+          let result;
+          try {
+            result = JSON.parse(responseText);
+          } catch {
+            result = { raw: responseText };
+          }
+          console.log(`SUCCESS with interactive endpoint: ${endpoint.name}`);
+          return { success: true, data: result };
+        }
+
+        if (response.status === 404 || response.status === 400) continue;
+      } catch (fetchError) {
+        console.error(`Error with interactive ${endpoint.name}:`, fetchError);
+        continue;
+      }
+    }
+
+    return { success: false, error: 'Nenhum endpoint conseguiu enviar a mensagem interativa.' };
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.error('Error sending interactive message:', error);
+    return { success: false, error: errorMessage };
+  }
+}
+
+// ===========================================
 // Main Handler
 // ===========================================
 Deno.serve(async (req) => {
@@ -2074,6 +2181,28 @@ Deno.serve(async (req) => {
             text_sent: result.success,
           }),
           { status: overallSuccess ? 200 : 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // Enviar mensagem interativa com botões
+      case 'enviar-interativo': {
+        const { department_id, number, text: interactiveText, buttons, header } = body;
+        if (!department_id || !number || !interactiveText || !buttons || !Array.isArray(buttons) || buttons.length === 0) {
+          return new Response(
+            JSON.stringify({ success: false, error: 'department_id, number, text, and buttons[] are required' }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        const interactiveResult = await enviarMensagemInterativa(
+          apiBaseUrl, zapToken, department_id, number, interactiveText,
+          buttons.map((b: any) => ({ id: b.id || '', title: b.title || '' })),
+          header
+        );
+
+        return new Response(
+          JSON.stringify(interactiveResult),
+          { status: interactiveResult.success ? 200 : 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
 
