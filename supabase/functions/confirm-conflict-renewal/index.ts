@@ -48,16 +48,108 @@ serve(async (req) => {
     const url = new URL(req.url);
     const paymentId = url.searchParams.get('payment_id');
     const customerId = url.searchParams.get('customer_id');
-
-    if (!paymentId || !customerId) {
-      return htmlResponse('Parâmetros inválidos', 'payment_id e customer_id são obrigatórios.', false);
-    }
+    const action = url.searchParams.get('action');
 
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
       { auth: { autoRefreshToken: false, persistSession: false } },
     );
+
+    // ── LIST action: return conflict data as JSON for the app page ──
+    if (action === 'list' && paymentId) {
+      const { data: payment, error: payErr } = await supabase
+        .from('payments')
+        .select('*, customers!payments_customer_id_fkey(phone, created_by)')
+        .eq('id', paymentId)
+        .maybeSingle();
+
+      if (payErr || !payment) {
+        return new Response(JSON.stringify({ error: 'Pagamento não encontrado.' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+
+      if (payment.confirmed) {
+        return new Response(JSON.stringify({ error: 'Este pagamento já foi confirmado.' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+
+      // Find all customers with the same phone
+      const customerPhone = (payment.customers as any)?.phone || '';
+      const createdBy = (payment.customers as any)?.created_by || '';
+      const phoneDigits = customerPhone.replace(/\D/g, '');
+
+      if (!phoneDigits) {
+        return new Response(JSON.stringify({ error: 'Telefone do cliente não encontrado.' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+
+      const searchVariants = new Set<string>();
+      searchVariants.add(phoneDigits);
+      if (phoneDigits.startsWith('55') && phoneDigits.length >= 12) searchVariants.add(phoneDigits.slice(2));
+      else searchVariants.add('55' + phoneDigits);
+      const withoutCC = phoneDigits.startsWith('55') ? phoneDigits.slice(2) : phoneDigits;
+      if (withoutCC.length === 11 && withoutCC[2] === '9') {
+        searchVariants.add('55' + withoutCC.slice(0, 2) + withoutCC.slice(3));
+        searchVariants.add(withoutCC.slice(0, 2) + withoutCC.slice(3));
+      } else if (withoutCC.length === 10) {
+        searchVariants.add('55' + withoutCC.slice(0, 2) + '9' + withoutCC.slice(2));
+        searchVariants.add(withoutCC.slice(0, 2) + '9' + withoutCC.slice(2));
+      }
+
+      let allCustomers: any[] = [];
+      for (const variant of searchVariants) {
+        const { data: candidates } = await supabase
+          .from('customers')
+          .select('id, name, username, due_date, server_id, plan_id')
+          .ilike('phone', `%${variant}%`)
+          .order('due_date', { ascending: true })
+          .limit(20);
+        if (candidates) {
+          for (const c of candidates) {
+            if (!allCustomers.find((m: any) => m.id === c.id)) allCustomers.push(c);
+          }
+        }
+      }
+
+      // Enrich with server/plan names
+      const enriched = await Promise.all(allCustomers.map(async (c: any) => {
+        let serverName: string | null = null;
+        let planName: string | null = null;
+        if (c.server_id) {
+          const { data: srv } = await supabase.from('servers').select('server_name').eq('id', c.server_id).maybeSingle();
+          if (srv) serverName = srv.server_name;
+        }
+        if (c.plan_id) {
+          const { data: pl } = await supabase.from('plans').select('plan_name').eq('id', c.plan_id).maybeSingle();
+          if (pl) planName = pl.plan_name;
+        }
+        return { id: c.id, name: c.name, username: c.username, due_date: c.due_date, server_name: serverName, plan_name: planName };
+      }));
+
+      // Detect plan from amount
+      let detectedPlan = '';
+      const amt = Number(payment.amount) || 0;
+      if (amt > 0 && createdBy) {
+        const { data: plans } = await supabase.from('plans').select('plan_name, price').eq('created_by', createdBy).order('price');
+        if (plans) {
+          let bestDiff = Infinity;
+          for (const p of plans) {
+            const diff = Math.abs(p.price - amt);
+            if (diff <= p.price * 0.1 && diff < bestDiff) { bestDiff = diff; detectedPlan = p.plan_name; }
+          }
+        }
+      }
+
+      return new Response(JSON.stringify({
+        payment_id: paymentId,
+        amount: Number(payment.amount) || 0,
+        plan_name: detectedPlan,
+        customers: enriched,
+      }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+
+    // ── CONFIRM action (original flow) ──
+    if (!paymentId || !customerId) {
+      return htmlResponse('Parâmetros inválidos', 'payment_id e customer_id são obrigatórios.', false);
+    }
 
     // 1. Find the unconfirmed payment
     const { data: payment, error: payErr } = await supabase

@@ -343,13 +343,11 @@ serve(async (req) => {
               `  • ${c.name} (${c.username || '-'}) - Venc: ${c.due_date}`
             ).join('\n');
 
-            // Build clickable links for each customer
-            const customerLinks = sameDueCustomers.map((c: any, idx: number) => {
-              const link = `${supabaseUrl}/functions/v1/confirm-conflict-renewal?payment_id=${conflictPaymentId}&customer_id=${c.id}`;
-              return `👉 *${idx + 1}. ${c.name}* (${c.username || '-'})\nVenc: ${c.due_date}\n🔗 ${link}`;
-            }).join('\n\n');
+            // Single link to app page with buttons
+            const appUrl = 'https://iply-flow.lovable.app';
+            const conflictLink = `${appUrl}/confirmar-renovacao?payment_id=${conflictPaymentId}`;
 
-            const adminMsg = `⚠️ *Atenção: Pagamento requer decisão manual*\n\n📞 Telefone: ${phoneDigits}\n💰 Valor: *R$ ${amountNumeric.toFixed(2)}*\n📦 Plano: *${matchedPlanName || '-'}*\n\n👥 *${sameDueCustomers.length} clientes com mesmo vencimento:*\n${customerList}\n\n📲 *Clique no link do cliente que deseja renovar:*\n\n${customerLinks}\n\n⏳ Pagamento registrado mas *NÃO confirmado*.`;
+            const adminMsg = `⚠️ *Atenção: Pagamento requer decisão manual*\n\n📞 Telefone: ${phoneDigits}\n💰 Valor: *R$ ${amountNumeric.toFixed(2)}*\n📦 Plano: *${matchedPlanName || '-'}*\n\n👥 *${sameDueCustomers.length} clientes com mesmo vencimento:*\n${customerList}\n\n📲 *Clique no link abaixo para escolher qual renovar:*\n${conflictLink}\n\n⏳ Pagamento registrado mas *NÃO confirmado*.`;
 
             await fetch(
               `${supabaseUrl}/functions/v1/zap-responder`,
