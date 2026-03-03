@@ -378,11 +378,15 @@ serve(async (req) => {
               console.error('[Cakto] Erro ao enviar botões interativos:', e);
             }
 
-            // Fallback: send text with link if buttons failed
+            // Fallback: send text with individual links per customer
             if (!buttonsSent) {
               const appUrl = 'https://iply-flow.lovable.app';
-              const conflictLink = `${appUrl}/confirmar-renovacao?payment_id=${conflictPaymentId}`;
-              const adminMsg = `⚠️ *Atenção: Pagamento requer decisão manual*\n\n📞 Telefone: ${phoneDigits}\n💰 Valor: *R$ ${amountNumeric.toFixed(2)}*\n📦 Plano: *${matchedPlanName || '-'}*\n\n👥 *${sameDueCustomers.length} clientes com mesmo vencimento:*\n${customerList}\n\n📲 *Clique no link abaixo para escolher qual renovar:*\n${conflictLink}\n\n⏳ Pagamento registrado mas *NÃO confirmado*.`;
+              const customerLinks = sameDueCustomers.map((c: any) => {
+                const link = `${appUrl}/confirmar-renovacao?payment_id=${conflictPaymentId}&customer_id=${c.id}`;
+                return `👤 *${c.name}* (${c.username || '-'})\n🔗 ${link}`;
+              }).join('\n\n');
+
+              const adminMsg = `⚠️ *Atenção: Pagamento requer decisão manual*\n\n📞 Telefone: ${phoneDigits}\n💰 Valor: *R$ ${amountNumeric.toFixed(2)}*\n📦 Plano: *${matchedPlanName || '-'}*\n\n👥 *${sameDueCustomers.length} clientes com mesmo vencimento:*\n\n${customerLinks}\n\n👆 *Clique no link do cliente que deseja renovar*\n⏳ Pagamento registrado mas *NÃO confirmado*.`;
 
               await fetch(
                 `${supabaseUrl}/functions/v1/zap-responder`,
@@ -401,7 +405,7 @@ serve(async (req) => {
                   }),
                 },
               );
-              console.log('[Cakto] Fallback: notificação com link enviada para:', conflictPhone);
+              console.log('[Cakto] Fallback: notificação com links individuais enviada para:', conflictPhone);
             }
           }
         } catch (e) {

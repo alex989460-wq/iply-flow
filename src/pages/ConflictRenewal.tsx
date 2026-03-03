@@ -23,6 +23,7 @@ interface ConflictData {
 export default function ConflictRenewal() {
   const [searchParams] = useSearchParams();
   const paymentId = searchParams.get("payment_id");
+  const directCustomerId = searchParams.get("customer_id");
 
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<ConflictData | null>(null);
@@ -30,6 +31,7 @@ export default function ConflictRenewal() {
   const [confirming, setConfirming] = useState<string | null>(null);
   const [confirmed, setConfirmed] = useState<{ name: string; newDueDate: string } | null>(null);
 
+  // If customer_id is provided directly, confirm immediately
   useEffect(() => {
     if (!paymentId) {
       setError("Parâmetro payment_id ausente.");
@@ -37,6 +39,29 @@ export default function ConflictRenewal() {
       return;
     }
 
+    if (directCustomerId) {
+      // Direct confirmation via link
+      setConfirming(directCustomerId);
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      fetch(
+        `${supabaseUrl}/functions/v1/confirm-conflict-renewal?payment_id=${paymentId}&customer_id=${directCustomerId}`,
+      )
+        .then(async (res) => {
+          if (res.ok) {
+            setConfirmed({ name: "Cliente", newDueDate: "" });
+          } else {
+            const text = await res.text();
+            // Try to extract error from HTML
+            const match = text.match(/<h1[^>]*>(.*?)<\/h1>/);
+            setError(match?.[1] || "Erro ao confirmar renovação.");
+          }
+        })
+        .catch(() => setError("Erro ao confirmar renovação."))
+        .finally(() => { setConfirming(null); setLoading(false); });
+      return;
+    }
+
+    // No customer_id: load list for manual selection
     const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
     fetch(`${supabaseUrl}/functions/v1/confirm-conflict-renewal?payment_id=${paymentId}&action=list`, {
       headers: { "Content-Type": "application/json" },
@@ -59,7 +84,7 @@ export default function ConflictRenewal() {
         setError("Erro ao carregar dados.");
         setLoading(false);
       });
-  }, [paymentId]);
+  }, [paymentId, directCustomerId]);
 
   const handleConfirm = async (customerId: string) => {
     if (!paymentId) return;
