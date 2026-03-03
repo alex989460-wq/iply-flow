@@ -1580,11 +1580,21 @@ async function enviarMensagemInterativa(
         console.log(`Interactive ${endpoint.name}: status=${response.status}, body=${responseText.substring(0, 300)}`);
 
         if (response.ok) {
+          // Empty body means API accepted but didn't actually send
+          if (!responseText.trim()) {
+            console.log(`Interactive ${endpoint.name}: empty body, treating as not delivered`);
+            continue;
+          }
           let result;
           try {
             result = JSON.parse(responseText);
           } catch {
             result = { raw: responseText };
+          }
+          // Check if result indicates error
+          if (result?.error === true) {
+            console.log(`Interactive ${endpoint.name}: API returned error:`, result?.message);
+            continue;
           }
           console.log(`SUCCESS with interactive endpoint: ${endpoint.name}`);
           return { success: true, data: result };
