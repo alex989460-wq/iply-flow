@@ -307,19 +307,21 @@ serve(async (req) => {
         console.log(`[Cakto] CONFLITO: ${sameDueCustomers.length} clientes com mesmo vencimento (${matchedCustomer.due_date}). Notificando admin.`);
 
         // Register payment without confirming (so money isn't lost)
+        let conflictPaymentId = '';
         if (amountNumeric > 0) {
-          await supabaseAdmin.from('payments').insert({
+          const { data: insertedPayment } = await supabaseAdmin.from('payments').insert({
             customer_id: matchedCustomer.id,
             amount: amountNumeric,
             payment_date: todayStr,
             method: paymentMethodDb,
             confirmed: false, // NOT confirmed - admin must decide
             source: 'cakto',
-          });
-          console.log(`[Cakto] Pagamento registrado SEM confirmação para decisão do admin`);
+          }).select('id').single();
+          if (insertedPayment) conflictPaymentId = insertedPayment.id;
+          console.log(`[Cakto] Pagamento registrado SEM confirmação para decisão do admin (id: ${conflictPaymentId})`);
         }
 
-        // Notify reseller via WhatsApp
+        // Notify reseller via WhatsApp with clickable links
         try {
           const { data: zapSettings } = await supabaseAdmin
             .from('zap_responder_settings')
@@ -336,14 +338,21 @@ serve(async (req) => {
           const conflictPhone = bSettings?.notification_phone;
 
           if (zapSettings?.selected_department_id && conflictPhone) {
+            const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
             const customerList = sameDueCustomers.map((c: any) =>
               `  • ${c.name} (${c.username || '-'}) - Venc: ${c.due_date}`
             ).join('\n');
 
-            const adminMsg = `⚠️ *Atenção: Pagamento requer decisão manual*\n\n📞 Telefone: ${phoneDigits}\n💰 Valor: *R$ ${amountNumeric.toFixed(2)}*\n📦 Plano: *${matchedPlanName || '-'}*\n\n👥 *${sameDueCustomers.length} clientes com mesmo vencimento:*\n${customerList}\n\n⏳ Pagamento registrado mas *NÃO confirmado*. Confirme manualmente qual cliente renovar.`;
+            // Build clickable links for each customer
+            const customerLinks = sameDueCustomers.map((c: any, idx: number) => {
+              const link = `${supabaseUrl}/functions/v1/confirm-conflict-renewal?payment_id=${conflictPaymentId}&customer_id=${c.id}`;
+              return `👉 *${idx + 1}. ${c.name}* (${c.username || '-'})\nVenc: ${c.due_date}\n🔗 ${link}`;
+            }).join('\n\n');
+
+            const adminMsg = `⚠️ *Atenção: Pagamento requer decisão manual*\n\n📞 Telefone: ${phoneDigits}\n💰 Valor: *R$ ${amountNumeric.toFixed(2)}*\n📦 Plano: *${matchedPlanName || '-'}*\n\n👥 *${sameDueCustomers.length} clientes com mesmo vencimento:*\n${customerList}\n\n📲 *Clique no link do cliente que deseja renovar:*\n\n${customerLinks}\n\n⏳ Pagamento registrado mas *NÃO confirmado*.`;
 
             await fetch(
-              `${Deno.env.get('SUPABASE_URL')}/functions/v1/zap-responder`,
+              `${supabaseUrl}/functions/v1/zap-responder`,
               {
                 method: 'POST',
                 headers: {
@@ -359,7 +368,7 @@ serve(async (req) => {
                 }),
               },
             );
-            console.log('[Cakto] Notificação de conflito enviada para:', conflictPhone);
+            console.log('[Cakto] Notificação de conflito com links enviada para:', conflictPhone);
           }
         } catch (e) {
           console.error('[Cakto] Erro ao notificar sobre conflito:', e);
