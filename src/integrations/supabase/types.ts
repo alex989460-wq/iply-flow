@@ -721,6 +721,42 @@ export type Database = {
           },
         ]
       }
+      pending_activation_data: {
+        Row: {
+          app_name: string
+          created_at: string
+          customer_name: string
+          email: string | null
+          expires_at: string
+          id: string
+          mac_address: string | null
+          phone_normalized: string
+          used: boolean
+        }
+        Insert: {
+          app_name: string
+          created_at?: string
+          customer_name: string
+          email?: string | null
+          expires_at?: string
+          id?: string
+          mac_address?: string | null
+          phone_normalized: string
+          used?: boolean
+        }
+        Update: {
+          app_name?: string
+          created_at?: string
+          customer_name?: string
+          email?: string | null
+          expires_at?: string
+          id?: string
+          mac_address?: string | null
+          phone_normalized?: string
+          used?: boolean
+        }
+        Relationships: []
+      }
       pending_renewal_selections: {
         Row: {
           created_at: string

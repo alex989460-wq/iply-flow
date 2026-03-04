@@ -161,14 +161,51 @@ serve(async (req) => {
           // Find the owner (reseller) for this activation app
           const appOwnerId = matchedApp.user_id;
           
+          // ── Look up pre-saved activation data from the external site ──
+          const phoneDigitsAct = String(phone).replace(/\D/g, '');
+          const actSearchVariants = new Set<string>();
+          actSearchVariants.add(phoneDigitsAct);
+          if (phoneDigitsAct.startsWith('55')) actSearchVariants.add(phoneDigitsAct.slice(2));
+          else actSearchVariants.add('55' + phoneDigitsAct);
+          const withoutCCAct = phoneDigitsAct.startsWith('55') ? phoneDigitsAct.slice(2) : phoneDigitsAct;
+          if (withoutCCAct.length === 11 && withoutCCAct[2] === '9') {
+            actSearchVariants.add('55' + withoutCCAct.slice(0, 2) + withoutCCAct.slice(3));
+            actSearchVariants.add(withoutCCAct.slice(0, 2) + withoutCCAct.slice(3));
+          } else if (withoutCCAct.length === 10) {
+            actSearchVariants.add('55' + withoutCCAct.slice(0, 2) + '9' + withoutCCAct.slice(2));
+            actSearchVariants.add(withoutCCAct.slice(0, 2) + '9' + withoutCCAct.slice(2));
+          }
+          
+          const { data: pendingActData } = await supabaseActivation
+            .from('pending_activation_data')
+            .select('*')
+            .in('phone_normalized', [...actSearchVariants])
+            .eq('used', false)
+            .gt('expires_at', new Date().toISOString())
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          
+          // Use pre-saved data if available, fallback to Cakto payload
+          const finalMac = pendingActData?.mac_address || macAddress || '';
+          const finalEmail = pendingActData?.email || activationEmail || '';
+          const finalName = pendingActData?.customer_name || customerName || 'Desconhecido';
+          
+          console.log(`[Cakto] Dados de ativação - MAC: "${finalMac}", Email: "${finalEmail}", Nome: "${finalName}" (fonte: ${pendingActData ? 'site externo' : 'payload Cakto'})`);
+          
+          // Mark pending data as used
+          if (pendingActData) {
+            await supabaseActivation.from('pending_activation_data').update({ used: true }).eq('id', pendingActData.id);
+          }
+          
           // Save activation request
           await supabaseActivation.from('activation_requests').insert({
             user_id: appOwnerId,
             app_name: matchedApp.app_name,
-            customer_name: customerName || 'Desconhecido',
+            customer_name: finalName,
             customer_phone: phone,
-            mac_address: macAddress,
-            email: activationEmail,
+            mac_address: finalMac,
+            email: finalEmail,
             payment_method: activationPaymentMethod.includes('credit') || activationPaymentMethod.includes('cart') ? 'Cartão' : 'PIX',
             amount: activationAmountNum,
             status: 'pending',
@@ -197,7 +234,7 @@ serve(async (req) => {
             let customerPhone = String(phone).replace(/\D/g, '');
             if (!customerPhone.startsWith('55')) customerPhone = '55' + customerPhone;
             
-            const customerMsg = `📥 *PEDIDO DE ATIVAÇÃO RECEBIDO*\n\nRecebemos sua solicitação de ativação do aplicativo.\nNossa equipe já está processando o pedido e em breve seu acesso será liberado.\n\n📱 Aplicativo: *${matchedApp.app_name}*\n👤 Cliente: *${customerName || '-'}*\n${macAddress ? `🖥 MAC: *${macAddress}*\n` : ''}${activationEmail ? `📧 E-mail: *${activationEmail}*\n` : ''}\n⏳ Assim que a ativação for concluída, você receberá uma nova mensagem confirmando.\n\nObrigado pela preferência! 😊`;
+            const customerMsg = `📥 *PEDIDO DE ATIVAÇÃO RECEBIDO*\n\nRecebemos sua solicitação de ativação do aplicativo.\nNossa equipe já está processando o pedido e em breve seu acesso será liberado.\n\n📱 Aplicativo: *${matchedApp.app_name}*\n👤 Cliente: *${finalName || '-'}*\n${finalMac ? `🖥 MAC: *${finalMac}*\n` : ''}${finalEmail ? `📧 E-mail: *${finalEmail}*\n` : ''}\n⏳ Assim que a ativação for concluída, você receberá uma nova mensagem confirmando.\n\nObrigado pela preferência! 😊`;
             
             try {
               const custResp = await fetch(
@@ -246,7 +283,7 @@ serve(async (req) => {
             }
 
             // ── 2) Send notification to the ADMIN/RESELLER ──
-            const activationMsg = `📱 *Nova Solicitação de Ativação*\n\n📦 App: *${matchedApp.app_name}*\n👤 Cliente: *${customerName || '-'}*\n📞 Tel: *${customerPhone}*\n${macAddress ? `🔗 MAC: *${macAddress}*\n` : ''}${activationEmail ? `📧 Email: *${activationEmail}*\n` : ''}💰 Valor: *R$ ${activationAmountNum.toFixed(2)}*\n💳 Pagamento: *${activationPaymentMethod.includes('credit') || activationPaymentMethod.includes('cart') ? 'Cartão' : 'PIX'}*\n\n⏳ Status: Pendente de ativação`;
+            const activationMsg = `📱 *Nova Solicitação de Ativação*\n\n📦 App: *${matchedApp.app_name}*\n👤 Cliente: *${finalName || '-'}*\n📞 Tel: *${customerPhone}*\n${finalMac ? `🔗 MAC: *${finalMac}*\n` : ''}${finalEmail ? `📧 Email: *${finalEmail}*\n` : ''}💰 Valor: *R$ ${activationAmountNum.toFixed(2)}*\n💳 Pagamento: *${activationPaymentMethod.includes('credit') || activationPaymentMethod.includes('cart') ? 'Cartão' : 'PIX'}*\n\n⏳ Status: Pendente de ativação`;
             
             try {
               const notifResp = await fetch(
