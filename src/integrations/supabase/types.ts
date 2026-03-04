@@ -631,6 +631,41 @@ export type Database = {
           },
         ]
       }
+      pending_renewal_selections: {
+        Row: {
+          created_at: string
+          customer_id: string
+          expires_at: string
+          id: string
+          phone_normalized: string
+          used: boolean
+        }
+        Insert: {
+          created_at?: string
+          customer_id: string
+          expires_at?: string
+          id?: string
+          phone_normalized: string
+          used?: boolean
+        }
+        Update: {
+          created_at?: string
+          customer_id?: string
+          expires_at?: string
+          id?: string
+          phone_normalized?: string
+          used?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pending_renewal_selections_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       plans: {
         Row: {
           created_at: string
