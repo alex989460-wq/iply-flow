@@ -236,13 +236,14 @@ serve(async (req) => {
     }
     const newDueDate = custBase.toISOString().split('T')[0];
 
-    // 5. Update customer due_date
+    // 5. Update customer status (due_date will be updated by the renew_customer_due_date trigger when payment is confirmed)
     await supabase
       .from('customers')
-      .update({ due_date: newDueDate, status: 'ativa' })
+      .update({ status: 'ativa' })
       .eq('id', customer.id);
 
     // 6. Update payment: reassign to chosen customer and confirm
+    // This triggers renew_customer_due_date which calculates and sets the new due_date
     await supabase
       .from('payments')
       .update({ customer_id: customer.id, confirmed: true })
