@@ -79,18 +79,24 @@ serve(async (req) => {
       }
 
       // Return sanitized data (no internal IDs exposed beyond customer id)
-      const result = allCustomers.map(c => ({
-        id: c.id,
-        name: c.name,
-        username: c.username || null,
-        due_date: c.due_date,
-        screens: c.screens || 1,
-        plan_name: (c.plans as any)?.plan_name || null,
-        plan_price: c.custom_price || (c.plans as any)?.price || null,
-        server_name: (c.servers as any)?.server_name || null,
-      }));
+      const result = allCustomers.map(c => {
+        const unitPrice = c.custom_price || (c.plans as any)?.price || 0;
+        return {
+          id: c.id,
+          name: c.name,
+          username: c.username || null,
+          due_date: c.due_date,
+          screens: c.screens || 1,
+          plan_name: (c.plans as any)?.plan_name || null,
+          plan_price: Number(unitPrice),
+          server_name: (c.servers as any)?.server_name || null,
+        };
+      });
 
-      return new Response(JSON.stringify({ customers: result }), { headers: jsonHeaders });
+      // Calculate total if all selected
+      const totalPrice = result.reduce((sum, c) => sum + c.plan_price, 0);
+
+      return new Response(JSON.stringify({ customers: result, total_price: totalPrice }), { headers: jsonHeaders });
     }
 
     // ── ACTION: select - Store pre-payment selection ──
