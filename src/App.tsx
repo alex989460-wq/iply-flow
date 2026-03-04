@@ -28,6 +28,7 @@ import MetaCallback from "./pages/MetaCallback";
 import PaymentConfirmation from "./pages/PaymentConfirmation";
 import ConflictRenewal from "./pages/ConflictRenewal";
 import ActivationApps from "./pages/ActivationApps";
+import ConsultaDue from "./pages/ConsultaDue";
 import { Loader2 } from "lucide-react";
 
 const queryClient = new QueryClient();
@@ -68,6 +69,7 @@ function AppRoutes() {
       <Route path="/meta-callback" element={<MetaCallback />} />
       <Route path="/pedido/:id" element={<PaymentConfirmation />} />
       <Route path="/confirmar-renovacao" element={<ConflictRenewal />} />
+      <Route path="/consulta" element={<ConsultaDue />} />
       <Route path="/dashboard" element={<ProtectedRoute><Index /></ProtectedRoute>} />
       <Route path="/servers" element={<ProtectedRoute><Servers /></ProtectedRoute>} />
       <Route path="/plans" element={<ProtectedRoute><Plans /></ProtectedRoute>} />
