@@ -156,7 +156,60 @@ serve(async (req) => {
           const ownerNotifPhone = ownerBillingSettings?.notification_phone;
           
           if (ownerZapSettings?.selected_department_id && ownerNotifPhone) {
-            const activationMsg = `📱 *Nova Solicitação de Ativação*\n\n📦 App: *${matchedApp.app_name}*\n👤 Cliente: *${customerName || '-'}*\n📞 Tel: *${phone}*\n${macAddress ? `🔗 MAC: *${macAddress}*\n` : ''}${activationEmail ? `📧 Email: *${activationEmail}*\n` : ''}💰 Valor: *R$ ${activationAmountNum.toFixed(2)}*\n💳 Pagamento: *${activationPaymentMethod.includes('credit') || activationPaymentMethod.includes('cart') ? 'Cartão' : 'PIX'}*\n\n⏳ Status: Pendente de ativação`;
+            // ── 1) Send "Pedido Recebido" to the CUSTOMER ──
+            let customerPhone = String(phone).replace(/\D/g, '');
+            if (!customerPhone.startsWith('55')) customerPhone = '55' + customerPhone;
+            
+            const customerMsg = `📥 *PEDIDO DE ATIVAÇÃO RECEBIDO*\n\nRecebemos sua solicitação de ativação do aplicativo.\nNossa equipe já está processando o pedido e em breve seu acesso será liberado.\n\n📱 Aplicativo: *${matchedApp.app_name}*\n👤 Cliente: *${customerName || '-'}*\n${macAddress ? `🖥 MAC: *${macAddress}*\n` : ''}${activationEmail ? `📧 E-mail: *${activationEmail}*\n` : ''}\n⏳ Assim que a ativação for concluída, você receberá uma nova mensagem confirmando.\n\nObrigado pela preferência! 😊`;
+            
+            try {
+              const custResp = await fetch(
+                `${Deno.env.get('SUPABASE_URL')}/functions/v1/zap-responder`,
+                {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+                  },
+                  body: JSON.stringify({
+                    action: 'enviar-mensagem',
+                    department_id: ownerZapSettings.selected_department_id,
+                    number: customerPhone,
+                    text: customerMsg,
+                    user_id: appOwnerId,
+                  }),
+                },
+              );
+              console.log(`[Cakto] Msg "pedido recebido" para cliente ${customerPhone}: ok=${custResp.ok}`);
+              
+              // Fallback to template if failed
+              if (!custResp.ok) {
+                const tplName = ownerBillingSettings?.meta_template_name || 'pedido_aprovado';
+                await fetch(
+                  `${Deno.env.get('SUPABASE_URL')}/functions/v1/zap-responder`,
+                  {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+                    },
+                    body: JSON.stringify({
+                      action: 'enviar-template',
+                      department_id: ownerZapSettings.selected_department_id,
+                      template_name: tplName,
+                      number: customerPhone,
+                      language: 'pt_BR',
+                      user_id: appOwnerId,
+                    }),
+                  },
+                );
+              }
+            } catch (custErr) {
+              console.error('[Cakto] Erro ao enviar msg cliente ativação:', custErr);
+            }
+
+            // ── 2) Send notification to the ADMIN/RESELLER ──
+            const activationMsg = `📱 *Nova Solicitação de Ativação*\n\n📦 App: *${matchedApp.app_name}*\n👤 Cliente: *${customerName || '-'}*\n📞 Tel: *${customerPhone}*\n${macAddress ? `🔗 MAC: *${macAddress}*\n` : ''}${activationEmail ? `📧 Email: *${activationEmail}*\n` : ''}💰 Valor: *R$ ${activationAmountNum.toFixed(2)}*\n💳 Pagamento: *${activationPaymentMethod.includes('credit') || activationPaymentMethod.includes('cart') ? 'Cartão' : 'PIX'}*\n\n⏳ Status: Pendente de ativação`;
             
             try {
               const notifResp = await fetch(
@@ -176,12 +229,9 @@ serve(async (req) => {
                   }),
                 },
               );
-              const notifResult = await notifResp.json();
-              console.log(`[Cakto] Notificação de ativação enviada para ${ownerNotifPhone}: ok=${notifResp.ok}`);
+              console.log(`[Cakto] Notificação ativação para admin ${ownerNotifPhone}: ok=${notifResp.ok}`);
               
-              // Fallback to template if text failed
-              if (!notifResp.ok || notifResult?.success === false) {
-                console.warn(`[Cakto] Texto falhou para notificação de ativação. Tentando template...`);
+              if (!notifResp.ok) {
                 const tplName = ownerBillingSettings?.meta_template_name || 'pedido_aprovado';
                 await fetch(
                   `${Deno.env.get('SUPABASE_URL')}/functions/v1/zap-responder`,
@@ -203,7 +253,7 @@ serve(async (req) => {
                 );
               }
             } catch (notifErr) {
-              console.error('[Cakto] Erro ao notificar ativação:', notifErr);
+              console.error('[Cakto] Erro ao notificar admin ativação:', notifErr);
             }
           } else {
             console.warn(`[Cakto] Sem configuração de WhatsApp para notificar ativação (owner: ${appOwnerId})`);
