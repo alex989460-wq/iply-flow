@@ -835,7 +835,7 @@ serve(async (req) => {
           }
           const adminMsg = `🔔 *Renovação Automática (Cakto)*\n\n👤 Cliente: *${matchedCustomer.name}*\n📞 Tel: ${adminMetaPhone}\n👤 Usuário: *${matchedCustomer.username || '-'}*\n💰 Valor: *R$ ${amountNumeric.toFixed(2)}*\n📦 Plano: *${matchedPlanName || '-'}*\n🖥️ Servidor: *${adminServerName}*\n📅 Novo vencimento: *${fmtDue}*\n✅ Status: Renovado`;
 
-          await fetch(
+          const adminResp = await fetch(
             `${Deno.env.get('SUPABASE_URL')}/functions/v1/zap-responder`,
             {
               method: 'POST',
@@ -852,7 +852,50 @@ serve(async (req) => {
               }),
             },
           );
-          console.log('[Cakto] Notificação enviada para:', notificationPhone);
+          const adminResult = await adminResp.json();
+          let adminSent = adminResp.ok && adminResult?.success !== false;
+          console.log(`[Cakto] Notificação texto para admin ${notificationPhone}: ok=${adminSent}`);
+
+          // Fallback: if plain text failed, try template (works outside 24h window)
+          if (!adminSent) {
+            console.warn(`[Cakto] Texto admin falhou para ${notificationPhone}. Tentando template fallback...`);
+            const adminTemplateName = billingSettings?.meta_template_name || 'pedido_aprovado';
+            try {
+              const adminTemplateResp = await fetch(
+                `${Deno.env.get('SUPABASE_URL')}/functions/v1/zap-responder`,
+                {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+                  },
+                  body: JSON.stringify({
+                    action: 'enviar-template',
+                    department_id: zapSettings.selected_department_id,
+                    template_name: adminTemplateName,
+                    number: notificationPhone,
+                    language: 'pt_BR',
+                    user_id: matchedCustomer.created_by,
+                  }),
+                },
+              );
+              const adminTemplateResult = await adminTemplateResp.json();
+              if (adminTemplateResp.ok && adminTemplateResult?.success !== false) {
+                adminSent = true;
+                console.log(`[Cakto] Template admin enviado com sucesso para ${notificationPhone}`);
+              } else {
+                console.error(`[Cakto] Template admin também falhou para ${notificationPhone}:`, adminTemplateResult?.error || adminTemplateResult);
+              }
+            } catch (tplErr) {
+              console.error(`[Cakto] Erro template admin fallback:`, tplErr);
+            }
+          }
+
+          if (adminSent) {
+            console.log('[Cakto] Notificação enviada para:', notificationPhone);
+          } else {
+            console.error(`[Cakto] FALHA TOTAL notificação admin para ${notificationPhone}`);
+          }
         } catch (adminErr) {
           console.error('[Cakto] Erro ao notificar:', adminErr);
         }
