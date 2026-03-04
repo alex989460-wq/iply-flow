@@ -162,6 +162,7 @@ serve(async (req) => {
 
     // ── Check for pending renewal selections (from external payment site) ──
     let pendingSelectionIds: string[] = [];
+    let preSelectedMultiRenewal = false;
     {
       const { data: pendingSelections } = await supabaseAdmin
         .from('pending_renewal_selections')
@@ -178,6 +179,9 @@ serve(async (req) => {
         const selectedCustomers = allMatchedCustomers.filter((c: any) => pendingSelectionIds.includes(c.id));
         if (selectedCustomers.length > 0) {
           allMatchedCustomers = selectedCustomers;
+          if (selectedCustomers.length > 1) {
+            preSelectedMultiRenewal = true;
+          }
           console.log(`[Cakto] Usando ${selectedCustomers.length} cliente(s) pré-selecionado(s) do site externo`);
         }
 
@@ -324,6 +328,109 @@ serve(async (req) => {
 
     console.log(`[Cakto] ${allMatchedCustomers.length} cliente(s) (duração: ${durationDays} dias, meses: ${monthsToAdd || 'N/A'})`);
 
+    // ── Pre-selected multi-customer renewal (from external payment site) ──
+    if (preSelectedMultiRenewal && allMatchedCustomers.length > 1) {
+      console.log(`[Cakto] Multi-renovação pré-selecionada: ${allMatchedCustomers.length} clientes`);
+
+      // Validate amount: sum of individual prices must match paid amount (±15% tolerance)
+      const loadPrices = await Promise.all(allMatchedCustomers.map(async (c: any) => {
+        if (c.custom_price) return Number(c.custom_price);
+        if (c.plan_id) {
+          const { data: p } = await supabaseAdmin.from('plans').select('price').eq('id', c.plan_id).maybeSingle();
+          return p ? Number(p.price) : 0;
+        }
+        return 0;
+      }));
+      const expectedTotal = loadPrices.reduce((s, p) => s + p, 0);
+      const tolerance = expectedTotal * 0.15;
+
+      if (expectedTotal > 0 && Math.abs(amountNumeric - expectedTotal) > tolerance) {
+        console.warn(`[Cakto] Valor pago R$ ${amountNumeric.toFixed(2)} não corresponde ao total esperado R$ ${expectedTotal.toFixed(2)} para ${allMatchedCustomers.length} clientes. Ignorando pré-seleção.`);
+        // Fall through to single-customer logic below
+      } else {
+        console.log(`[Cakto] Valor validado: pago R$ ${amountNumeric.toFixed(2)} ≈ esperado R$ ${expectedTotal.toFixed(2)}`);
+        const todayStr = today.toISOString().split('T')[0];
+        const amountPerCustomer = allMatchedCustomers.length > 0 ? amountNumeric / allMatchedCustomers.length : amountNumeric;
+
+        for (const cust of allMatchedCustomers) {
+          const custCurrentDue = cust.due_date ? new Date(cust.due_date + 'T00:00:00') : today;
+          const custBase = new Date(custCurrentDue > today ? custCurrentDue : today);
+
+          if (monthsToAdd) {
+            const origDay = custBase.getDate();
+            custBase.setMonth(custBase.getMonth() + monthsToAdd);
+            if (custBase.getDate() !== origDay) custBase.setDate(0);
+          } else {
+            custBase.setDate(custBase.getDate() + durationDays);
+          }
+          const custNewDue = custBase.toISOString().split('T')[0];
+
+          const custUpdate: Record<string, unknown> = { due_date: custNewDue, status: 'ativa' };
+          if (bestMatch && bestMatch.id !== cust.plan_id) {
+            custUpdate.plan_id = bestMatch.id;
+            custUpdate.custom_price = null;
+          }
+          await supabaseAdmin.from('customers').update(custUpdate).eq('id', cust.id);
+
+          if (amountNumeric > 0) {
+            await supabaseAdmin.from('payments').insert({
+              customer_id: cust.id,
+              amount: amountPerCustomer,
+              payment_date: todayStr,
+              method: paymentMethodDb,
+              confirmed: true,
+              source: 'cakto',
+            });
+          }
+
+          console.log(`[Cakto] Multi-renovação: ${cust.name} (${cust.username || '-'}) → ${custNewDue}`);
+        }
+
+        // Save confirmation for the primary customer
+        const primaryNewDue = (() => {
+          const d = matchedCustomer.due_date ? new Date(matchedCustomer.due_date + 'T00:00:00') : today;
+          const b = new Date(d > today ? d : today);
+          if (monthsToAdd) { const o = b.getDate(); b.setMonth(b.getMonth() + monthsToAdd); if (b.getDate() !== o) b.setDate(0); }
+          else b.setDate(b.getDate() + durationDays);
+          return b.toISOString().split('T')[0];
+        })();
+
+        await supabaseAdmin.from('payment_confirmations').insert({
+          customer_id: matchedCustomer.id,
+          customer_name: allMatchedCustomers.map((c: any) => c.name).join(', '),
+          customer_phone: matchedCustomer.phone,
+          amount: amountNumeric,
+          plan_name: matchedPlanName || null,
+          duration_days: durationDays,
+          new_due_date: primaryNewDue,
+          status: 'approved',
+        });
+
+        // Log
+        await supabaseAdmin.from('message_logs').insert({
+          user_id: matchedCustomer.created_by,
+          customer_id: matchedCustomer.id,
+          customer_name: allMatchedCustomers.map((c: any) => c.name).join(', '),
+          customer_phone: phoneDigits,
+          message_type: 'confirmation',
+          source: 'cakto',
+          status: 'success',
+          metadata: {
+            multi_renewal: true,
+            customers_renewed: allMatchedCustomers.length,
+            amount: amountNumeric,
+            plan: matchedPlanName,
+          },
+        });
+
+        return new Response(JSON.stringify({
+          success: true,
+          message: `${allMatchedCustomers.length} cliente(s) renovado(s) com sucesso.`,
+          customers: allMatchedCustomers.map((c: any) => c.name),
+        }), { headers: jsonHeaders });
+      }
+    }
+
     // ── Conflict detection: multiple customers with same due_date ──
     if (allMatchedCustomers.length > 1) {
       const todayStr = today.toISOString().split('T')[0];
@@ -344,7 +451,7 @@ serve(async (req) => {
             amount: amountNumeric,
             payment_date: todayStr,
             method: paymentMethodDb,
-            confirmed: false, // NOT confirmed - admin must decide
+            confirmed: false,
             source: 'cakto',
           }).select('id').single();
           if (insertedPayment) conflictPaymentId = insertedPayment.id;
@@ -373,7 +480,6 @@ serve(async (req) => {
               `  • ${c.name} (${c.username || '-'}) - Venc: ${c.due_date}`
             ).join('\n');
 
-            // Try interactive buttons first (max 3 customers, 20 char button titles)
             const buttonsToSend = sameDueCustomers.slice(0, 3).map((c: any) => ({
               id: `renew_${conflictPaymentId}_${c.id}`,
               title: (c.username || c.name).substring(0, 20),
@@ -408,7 +514,6 @@ serve(async (req) => {
               console.error('[Cakto] Erro ao enviar botões interativos:', e);
             }
 
-            // Fallback: send text with individual links per customer
             if (!buttonsSent) {
               const appUrl = 'https://iply-flow.lovable.app';
               const customerLinks = sameDueCustomers.map((c: any) => {
