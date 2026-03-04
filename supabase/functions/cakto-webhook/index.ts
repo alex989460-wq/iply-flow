@@ -173,8 +173,9 @@ serve(async (req) => {
         .select('*')
         .eq('is_enabled', true);
 
-      // Try to match: 1) by pending_activation_data.app_name  2) by Cakto product name
+      // Try to match: 1) by pending_activation_data.app_name  2) by Cakto product name  3) generic activation keywords
       let matchedApp: any = null;
+      let isGenericActivation = false;
       if (activationApps && activationApps.length > 0) {
         if (pendingActData?.app_name) {
           const pendingNameUpper = pendingActData.app_name.toUpperCase();
@@ -191,17 +192,29 @@ serve(async (req) => {
           );
           if (matchedApp) console.log(`[Cakto] ✅ App identificado via nome do produto Cakto: ${matchedApp.app_name}`);
         }
+        // 3) If product name contains activation keywords, treat as generic activation
+        if (!matchedApp && productName) {
+          const productNameUpper = productName.toUpperCase();
+          const activationKeywords = ['ATIVAÇÃO', 'ATIVACAO', 'ACTIVATION', 'LICENCA', 'LICENÇA'];
+          const isActivationProduct = activationKeywords.some(kw => productNameUpper.includes(kw));
+          if (isActivationProduct) {
+            // Use the first enabled activation app as fallback owner
+            matchedApp = activationApps[0];
+            isGenericActivation = true;
+            console.log(`[Cakto] ✅ Produto genérico de ativação detectado: "${productName}" → usando owner de ${matchedApp.app_name}`);
+          }
+        }
       }
 
       if (matchedApp) {
-        console.log(`[Cakto] ✅ Ativação detectada! App: ${matchedApp.app_name}`);
+        console.log(`[Cakto] ✅ Ativação detectada! App: ${isGenericActivation ? productName : matchedApp.app_name}`);
         const appOwnerId = matchedApp.user_id;
 
         // Use pre-saved data if available, fallback to Cakto payload
         const finalMac = pendingActData?.mac_address || macAddress || '';
         const finalEmail = pendingActData?.email || activationEmail || '';
         const finalName = pendingActData?.customer_name || customerName || 'Desconhecido';
-        const finalAppName = pendingActData?.app_name || matchedApp.app_name;
+        const finalAppName = pendingActData?.app_name || (isGenericActivation ? productName : matchedApp.app_name);
 
         console.log(`[Cakto] Dados de ativação - App: "${finalAppName}", MAC: "${finalMac}", Email: "${finalEmail}", Nome: "${finalName}" (fonte: ${pendingActData ? 'site externo' : 'payload Cakto'})`);
 
