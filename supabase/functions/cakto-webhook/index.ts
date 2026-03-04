@@ -649,7 +649,7 @@ serve(async (req) => {
       // Fetch billing settings for custom message template and notification phone
       const { data: billingSettings } = await supabaseAdmin
         .from('billing_settings')
-        .select('notification_phone, renewal_message_template, renewal_image_url')
+        .select('notification_phone, renewal_message_template, renewal_image_url, meta_template_name')
         .eq('user_id', matchedCustomer.created_by)
         .maybeSingle();
 
@@ -752,7 +752,54 @@ serve(async (req) => {
         });
 
         if (!msgSuccess) {
-          console.error(`[Cakto] FALHA: Mensagem de confirmação NÃO enviada para cliente ${matchedCustomer.name} (${metaPhone})`);
+          console.error(`[Cakto] FALHA texto plano para ${matchedCustomer.name} (${metaPhone}). Tentando fallback via template...`);
+          
+          // Fallback: try sending via approved Meta template (works outside 24h window)
+          const templateName = billingSettings?.meta_template_name || 'pedido_aprovado';
+          try {
+            const templateResp = await fetch(
+              `${Deno.env.get('SUPABASE_URL')}/functions/v1/zap-responder`,
+              {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+                },
+                body: JSON.stringify({
+                  action: 'enviar-template',
+                  department_id: zapSettings.selected_department_id,
+                  template_name: templateName,
+                  number: metaPhone,
+                  language: 'pt_BR',
+                  user_id: matchedCustomer.created_by,
+                }),
+              },
+            );
+            const templateResult = await templateResp.json();
+            console.log(`[Cakto] Template fallback (${templateName}): status=${templateResp.status}`, JSON.stringify(templateResult));
+            
+            if (templateResp.ok && templateResult?.success !== false) {
+              msgSuccess = true;
+              lastResponse = templateResult;
+              lastError = '';
+              console.log(`[Cakto] Template enviado com sucesso para ${matchedCustomer.name} (${metaPhone})`);
+              
+              // Update log to reflect template success
+              await supabaseAdmin.from('message_logs').update({
+                status: 'success',
+                error_message: null,
+                whatsapp_response: { ...templateResult, fallback: 'template', template_name: templateName },
+              }).eq('customer_id', matchedCustomer.id).eq('source', 'cakto').eq('status', 'error').order('created_at', { ascending: false }).limit(1);
+            } else {
+              console.error(`[Cakto] Template fallback também falhou para ${matchedCustomer.name}:`, templateResult?.error || templateResult);
+            }
+          } catch (templateErr) {
+            console.error(`[Cakto] Erro ao enviar template fallback:`, templateErr);
+          }
+          
+          if (!msgSuccess) {
+            console.error(`[Cakto] FALHA TOTAL: Mensagem NÃO enviada para cliente ${matchedCustomer.name} (${metaPhone}) - texto e template falharam`);
+          }
         }
       } else {
         console.log('[Cakto] Nenhum departamento configurado. Mensagem não enviada.');
