@@ -71,14 +71,19 @@ export default function ActivationApps() {
   });
 
   const updateRequestStatus = useMutation({
-    mutationFn: async ({ id, status }: { id: string; status: string }) => {
-      const { error } = await (supabase as any).from('activation_requests').update({ status, updated_at: new Date().toISOString() }).eq('id', id);
+    mutationFn: async ({ id, action }: { id: string; action: 'activate' | 'reject' }) => {
+      const { data, error } = await supabase.functions.invoke('confirm-activation', {
+        body: { request_id: id, action },
+      });
       if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      return data;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['activation-requests'] });
-      toast.success('Status atualizado!');
+      toast.success(data?.message || 'Status atualizado e cliente notificado!');
     },
+    onError: (e: any) => toast.error(e.message),
   });
 
   function openNew() {
@@ -187,10 +192,10 @@ export default function ActivationApps() {
                               <div className="flex gap-1">
                                 {req.status === 'pending' && (
                                   <>
-                                    <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => updateRequestStatus.mutate({ id: req.id, status: 'completed' })}>
+                                    <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => updateRequestStatus.mutate({ id: req.id, action: 'activate' })}>
                                       <CheckCircle2 className="w-3 h-3 mr-1" /> Ativar
                                     </Button>
-                                    <Button size="sm" variant="ghost" className="h-7 text-xs text-destructive" onClick={() => updateRequestStatus.mutate({ id: req.id, status: 'rejected' })}>
+                                    <Button size="sm" variant="ghost" className="h-7 text-xs text-destructive" onClick={() => updateRequestStatus.mutate({ id: req.id, action: 'reject' })}>
                                       <XCircle className="w-3 h-3 mr-1" /> Rejeitar
                                     </Button>
                                   </>
