@@ -86,11 +86,48 @@ serve(async (req) => {
       caktoData?.offer?.description || body?.product_description || '';
     
     // Extract custom fields that may contain MAC, email
+    // Cakto may send custom fields as object, array, or nested anywhere in payload
     const customFields = caktoData?.custom_fields || caktoData?.customFields || 
-      caktoData?.checkout_fields || caktoData?.fields || body?.custom_fields || {};
-    const macAddress = customFields?.mac || customFields?.mac_address || customFields?.MAC || 
-      customFields?.endereco_mac || customFields?.['Endereço MAC'] || '';
-    const activationEmail = customFields?.email || customFields?.Email || customer?.email || '';
+      caktoData?.checkout_fields || caktoData?.fields || body?.custom_fields || 
+      caktoData?.checkout?.custom_fields || {};
+    
+    // Deep search for MAC address anywhere in payload
+    const findInPayload = (obj: any, keys: string[]): string => {
+      if (!obj || typeof obj !== 'object') return '';
+      // Check direct keys
+      for (const key of keys) {
+        if (obj[key] && typeof obj[key] === 'string') return obj[key];
+      }
+      // Check array format [{name: "mac", value: "XX:XX"}]
+      if (Array.isArray(obj)) {
+        for (const item of obj) {
+          if (item?.name && item?.value) {
+            const nameL = String(item.name).toLowerCase();
+            if (keys.some(k => nameL.includes(k.toLowerCase()))) return String(item.value);
+          }
+          // Also check label/answer format
+          if (item?.label && item?.answer) {
+            const labelL = String(item.label).toLowerCase();
+            if (keys.some(k => labelL.includes(k.toLowerCase()))) return String(item.answer);
+          }
+        }
+      }
+      // Recurse into nested objects
+      for (const val of Object.values(obj)) {
+        if (val && typeof val === 'object') {
+          const found = findInPayload(val, keys);
+          if (found) return found;
+        }
+      }
+      return '';
+    };
+    
+    const macAddress = findInPayload(customFields, ['mac', 'mac_address', 'MAC', 'endereco_mac', 'Endereço MAC']) 
+      || findInPayload(caktoData, ['mac', 'mac_address', 'MAC', 'endereco_mac', 'macAddress'])
+      || findInPayload(body, ['mac', 'mac_address', 'MAC', 'endereco_mac', 'macAddress']);
+    const activationEmail = findInPayload(customFields, ['email', 'Email']) || customer?.email || '';
+    
+    console.log(`[Cakto] Custom fields extraídos - MAC: "${macAddress}", Email: "${activationEmail}"`);
     const customerName = customer?.name || customer?.full_name || customer?.nome || caktoData?.name || '';
     
     const activationPaymentAmount = caktoData?.amount || caktoData?.baseAmount || body?.sale?.amount || body?.amount || 0;
