@@ -27,6 +27,7 @@ import NotFound from "./pages/NotFound";
 import MetaCallback from "./pages/MetaCallback";
 import PaymentConfirmation from "./pages/PaymentConfirmation";
 import ConflictRenewal from "./pages/ConflictRenewal";
+import ActivationApps from "./pages/ActivationApps";
 import { Loader2 } from "lucide-react";
 
 const queryClient = new QueryClient();
@@ -82,6 +83,7 @@ function AppRoutes() {
       <Route path="/sub-resellers" element={<ProtectedRoute><SubResellers /></ProtectedRoute>} />
       <Route path="/expenses" element={<ProtectedRoute><Expenses /></ProtectedRoute>} />
       <Route path="/message-logs" element={<ProtectedRoute><MessageLogs /></ProtectedRoute>} />
+      <Route path="/activation-apps" element={<ProtectedRoute><ActivationApps /></ProtectedRoute>} />
       <Route path="*" element={<NotFound />} />
     </Routes>
   );

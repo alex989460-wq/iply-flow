@@ -14,6 +14,96 @@ export type Database = {
   }
   public: {
     Tables: {
+      activation_apps: {
+        Row: {
+          app_name: string
+          created_at: string
+          description: string | null
+          icon: string | null
+          id: string
+          is_enabled: boolean | null
+          requires_email: boolean | null
+          requires_mac: boolean | null
+          sort_order: number | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          app_name: string
+          created_at?: string
+          description?: string | null
+          icon?: string | null
+          id?: string
+          is_enabled?: boolean | null
+          requires_email?: boolean | null
+          requires_mac?: boolean | null
+          sort_order?: number | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          app_name?: string
+          created_at?: string
+          description?: string | null
+          icon?: string | null
+          id?: string
+          is_enabled?: boolean | null
+          requires_email?: boolean | null
+          requires_mac?: boolean | null
+          sort_order?: number | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      activation_requests: {
+        Row: {
+          amount: number | null
+          app_name: string
+          cakto_payload: Json | null
+          created_at: string
+          customer_name: string
+          customer_phone: string | null
+          email: string | null
+          id: string
+          mac_address: string | null
+          payment_method: string | null
+          status: string
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          amount?: number | null
+          app_name: string
+          cakto_payload?: Json | null
+          created_at?: string
+          customer_name: string
+          customer_phone?: string | null
+          email?: string | null
+          id?: string
+          mac_address?: string | null
+          payment_method?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          amount?: number | null
+          app_name?: string
+          cakto_payload?: Json | null
+          created_at?: string
+          customer_name?: string
+          customer_phone?: string | null
+          email?: string | null
+          id?: string
+          mac_address?: string | null
+          payment_method?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       auto_replies: {
         Row: {
           created_at: string

@@ -77,6 +77,148 @@ serve(async (req) => {
 
     console.log(`[Cakto] Compra aprovada - Telefone: ${phone}`);
 
+    // ── Activation App Detection ──
+    // Extract product/offer name from Cakto payload
+    const productName = caktoData?.product_name || caktoData?.productName || caktoData?.offer_name || 
+      caktoData?.offerName || caktoData?.product?.name || caktoData?.offer?.name || 
+      body?.product_name || body?.product?.name || '';
+    const productDescription = caktoData?.product_description || caktoData?.product?.description || 
+      caktoData?.offer?.description || body?.product_description || '';
+    
+    // Extract custom fields that may contain MAC, email
+    const customFields = caktoData?.custom_fields || caktoData?.customFields || 
+      caktoData?.checkout_fields || caktoData?.fields || body?.custom_fields || {};
+    const macAddress = customFields?.mac || customFields?.mac_address || customFields?.MAC || 
+      customFields?.endereco_mac || customFields?.['Endereço MAC'] || '';
+    const activationEmail = customFields?.email || customFields?.Email || customer?.email || '';
+    const customerName = customer?.name || customer?.full_name || customer?.nome || caktoData?.name || '';
+    
+    const activationPaymentAmount = caktoData?.amount || caktoData?.baseAmount || body?.sale?.amount || body?.amount || 0;
+    const activationAmountNum = Number(String(activationPaymentAmount).replace(/[^\d.,]/g, '').replace(',', '.')) || 0;
+    const activationPaymentMethod = (caktoData?.payment_method || caktoData?.paymentMethod || caktoData?.method || body?.payment_method || '').toString().toLowerCase();
+
+    if (productName) {
+      console.log(`[Cakto] Produto detectado: "${productName}"`);
+      
+      // Check if product matches any activation app
+      const supabaseActivation = createClient(
+        Deno.env.get('SUPABASE_URL')!,
+        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+        { auth: { autoRefreshToken: false, persistSession: false } },
+      );
+      
+      const { data: activationApps } = await supabaseActivation
+        .from('activation_apps')
+        .select('*')
+        .eq('is_enabled', true);
+      
+      if (activationApps && activationApps.length > 0) {
+        const productNameUpper = productName.toUpperCase();
+        const matchedApp = activationApps.find((app: any) => 
+          productNameUpper.includes(app.app_name.toUpperCase())
+        );
+        
+        if (matchedApp) {
+          console.log(`[Cakto] ✅ Ativação detectada! App: ${matchedApp.app_name}`);
+          
+          // Find the owner (reseller) for this activation app
+          const appOwnerId = matchedApp.user_id;
+          
+          // Save activation request
+          await supabaseActivation.from('activation_requests').insert({
+            user_id: appOwnerId,
+            app_name: matchedApp.app_name,
+            customer_name: customerName || 'Desconhecido',
+            customer_phone: phone,
+            mac_address: macAddress,
+            email: activationEmail,
+            payment_method: activationPaymentMethod.includes('credit') || activationPaymentMethod.includes('cart') ? 'Cartão' : 'PIX',
+            amount: activationAmountNum,
+            status: 'pending',
+            cakto_payload: body,
+          });
+          
+          console.log(`[Cakto] Solicitação de ativação salva para ${matchedApp.app_name}`);
+          
+          // Send WhatsApp notification to the app owner
+          const { data: ownerZapSettings } = await supabaseActivation
+            .from('zap_responder_settings')
+            .select('selected_department_id')
+            .eq('user_id', appOwnerId)
+            .maybeSingle();
+          
+          const { data: ownerBillingSettings } = await supabaseActivation
+            .from('billing_settings')
+            .select('notification_phone, meta_template_name')
+            .eq('user_id', appOwnerId)
+            .maybeSingle();
+          
+          const ownerNotifPhone = ownerBillingSettings?.notification_phone;
+          
+          if (ownerZapSettings?.selected_department_id && ownerNotifPhone) {
+            const activationMsg = `📱 *Nova Solicitação de Ativação*\n\n📦 App: *${matchedApp.app_name}*\n👤 Cliente: *${customerName || '-'}*\n📞 Tel: *${phone}*\n${macAddress ? `🔗 MAC: *${macAddress}*\n` : ''}${activationEmail ? `📧 Email: *${activationEmail}*\n` : ''}💰 Valor: *R$ ${activationAmountNum.toFixed(2)}*\n💳 Pagamento: *${activationPaymentMethod.includes('credit') || activationPaymentMethod.includes('cart') ? 'Cartão' : 'PIX'}*\n\n⏳ Status: Pendente de ativação`;
+            
+            try {
+              const notifResp = await fetch(
+                `${Deno.env.get('SUPABASE_URL')}/functions/v1/zap-responder`,
+                {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+                  },
+                  body: JSON.stringify({
+                    action: 'enviar-mensagem',
+                    department_id: ownerZapSettings.selected_department_id,
+                    number: ownerNotifPhone,
+                    text: activationMsg,
+                    user_id: appOwnerId,
+                  }),
+                },
+              );
+              const notifResult = await notifResp.json();
+              console.log(`[Cakto] Notificação de ativação enviada para ${ownerNotifPhone}: ok=${notifResp.ok}`);
+              
+              // Fallback to template if text failed
+              if (!notifResp.ok || notifResult?.success === false) {
+                console.warn(`[Cakto] Texto falhou para notificação de ativação. Tentando template...`);
+                const tplName = ownerBillingSettings?.meta_template_name || 'pedido_aprovado';
+                await fetch(
+                  `${Deno.env.get('SUPABASE_URL')}/functions/v1/zap-responder`,
+                  {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+                    },
+                    body: JSON.stringify({
+                      action: 'enviar-template',
+                      department_id: ownerZapSettings.selected_department_id,
+                      template_name: tplName,
+                      number: ownerNotifPhone,
+                      language: 'pt_BR',
+                      user_id: appOwnerId,
+                    }),
+                  },
+                );
+              }
+            } catch (notifErr) {
+              console.error('[Cakto] Erro ao notificar ativação:', notifErr);
+            }
+          } else {
+            console.warn(`[Cakto] Sem configuração de WhatsApp para notificar ativação (owner: ${appOwnerId})`);
+          }
+          
+          return new Response(JSON.stringify({
+            success: true,
+            type: 'activation',
+            app: matchedApp.app_name,
+            message: `Solicitação de ativação de ${matchedApp.app_name} registrada`,
+          }), { headers: jsonHeaders });
+        }
+      }
+    }
+
     // Normalize phone: remove non-digits
     const phoneDigits = String(phone).replace(/\D/g, '');
     // Build search variants (with/without country code, with/without 9)
