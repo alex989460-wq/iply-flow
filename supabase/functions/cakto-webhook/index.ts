@@ -160,6 +160,36 @@ serve(async (req) => {
       }), { status: 404, headers: jsonHeaders });
     }
 
+    // ── Check for pending renewal selections (from external payment site) ──
+    let pendingSelectionIds: string[] = [];
+    {
+      const { data: pendingSelections } = await supabaseAdmin
+        .from('pending_renewal_selections')
+        .select('customer_id')
+        .eq('phone_normalized', phoneDigits)
+        .eq('used', false)
+        .gt('expires_at', new Date().toISOString());
+
+      if (pendingSelections && pendingSelections.length > 0) {
+        pendingSelectionIds = pendingSelections.map((s: any) => s.customer_id);
+        console.log(`[Cakto] Seleção pendente encontrada: ${pendingSelectionIds.length} cliente(s) pré-selecionado(s)`);
+
+        // Filter allMatchedCustomers to only those selected
+        const selectedCustomers = allMatchedCustomers.filter((c: any) => pendingSelectionIds.includes(c.id));
+        if (selectedCustomers.length > 0) {
+          allMatchedCustomers = selectedCustomers;
+          console.log(`[Cakto] Usando ${selectedCustomers.length} cliente(s) pré-selecionado(s) do site externo`);
+        }
+
+        // Mark selections as used
+        await supabaseAdmin
+          .from('pending_renewal_selections')
+          .update({ used: true })
+          .eq('phone_normalized', phoneDigits)
+          .eq('used', false);
+      }
+    }
+
     // Pick only the FIRST customer (closest to expiration) for this payment
     const matchedCustomer = allMatchedCustomers[0];
     console.log(`[Cakto] ${allMatchedCustomers.length} cliente(s) encontrado(s) para telefone ${phone}. Renovando apenas: ${matchedCustomer.name} (${matchedCustomer.username || '-'}) due=${matchedCustomer.due_date}`);

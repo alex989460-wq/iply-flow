@@ -1,0 +1,1 @@
+ALTER TABLE public.pending_renewal_selections ENABLE ROW LEVEL SECURITY;
