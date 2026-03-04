@@ -134,159 +134,142 @@ serve(async (req) => {
     const activationAmountNum = Number(String(activationPaymentAmount).replace(/[^\d.,]/g, '').replace(',', '.')) || 0;
     const activationPaymentMethod = (caktoData?.payment_method || caktoData?.paymentMethod || caktoData?.method || body?.payment_method || '').toString().toLowerCase();
 
-    if (productName) {
-      console.log(`[Cakto] Produto detectado: "${productName}"`);
-      
-      // Check if product matches any activation app
+    // ── Activation Detection: Check pending_activation_data FIRST, then fallback to product name ──
+    {
       const supabaseActivation = createClient(
         Deno.env.get('SUPABASE_URL')!,
         Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
         { auth: { autoRefreshToken: false, persistSession: false } },
       );
-      
+
+      // Look up pre-saved activation data from the external site by phone
+      const phoneDigitsAct = String(phone).replace(/\D/g, '');
+      const actSearchVariants = new Set<string>();
+      actSearchVariants.add(phoneDigitsAct);
+      if (phoneDigitsAct.startsWith('55')) actSearchVariants.add(phoneDigitsAct.slice(2));
+      else actSearchVariants.add('55' + phoneDigitsAct);
+      const withoutCCAct = phoneDigitsAct.startsWith('55') ? phoneDigitsAct.slice(2) : phoneDigitsAct;
+      if (withoutCCAct.length === 11 && withoutCCAct[2] === '9') {
+        actSearchVariants.add('55' + withoutCCAct.slice(0, 2) + withoutCCAct.slice(3));
+        actSearchVariants.add(withoutCCAct.slice(0, 2) + withoutCCAct.slice(3));
+      } else if (withoutCCAct.length === 10) {
+        actSearchVariants.add('55' + withoutCCAct.slice(0, 2) + '9' + withoutCCAct.slice(2));
+        actSearchVariants.add(withoutCCAct.slice(0, 2) + '9' + withoutCCAct.slice(2));
+      }
+
+      const { data: pendingActData } = await supabaseActivation
+        .from('pending_activation_data')
+        .select('*')
+        .in('phone_normalized', [...actSearchVariants])
+        .eq('used', false)
+        .gt('expires_at', new Date().toISOString())
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      // Get all enabled activation apps
       const { data: activationApps } = await supabaseActivation
         .from('activation_apps')
         .select('*')
         .eq('is_enabled', true);
-      
-      if (activationApps && activationApps.length > 0) {
-        const productNameUpper = productName.toUpperCase();
-        const matchedApp = activationApps.find((app: any) => 
-          productNameUpper.includes(app.app_name.toUpperCase())
-        );
-        
-        if (matchedApp) {
-          console.log(`[Cakto] ✅ Ativação detectada! App: ${matchedApp.app_name}`);
-          
-          // Find the owner (reseller) for this activation app
-          const appOwnerId = matchedApp.user_id;
-          
-          // ── Look up pre-saved activation data from the external site ──
-          const phoneDigitsAct = String(phone).replace(/\D/g, '');
-          const actSearchVariants = new Set<string>();
-          actSearchVariants.add(phoneDigitsAct);
-          if (phoneDigitsAct.startsWith('55')) actSearchVariants.add(phoneDigitsAct.slice(2));
-          else actSearchVariants.add('55' + phoneDigitsAct);
-          const withoutCCAct = phoneDigitsAct.startsWith('55') ? phoneDigitsAct.slice(2) : phoneDigitsAct;
-          if (withoutCCAct.length === 11 && withoutCCAct[2] === '9') {
-            actSearchVariants.add('55' + withoutCCAct.slice(0, 2) + withoutCCAct.slice(3));
-            actSearchVariants.add(withoutCCAct.slice(0, 2) + withoutCCAct.slice(3));
-          } else if (withoutCCAct.length === 10) {
-            actSearchVariants.add('55' + withoutCCAct.slice(0, 2) + '9' + withoutCCAct.slice(2));
-            actSearchVariants.add(withoutCCAct.slice(0, 2) + '9' + withoutCCAct.slice(2));
-          }
-          
-          const { data: pendingActData } = await supabaseActivation
-            .from('pending_activation_data')
-            .select('*')
-            .in('phone_normalized', [...actSearchVariants])
-            .eq('used', false)
-            .gt('expires_at', new Date().toISOString())
-            .order('created_at', { ascending: false })
-            .limit(1)
-            .maybeSingle();
-          
-          // Use pre-saved data if available, fallback to Cakto payload
-          const finalMac = pendingActData?.mac_address || macAddress || '';
-          const finalEmail = pendingActData?.email || activationEmail || '';
-          const finalName = pendingActData?.customer_name || customerName || 'Desconhecido';
-          
-          console.log(`[Cakto] Dados de ativação - MAC: "${finalMac}", Email: "${finalEmail}", Nome: "${finalName}" (fonte: ${pendingActData ? 'site externo' : 'payload Cakto'})`);
-          
-          // Mark pending data as used
-          if (pendingActData) {
-            await supabaseActivation.from('pending_activation_data').update({ used: true }).eq('id', pendingActData.id);
-          }
-          
-          // Save activation request
-          await supabaseActivation.from('activation_requests').insert({
-            user_id: appOwnerId,
-            app_name: matchedApp.app_name,
-            customer_name: finalName,
-            customer_phone: phone,
-            mac_address: finalMac,
-            email: finalEmail,
-            payment_method: activationPaymentMethod.includes('credit') || activationPaymentMethod.includes('cart') ? 'Cartão' : 'PIX',
-            amount: activationAmountNum,
-            status: 'pending',
-            cakto_payload: body,
-          });
-          
-          console.log(`[Cakto] Solicitação de ativação salva para ${matchedApp.app_name}`);
-          
-          // Send WhatsApp notification to the app owner
-          const { data: ownerZapSettings } = await supabaseActivation
-            .from('zap_responder_settings')
-            .select('selected_department_id')
-            .eq('user_id', appOwnerId)
-            .maybeSingle();
-          
-          const { data: ownerBillingSettings } = await supabaseActivation
-            .from('billing_settings')
-            .select('notification_phone, meta_template_name')
-            .eq('user_id', appOwnerId)
-            .maybeSingle();
-          
-          const ownerNotifPhone = ownerBillingSettings?.notification_phone;
-          
-          if (ownerZapSettings?.selected_department_id && ownerNotifPhone) {
-            // ── 1) Send "Pedido Recebido" to the CUSTOMER ──
-            let customerPhone = String(phone).replace(/\D/g, '');
-            if (!customerPhone.startsWith('55')) customerPhone = '55' + customerPhone;
-            
-            const customerMsg = `📥 *PEDIDO DE ATIVAÇÃO RECEBIDO*\n\nRecebemos sua solicitação de ativação do aplicativo.\nNossa equipe já está processando o pedido e em breve seu acesso será liberado.\n\n📱 Aplicativo: *${matchedApp.app_name}*\n👤 Cliente: *${finalName || '-'}*\n${finalMac ? `🖥 MAC: *${finalMac}*\n` : ''}${finalEmail ? `📧 E-mail: *${finalEmail}*\n` : ''}\n⏳ Assim que a ativação for concluída, você receberá uma nova mensagem confirmando.\n\nObrigado pela preferência! 😊`;
-            
-            try {
-              const custResp = await fetch(
-                `${Deno.env.get('SUPABASE_URL')}/functions/v1/zap-responder`,
-                {
-                  method: 'POST',
-                  headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
-                  },
-                  body: JSON.stringify({
-                    action: 'enviar-mensagem',
-                    department_id: ownerZapSettings.selected_department_id,
-                    number: customerPhone,
-                    text: customerMsg,
-                    user_id: appOwnerId,
-                  }),
-                },
-              );
-              console.log(`[Cakto] Msg "pedido recebido" para cliente ${customerPhone}: ok=${custResp.ok}`);
-              
-              // Fallback to template if failed
-              if (!custResp.ok) {
-                const tplName = ownerBillingSettings?.meta_template_name || 'pedido_aprovado';
-                await fetch(
-                  `${Deno.env.get('SUPABASE_URL')}/functions/v1/zap-responder`,
-                  {
-                    method: 'POST',
-                    headers: {
-                      'Content-Type': 'application/json',
-                      'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
-                    },
-                    body: JSON.stringify({
-                      action: 'enviar-template',
-                      department_id: ownerZapSettings.selected_department_id,
-                      template_name: tplName,
-                      number: customerPhone,
-                      language: 'pt_BR',
-                      user_id: appOwnerId,
-                    }),
-                  },
-                );
-              }
-            } catch (custErr) {
-              console.error('[Cakto] Erro ao enviar msg cliente ativação:', custErr);
-            }
 
-            // ── 2) Send notification to the ADMIN/RESELLER ──
-            const activationMsg = `📱 *Nova Solicitação de Ativação*\n\n📦 App: *${matchedApp.app_name}*\n👤 Cliente: *${finalName || '-'}*\n📞 Tel: *${customerPhone}*\n${finalMac ? `🔗 MAC: *${finalMac}*\n` : ''}${finalEmail ? `📧 Email: *${finalEmail}*\n` : ''}💰 Valor: *R$ ${activationAmountNum.toFixed(2)}*\n💳 Pagamento: *${activationPaymentMethod.includes('credit') || activationPaymentMethod.includes('cart') ? 'Cartão' : 'PIX'}*\n\n⏳ Status: Pendente de ativação`;
-            
-            try {
-              const notifResp = await fetch(
+      // Try to match: 1) by pending_activation_data.app_name  2) by Cakto product name
+      let matchedApp: any = null;
+      if (activationApps && activationApps.length > 0) {
+        if (pendingActData?.app_name) {
+          const pendingNameUpper = pendingActData.app_name.toUpperCase();
+          matchedApp = activationApps.find((app: any) =>
+            pendingNameUpper.includes(app.app_name.toUpperCase()) ||
+            app.app_name.toUpperCase().includes(pendingNameUpper)
+          );
+          if (matchedApp) console.log(`[Cakto] ✅ App identificado via pending_activation_data: ${matchedApp.app_name}`);
+        }
+        if (!matchedApp && productName) {
+          const productNameUpper = productName.toUpperCase();
+          matchedApp = activationApps.find((app: any) =>
+            productNameUpper.includes(app.app_name.toUpperCase())
+          );
+          if (matchedApp) console.log(`[Cakto] ✅ App identificado via nome do produto Cakto: ${matchedApp.app_name}`);
+        }
+      }
+
+      if (matchedApp) {
+        console.log(`[Cakto] ✅ Ativação detectada! App: ${matchedApp.app_name}`);
+        const appOwnerId = matchedApp.user_id;
+
+        // Use pre-saved data if available, fallback to Cakto payload
+        const finalMac = pendingActData?.mac_address || macAddress || '';
+        const finalEmail = pendingActData?.email || activationEmail || '';
+        const finalName = pendingActData?.customer_name || customerName || 'Desconhecido';
+        const finalAppName = pendingActData?.app_name || matchedApp.app_name;
+
+        console.log(`[Cakto] Dados de ativação - App: "${finalAppName}", MAC: "${finalMac}", Email: "${finalEmail}", Nome: "${finalName}" (fonte: ${pendingActData ? 'site externo' : 'payload Cakto'})`);
+
+        // Mark pending data as used
+        if (pendingActData) {
+          await supabaseActivation.from('pending_activation_data').update({ used: true }).eq('id', pendingActData.id);
+        }
+
+        // Save activation request
+        await supabaseActivation.from('activation_requests').insert({
+          user_id: appOwnerId,
+          app_name: finalAppName,
+          customer_name: finalName,
+          customer_phone: phone,
+          mac_address: finalMac,
+          email: finalEmail,
+          payment_method: activationPaymentMethod.includes('credit') || activationPaymentMethod.includes('cart') ? 'Cartão' : 'PIX',
+          amount: activationAmountNum,
+          status: 'pending',
+          cakto_payload: body,
+        });
+
+        console.log(`[Cakto] Solicitação de ativação salva para ${finalAppName}`);
+
+        // Send WhatsApp notifications
+        const { data: ownerZapSettings } = await supabaseActivation
+          .from('zap_responder_settings')
+          .select('selected_department_id')
+          .eq('user_id', appOwnerId)
+          .maybeSingle();
+
+        const { data: ownerBillingSettings } = await supabaseActivation
+          .from('billing_settings')
+          .select('notification_phone, meta_template_name')
+          .eq('user_id', appOwnerId)
+          .maybeSingle();
+
+        const ownerNotifPhone = ownerBillingSettings?.notification_phone;
+
+        if (ownerZapSettings?.selected_department_id && ownerNotifPhone) {
+          let customerPhone = String(phone).replace(/\D/g, '');
+          if (!customerPhone.startsWith('55')) customerPhone = '55' + customerPhone;
+
+          const customerMsg = `📥 *PEDIDO DE ATIVAÇÃO RECEBIDO*\n\nRecebemos sua solicitação de ativação do aplicativo.\nNossa equipe já está processando o pedido e em breve seu acesso será liberado.\n\n📱 Aplicativo: *${finalAppName}*\n👤 Cliente: *${finalName || '-'}*\n${finalMac ? `🖥 MAC: *${finalMac}*\n` : ''}${finalEmail ? `📧 E-mail: *${finalEmail}*\n` : ''}\n⏳ Assim que a ativação for concluída, você receberá uma nova mensagem confirmando.\n\nObrigado pela preferência! 😊`;
+
+          try {
+            const custResp = await fetch(
+              `${Deno.env.get('SUPABASE_URL')}/functions/v1/zap-responder`,
+              {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+                },
+                body: JSON.stringify({
+                  action: 'enviar-mensagem',
+                  department_id: ownerZapSettings.selected_department_id,
+                  number: customerPhone,
+                  text: customerMsg,
+                  user_id: appOwnerId,
+                }),
+              },
+            );
+            console.log(`[Cakto] Msg "pedido recebido" para cliente ${customerPhone}: ok=${custResp.ok}`);
+
+            if (!custResp.ok) {
+              const tplName = ownerBillingSettings?.meta_template_name || 'pedido_aprovado';
+              await fetch(
                 `${Deno.env.get('SUPABASE_URL')}/functions/v1/zap-responder`,
                 {
                   method: 'POST',
@@ -295,51 +278,76 @@ serve(async (req) => {
                     'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
                   },
                   body: JSON.stringify({
-                    action: 'enviar-mensagem',
+                    action: 'enviar-template',
                     department_id: ownerZapSettings.selected_department_id,
-                    number: ownerNotifPhone,
-                    text: activationMsg,
+                    template_name: tplName,
+                    number: customerPhone,
+                    language: 'pt_BR',
                     user_id: appOwnerId,
                   }),
                 },
               );
-              console.log(`[Cakto] Notificação ativação para admin ${ownerNotifPhone}: ok=${notifResp.ok}`);
-              
-              if (!notifResp.ok) {
-                const tplName = ownerBillingSettings?.meta_template_name || 'pedido_aprovado';
-                await fetch(
-                  `${Deno.env.get('SUPABASE_URL')}/functions/v1/zap-responder`,
-                  {
-                    method: 'POST',
-                    headers: {
-                      'Content-Type': 'application/json',
-                      'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
-                    },
-                    body: JSON.stringify({
-                      action: 'enviar-template',
-                      department_id: ownerZapSettings.selected_department_id,
-                      template_name: tplName,
-                      number: ownerNotifPhone,
-                      language: 'pt_BR',
-                      user_id: appOwnerId,
-                    }),
-                  },
-                );
-              }
-            } catch (notifErr) {
-              console.error('[Cakto] Erro ao notificar admin ativação:', notifErr);
             }
-          } else {
-            console.warn(`[Cakto] Sem configuração de WhatsApp para notificar ativação (owner: ${appOwnerId})`);
+          } catch (custErr) {
+            console.error('[Cakto] Erro ao enviar msg cliente ativação:', custErr);
           }
-          
-          return new Response(JSON.stringify({
-            success: true,
-            type: 'activation',
-            app: matchedApp.app_name,
-            message: `Solicitação de ativação de ${matchedApp.app_name} registrada`,
-          }), { headers: jsonHeaders });
+
+          const activationMsg = `📱 *Nova Solicitação de Ativação*\n\n📦 App: *${finalAppName}*\n👤 Cliente: *${finalName || '-'}*\n📞 Tel: *${customerPhone}*\n${finalMac ? `🔗 MAC: *${finalMac}*\n` : ''}${finalEmail ? `📧 Email: *${finalEmail}*\n` : ''}💰 Valor: *R$ ${activationAmountNum.toFixed(2)}*\n💳 Pagamento: *${activationPaymentMethod.includes('credit') || activationPaymentMethod.includes('cart') ? 'Cartão' : 'PIX'}*\n\n⏳ Status: Pendente de ativação`;
+
+          try {
+            const notifResp = await fetch(
+              `${Deno.env.get('SUPABASE_URL')}/functions/v1/zap-responder`,
+              {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+                },
+                body: JSON.stringify({
+                  action: 'enviar-mensagem',
+                  department_id: ownerZapSettings.selected_department_id,
+                  number: ownerNotifPhone,
+                  text: activationMsg,
+                  user_id: appOwnerId,
+                }),
+              },
+            );
+            console.log(`[Cakto] Notificação ativação para admin ${ownerNotifPhone}: ok=${notifResp.ok}`);
+
+            if (!notifResp.ok) {
+              const tplName = ownerBillingSettings?.meta_template_name || 'pedido_aprovado';
+              await fetch(
+                `${Deno.env.get('SUPABASE_URL')}/functions/v1/zap-responder`,
+                {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+                  },
+                  body: JSON.stringify({
+                    action: 'enviar-template',
+                    department_id: ownerZapSettings.selected_department_id,
+                    template_name: tplName,
+                    number: ownerNotifPhone,
+                    language: 'pt_BR',
+                    user_id: appOwnerId,
+                  }),
+                },
+              );
+            }
+          } catch (notifErr) {
+            console.error('[Cakto] Erro ao notificar admin ativação:', notifErr);
+          }
+        } else {
+          console.warn(`[Cakto] Sem configuração de WhatsApp para notificar ativação (owner: ${appOwnerId})`);
         }
+
+        return new Response(JSON.stringify({
+          success: true,
+          type: 'activation',
+          app: finalAppName,
+          message: `Solicitação de ativação de ${finalAppName} registrada`,
+        }), { headers: jsonHeaders });
       }
     }
 
