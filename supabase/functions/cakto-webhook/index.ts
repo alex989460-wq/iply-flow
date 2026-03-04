@@ -167,7 +167,7 @@ serve(async (req) => {
       const { data: pendingSelections } = await supabaseAdmin
         .from('pending_renewal_selections')
         .select('customer_id')
-        .eq('phone_normalized', phoneDigits)
+        .in('phone_normalized', [...searchVariants])
         .eq('used', false)
         .gt('expires_at', new Date().toISOString());
 
@@ -189,7 +189,7 @@ serve(async (req) => {
         await supabaseAdmin
           .from('pending_renewal_selections')
           .update({ used: true })
-          .eq('phone_normalized', phoneDigits)
+          .in('phone_normalized', [...searchVariants])
           .eq('used', false);
       }
     }
