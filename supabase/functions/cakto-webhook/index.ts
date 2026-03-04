@@ -625,7 +625,9 @@ serve(async (req) => {
     const daysToMonths: Record<number, number> = { 30: 1, 90: 3, 180: 6, 365: 12 };
     const monthsToAdd = daysToMonths[durationDays];
 
-    console.log(`[Cakto] ${allMatchedCustomers.length} cliente(s) (duração: ${durationDays} dias, meses: ${monthsToAdd || 'N/A'})`);
+      console.log(`[Cakto] ${allMatchedCustomers.length} cliente(s) (duração: ${durationDays} dias, meses: ${monthsToAdd || 'N/A'})`);
+
+    let multiRenewalCompleted = false;
 
     // ── Pre-selected multi-customer renewal (from external payment site) ──
     if (preSelectedMultiRenewal && allMatchedCustomers.length > 1) {
@@ -722,16 +724,17 @@ serve(async (req) => {
           },
         });
 
-        return new Response(JSON.stringify({
-          success: true,
-          message: `${allMatchedCustomers.length} cliente(s) renovado(s) com sucesso.`,
-          customers: allMatchedCustomers.map((c: any) => c.name),
-        }), { headers: jsonHeaders });
+        // Mark multi-renewal as completed - skip single-customer processing but continue to server renewal
+        multiRenewalCompleted = true;
+        // Set customersToRenew to all matched customers so server renewal processes all usernames
+        customersToRenew.length = 0;
+        allMatchedCustomers.forEach((c: any) => customersToRenew.push(c));
+        console.log(`[Cakto] Multi-renovação concluída no gestor. Prosseguindo para renovação no painel do servidor...`);
       }
     }
 
     // ── Conflict detection: multiple customers with same due_date (skip if multi-screen) ──
-    if (allMatchedCustomers.length > 1 && !isMultiScreen) {
+    if (allMatchedCustomers.length > 1 && !isMultiScreen && !multiRenewalCompleted) {
       const todayStr = today.toISOString().split('T')[0];
       // Check if 2+ customers share the same due_date (or both expired)
       const sameDueCustomers = allMatchedCustomers.filter((c: any) => {
@@ -855,7 +858,8 @@ serve(async (req) => {
       }
     }
 
-    // Renew ALL customers in customersToRenew (supports multi-screen)
+    // Renew ALL customers in customersToRenew (supports multi-screen) — skip if multi-renewal already handled
+    if (!multiRenewalCompleted) {
     for (const cust of customersToRenew) {
       const custCurrentDue = cust.due_date ? new Date(cust.due_date + 'T00:00:00') : today;
       const custBase = new Date(custCurrentDue > today ? custCurrentDue : today);
@@ -898,6 +902,7 @@ serve(async (req) => {
         console.log(`[Cakto] Pagamento registrado para ${cust.name} (${cust.username || '-'}): R$ ${payAmount.toFixed(2)}`);
       }
     }
+    } // end if (!multiRenewalCompleted)
 
     // Use the primary customer's new due date for notifications
     const primaryCurrentDue = matchedCustomer.due_date ? new Date(matchedCustomer.due_date + 'T00:00:00') : today;
@@ -911,8 +916,9 @@ serve(async (req) => {
     }
     const newDueDate = primaryBase.toISOString().split('T')[0];
 
-    // ── Save payment confirmation for the dynamic page ──
+    // ── Save payment confirmation for the dynamic page (skip if multi-renewal already saved) ──
     let confirmationId = '';
+    if (!multiRenewalCompleted) {
     try {
       const { data: confirmation } = await supabaseAdmin
         .from('payment_confirmations')
@@ -936,6 +942,7 @@ serve(async (req) => {
     } catch (e) {
       console.error('[Cakto] Erro ao salvar confirmação:', e);
     }
+    } // end if (!multiRenewalCompleted) for confirmation
 
     // ── Send WhatsApp plain text message via zap-responder edge function ──
     try {
