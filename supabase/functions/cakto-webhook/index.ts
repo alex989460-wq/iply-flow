@@ -468,9 +468,21 @@ serve(async (req) => {
       }
     }
 
-    // Pick only the FIRST customer (closest to expiration) for this payment
+    // ── Detect multi-screen: same person with multiple records (same name) ──
+    const primaryName = allMatchedCustomers[0]?.name?.trim().toUpperCase() || '';
+    const samePersonCustomers = allMatchedCustomers.filter((c: any) => 
+      c.name?.trim().toUpperCase() === primaryName
+    );
+    const isMultiScreen = samePersonCustomers.length > 1 && samePersonCustomers.length === allMatchedCustomers.length;
+    
+    // If all matched customers are the same person (multi-screen), renew ALL of them
+    const customersToRenew = isMultiScreen ? samePersonCustomers : [allMatchedCustomers[0]];
     const matchedCustomer = allMatchedCustomers[0];
-    console.log(`[Cakto] ${allMatchedCustomers.length} cliente(s) encontrado(s) para telefone ${phone}. Renovando apenas: ${matchedCustomer.name} (${matchedCustomer.username || '-'}) due=${matchedCustomer.due_date}`);
+    
+    if (isMultiScreen) {
+      console.log(`[Cakto] 🖥️ Multi-tela detectado: ${samePersonCustomers.length} registros para "${primaryName}". Renovando TODOS.`);
+    }
+    console.log(`[Cakto] ${allMatchedCustomers.length} cliente(s) encontrado(s) para telefone ${phone}. Renovando ${customersToRenew.length}: ${customersToRenew.map((c: any) => `${c.name} (${c.username || '-'})`).join(', ')}`);
     for (const c of allMatchedCustomers) {
       console.log(`  - ${c.name} (${c.username || '-'}) id=${c.id} status=${c.status} due=${c.due_date}`);
     }
@@ -705,8 +717,8 @@ serve(async (req) => {
       }
     }
 
-    // ── Conflict detection: multiple customers with same due_date ──
-    if (allMatchedCustomers.length > 1) {
+    // ── Conflict detection: multiple customers with same due_date (skip if multi-screen) ──
+    if (allMatchedCustomers.length > 1 && !isMultiScreen) {
       const todayStr = today.toISOString().split('T')[0];
       // Check if 2+ customers share the same due_date (or both expired)
       const sameDueCustomers = allMatchedCustomers.filter((c: any) => {
@@ -830,9 +842,8 @@ serve(async (req) => {
       }
     }
 
-    // Renew ONLY the single selected customer (closest to expiration)
-    {
-      const cust = matchedCustomer;
+    // Renew ALL customers in customersToRenew (supports multi-screen)
+    for (const cust of customersToRenew) {
       const custCurrentDue = cust.due_date ? new Date(cust.due_date + 'T00:00:00') : today;
       const custBase = new Date(custCurrentDue > today ? custCurrentDue : today);
 
@@ -860,17 +871,18 @@ serve(async (req) => {
 
       console.log(`[Cakto] Cliente ${cust.name} (${cust.username || '-'}) atualizado: due_date=${custNewDue}`);
 
-      // Register payment for this single customer
+      // Register payment (split amount for multi-screen, full for single)
       if (amountNumeric > 0) {
+        const payAmount = isMultiScreen ? amountNumeric / customersToRenew.length : amountNumeric;
         await supabaseAdmin.from('payments').insert({
           customer_id: cust.id,
-          amount: amountNumeric,
+          amount: payAmount,
           payment_date: today.toISOString().split('T')[0],
           method: paymentMethodDb,
           confirmed: true,
           source: 'cakto',
         });
-        console.log(`[Cakto] Pagamento registrado para ${cust.name}: R$ ${amountNumeric.toFixed(2)}`);
+        console.log(`[Cakto] Pagamento registrado para ${cust.name} (${cust.username || '-'}): R$ ${payAmount.toFixed(2)}`);
       }
     }
 
@@ -949,7 +961,9 @@ serve(async (req) => {
         let metaPhone = phoneDigits;
         if (!metaPhone.startsWith('55')) metaPhone = '55' + metaPhone;
 
-        const displayUsername = matchedCustomer.username || '-';
+        const displayUsername = isMultiScreen 
+          ? customersToRenew.map((c: any) => c.username || '-').join(', ')
+          : (matchedCustomer.username || '-');
 
         const defaultTemplate = `✅ Olá, *{{nome}}*. Obrigado por confirmar seu pagamento. Segue abaixo os dados da sua assinatura:\n\n==========================\n📅 Próx. Vencimento: *{{vencimento}} - {{hora}} hrs*\n💰 Valor: *{{valor}}*\n👤 Usuário: *{{usuario}}*\n📦 Plano: *{{plano}}*\n🔌 Status: *Ativo*\n💎 Obs: -\n⚡: *{{servidor}}*\n==========================`;
         const template = billingSettings?.renewal_message_template || defaultTemplate;
@@ -1107,7 +1121,10 @@ serve(async (req) => {
               .maybeSingle();
             if (srvData) adminServerName = srvData.server_name;
           }
-          const adminMsg = `🔔 *Renovação Automática (Cakto)*\n\n👤 Cliente: *${matchedCustomer.name}*\n📞 Tel: ${adminMetaPhone}\n👤 Usuário: *${matchedCustomer.username || '-'}*\n💰 Valor: *R$ ${amountNumeric.toFixed(2)}*\n📦 Plano: *${matchedPlanName || '-'}*\n🖥️ Servidor: *${adminServerName}*\n📅 Novo vencimento: *${fmtDue}*\n✅ Status: Renovado`;
+          const allUsernamesDisplay = isMultiScreen 
+            ? customersToRenew.map((c: any) => c.username || '-').join(', ')
+            : (matchedCustomer.username || '-');
+          const adminMsg = `🔔 *Renovação Automática (Cakto)*\n\n👤 Cliente: *${matchedCustomer.name}*\n📞 Tel: ${adminMetaPhone}\n👤 Usuário(s): *${allUsernamesDisplay}*\n🖥️ Telas: *${customersToRenew.length}*\n💰 Valor: *R$ ${amountNumeric.toFixed(2)}*\n📦 Plano: *${matchedPlanName || '-'}*\n🖥️ Servidor: *${adminServerName}*\n📅 Novo vencimento: *${fmtDue}*\n✅ Status: Renovado`;
 
           const adminResp = await fetch(
             `${Deno.env.get('SUPABASE_URL')}/functions/v1/zap-responder`,
@@ -1193,13 +1210,14 @@ serve(async (req) => {
       skipServerRenewal = true;
     }
 
-    // ── Trigger server renewals for ALL matched customers' usernames ──
-    // Only renew server for the SINGLE selected customer's usernames
+    // ── Trigger server renewals for ALL customersToRenew usernames ──
     const allUsernames: string[] = [];
-    if (matchedCustomer.username?.trim()) {
-      const parts = matchedCustomer.username.split(',').map((u: string) => u.trim()).filter((u: string) => u.length > 0);
-      for (const u of parts) {
-        if (!allUsernames.includes(u)) allUsernames.push(u);
+    for (const cust of customersToRenew) {
+      if (cust.username?.trim()) {
+        const parts = cust.username.split(',').map((u: string) => u.trim()).filter((u: string) => u.length > 0);
+        for (const u of parts) {
+          if (!allUsernames.includes(u)) allUsernames.push(u);
+        }
       }
     }
 
