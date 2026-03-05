@@ -563,9 +563,24 @@ serve(async (req) => {
           // Check if another plan matches the amount exactly (±1%)
           const exactOtherPlan = allPlans.find((p: any) => p.id !== currentPlan.id && Math.abs(p.price - amountNumeric) <= p.price * 0.01);
           
-          if (isCustomMatch || !exactOtherPlan) {
+          // If an exact other plan matches the paid amount, ALWAYS prefer it over keeping current plan
+          // This prevents e.g. a Trimestral customer with custom_price=35 being renewed for 3 months when they pay R$35 (Mensal)
+          if (exactOtherPlan) {
+            // Check if current plan's own price also matches (±1%) - only then keep current
+            const currentPlanAlsoMatches = Math.abs(currentPlan.price - amountNumeric) <= currentPlan.price * 0.01;
+            if (currentPlanAlsoMatches) {
+              bestMatch = currentPlan;
+              console.log(`[Cakto] Mantendo plano atual: ${currentPlan.plan_name} (R$ ${currentPlan.price}) | Valor pago: R$ ${amountNumeric.toFixed(2)} (ambos planos batem, priorizando atual)`);
+            } else {
+              bestMatch = exactOtherPlan;
+              console.log(`[Cakto] Trocando para plano: ${exactOtherPlan.plan_name} (R$ ${exactOtherPlan.price}) | Valor pago: R$ ${amountNumeric.toFixed(2)} (match exato com outro plano)`);
+            }
+          } else if (isCustomMatch) {
             bestMatch = currentPlan;
-            console.log(`[Cakto] Mantendo plano atual: ${currentPlan.plan_name} (R$ ${currentPlan.price}) | Valor pago: R$ ${amountNumeric.toFixed(2)}${isCustomMatch ? ' (custom_price)' : ' (sem match exato com outro plano)'}`);
+            console.log(`[Cakto] Mantendo plano atual: ${currentPlan.plan_name} (R$ ${currentPlan.price}) | Valor pago: R$ ${amountNumeric.toFixed(2)} (custom_price match, sem outro plano exato)`);
+          } else {
+            bestMatch = currentPlan;
+            console.log(`[Cakto] Mantendo plano atual: ${currentPlan.plan_name} (R$ ${currentPlan.price}) | Valor pago: R$ ${amountNumeric.toFixed(2)} (sem match exato com outro plano)`);
           }
         }
       }
