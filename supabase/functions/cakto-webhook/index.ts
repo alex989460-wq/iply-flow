@@ -429,6 +429,15 @@ serve(async (req) => {
       return score(b) - score(a);
     });
 
+    // ── Determine payment amount and method early ──
+    const paymentAmount = caktoData?.amount || caktoData?.baseAmount || body?.sale?.amount || body?.amount || 0;
+    const amountNumeric = Number(String(paymentAmount).replace(/[^\d.,]/g, '').replace(',', '.')) || 0;
+
+    // Detect payment method from Cakto payload
+    const rawMethod = (caktoData?.payment_method || caktoData?.paymentMethod || caktoData?.method || body?.payment_method || '').toString().toLowerCase();
+    const isCreditCard = rawMethod.includes('credit') || rawMethod.includes('cartao') || rawMethod.includes('cartão') || rawMethod.includes('card');
+    const paymentMethodDb = isCreditCard ? 'cartao_credito' : 'pix';
+
     if (allMatchedCustomers.length === 0) {
       console.warn(`[Cakto] Nenhum cliente encontrado para telefone: ${phone}`);
       // Log not found
@@ -486,28 +495,46 @@ serve(async (req) => {
     const samePersonCustomers = allMatchedCustomers.filter((c: any) => 
       c.name?.trim().toUpperCase() === primaryName
     );
-    const isMultiScreen = samePersonCustomers.length > 1 && samePersonCustomers.length === allMatchedCustomers.length;
     
-    // If all matched customers are the same person (multi-screen), renew ALL of them
+    // Validate if paid amount covers ALL screens before batch-renewing
+    let isMultiScreen = samePersonCustomers.length > 1 && samePersonCustomers.length === allMatchedCustomers.length;
+    
+    if (isMultiScreen && amountNumeric > 0) {
+      // Load price for each screen to calculate expected total
+      let singlePrice = 0;
+      const first = samePersonCustomers[0];
+      if (first.custom_price) {
+        singlePrice = Number(first.custom_price);
+      } else if (first.plan_id) {
+        const { data: firstPlan } = await supabaseAdmin.from('plans').select('price').eq('id', first.plan_id).maybeSingle();
+        if (firstPlan) singlePrice = Number(firstPlan.price);
+      }
+      
+      const expectedMultiTotal = singlePrice * samePersonCustomers.length;
+      const singleTolerance = singlePrice * 0.15;
+      const multiTolerance = expectedMultiTotal * 0.15;
+      
+      const paidForSingle = singlePrice > 0 && Math.abs(amountNumeric - singlePrice) <= singleTolerance;
+      const paidForAll = expectedMultiTotal > 0 && Math.abs(amountNumeric - expectedMultiTotal) <= multiTolerance;
+      
+      if (paidForAll) {
+        console.log(`[Cakto] 🖥️ Multi-tela: valor pago R$ ${amountNumeric.toFixed(2)} ≈ total R$ ${expectedMultiTotal.toFixed(2)} (${samePersonCustomers.length} telas). Renovando TODOS.`);
+      } else if (paidForSingle) {
+        isMultiScreen = false;
+        console.log(`[Cakto] 🖥️ Multi-tela detectado MAS valor pago R$ ${amountNumeric.toFixed(2)} ≈ individual R$ ${singlePrice.toFixed(2)}. Renovando apenas 1 (mais urgente).`);
+      } else {
+        isMultiScreen = false;
+        console.log(`[Cakto] 🖥️ Multi-tela detectado MAS valor pago R$ ${amountNumeric.toFixed(2)} não corresponde a individual R$ ${singlePrice.toFixed(2)} nem total R$ ${expectedMultiTotal.toFixed(2)}. Renovando apenas 1 (segurança).`);
+      }
+    }
+    
+    // If all matched customers are the same person (multi-screen) AND amount covers all, renew ALL
     const customersToRenew = isMultiScreen ? samePersonCustomers : [allMatchedCustomers[0]];
     const matchedCustomer = allMatchedCustomers[0];
     
     if (isMultiScreen) {
-      console.log(`[Cakto] 🖥️ Multi-tela detectado: ${samePersonCustomers.length} registros para "${primaryName}". Renovando TODOS.`);
+      console.log(`[Cakto] 🖥️ Multi-tela confirmado: ${samePersonCustomers.length} registros para "${primaryName}". Renovando TODOS.`);
     }
-    console.log(`[Cakto] ${allMatchedCustomers.length} cliente(s) encontrado(s) para telefone ${phone}. Renovando ${customersToRenew.length}: ${customersToRenew.map((c: any) => `${c.name} (${c.username || '-'})`).join(', ')}`);
-    for (const c of allMatchedCustomers) {
-      console.log(`  - ${c.name} (${c.username || '-'}) id=${c.id} status=${c.status} due=${c.due_date}`);
-    }
-
-    // ── Determine payment amount and method early ──
-    const paymentAmount = caktoData?.amount || caktoData?.baseAmount || body?.sale?.amount || body?.amount || 0;
-    const amountNumeric = Number(String(paymentAmount).replace(/[^\d.,]/g, '').replace(',', '.')) || 0;
-
-    // Detect payment method from Cakto payload
-    const rawMethod = (caktoData?.payment_method || caktoData?.paymentMethod || caktoData?.method || body?.payment_method || '').toString().toLowerCase();
-    const isCreditCard = rawMethod.includes('credit') || rawMethod.includes('cartao') || rawMethod.includes('cartão') || rawMethod.includes('card');
-    const paymentMethodDb = isCreditCard ? 'cartao_credito' : 'pix';
 
     // ── Duplicate protection: only block near-instant retries with same amount ──
     if (caktoId && amountNumeric > 0) {
