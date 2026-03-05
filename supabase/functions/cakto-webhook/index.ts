@@ -559,33 +559,31 @@ serve(async (req) => {
         const currentPlan = allPlans.find((p: any) => p.id === matchedCustomer.plan_id);
         if (currentPlan) {
           const customerPrice = matchedCustomer.custom_price ? Number(matchedCustomer.custom_price) : null;
+          // Check if current plan's own price matches the paid amount (±1%)
+          const currentPlanPriceMatches = Math.abs(currentPlan.price - amountNumeric) <= currentPlan.price * 0.01;
+          // Check if custom_price matches the paid amount (±15%)
           const isCustomMatch = customerPrice && Math.abs(customerPrice - amountNumeric) <= customerPrice * 0.15;
           // Check if another plan matches the amount exactly (±1%)
           const exactOtherPlan = allPlans.find((p: any) => p.id !== currentPlan.id && Math.abs(p.price - amountNumeric) <= p.price * 0.01);
           
-          // If an exact other plan matches the paid amount, ALWAYS prefer it over keeping current plan
-          // This prevents e.g. a Trimestral customer with custom_price=35 being renewed for 3 months when they pay R$35 (Mensal)
-          if (exactOtherPlan) {
-            // Check if current plan's own price also matches (±1%) - only then keep current
-            const currentPlanAlsoMatches = Math.abs(currentPlan.price - amountNumeric) <= currentPlan.price * 0.01;
-            if (currentPlanAlsoMatches) {
-              bestMatch = currentPlan;
-              console.log(`[Cakto] Mantendo plano atual: ${currentPlan.plan_name} (R$ ${currentPlan.price}) | Valor pago: R$ ${amountNumeric.toFixed(2)} (ambos planos batem, priorizando atual)`);
-            } else {
-              bestMatch = exactOtherPlan;
-              console.log(`[Cakto] Trocando para plano: ${exactOtherPlan.plan_name} (R$ ${exactOtherPlan.price}) | Valor pago: R$ ${amountNumeric.toFixed(2)} (match exato com outro plano)`);
-            }
+          if (currentPlanPriceMatches) {
+            // Current plan price matches paid amount - keep it
+            bestMatch = currentPlan;
+            console.log(`[Cakto] Mantendo plano atual: ${currentPlan.plan_name} (R$ ${currentPlan.price}) | Valor pago: R$ ${amountNumeric.toFixed(2)} (preço do plano bate)`);
+          } else if (exactOtherPlan) {
+            // Another plan matches exactly - switch to it
+            bestMatch = exactOtherPlan;
+            console.log(`[Cakto] Trocando para plano: ${exactOtherPlan.plan_name} (R$ ${exactOtherPlan.price}) | Valor pago: R$ ${amountNumeric.toFixed(2)} (match exato com outro plano)`);
           } else if (isCustomMatch) {
+            // custom_price matches and no exact plan match - keep current plan
             bestMatch = currentPlan;
-            console.log(`[Cakto] Mantendo plano atual: ${currentPlan.plan_name} (R$ ${currentPlan.price}) | Valor pago: R$ ${amountNumeric.toFixed(2)} (custom_price match, sem outro plano exato)`);
-          } else {
-            bestMatch = currentPlan;
-            console.log(`[Cakto] Mantendo plano atual: ${currentPlan.plan_name} (R$ ${currentPlan.price}) | Valor pago: R$ ${amountNumeric.toFixed(2)} (sem match exato com outro plano)`);
+            console.log(`[Cakto] Mantendo plano atual: ${currentPlan.plan_name} (R$ ${currentPlan.price}) | Valor pago: R$ ${amountNumeric.toFixed(2)} (custom_price match R$ ${customerPrice})`);
           }
+          // If nothing matches, do NOT default to current plan - let step 2 find the right one
         }
       }
 
-      // 2) If no match yet, try matching total amount against plans (±10%)
+      // 2) If no match yet, try matching total amount against all plans (±10%)
       if (!bestMatch) {
         let bestDiff = Infinity;
         for (const plan of allPlans) {
@@ -596,23 +594,33 @@ serve(async (req) => {
             bestMatch = plan;
           }
         }
+        if (bestMatch) {
+          console.log(`[Cakto] Match por proximidade (±10%): ${bestMatch.plan_name} (R$ ${bestMatch.price}) | Valor pago: R$ ${amountNumeric.toFixed(2)}`);
+        }
       }
 
-      // 3) custom_price fallback
+      // 3) custom_price fallback - if still no match and customer has custom_price
       if (!bestMatch && matchedCustomer.custom_price) {
         const customerPrice = Number(matchedCustomer.custom_price);
         if (Math.abs(customerPrice - amountNumeric) <= customerPrice * 0.1) {
           if (matchedCustomer.plan_id) {
-            const { data: plan } = await supabaseAdmin
-              .from('plans')
-              .select('duration_days, plan_name')
-              .eq('id', matchedCustomer.plan_id)
-              .maybeSingle();
-            if (plan) {
-              durationDays = plan.duration_days;
-              matchedPlanName = plan.plan_name;
+            const currentPlanFallback = allPlans.find((p: any) => p.id === matchedCustomer.plan_id);
+            if (currentPlanFallback) {
+              bestMatch = currentPlanFallback;
+              console.log(`[Cakto] Fallback custom_price: ${currentPlanFallback.plan_name} (R$ ${customerPrice} custom) | Valor pago: R$ ${amountNumeric.toFixed(2)}`);
             }
           }
+        }
+      }
+
+      // 4) SAFETY: If still no match, log warning - do NOT silently use current plan
+      if (!bestMatch) {
+        console.warn(`[Cakto] ⚠️ NENHUM plano encontrado para valor R$ ${amountNumeric.toFixed(2)}. Usando duração padrão de 30 dias (Mensal).`);
+        // Try to at least find the Mensal plan as safe default
+        const mensalPlan = allPlans.find((p: any) => p.duration_days === 30 && p.plan_name.toLowerCase().includes('mensal') && !p.plan_name.toLowerCase().includes('tela') && !p.plan_name.toLowerCase().includes('cartão'));
+        if (mensalPlan) {
+          bestMatch = mensalPlan;
+          console.log(`[Cakto] Usando Mensal como fallback seguro: ${mensalPlan.plan_name}`);
         }
       }
 
