@@ -5,6 +5,19 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+const MESSAGE_ATTEMPT_TIMEOUT_MS = 8000;
+const MAX_TEXT_SEND_WINDOW_MS = 30000;
+const MAX_IMAGE_SEND_WINDOW_MS = 12000;
+
+async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs = MESSAGE_ATTEMPT_TIMEOUT_MS): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
 interface ZapResponderSession {
   id: string;
   name: string;
@@ -1360,57 +1373,21 @@ async function enviarMensagemTexto(
     const chatIdCus = `${formattedNumber}@c.us`;
     const chatIdNet = `${formattedNumber}@s.whatsapp.net`;
     
-    // List of endpoints to try in order (with both chatId formats)
+    // List of endpoints to try in order (prioritizing the currently working endpoint first)
     const endpoints = [
-      // 1. Direct message endpoint with @c.us (unofficial WhatsApp)
-      {
-        url: `${apiBaseUrl}/mensagem/enviar`,
-        body: { chatId: chatIdCus, departamento: departmentId, content: { type: 'text', text } },
-        name: 'mensagem/enviar (@c.us)'
-      },
-      // 2. Direct message endpoint with @s.whatsapp.net
-      {
-        url: `${apiBaseUrl}/mensagem/enviar`,
-        body: { chatId: chatIdNet, departamento: departmentId, content: { type: 'text', text } },
-        name: 'mensagem/enviar (@s.whatsapp.net)'
-      },
-      // 3. Send message with department @c.us
-      {
-        url: `${apiBaseUrl}/mensagem`,
-        body: { chatId: chatIdCus, departamento: departmentId, tipo: 'text', texto: text },
-        name: 'mensagem (@c.us)'
-      },
-      // 4. Department message endpoint @c.us
-      {
-        url: `${apiBaseUrl}/departamento/${departmentId}/mensagem`,
-        body: { chatId: chatIdCus, content: text, type: 'text' },
-        name: 'departamento/mensagem (@c.us)'
-      },
-      // 5. Send text endpoint (numero simples)
-      {
-        url: `${apiBaseUrl}/enviar-texto`,
-        body: { numero: formattedNumber, mensagem: text, departamento: departmentId },
-        name: 'enviar-texto'
-      },
-      // 6. Chat send endpoint @c.us
-      {
-        url: `${apiBaseUrl}/chat/send`,
-        body: { to: chatIdCus, message: text, departmentId },
-        name: 'chat/send (@c.us)'
-      },
-      // 7. WhatsApp message (text as string) - algumas APIs esperam string e montam text.body internamente
-      {
-        url: `${apiBaseUrl}/whatsapp/message/${departmentId}`,
-        body: { type: 'text', number: formattedNumber, text },
-        name: 'whatsapp/message (text-string)'
-      },
-      // 8. WhatsApp message (message field)
+      // 1. WhatsApp message (message field) - currently the most reliable for this provider
       {
         url: `${apiBaseUrl}/whatsapp/message/${departmentId}`,
         body: { type: 'text', number: formattedNumber, message: text },
         name: 'whatsapp/message (message)'
       },
-      // 7. WhatsApp Cloud API-style payload
+      // 2. WhatsApp message (text as string)
+      {
+        url: `${apiBaseUrl}/whatsapp/message/${departmentId}`,
+        body: { type: 'text', number: formattedNumber, text },
+        name: 'whatsapp/message (text-string)'
+      },
+      // 3. WhatsApp Cloud API-style payload
       {
         url: `${apiBaseUrl}/whatsapp/message/${departmentId}`,
         body: {
@@ -1422,27 +1399,74 @@ async function enviarMensagemTexto(
         },
         name: 'whatsapp/message (cloud-api)'
       },
-      // 8. WhatsApp message (simple body format)
+      // 4. WhatsApp message (simple body format)
       {
         url: `${apiBaseUrl}/whatsapp/message/${departmentId}`,
         body: { type: 'text', number: formattedNumber, body: text },
         name: 'whatsapp/message (body)'
       },
-      // 9. WhatsApp message (text object format)
+      // 5. WhatsApp message (text object format)
       {
         url: `${apiBaseUrl}/whatsapp/message/${departmentId}`,
         body: { type: 'text', number: formattedNumber, text: { body: text } },
         name: 'whatsapp/message (text.body)'
       },
+      // 6. Direct message endpoint with @c.us (legacy fallback)
+      {
+        url: `${apiBaseUrl}/mensagem/enviar`,
+        body: { chatId: chatIdCus, departamento: departmentId, content: { type: 'text', text } },
+        name: 'mensagem/enviar (@c.us)'
+      },
+      // 7. Direct message endpoint with @s.whatsapp.net (legacy fallback)
+      {
+        url: `${apiBaseUrl}/mensagem/enviar`,
+        body: { chatId: chatIdNet, departamento: departmentId, content: { type: 'text', text } },
+        name: 'mensagem/enviar (@s.whatsapp.net)'
+      },
+      // 8. Send message with department @c.us (legacy fallback)
+      {
+        url: `${apiBaseUrl}/mensagem`,
+        body: { chatId: chatIdCus, departamento: departmentId, tipo: 'text', texto: text },
+        name: 'mensagem (@c.us)'
+      },
+      // 9. Department message endpoint @c.us (legacy fallback)
+      {
+        url: `${apiBaseUrl}/departamento/${departmentId}/mensagem`,
+        body: { chatId: chatIdCus, content: text, type: 'text' },
+        name: 'departamento/mensagem (@c.us)'
+      },
+      // 10. Send text endpoint (legacy fallback)
+      {
+        url: `${apiBaseUrl}/enviar-texto`,
+        body: { numero: formattedNumber, mensagem: text, departamento: departmentId },
+        name: 'enviar-texto'
+      },
+      // 11. Chat send endpoint @c.us (legacy fallback)
+      {
+        url: `${apiBaseUrl}/chat/send`,
+        body: { to: chatIdCus, message: text, departmentId },
+        name: 'chat/send (@c.us)'
+      },
     ];
     
+    const startedAt = Date.now();
+
     for (const endpoint of endpoints) {
+      const elapsedMs = Date.now() - startedAt;
+      if (elapsedMs >= MAX_TEXT_SEND_WINDOW_MS) {
+        console.warn(`Text send exceeded max window (${MAX_TEXT_SEND_WINDOW_MS}ms). Stopping retries.`);
+        break;
+      }
+
+      const remainingMs = MAX_TEXT_SEND_WINDOW_MS - elapsedMs;
+      const requestTimeoutMs = Math.max(2500, Math.min(MESSAGE_ATTEMPT_TIMEOUT_MS, remainingMs));
+
       console.log(`Trying endpoint: ${endpoint.name}`);
       console.log(`URL: ${endpoint.url}`);
       console.log(`Body: ${JSON.stringify(endpoint.body)}`);
       
       try {
-        const response = await fetch(endpoint.url, {
+        const response = await fetchWithTimeout(endpoint.url, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${token}`,
@@ -1450,7 +1474,7 @@ async function enviarMensagemTexto(
             'Accept': 'application/json',
           },
           body: JSON.stringify(endpoint.body),
-        });
+        }, requestTimeoutMs);
         
         const responseText = await response.text();
         console.log(`Response status: ${response.status}`);
@@ -2140,14 +2164,25 @@ Deno.serve(async (req) => {
               },
             ];
 
+            const imageStartedAt = Date.now();
+
             for (const ep of imageEndpoints) {
+              const elapsedMs = Date.now() - imageStartedAt;
+              if (elapsedMs >= MAX_IMAGE_SEND_WINDOW_MS) {
+                console.warn(`[Image] Max image window reached (${MAX_IMAGE_SEND_WINDOW_MS}ms). Skipping remaining image endpoints.`);
+                break;
+              }
+
+              const remainingMs = MAX_IMAGE_SEND_WINDOW_MS - elapsedMs;
+              const requestTimeoutMs = Math.max(2000, Math.min(MESSAGE_ATTEMPT_TIMEOUT_MS, remainingMs));
+
               try {
                 console.log(`[Image] Trying: ${ep.name}`);
-                const resp = await fetch(ep.url, {
+                const resp = await fetchWithTimeout(ep.url, {
                   method: 'POST',
                   headers: { 'Authorization': `Bearer ${zapToken}`, 'Content-Type': 'application/json' },
                   body: JSON.stringify(ep.body),
-                });
+                }, requestTimeoutMs);
                 const respText = await resp.text();
                 console.log(`[Image] ${ep.name}: status=${resp.status}, body=${respText.substring(0, 200)}`);
 
