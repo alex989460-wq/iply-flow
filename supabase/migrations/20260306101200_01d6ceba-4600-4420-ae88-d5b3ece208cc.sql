@@ -1,0 +1,1 @@
+UPDATE customers SET extra_months = 0 WHERE id = 'dc135473-2b4c-4a02-8f2d-21cdfc4b694a';
