@@ -1531,6 +1531,29 @@ serve(async (req) => {
       if (renewResults.length === 0) {
         console.log(`[Cakto] Nenhuma renovação no painel externo realizada. Apenas due_date atualizado.`);
       }
+
+      // ── Log failed server renewals to message_logs for visibility ──
+      const failedRenewals = renewResults.filter(r => !r.success);
+      if (failedRenewals.length > 0) {
+        console.error(`[Cakto] ⚠️ FALHA NA RENOVAÇÃO DO SERVIDOR para ${matchedCustomer.name}:`, JSON.stringify(failedRenewals));
+        try {
+          await supabaseAdmin.from('message_logs').insert({
+            user_id: matchedCustomer.created_by,
+            customer_id: matchedCustomer.id,
+            customer_name: matchedCustomer.name,
+            customer_phone: matchedCustomer.phone,
+            message_type: 'server_renewal_failed',
+            source: 'cakto',
+            status: 'error',
+            error_message: `Falha ao renovar no servidor ${serverName}: ${JSON.stringify(failedRenewals)}`,
+            metadata: { server_name: serverName, server_host: serverHost, renewals: failedRenewals, usernames: allUsernames },
+          });
+        } catch (logErr) {
+          console.error('[Cakto] Erro ao registrar falha no message_logs:', logErr);
+        }
+      } else if (renewResults.length > 0) {
+        console.log(`[Cakto] ✅ Todas as renovações no servidor concluídas com sucesso: ${renewResults.map(r => `${r.panel}:${r.username}`).join(', ')}`);
+      }
     }
 
     return new Response(JSON.stringify({
