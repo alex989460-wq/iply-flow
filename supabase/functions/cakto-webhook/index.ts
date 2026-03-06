@@ -12,8 +12,9 @@ serve(async (req) => {
   }
 
   const jsonHeaders = { ...corsHeaders, 'Content-Type': 'application/json' };
+  const MESSAGE_SEND_TIMEOUT_MS = 45000;
 
-  const fetchWithTimeout = async (url: string, init: RequestInit, timeoutMs = 45000): Promise<Response> => {
+  const fetchWithTimeout = async (url: string, init: RequestInit, timeoutMs = MESSAGE_SEND_TIMEOUT_MS): Promise<Response> => {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
@@ -1086,7 +1087,7 @@ serve(async (req) => {
                   image_url: billingSettings?.renewal_image_url || undefined,
                 }),
               },
-              12000,
+              MESSAGE_SEND_TIMEOUT_MS,
             );
             const msgResult = await msgResp.json();
             lastResponse = msgResult;
@@ -1143,7 +1144,7 @@ serve(async (req) => {
                   user_id: matchedCustomer.created_by,
                 }),
               },
-              10000,
+              MESSAGE_SEND_TIMEOUT_MS,
             );
             const templateResult = await templateResp.json();
             console.log(`[Cakto] Template fallback (${templateName}): status=${templateResp.status}`, JSON.stringify(templateResult));
@@ -1224,7 +1225,7 @@ serve(async (req) => {
                 user_id: matchedCustomer.created_by,
               }),
             },
-            10000,
+            MESSAGE_SEND_TIMEOUT_MS,
           );
           const adminResult = await adminResp.json();
           let adminSent = adminResp.ok && adminResult?.success !== false;
@@ -1252,7 +1253,7 @@ serve(async (req) => {
                     user_id: matchedCustomer.created_by,
                   }),
                 },
-                10000,
+                MESSAGE_SEND_TIMEOUT_MS,
               );
               const adminTemplateResult = await adminTemplateResp.json();
               if (adminTemplateResp.ok && adminTemplateResult?.success !== false) {
