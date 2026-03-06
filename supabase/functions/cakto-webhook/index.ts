@@ -13,6 +13,16 @@ serve(async (req) => {
 
   const jsonHeaders = { ...corsHeaders, 'Content-Type': 'application/json' };
 
+  const fetchWithTimeout = async (url: string, init: RequestInit, timeoutMs = 12000): Promise<Response> => {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      return await fetch(url, { ...init, signal: controller.signal });
+    } finally {
+      clearTimeout(timer);
+    }
+  };
+
   try {
     // Validate webhook secret - check global first, then per-reseller
     const globalWebhookSecret = Deno.env.get('CAKTO_WEBHOOK_SECRET');
@@ -1059,7 +1069,7 @@ serve(async (req) => {
         let lastResponse: any = null;
         for (let attempt = 1; attempt <= 2; attempt++) {
           try {
-            const msgResp = await fetch(
+            const msgResp = await fetchWithTimeout(
               `${Deno.env.get('SUPABASE_URL')}/functions/v1/zap-responder`,
               {
                 method: 'POST',
@@ -1076,6 +1086,7 @@ serve(async (req) => {
                   image_url: billingSettings?.renewal_image_url || undefined,
                 }),
               },
+              12000,
             );
             const msgResult = await msgResp.json();
             lastResponse = msgResult;
@@ -1115,7 +1126,7 @@ serve(async (req) => {
           // Fallback: try sending via approved Meta template (works outside 24h window)
           const templateName = billingSettings?.meta_template_name || 'pedido_aprovado';
           try {
-            const templateResp = await fetch(
+            const templateResp = await fetchWithTimeout(
               `${Deno.env.get('SUPABASE_URL')}/functions/v1/zap-responder`,
               {
                 method: 'POST',
@@ -1132,6 +1143,7 @@ serve(async (req) => {
                   user_id: matchedCustomer.created_by,
                 }),
               },
+              10000,
             );
             const templateResult = await templateResp.json();
             console.log(`[Cakto] Template fallback (${templateName}): status=${templateResp.status}`, JSON.stringify(templateResult));
@@ -1196,7 +1208,7 @@ serve(async (req) => {
             : (matchedCustomer.username || '-');
           const adminMsg = `🔔 *Renovação Automática (Cakto)*\n\n👤 Cliente: *${matchedCustomer.name}*\n📞 Tel: ${adminMetaPhone}\n👤 Usuário(s): *${allUsernamesDisplay}*\n🖥️ Telas: *${customersToRenew.length}*\n💰 Valor: *R$ ${amountNumeric.toFixed(2)}*\n📦 Plano: *${matchedPlanName || '-'}*\n🖥️ Servidor: *${adminServerName}*\n📅 Novo vencimento: *${fmtDue}*\n✅ Status: Renovado`;
 
-          const adminResp = await fetch(
+          const adminResp = await fetchWithTimeout(
             `${Deno.env.get('SUPABASE_URL')}/functions/v1/zap-responder`,
             {
               method: 'POST',
@@ -1212,6 +1224,7 @@ serve(async (req) => {
                 user_id: matchedCustomer.created_by,
               }),
             },
+            10000,
           );
           const adminResult = await adminResp.json();
           let adminSent = adminResp.ok && adminResult?.success !== false;
@@ -1222,7 +1235,7 @@ serve(async (req) => {
             console.warn(`[Cakto] Texto admin falhou para ${notificationPhone}. Tentando template fallback...`);
             const adminTemplateName = billingSettings?.meta_template_name || 'pedido_aprovado';
             try {
-              const adminTemplateResp = await fetch(
+              const adminTemplateResp = await fetchWithTimeout(
                 `${Deno.env.get('SUPABASE_URL')}/functions/v1/zap-responder`,
                 {
                   method: 'POST',
@@ -1239,6 +1252,7 @@ serve(async (req) => {
                     user_id: matchedCustomer.created_by,
                   }),
                 },
+                10000,
               );
               const adminTemplateResult = await adminTemplateResp.json();
               if (adminTemplateResp.ok && adminTemplateResult?.success !== false) {
@@ -1555,19 +1569,19 @@ serve(async (req) => {
               retryResp = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/vplay-renew`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'x-cakto-webhook-secret': Deno.env.get('CAKTO_WEBHOOK_SECRET') || '' },
-                body: JSON.stringify({ username: retryUsername, duration_days: durationDays, customer_id: matchedCustomer.id }),
+                body: JSON.stringify({ username: retryUsername, new_due_date: newDueDate, customer_id: matchedCustomer.id }),
               });
             } else if (retryPanel === 'the-best') {
               retryResp = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/the-best-renew`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'x-cakto-webhook-secret': Deno.env.get('CAKTO_WEBHOOK_SECRET') || '' },
-                body: JSON.stringify({ username: retryUsername, duration_days: durationDays, customer_id: matchedCustomer.id }),
+                body: JSON.stringify({ username: retryUsername, months: renewMonths, customer_id: matchedCustomer.id }),
               });
             } else if (retryPanel === 'rush') {
               retryResp = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/rush-renew`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'x-cakto-webhook-secret': Deno.env.get('CAKTO_WEBHOOK_SECRET') || '' },
-                body: JSON.stringify({ username: retryUsername, duration_days: durationDays, customer_id: matchedCustomer.id }),
+                body: JSON.stringify({ username: retryUsername, months: renewMonths, customer_id: matchedCustomer.id }),
               });
             }
 
@@ -1613,7 +1627,7 @@ serve(async (req) => {
             const failedUsernames = failedRenewals.map(r => r.username).join(', ');
             const alertMsg = `🚨 *ALERTA: Falha na Renovação do Servidor*\n\n👤 Cliente: *${matchedCustomer.name}*\n📞 Tel: ${matchedCustomer.phone}\n👤 Usuário(s): *${failedUsernames}*\n🖥️ Servidor: *${serverName}*\n📦 Plano: *${matchedPlanName || '-'}*\n📅 Vencimento atualizado: *${newDueDate}*\n\n⚠️ O vencimento foi atualizado no gestor, mas a renovação NO PAINEL DO SERVIDOR falhou mesmo após retry.\n\n🔧 Ação necessária: Renovar manualmente no painel.`;
 
-            await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/zap-responder`, {
+            await fetchWithTimeout(`${Deno.env.get('SUPABASE_URL')}/functions/v1/zap-responder`, {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
