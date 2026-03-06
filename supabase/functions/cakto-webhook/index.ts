@@ -13,7 +13,7 @@ serve(async (req) => {
 
   const jsonHeaders = { ...corsHeaders, 'Content-Type': 'application/json' };
 
-  const fetchWithTimeout = async (url: string, init: RequestInit, timeoutMs = 12000): Promise<Response> => {
+  const fetchWithTimeout = async (url: string, init: RequestInit, timeoutMs = 45000): Promise<Response> => {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
