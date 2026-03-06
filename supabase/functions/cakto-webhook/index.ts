@@ -1532,10 +1532,64 @@ serve(async (req) => {
         console.log(`[Cakto] Nenhuma renovação no painel externo realizada. Apenas due_date atualizado.`);
       }
 
-      // ── Log failed server renewals to message_logs for visibility ──
-      const failedRenewals = renewResults.filter(r => !r.success);
+      // ── Retry failed server renewals once before giving up ──
+      let failedRenewals = renewResults.filter(r => !r.success);
       if (failedRenewals.length > 0) {
-        console.error(`[Cakto] ⚠️ FALHA NA RENOVAÇÃO DO SERVIDOR para ${matchedCustomer.name}:`, JSON.stringify(failedRenewals));
+        console.warn(`[Cakto] ⚠️ ${failedRenewals.length} renovação(ões) falharam. Tentando retry em 5s...`);
+        await new Promise(resolve => setTimeout(resolve, 5000));
+
+        for (const failed of failedRenewals) {
+          try {
+            const retryPanel = failed.panel;
+            const retryUsername = failed.username;
+            console.log(`[Cakto] 🔄 Retry: ${retryPanel} / ${retryUsername}`);
+
+            let retryResp: Response | null = null;
+            if (retryPanel === 'natv') {
+              retryResp = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/natv-renew`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'x-cakto-webhook-secret': Deno.env.get('CAKTO_WEBHOOK_SECRET') || '' },
+                body: JSON.stringify({ username: retryUsername, duration_days: durationDays, customer_id: matchedCustomer.id }),
+              });
+            } else if (retryPanel === 'vplay') {
+              retryResp = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/vplay-renew`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'x-cakto-webhook-secret': Deno.env.get('CAKTO_WEBHOOK_SECRET') || '' },
+                body: JSON.stringify({ username: retryUsername, duration_days: durationDays, customer_id: matchedCustomer.id }),
+              });
+            } else if (retryPanel === 'the-best') {
+              retryResp = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/the-best-renew`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'x-cakto-webhook-secret': Deno.env.get('CAKTO_WEBHOOK_SECRET') || '' },
+                body: JSON.stringify({ username: retryUsername, duration_days: durationDays, customer_id: matchedCustomer.id }),
+              });
+            } else if (retryPanel === 'rush') {
+              retryResp = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/rush-renew`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'x-cakto-webhook-secret': Deno.env.get('CAKTO_WEBHOOK_SECRET') || '' },
+                body: JSON.stringify({ username: retryUsername, duration_days: durationDays, customer_id: matchedCustomer.id }),
+              });
+            }
+
+            if (retryResp && retryResp.ok) {
+              const retryResult = await retryResp.json();
+              if (retryResult?.success !== false) {
+                console.log(`[Cakto] ✅ Retry bem-sucedido: ${retryPanel}/${retryUsername}`);
+                failed.success = true;
+                failed.retried = true;
+              }
+            }
+          } catch (retryErr) {
+            console.error(`[Cakto] Retry falhou para ${failed.panel}/${failed.username}:`, retryErr);
+          }
+        }
+
+        // Re-check after retry
+        failedRenewals = renewResults.filter(r => !r.success);
+      }
+
+      if (failedRenewals.length > 0) {
+        console.error(`[Cakto] ❌ FALHA DEFINITIVA NA RENOVAÇÃO DO SERVIDOR para ${matchedCustomer.name}:`, JSON.stringify(failedRenewals));
         try {
           await supabaseAdmin.from('message_logs').insert({
             user_id: matchedCustomer.created_by,
@@ -1545,11 +1599,38 @@ serve(async (req) => {
             message_type: 'server_renewal_failed',
             source: 'cakto',
             status: 'error',
-            error_message: `Falha ao renovar no servidor ${serverName}: ${JSON.stringify(failedRenewals)}`,
+            error_message: `Falha ao renovar no servidor ${serverName} (após retry): ${JSON.stringify(failedRenewals)}`,
             metadata: { server_name: serverName, server_host: serverHost, renewals: failedRenewals, usernames: allUsernames },
           });
         } catch (logErr) {
           console.error('[Cakto] Erro ao registrar falha no message_logs:', logErr);
+        }
+
+        // ── Send WhatsApp alert to admin about the failure ──
+        const notifPhone = billingSettings?.notification_phone;
+        if (zapSettings?.selected_department_id && notifPhone) {
+          try {
+            const failedUsernames = failedRenewals.map(r => r.username).join(', ');
+            const alertMsg = `🚨 *ALERTA: Falha na Renovação do Servidor*\n\n👤 Cliente: *${matchedCustomer.name}*\n📞 Tel: ${matchedCustomer.phone}\n👤 Usuário(s): *${failedUsernames}*\n🖥️ Servidor: *${serverName}*\n📦 Plano: *${matchedPlanName || '-'}*\n📅 Vencimento atualizado: *${newDueDate}*\n\n⚠️ O vencimento foi atualizado no gestor, mas a renovação NO PAINEL DO SERVIDOR falhou mesmo após retry.\n\n🔧 Ação necessária: Renovar manualmente no painel.`;
+
+            await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/zap-responder`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+              },
+              body: JSON.stringify({
+                action: 'enviar-mensagem',
+                department_id: zapSettings.selected_department_id,
+                number: notifPhone,
+                text: alertMsg,
+                user_id: matchedCustomer.created_by,
+              }),
+            });
+            console.log(`[Cakto] 🚨 Alerta de falha enviado para admin: ${notifPhone}`);
+          } catch (alertErr) {
+            console.error('[Cakto] Erro ao enviar alerta de falha para admin:', alertErr);
+          }
         }
       } else if (renewResults.length > 0) {
         console.log(`[Cakto] ✅ Todas as renovações no servidor concluídas com sucesso: ${renewResults.map(r => `${r.panel}:${r.username}`).join(', ')}`);
