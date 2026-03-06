@@ -1620,9 +1620,27 @@ serve(async (req) => {
           console.error('[Cakto] Erro ao registrar falha no message_logs:', logErr);
         }
 
-        // ── Send WhatsApp alert to admin about the failure ──
-        const notifPhone = billingSettings?.notification_phone;
-        if (zapSettings?.selected_department_id && notifPhone) {
+      // ── Send WhatsApp alert to admin about the failure ──
+        // Re-fetch settings since zapSettings/billingSettings may be out of scope
+        let failZapDeptId = '';
+        let failNotifPhone = '';
+        try {
+          const { data: failZapSettings } = await supabaseAdmin
+            .from('zap_responder_settings')
+            .select('selected_department_id')
+            .eq('user_id', matchedCustomer.created_by)
+            .maybeSingle();
+          const { data: failBillingSettings } = await supabaseAdmin
+            .from('billing_settings')
+            .select('notification_phone')
+            .eq('user_id', matchedCustomer.created_by)
+            .maybeSingle();
+          failZapDeptId = failZapSettings?.selected_department_id || '';
+          failNotifPhone = failBillingSettings?.notification_phone || '';
+        } catch (settingsErr) {
+          console.error('[Cakto] Erro ao buscar settings para alerta de falha:', settingsErr);
+        }
+        if (failZapDeptId && failNotifPhone) {
           try {
             const failedUsernames = failedRenewals.map(r => r.username).join(', ');
             const alertMsg = `🚨 *ALERTA: Falha na Renovação do Servidor*\n\n👤 Cliente: *${matchedCustomer.name}*\n📞 Tel: ${matchedCustomer.phone}\n👤 Usuário(s): *${failedUsernames}*\n🖥️ Servidor: *${serverName}*\n📦 Plano: *${matchedPlanName || '-'}*\n📅 Vencimento atualizado: *${newDueDate}*\n\n⚠️ O vencimento foi atualizado no gestor, mas a renovação NO PAINEL DO SERVIDOR falhou mesmo após retry.\n\n🔧 Ação necessária: Renovar manualmente no painel.`;
@@ -1635,13 +1653,13 @@ serve(async (req) => {
               },
               body: JSON.stringify({
                 action: 'enviar-mensagem',
-                department_id: zapSettings.selected_department_id,
-                number: notifPhone,
+                department_id: failZapDeptId,
+                number: failNotifPhone,
                 text: alertMsg,
                 user_id: matchedCustomer.created_by,
               }),
             });
-            console.log(`[Cakto] 🚨 Alerta de falha enviado para admin: ${notifPhone}`);
+            console.log(`[Cakto] 🚨 Alerta de falha enviado para admin: ${failNotifPhone}`);
           } catch (alertErr) {
             console.error('[Cakto] Erro ao enviar alerta de falha para admin:', alertErr);
           }
