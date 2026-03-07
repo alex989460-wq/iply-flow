@@ -110,11 +110,20 @@ serve(async (req) => {
 
       const phoneDigits = phone.replace(/\D/g, '');
 
-      // Clear previous pending selections for this phone
+      // Clear previous pending selections for this phone (unused only)
       await supabase
         .from('pending_renewal_selections')
         .delete()
         .eq('phone_normalized', phoneDigits)
+        .eq('used', false);
+
+      // Also clear with country code variants
+      const phoneWithCC = phoneDigits.startsWith('55') ? phoneDigits : '55' + phoneDigits;
+      const phoneWithoutCC = phoneDigits.startsWith('55') ? phoneDigits.slice(2) : phoneDigits;
+      await supabase
+        .from('pending_renewal_selections')
+        .delete()
+        .in('phone_normalized', [phoneWithCC, phoneWithoutCC])
         .eq('used', false);
 
       // Insert new selections

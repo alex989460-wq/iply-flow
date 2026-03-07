@@ -1,0 +1,1 @@
+ALTER TABLE pending_renewal_selections ALTER COLUMN expires_at SET DEFAULT (now() + interval '7 days');
