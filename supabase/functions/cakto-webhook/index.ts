@@ -823,8 +823,8 @@ serve(async (req) => {
       }
     }
 
-    // ── Conflict detection: multiple customers with same due_date (skip if multi-screen) ──
-    if (allMatchedCustomers.length > 1 && !isMultiScreen && !multiRenewalCompleted) {
+    // ── Conflict detection: multiple customers with same due_date (skip if multi-screen or pre-selected) ──
+    if (allMatchedCustomers.length > 1 && !isMultiScreen && !multiRenewalCompleted && !hasPreSelection) {
       const todayStr = today.toISOString().split('T')[0];
       // Check if 2+ customers share the same due_date (or both expired)
       const sameDueCustomers = allMatchedCustomers.filter((c: any) => {
