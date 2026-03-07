@@ -593,9 +593,19 @@ serve(async (req) => {
     let bestMatch: any = null;
 
     if (amountNumeric > 0 && allPlans && allPlans.length > 0) {
-      // 1) If customer already has a plan, prioritize keeping it
-      //    Only switch if paid amount EXACTLY matches a DIFFERENT plan
-      if (matchedCustomer.plan_id) {
+      // 0) FIRST: Check if any plan has an EXACT price match (±0.1%) - highest priority
+      //    This prevents collisions like R$90.00 (Mensal 3 Telas) vs R$90.05 (Trimestral)
+      const exactPlanMatch = allPlans.find((p: any) => {
+        const diff = Math.abs(p.price - amountNumeric);
+        return diff <= p.price * 0.001; // ±0.1% = nearly identical
+      });
+      if (exactPlanMatch) {
+        bestMatch = exactPlanMatch;
+        console.log(`[Cakto] Match EXATO de preço: ${exactPlanMatch.plan_name} (R$ ${exactPlanMatch.price}) = Valor pago: R$ ${amountNumeric.toFixed(2)}`);
+      }
+
+      // 1) If no exact match, check current plan (±1%) or other plans
+      if (!bestMatch && matchedCustomer.plan_id) {
         const currentPlan = allPlans.find((p: any) => p.id === matchedCustomer.plan_id);
         if (currentPlan) {
           const customerPrice = matchedCustomer.custom_price ? Number(matchedCustomer.custom_price) : null;
@@ -606,10 +616,21 @@ serve(async (req) => {
           // Check if another plan matches the amount exactly (±1%)
           const exactOtherPlan = allPlans.find((p: any) => p.id !== currentPlan.id && Math.abs(p.price - amountNumeric) <= p.price * 0.01);
           
-          if (currentPlanPriceMatches) {
-            // Current plan price matches paid amount - keep it
+          if (currentPlanPriceMatches && !exactOtherPlan) {
+            // Current plan price matches AND no other plan is closer - keep it
             bestMatch = currentPlan;
             console.log(`[Cakto] Mantendo plano atual: ${currentPlan.plan_name} (R$ ${currentPlan.price}) | Valor pago: R$ ${amountNumeric.toFixed(2)} (preço do plano bate)`);
+          } else if (currentPlanPriceMatches && exactOtherPlan) {
+            // Both match within ±1% - pick the one with the CLOSEST price
+            const diffCurrent = Math.abs(currentPlan.price - amountNumeric);
+            const diffOther = Math.abs(exactOtherPlan.price - amountNumeric);
+            if (diffOther < diffCurrent) {
+              bestMatch = exactOtherPlan;
+              console.log(`[Cakto] Outro plano mais próximo: ${exactOtherPlan.plan_name} (R$ ${exactOtherPlan.price}) vs atual ${currentPlan.plan_name} (R$ ${currentPlan.price}) | Valor pago: R$ ${amountNumeric.toFixed(2)}`);
+            } else {
+              bestMatch = currentPlan;
+              console.log(`[Cakto] Mantendo plano atual (mais próximo): ${currentPlan.plan_name} (R$ ${currentPlan.price}) | Valor pago: R$ ${amountNumeric.toFixed(2)}`);
+            }
           } else if (exactOtherPlan) {
             // Another plan matches exactly - switch to it
             bestMatch = exactOtherPlan;
