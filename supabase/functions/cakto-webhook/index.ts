@@ -489,32 +489,57 @@ serve(async (req) => {
     {
       const { data: pendingSelections } = await supabaseAdmin
         .from('pending_renewal_selections')
-        .select('customer_id')
+        .select('id, customer_id')
         .in('phone_normalized', [...searchVariants])
         .eq('used', false)
         .gt('expires_at', new Date().toISOString());
 
       if (pendingSelections && pendingSelections.length > 0) {
-        pendingSelectionIds = pendingSelections.map((s: any) => s.customer_id);
+        const pendingSelectionRowIds = pendingSelections.map((s: any) => s.id);
+        pendingSelectionIds = [...new Set(pendingSelections.map((s: any) => s.customer_id))];
         console.log(`[Cakto] Seleção pendente encontrada: ${pendingSelectionIds.length} cliente(s) pré-selecionado(s)`);
 
-        // Filter allMatchedCustomers to only those selected
-        const selectedCustomers = allMatchedCustomers.filter((c: any) => pendingSelectionIds.includes(c.id));
-        if (selectedCustomers.length > 0) {
-          allMatchedCustomers = selectedCustomers;
-          hasPreSelection = true; // External site validated the selection - skip conflict detection
-          if (selectedCustomers.length > 1) {
-            preSelectedMultiRenewal = true;
-          }
-          console.log(`[Cakto] ✅ Usando ${selectedCustomers.length} cliente(s) pré-selecionado(s) do site externo (confiável, sem conflito)`);
+        // TRUST selected IDs as source of truth (do not depend on phone-matched list)
+        let selectedByIdsQuery = supabaseAdmin
+          .from('customers')
+          .select('id, name, phone, username, server_id, plan_id, due_date, created_by, status, created_at, custom_price, screens, notes, start_date, extra_months')
+          .in('id', pendingSelectionIds)
+          .eq('status', 'ativa');
+
+        if (webhookOwnerId) {
+          selectedByIdsQuery = selectedByIdsQuery.eq('created_by', webhookOwnerId);
         }
 
-        // Mark selections as used
-        await supabaseAdmin
-          .from('pending_renewal_selections')
-          .update({ used: true })
-          .in('phone_normalized', [...searchVariants])
-          .eq('used', false);
+        const { data: selectedByIds } = await selectedByIdsQuery;
+
+        if (selectedByIds && selectedByIds.length > 0) {
+          allMatchedCustomers = selectedByIds;
+
+          // Keep deterministic ordering (closest due first)
+          allMatchedCustomers.sort((a: any, b: any) => {
+            const dateA = a.due_date ? new Date(a.due_date + 'T00:00:00').getTime() : 0;
+            const dateB = b.due_date ? new Date(b.due_date + 'T00:00:00').getTime() : 0;
+            if (dateA !== dateB) return dateA - dateB;
+            const score = (c: any) =>
+              (c.username?.trim() ? 2 : 0) +
+              (c.server_id ? 2 : 0) +
+              (c.plan_id ? 1 : 0);
+            return score(b) - score(a);
+          });
+
+          hasPreSelection = true;
+          preSelectedMultiRenewal = selectedByIds.length > 1;
+          console.log(`[Cakto] ✅ Usando ${selectedByIds.length} cliente(s) pré-selecionado(s) do site externo (IDs confiáveis)`);
+
+          // Mark ONLY the consumed selection rows as used
+          await supabaseAdmin
+            .from('pending_renewal_selections')
+            .update({ used: true })
+            .in('id', pendingSelectionRowIds)
+            .eq('used', false);
+        } else {
+          console.warn('[Cakto] Seleção pendente encontrada, mas nenhum customer_id válido/ativo para este owner.');
+        }
       }
     }
 
