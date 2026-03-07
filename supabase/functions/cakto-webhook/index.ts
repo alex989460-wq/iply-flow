@@ -470,6 +470,7 @@ serve(async (req) => {
     // ── Check for pending renewal selections (from external payment site) ──
     let pendingSelectionIds: string[] = [];
     let preSelectedMultiRenewal = false;
+    let hasPreSelection = false; // Flag: external site made a selection - TRUST it
     {
       const { data: pendingSelections } = await supabaseAdmin
         .from('pending_renewal_selections')
@@ -486,10 +487,11 @@ serve(async (req) => {
         const selectedCustomers = allMatchedCustomers.filter((c: any) => pendingSelectionIds.includes(c.id));
         if (selectedCustomers.length > 0) {
           allMatchedCustomers = selectedCustomers;
+          hasPreSelection = true; // External site validated the selection - skip conflict detection
           if (selectedCustomers.length > 1) {
             preSelectedMultiRenewal = true;
           }
-          console.log(`[Cakto] Usando ${selectedCustomers.length} cliente(s) pré-selecionado(s) do site externo`);
+          console.log(`[Cakto] ✅ Usando ${selectedCustomers.length} cliente(s) pré-selecionado(s) do site externo (confiável, sem conflito)`);
         }
 
         // Mark selections as used
@@ -591,9 +593,19 @@ serve(async (req) => {
     let bestMatch: any = null;
 
     if (amountNumeric > 0 && allPlans && allPlans.length > 0) {
-      // 1) If customer already has a plan, prioritize keeping it
-      //    Only switch if paid amount EXACTLY matches a DIFFERENT plan
-      if (matchedCustomer.plan_id) {
+      // 0) FIRST: Check if any plan has an EXACT price match (±0.1%) - highest priority
+      //    This prevents collisions like R$90.00 (Mensal 3 Telas) vs R$90.05 (Trimestral)
+      const exactPlanMatch = allPlans.find((p: any) => {
+        const diff = Math.abs(p.price - amountNumeric);
+        return diff <= p.price * 0.001; // ±0.1% = nearly identical
+      });
+      if (exactPlanMatch) {
+        bestMatch = exactPlanMatch;
+        console.log(`[Cakto] Match EXATO de preço: ${exactPlanMatch.plan_name} (R$ ${exactPlanMatch.price}) = Valor pago: R$ ${amountNumeric.toFixed(2)}`);
+      }
+
+      // 1) If no exact match, check current plan (±1%) or other plans
+      if (!bestMatch && matchedCustomer.plan_id) {
         const currentPlan = allPlans.find((p: any) => p.id === matchedCustomer.plan_id);
         if (currentPlan) {
           const customerPrice = matchedCustomer.custom_price ? Number(matchedCustomer.custom_price) : null;
@@ -604,10 +616,21 @@ serve(async (req) => {
           // Check if another plan matches the amount exactly (±1%)
           const exactOtherPlan = allPlans.find((p: any) => p.id !== currentPlan.id && Math.abs(p.price - amountNumeric) <= p.price * 0.01);
           
-          if (currentPlanPriceMatches) {
-            // Current plan price matches paid amount - keep it
+          if (currentPlanPriceMatches && !exactOtherPlan) {
+            // Current plan price matches AND no other plan is closer - keep it
             bestMatch = currentPlan;
             console.log(`[Cakto] Mantendo plano atual: ${currentPlan.plan_name} (R$ ${currentPlan.price}) | Valor pago: R$ ${amountNumeric.toFixed(2)} (preço do plano bate)`);
+          } else if (currentPlanPriceMatches && exactOtherPlan) {
+            // Both match within ±1% - pick the one with the CLOSEST price
+            const diffCurrent = Math.abs(currentPlan.price - amountNumeric);
+            const diffOther = Math.abs(exactOtherPlan.price - amountNumeric);
+            if (diffOther < diffCurrent) {
+              bestMatch = exactOtherPlan;
+              console.log(`[Cakto] Outro plano mais próximo: ${exactOtherPlan.plan_name} (R$ ${exactOtherPlan.price}) vs atual ${currentPlan.plan_name} (R$ ${currentPlan.price}) | Valor pago: R$ ${amountNumeric.toFixed(2)}`);
+            } else {
+              bestMatch = currentPlan;
+              console.log(`[Cakto] Mantendo plano atual (mais próximo): ${currentPlan.plan_name} (R$ ${currentPlan.price}) | Valor pago: R$ ${amountNumeric.toFixed(2)}`);
+            }
           } else if (exactOtherPlan) {
             // Another plan matches exactly - switch to it
             bestMatch = exactOtherPlan;
@@ -694,42 +717,68 @@ serve(async (req) => {
     if (preSelectedMultiRenewal && allMatchedCustomers.length > 1) {
       console.log(`[Cakto] Multi-renovação pré-selecionada: ${allMatchedCustomers.length} clientes`);
 
-      // Validate amount: sum of individual prices must match paid amount (±15% tolerance)
-      const loadPrices = await Promise.all(allMatchedCustomers.map(async (c: any) => {
-        if (c.custom_price) return Number(c.custom_price);
-        if (c.plan_id) {
-          const { data: p } = await supabaseAdmin.from('plans').select('price').eq('id', c.plan_id).maybeSingle();
-          return p ? Number(p.price) : 0;
-        }
-        return 0;
-      }));
-      const expectedTotal = loadPrices.reduce((s, p) => s + p, 0);
-      const tolerance = expectedTotal * 0.15;
-
-      if (expectedTotal > 0 && Math.abs(amountNumeric - expectedTotal) > tolerance) {
-        console.warn(`[Cakto] Valor pago R$ ${amountNumeric.toFixed(2)} não corresponde ao total esperado R$ ${expectedTotal.toFixed(2)} para ${allMatchedCustomers.length} clientes. Ignorando pré-seleção.`);
-        // Fall through to single-customer logic below
+      // When pre-selected from external site, TRUST the selection - skip amount validation
+      // The external site already validated which customers the client chose
+      if (hasPreSelection) {
+        console.log(`[Cakto] ✅ Pré-seleção confiável do site externo. Pulando validação de valor.`);
       } else {
-        console.log(`[Cakto] Valor validado: pago R$ ${amountNumeric.toFixed(2)} ≈ esperado R$ ${expectedTotal.toFixed(2)}`);
+        // Only validate amount if NOT pre-selected (fallback safety)
+        const loadPrices = await Promise.all(allMatchedCustomers.map(async (c: any) => {
+          if (c.custom_price) return Number(c.custom_price);
+          if (c.plan_id) {
+            const { data: p } = await supabaseAdmin.from('plans').select('price').eq('id', c.plan_id).maybeSingle();
+            return p ? Number(p.price) : 0;
+          }
+          return 0;
+        }));
+        const expectedTotal = loadPrices.reduce((s, p) => s + p, 0);
+        const tolerance = expectedTotal * 0.15;
+
+        if (expectedTotal > 0 && Math.abs(amountNumeric - expectedTotal) > tolerance) {
+          console.warn(`[Cakto] Valor pago R$ ${amountNumeric.toFixed(2)} não corresponde ao total esperado R$ ${expectedTotal.toFixed(2)} para ${allMatchedCustomers.length} clientes. Ignorando pré-seleção.`);
+          // Fall through to single-customer logic below
+          preSelectedMultiRenewal = false;
+        }
+      }
+
+      if (preSelectedMultiRenewal) {
         const todayStr = today.toISOString().split('T')[0];
         const amountPerCustomer = allMatchedCustomers.length > 0 ? amountNumeric / allMatchedCustomers.length : amountNumeric;
 
         for (const cust of allMatchedCustomers) {
+          // Per-customer plan matching: determine duration for EACH customer individually
+          let custDurationDays = durationDays;
+          let custMonthsToAdd = monthsToAdd;
+          let custBestMatch = bestMatch;
+          let custPlanName = matchedPlanName;
+
+          // If customer has their own plan, try to match the per-customer amount
+          if (cust.plan_id) {
+            const { data: custPlan } = await supabaseAdmin.from('plans').select('id, plan_name, duration_days, price').eq('id', cust.plan_id).maybeSingle();
+            if (custPlan) {
+              custBestMatch = custPlan;
+              custDurationDays = custPlan.duration_days;
+              custPlanName = custPlan.plan_name;
+              const daysToMonthsMap: Record<number, number> = { 30: 1, 90: 3, 180: 6, 365: 12 };
+              custMonthsToAdd = daysToMonthsMap[custDurationDays] || undefined;
+            }
+          }
+
           const custCurrentDue = cust.due_date ? new Date(cust.due_date + 'T00:00:00') : today;
           const custBase = new Date(custCurrentDue > today ? custCurrentDue : today);
 
-          if (monthsToAdd) {
+          if (custMonthsToAdd) {
             const origDay = custBase.getDate();
-            custBase.setMonth(custBase.getMonth() + monthsToAdd);
+            custBase.setMonth(custBase.getMonth() + custMonthsToAdd);
             if (custBase.getDate() !== origDay) custBase.setDate(0);
           } else {
-            custBase.setDate(custBase.getDate() + durationDays);
+            custBase.setDate(custBase.getDate() + custDurationDays);
           }
           const custNewDue = custBase.toISOString().split('T')[0];
 
           const custUpdate: Record<string, unknown> = { due_date: custNewDue, status: 'ativa' };
-          if (bestMatch && bestMatch.id !== cust.plan_id) {
-            custUpdate.plan_id = bestMatch.id;
+          if (custBestMatch && custBestMatch.id !== cust.plan_id) {
+            custUpdate.plan_id = custBestMatch.id;
             custUpdate.custom_price = null;
           }
           await supabaseAdmin.from('customers').update(custUpdate).eq('id', cust.id);
@@ -745,7 +794,7 @@ serve(async (req) => {
             });
           }
 
-          console.log(`[Cakto] Multi-renovação: ${cust.name} (${cust.username || '-'}) → ${custNewDue}`);
+          console.log(`[Cakto] Multi-renovação: ${cust.name} (${cust.username || '-'}) → ${custNewDue} (${custPlanName})`);
         }
 
         // Save confirmation for the primary customer
@@ -779,6 +828,7 @@ serve(async (req) => {
           status: 'success',
           metadata: {
             multi_renewal: true,
+            pre_selected: hasPreSelection,
             customers_renewed: allMatchedCustomers.length,
             amount: amountNumeric,
             plan: matchedPlanName,
@@ -794,8 +844,8 @@ serve(async (req) => {
       }
     }
 
-    // ── Conflict detection: multiple customers with same due_date (skip if multi-screen) ──
-    if (allMatchedCustomers.length > 1 && !isMultiScreen && !multiRenewalCompleted) {
+    // ── Conflict detection: multiple customers with same due_date (skip if multi-screen or pre-selected) ──
+    if (allMatchedCustomers.length > 1 && !isMultiScreen && !multiRenewalCompleted && !hasPreSelection) {
       const todayStr = today.toISOString().split('T')[0];
       // Check if 2+ customers share the same due_date (or both expired)
       const sameDueCustomers = allMatchedCustomers.filter((c: any) => {
