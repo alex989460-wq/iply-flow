@@ -6,6 +6,58 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+const normalizePhoneVariants = (phone: string) => {
+  const phoneDigits = String(phone || '').replace(/\D/g, '');
+  const variants = new Set<string>();
+
+  if (!phoneDigits) return { phoneDigits: '', canonicalPhone: '', variants: [] as string[] };
+
+  variants.add(phoneDigits);
+
+  if (phoneDigits.startsWith('55') && phoneDigits.length >= 12) {
+    variants.add(phoneDigits.slice(2));
+  } else {
+    variants.add(`55${phoneDigits}`);
+  }
+
+  const withoutCC = phoneDigits.startsWith('55') ? phoneDigits.slice(2) : phoneDigits;
+
+  if (withoutCC.length === 11 && withoutCC[2] === '9') {
+    variants.add(`55${withoutCC.slice(0, 2)}${withoutCC.slice(3)}`);
+    variants.add(`${withoutCC.slice(0, 2)}${withoutCC.slice(3)}`);
+  } else if (withoutCC.length === 10) {
+    variants.add(`55${withoutCC.slice(0, 2)}9${withoutCC.slice(2)}`);
+    variants.add(`${withoutCC.slice(0, 2)}9${withoutCC.slice(2)}`);
+  }
+
+  const canonicalPhone = phoneDigits.startsWith('55') ? phoneDigits : `55${phoneDigits}`;
+  variants.add(canonicalPhone);
+
+  return { phoneDigits, canonicalPhone, variants: [...variants] };
+};
+
+const parseCustomerIds = (body: any): string[] => {
+  const fromArrayLike =
+    body?.customer_ids ??
+    body?.customerIds ??
+    body?.selected_customer_ids ??
+    body?.selectedCustomerIds;
+
+  const fromSingle = body?.customer_id ?? body?.customerId ?? body?.selected_customer_id ?? body?.selectedCustomerId;
+
+  let rawIds: unknown[] = [];
+
+  if (Array.isArray(fromArrayLike)) {
+    rawIds = fromArrayLike;
+  } else if (typeof fromArrayLike === 'string') {
+    rawIds = fromArrayLike.split(',');
+  } else if (fromSingle) {
+    rawIds = [fromSingle];
+  }
+
+  return [...new Set(rawIds.map((v) => String(v || '').trim()).filter(Boolean))];
+};
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -26,32 +78,17 @@ serve(async (req) => {
     // ── ACTION: lookup - Search customers by phone ──
     if (action === 'lookup') {
       const phone = url.searchParams.get('phone') || '';
-      if (!phone || phone.replace(/\D/g, '').length < 10) {
+      const { phoneDigits, variants } = normalizePhoneVariants(phone);
+
+      if (!phoneDigits || phoneDigits.length < 10) {
         return new Response(JSON.stringify({ error: 'Telefone inválido. Informe pelo menos 10 dígitos.' }), { status: 400, headers: jsonHeaders });
       }
 
-      const phoneDigits = phone.replace(/\D/g, '');
-
-      // Build search variants
-      const searchVariants = new Set<string>();
-      searchVariants.add(phoneDigits);
-      if (phoneDigits.startsWith('55') && phoneDigits.length >= 12) {
-        searchVariants.add(phoneDigits.slice(2));
-      } else {
-        searchVariants.add('55' + phoneDigits);
-      }
-      const withoutCC = phoneDigits.startsWith('55') ? phoneDigits.slice(2) : phoneDigits;
-      if (withoutCC.length === 11 && withoutCC[2] === '9') {
-        searchVariants.add('55' + withoutCC.slice(0, 2) + withoutCC.slice(3));
-        searchVariants.add(withoutCC.slice(0, 2) + withoutCC.slice(3));
-      } else if (withoutCC.length === 10) {
-        searchVariants.add('55' + withoutCC.slice(0, 2) + '9' + withoutCC.slice(2));
-        searchVariants.add(withoutCC.slice(0, 2) + '9' + withoutCC.slice(2));
-      }
+      console.log(`[CustomerLookup] lookup iniciado | phone=${phoneDigits} | variants=${variants.join(',')}`);
 
       // Search customers
       const allCustomers: any[] = [];
-      for (const variant of searchVariants) {
+      for (const variant of variants) {
         const { data: candidates } = await supabase
           .from('customers')
           .select(`
@@ -67,7 +104,7 @@ serve(async (req) => {
 
         if (candidates) {
           for (const c of candidates) {
-            if (!allCustomers.find(m => m.id === c.id)) {
+            if (!allCustomers.find((m) => m.id === c.id)) {
               allCustomers.push(c);
             }
           }
@@ -75,11 +112,12 @@ serve(async (req) => {
       }
 
       if (allCustomers.length === 0) {
+        console.log(`[CustomerLookup] lookup sem resultados | phone=${phoneDigits}`);
         return new Response(JSON.stringify({ error: 'Nenhum cliente ativo encontrado com esse telefone.' }), { status: 404, headers: jsonHeaders });
       }
 
       // Return sanitized data (no internal IDs exposed beyond customer id)
-      const result = allCustomers.map(c => {
+      const result = allCustomers.map((c) => {
         const unitPrice = c.custom_price || (c.plans as any)?.price || 0;
         return {
           id: c.id,
@@ -101,35 +139,65 @@ serve(async (req) => {
 
     // ── ACTION: select - Store pre-payment selection ──
     if (action === 'select') {
-      const body = await req.json();
-      const { phone, customer_ids } = body;
+      const body = await req.json().catch(() => ({}));
+      const phone = body?.phone || body?.customer_phone || body?.customerPhone || '';
+      const customerIds = parseCustomerIds(body);
 
-      if (!phone || !customer_ids || !Array.isArray(customer_ids) || customer_ids.length === 0) {
-        return new Response(JSON.stringify({ error: 'phone e customer_ids são obrigatórios.' }), { status: 400, headers: jsonHeaders });
+      const { phoneDigits, canonicalPhone, variants } = normalizePhoneVariants(phone);
+
+      if (!phoneDigits || phoneDigits.length < 10 || customerIds.length === 0) {
+        return new Response(
+          JSON.stringify({
+            error: 'phone e customer_ids são obrigatórios.',
+            hint: 'Aceito: customer_ids (array), customerIds (array/string), customer_id (string).',
+          }),
+          { status: 400, headers: jsonHeaders },
+        );
       }
 
-      const phoneDigits = phone.replace(/\D/g, '');
+      // Validate customer IDs against provided phone (prevents wrong/forged mapping)
+      const { data: existingCustomers, error: existingError } = await supabase
+        .from('customers')
+        .select('id, phone, status')
+        .in('id', customerIds)
+        .eq('status', 'ativa');
 
-      // Clear previous pending selections for this phone (unused only)
+      if (existingError) {
+        console.error('[CustomerLookup] Erro ao validar customer_ids:', existingError);
+        return new Response(JSON.stringify({ error: 'Erro ao validar clientes selecionados.' }), { status: 500, headers: jsonHeaders });
+      }
+
+      const validCustomerIds = (existingCustomers || [])
+        .filter((c: any) => {
+          const customerPhoneDigits = String(c.phone || '').replace(/\D/g, '');
+          return variants.some((v) => customerPhoneDigits.includes(v) || v.includes(customerPhoneDigits));
+        })
+        .map((c: any) => c.id);
+
+      if (validCustomerIds.length === 0) {
+        return new Response(
+          JSON.stringify({ error: 'Nenhum customer_id válido encontrado para este telefone.' }),
+          { status: 400, headers: jsonHeaders },
+        );
+      }
+
+      if (validCustomerIds.length !== customerIds.length) {
+        console.log(`[CustomerLookup] select parcial | recebidos=${customerIds.length} válidos=${validCustomerIds.length} phone=${canonicalPhone}`);
+      }
+
+      // Clear previous pending selections for all phone variants (unused only)
       await supabase
         .from('pending_renewal_selections')
         .delete()
-        .eq('phone_normalized', phoneDigits)
+        .in('phone_normalized', variants)
         .eq('used', false);
 
-      // Also clear with country code variants
-      const phoneWithCC = phoneDigits.startsWith('55') ? phoneDigits : '55' + phoneDigits;
-      const phoneWithoutCC = phoneDigits.startsWith('55') ? phoneDigits.slice(2) : phoneDigits;
-      await supabase
-        .from('pending_renewal_selections')
-        .delete()
-        .in('phone_normalized', [phoneWithCC, phoneWithoutCC])
-        .eq('used', false);
-
-      // Insert new selections
-      const inserts = customer_ids.map((cid: string) => ({
-        phone_normalized: phoneDigits,
+      // Insert new selections (save with canonical phone to keep deterministic matching)
+      const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+      const inserts = validCustomerIds.map((cid: string) => ({
+        phone_normalized: canonicalPhone,
         customer_id: cid,
+        expires_at: expiresAt,
       }));
 
       const { error: insertError } = await supabase
@@ -141,7 +209,18 @@ serve(async (req) => {
         return new Response(JSON.stringify({ error: 'Erro ao salvar seleção.' }), { status: 500, headers: jsonHeaders });
       }
 
-      return new Response(JSON.stringify({ success: true, message: `${customer_ids.length} cliente(s) selecionado(s) para renovação.` }), { headers: jsonHeaders });
+      console.log(`[CustomerLookup] select salvo | phone=${canonicalPhone} | clientes=${validCustomerIds.join(',')} | expira=${expiresAt}`);
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          message: `${validCustomerIds.length} cliente(s) selecionado(s) para renovação.`,
+          selected_count: validCustomerIds.length,
+          expires_at: expiresAt,
+          phone_normalized: canonicalPhone,
+        }),
+        { headers: jsonHeaders },
+      );
     }
 
     return new Response(JSON.stringify({ error: 'Ação inválida. Use action=lookup ou action=select.' }), { status: 400, headers: jsonHeaders });
