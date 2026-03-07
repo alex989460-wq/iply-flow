@@ -25,29 +25,27 @@ serve(async (req) => {
   };
 
   try {
-    // Validate webhook secret - check global first, then per-reseller
+    // Validate webhook secret (prefer reseller-scoped validation when possible)
     const globalWebhookSecret = Deno.env.get('CAKTO_WEBHOOK_SECRET');
     const receivedSecret = req.headers.get('x-webhook-secret') || req.headers.get('X-Webhook-Secret');
-    
+
     const body = await req.json();
     console.log('[Cakto] Payload recebido:', JSON.stringify(body));
 
     const payloadSecret = body?.secret || body?.webhook_secret;
     const secretToValidate = receivedSecret || payloadSecret;
 
-    // First try global secret
     let secretValid = false;
-    if (globalWebhookSecret && secretToValidate === globalWebhookSecret) {
-      secretValid = true;
-    }
+    let webhookOwnerId: string | null = null;
 
-    // If global didn't match, try all reseller secrets
-    if (!secretValid && secretToValidate) {
+    if (secretToValidate) {
       const supabaseCheck = createClient(
         Deno.env.get('SUPABASE_URL')!,
         Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
         { auth: { autoRefreshToken: false, persistSession: false } },
       );
+
+      // 1) Try reseller-scoped secret first (safer: avoids cross-reseller renewals)
       const { data: matchingReseller } = await supabaseCheck
         .from('reseller_api_settings')
         .select('user_id')
@@ -55,9 +53,16 @@ serve(async (req) => {
         .limit(1)
         .maybeSingle();
 
-      if (matchingReseller) {
+      if (matchingReseller?.user_id) {
         secretValid = true;
-        console.log(`[Cakto] Secret validado via revendedor: ${matchingReseller.user_id}`);
+        webhookOwnerId = matchingReseller.user_id;
+        console.log(`[Cakto] Secret validado via revendedor: ${webhookOwnerId}`);
+      }
+
+      // 2) Fallback to global secret
+      if (!secretValid && globalWebhookSecret && secretToValidate === globalWebhookSecret) {
+        secretValid = true;
+        console.log('[Cakto] Secret validado via chave global');
       }
     }
 
