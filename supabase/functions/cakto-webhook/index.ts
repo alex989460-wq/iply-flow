@@ -859,129 +859,135 @@ serve(async (req) => {
       }
     }
 
-    // ── Conflict detection: multiple customers with same due_date (skip if multi-screen or pre-selected) ──
+    // ── Conflict detection: multiple customers for same phone without trusted pre-selection ──
     if (allMatchedCustomers.length > 1 && !isMultiScreen && !multiRenewalCompleted && !hasPreSelection) {
       const todayStr = today.toISOString().split('T')[0];
-      // Check if 2+ customers share the same due_date (or both expired)
       const sameDueCustomers = allMatchedCustomers.filter((c: any) => {
         const d = c.due_date || '';
         return d === matchedCustomer.due_date || (d < todayStr && (matchedCustomer.due_date || '') < todayStr);
       });
+      const owners = new Set(allMatchedCustomers.map((c: any) => c.created_by || ''));
+      const hasMultipleOwners = owners.size > 1;
 
-      if (sameDueCustomers.length > 1) {
-        console.log(`[Cakto] CONFLITO: ${sameDueCustomers.length} clientes com mesmo vencimento (${matchedCustomer.due_date}). Notificando admin.`);
+      const conflictCustomers = allMatchedCustomers;
+      const conflictReason = hasMultipleOwners
+        ? 'múltiplos revendedores com o mesmo telefone'
+        : sameDueCustomers.length > 1
+          ? 'clientes com mesmo vencimento'
+          : 'múltiplos clientes para o mesmo telefone sem pré-seleção';
 
-        // Register payment without confirming (so money isn't lost)
-        let conflictPaymentId = '';
-        if (amountNumeric > 0) {
-          const { data: insertedPayment } = await supabaseAdmin.from('payments').insert({
-            customer_id: matchedCustomer.id,
-            amount: amountNumeric,
-            payment_date: todayStr,
-            method: paymentMethodDb,
-            confirmed: false,
-            source: 'cakto',
-          }).select('id').single();
-          if (insertedPayment) conflictPaymentId = insertedPayment.id;
-          console.log(`[Cakto] Pagamento registrado SEM confirmação para decisão do admin (id: ${conflictPaymentId})`);
-        }
+      console.log(`[Cakto] CONFLITO: ${conflictCustomers.length} clientes encontrados (${conflictReason}). Bloqueando renovação automática e notificando admin.`);
 
-        // Notify reseller via WhatsApp with clickable links
-        try {
-          const { data: zapSettings } = await supabaseAdmin
-            .from('zap_responder_settings')
-            .select('selected_department_id')
-            .eq('user_id', matchedCustomer.created_by)
-            .maybeSingle();
-
-          const { data: bSettings } = await supabaseAdmin
-            .from('billing_settings')
-            .select('notification_phone')
-            .eq('user_id', matchedCustomer.created_by)
-            .maybeSingle();
-
-          const conflictPhone = bSettings?.notification_phone;
-
-          if (zapSettings?.selected_department_id && conflictPhone) {
-            const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-            const customerList = sameDueCustomers.map((c: any) =>
-              `  • ${c.name} (${c.username || '-'}) - Venc: ${c.due_date}`
-            ).join('\n');
-
-            const buttonsToSend = sameDueCustomers.slice(0, 3).map((c: any) => ({
-              id: `renew_${conflictPaymentId}_${c.id}`,
-              title: (c.username || c.name).substring(0, 20),
-            }));
-
-            const interactiveText = `⚠️ *Pagamento requer decisão*\n\n📞 Telefone: ${phoneDigits}\n💰 Valor: *R$ ${amountNumeric.toFixed(2)}*\n📦 Plano: *${matchedPlanName || '-'}*\n\n👥 *${sameDueCustomers.length} clientes:*\n${customerList}\n\n👇 Escolha qual renovar:`;
-
-            let buttonsSent = false;
-            try {
-              const interactiveRes = await fetch(
-                `${supabaseUrl}/functions/v1/zap-responder`,
-                {
-                  method: 'POST',
-                  headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
-                  },
-                  body: JSON.stringify({
-                    action: 'enviar-interativo',
-                    department_id: zapSettings.selected_department_id,
-                    number: conflictPhone,
-                    text: interactiveText,
-                    buttons: buttonsToSend,
-                    user_id: matchedCustomer.created_by,
-                  }),
-                },
-              );
-              const interactiveBody = await interactiveRes.json().catch(() => ({}));
-              buttonsSent = interactiveBody?.success === true;
-              console.log(`[Cakto] Botões interativos: ${buttonsSent ? 'ENVIADOS' : 'FALHOU'}`);
-            } catch (e) {
-              console.error('[Cakto] Erro ao enviar botões interativos:', e);
-            }
-
-            if (!buttonsSent) {
-              const appUrl = 'https://iply-flow.lovable.app';
-              const customerLinks = sameDueCustomers.map((c: any) => {
-                const link = `${appUrl}/confirmar-renovacao?payment_id=${conflictPaymentId}&customer_id=${c.id}`;
-                return `👤 *${c.name}* (${c.username || '-'})\n🔗 ${link}`;
-              }).join('\n\n');
-
-              const adminMsg = `⚠️ *Atenção: Pagamento requer decisão manual*\n\n📞 Telefone: ${phoneDigits}\n💰 Valor: *R$ ${amountNumeric.toFixed(2)}*\n📦 Plano: *${matchedPlanName || '-'}*\n\n👥 *${sameDueCustomers.length} clientes com mesmo vencimento:*\n\n${customerLinks}\n\n👆 *Clique no link do cliente que deseja renovar*\n⏳ Pagamento registrado mas *NÃO confirmado*.`;
-
-              await fetch(
-                `${supabaseUrl}/functions/v1/zap-responder`,
-                {
-                  method: 'POST',
-                  headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
-                  },
-                  body: JSON.stringify({
-                    action: 'enviar-mensagem',
-                    department_id: zapSettings.selected_department_id,
-                    number: conflictPhone,
-                    text: adminMsg,
-                    user_id: matchedCustomer.created_by,
-                  }),
-                },
-              );
-              console.log('[Cakto] Fallback: notificação com links individuais enviada para:', conflictPhone);
-            }
-          }
-        } catch (e) {
-          console.error('[Cakto] Erro ao notificar sobre conflito:', e);
-        }
-
-        return new Response(JSON.stringify({
-          success: true,
-          message: `Conflito: ${sameDueCustomers.length} clientes com mesmo vencimento. Pagamento registrado sem confirmação. Admin notificado.`,
-          conflict: true,
-          customers: sameDueCustomers.map((c: any) => ({ name: c.name, username: c.username, due_date: c.due_date })),
-        }), { headers: jsonHeaders });
+      // Register payment without confirming (so money isn't lost)
+      let conflictPaymentId = '';
+      if (amountNumeric > 0) {
+        const { data: insertedPayment } = await supabaseAdmin.from('payments').insert({
+          customer_id: matchedCustomer.id,
+          amount: amountNumeric,
+          payment_date: todayStr,
+          method: paymentMethodDb,
+          confirmed: false,
+          source: 'cakto',
+        }).select('id').single();
+        if (insertedPayment) conflictPaymentId = insertedPayment.id;
+        console.log(`[Cakto] Pagamento registrado SEM confirmação para decisão do admin (id: ${conflictPaymentId})`);
       }
+
+      // Notify reseller via WhatsApp with clickable links
+      try {
+        const { data: zapSettings } = await supabaseAdmin
+          .from('zap_responder_settings')
+          .select('selected_department_id')
+          .eq('user_id', matchedCustomer.created_by)
+          .maybeSingle();
+
+        const { data: bSettings } = await supabaseAdmin
+          .from('billing_settings')
+          .select('notification_phone')
+          .eq('user_id', matchedCustomer.created_by)
+          .maybeSingle();
+
+        const conflictPhone = bSettings?.notification_phone;
+
+        if (zapSettings?.selected_department_id && conflictPhone) {
+          const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+          const customerList = conflictCustomers.map((c: any) =>
+            `  • ${c.name} (${c.username || '-'}) - Venc: ${c.due_date}`
+          ).join('\n');
+
+          const buttonsToSend = conflictCustomers.slice(0, 3).map((c: any) => ({
+            id: `renew_${conflictPaymentId}_${c.id}`,
+            title: (c.username || c.name).substring(0, 20),
+          }));
+
+          const interactiveText = `⚠️ *Pagamento requer decisão*\n\n📞 Telefone: ${phoneDigits}\n💰 Valor: *R$ ${amountNumeric.toFixed(2)}*\n📦 Plano: *${matchedPlanName || '-'}*\n\n🧩 Motivo: *${conflictReason}*\n\n👥 *${conflictCustomers.length} clientes encontrados:*\n${customerList}\n\n👇 Escolha qual renovar:`;
+
+          let buttonsSent = false;
+          try {
+            const interactiveRes = await fetch(
+              `${supabaseUrl}/functions/v1/zap-responder`,
+              {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+                },
+                body: JSON.stringify({
+                  action: 'enviar-interativo',
+                  department_id: zapSettings.selected_department_id,
+                  number: conflictPhone,
+                  text: interactiveText,
+                  buttons: buttonsToSend,
+                  user_id: matchedCustomer.created_by,
+                }),
+              },
+            );
+            const interactiveBody = await interactiveRes.json().catch(() => ({}));
+            buttonsSent = interactiveBody?.success === true;
+            console.log(`[Cakto] Botões interativos: ${buttonsSent ? 'ENVIADOS' : 'FALHOU'}`);
+          } catch (e) {
+            console.error('[Cakto] Erro ao enviar botões interativos:', e);
+          }
+
+          if (!buttonsSent) {
+            const appUrl = 'https://iply-flow.lovable.app';
+            const customerLinks = conflictCustomers.map((c: any) => {
+              const link = `${appUrl}/confirmar-renovacao?payment_id=${conflictPaymentId}&customer_id=${c.id}`;
+              return `👤 *${c.name}* (${c.username || '-'})\n🔗 ${link}`;
+            }).join('\n\n');
+
+            const adminMsg = `⚠️ *Atenção: Pagamento requer decisão manual*\n\n📞 Telefone: ${phoneDigits}\n💰 Valor: *R$ ${amountNumeric.toFixed(2)}*\n📦 Plano: *${matchedPlanName || '-'}*\n🧩 Motivo: *${conflictReason}*\n\n${customerLinks}\n\n👆 *Clique no link do cliente que deseja renovar*\n⏳ Pagamento registrado mas *NÃO confirmado*.`;
+
+            await fetch(
+              `${supabaseUrl}/functions/v1/zap-responder`,
+              {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+                },
+                body: JSON.stringify({
+                  action: 'enviar-mensagem',
+                  department_id: zapSettings.selected_department_id,
+                  number: conflictPhone,
+                  text: adminMsg,
+                  user_id: matchedCustomer.created_by,
+                }),
+              },
+            );
+            console.log('[Cakto] Fallback: notificação com links individuais enviada para:', conflictPhone);
+          }
+        }
+      } catch (e) {
+        console.error('[Cakto] Erro ao notificar sobre conflito:', e);
+      }
+
+      return new Response(JSON.stringify({
+        success: true,
+        message: `Conflito detectado (${conflictReason}). Pagamento registrado sem confirmação.`,
+        conflict: true,
+        customers: conflictCustomers.map((c: any) => ({ name: c.name, username: c.username, due_date: c.due_date })),
+      }), { headers: jsonHeaders });
     }
 
     // Renew ALL customers in customersToRenew (supports multi-screen) — skip if multi-renewal already handled
