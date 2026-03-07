@@ -404,22 +404,32 @@ serve(async (req) => {
 
     console.log(`[Cakto] Variantes de busca: ${[...searchVariants].join(', ')}`);
 
-    // Use service role to search across all customers
+    // Use service role to search customers (scoped by reseller when secret matches a reseller)
     const supabaseAdmin = createClient(
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
       { auth: { autoRefreshToken: false, persistSession: false } },
     );
 
-    // Search ALL customers by phone variants (supports multi-screen / multi-customer)
+    if (webhookOwnerId) {
+      console.log(`[Cakto] Escopo aplicado: buscando clientes apenas do owner ${webhookOwnerId}`);
+    }
+
+    // Search customers by phone variants (supports multi-screen / multi-customer)
     let allMatchedCustomers: any[] = [];
     for (const variant of searchVariants) {
-      const { data: candidates } = await supabaseAdmin
+      let customerQuery = supabaseAdmin
         .from('customers')
         .select('id, name, phone, username, server_id, plan_id, due_date, created_by, status, created_at, custom_price, screens, notes, start_date, extra_months')
         .ilike('phone', `%${variant}%`)
         .order('created_at', { ascending: false })
         .limit(20);
+
+      if (webhookOwnerId) {
+        customerQuery = customerQuery.eq('created_by', webhookOwnerId);
+      }
+
+      const { data: candidates } = await customerQuery;
 
       if (candidates && candidates.length > 0) {
         // Deduplicate by id
