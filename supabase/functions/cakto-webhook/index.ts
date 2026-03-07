@@ -470,6 +470,7 @@ serve(async (req) => {
     // ── Check for pending renewal selections (from external payment site) ──
     let pendingSelectionIds: string[] = [];
     let preSelectedMultiRenewal = false;
+    let hasPreSelection = false; // Flag: external site made a selection - TRUST it
     {
       const { data: pendingSelections } = await supabaseAdmin
         .from('pending_renewal_selections')
@@ -486,10 +487,11 @@ serve(async (req) => {
         const selectedCustomers = allMatchedCustomers.filter((c: any) => pendingSelectionIds.includes(c.id));
         if (selectedCustomers.length > 0) {
           allMatchedCustomers = selectedCustomers;
+          hasPreSelection = true; // External site validated the selection - skip conflict detection
           if (selectedCustomers.length > 1) {
             preSelectedMultiRenewal = true;
           }
-          console.log(`[Cakto] Usando ${selectedCustomers.length} cliente(s) pré-selecionado(s) do site externo`);
+          console.log(`[Cakto] ✅ Usando ${selectedCustomers.length} cliente(s) pré-selecionado(s) do site externo (confiável, sem conflito)`);
         }
 
         // Mark selections as used
