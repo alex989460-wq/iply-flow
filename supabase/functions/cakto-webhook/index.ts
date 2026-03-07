@@ -609,14 +609,20 @@ serve(async (req) => {
 
     if (amountNumeric > 0 && allPlans && allPlans.length > 0) {
       // 0) FIRST: Check if any plan has an EXACT price match (±0.1%) - highest priority
-      //    This prevents collisions like R$90.00 (Mensal 3 Telas) vs R$90.05 (Trimestral)
-      const exactPlanMatch = allPlans.find((p: any) => {
-        const diff = Math.abs(p.price - amountNumeric);
-        return diff <= p.price * 0.001; // ±0.1% = nearly identical
-      });
-      if (exactPlanMatch) {
-        bestMatch = exactPlanMatch;
-        console.log(`[Cakto] Match EXATO de preço: ${exactPlanMatch.plan_name} (R$ ${exactPlanMatch.price}) = Valor pago: R$ ${amountNumeric.toFixed(2)}`);
+      //    When multiple plans fall within tolerance, pick the CLOSEST one
+      {
+        let exactBestDiff = Infinity;
+        for (const p of allPlans) {
+          const diff = Math.abs(p.price - amountNumeric);
+          const tolerance = p.price * 0.001; // ±0.1%
+          if (diff <= tolerance && diff < exactBestDiff) {
+            exactBestDiff = diff;
+            bestMatch = p;
+          }
+        }
+        if (bestMatch) {
+          console.log(`[Cakto] Match EXATO de preço: ${bestMatch.plan_name} (R$ ${bestMatch.price}) = Valor pago: R$ ${amountNumeric.toFixed(2)} (diff: R$ ${exactBestDiff.toFixed(4)})`);
+        }
       }
 
       // 1) If no exact match, check current plan (±1%) or other plans
