@@ -792,8 +792,6 @@ serve(async (req) => {
         const todayStr = today.toISOString().split('T')[0];
         const amountPerCustomer = allMatchedCustomers.length > 0 ? amountNumeric / allMatchedCustomers.length : amountNumeric;
 
-        // Track which customers had extra_months and should skip server renewal
-        const customersWithExtraMonths = new Set<string>();
 
         for (const cust of allMatchedCustomers) {
           // Per-customer plan matching: determine duration for EACH customer individually
