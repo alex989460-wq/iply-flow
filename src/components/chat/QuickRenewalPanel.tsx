@@ -485,6 +485,9 @@ export default function QuickRenewalPanel({ isMobile = false, onClose }: QuickRe
         } catch (e) {
           console.error('[Renew] Erro inesperado:', e);
         }
+      } else if (xuiUsername && skipServerRenewal) {
+        console.log(`[Renew] Mês extra abatido (${customer.extra_months} → ${customer.extra_months - 1}). Renovação no servidor ignorada.`);
+        toast.info(`Mês extra abatido (${customer.extra_months} → ${customer.extra_months - 1}). Servidor não foi renovado.`);
       }
 
       return { newDueDate: newDueDateStr, amount, customer, planName };
