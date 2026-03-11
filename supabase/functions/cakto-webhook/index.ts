@@ -758,6 +758,7 @@ serve(async (req) => {
       console.log(`[Cakto] ${allMatchedCustomers.length} cliente(s) (duração: ${durationDays} dias, meses: ${monthsToAdd || 'N/A'})`);
 
     let multiRenewalCompleted = false;
+    const customersWithExtraMonths = new Set<string>();
 
     // ── Pre-selected multi-customer renewal (from external payment site) ──
     if (preSelectedMultiRenewal && allMatchedCustomers.length > 1) {
