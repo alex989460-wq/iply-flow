@@ -88,7 +88,7 @@ export default function MonthlyGoals() {
 
   // Animate progress values
   useEffect(() => {
-    const timers: NodeJS.Timeout[] = [];
+    const timers: ReturnType<typeof setInterval>[] = [];
     
     goals.forEach((goal) => {
       const duration = 1500;
