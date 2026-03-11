@@ -791,6 +791,9 @@ serve(async (req) => {
         const todayStr = today.toISOString().split('T')[0];
         const amountPerCustomer = allMatchedCustomers.length > 0 ? amountNumeric / allMatchedCustomers.length : amountNumeric;
 
+        // Track which customers had extra_months and should skip server renewal
+        const customersWithExtraMonths = new Set<string>();
+
         for (const cust of allMatchedCustomers) {
           // Per-customer plan matching: determine duration for EACH customer individually
           let custDurationDays = durationDays;
@@ -808,6 +811,49 @@ serve(async (req) => {
               const daysToMonthsMap: Record<number, number> = { 30: 1, 90: 3, 180: 6, 365: 12 };
               custMonthsToAdd = daysToMonthsMap[custDurationDays] || undefined;
             }
+          }
+
+          // ── Check extra_months for THIS specific customer ──
+          const custExtraMonths = cust.extra_months || 0;
+          const custRenewMonths = custMonthsToAdd || Math.max(1, Math.round(custDurationDays / 30));
+
+          if (custExtraMonths > 0) {
+            // Deduct extra months instead of renewing on server
+            const newExtra = Math.max(0, custExtraMonths - custRenewMonths);
+            customersWithExtraMonths.add(cust.id);
+            console.log(`[Cakto] Multi-renovação: ${cust.name} tem ${custExtraMonths} mês(es) extra. Abatendo ${custRenewMonths} → restam ${newExtra}. Servidor NÃO será renovado para este cliente.`);
+
+            // Update extra_months along with due_date
+            const custCurrentDue = cust.due_date ? new Date(cust.due_date + 'T00:00:00') : today;
+            const custBase = new Date(custCurrentDue > today ? custCurrentDue : today);
+            if (custMonthsToAdd) {
+              const origDay = custBase.getDate();
+              custBase.setMonth(custBase.getMonth() + custMonthsToAdd);
+              if (custBase.getDate() !== origDay) custBase.setDate(0);
+            } else {
+              custBase.setDate(custBase.getDate() + custDurationDays);
+            }
+            const custNewDue = custBase.toISOString().split('T')[0];
+
+            const custUpdate: Record<string, unknown> = { due_date: custNewDue, status: 'ativa', extra_months: newExtra };
+            if (custBestMatch && custBestMatch.id !== cust.plan_id) {
+              custUpdate.plan_id = custBestMatch.id;
+              custUpdate.custom_price = null;
+            }
+            await supabaseAdmin.from('customers').update(custUpdate).eq('id', cust.id);
+
+            if (amountNumeric > 0) {
+              await supabaseAdmin.from('payments').insert({
+                customer_id: cust.id,
+                amount: amountPerCustomer,
+                payment_date: todayStr,
+                method: paymentMethodDb,
+                confirmed: true,
+                source: 'cakto',
+              });
+            }
+            console.log(`[Cakto] Multi-renovação (extra abatido): ${cust.name} (${cust.username || '-'}) → ${custNewDue} (${custPlanName})`);
+            continue; // Skip normal flow for this customer
           }
 
           const custCurrentDue = cust.due_date ? new Date(cust.due_date + 'T00:00:00') : today;
