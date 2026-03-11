@@ -402,7 +402,9 @@ export default function QuickRenewalPanel({ isMobile = false, onClose }: QuickRe
       if (updateError) throw updateError;
 
       const xuiUsername = (editedUsername.trim() || customer.username || '').trim();
-      if (xuiUsername) {
+      // Skip external server renewal when customer has extra_months — only deduct locally
+      const skipServerRenewal = customer.extra_months > 0;
+      if (xuiUsername && !skipServerRenewal) {
         try {
           const serverHost = (customer as any).server?.host || '';
           const serverName = (customer as any).server?.server_name || '';
@@ -483,6 +485,9 @@ export default function QuickRenewalPanel({ isMobile = false, onClose }: QuickRe
         } catch (e) {
           console.error('[Renew] Erro inesperado:', e);
         }
+      } else if (xuiUsername && skipServerRenewal) {
+        console.log(`[Renew] Mês extra abatido (${customer.extra_months} → ${customer.extra_months - 1}). Renovação no servidor ignorada.`);
+        toast.info(`Mês extra abatido (${customer.extra_months} → ${customer.extra_months - 1}). Servidor não foi renovado.`);
       }
 
       return { newDueDate: newDueDateStr, amount, customer, planName };
