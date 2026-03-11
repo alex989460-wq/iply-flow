@@ -441,6 +441,13 @@ serve(async (req) => {
       }
     }
 
+    // Filter out suspended customers to avoid false conflicts
+    const suspendedCount = allMatchedCustomers.filter((c: any) => c.status === 'suspensa').length;
+    if (suspendedCount > 0) {
+      console.log(`[Cakto] Removendo ${suspendedCount} cliente(s) com status 'suspensa' para evitar conflitos.`);
+      allMatchedCustomers = allMatchedCustomers.filter((c: any) => c.status !== 'suspensa');
+    }
+
     // Sort by due_date ascending (closest to expiration / already expired first)
     // This ensures each payment renews the most urgent customer
     allMatchedCustomers.sort((a: any, b: any) => {
