@@ -1428,24 +1428,40 @@ serve(async (req) => {
       console.error('[Cakto] Erro ao enviar mensagem WhatsApp:', e);
     }
 
-    // ── Check for extra_months: if customer has extra months, skip server renewal and deduct ──
-    const customerExtraMonths = matchedCustomer.extra_months || 0;
-    const renewMonths = monthsToAdd || Math.max(1, Math.round(durationDays / 30));
-    let skipServerRenewal = false;
+    // ── Check for extra_months per customer: skip server renewal for those with extras ──
+    // For single-customer flow, check the primary customer
+    // For multi-renewal, customersWithExtraMonths was already populated above
+    const customersSkippingServer = new Set<string>();
+    
+    if (!multiRenewalCompleted) {
+      // Single customer flow - check extra_months
+      const customerExtraMonths = matchedCustomer.extra_months || 0;
+      const renewMonths = monthsToAdd || Math.max(1, Math.round(durationDays / 30));
 
-    if (customerExtraMonths > 0) {
-      const newExtraMonths = Math.max(0, customerExtraMonths - renewMonths);
-      await supabaseAdmin
-        .from('customers')
-        .update({ extra_months: newExtraMonths })
-        .eq('id', matchedCustomer.id);
-      console.log(`[Cakto] Cliente tem ${customerExtraMonths} mês(es) extra. Abatendo ${renewMonths} → restam ${newExtraMonths}. Servidor JÁ possui o tempo, pulando renovação no painel.`);
-      skipServerRenewal = true;
+      if (customerExtraMonths > 0) {
+        const newExtraMonths = Math.max(0, customerExtraMonths - renewMonths);
+        await supabaseAdmin
+          .from('customers')
+          .update({ extra_months: newExtraMonths })
+          .eq('id', matchedCustomer.id);
+        console.log(`[Cakto] Cliente tem ${customerExtraMonths} mês(es) extra. Abatendo ${renewMonths} → restam ${newExtraMonths}. Servidor NÃO será renovado.`);
+        customersSkippingServer.add(matchedCustomer.id);
+      }
+    } else {
+      // Multi-renewal: merge the set from earlier
+      if (typeof customersWithExtraMonths !== 'undefined') {
+        for (const id of customersWithExtraMonths) customersSkippingServer.add(id);
+      }
     }
 
-    // ── Trigger server renewals for ALL customersToRenew usernames ──
+    // ── Trigger server renewals for ALL customersToRenew usernames (excluding those with extra_months) ──
     const allUsernames: string[] = [];
     for (const cust of customersToRenew) {
+      // Skip customers that had extra_months deducted
+      if (customersSkippingServer.has(cust.id)) {
+        console.log(`[Cakto] Pulando renovação no servidor para ${cust.name} (${cust.username || '-'}) - mês extra abatido.`);
+        continue;
+      }
       if (cust.username?.trim()) {
         const parts = cust.username.split(',').map((u: string) => u.trim()).filter((u: string) => u.length > 0);
         for (const u of parts) {
@@ -1455,6 +1471,7 @@ serve(async (req) => {
     }
 
     const renewResults: any[] = [];
+    const skipServerRenewal = allUsernames.length === 0 && customersSkippingServer.size > 0;
 
     if (allUsernames.length > 0 && !skipServerRenewal) {
       console.log(`[Cakto] Usernames para renovar: ${allUsernames.join(', ')} (${allUsernames.length} conexões)`);
