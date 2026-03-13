@@ -70,7 +70,27 @@ serve(async (req) => {
     }
 
     const accessToken = zapSettings.meta_access_token;
-    const wabaId = zapSettings.meta_business_id;
+    let wabaId = zapSettings.meta_business_id;
+
+    // Try to get the actual WABA ID from the Business ID
+    // The meta_business_id might be a Facebook Business ID, not a WABA ID
+    // We need to resolve it to a WABA ID for the templates API
+    try {
+      const wabaRes = await fetch(
+        `https://graph.facebook.com/${GRAPH_API_VERSION}/${wabaId}/owned_whatsapp_business_accounts?fields=id,name`,
+        { headers: { Authorization: `Bearer ${accessToken}` } }
+      );
+      const wabaData = await wabaRes.json();
+      if (wabaRes.ok && wabaData?.data?.length > 0) {
+        console.log(`[MetaTemplates] Resolved WABA ID: ${wabaData.data[0].id} (from Business ID: ${wabaId})`);
+        wabaId = wabaData.data[0].id;
+      } else {
+        // If it fails, the ID might already be a WABA ID, continue as-is
+        console.log(`[MetaTemplates] Using ID as-is (might be WABA ID already): ${wabaId}`);
+      }
+    } catch (e) {
+      console.log(`[MetaTemplates] Could not resolve WABA ID, using as-is: ${wabaId}`);
+    }
 
     const body = await req.json();
     const { action } = body;
