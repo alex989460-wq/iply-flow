@@ -37,12 +37,30 @@ serve(async (req) => {
       });
     }
 
-    // Get Meta credentials from zap_responder_settings
-    const { data: zapSettings } = await supabase
+    // Get Meta credentials - first try user's own settings, then any meta_cloud settings
+    let { data: zapSettings } = await supabase
       .from("zap_responder_settings")
       .select("meta_access_token, meta_business_id")
       .eq("user_id", user.id)
+      .not("meta_access_token", "is", null)
+      .not("meta_business_id", "is", null)
       .single();
+
+    // If user doesn't have Meta credentials, find any account that does (admin scenario)
+    if (!zapSettings?.meta_access_token || !zapSettings?.meta_business_id) {
+      const { data: anyMeta } = await supabase
+        .from("zap_responder_settings")
+        .select("meta_access_token, meta_business_id")
+        .eq("api_type", "meta_cloud")
+        .not("meta_access_token", "is", null)
+        .not("meta_business_id", "is", null)
+        .limit(1)
+        .single();
+
+      if (anyMeta) {
+        zapSettings = anyMeta;
+      }
+    }
 
     if (!zapSettings?.meta_access_token || !zapSettings?.meta_business_id) {
       return new Response(
