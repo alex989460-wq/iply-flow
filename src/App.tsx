@@ -87,6 +87,7 @@ function AppRoutes() {
       <Route path="/expenses" element={<ProtectedRoute><Expenses /></ProtectedRoute>} />
       <Route path="/message-logs" element={<ProtectedRoute><MessageLogs /></ProtectedRoute>} />
       <Route path="/activation-apps" element={<ProtectedRoute><ActivationApps /></ProtectedRoute>} />
+      <Route path="/meta-templates" element={<ProtectedRoute><MetaTemplates /></ProtectedRoute>} />
       <Route path="*" element={<NotFound />} />
     </Routes>
   );
