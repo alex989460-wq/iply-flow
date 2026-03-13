@@ -23,6 +23,7 @@ import {
   PiggyBank,
   ScrollText,
   Smartphone,
+  FileText,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/ThemeToggle';
