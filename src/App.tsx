@@ -29,6 +29,7 @@ import PaymentConfirmation from "./pages/PaymentConfirmation";
 import ConflictRenewal from "./pages/ConflictRenewal";
 import ActivationApps from "./pages/ActivationApps";
 import ConsultaDue from "./pages/ConsultaDue";
+import MetaTemplates from "./pages/MetaTemplates";
 import { Loader2 } from "lucide-react";
 
 const queryClient = new QueryClient();
@@ -86,6 +87,7 @@ function AppRoutes() {
       <Route path="/expenses" element={<ProtectedRoute><Expenses /></ProtectedRoute>} />
       <Route path="/message-logs" element={<ProtectedRoute><MessageLogs /></ProtectedRoute>} />
       <Route path="/activation-apps" element={<ProtectedRoute><ActivationApps /></ProtectedRoute>} />
+      <Route path="/meta-templates" element={<ProtectedRoute><MetaTemplates /></ProtectedRoute>} />
       <Route path="*" element={<NotFound />} />
     </Routes>
   );

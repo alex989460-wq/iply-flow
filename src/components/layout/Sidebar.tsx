@@ -23,6 +23,7 @@ import {
   PiggyBank,
   ScrollText,
   Smartphone,
+  FileText,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/ThemeToggle';
@@ -39,6 +40,7 @@ const menuItems = [
   { icon: MessageCircleMore, label: 'Chat', path: '/chat', adminOnly: false },
   { icon: Bot, label: 'Gatilhos de Bot', path: '/bot-triggers', adminOnly: false },
   { icon: Smartphone, label: 'Ativação de Apps', path: '/activation-apps', adminOnly: false },
+  { icon: FileText, label: 'Templates Meta', path: '/meta-templates', adminOnly: true },
   { icon: UsersRound, label: 'Sub-Revendedores', path: '/sub-resellers', adminOnly: false },
   { icon: GraduationCap, label: 'Tutorial', path: '/tutorial', adminOnly: false },
   { icon: PiggyBank, label: 'Despesas', path: '/expenses', adminOnly: true },

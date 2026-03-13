@@ -1,0 +1,205 @@
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
+};
+
+const GRAPH_API_VERSION = "v21.0";
+
+serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  try {
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
+    // Get user from auth header
+    const authHeader = req.headers.get("authorization");
+    if (!authHeader) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const token = authHeader.replace("Bearer ", "");
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+    if (authError || !user) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Get Meta credentials from zap_responder_settings
+    const { data: zapSettings } = await supabase
+      .from("zap_responder_settings")
+      .select("meta_access_token, meta_business_id")
+      .eq("user_id", user.id)
+      .single();
+
+    if (!zapSettings?.meta_access_token || !zapSettings?.meta_business_id) {
+      return new Response(
+        JSON.stringify({ error: "Meta Cloud API não configurada. Conecte sua conta Meta primeiro." }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const accessToken = zapSettings.meta_access_token;
+    const wabaId = zapSettings.meta_business_id;
+
+    const body = await req.json();
+    const { action } = body;
+
+    switch (action) {
+      case "list": {
+        const { limit = 100, after } = body;
+        let url = `https://graph.facebook.com/${GRAPH_API_VERSION}/${wabaId}/message_templates?limit=${limit}&fields=id,name,status,category,language,components,quality_score,message_send_ttl_seconds`;
+        if (after) url += `&after=${after}`;
+
+        const res = await fetch(url, {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
+        const data = await res.json();
+
+        if (!res.ok) {
+          console.error("[MetaTemplates] List error:", data);
+          return new Response(JSON.stringify({ error: data.error?.message || "Erro ao listar templates" }), {
+            status: res.status,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+
+        return new Response(JSON.stringify(data), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      case "create": {
+        const { name, category, language, components } = body;
+
+        const res = await fetch(
+          `https://graph.facebook.com/${GRAPH_API_VERSION}/${wabaId}/message_templates`,
+          {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ name, category, language, components }),
+          }
+        );
+        const data = await res.json();
+
+        if (!res.ok) {
+          console.error("[MetaTemplates] Create error:", data);
+          return new Response(JSON.stringify({ error: data.error?.message || "Erro ao criar template" }), {
+            status: res.status,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+
+        return new Response(JSON.stringify(data), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      case "update": {
+        const { template_id, components: updateComponents } = body;
+
+        const res = await fetch(
+          `https://graph.facebook.com/${GRAPH_API_VERSION}/${template_id}`,
+          {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ components: updateComponents }),
+          }
+        );
+        const data = await res.json();
+
+        if (!res.ok) {
+          console.error("[MetaTemplates] Update error:", data);
+          return new Response(JSON.stringify({ error: data.error?.message || "Erro ao atualizar template" }), {
+            status: res.status,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+
+        return new Response(JSON.stringify({ success: true, ...data }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      case "delete": {
+        const { template_name } = body;
+
+        const res = await fetch(
+          `https://graph.facebook.com/${GRAPH_API_VERSION}/${wabaId}/message_templates?name=${template_name}`,
+          {
+            method: "DELETE",
+            headers: { Authorization: `Bearer ${accessToken}` },
+          }
+        );
+        const data = await res.json();
+
+        if (!res.ok) {
+          console.error("[MetaTemplates] Delete error:", data);
+          return new Response(JSON.stringify({ error: data.error?.message || "Erro ao deletar template" }), {
+            status: res.status,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+
+        return new Response(JSON.stringify({ success: true }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      case "analytics": {
+        const { template_ids, start_date, end_date } = body;
+        
+        // Template analytics endpoint
+        const analyticsFields = "sent,delivered,read,clicks,url_clicks";
+        let url = `https://graph.facebook.com/${GRAPH_API_VERSION}/${wabaId}?fields=template_analytics.start(${start_date}).end(${end_date}).granularity(DAILY).template_ids(${template_ids.join(",")}).types(${analyticsFields})`;
+
+        const res = await fetch(url, {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
+        const data = await res.json();
+
+        if (!res.ok) {
+          console.error("[MetaTemplates] Analytics error:", data);
+          // Analytics may not be available for all accounts, return empty
+          return new Response(JSON.stringify({ template_analytics: { data: [] } }), {
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+
+        return new Response(JSON.stringify(data), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      default:
+        return new Response(JSON.stringify({ error: "Ação inválida" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+    }
+  } catch (error) {
+    console.error("[MetaTemplates] Error:", error);
+    return new Response(JSON.stringify({ error: error.message }), {
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+});
