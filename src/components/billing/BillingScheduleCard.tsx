@@ -172,6 +172,9 @@ export function BillingScheduleCard() {
         send_d_minus_1: sendDMinus1,
         send_d0: sendD0,
         send_d_plus_1: sendDPlus1,
+        template_d_minus_1: templateDMinus1,
+        template_d0: templateD0,
+        template_d_plus_1: templateDPlus1,
       };
 
       if (schedule) {
