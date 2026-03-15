@@ -70,7 +70,7 @@ export function BillingScheduleCard() {
           body: { action: 'list' },
         });
         if (error) throw error;
-        return data?.templates || [];
+        return data?.data || [];
       } catch (e) {
         console.error('Error fetching meta templates:', e);
         return [];
