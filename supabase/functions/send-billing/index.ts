@@ -267,6 +267,23 @@ Deno.serve(async (req) => {
     
     console.log(`Using department ID: ${departmentId}`);
 
+    // Load custom template mapping from billing_schedule
+    let templateMapping = { ...DEFAULT_TEMPLATE_MAPPING };
+    if (userId) {
+      const { data: scheduleData } = await supabase
+        .from('billing_schedule')
+        .select('template_d_minus_1, template_d0, template_d_plus_1')
+        .eq('user_id', userId)
+        .maybeSingle();
+      
+      if (scheduleData) {
+        if (scheduleData.template_d_minus_1) templateMapping['D-1'] = scheduleData.template_d_minus_1;
+        if (scheduleData.template_d0) templateMapping['D0'] = scheduleData.template_d0;
+        if (scheduleData.template_d_plus_1) templateMapping['D+1'] = scheduleData.template_d_plus_1;
+      }
+      console.log('Template mapping:', templateMapping);
+    }
+
     // Get today's date in Sao Paulo timezone (YYYY-MM-DD) using timezone-aware function
     const today = getRelativeDateSaoPaulo(0);
     const yesterday = getRelativeDateSaoPaulo(-1);
