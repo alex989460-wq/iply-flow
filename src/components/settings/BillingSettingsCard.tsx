@@ -15,7 +15,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { Save, Loader2, Upload, Trash2, ImageIcon } from 'lucide-react';
+import { Save, Loader2, Upload, Trash2, ImageIcon, RefreshCw } from 'lucide-react';
 
 interface BillingSettings {
   id?: string;
