@@ -57,7 +57,7 @@ interface WhatsAppTemplate {
   category?: string;
 }
 
-type StatusFilter = 'all' | 'ativa' | 'inativa' | 'suspensa' | 'vencidos' | 'vencidos_mes_anterior' | 'ativos';
+type StatusFilter = 'all' | 'ativa' | 'inativa' | 'suspensa' | 'bloqueado' | 'vencidos' | 'vencidos_mes_anterior' | 'ativos';
 type SelectionMode = 'customers' | 'servers';
 
 interface BroadcastReportData {
