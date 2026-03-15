@@ -195,7 +195,7 @@ serve(async (req) => {
         const { template_name } = body;
 
         const res = await fetch(
-          `https://graph.facebook.com/${GRAPH_API_VERSION}/${wabaId}/message_templates?name=${template_name}`,
+          `https://graph.facebook.com/${GRAPH_API_VERSION}/${wabaId}/message_templates?name=${template_name}${proofParam}`,
           {
             method: "DELETE",
             headers: { Authorization: `Bearer ${accessToken}` },
