@@ -53,23 +53,50 @@ export default function BillingSettingsCard() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadingImage, setUploadingImage] = useState(false);
 
-  // Fetch available Meta templates
-  const { data: metaTemplates = [], isLoading: loadingTemplates, refetch: refetchTemplates } = useQuery({
-    queryKey: ['meta-templates-list', user?.id],
+  // Load selected Zap Responder department
+  const { data: zapSettings } = useQuery({
+    queryKey: ['zap-settings-billing', user?.id],
     queryFn: async () => {
-      if (!user?.id) return [];
+      if (!user?.id) return null;
+      const { data, error } = await supabase
+        .from('zap_responder_settings')
+        .select('selected_department_id')
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!user?.id,
+  });
+
+  // Fetch available templates from Zap Responder
+  const { data: metaTemplates = [], isLoading: loadingTemplates, refetch: refetchTemplates } = useQuery({
+    queryKey: ['zap-templates-list', user?.id, zapSettings?.selected_department_id],
+    queryFn: async () => {
+      const departmentId = zapSettings?.selected_department_id;
+      if (!departmentId) return [];
+
       try {
-        const { data, error } = await supabase.functions.invoke('meta-templates', {
-          body: { action: 'list' },
+        const { data, error } = await supabase.functions.invoke('zap-responder', {
+          body: { action: 'buscar-templates', department_id: departmentId },
         });
+
         if (error) throw error;
-        return data?.data || [];
+        if (!data?.success) throw new Error(data?.error || 'Erro ao buscar templates do Zap Responder');
+
+        return (data?.data || [])
+          .map((t: any) => ({
+            ...t,
+            name: t?.name ?? t?.template_name ?? t?.nome ?? '',
+          }))
+          .filter((t: any) => !!t.name);
       } catch (e) {
-        console.error('Error fetching meta templates:', e);
+        console.error('Error fetching Zap Responder templates:', e);
         return [];
       }
     },
-    enabled: !!user?.id,
+    enabled: !!user?.id && !!zapSettings?.selected_department_id,
     staleTime: 5 * 60 * 1000,
   });
 
@@ -385,7 +412,7 @@ export default function BillingSettingsCard() {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
-            <Label className="text-sm">Nome do Template (Meta Business)</Label>
+            <Label className="text-sm">Nome do Template (Zap Responder)</Label>
             <div className="flex gap-2">
               <Select
                 value={formData.meta_template_name || ''}
@@ -415,13 +442,18 @@ export default function BillingSettingsCard() {
                 size="icon"
                 onClick={() => refetchTemplates()}
                 disabled={loadingTemplates}
-                title="Recarregar templates"
+                title="Recarregar templates do Zap Responder"
               >
                 {loadingTemplates ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
               </Button>
             </div>
+            {!zapSettings?.selected_department_id && (
+              <p className="text-xs text-muted-foreground">
+                Selecione um departamento do Zap Responder para carregar os templates.
+              </p>
+            )}
             <p className="text-xs text-muted-foreground">
-              Selecione o template aprovado no Meta Business. Variáveis: {'{{1}}'} Nome, {'{{2}}'} Usuário, {'{{3}}'} Servidor, {'{{4}}'} Vencimento.
+              Selecione o template aprovado no seu Zap Responder. Variáveis: {'{{1}}'} Nome, {'{{2}}'} Usuário, {'{{3}}'} Servidor, {'{{4}}'} Vencimento.
             </p>
           </div>
 
