@@ -397,7 +397,7 @@ Deno.serve(async (req) => {
       
       const batchPromises = batch.map(async (customer) => {
         const billingType = customer.billingType as 'D-1' | 'D0' | 'D+1';
-        const templateName = TEMPLATE_MAPPING[billingType];
+        const templateName = templateMapping[billingType];
         
         // Send WhatsApp template
         const sendResult = await sendWhatsAppTemplate(customer.phone, templateName, zapToken, apiBaseUrl, departmentId);
