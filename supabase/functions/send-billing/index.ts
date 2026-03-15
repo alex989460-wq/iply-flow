@@ -5,11 +5,11 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Mapping of billing types to template names (approved templates from the API)
-const TEMPLATE_MAPPING: Record<string, string> = {
-  'D-1': 'vence_amanha',  // Due tomorrow
-  'D0': 'hoje01',         // Due today
-  'D+1': 'vencido',       // Overdue (yesterday)
+// Default mapping of billing types to template names
+const DEFAULT_TEMPLATE_MAPPING: Record<string, string> = {
+  'D-1': 'vence_amanha',
+  'D0': 'hoje01',
+  'D+1': 'vencido',
 };
 
 // Fallback messages if templates fail
