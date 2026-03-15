@@ -37,6 +37,9 @@ interface BillingSchedule {
   send_d_minus_1: boolean;
   send_d0: boolean;
   send_d_plus_1: boolean;
+  template_d_minus_1: string;
+  template_d0: string;
+  template_d_plus_1: string;
   last_run_at: string | null;
   last_run_status: string | null;
   created_at: string;
