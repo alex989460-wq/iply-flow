@@ -104,6 +104,10 @@ export default function QuickRenewalPanel({ isMobile = false, onClose }: QuickRe
   const [isGeneratingTest, setIsGeneratingTest] = useState(false);
   const [vplayTestResult, setVplayTestResult] = useState<string | null>(null);
   const [selectedVplayServerId, setSelectedVplayServerId] = useState<string | null>(null);
+  const [editedServerId, setEditedServerId] = useState<string | null>(null);
+  const [editedStatus, setEditedStatus] = useState<string>('ativa');
+  const [editedName, setEditedName] = useState<string>('');
+  const [editedPhone, setEditedPhone] = useState<string>('');
   const queryClient = useQueryClient();
 
   // Fetch vplay servers
