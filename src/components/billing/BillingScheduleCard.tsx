@@ -152,10 +152,13 @@ export function BillingScheduleCard() {
         sendTime !== scheduleTime ||
         sendDMinus1 !== schedule.send_d_minus_1 ||
         sendD0 !== schedule.send_d0 ||
-        sendDPlus1 !== schedule.send_d_plus_1
+        sendDPlus1 !== schedule.send_d_plus_1 ||
+        templateDMinus1 !== ((schedule as any).template_d_minus_1 || 'vence_amanha') ||
+        templateD0 !== ((schedule as any).template_d0 || 'hoje01') ||
+        templateDPlus1 !== ((schedule as any).template_d_plus_1 || 'vencido')
       );
     }
-  }, [isEnabled, sendTime, sendDMinus1, sendD0, sendDPlus1, schedule]);
+  }, [isEnabled, sendTime, sendDMinus1, sendD0, sendDPlus1, templateDMinus1, templateD0, templateDPlus1, schedule]);
 
   // Save schedule mutation
   const saveMutation = useMutation({
