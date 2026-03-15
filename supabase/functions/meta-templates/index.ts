@@ -221,7 +221,7 @@ serve(async (req) => {
         
         // Template analytics endpoint
         const analyticsFields = "sent,delivered,read,clicks,url_clicks";
-        let url = `https://graph.facebook.com/${GRAPH_API_VERSION}/${wabaId}?fields=template_analytics.start(${start_date}).end(${end_date}).granularity(DAILY).template_ids(${template_ids.join(",")}).types(${analyticsFields})`;
+        let url = `https://graph.facebook.com/${GRAPH_API_VERSION}/${wabaId}?fields=template_analytics.start(${start_date}).end(${end_date}).granularity(DAILY).template_ids(${template_ids.join(",")}).types(${analyticsFields})${proofParam}`;
 
         const res = await fetch(url, {
           headers: { Authorization: `Bearer ${accessToken}` },
