@@ -15,7 +15,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { Save, Loader2, Upload, Trash2, ImageIcon } from 'lucide-react';
+import { Save, Loader2, Upload, Trash2, ImageIcon, RefreshCw } from 'lucide-react';
 
 interface BillingSettings {
   id?: string;
@@ -52,6 +52,26 @@ export default function BillingSettingsCard() {
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadingImage, setUploadingImage] = useState(false);
+
+  // Fetch available Meta templates
+  const { data: metaTemplates = [], isLoading: loadingTemplates, refetch: refetchTemplates } = useQuery({
+    queryKey: ['meta-templates-list', user?.id],
+    queryFn: async () => {
+      if (!user?.id) return [];
+      try {
+        const { data, error } = await supabase.functions.invoke('meta-templates', {
+          body: { action: 'list' },
+        });
+        if (error) throw error;
+        return data?.templates || [];
+      } catch (e) {
+        console.error('Error fetching meta templates:', e);
+        return [];
+      }
+    },
+    enabled: !!user?.id,
+    staleTime: 5 * 60 * 1000,
+  });
 
   const [formData, setFormData] = useState<Partial<BillingSettings>>({
     pix_key: '',
@@ -366,14 +386,42 @@ export default function BillingSettingsCard() {
         <CardContent className="space-y-4">
           <div className="space-y-2">
             <Label className="text-sm">Nome do Template (Meta Business)</Label>
-            <Input
-              placeholder="pedido_aprovado"
-              value={formData.meta_template_name || ''}
-              onChange={(e) => setFormData({ ...formData, meta_template_name: e.target.value })}
-              className="font-mono"
-            />
+            <div className="flex gap-2">
+              <Select
+                value={formData.meta_template_name || ''}
+                onValueChange={(v) => setFormData({ ...formData, meta_template_name: v })}
+              >
+                <SelectTrigger className="flex-1 font-mono">
+                  <SelectValue placeholder="Selecione um template" />
+                </SelectTrigger>
+                <SelectContent>
+                  {metaTemplates.map((t: any) => (
+                    <SelectItem key={t.name} value={t.name}>
+                      <span className="flex items-center gap-2">
+                        <span className={`inline-block w-2 h-2 rounded-full ${t.status === 'APPROVED' ? 'bg-green-500' : t.status === 'PENDING' ? 'bg-yellow-500' : 'bg-red-500'}`} />
+                        {t.name}
+                      </span>
+                    </SelectItem>
+                  ))}
+                  {metaTemplates.length === 0 && (
+                    <SelectItem value={formData.meta_template_name || 'pedido_aprovado'} disabled={false}>
+                      {formData.meta_template_name || 'pedido_aprovado'}
+                    </SelectItem>
+                  )}
+                </SelectContent>
+              </Select>
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => refetchTemplates()}
+                disabled={loadingTemplates}
+                title="Recarregar templates"
+              >
+                {loadingTemplates ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+              </Button>
+            </div>
             <p className="text-xs text-muted-foreground">
-              Nome exato do template aprovado no Meta Business. Variáveis: {'{{1}}'} Nome, {'{{2}}'} Usuário, {'{{3}}'} Servidor, {'{{4}}'} Vencimento.
+              Selecione o template aprovado no Meta Business. Variáveis: {'{{1}}'} Nome, {'{{2}}'} Usuário, {'{{3}}'} Servidor, {'{{4}}'} Vencimento.
             </p>
           </div>
 
