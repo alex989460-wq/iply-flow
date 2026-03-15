@@ -755,6 +755,7 @@ Obrigado pela preferência! 🙏`;
       toast.error('Erro ao salvar: ' + error.message);
     },
   });
+  // Generate Vplay test (standalone - not tied to selectedCustomer)
   const [vplayTestName, setVplayTestName] = useState('');
   
   const handleGenerateVplayTest = async () => {
