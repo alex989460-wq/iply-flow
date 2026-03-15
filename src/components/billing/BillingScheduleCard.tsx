@@ -8,6 +8,13 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { 
   Clock, 
   Calendar, 
@@ -15,10 +22,12 @@ import {
   Loader2,
   CheckCircle,
   AlertCircle,
-  Timer
+  Timer,
+  RefreshCw
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
+import { supabase } from '@/integrations/supabase/client';
 
 interface BillingSchedule {
   id: string;
