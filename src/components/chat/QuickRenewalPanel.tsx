@@ -1343,6 +1343,22 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                     </div>
                   </div>
 
+                  {/* Save Customer Data Button */}
+                  <Button 
+                    variant="secondary" 
+                    size="sm" 
+                    className="w-full h-8 text-xs"
+                    onClick={() => saveCustomerData.mutate()}
+                    disabled={saveCustomerData.isPending}
+                  >
+                    {saveCustomerData.isPending ? (
+                      <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                    ) : (
+                      <CheckCircle className="h-3 w-3 mr-1" />
+                    )}
+                    Salvar Dados
+                  </Button>
+
                   {/* Copy Data with PIX Button (always visible) */}
                   <Button 
                     variant="outline" 
