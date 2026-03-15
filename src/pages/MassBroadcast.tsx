@@ -482,6 +482,7 @@ export default function MassBroadcast() {
       if (statusFilter === 'ativa') return customer.status === 'ativa';
       if (statusFilter === 'inativa') return customer.status === 'inativa';
       if (statusFilter === 'suspensa') return customer.status === 'suspensa';
+      if (statusFilter === 'bloqueado') return customer.status === 'bloqueado';
       if (statusFilter === 'vencidos') {
         const dueDate = new Date(customer.due_date);
         dueDate.setHours(0, 0, 0, 0);
