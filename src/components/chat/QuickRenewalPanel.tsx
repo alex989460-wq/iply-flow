@@ -1202,19 +1202,37 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
               <CardHeader className="p-3 pb-2">
                 <CardTitle className="text-sm flex items-center gap-2">
                   <User className="h-4 w-4" />
-                  {selectedCustomer.name}
+                  <Input
+                    value={editedName}
+                    onChange={(e) => setEditedName(e.target.value)}
+                    className="h-7 text-sm font-semibold border-dashed"
+                  />
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-3 pt-0 space-y-3">
                 <div className="space-y-2 text-sm">
-                  <div className="flex items-center gap-2 text-muted-foreground">
-                    <Phone className="h-3.5 w-3.5" />
-                    <span>{selectedCustomer.phone}</span>
+                  <div className="flex items-center gap-2">
+                    <Phone className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                    <Input
+                      value={editedPhone}
+                      onChange={(e) => setEditedPhone(e.target.value)}
+                      className="h-7 text-sm border-dashed"
+                    />
                   </div>
                   
                   <div className="flex items-center justify-between">
                     <span className="text-muted-foreground">Status:</span>
-                    {getStatusBadge(selectedCustomer.status, selectedCustomer.due_date)}
+                    <Select value={editedStatus} onValueChange={setEditedStatus}>
+                      <SelectTrigger className="h-7 w-[130px] text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="ativa">Ativa</SelectItem>
+                        <SelectItem value="inativa">Inativa</SelectItem>
+                        <SelectItem value="suspensa">Suspensa</SelectItem>
+                        <SelectItem value="bloqueado">Bloqueado</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                   
                   {/* Username - Editable for multiple users */}
