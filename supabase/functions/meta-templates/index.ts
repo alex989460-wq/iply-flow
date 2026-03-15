@@ -91,7 +91,7 @@ serve(async (req) => {
     // We need to resolve it to a WABA ID for the templates API
     try {
       const wabaRes = await fetch(
-        `https://graph.facebook.com/${GRAPH_API_VERSION}/${wabaId}/owned_whatsapp_business_accounts?fields=id,name`,
+        `https://graph.facebook.com/${GRAPH_API_VERSION}/${wabaId}/owned_whatsapp_business_accounts?fields=id,name${proofParam}`,
         { headers: { Authorization: `Bearer ${accessToken}` } }
       );
       const wabaData = await wabaRes.json();
