@@ -956,18 +956,19 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
     // Check if customer is overdue (regardless of status)
     const isOverdue = dueDate ? isCustomerOverdue(dueDate) : false;
     
-    // If overdue (and not suspended), show "Vencido" badge
-    if (isOverdue && status !== 'suspensa') {
+    // If overdue (and not suspended/blocked), show "Vencido" badge
+    if (isOverdue && status !== 'suspensa' && status !== 'bloqueado') {
       return <Badge variant="destructive">Vencido</Badge>;
     }
     
-    const variants: Record<string, { variant: 'default' | 'secondary' | 'destructive'; label: string }> = {
+    const variants: Record<string, { variant: 'default' | 'secondary' | 'destructive'; label: string; className?: string }> = {
       ativa: { variant: 'default', label: 'Ativa' },
       inativa: { variant: 'secondary', label: 'Inativa' },
       suspensa: { variant: 'destructive', label: 'Suspensa' },
+      bloqueado: { variant: 'destructive', label: 'Bloqueado', className: 'bg-red-900/50' },
     };
     const config = variants[status] || variants.inativa;
-    return <Badge variant={config.variant}>{config.label}</Badge>;
+    return <Badge variant={config.variant} className={config.className}>{config.label}</Badge>;
   };
 
   const formatDate = (dateStr: string) => {
