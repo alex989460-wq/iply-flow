@@ -98,7 +98,7 @@ serve(async (req) => {
             servers:server_id (server_name)
           `)
           .ilike('phone', `%${variant}%`)
-          .eq('status', 'ativa')
+          .in('status', ['ativa', 'inativa'])
           .order('due_date', { ascending: true })
           .limit(20);
 

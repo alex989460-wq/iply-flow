@@ -1686,6 +1686,7 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
                               { value: 'ativa', label: 'Ativos' },
                               { value: 'inativa', label: 'Inativos' },
                               { value: 'suspensa', label: 'Suspensos' },
+                              { value: 'bloqueado', label: 'Bloqueados' },
                             ].map((status) => (
                               <label key={status.value} className="flex items-center gap-2 cursor-pointer">
                                 <input

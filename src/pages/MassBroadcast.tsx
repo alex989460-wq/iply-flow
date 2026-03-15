@@ -1202,6 +1202,13 @@ export default function MassBroadcast() {
                   >
                     Suspensos
                   </Button>
+                  <Button
+                    variant={statusFilter === 'bloqueado' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setStatusFilter('bloqueado')}
+                  >
+                    Bloqueados
+                  </Button>
                 </div>
               </CardContent>
             </Card>
