@@ -71,14 +71,33 @@ serve(async (req) => {
       return new Response(JSON.stringify({ error: 'Secret inválido' }), { status: 401, headers: jsonHeaders });
     }
 
-    // Check event type - only process purchase_approved
+    // Check event type - only process purchase_approved WITH paid status
     const event = body?.event || body?.type || body?.status;
     const dataStatus = body?.data?.status;
-    // Accept purchase_approved event OR paid status inside data
-    if (event !== 'purchase_approved' && event !== 'approved' && dataStatus !== 'paid') {
+    const paidAt = body?.data?.paidAt;
+    
+    // CRITICAL: Require BOTH approved event AND paid status to avoid processing unpaid PIX
+    const isApprovedEvent = event === 'purchase_approved' || event === 'approved';
+    const isPaidStatus = dataStatus === 'paid';
+    
+    if (!isApprovedEvent && !isPaidStatus) {
       console.log(`[Cakto] Evento ignorado: ${event} (data.status: ${dataStatus})`);
       return new Response(JSON.stringify({ success: true, message: `Evento ${event} ignorado` }), { headers: jsonHeaders });
     }
+    
+    // Extra safety: if event is approved but status is NOT paid (e.g. waiting_payment), reject
+    if (isApprovedEvent && dataStatus && dataStatus !== 'paid') {
+      console.warn(`[Cakto] Evento ${event} rejeitado - status não é paid: ${dataStatus}`);
+      return new Response(JSON.stringify({ success: true, message: `Evento ${event} ignorado - status: ${dataStatus}` }), { headers: jsonHeaders });
+    }
+    
+    // Extra safety: reject if paidAt is null (PIX generated but not paid)
+    if (!paidAt && dataStatus !== 'paid') {
+      console.warn(`[Cakto] Rejeitado - paidAt ausente e status: ${dataStatus}`);
+      return new Response(JSON.stringify({ success: true, message: 'Pagamento não confirmado (paidAt ausente)' }), { headers: jsonHeaders });
+    }
+    
+    console.log(`[Cakto] Pagamento confirmado - event: ${event}, status: ${dataStatus}, paidAt: ${paidAt}`);
 
     // Extract customer data - Cakto wraps everything inside body.data
     const caktoData = body?.data || body;
