@@ -313,7 +313,7 @@ export function BillingScheduleCard() {
               size="sm"
               onClick={() => refetchTemplates()}
               disabled={loadingTemplates}
-              title="Recarregar templates da Meta"
+              title="Recarregar templates do Zap Responder"
             >
               {loadingTemplates ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
               <span className="ml-1.5 text-xs">Templates</span>
