@@ -407,7 +407,7 @@ export default function BillingSettingsCard() {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
-            <Label className="text-sm">Nome do Template (Meta Business)</Label>
+            <Label className="text-sm">Nome do Template (Zap Responder)</Label>
             <div className="flex gap-2">
               <Select
                 value={formData.meta_template_name || ''}
