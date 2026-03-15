@@ -1002,17 +1002,19 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
   };
 
   const getStatusBadge = (status: CustomerStatus) => {
-    const styles = {
+    const styles: Record<string, string> = {
       ativa: 'badge-online',
       inativa: 'badge-offline',
       suspensa: 'badge-maintenance',
+      bloqueado: 'bg-red-900/30 text-red-400 border border-red-500/30 px-2 py-0.5 rounded-full text-xs font-medium',
     };
-    const labels = {
+    const labels: Record<string, string> = {
       ativa: 'Ativa',
       inativa: 'Inativa',
       suspensa: 'Suspensa',
+      bloqueado: 'Bloqueado',
     };
-    return <span className={styles[status]}>{labels[status]}</span>;
+    return <span className={styles[status] || styles.inativa}>{labels[status] || status}</span>;
   };
 
   const filteredCustomers = customers?.filter(customer => {
