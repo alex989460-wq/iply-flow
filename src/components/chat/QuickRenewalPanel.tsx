@@ -41,7 +41,7 @@ interface Customer {
   name: string;
   phone: string;
   username: string | null;
-  status: 'ativa' | 'inativa' | 'suspensa';
+  status: 'ativa' | 'inativa' | 'suspensa' | 'bloqueado';
   due_date: string;
   custom_price: number | null;
   screens: number;
