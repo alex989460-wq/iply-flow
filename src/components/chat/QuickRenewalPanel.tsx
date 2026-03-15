@@ -202,6 +202,19 @@ export default function QuickRenewalPanel({ isMobile = false, onClose }: QuickRe
     },
   });
 
+  // Fetch all servers for selection
+  const { data: allServers = [] } = useQuery({
+    queryKey: ['servers-list'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('servers')
+        .select('id, server_name')
+        .order('server_name');
+      if (error) throw error;
+      return data;
+    },
+  });
+
   // Fetch user's own quick messages
   const { data: quickMessages = [] } = useQuery({
     queryKey: ['quick-messages', user?.id],
