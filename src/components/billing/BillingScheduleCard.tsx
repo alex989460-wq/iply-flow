@@ -130,11 +130,13 @@ export function BillingScheduleCard() {
   useEffect(() => {
     if (schedule) {
       setIsEnabled(schedule.is_enabled);
-      // Convert time from HH:MM:SS to HH:MM for input
       setSendTime(schedule.send_time.substring(0, 5));
       setSendDMinus1(schedule.send_d_minus_1);
       setSendD0(schedule.send_d0);
       setSendDPlus1(schedule.send_d_plus_1);
+      setTemplateDMinus1((schedule as any).template_d_minus_1 || 'vence_amanha');
+      setTemplateD0((schedule as any).template_d0 || 'hoje01');
+      setTemplateDPlus1((schedule as any).template_d_plus_1 || 'vencido');
     }
     setHasChanges(false);
   }, [schedule]);
