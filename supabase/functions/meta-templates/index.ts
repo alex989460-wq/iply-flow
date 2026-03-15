@@ -73,6 +73,19 @@ serve(async (req) => {
     const accessToken = zapSettings.meta_access_token;
     let wabaId = zapSettings.meta_business_id;
 
+    // Generate appsecret_proof
+    const appSecret = Deno.env.get("META_APP_SECRET");
+    let appsecretProof = "";
+    if (appSecret) {
+      const encoder = new TextEncoder();
+      const key = await crypto.subtle.importKey(
+        "raw", encoder.encode(appSecret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]
+      );
+      const sig = await crypto.subtle.sign("HMAC", key, encoder.encode(accessToken));
+      appsecretProof = Array.from(new Uint8Array(sig)).map(b => b.toString(16).padStart(2, '0')).join('');
+    }
+    const proofParam = appsecretProof ? `&appsecret_proof=${appsecretProof}` : "";
+
     // Try to get the actual WABA ID from the Business ID
     // The meta_business_id might be a Facebook Business ID, not a WABA ID
     // We need to resolve it to a WABA ID for the templates API
