@@ -53,6 +53,26 @@ export default function BillingSettingsCard() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadingImage, setUploadingImage] = useState(false);
 
+  // Fetch available Meta templates
+  const { data: metaTemplates = [], isLoading: loadingTemplates, refetch: refetchTemplates } = useQuery({
+    queryKey: ['meta-templates-list', user?.id],
+    queryFn: async () => {
+      if (!user?.id) return [];
+      try {
+        const { data, error } = await supabase.functions.invoke('meta-templates', {
+          body: { action: 'list' },
+        });
+        if (error) throw error;
+        return data?.templates || [];
+      } catch (e) {
+        console.error('Error fetching meta templates:', e);
+        return [];
+      }
+    },
+    enabled: !!user?.id,
+    staleTime: 5 * 60 * 1000,
+  });
+
   const [formData, setFormData] = useState<Partial<BillingSettings>>({
     pix_key: '',
     pix_key_type: 'celular',
