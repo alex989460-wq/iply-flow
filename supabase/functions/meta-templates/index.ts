@@ -112,7 +112,7 @@ serve(async (req) => {
     switch (action) {
       case "list": {
         const { limit = 100, after } = body;
-        let url = `https://graph.facebook.com/${GRAPH_API_VERSION}/${wabaId}/message_templates?limit=${limit}&fields=id,name,status,category,language,components,quality_score,message_send_ttl_seconds`;
+        let url = `https://graph.facebook.com/${GRAPH_API_VERSION}/${wabaId}/message_templates?limit=${limit}&fields=id,name,status,category,language,components,quality_score,message_send_ttl_seconds${proofParam}`;
         if (after) url += `&after=${after}`;
 
         const res = await fetch(url, {
