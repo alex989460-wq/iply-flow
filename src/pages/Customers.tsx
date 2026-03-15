@@ -1941,6 +1941,7 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
                           <SelectItem value="ativa">Ativa</SelectItem>
                           <SelectItem value="inativa">Inativa</SelectItem>
                           <SelectItem value="suspensa">Suspensa</SelectItem>
+                          <SelectItem value="bloqueado">Bloqueado</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
