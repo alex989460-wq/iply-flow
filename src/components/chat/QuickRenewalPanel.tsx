@@ -1308,15 +1308,24 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                     </Select>
                   </div>
 
-                  {selectedCustomer.server && (
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2 text-muted-foreground">
-                        <Server className="h-3.5 w-3.5" />
-                        <span>Servidor:</span>
-                      </div>
-                      <span className="font-medium text-primary">{selectedCustomer.server.server_name}</span>
-                    </div>
-                  )}
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground flex items-center gap-1">
+                      <Server className="h-3 w-3" />
+                      Servidor:
+                    </label>
+                    <Select value={editedServerId || ''} onValueChange={setEditedServerId}>
+                      <SelectTrigger className="h-8 text-sm text-blue-400 font-medium">
+                        <SelectValue placeholder="Selecione o servidor" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {allServers.map((s) => (
+                          <SelectItem key={s.id} value={s.id}>
+                            {s.server_name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                   
                   {/* Editable Price */}
                   <div className="space-y-1">
