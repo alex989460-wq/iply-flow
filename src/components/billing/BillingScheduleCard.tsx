@@ -60,23 +60,45 @@ export function BillingScheduleCard() {
   const [templateDPlus1, setTemplateDPlus1] = useState('vencido');
   const [hasChanges, setHasChanges] = useState(false);
 
-  // Fetch available Meta templates
-  const { data: metaTemplates = [], isLoading: loadingTemplates, refetch: refetchTemplates } = useQuery({
-    queryKey: ['meta-templates-list-schedule', user?.id],
+  // Load selected Zap Responder department
+  const { data: zapSettings } = useQuery({
+    queryKey: ['zap-settings-schedule', user?.id],
     queryFn: async () => {
-      if (!user?.id) return [];
+      if (!user?.id) return null;
+      const { data, error } = await supabase
+        .from('zap_responder_settings')
+        .select('selected_department_id')
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!user?.id,
+  });
+
+  // Fetch available templates from Zap Responder
+  const { data: metaTemplates = [], isLoading: loadingTemplates, refetch: refetchTemplates } = useQuery({
+    queryKey: ['zap-templates-list-schedule', user?.id, zapSettings?.selected_department_id],
+    queryFn: async () => {
+      const departmentId = zapSettings?.selected_department_id;
+      if (!departmentId) return [];
+
       try {
-        const { data, error } = await supabase.functions.invoke('meta-templates', {
-          body: { action: 'list' },
+        const { data, error } = await supabase.functions.invoke('zap-responder', {
+          body: { action: 'buscar-templates', department_id: departmentId },
         });
+
         if (error) throw error;
+        if (!data?.success) throw new Error(data?.error || 'Erro ao buscar templates do Zap Responder');
+
         return data?.data || [];
       } catch (e) {
-        console.error('Error fetching meta templates:', e);
+        console.error('Error fetching Zap Responder templates:', e);
         return [];
       }
     },
-    enabled: !!user?.id,
+    enabled: !!user?.id && !!zapSettings?.selected_department_id,
     staleTime: 5 * 60 * 1000,
   });
 
