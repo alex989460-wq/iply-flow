@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { encode as hexEncode } from "https://deno.land/std@0.168.0/encoding/hex.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -72,12 +73,25 @@ serve(async (req) => {
     const accessToken = zapSettings.meta_access_token;
     let wabaId = zapSettings.meta_business_id;
 
+    // Generate appsecret_proof
+    const appSecret = Deno.env.get("META_APP_SECRET");
+    let appsecretProof = "";
+    if (appSecret) {
+      const encoder = new TextEncoder();
+      const key = await crypto.subtle.importKey(
+        "raw", encoder.encode(appSecret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]
+      );
+      const sig = await crypto.subtle.sign("HMAC", key, encoder.encode(accessToken));
+      appsecretProof = Array.from(new Uint8Array(sig)).map(b => b.toString(16).padStart(2, '0')).join('');
+    }
+    const proofParam = appsecretProof ? `&appsecret_proof=${appsecretProof}` : "";
+
     // Try to get the actual WABA ID from the Business ID
     // The meta_business_id might be a Facebook Business ID, not a WABA ID
     // We need to resolve it to a WABA ID for the templates API
     try {
       const wabaRes = await fetch(
-        `https://graph.facebook.com/${GRAPH_API_VERSION}/${wabaId}/owned_whatsapp_business_accounts?fields=id,name`,
+        `https://graph.facebook.com/${GRAPH_API_VERSION}/${wabaId}/owned_whatsapp_business_accounts?fields=id,name${proofParam}`,
         { headers: { Authorization: `Bearer ${accessToken}` } }
       );
       const wabaData = await wabaRes.json();
@@ -98,7 +112,7 @@ serve(async (req) => {
     switch (action) {
       case "list": {
         const { limit = 100, after } = body;
-        let url = `https://graph.facebook.com/${GRAPH_API_VERSION}/${wabaId}/message_templates?limit=${limit}&fields=id,name,status,category,language,components,quality_score,message_send_ttl_seconds`;
+        let url = `https://graph.facebook.com/${GRAPH_API_VERSION}/${wabaId}/message_templates?limit=${limit}&fields=id,name,status,category,language,components,quality_score,message_send_ttl_seconds${proofParam}`;
         if (after) url += `&after=${after}`;
 
         const res = await fetch(url, {
@@ -123,7 +137,7 @@ serve(async (req) => {
         const { name, category, language, components } = body;
 
         const res = await fetch(
-          `https://graph.facebook.com/${GRAPH_API_VERSION}/${wabaId}/message_templates`,
+          `https://graph.facebook.com/${GRAPH_API_VERSION}/${wabaId}/message_templates?x=1${proofParam}`,
           {
             method: "POST",
             headers: {
@@ -152,7 +166,7 @@ serve(async (req) => {
         const { template_id, components: updateComponents } = body;
 
         const res = await fetch(
-          `https://graph.facebook.com/${GRAPH_API_VERSION}/${template_id}`,
+          `https://graph.facebook.com/${GRAPH_API_VERSION}/${template_id}?x=1${proofParam}`,
           {
             method: "POST",
             headers: {
@@ -181,7 +195,7 @@ serve(async (req) => {
         const { template_name } = body;
 
         const res = await fetch(
-          `https://graph.facebook.com/${GRAPH_API_VERSION}/${wabaId}/message_templates?name=${template_name}`,
+          `https://graph.facebook.com/${GRAPH_API_VERSION}/${wabaId}/message_templates?name=${template_name}${proofParam}`,
           {
             method: "DELETE",
             headers: { Authorization: `Bearer ${accessToken}` },
@@ -207,7 +221,7 @@ serve(async (req) => {
         
         // Template analytics endpoint
         const analyticsFields = "sent,delivered,read,clicks,url_clicks";
-        let url = `https://graph.facebook.com/${GRAPH_API_VERSION}/${wabaId}?fields=template_analytics.start(${start_date}).end(${end_date}).granularity(DAILY).template_ids(${template_ids.join(",")}).types(${analyticsFields})`;
+        let url = `https://graph.facebook.com/${GRAPH_API_VERSION}/${wabaId}?fields=template_analytics.start(${start_date}).end(${end_date}).granularity(DAILY).template_ids(${template_ids.join(",")}).types(${analyticsFields})${proofParam}`;
 
         const res = await fetch(url, {
           headers: { Authorization: `Bearer ${accessToken}` },
