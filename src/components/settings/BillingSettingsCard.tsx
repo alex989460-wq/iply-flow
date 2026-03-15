@@ -437,13 +437,18 @@ export default function BillingSettingsCard() {
                 size="icon"
                 onClick={() => refetchTemplates()}
                 disabled={loadingTemplates}
-                title="Recarregar templates"
+                title="Recarregar templates do Zap Responder"
               >
                 {loadingTemplates ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
               </Button>
             </div>
+            {!zapSettings?.selected_department_id && (
+              <p className="text-xs text-muted-foreground">
+                Selecione um departamento do Zap Responder para carregar os templates.
+              </p>
+            )}
             <p className="text-xs text-muted-foreground">
-              Selecione o template aprovado no Meta Business. Variáveis: {'{{1}}'} Nome, {'{{2}}'} Usuário, {'{{3}}'} Servidor, {'{{4}}'} Vencimento.
+              Selecione o template aprovado no seu Zap Responder. Variáveis: {'{{1}}'} Nome, {'{{2}}'} Usuário, {'{{3}}'} Servidor, {'{{4}}'} Vencimento.
             </p>
           </div>
 

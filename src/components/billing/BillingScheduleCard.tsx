@@ -319,6 +319,11 @@ export function BillingScheduleCard() {
               <span className="ml-1.5 text-xs">Templates</span>
             </Button>
           </div>
+          {!zapSettings?.selected_department_id && (
+            <p className="text-xs text-muted-foreground">
+              Selecione um departamento do Zap Responder para carregar os templates.
+            </p>
+          )}
           <div className="grid grid-cols-1 gap-3">
             {/* D-1 */}
             <div className={cn(
