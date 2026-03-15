@@ -41,7 +41,7 @@ interface Customer {
   name: string;
   phone: string;
   username: string | null;
-  status: 'ativa' | 'inativa' | 'suspensa';
+  status: 'ativa' | 'inativa' | 'suspensa' | 'bloqueado';
   due_date: string;
   custom_price: number | null;
   screens: number;
@@ -104,6 +104,10 @@ export default function QuickRenewalPanel({ isMobile = false, onClose }: QuickRe
   const [isGeneratingTest, setIsGeneratingTest] = useState(false);
   const [vplayTestResult, setVplayTestResult] = useState<string | null>(null);
   const [selectedVplayServerId, setSelectedVplayServerId] = useState<string | null>(null);
+  const [editedServerId, setEditedServerId] = useState<string | null>(null);
+  const [editedStatus, setEditedStatus] = useState<string>('ativa');
+  const [editedName, setEditedName] = useState<string>('');
+  const [editedPhone, setEditedPhone] = useState<string>('');
   const queryClient = useQueryClient();
 
   // Fetch vplay servers
@@ -193,6 +197,19 @@ export default function QuickRenewalPanel({ isMobile = false, onClose }: QuickRe
         .from('plans')
         .select('*')
         .order('plan_name');
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  // Fetch all servers for selection
+  const { data: allServers = [] } = useQuery({
+    queryKey: ['servers-list'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('servers')
+        .select('id, server_name')
+        .order('server_name');
       if (error) throw error;
       return data;
     },
@@ -702,8 +719,42 @@ Obrigado pela preferência! 🙏`;
     setCustomRenewalPrice(currentPrice.toString());
     setSelectedScreens(customer.screens || 1);
     setEditedUsername(customer.username || '');
+    setEditedServerId(customer.server?.id || null);
+    setEditedStatus(customer.status);
+    setEditedName(customer.name);
+    setEditedPhone(customer.phone);
   };
 
+  // Save customer data without renewal
+  const saveCustomerData = useMutation({
+    mutationFn: async () => {
+      if (!selectedCustomer) throw new Error('Nenhum cliente selecionado');
+      const updateData: Record<string, unknown> = {
+        name: editedName.trim(),
+        phone: editedPhone.trim(),
+        username: editedUsername.trim() || null,
+        screens: selectedScreens,
+        status: editedStatus,
+        server_id: editedServerId,
+      };
+      if (selectedPlanId) updateData.plan_id = selectedPlanId;
+      const planPrice = selectedPlan?.price ?? selectedCustomer.plan?.price ?? 0;
+      if (renewalPrice !== planPrice) {
+        updateData.custom_price = renewalPrice;
+      } else {
+        updateData.custom_price = null;
+      }
+      const { error } = await supabase.from('customers').update(updateData).eq('id', selectedCustomer.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success('Dados do cliente salvos!');
+      queryClient.invalidateQueries({ queryKey: ['customer-search'] });
+    },
+    onError: (error: Error) => {
+      toast.error('Erro ao salvar: ' + error.message);
+    },
+  });
   // Generate Vplay test (standalone - not tied to selectedCustomer)
   const [vplayTestName, setVplayTestName] = useState('');
   
@@ -956,18 +1007,19 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
     // Check if customer is overdue (regardless of status)
     const isOverdue = dueDate ? isCustomerOverdue(dueDate) : false;
     
-    // If overdue (and not suspended), show "Vencido" badge
-    if (isOverdue && status !== 'suspensa') {
+    // If overdue (and not suspended/blocked), show "Vencido" badge
+    if (isOverdue && status !== 'suspensa' && status !== 'bloqueado') {
       return <Badge variant="destructive">Vencido</Badge>;
     }
     
-    const variants: Record<string, { variant: 'default' | 'secondary' | 'destructive'; label: string }> = {
+    const variants: Record<string, { variant: 'default' | 'secondary' | 'destructive'; label: string; className?: string }> = {
       ativa: { variant: 'default', label: 'Ativa' },
       inativa: { variant: 'secondary', label: 'Inativa' },
       suspensa: { variant: 'destructive', label: 'Suspensa' },
+      bloqueado: { variant: 'destructive', label: 'Bloqueado', className: 'bg-red-900/50' },
     };
     const config = variants[status] || variants.inativa;
-    return <Badge variant={config.variant}>{config.label}</Badge>;
+    return <Badge variant={config.variant} className={config.className}>{config.label}</Badge>;
   };
 
   const formatDate = (dateStr: string) => {
@@ -1112,15 +1164,20 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                             </>
                           )}
                         </div>
-                        <div className="flex items-center gap-1 text-xs mt-0.5">
-                          <Calendar className="h-3 w-3 text-muted-foreground" />
-                          <span className={
-                            new Date(customer.due_date + 'T12:00:00') < new Date() 
-                              ? 'text-destructive font-medium' 
-                              : 'text-muted-foreground'
-                          }>
-                            {formatDate(customer.due_date)}
-                          </span>
+                        <div className="flex items-center gap-2 text-xs mt-0.5">
+                          <div className="flex items-center gap-1">
+                            <Calendar className="h-3 w-3 text-muted-foreground" />
+                            <span className={
+                              new Date(customer.due_date + 'T12:00:00') < new Date() 
+                                ? 'text-destructive font-medium' 
+                                : 'text-muted-foreground'
+                            }>
+                              {formatDate(customer.due_date)}
+                            </span>
+                          </div>
+                          {customer.server && (
+                            <span className="text-blue-400 font-medium">{customer.server.server_name}</span>
+                          )}
                         </div>
                       </div>
                       {getStatusBadge(customer.status, customer.due_date)}
@@ -1146,19 +1203,37 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
               <CardHeader className="p-3 pb-2">
                 <CardTitle className="text-sm flex items-center gap-2">
                   <User className="h-4 w-4" />
-                  {selectedCustomer.name}
+                  <Input
+                    value={editedName}
+                    onChange={(e) => setEditedName(e.target.value)}
+                    className="h-7 text-sm font-semibold border-dashed"
+                  />
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-3 pt-0 space-y-3">
                 <div className="space-y-2 text-sm">
-                  <div className="flex items-center gap-2 text-muted-foreground">
-                    <Phone className="h-3.5 w-3.5" />
-                    <span>{selectedCustomer.phone}</span>
+                  <div className="flex items-center gap-2">
+                    <Phone className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                    <Input
+                      value={editedPhone}
+                      onChange={(e) => setEditedPhone(e.target.value)}
+                      className="h-7 text-sm border-dashed"
+                    />
                   </div>
                   
                   <div className="flex items-center justify-between">
                     <span className="text-muted-foreground">Status:</span>
-                    {getStatusBadge(selectedCustomer.status, selectedCustomer.due_date)}
+                    <Select value={editedStatus} onValueChange={setEditedStatus}>
+                      <SelectTrigger className="h-7 w-[130px] text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="ativa">Ativa</SelectItem>
+                        <SelectItem value="inativa">Inativa</SelectItem>
+                        <SelectItem value="suspensa">Suspensa</SelectItem>
+                        <SelectItem value="bloqueado">Bloqueado</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                   
                   {/* Username - Editable for multiple users */}
@@ -1234,15 +1309,24 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                     </Select>
                   </div>
 
-                  {selectedCustomer.server && (
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2 text-muted-foreground">
-                        <Server className="h-3.5 w-3.5" />
-                        <span>Servidor:</span>
-                      </div>
-                      <span className="font-medium text-primary">{selectedCustomer.server.server_name}</span>
-                    </div>
-                  )}
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground flex items-center gap-1">
+                      <Server className="h-3 w-3" />
+                      Servidor:
+                    </label>
+                    <Select value={editedServerId || ''} onValueChange={setEditedServerId}>
+                      <SelectTrigger className="h-8 text-sm text-blue-400 font-medium">
+                        <SelectValue placeholder="Selecione o servidor" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {allServers.map((s) => (
+                          <SelectItem key={s.id} value={s.id}>
+                            {s.server_name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                   
                   {/* Editable Price */}
                   <div className="space-y-1">
@@ -1259,6 +1343,22 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                       />
                     </div>
                   </div>
+
+                  {/* Save Customer Data Button */}
+                  <Button 
+                    variant="secondary" 
+                    size="sm" 
+                    className="w-full h-8 text-xs"
+                    onClick={() => saveCustomerData.mutate()}
+                    disabled={saveCustomerData.isPending}
+                  >
+                    {saveCustomerData.isPending ? (
+                      <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                    ) : (
+                      <CheckCircle className="h-3 w-3 mr-1" />
+                    )}
+                    Salvar Dados
+                  </Button>
 
                   {/* Copy Data with PIX Button (always visible) */}
                   <Button 
