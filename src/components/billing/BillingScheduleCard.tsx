@@ -56,7 +56,30 @@ export function BillingScheduleCard() {
   const [sendDMinus1, setSendDMinus1] = useState(true);
   const [sendD0, setSendD0] = useState(true);
   const [sendDPlus1, setSendDPlus1] = useState(true);
+  const [templateDMinus1, setTemplateDMinus1] = useState('vence_amanha');
+  const [templateD0, setTemplateD0] = useState('hoje01');
+  const [templateDPlus1, setTemplateDPlus1] = useState('vencido');
   const [hasChanges, setHasChanges] = useState(false);
+
+  // Fetch available Meta templates
+  const { data: metaTemplates = [], isLoading: loadingTemplates, refetch: refetchTemplates } = useQuery({
+    queryKey: ['meta-templates-list-schedule', user?.id],
+    queryFn: async () => {
+      if (!user?.id) return [];
+      try {
+        const { data, error } = await supabase.functions.invoke('meta-templates', {
+          body: { action: 'list' },
+        });
+        if (error) throw error;
+        return data?.templates || [];
+      } catch (e) {
+        console.error('Error fetching meta templates:', e);
+        return [];
+      }
+    },
+    enabled: !!user?.id,
+    staleTime: 5 * 60 * 1000,
+  });
 
   // Fetch current schedule
   const { data: schedule, isLoading } = useQuery({
