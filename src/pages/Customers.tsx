@@ -2208,6 +2208,7 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
                   <SelectItem value="ativa">Ativas</SelectItem>
                   <SelectItem value="inativa">Inativas</SelectItem>
                   <SelectItem value="suspensa">Suspensas</SelectItem>
+                  <SelectItem value="bloqueado">Bloqueados</SelectItem>
                 </SelectContent>
               </Select>
               <Select value={dueDateFilter} onValueChange={(v) => handleFilterChange(setDueDateFilter, v)}>
