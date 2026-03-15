@@ -137,7 +137,7 @@ serve(async (req) => {
         const { name, category, language, components } = body;
 
         const res = await fetch(
-          `https://graph.facebook.com/${GRAPH_API_VERSION}/${wabaId}/message_templates`,
+          `https://graph.facebook.com/${GRAPH_API_VERSION}/${wabaId}/message_templates?x=1${proofParam}`,
           {
             method: "POST",
             headers: {
