@@ -37,7 +37,7 @@ interface Customer {
   name: string;
   phone: string;
   due_date: string;
-  status: 'ativa' | 'inativa' | 'suspensa';
+  status: 'ativa' | 'inativa' | 'suspensa' | 'bloqueado';
   server_id: string | null;
   plan_id: string | null;
   servers?: { server_name: string } | null;
