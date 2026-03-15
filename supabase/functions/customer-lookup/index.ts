@@ -160,7 +160,7 @@ serve(async (req) => {
         .from('customers')
         .select('id, phone, status')
         .in('id', customerIds)
-        .eq('status', 'ativa');
+        .in('status', ['ativa', 'inativa']);
 
       if (existingError) {
         console.error('[CustomerLookup] Erro ao validar customer_ids:', existingError);
