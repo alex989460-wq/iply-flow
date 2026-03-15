@@ -92,7 +92,12 @@ export function BillingScheduleCard() {
         if (error) throw error;
         if (!data?.success) throw new Error(data?.error || 'Erro ao buscar templates do Zap Responder');
 
-        return data?.data || [];
+        return (data?.data || [])
+          .map((t: any) => ({
+            ...t,
+            name: t?.name ?? t?.template_name ?? t?.nome ?? '',
+          }))
+          .filter((t: any) => !!t.name);
       } catch (e) {
         console.error('Error fetching Zap Responder templates:', e);
         return [];
