@@ -719,9 +719,42 @@ Obrigado pela preferência! 🙏`;
     setCustomRenewalPrice(currentPrice.toString());
     setSelectedScreens(customer.screens || 1);
     setEditedUsername(customer.username || '');
+    setEditedServerId(customer.server?.id || null);
+    setEditedStatus(customer.status);
+    setEditedName(customer.name);
+    setEditedPhone(customer.phone);
   };
 
-  // Generate Vplay test (standalone - not tied to selectedCustomer)
+  // Save customer data without renewal
+  const saveCustomerData = useMutation({
+    mutationFn: async () => {
+      if (!selectedCustomer) throw new Error('Nenhum cliente selecionado');
+      const updateData: Record<string, unknown> = {
+        name: editedName.trim(),
+        phone: editedPhone.trim(),
+        username: editedUsername.trim() || null,
+        screens: selectedScreens,
+        status: editedStatus,
+        server_id: editedServerId,
+      };
+      if (selectedPlanId) updateData.plan_id = selectedPlanId;
+      const planPrice = selectedPlan?.price ?? selectedCustomer.plan?.price ?? 0;
+      if (renewalPrice !== planPrice) {
+        updateData.custom_price = renewalPrice;
+      } else {
+        updateData.custom_price = null;
+      }
+      const { error } = await supabase.from('customers').update(updateData).eq('id', selectedCustomer.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success('Dados do cliente salvos!');
+      queryClient.invalidateQueries({ queryKey: ['customer-search'] });
+    },
+    onError: (error: Error) => {
+      toast.error('Erro ao salvar: ' + error.message);
+    },
+  });
   const [vplayTestName, setVplayTestName] = useState('');
   
   const handleGenerateVplayTest = async () => {
