@@ -8,6 +8,13 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { 
   Clock, 
   Calendar, 
@@ -15,7 +22,8 @@ import {
   Loader2,
   CheckCircle,
   AlertCircle,
-  Timer
+  Timer,
+  RefreshCw
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
@@ -28,6 +36,9 @@ interface BillingSchedule {
   send_d_minus_1: boolean;
   send_d0: boolean;
   send_d_plus_1: boolean;
+  template_d_minus_1: string;
+  template_d0: string;
+  template_d_plus_1: string;
   last_run_at: string | null;
   last_run_status: string | null;
   created_at: string;
@@ -44,7 +55,30 @@ export function BillingScheduleCard() {
   const [sendDMinus1, setSendDMinus1] = useState(true);
   const [sendD0, setSendD0] = useState(true);
   const [sendDPlus1, setSendDPlus1] = useState(true);
+  const [templateDMinus1, setTemplateDMinus1] = useState('vence_amanha');
+  const [templateD0, setTemplateD0] = useState('hoje01');
+  const [templateDPlus1, setTemplateDPlus1] = useState('vencido');
   const [hasChanges, setHasChanges] = useState(false);
+
+  // Fetch available Meta templates
+  const { data: metaTemplates = [], isLoading: loadingTemplates, refetch: refetchTemplates } = useQuery({
+    queryKey: ['meta-templates-list-schedule', user?.id],
+    queryFn: async () => {
+      if (!user?.id) return [];
+      try {
+        const { data, error } = await supabase.functions.invoke('meta-templates', {
+          body: { action: 'list' },
+        });
+        if (error) throw error;
+        return data?.templates || [];
+      } catch (e) {
+        console.error('Error fetching meta templates:', e);
+        return [];
+      }
+    },
+    enabled: !!user?.id,
+    staleTime: 5 * 60 * 1000,
+  });
 
   // Fetch current schedule
   const { data: schedule, isLoading } = useQuery({
@@ -95,11 +129,13 @@ export function BillingScheduleCard() {
   useEffect(() => {
     if (schedule) {
       setIsEnabled(schedule.is_enabled);
-      // Convert time from HH:MM:SS to HH:MM for input
       setSendTime(schedule.send_time.substring(0, 5));
       setSendDMinus1(schedule.send_d_minus_1);
       setSendD0(schedule.send_d0);
       setSendDPlus1(schedule.send_d_plus_1);
+      setTemplateDMinus1((schedule as any).template_d_minus_1 || 'vence_amanha');
+      setTemplateD0((schedule as any).template_d0 || 'hoje01');
+      setTemplateDPlus1((schedule as any).template_d_plus_1 || 'vencido');
     }
     setHasChanges(false);
   }, [schedule]);
@@ -115,10 +151,13 @@ export function BillingScheduleCard() {
         sendTime !== scheduleTime ||
         sendDMinus1 !== schedule.send_d_minus_1 ||
         sendD0 !== schedule.send_d0 ||
-        sendDPlus1 !== schedule.send_d_plus_1
+        sendDPlus1 !== schedule.send_d_plus_1 ||
+        templateDMinus1 !== ((schedule as any).template_d_minus_1 || 'vence_amanha') ||
+        templateD0 !== ((schedule as any).template_d0 || 'hoje01') ||
+        templateDPlus1 !== ((schedule as any).template_d_plus_1 || 'vencido')
       );
     }
-  }, [isEnabled, sendTime, sendDMinus1, sendD0, sendDPlus1, schedule]);
+  }, [isEnabled, sendTime, sendDMinus1, sendD0, sendDPlus1, templateDMinus1, templateD0, templateDPlus1, schedule]);
 
   // Save schedule mutation
   const saveMutation = useMutation({
@@ -132,6 +171,9 @@ export function BillingScheduleCard() {
         send_d_minus_1: sendDMinus1,
         send_d0: sendD0,
         send_d_plus_1: sendDPlus1,
+        template_d_minus_1: templateDMinus1,
+        template_d0: templateD0,
+        template_d_plus_1: templateDPlus1,
       };
 
       if (schedule) {
@@ -242,48 +284,121 @@ export function BillingScheduleCard() {
           !isEnabled && 'opacity-50 pointer-events-none'
         )}>
           <Label className="text-sm font-medium">Tipos de Cobrança</Label>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <label className={cn(
-              'flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors',
+          <div className="flex items-center justify-between mb-2">
+            <Label className="text-sm font-medium">Tipos de Cobrança e Templates</Label>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => refetchTemplates()}
+              disabled={loadingTemplates}
+              title="Recarregar templates da Meta"
+            >
+              {loadingTemplates ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+              <span className="ml-1.5 text-xs">Templates</span>
+            </Button>
+          </div>
+          <div className="grid grid-cols-1 gap-3">
+            {/* D-1 */}
+            <div className={cn(
+              'p-3 rounded-lg border transition-colors space-y-2',
               sendDMinus1 ? 'border-warning bg-warning/10' : 'border-border bg-secondary/30'
             )}>
-              <Switch
-                checked={sendDMinus1}
-                onCheckedChange={setSendDMinus1}
-              />
-              <div>
-                <p className="font-medium text-warning">D-1</p>
-                <p className="text-xs text-muted-foreground">Vencem amanhã</p>
-              </div>
-            </label>
+              <label className="flex items-center gap-3 cursor-pointer">
+                <Switch checked={sendDMinus1} onCheckedChange={setSendDMinus1} />
+                <div>
+                  <p className="font-medium text-warning">D-1</p>
+                  <p className="text-xs text-muted-foreground">Vencem amanhã</p>
+                </div>
+              </label>
+              {sendDMinus1 && (
+                <Select value={templateDMinus1} onValueChange={setTemplateDMinus1}>
+                  <SelectTrigger className="font-mono text-xs h-8">
+                    <SelectValue placeholder="Template D-1" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {metaTemplates.map((t: any) => (
+                      <SelectItem key={t.name} value={t.name}>
+                        <span className="flex items-center gap-2">
+                          <span className={`inline-block w-2 h-2 rounded-full ${t.status === 'APPROVED' ? 'bg-green-500' : t.status === 'PENDING' ? 'bg-yellow-500' : 'bg-red-500'}`} />
+                          {t.name}
+                        </span>
+                      </SelectItem>
+                    ))}
+                    {metaTemplates.length === 0 && (
+                      <SelectItem value={templateDMinus1}>{templateDMinus1}</SelectItem>
+                    )}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
 
-            <label className={cn(
-              'flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors',
+            {/* D0 */}
+            <div className={cn(
+              'p-3 rounded-lg border transition-colors space-y-2',
               sendD0 ? 'border-primary bg-primary/10' : 'border-border bg-secondary/30'
             )}>
-              <Switch
-                checked={sendD0}
-                onCheckedChange={setSendD0}
-              />
-              <div>
-                <p className="font-medium text-primary">D0</p>
-                <p className="text-xs text-muted-foreground">Vencem hoje</p>
-              </div>
-            </label>
+              <label className="flex items-center gap-3 cursor-pointer">
+                <Switch checked={sendD0} onCheckedChange={setSendD0} />
+                <div>
+                  <p className="font-medium text-primary">D0</p>
+                  <p className="text-xs text-muted-foreground">Vencem hoje</p>
+                </div>
+              </label>
+              {sendD0 && (
+                <Select value={templateD0} onValueChange={setTemplateD0}>
+                  <SelectTrigger className="font-mono text-xs h-8">
+                    <SelectValue placeholder="Template D0" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {metaTemplates.map((t: any) => (
+                      <SelectItem key={t.name} value={t.name}>
+                        <span className="flex items-center gap-2">
+                          <span className={`inline-block w-2 h-2 rounded-full ${t.status === 'APPROVED' ? 'bg-green-500' : t.status === 'PENDING' ? 'bg-yellow-500' : 'bg-red-500'}`} />
+                          {t.name}
+                        </span>
+                      </SelectItem>
+                    ))}
+                    {metaTemplates.length === 0 && (
+                      <SelectItem value={templateD0}>{templateD0}</SelectItem>
+                    )}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
 
-            <label className={cn(
-              'flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors',
+            {/* D+1 */}
+            <div className={cn(
+              'p-3 rounded-lg border transition-colors space-y-2',
               sendDPlus1 ? 'border-destructive bg-destructive/10' : 'border-border bg-secondary/30'
             )}>
-              <Switch
-                checked={sendDPlus1}
-                onCheckedChange={setSendDPlus1}
-              />
-              <div>
-                <p className="font-medium text-destructive">D+1</p>
-                <p className="text-xs text-muted-foreground">Venceram ontem</p>
-              </div>
-            </label>
+              <label className="flex items-center gap-3 cursor-pointer">
+                <Switch checked={sendDPlus1} onCheckedChange={setSendDPlus1} />
+                <div>
+                  <p className="font-medium text-destructive">D+1</p>
+                  <p className="text-xs text-muted-foreground">Venceram ontem</p>
+                </div>
+              </label>
+              {sendDPlus1 && (
+                <Select value={templateDPlus1} onValueChange={setTemplateDPlus1}>
+                  <SelectTrigger className="font-mono text-xs h-8">
+                    <SelectValue placeholder="Template D+1" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {metaTemplates.map((t: any) => (
+                      <SelectItem key={t.name} value={t.name}>
+                        <span className="flex items-center gap-2">
+                          <span className={`inline-block w-2 h-2 rounded-full ${t.status === 'APPROVED' ? 'bg-green-500' : t.status === 'PENDING' ? 'bg-yellow-500' : 'bg-red-500'}`} />
+                          {t.name}
+                        </span>
+                      </SelectItem>
+                    ))}
+                    {metaTemplates.length === 0 && (
+                      <SelectItem value={templateDPlus1}>{templateDPlus1}</SelectItem>
+                    )}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
           </div>
         </div>
 

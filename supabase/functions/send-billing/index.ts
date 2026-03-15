@@ -5,11 +5,11 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Mapping of billing types to template names (approved templates from the API)
-const TEMPLATE_MAPPING: Record<string, string> = {
-  'D-1': 'vence_amanha',  // Due tomorrow
-  'D0': 'hoje01',         // Due today
-  'D+1': 'vencido',       // Overdue (yesterday)
+// Default mapping of billing types to template names
+const DEFAULT_TEMPLATE_MAPPING: Record<string, string> = {
+  'D-1': 'vence_amanha',
+  'D0': 'hoje01',
+  'D+1': 'vencido',
 };
 
 // Fallback messages if templates fail
@@ -267,6 +267,23 @@ Deno.serve(async (req) => {
     
     console.log(`Using department ID: ${departmentId}`);
 
+    // Load custom template mapping from billing_schedule
+    let templateMapping = { ...DEFAULT_TEMPLATE_MAPPING };
+    if (userId) {
+      const { data: scheduleData } = await supabase
+        .from('billing_schedule')
+        .select('template_d_minus_1, template_d0, template_d_plus_1')
+        .eq('user_id', userId)
+        .maybeSingle();
+      
+      if (scheduleData) {
+        if (scheduleData.template_d_minus_1) templateMapping['D-1'] = scheduleData.template_d_minus_1;
+        if (scheduleData.template_d0) templateMapping['D0'] = scheduleData.template_d0;
+        if (scheduleData.template_d_plus_1) templateMapping['D+1'] = scheduleData.template_d_plus_1;
+      }
+      console.log('Template mapping:', templateMapping);
+    }
+
     // Get today's date in Sao Paulo timezone (YYYY-MM-DD) using timezone-aware function
     const today = getRelativeDateSaoPaulo(0);
     const yesterday = getRelativeDateSaoPaulo(-1);
@@ -380,7 +397,7 @@ Deno.serve(async (req) => {
       
       const batchPromises = batch.map(async (customer) => {
         const billingType = customer.billingType as 'D-1' | 'D0' | 'D+1';
-        const templateName = TEMPLATE_MAPPING[billingType];
+        const templateName = templateMapping[billingType];
         
         // Send WhatsApp template
         const sendResult = await sendWhatsAppTemplate(customer.phone, templateName, zapToken, apiBaseUrl, departmentId);
