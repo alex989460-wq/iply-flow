@@ -166,7 +166,7 @@ serve(async (req) => {
         const { template_id, components: updateComponents } = body;
 
         const res = await fetch(
-          `https://graph.facebook.com/${GRAPH_API_VERSION}/${template_id}`,
+          `https://graph.facebook.com/${GRAPH_API_VERSION}/${template_id}?x=1${proofParam}`,
           {
             method: "POST",
             headers: {
