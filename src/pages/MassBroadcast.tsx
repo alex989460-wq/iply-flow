@@ -971,6 +971,9 @@ export default function MassBroadcast() {
     if (customer.status === 'suspensa') {
       return <Badge variant="destructive">Suspensa</Badge>;
     }
+    if (customer.status === 'bloqueado') {
+      return <Badge variant="destructive" className="bg-red-900/50">Bloqueado</Badge>;
+    }
     if (isOverdue) {
       return <Badge variant="destructive">Vencido</Badge>;
     }
