@@ -460,11 +460,11 @@ serve(async (req) => {
       }
     }
 
-    // Filter out suspended customers to avoid false conflicts
-    const suspendedCount = allMatchedCustomers.filter((c: any) => c.status === 'suspensa').length;
-    if (suspendedCount > 0) {
-      console.log(`[Cakto] Removendo ${suspendedCount} cliente(s) com status 'suspensa' para evitar conflitos.`);
-      allMatchedCustomers = allMatchedCustomers.filter((c: any) => c.status !== 'suspensa');
+    // Filter out suspended and blocked customers to avoid false conflicts
+    const excludedCount = allMatchedCustomers.filter((c: any) => c.status === 'suspensa' || c.status === 'bloqueado').length;
+    if (excludedCount > 0) {
+      console.log(`[Cakto] Removendo ${excludedCount} cliente(s) com status 'suspensa'/'bloqueado' para evitar conflitos.`);
+      allMatchedCustomers = allMatchedCustomers.filter((c: any) => c.status !== 'suspensa' && c.status !== 'bloqueado');
     }
 
     // Sort by due_date ascending (closest to expiration / already expired first)

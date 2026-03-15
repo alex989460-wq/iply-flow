@@ -37,7 +37,7 @@ interface Customer {
   name: string;
   phone: string;
   due_date: string;
-  status: 'ativa' | 'inativa' | 'suspensa';
+  status: 'ativa' | 'inativa' | 'suspensa' | 'bloqueado';
   server_id: string | null;
   plan_id: string | null;
   servers?: { server_name: string } | null;
@@ -57,7 +57,7 @@ interface WhatsAppTemplate {
   category?: string;
 }
 
-type StatusFilter = 'all' | 'ativa' | 'inativa' | 'suspensa' | 'vencidos' | 'vencidos_mes_anterior' | 'ativos';
+type StatusFilter = 'all' | 'ativa' | 'inativa' | 'suspensa' | 'bloqueado' | 'vencidos' | 'vencidos_mes_anterior' | 'ativos';
 type SelectionMode = 'customers' | 'servers';
 
 interface BroadcastReportData {
@@ -482,6 +482,7 @@ export default function MassBroadcast() {
       if (statusFilter === 'ativa') return customer.status === 'ativa';
       if (statusFilter === 'inativa') return customer.status === 'inativa';
       if (statusFilter === 'suspensa') return customer.status === 'suspensa';
+      if (statusFilter === 'bloqueado') return customer.status === 'bloqueado';
       if (statusFilter === 'vencidos') {
         const dueDate = new Date(customer.due_date);
         dueDate.setHours(0, 0, 0, 0);
@@ -970,6 +971,9 @@ export default function MassBroadcast() {
     if (customer.status === 'suspensa') {
       return <Badge variant="destructive">Suspensa</Badge>;
     }
+    if (customer.status === 'bloqueado') {
+      return <Badge variant="destructive" className="bg-red-900/50">Bloqueado</Badge>;
+    }
     if (isOverdue) {
       return <Badge variant="destructive">Vencido</Badge>;
     }
@@ -1197,6 +1201,13 @@ export default function MassBroadcast() {
                     onClick={() => setStatusFilter('suspensa')}
                   >
                     Suspensos
+                  </Button>
+                  <Button
+                    variant={statusFilter === 'bloqueado' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setStatusFilter('bloqueado')}
+                  >
+                    Bloqueados
                   </Button>
                 </div>
               </CardContent>

@@ -1002,17 +1002,19 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
   };
 
   const getStatusBadge = (status: CustomerStatus) => {
-    const styles = {
+    const styles: Record<string, string> = {
       ativa: 'badge-online',
       inativa: 'badge-offline',
       suspensa: 'badge-maintenance',
+      bloqueado: 'bg-red-900/30 text-red-400 border border-red-500/30 px-2 py-0.5 rounded-full text-xs font-medium',
     };
-    const labels = {
+    const labels: Record<string, string> = {
       ativa: 'Ativa',
       inativa: 'Inativa',
       suspensa: 'Suspensa',
+      bloqueado: 'Bloqueado',
     };
-    return <span className={styles[status]}>{labels[status]}</span>;
+    return <span className={styles[status] || styles.inativa}>{labels[status] || status}</span>;
   };
 
   const filteredCustomers = customers?.filter(customer => {
@@ -1684,6 +1686,7 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
                               { value: 'ativa', label: 'Ativos' },
                               { value: 'inativa', label: 'Inativos' },
                               { value: 'suspensa', label: 'Suspensos' },
+                              { value: 'bloqueado', label: 'Bloqueados' },
                             ].map((status) => (
                               <label key={status.value} className="flex items-center gap-2 cursor-pointer">
                                 <input
@@ -1939,6 +1942,7 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
                           <SelectItem value="ativa">Ativa</SelectItem>
                           <SelectItem value="inativa">Inativa</SelectItem>
                           <SelectItem value="suspensa">Suspensa</SelectItem>
+                          <SelectItem value="bloqueado">Bloqueado</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -2205,6 +2209,7 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
                   <SelectItem value="ativa">Ativas</SelectItem>
                   <SelectItem value="inativa">Inativas</SelectItem>
                   <SelectItem value="suspensa">Suspensas</SelectItem>
+                  <SelectItem value="bloqueado">Bloqueados</SelectItem>
                 </SelectContent>
               </Select>
               <Select value={dueDateFilter} onValueChange={(v) => handleFilterChange(setDueDateFilter, v)}>
