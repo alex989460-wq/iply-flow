@@ -144,21 +144,8 @@ Deno.serve(async (req) => {
 
       const phone = normalizePhone(to);
 
-      const templatePayload: any = {
-        messaging_product: 'whatsapp',
-        to: phone,
-        type: 'template',
-        template: {
-          name: template_name,
-          language: { code: language },
-        },
-        access_token: accessToken,
-        appsecret_proof: appSecretProof,
-      };
 
-      if (components) {
-        templatePayload.template.components = components;
-      }
+
 
       const templateBody: any = {
         messaging_product: 'whatsapp',
