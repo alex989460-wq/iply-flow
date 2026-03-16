@@ -240,6 +240,7 @@ export default function MetaChat() {
     }
 
     const newContact: ChatContact = {
+      id: `manual-${phone}`,
       phone,
       name: `+${phone}`,
     };
