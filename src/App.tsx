@@ -30,6 +30,7 @@ import ConflictRenewal from "./pages/ConflictRenewal";
 import ActivationApps from "./pages/ActivationApps";
 import ConsultaDue from "./pages/ConsultaDue";
 import MetaTemplates from "./pages/MetaTemplates";
+import MetaChat from "./pages/MetaChat";
 import { Loader2 } from "lucide-react";
 
 const queryClient = new QueryClient();
