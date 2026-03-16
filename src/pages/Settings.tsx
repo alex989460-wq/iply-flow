@@ -1041,6 +1041,12 @@ export default function Settings() {
                                   <p className="text-xs text-muted-foreground">
                                     {template.category} • {template.language}
                                   </p>
+                                  {(template.waba_name || template.business_name) && (
+                                    <p className="text-xs text-muted-foreground">
+                                      {template.waba_name || 'WABA'}
+                                      {template.business_name ? ` • ${template.business_name}` : ''}
+                                    </p>
+                                  )}
                                 </div>
                               </div>
                               {getStatusBadge(template.status)}
