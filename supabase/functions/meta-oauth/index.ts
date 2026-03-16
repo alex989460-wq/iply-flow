@@ -10,33 +10,61 @@ const META_APP_SECRET = Deno.env.get('META_APP_SECRET');
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY')!;
 
-// Generate appsecret_proof for secure Graph API calls
-function generateAppSecretProof(accessToken: string, appSecret: string): string {
-  const encoder = new TextEncoder();
-  const keyData = encoder.encode(appSecret);
-  const messageData = encoder.encode(accessToken);
-  
-  // Using Web Crypto API for HMAC-SHA256
-  return crypto.subtle.importKey(
-    'raw',
-    keyData,
-    { name: 'HMAC', hash: 'SHA-256' },
-    false,
-    ['sign']
-  ).then(key => 
-    crypto.subtle.sign('HMAC', key, messageData)
-  ).then(signature => 
-    Array.from(new Uint8Array(signature))
-      .map(b => b.toString(16).padStart(2, '0'))
-      .join('')
-  ) as unknown as string;
+const GRAPH_API_VERSION = 'v21.0';
+const GRAPH_BASE_URL = `https://graph.facebook.com/${GRAPH_API_VERSION}`;
+
+interface MetaBusiness {
+  id: string;
+  name?: string;
 }
 
+interface MetaWaba {
+  id: string;
+  name?: string;
+  account_review_status?: string;
+}
+
+interface MetaWabaReference {
+  business_id: string;
+  business_name: string;
+  waba_id: string;
+  waba_name: string;
+  account_review_status: string;
+}
+
+interface MetaPhoneNumberWithWaba {
+  id: string;
+  display_phone_number: string;
+  verified_name?: string;
+  quality_rating?: string;
+  code_verification_status?: string;
+  platform_type?: string;
+  waba_id: string;
+  waba_name: string;
+  business_id: string;
+  business_name: string;
+  account_review_status: string;
+}
+
+interface MetaTemplateWithWaba {
+  name: string;
+  status: string;
+  language: string;
+  category: string;
+  components?: any[];
+  waba_id: string;
+  waba_name: string;
+  business_id: string;
+  business_name: string;
+  account_review_status: string;
+}
+
+// Generate appsecret_proof for secure Graph API calls
 async function generateAppSecretProofAsync(accessToken: string, appSecret: string): Promise<string> {
   const encoder = new TextEncoder();
   const keyData = encoder.encode(appSecret);
   const messageData = encoder.encode(accessToken);
-  
+
   const key = await crypto.subtle.importKey(
     'raw',
     keyData,
@@ -44,12 +72,144 @@ async function generateAppSecretProofAsync(accessToken: string, appSecret: strin
     false,
     ['sign']
   );
-  
+
   const signature = await crypto.subtle.sign('HMAC', key, messageData);
-  
+
   return Array.from(new Uint8Array(signature))
     .map(b => b.toString(16).padStart(2, '0'))
     .join('');
+}
+
+async function fetchPagedGraph<T>(initialUrl: URL | string): Promise<T[]> {
+  const output: T[] = [];
+  let nextUrl: string | null = typeof initialUrl === 'string' ? initialUrl : initialUrl.toString();
+
+  while (nextUrl) {
+    const response = await fetch(nextUrl);
+    const data = await response.json();
+
+    if (data?.error) {
+      throw new Error(data.error.message || 'Erro na API da Meta');
+    }
+
+    if (Array.isArray(data?.data)) {
+      output.push(...(data.data as T[]));
+    }
+
+    nextUrl = data?.paging?.next ?? null;
+  }
+
+  return output;
+}
+
+function sortWabasByPriority(wabas: MetaWabaReference[]): MetaWabaReference[] {
+  return [...wabas]
+    .filter((waba) => waba.account_review_status?.toUpperCase() !== 'REJECTED')
+    .sort((a, b) => {
+      const aApproved = a.account_review_status?.toUpperCase() === 'APPROVED' ? 1 : 0;
+      const bApproved = b.account_review_status?.toUpperCase() === 'APPROVED' ? 1 : 0;
+
+      if (aApproved !== bApproved) return bApproved - aApproved;
+      return `${a.business_name}:${a.waba_name}`.localeCompare(`${b.business_name}:${b.waba_name}`);
+    });
+}
+
+async function fetchAllAccessibleWabas(accessToken: string, appSecretProof: string): Promise<MetaWabaReference[]> {
+  const businessesUrl = new URL(`${GRAPH_BASE_URL}/me/businesses`);
+  businessesUrl.searchParams.set('access_token', accessToken);
+  businessesUrl.searchParams.set('appsecret_proof', appSecretProof);
+  businessesUrl.searchParams.set('fields', 'id,name');
+  businessesUrl.searchParams.set('limit', '100');
+
+  const businesses = await fetchPagedGraph<MetaBusiness>(businessesUrl);
+  if (!businesses.length) return [];
+
+  const wabasByBusiness = await Promise.all(
+    businesses.map(async (business) => {
+      const ownedWabasUrl = new URL(`${GRAPH_BASE_URL}/${business.id}/owned_whatsapp_business_accounts`);
+      ownedWabasUrl.searchParams.set('access_token', accessToken);
+      ownedWabasUrl.searchParams.set('appsecret_proof', appSecretProof);
+      ownedWabasUrl.searchParams.set('fields', 'id,name,account_review_status');
+      ownedWabasUrl.searchParams.set('limit', '100');
+
+      const wabas = await fetchPagedGraph<MetaWaba>(ownedWabasUrl);
+      return wabas.map((waba) => ({
+        business_id: business.id,
+        business_name: business.name || 'Sem nome',
+        waba_id: waba.id,
+        waba_name: waba.name || 'Sem nome',
+        account_review_status: waba.account_review_status || 'UNKNOWN',
+      }));
+    })
+  );
+
+  return sortWabasByPriority(wabasByBusiness.flat());
+}
+
+async function fetchAllPhonesFromWabas(
+  accessToken: string,
+  appSecretProof: string,
+  wabas: MetaWabaReference[]
+): Promise<MetaPhoneNumberWithWaba[]> {
+  if (!wabas.length) return [];
+
+  const phoneResults = await Promise.all(
+    wabas.map(async (waba) => {
+      const phonesUrl = new URL(`${GRAPH_BASE_URL}/${waba.waba_id}/phone_numbers`);
+      phonesUrl.searchParams.set('access_token', accessToken);
+      phonesUrl.searchParams.set('appsecret_proof', appSecretProof);
+      phonesUrl.searchParams.set('fields', 'id,display_phone_number,verified_name,quality_rating,code_verification_status,platform_type');
+      phonesUrl.searchParams.set('limit', '100');
+
+      const phones = await fetchPagedGraph<Omit<MetaPhoneNumberWithWaba, 'waba_id' | 'waba_name' | 'business_id' | 'business_name' | 'account_review_status'>>(phonesUrl);
+      return phones.map((phone) => ({
+        ...phone,
+        waba_id: waba.waba_id,
+        waba_name: waba.waba_name,
+        business_id: waba.business_id,
+        business_name: waba.business_name,
+        account_review_status: waba.account_review_status,
+      }));
+    })
+  );
+
+  return phoneResults.flat();
+}
+
+async function fetchAllTemplatesFromWabas(
+  accessToken: string,
+  appSecretProof: string,
+  wabas: MetaWabaReference[]
+): Promise<MetaTemplateWithWaba[]> {
+  if (!wabas.length) return [];
+
+  const templateResults = await Promise.all(
+    wabas.map(async (waba) => {
+      const templatesUrl = new URL(`${GRAPH_BASE_URL}/${waba.waba_id}/message_templates`);
+      templatesUrl.searchParams.set('access_token', accessToken);
+      templatesUrl.searchParams.set('appsecret_proof', appSecretProof);
+      templatesUrl.searchParams.set('fields', 'name,status,language,category,components');
+      templatesUrl.searchParams.set('limit', '100');
+
+      const templates = await fetchPagedGraph<Omit<MetaTemplateWithWaba, 'waba_id' | 'waba_name' | 'business_id' | 'business_name' | 'account_review_status'>>(templatesUrl);
+      return templates.map((template) => ({
+        ...template,
+        waba_id: waba.waba_id,
+        waba_name: waba.waba_name,
+        business_id: waba.business_id,
+        business_name: waba.business_name,
+        account_review_status: waba.account_review_status,
+      }));
+    })
+  );
+
+  const deduped = new Map<string, MetaTemplateWithWaba>();
+  for (const template of templateResults.flat()) {
+    const key = `${template.waba_id}:${template.name}:${template.language}`;
+    if (!deduped.has(key)) deduped.set(key, template);
+  }
+
+  return Array.from(deduped.values());
 }
 
 Deno.serve(async (req) => {
