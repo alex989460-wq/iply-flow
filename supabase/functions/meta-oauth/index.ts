@@ -364,72 +364,33 @@ Deno.serve(async (req) => {
       const meData = await meResponse.json();
       console.log('[meta-oauth] User info:', meData);
 
-      // Fetch WABA (WhatsApp Business Accounts)
-      const wabaUrl = new URL('https://graph.facebook.com/v21.0/me/businesses');
-      wabaUrl.searchParams.set('access_token', accessToken);
-      wabaUrl.searchParams.set('appsecret_proof', appSecretProof);
-      wabaUrl.searchParams.set('fields', 'id,name,owned_whatsapp_business_accounts{id,name,account_review_status,on_behalf_of_business_info}');
+      const wabas = await fetchAllAccessibleWabas(accessToken, appSecretProof);
+      console.log('[meta-oauth] Accessible WABAs:', JSON.stringify(wabas, null, 2));
 
-      const wabaResponse = await fetch(wabaUrl.toString());
-      const wabaData = await wabaResponse.json();
-      console.log('[meta-oauth] WABA data:', JSON.stringify(wabaData, null, 2));
+      const phones = await fetchAllPhonesFromWabas(accessToken, appSecretProof, wabas);
+      console.log('[meta-oauth] All phone numbers found:', JSON.stringify(phones, null, 2));
 
-      let wabaId = null;
-      let phoneNumberId = null;
-      let displayPhone = null;
+      const selectedPhone = phones[0] || null;
+      const selectedWaba = selectedPhone
+        ? wabas.find((waba) => waba.waba_id === selectedPhone.waba_id) || null
+        : wabas[0] || null;
 
-      // Find first APPROVED WABA with phone numbers
-      if (wabaData.data && wabaData.data.length > 0) {
-        let found = false;
-        for (const business of wabaData.data) {
-          if (found) break;
-          const wabas = business.owned_whatsapp_business_accounts?.data;
-          if (!wabas || wabas.length === 0) continue;
+      const wabaId = selectedWaba?.waba_id ?? null;
+      const phoneNumberId = selectedPhone?.id ?? null;
+      const displayPhone = selectedPhone?.display_phone_number ?? null;
 
-          // Sort: APPROVED first, then others (skip REJECTED)
-          const sortedWabas = [...wabas].filter(
-            (w: any) => w.account_review_status !== 'REJECTED'
-          ).sort((a: any, b: any) => {
-            if (a.account_review_status === 'APPROVED' && b.account_review_status !== 'APPROVED') return -1;
-            if (b.account_review_status === 'APPROVED' && a.account_review_status !== 'APPROVED') return 1;
-            return 0;
-          });
-
-          for (const waba of sortedWabas) {
-            console.log(`[meta-oauth] Checking WABA: ${waba.id} (${waba.name}) status=${waba.account_review_status}`);
-
-            const phonesUrl = new URL(`https://graph.facebook.com/v21.0/${waba.id}/phone_numbers`);
-            phonesUrl.searchParams.set('access_token', accessToken);
-            phonesUrl.searchParams.set('appsecret_proof', appSecretProof);
-
-            const phonesResponse = await fetch(phonesUrl.toString());
-            const phonesData = await phonesResponse.json();
-            console.log('[meta-oauth] Phone numbers:', JSON.stringify(phonesData, null, 2));
-
-            if (phonesData.data && phonesData.data.length > 0) {
-              wabaId = waba.id;
-              phoneNumberId = phonesData.data[0].id;
-              displayPhone = phonesData.data[0].display_phone_number;
-              console.log('[meta-oauth] Found phone:', displayPhone, 'ID:', phoneNumberId, 'WABA:', wabaId);
-              found = true;
-              break;
-            }
-          }
-        }
-
-        // If no phone found, at least save the first approved WABA
-        if (!wabaId) {
-          for (const business of wabaData.data) {
-            const wabas = business.owned_whatsapp_business_accounts?.data;
-            if (!wabas) continue;
-            const approved = wabas.find((w: any) => w.account_review_status === 'APPROVED');
-            if (approved) {
-              wabaId = approved.id;
-              console.log('[meta-oauth] No phones found, using WABA:', wabaId, approved.name);
-              break;
-            }
-          }
-        }
+      if (selectedPhone) {
+        console.log(
+          '[meta-oauth] Selected default phone:',
+          displayPhone,
+          'ID:',
+          phoneNumberId,
+          'WABA:',
+          wabaId,
+          `(${selectedWaba?.waba_name || 'Sem nome'})`
+        );
+      } else if (selectedWaba) {
+        console.log('[meta-oauth] No phones found, keeping WABA:', selectedWaba.waba_id, selectedWaba.waba_name);
       }
 
       // Save to database
