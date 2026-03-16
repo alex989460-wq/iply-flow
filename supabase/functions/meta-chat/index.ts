@@ -94,17 +94,18 @@ Deno.serve(async (req) => {
 
       const phone = normalizePhone(to);
 
-      const url = `https://graph.facebook.com/${GRAPH_API_VERSION}/${phoneNumberId}/messages`;
+      const url = `https://graph.facebook.com/${GRAPH_API_VERSION}/${phoneNumberId}/messages?appsecret_proof=${appSecretProof}`;
       const response = await fetch(url, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`,
+        },
         body: JSON.stringify({
           messaging_product: 'whatsapp',
           to: phone,
           type: 'text',
           text: { body: text },
-          access_token: accessToken,
-          appsecret_proof: appSecretProof,
         }),
       });
 
@@ -143,7 +144,10 @@ Deno.serve(async (req) => {
 
       const phone = normalizePhone(to);
 
-      const templatePayload: any = {
+
+
+
+      const templateBody: any = {
         messaging_product: 'whatsapp',
         to: phone,
         type: 'template',
@@ -151,19 +155,20 @@ Deno.serve(async (req) => {
           name: template_name,
           language: { code: language },
         },
-        access_token: accessToken,
-        appsecret_proof: appSecretProof,
       };
 
       if (components) {
-        templatePayload.template.components = components;
+        templateBody.template.components = components;
       }
 
-      const url = `https://graph.facebook.com/${GRAPH_API_VERSION}/${phoneNumberId}/messages`;
+      const url = `https://graph.facebook.com/${GRAPH_API_VERSION}/${phoneNumberId}/messages?appsecret_proof=${appSecretProof}`;
       const response = await fetch(url, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(templatePayload),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify(templateBody),
       });
 
       const data = await response.json();
