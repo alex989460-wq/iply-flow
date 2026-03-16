@@ -30,6 +30,7 @@ import ConflictRenewal from "./pages/ConflictRenewal";
 import ActivationApps from "./pages/ActivationApps";
 import ConsultaDue from "./pages/ConsultaDue";
 import MetaTemplates from "./pages/MetaTemplates";
+import MetaChat from "./pages/MetaChat";
 import { Loader2 } from "lucide-react";
 
 const queryClient = new QueryClient();
@@ -88,6 +89,7 @@ function AppRoutes() {
       <Route path="/message-logs" element={<ProtectedRoute><MessageLogs /></ProtectedRoute>} />
       <Route path="/activation-apps" element={<ProtectedRoute><ActivationApps /></ProtectedRoute>} />
       <Route path="/meta-templates" element={<ProtectedRoute><MetaTemplates /></ProtectedRoute>} />
+      <Route path="/meta-chat" element={<ProtectedRoute><MetaChat /></ProtectedRoute>} />
       <Route path="*" element={<NotFound />} />
     </Routes>
   );
