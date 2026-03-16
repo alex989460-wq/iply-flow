@@ -38,7 +38,7 @@ const menuItems = [
   { icon: Receipt, label: 'Cobranças', path: '/billing', adminOnly: false },
   { icon: Megaphone, label: 'Disparo em Massa', path: '/mass-broadcast', adminOnly: false },
   { icon: MessageCircleMore, label: 'Chat', path: '/chat', adminOnly: false },
-  { icon: Bot, label: 'Gatilhos de Bot', path: '/bot-triggers', adminOnly: false },
+  { icon: MessageCircleMore, label: 'Chat Oficial', path: '/meta-chat', adminOnly: false },
   { icon: Smartphone, label: 'Ativação de Apps', path: '/activation-apps', adminOnly: false },
   { icon: FileText, label: 'Templates Meta', path: '/meta-templates', adminOnly: true },
   { icon: UsersRound, label: 'Sub-Revendedores', path: '/sub-resellers', adminOnly: false },

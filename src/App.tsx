@@ -89,6 +89,7 @@ function AppRoutes() {
       <Route path="/message-logs" element={<ProtectedRoute><MessageLogs /></ProtectedRoute>} />
       <Route path="/activation-apps" element={<ProtectedRoute><ActivationApps /></ProtectedRoute>} />
       <Route path="/meta-templates" element={<ProtectedRoute><MetaTemplates /></ProtectedRoute>} />
+      <Route path="/meta-chat" element={<ProtectedRoute><MetaChat /></ProtectedRoute>} />
       <Route path="*" element={<NotFound />} />
     </Routes>
   );
