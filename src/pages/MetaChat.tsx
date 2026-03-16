@@ -77,12 +77,21 @@ export default function MetaChat() {
 
   useEffect(() => {
     if (customers) {
-      const mapped: ChatContact[] = customers.map(c => ({
-        phone: c.phone,
-        name: c.name,
-        customerId: c.id,
-      }));
-      setContacts(mapped);
+      const dedupedByPhone = new Map<string, ChatContact>();
+
+      for (const c of customers) {
+        const normalizedPhone = c.phone.replace(/\D/g, '');
+        if (!dedupedByPhone.has(normalizedPhone)) {
+          dedupedByPhone.set(normalizedPhone, {
+            id: c.id,
+            phone: c.phone,
+            name: c.name,
+            customerId: c.id,
+          });
+        }
+      }
+
+      setContacts(Array.from(dedupedByPhone.values()));
     }
   }, [customers]);
 
