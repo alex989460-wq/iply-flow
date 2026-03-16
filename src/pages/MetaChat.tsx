@@ -27,6 +27,7 @@ interface ChatMessage {
 }
 
 interface ChatContact {
+  id: string;
   phone: string;
   name: string;
   customerId?: string;
