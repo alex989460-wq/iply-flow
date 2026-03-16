@@ -27,6 +27,7 @@ interface ChatMessage {
 }
 
 interface ChatContact {
+  id: string;
   phone: string;
   name: string;
   customerId?: string;
@@ -76,12 +77,21 @@ export default function MetaChat() {
 
   useEffect(() => {
     if (customers) {
-      const mapped: ChatContact[] = customers.map(c => ({
-        phone: c.phone,
-        name: c.name,
-        customerId: c.id,
-      }));
-      setContacts(mapped);
+      const dedupedByPhone = new Map<string, ChatContact>();
+
+      for (const c of customers) {
+        const normalizedPhone = c.phone.replace(/\D/g, '');
+        if (!dedupedByPhone.has(normalizedPhone)) {
+          dedupedByPhone.set(normalizedPhone, {
+            id: c.id,
+            phone: c.phone,
+            name: c.name,
+            customerId: c.id,
+          });
+        }
+      }
+
+      setContacts(Array.from(dedupedByPhone.values()));
     }
   }, [customers]);
 
@@ -112,7 +122,16 @@ export default function MetaChat() {
   };
 
   const sendTextMessage = async () => {
-    if (!newMessage.trim() || !selectedContact) return;
+    if (!selectedContact) {
+      toast({
+        title: 'Selecione um contato',
+        description: 'Escolha um contato na lista antes de enviar.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (!newMessage.trim()) return;
 
     setSending(true);
     try {
@@ -221,6 +240,7 @@ export default function MetaChat() {
     }
 
     const newContact: ChatContact = {
+      id: `manual-${phone}`,
       phone,
       name: `+${phone}`,
     };
@@ -312,11 +332,11 @@ export default function MetaChat() {
               <div className="divide-y divide-border">
                 {filteredContacts.map((contact) => (
                   <button
-                    key={contact.phone}
+                    key={contact.id}
                     onClick={() => handleSelectContact(contact)}
                     className={cn(
                       'w-full p-3 text-left hover:bg-secondary/50 transition-colors',
-                      selectedContact?.phone === contact.phone && 'bg-secondary border-l-2 border-l-primary'
+                      selectedContact?.id === contact.id && 'bg-secondary border-l-2 border-l-primary'
                     )}
                   >
                     <div className="flex items-center gap-3">
@@ -459,7 +479,7 @@ export default function MetaChat() {
                   />
                   <Button
                     onClick={sendTextMessage}
-                    disabled={sending || !newMessage.trim()}
+                    disabled={sending || !newMessage.trim() || !selectedContact}
                     size="icon"
                   >
                     {sending ? (
