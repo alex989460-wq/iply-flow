@@ -160,11 +160,28 @@ Deno.serve(async (req) => {
         templatePayload.template.components = components;
       }
 
-      const url = `https://graph.facebook.com/${GRAPH_API_VERSION}/${phoneNumberId}/messages`;
+      const templateBody: any = {
+        messaging_product: 'whatsapp',
+        to: phone,
+        type: 'template',
+        template: {
+          name: template_name,
+          language: { code: language },
+        },
+      };
+
+      if (components) {
+        templateBody.template.components = components;
+      }
+
+      const url = `https://graph.facebook.com/${GRAPH_API_VERSION}/${phoneNumberId}/messages?appsecret_proof=${appSecretProof}`;
       const response = await fetch(url, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(templatePayload),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify(templateBody),
       });
 
       const data = await response.json();
