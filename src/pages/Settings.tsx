@@ -56,6 +56,12 @@ interface PhoneNumber {
   display_phone_number: string;
   verified_name?: string;
   quality_rating?: string;
+  code_verification_status?: string;
+  waba_id?: string;
+  waba_name?: string;
+  business_id?: string;
+  business_name?: string;
+  account_review_status?: string;
 }
 
 interface MessageTemplate {
@@ -64,6 +70,10 @@ interface MessageTemplate {
   language: string;
   category: string;
   components?: any[];
+  waba_id?: string;
+  waba_name?: string;
+  business_id?: string;
+  business_name?: string;
 }
 
 interface Department {
@@ -410,12 +420,22 @@ export default function Settings() {
   };
 
   const selectPhoneNumber = async (phone: PhoneNumber) => {
+    if (!phone.waba_id) {
+      toast({
+        title: 'Erro',
+        description: 'Não foi possível identificar a conta WhatsApp desse número.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     try {
       const { data, error } = await supabase.functions.invoke('meta-oauth', {
         body: {
           action: 'select-phone',
           phone_number_id: phone.id,
           display_phone: phone.display_phone_number,
+          waba_id: phone.waba_id,
         },
       });
 
@@ -423,6 +443,7 @@ export default function Settings() {
 
       setMetaSettings(prev => ({
         ...prev,
+        meta_business_id: data?.waba_id || phone.waba_id,
         meta_phone_number_id: phone.id,
         meta_display_phone: phone.display_phone_number,
       }));
@@ -946,6 +967,12 @@ export default function Settings() {
                                   {phone.verified_name && (
                                     <p className="text-xs text-muted-foreground">{phone.verified_name}</p>
                                   )}
+                                  {(phone.waba_name || phone.business_name) && (
+                                    <p className="text-xs text-muted-foreground">
+                                      {phone.waba_name || 'WABA'}
+                                      {phone.business_name ? ` • ${phone.business_name}` : ''}
+                                    </p>
+                                  )}
                                 </div>
                               </div>
                               {metaSettings.meta_phone_number_id === phone.id ? (
@@ -1014,6 +1041,12 @@ export default function Settings() {
                                   <p className="text-xs text-muted-foreground">
                                     {template.category} • {template.language}
                                   </p>
+                                  {(template.waba_name || template.business_name) && (
+                                    <p className="text-xs text-muted-foreground">
+                                      {template.waba_name || 'WABA'}
+                                      {template.business_name ? ` • ${template.business_name}` : ''}
+                                    </p>
+                                  )}
                                 </div>
                               </div>
                               {getStatusBadge(template.status)}
