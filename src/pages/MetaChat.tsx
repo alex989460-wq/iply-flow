@@ -122,7 +122,16 @@ export default function MetaChat() {
   };
 
   const sendTextMessage = async () => {
-    if (!newMessage.trim() || !selectedContact) return;
+    if (!selectedContact) {
+      toast({
+        title: 'Selecione um contato',
+        description: 'Escolha um contato na lista antes de enviar.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (!newMessage.trim()) return;
 
     setSending(true);
     try {
