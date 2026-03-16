@@ -394,17 +394,95 @@ export default function Settings() {
       return;
     }
 
-    const onMessage = (event: MessageEvent) => {
-      if (event.origin !== window.location.origin) return;
-      const type = (event.data as any)?.type;
+    const allowedOrigins = new Set([window.location.origin, new URL(redirectUri).origin]);
+
+    const exchangeCode = async (code: string, callbackRedirectUri: string) => {
+      const { data, error } = await supabase.functions.invoke('meta-oauth', {
+        body: {
+          action: 'exchange-token',
+          code,
+          redirect_uri: callbackRedirectUri,
+        },
+      });
+
+      if (error) {
+        const details = await getFunctionsHttpErrorDetails(error);
+        const message = details?.message || (typeof details?.raw === 'object' ? JSON.stringify(details.raw) : undefined);
+        throw new Error(message || `Erro ao conectar (redirect_uri: ${callbackRedirectUri}).`);
+      }
+
+      if (!data?.success) {
+        throw new Error(data?.error || 'Erro ao conectar conta Meta.');
+      }
+
+      return data;
+    };
+
+    const onMessage = async (event: MessageEvent) => {
+      if (!allowedOrigins.has(event.origin)) return;
+
+      const payload = (event.data as any) || {};
+      const type = payload?.type;
+
+      if (type === 'meta_oauth_code') {
+        if (!payload?.code) {
+          toast({
+            title: 'Erro',
+            description: 'Código de autorização não recebido.',
+            variant: 'destructive',
+          });
+          cleanup();
+          return;
+        }
+
+        if (payload?.state && payload.state !== state) {
+          toast({
+            title: 'Erro de segurança',
+            description: 'State inválido. Tente conectar novamente.',
+            variant: 'destructive',
+          });
+          cleanup();
+          return;
+        }
+
+        try {
+          await exchangeCode(payload.code, payload.redirect_uri || redirectUri);
+          toast({
+            title: 'Sucesso!',
+            description: 'WhatsApp Oficial conectado com sucesso.',
+          });
+          await fetchSettings();
+        } catch (err: any) {
+          console.error('[Settings] Token exchange (popup message) error:', err);
+          toast({
+            title: 'Erro',
+            description: err?.message || 'Erro ao conectar conta Meta',
+            variant: 'destructive',
+          });
+        }
+
+        cleanup();
+        return;
+      }
+
       if (type === 'meta_oauth_success') {
         toast({
           title: 'Sucesso!',
           description: 'Conexão autorizada. Finalizando…',
         });
         fetchSettings();
+        cleanup();
+        return;
       }
-      cleanup();
+
+      if (type === 'meta_oauth_error') {
+        toast({
+          title: 'Erro',
+          description: payload?.message || 'Erro na autorização com o Facebook.',
+          variant: 'destructive',
+        });
+        cleanup();
+      }
     };
 
     const timer = window.setInterval(() => {
@@ -422,7 +500,11 @@ export default function Settings() {
     window.addEventListener('message', onMessage);
 
     // Helpful hint if user still gets redirect mismatch
-    console.log('[Settings] Meta OAuth dialog opened', { redirectUri, state });
+    console.log('[Settings] Meta OAuth dialog opened', {
+      redirectUri,
+      state,
+      allowedOrigins: Array.from(allowedOrigins),
+    });
   }, [toast]);
 
   const handleDisconnectMeta = async () => {
