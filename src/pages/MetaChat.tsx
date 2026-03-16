@@ -332,11 +332,11 @@ export default function MetaChat() {
               <div className="divide-y divide-border">
                 {filteredContacts.map((contact) => (
                   <button
-                    key={contact.phone}
+                    key={contact.id}
                     onClick={() => handleSelectContact(contact)}
                     className={cn(
                       'w-full p-3 text-left hover:bg-secondary/50 transition-colors',
-                      selectedContact?.phone === contact.phone && 'bg-secondary border-l-2 border-l-primary'
+                      selectedContact?.id === contact.id && 'bg-secondary border-l-2 border-l-primary'
                     )}
                   >
                     <div className="flex items-center gap-3">
