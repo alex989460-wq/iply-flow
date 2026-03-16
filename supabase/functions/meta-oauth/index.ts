@@ -451,47 +451,32 @@ Deno.serve(async (req) => {
     }
 
     if (action === 'fetch-phone-numbers') {
-      // Fetch available phone numbers for the connected account
+      // Fetch all available phone numbers across all accessible WABAs
       const { data: settings } = await supabase
         .from('zap_responder_settings')
-        .select('meta_access_token, meta_business_id')
+        .select('meta_access_token')
         .eq('user_id', userId)
         .maybeSingle();
 
-      if (!settings?.meta_access_token || !settings?.meta_business_id) {
-        return new Response(JSON.stringify({ 
-          error: 'Conta Meta não conectada' 
-        }), { 
-          status: 400, 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      if (!settings?.meta_access_token) {
+        return new Response(JSON.stringify({
+          error: 'Conta Meta não conectada'
+        }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         });
       }
 
       const appSecretProof = await generateAppSecretProofAsync(settings.meta_access_token, META_APP_SECRET);
-
-      const phonesUrl = new URL(`https://graph.facebook.com/v21.0/${settings.meta_business_id}/phone_numbers`);
-      phonesUrl.searchParams.set('access_token', settings.meta_access_token);
-      phonesUrl.searchParams.set('appsecret_proof', appSecretProof);
-      phonesUrl.searchParams.set('fields', 'id,display_phone_number,verified_name,quality_rating,code_verification_status');
-
-      const phonesResponse = await fetch(phonesUrl.toString());
-      const phonesData = await phonesResponse.json();
-
-      if (phonesData.error) {
-        console.error('[meta-oauth] Phone fetch error:', phonesData.error);
-        return new Response(JSON.stringify({ 
-          error: phonesData.error.message || 'Erro ao buscar números' 
-        }), { 
-          status: 400, 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-        });
-      }
+      const wabas = await fetchAllAccessibleWabas(settings.meta_access_token, appSecretProof);
+      const phoneNumbers = await fetchAllPhonesFromWabas(settings.meta_access_token, appSecretProof, wabas);
 
       return new Response(JSON.stringify({
         success: true,
-        phone_numbers: phonesData.data || [],
-      }), { 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        waba_count: wabas.length,
+        phone_numbers: phoneNumbers,
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     }
 
