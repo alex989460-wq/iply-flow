@@ -967,6 +967,12 @@ export default function Settings() {
                                   {phone.verified_name && (
                                     <p className="text-xs text-muted-foreground">{phone.verified_name}</p>
                                   )}
+                                  {(phone.waba_name || phone.business_name) && (
+                                    <p className="text-xs text-muted-foreground">
+                                      {phone.waba_name || 'WABA'}
+                                      {phone.business_name ? ` • ${phone.business_name}` : ''}
+                                    </p>
+                                  )}
                                 </div>
                               </div>
                               {metaSettings.meta_phone_number_id === phone.id ? (
