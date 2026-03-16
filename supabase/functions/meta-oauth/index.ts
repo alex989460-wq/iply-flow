@@ -481,11 +481,21 @@ Deno.serve(async (req) => {
     }
 
     if (action === 'select-phone') {
-      const { phone_number_id, display_phone } = body;
+      const { phone_number_id, display_phone, waba_id } = body;
+
+      if (!phone_number_id || !waba_id) {
+        return new Response(JSON.stringify({
+          error: 'phone_number_id e waba_id são obrigatórios'
+        }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
 
       const { error: updateError } = await supabase
         .from('zap_responder_settings')
         .update({
+          meta_business_id: waba_id,
           meta_phone_number_id: phone_number_id,
           meta_display_phone: display_phone,
           updated_at: new Date().toISOString(),
@@ -499,10 +509,11 @@ Deno.serve(async (req) => {
 
       return new Response(JSON.stringify({
         success: true,
+        waba_id,
         phone_number_id,
         display_phone,
-      }), { 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     }
 
