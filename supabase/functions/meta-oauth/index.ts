@@ -547,50 +547,34 @@ Deno.serve(async (req) => {
     }
 
     if (action === 'fetch-templates') {
-      // Fetch message templates for the connected WABA
+      // Fetch templates across all accessible WABAs
       const { data: settings } = await supabase
         .from('zap_responder_settings')
-        .select('meta_access_token, meta_business_id')
+        .select('meta_access_token')
         .eq('user_id', userId)
         .maybeSingle();
 
-      if (!settings?.meta_access_token || !settings?.meta_business_id) {
-        return new Response(JSON.stringify({ 
-          error: 'Conta Meta não conectada' 
-        }), { 
-          status: 400, 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      if (!settings?.meta_access_token) {
+        return new Response(JSON.stringify({
+          error: 'Conta Meta não conectada'
+        }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         });
       }
 
       const appSecretProof = await generateAppSecretProofAsync(settings.meta_access_token, META_APP_SECRET);
+      const wabas = await fetchAllAccessibleWabas(settings.meta_access_token, appSecretProof);
+      const templates = await fetchAllTemplatesFromWabas(settings.meta_access_token, appSecretProof, wabas);
 
-      const templatesUrl = new URL(`https://graph.facebook.com/v21.0/${settings.meta_business_id}/message_templates`);
-      templatesUrl.searchParams.set('access_token', settings.meta_access_token);
-      templatesUrl.searchParams.set('appsecret_proof', appSecretProof);
-      templatesUrl.searchParams.set('fields', 'name,status,language,category,components');
-      templatesUrl.searchParams.set('limit', '100');
-
-      const templatesResponse = await fetch(templatesUrl.toString());
-      const templatesData = await templatesResponse.json();
-
-      console.log('[meta-oauth] Templates response:', JSON.stringify(templatesData, null, 2));
-
-      if (templatesData.error) {
-        console.error('[meta-oauth] Templates fetch error:', templatesData.error);
-        return new Response(JSON.stringify({ 
-          error: templatesData.error.message || 'Erro ao buscar templates' 
-        }), { 
-          status: 400, 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-        });
-      }
+      console.log('[meta-oauth] Templates response:', JSON.stringify(templates, null, 2));
 
       return new Response(JSON.stringify({
         success: true,
-        templates: templatesData.data || [],
-      }), { 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        waba_count: wabas.length,
+        templates,
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     }
 
