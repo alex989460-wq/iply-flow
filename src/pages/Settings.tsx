@@ -56,6 +56,12 @@ interface PhoneNumber {
   display_phone_number: string;
   verified_name?: string;
   quality_rating?: string;
+  code_verification_status?: string;
+  waba_id?: string;
+  waba_name?: string;
+  business_id?: string;
+  business_name?: string;
+  account_review_status?: string;
 }
 
 interface MessageTemplate {
@@ -64,6 +70,10 @@ interface MessageTemplate {
   language: string;
   category: string;
   components?: any[];
+  waba_id?: string;
+  waba_name?: string;
+  business_id?: string;
+  business_name?: string;
 }
 
 interface Department {
