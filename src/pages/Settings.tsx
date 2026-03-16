@@ -42,11 +42,6 @@ async function getFunctionsHttpErrorDetails(err: unknown): Promise<{ message?: s
   }
 }
 
-function buildRedirectUriFromCurrentUrl(): string {
-  // FB.login with JS SDK uses the page ORIGIN as redirect_uri internally.
-  // We must match that exactly for token exchange.
-  return window.location.origin;
-}
 declare global {
   interface Window {
     FB: any;
@@ -55,49 +50,6 @@ declare global {
 }
 
 const META_APP_ID = '1499507967794395';
-
-const META_OAUTH_STATE_KEY = 'meta_oauth_state';
-const META_OAUTH_FALLBACK_ORIGIN = 'https://iply-flow.lovable.app';
-
-function resolveMetaOauthOrigin(): string {
-  // O host de preview pode variar; usamos o domínio publicado para estabilizar o OAuth.
-  if (window.location.hostname.endsWith('lovableproject.com')) {
-    return META_OAUTH_FALLBACK_ORIGIN;
-  }
-
-  return window.location.origin;
-}
-
-function getMetaCallbackRedirectUri(): string {
-  return `${resolveMetaOauthOrigin()}/meta-callback`;
-}
-
-function generateState(): string {
-  try {
-    const bytes = new Uint8Array(16);
-    crypto.getRandomValues(bytes);
-    return Array.from(bytes)
-      .map((b) => b.toString(16).padStart(2, '0'))
-      .join('');
-  } catch {
-    return `${Date.now()}_${Math.random().toString(16).slice(2)}`;
-  }
-}
-
-function buildMetaOauthDialogUrl(): { url: string; redirectUri: string; state: string } {
-  const redirectUri = getMetaCallbackRedirectUri();
-  const state = generateState();
-
-  const dialog = new URL('https://www.facebook.com/v21.0/dialog/oauth');
-  dialog.searchParams.set('client_id', META_APP_ID);
-  dialog.searchParams.set('redirect_uri', redirectUri);
-  dialog.searchParams.set('response_type', 'code');
-  dialog.searchParams.set('state', state);
-  dialog.searchParams.set('scope', 'whatsapp_business_management,whatsapp_business_messaging,business_management');
-  dialog.searchParams.set('display', 'popup');
-
-  return { url: dialog.toString(), redirectUri, state };
-}
 
 interface PhoneNumber {
   id: string;
@@ -305,207 +257,94 @@ export default function Settings() {
 
   const processMetaLoginResponse = useCallback(async (response: any) => {
     console.log('[Settings] FB.login response:', response);
-    
-    if (response.authResponse) {
-      const { code } = response.authResponse;
-      
-      if (!code) {
-        console.error('[Settings] No code in authResponse');
-        toast({
-          title: 'Erro',
-          description: 'Código de autorização não recebido. Tente novamente.',
-          variant: 'destructive',
-        });
-        setConnectingMeta(false);
-        return;
-      }
 
-      try {
-        console.log('[Settings] Exchanging code for token...');
-        // IMPORTANT: The redirect_uri must match exactly what Meta considers valid.
-        // We canonicalize current URL (no query/hash, no trailing slash).
-        const redirectUri = buildRedirectUriFromCurrentUrl();
-        
-        const { data, error } = await supabase.functions.invoke('meta-oauth', {
-          body: {
-            action: 'exchange-token',
-            code,
-            redirect_uri: redirectUri,
-          },
-        });
+    const shortLivedToken = response?.authResponse?.accessToken;
 
-        if (error) {
-          const details = await getFunctionsHttpErrorDetails(error);
-          const message = details?.message || (typeof details?.raw === 'object' ? JSON.stringify(details.raw) : undefined);
-          throw new Error(
-            message || `Erro ao conectar (redirect_uri: ${redirectUri}).`
-          );
-        }
+    if (!shortLivedToken) {
+      const message =
+        response?.status === 'not_authorized'
+          ? 'Permissões não autorizadas. Confirme todas as permissões no popup.'
+          : response?.status === 'unknown'
+            ? 'Login não concluído. Se o app estiver em Development, adicione seu usuário como tester.'
+            : 'Login cancelado ou não autorizado completamente.';
 
-        if (data.success) {
-          toast({
-            title: 'Sucesso!',
-            description: `WhatsApp Oficial conectado: ${data.display_phone || 'Número detectado'}`,
-          });
-          
-          // Refresh settings
-          await fetchSettings();
-        } else {
-          throw new Error(data.error || 'Erro desconhecido');
-        }
-      } catch (err: any) {
-        console.error('[Settings] Token exchange error:', err);
-        toast({
-          title: 'Erro',
-          description: err?.message || 'Erro ao conectar conta Meta',
-          variant: 'destructive',
-        });
-      }
-    } else {
-      console.log('[Settings] User cancelled login or did not fully authorize.');
       toast({
-        title: 'Cancelado',
-        description: 'Login cancelado ou não autorizado completamente.',
+        title: 'Erro',
+        description: message,
         variant: 'destructive',
       });
-    }
-    setConnectingMeta(false);
-  }, [toast]);
-
-  const handleMetaLogin = useCallback(() => {
-    setConnectingMeta(true);
-
-    const { url, redirectUri, state } = buildMetaOauthDialogUrl();
-    sessionStorage.setItem(META_OAUTH_STATE_KEY, state);
-
-    const popup = window.open(
-      url,
-      'meta_oauth',
-      'width=600,height=700,menubar=no,toolbar=no,status=no,resizable=yes,scrollbars=yes'
-    );
-
-    if (!popup) {
       setConnectingMeta(false);
-      toast({
-        title: 'Popup bloqueado',
-        description: 'Permita popups para concluir a conexão com o Facebook.',
-        variant: 'destructive',
-      });
       return;
     }
 
-    const allowedOrigins = new Set([window.location.origin, new URL(redirectUri).origin]);
-
-    const exchangeCode = async (code: string, callbackRedirectUri: string) => {
+    try {
       const { data, error } = await supabase.functions.invoke('meta-oauth', {
         body: {
-          action: 'exchange-token',
-          code,
-          redirect_uri: callbackRedirectUri,
+          action: 'exchange-sdk-token',
+          access_token: shortLivedToken,
         },
       });
 
       if (error) {
         const details = await getFunctionsHttpErrorDetails(error);
         const message = details?.message || (typeof details?.raw === 'object' ? JSON.stringify(details.raw) : undefined);
-        throw new Error(message || `Erro ao conectar (redirect_uri: ${callbackRedirectUri}).`);
+        throw new Error(message || 'Erro ao conectar conta Meta.');
       }
 
       if (!data?.success) {
-        throw new Error(data?.error || 'Erro ao conectar conta Meta.');
+        throw new Error(data?.error || 'Erro desconhecido');
       }
 
-      return data;
-    };
+      toast({
+        title: 'Sucesso!',
+        description: `WhatsApp Oficial conectado: ${data.display_phone || 'Número detectado'}`,
+      });
 
-    const onMessage = async (event: MessageEvent) => {
-      if (!allowedOrigins.has(event.origin)) return;
-
-      const payload = (event.data as any) || {};
-      const type = payload?.type;
-
-      if (type === 'meta_oauth_code') {
-        if (!payload?.code) {
-          toast({
-            title: 'Erro',
-            description: 'Código de autorização não recebido.',
-            variant: 'destructive',
-          });
-          cleanup();
-          return;
-        }
-
-        if (payload?.state && payload.state !== state) {
-          toast({
-            title: 'Erro de segurança',
-            description: 'State inválido. Tente conectar novamente.',
-            variant: 'destructive',
-          });
-          cleanup();
-          return;
-        }
-
-        try {
-          await exchangeCode(payload.code, payload.redirect_uri || redirectUri);
-          toast({
-            title: 'Sucesso!',
-            description: 'WhatsApp Oficial conectado com sucesso.',
-          });
-          await fetchSettings();
-        } catch (err: any) {
-          console.error('[Settings] Token exchange (popup message) error:', err);
-          toast({
-            title: 'Erro',
-            description: err?.message || 'Erro ao conectar conta Meta',
-            variant: 'destructive',
-          });
-        }
-
-        cleanup();
-        return;
-      }
-
-      if (type === 'meta_oauth_success') {
-        toast({
-          title: 'Sucesso!',
-          description: 'Conexão autorizada. Finalizando…',
-        });
-        fetchSettings();
-        cleanup();
-        return;
-      }
-
-      if (type === 'meta_oauth_error') {
-        toast({
-          title: 'Erro',
-          description: payload?.message || 'Erro na autorização com o Facebook.',
-          variant: 'destructive',
-        });
-        cleanup();
-      }
-    };
-
-    const timer = window.setInterval(() => {
-      if (popup.closed) {
-        cleanup();
-      }
-    }, 500);
-
-    const cleanup = () => {
-      window.removeEventListener('message', onMessage);
-      window.clearInterval(timer);
+      await fetchSettings();
+    } catch (err: any) {
+      console.error('[Settings] Token exchange error:', err);
+      toast({
+        title: 'Erro',
+        description: err?.message || 'Erro ao conectar conta Meta',
+        variant: 'destructive',
+      });
+    } finally {
       setConnectingMeta(false);
-    };
-
-    window.addEventListener('message', onMessage);
-
-    // Helpful hint if user still gets redirect mismatch
-    console.log('[Settings] Meta OAuth dialog opened', {
-      redirectUri,
-      state,
-      allowedOrigins: Array.from(allowedOrigins),
-    });
+    }
   }, [toast]);
+
+  const handleMetaLogin = useCallback(() => {
+    if (!fbSdkLoaded || !window.FB) {
+      toast({
+        title: 'SDK indisponível',
+        description: 'Aguarde o carregamento do Facebook SDK e tente novamente.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setConnectingMeta(true);
+
+    try {
+      window.FB.login(
+        (response: any) => {
+          processMetaLoginResponse(response);
+        },
+        {
+          scope: 'whatsapp_business_management,whatsapp_business_messaging,business_management',
+          return_scopes: true,
+        }
+      );
+    } catch (err: any) {
+      console.error('[Settings] FB.login error:', err);
+      toast({
+        title: 'Erro',
+        description: err?.message || 'Erro ao abrir login do Facebook.',
+        variant: 'destructive',
+      });
+      setConnectingMeta(false);
+    }
+  }, [fbSdkLoaded, processMetaLoginResponse, toast]);
 
   const handleDisconnectMeta = async () => {
     if (!confirm('Tem certeza que deseja desconectar a conta Meta?')) return;
