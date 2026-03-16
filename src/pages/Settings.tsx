@@ -42,11 +42,6 @@ async function getFunctionsHttpErrorDetails(err: unknown): Promise<{ message?: s
   }
 }
 
-function buildRedirectUriFromCurrentUrl(): string {
-  // FB.login with JS SDK uses the page ORIGIN as redirect_uri internally.
-  // We must match that exactly for token exchange.
-  return window.location.origin;
-}
 declare global {
   interface Window {
     FB: any;
@@ -55,49 +50,6 @@ declare global {
 }
 
 const META_APP_ID = '1499507967794395';
-
-const META_OAUTH_STATE_KEY = 'meta_oauth_state';
-const META_OAUTH_FALLBACK_ORIGIN = 'https://iply-flow.lovable.app';
-
-function resolveMetaOauthOrigin(): string {
-  // O host de preview pode variar; usamos o domínio publicado para estabilizar o OAuth.
-  if (window.location.hostname.endsWith('lovableproject.com')) {
-    return META_OAUTH_FALLBACK_ORIGIN;
-  }
-
-  return window.location.origin;
-}
-
-function getMetaCallbackRedirectUri(): string {
-  return `${resolveMetaOauthOrigin()}/meta-callback`;
-}
-
-function generateState(): string {
-  try {
-    const bytes = new Uint8Array(16);
-    crypto.getRandomValues(bytes);
-    return Array.from(bytes)
-      .map((b) => b.toString(16).padStart(2, '0'))
-      .join('');
-  } catch {
-    return `${Date.now()}_${Math.random().toString(16).slice(2)}`;
-  }
-}
-
-function buildMetaOauthDialogUrl(): { url: string; redirectUri: string; state: string } {
-  const redirectUri = getMetaCallbackRedirectUri();
-  const state = generateState();
-
-  const dialog = new URL('https://www.facebook.com/v21.0/dialog/oauth');
-  dialog.searchParams.set('client_id', META_APP_ID);
-  dialog.searchParams.set('redirect_uri', redirectUri);
-  dialog.searchParams.set('response_type', 'code');
-  dialog.searchParams.set('state', state);
-  dialog.searchParams.set('scope', 'whatsapp_business_management,whatsapp_business_messaging,business_management');
-  dialog.searchParams.set('display', 'popup');
-
-  return { url: dialog.toString(), redirectUri, state };
-}
 
 interface PhoneNumber {
   id: string;
