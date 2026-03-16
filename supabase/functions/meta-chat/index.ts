@@ -94,17 +94,18 @@ Deno.serve(async (req) => {
 
       const phone = normalizePhone(to);
 
-      const url = `https://graph.facebook.com/${GRAPH_API_VERSION}/${phoneNumberId}/messages`;
+      const url = `https://graph.facebook.com/${GRAPH_API_VERSION}/${phoneNumberId}/messages?appsecret_proof=${appSecretProof}`;
       const response = await fetch(url, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`,
+        },
         body: JSON.stringify({
           messaging_product: 'whatsapp',
           to: phone,
           type: 'text',
           text: { body: text },
-          access_token: accessToken,
-          appsecret_proof: appSecretProof,
         }),
       });
 
