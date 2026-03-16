@@ -57,9 +57,19 @@ declare global {
 const META_APP_ID = '1499507967794395';
 
 const META_OAUTH_STATE_KEY = 'meta_oauth_state';
+const META_OAUTH_FALLBACK_ORIGIN = 'https://iply-flow.lovable.app';
+
+function resolveMetaOauthOrigin(): string {
+  // O host de preview pode variar; usamos o domínio publicado para estabilizar o OAuth.
+  if (window.location.hostname.endsWith('lovableproject.com')) {
+    return META_OAUTH_FALLBACK_ORIGIN;
+  }
+
+  return window.location.origin;
+}
 
 function getMetaCallbackRedirectUri(): string {
-  return `${window.location.origin}/meta-callback`;
+  return `${resolveMetaOauthOrigin()}/meta-callback`;
 }
 
 function generateState(): string {
