@@ -479,7 +479,7 @@ export default function MetaChat() {
                   />
                   <Button
                     onClick={sendTextMessage}
-                    disabled={sending || !newMessage.trim()}
+                    disabled={sending || !newMessage.trim() || !selectedContact}
                     size="icon"
                   >
                     {sending ? (
