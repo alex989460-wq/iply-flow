@@ -98,43 +98,71 @@ Deno.serve(async (req) => {
       });
     }
 
-    if (action === 'exchange-token') {
-      // Exchange short-lived token for long-lived token
-      console.log('[meta-oauth] Exchanging code for access token...');
+    if (action === 'exchange-token' || action === 'exchange-sdk-token') {
+      // Supports two flows:
+      // 1) exchange-token: receives authorization code + redirect_uri
+      // 2) exchange-sdk-token: receives short-lived access token from Facebook JS SDK
+      let shortLivedToken: string | undefined;
 
-      console.log('[meta-oauth] redirect_uri received:', redirect_uri);
+      if (action === 'exchange-token') {
+        console.log('[meta-oauth] Exchanging code for access token...');
+        console.log('[meta-oauth] redirect_uri received:', redirect_uri);
 
-      if (!redirect_uri || typeof redirect_uri !== 'string') {
-        return new Response(JSON.stringify({
-          error: 'redirect_uri ausente ou inválida',
-        }), {
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
+        if (!code || typeof code !== 'string') {
+          return new Response(JSON.stringify({
+            error: 'code ausente ou inválido',
+          }), {
+            status: 400,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+
+        if (!redirect_uri || typeof redirect_uri !== 'string') {
+          return new Response(JSON.stringify({
+            error: 'redirect_uri ausente ou inválida',
+          }), {
+            status: 400,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+
+        const tokenUrl = new URL('https://graph.facebook.com/v21.0/oauth/access_token');
+        tokenUrl.searchParams.set('client_id', META_APP_ID);
+        tokenUrl.searchParams.set('client_secret', META_APP_SECRET);
+        tokenUrl.searchParams.set('code', code);
+        tokenUrl.searchParams.set('redirect_uri', redirect_uri);
+
+        const tokenResponse = await fetch(tokenUrl.toString());
+        const tokenData = await tokenResponse.json();
+
+        if (tokenData.error) {
+          console.error('[meta-oauth] Token exchange error:', tokenData.error);
+          return new Response(JSON.stringify({
+            error: tokenData.error.message || 'Erro ao trocar código por token',
+            meta_error: tokenData.error,
+            debug_redirect_uri: redirect_uri,
+          }), {
+            status: 400,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+        }
+
+        shortLivedToken = tokenData.access_token;
+      } else {
+        shortLivedToken = body?.access_token;
+
+        if (!shortLivedToken || typeof shortLivedToken !== 'string') {
+          return new Response(JSON.stringify({
+            error: 'access_token ausente ou inválido',
+          }), {
+            status: 400,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+
+        console.log('[meta-oauth] Using short-lived token from Facebook JS SDK');
       }
-      
-      const tokenUrl = new URL('https://graph.facebook.com/v21.0/oauth/access_token');
-      tokenUrl.searchParams.set('client_id', META_APP_ID);
-      tokenUrl.searchParams.set('client_secret', META_APP_SECRET);
-      tokenUrl.searchParams.set('code', code);
-      tokenUrl.searchParams.set('redirect_uri', redirect_uri);
 
-      const tokenResponse = await fetch(tokenUrl.toString());
-      const tokenData = await tokenResponse.json();
-
-      if (tokenData.error) {
-        console.error('[meta-oauth] Token exchange error:', tokenData.error);
-        return new Response(JSON.stringify({ 
-          error: tokenData.error.message || 'Erro ao trocar código por token',
-          meta_error: tokenData.error,
-          debug_redirect_uri: redirect_uri,
-        }), { 
-          status: 400, 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-        });
-      }
-
-      const shortLivedToken = tokenData.access_token;
       console.log('[meta-oauth] Got short-lived token, exchanging for long-lived...');
 
       // Exchange for long-lived token
