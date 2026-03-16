@@ -26,28 +26,71 @@ export default function MetaCallback() {
       const errorDescription = params.get("error_description") || params.get("error_message");
       const code = params.get("code");
       const state = params.get("state");
+      const redirectUri = getRedirectUri();
 
       if (error) {
+        const message = errorDescription || error;
         setStatus("error");
-        setErrorMessage(errorDescription || error);
+        setErrorMessage(message);
+
+        try {
+          window.opener?.postMessage({ type: "meta_oauth_error", message }, "*");
+        } catch {
+          // ignore
+        }
         return;
       }
 
       if (!code) {
+        const message = "Código de autorização não encontrado na URL.";
         setStatus("error");
-        setErrorMessage("Código de autorização não encontrado na URL.");
+        setErrorMessage(message);
+
+        try {
+          window.opener?.postMessage({ type: "meta_oauth_error", message }, "*");
+        } catch {
+          // ignore
+        }
         return;
       }
 
       const expectedState = sessionStorage.getItem(META_OAUTH_STATE_KEY);
       if (expectedState && state && state !== expectedState) {
+        const message = "State inválido. Tente conectar novamente.";
         setStatus("error");
-        setErrorMessage("State inválido. Tente conectar novamente.");
+        setErrorMessage(message);
+
+        try {
+          window.opener?.postMessage({ type: "meta_oauth_error", message }, "*");
+        } catch {
+          // ignore
+        }
         return;
       }
 
+      // Envia o code para a janela principal (Settings), que já está autenticada,
+      // evitando falha quando callback abre em outro domínio.
+      if (window.opener) {
+        try {
+          window.opener.postMessage(
+            {
+              type: "meta_oauth_code",
+              code,
+              state,
+              redirect_uri: redirectUri,
+            },
+            "*"
+          );
+          setStatus("success");
+          window.close();
+          setTimeout(() => navigate("/settings", { replace: true }), 250);
+          return;
+        } catch {
+          // fallback para troca local abaixo
+        }
+      }
+
       try {
-        const redirectUri = getRedirectUri();
         const { data, error: fnError } = await supabase.functions.invoke("meta-oauth", {
           body: {
             action: "exchange-token",
@@ -61,19 +104,24 @@ export default function MetaCallback() {
 
         setStatus("success");
 
-        // Notify opener (settings page) and close popup
         try {
           window.opener?.postMessage({ type: "meta_oauth_success" }, window.location.origin);
         } catch {
           // ignore
         }
 
-        // Some browsers block close; fallback to redirect.
         window.close();
         setTimeout(() => navigate("/settings", { replace: true }), 250);
       } catch (e: any) {
+        const message = e?.message || "Erro ao trocar o código por token.";
         setStatus("error");
-        setErrorMessage(e?.message || "Erro ao trocar o código por token.");
+        setErrorMessage(message);
+
+        try {
+          window.opener?.postMessage({ type: "meta_oauth_error", message }, "*");
+        } catch {
+          // ignore
+        }
       }
     };
 
