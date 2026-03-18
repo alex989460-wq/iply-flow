@@ -114,6 +114,7 @@ export default function Plans() {
       plan_name: plan.plan_name,
       duration_days: plan.duration_days,
       price: Number(plan.price),
+      checkout_url: (plan as any).checkout_url || '',
     });
     setIsOpen(true);
   };
