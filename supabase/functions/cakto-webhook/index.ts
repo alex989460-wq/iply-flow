@@ -491,6 +491,320 @@ serve(async (req) => {
     const paymentMethodDb = isCreditCard ? 'cartao_credito' : 'pix';
 
     if (allMatchedCustomers.length === 0) {
+      // ── Check for pending new customer (from public checkout page) ──
+      const { data: pendingNew } = await supabaseAdmin
+        .from('pending_new_customers')
+        .select('*')
+        .in('phone', [...searchVariants])
+        .eq('used', false)
+        .gt('expires_at', new Date().toISOString())
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (pendingNew) {
+        console.log(`[Cakto] ✅ Novo cliente encontrado via checkout público: ${pendingNew.name} (${pendingNew.username})`);
+
+        // Mark as used
+        await supabaseAdmin.from('pending_new_customers').update({ used: true }).eq('id', pendingNew.id);
+
+        // Get plan info
+        const { data: newPlan } = await supabaseAdmin.from('plans').select('*').eq('id', pendingNew.plan_id).maybeSingle();
+        const planDuration = newPlan?.duration_days || 30;
+        const daysToMonthsMap: Record<number, number> = { 30: 1, 90: 3, 180: 6, 365: 12 };
+        const newMonths = daysToMonthsMap[planDuration] || undefined;
+
+        // Calculate due date
+        const today = new Date();
+        const dueDate = new Date(today);
+        if (newMonths) {
+          const origDay = dueDate.getDate();
+          dueDate.setMonth(dueDate.getMonth() + newMonths);
+          if (dueDate.getDate() !== origDay) dueDate.setDate(0);
+        } else {
+          dueDate.setDate(dueDate.getDate() + planDuration);
+        }
+        const newDueDateStr = dueDate.toISOString().split('T')[0];
+        const todayStr = today.toISOString().split('T')[0];
+
+        // Create customer
+        const { data: newCustomer, error: custError } = await supabaseAdmin
+          .from('customers')
+          .insert({
+            name: pendingNew.name,
+            phone: pendingNew.phone,
+            username: pendingNew.username,
+            server_id: pendingNew.server_id,
+            plan_id: pendingNew.plan_id,
+            due_date: newDueDateStr,
+            start_date: todayStr,
+            status: 'ativa',
+            created_by: pendingNew.owner_id,
+          })
+          .select('id, name, phone, username, server_id, plan_id, due_date, created_by, screens')
+          .single();
+
+        if (custError || !newCustomer) {
+          console.error('[Cakto] Erro ao criar novo cliente:', custError);
+          return new Response(JSON.stringify({ error: 'Erro ao criar cliente' }), { status: 500, headers: jsonHeaders });
+        }
+
+        console.log(`[Cakto] ✅ Novo cliente criado: ${newCustomer.name} (ID: ${newCustomer.id}), vencimento: ${newDueDateStr}`);
+
+        // Register payment
+        if (amountNumeric > 0) {
+          await supabaseAdmin.from('payments').insert({
+            customer_id: newCustomer.id,
+            amount: amountNumeric,
+            payment_date: todayStr,
+            method: paymentMethodDb,
+            confirmed: true,
+            source: 'cakto',
+          });
+        }
+
+        // Save payment confirmation
+        await supabaseAdmin.from('payment_confirmations').insert({
+          customer_id: newCustomer.id,
+          customer_name: newCustomer.name,
+          customer_phone: newCustomer.phone,
+          amount: amountNumeric,
+          plan_name: newPlan?.plan_name || null,
+          duration_days: planDuration,
+          new_due_date: newDueDateStr,
+          status: 'approved',
+        });
+
+        // ── Activate on server panel ──
+        if (newCustomer.server_id && newCustomer.username) {
+          const { data: serverData } = await supabaseAdmin
+            .from('servers')
+            .select('server_name, host, auto_renew')
+            .eq('id', newCustomer.server_id)
+            .maybeSingle();
+
+          if (serverData?.auto_renew) {
+            const sNameLower = (serverData.server_name || '').toLowerCase();
+            const sHostLower = (serverData.host || '').toLowerCase();
+            const isVplay = sNameLower.includes('vplay') || sHostLower.includes('vplay');
+            const isRush = sNameLower.includes('rush') || sHostLower.includes('rush');
+            const isTheBest = sNameLower.includes('best') || sHostLower.includes('best');
+            const isNatv = sNameLower.includes('natv') || sHostLower.includes('natv');
+
+            const { data: resellerApiSettings } = await supabaseAdmin
+              .from('reseller_api_settings')
+              .select('*')
+              .eq('user_id', pendingNew.owner_id)
+              .maybeSingle();
+
+            const newMonthsNum = newMonths || Math.max(1, Math.round(planDuration / 30));
+
+            if (isTheBest && resellerApiSettings?.the_best_username && resellerApiSettings?.the_best_password) {
+              const tbBaseUrl = (resellerApiSettings.the_best_base_url || '').replace(/\/+$/, '') || 'https://api.painel.best';
+              try {
+                const loginResp = await fetch(`${tbBaseUrl}/auth/token/`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ username: resellerApiSettings.the_best_username, password: resellerApiSettings.the_best_password }),
+                });
+                const loginData = await loginResp.json();
+                const token = loginData.access || loginData.token || '';
+                if (token) {
+                  // Create new user on The Best panel
+                  const createResp = await fetch(`${tbBaseUrl}/lines/`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username: newCustomer.username, months: newMonthsNum }),
+                  });
+                  const createResult = await createResp.json();
+                  console.log(`[Cakto] The Best criar usuário ${newCustomer.username}:`, JSON.stringify(createResult));
+                }
+              } catch (e) {
+                console.error(`[Cakto] Erro criando no The Best:`, e);
+              }
+            }
+
+            if (isNatv) {
+              const natvApiKey = resellerApiSettings?.natv_api_key || Deno.env.get('NATV_API_KEY') || '';
+              const natvBaseUrl = (resellerApiSettings?.natv_base_url || Deno.env.get('NATV_BASE_URL') || '').replace(/\/+$/, '');
+              if (natvApiKey && natvBaseUrl) {
+                try {
+                  const natvResp = await fetch(`${natvBaseUrl}/user/activation`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${natvApiKey}` },
+                    body: JSON.stringify({ username: newCustomer.username, months: newMonthsNum }),
+                  });
+                  console.log(`[Cakto] NATV criar ${newCustomer.username}: status=${natvResp.status}`);
+                } catch (e) {
+                  console.error(`[Cakto] Erro criando no NATV:`, e);
+                }
+              }
+            }
+
+            if (isVplay) {
+              try {
+                await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/vplay-renew`, {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${Deno.env.get('SUPABASE_ANON_KEY')}`,
+                    'x-cakto-webhook-secret': Deno.env.get('CAKTO_WEBHOOK_SECRET') || '',
+                  },
+                  body: JSON.stringify({ username: newCustomer.username, new_due_date: newDueDateStr, customer_id: newCustomer.id }),
+                });
+                console.log(`[Cakto] VPlay criar ${newCustomer.username}`);
+              } catch (e) {
+                console.error(`[Cakto] Erro criando no VPlay:`, e);
+              }
+            }
+
+            if (isRush && resellerApiSettings?.rush_username && resellerApiSettings?.rush_password && resellerApiSettings?.rush_token) {
+              try {
+                await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/rush-renew`, {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${Deno.env.get('SUPABASE_ANON_KEY')}`,
+                    'x-cakto-webhook-secret': Deno.env.get('CAKTO_WEBHOOK_SECRET') || '',
+                  },
+                  body: JSON.stringify({
+                    username: newCustomer.username, months: newMonthsNum, customer_id: newCustomer.id,
+                    rush_username: resellerApiSettings.rush_username, rush_password: resellerApiSettings.rush_password,
+                    rush_token: resellerApiSettings.rush_token,
+                    rush_base_url: (resellerApiSettings.rush_base_url || '').replace(/\/+$/, '') || 'https://api-new.painel.ai',
+                    screens: newCustomer.screens || 1,
+                  }),
+                });
+                console.log(`[Cakto] Rush criar ${newCustomer.username}`);
+              } catch (e) {
+                console.error(`[Cakto] Erro criando no Rush:`, e);
+              }
+            }
+          }
+        }
+
+        // ── Send WhatsApp confirmation ──
+        try {
+          const { data: zapSettings } = await supabaseAdmin
+            .from('zap_responder_settings')
+            .select('selected_department_id')
+            .eq('user_id', pendingNew.owner_id)
+            .maybeSingle();
+
+          const { data: billingSettings } = await supabaseAdmin
+            .from('billing_settings')
+            .select('notification_phone, meta_template_name, renewal_message_template, renewal_image_url')
+            .eq('user_id', pendingNew.owner_id)
+            .maybeSingle();
+
+          if (zapSettings?.selected_department_id) {
+            let custPhone = String(pendingNew.phone).replace(/\D/g, '');
+            if (!custPhone.startsWith('55')) custPhone = '55' + custPhone;
+
+            const spNow = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
+            const horaStr = `${String(spNow.getHours()).padStart(2, '0')}:${String(spNow.getMinutes()).padStart(2, '0')}`;
+
+            const templateVars: Record<string, string> = {
+              '{{nome}}': newCustomer.name,
+              '{{vencimento}}': newDueDateStr.split('-').reverse().join('/'),
+              '{{hora}}': horaStr,
+              '{{valor}}': `R$ ${amountNumeric.toFixed(2)}`,
+              '{{usuario}}': newCustomer.username || '-',
+              '{{plano}}': newPlan?.plan_name || '-',
+              '{{servidor}}': '',
+              '{{telas}}': String(newCustomer.screens || 1),
+              '{{obs}}': '-',
+              '{{inicio}}': todayStr.split('-').reverse().join('/'),
+              '{{status}}': 'Ativo',
+              '{{telefone}}': custPhone,
+            };
+
+            // Get server name
+            if (newCustomer.server_id) {
+              const { data: srv } = await supabaseAdmin.from('servers').select('server_name').eq('id', newCustomer.server_id).maybeSingle();
+              templateVars['{{servidor}}'] = srv?.server_name || '-';
+            }
+
+            let msgText = billingSettings?.renewal_message_template || `✅ Olá, *${newCustomer.name}*! Sua assinatura foi ativada com sucesso!\n\nVencimento: *${newDueDateStr.split('-').reverse().join('/')}*\nUsuário: *${newCustomer.username}*\nPlano: *${newPlan?.plan_name || '-'}*`;
+            for (const [key, val] of Object.entries(templateVars)) {
+              msgText = msgText.split(key).join(val);
+            }
+
+            const sendPayload: any = {
+              action: billingSettings?.renewal_image_url ? 'enviar-imagem' : 'enviar-mensagem',
+              department_id: zapSettings.selected_department_id,
+              number: custPhone,
+              text: msgText,
+              user_id: pendingNew.owner_id,
+            };
+            if (billingSettings?.renewal_image_url) {
+              sendPayload.image_url = billingSettings.renewal_image_url;
+              sendPayload.caption = msgText;
+            }
+
+            const msgResp = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/zap-responder`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}` },
+              body: JSON.stringify(sendPayload),
+            });
+            console.log(`[Cakto] Msg confirmação novo cliente para ${custPhone}: ok=${msgResp.ok}`);
+
+            if (!msgResp.ok) {
+              const tplName = billingSettings?.meta_template_name || 'pedido_aprovado';
+              await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/zap-responder`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}` },
+                body: JSON.stringify({
+                  action: 'enviar-template',
+                  department_id: zapSettings.selected_department_id,
+                  template_name: tplName,
+                  number: custPhone,
+                  language: 'pt_BR',
+                  user_id: pendingNew.owner_id,
+                }),
+              });
+            }
+
+            // Notify admin
+            if (billingSettings?.notification_phone) {
+              const adminMsg = `🆕 *Novo Cliente via Checkout*\n\n👤 Nome: *${newCustomer.name}*\n📞 Tel: *${custPhone}*\n👤 Usuário: *${newCustomer.username}*\n📦 Plano: *${newPlan?.plan_name || '-'}*\n💰 Valor: *R$ ${amountNumeric.toFixed(2)}*\n📅 Vencimento: *${newDueDateStr.split('-').reverse().join('/')}*`;
+              await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/zap-responder`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}` },
+                body: JSON.stringify({
+                  action: 'enviar-mensagem',
+                  department_id: zapSettings.selected_department_id,
+                  number: billingSettings.notification_phone,
+                  text: adminMsg,
+                  user_id: pendingNew.owner_id,
+                }),
+              });
+            }
+          }
+        } catch (msgErr) {
+          console.error('[Cakto] Erro ao enviar confirmação novo cliente:', msgErr);
+        }
+
+        // Log
+        await supabaseAdmin.from('message_logs').insert({
+          user_id: pendingNew.owner_id,
+          customer_id: newCustomer.id,
+          customer_name: newCustomer.name,
+          customer_phone: pendingNew.phone,
+          message_type: 'new_customer',
+          source: 'cakto',
+          status: 'success',
+          metadata: { checkout: true, amount: amountNumeric, plan: newPlan?.plan_name },
+        });
+
+        return new Response(JSON.stringify({
+          success: true,
+          type: 'new_customer',
+          customer: newCustomer.name,
+          due_date: newDueDateStr,
+        }), { headers: jsonHeaders });
+      }
+
       console.warn(`[Cakto] Nenhum cliente encontrado para telefone: ${phone}`);
       // Log not found
       await supabaseAdmin.from('message_logs').insert({
