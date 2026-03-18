@@ -181,7 +181,17 @@ export default function Plans() {
                     className="bg-secondary/50"
                   />
                 </div>
-                <Button 
+                <div className="space-y-2">
+                  <Label>Link Checkout (Cakto)</Label>
+                  <Input
+                    value={formData.checkout_url}
+                    onChange={(e) => setFormData({ ...formData, checkout_url: e.target.value })}
+                    placeholder="https://pay.cakto.com.br/..."
+                    className="bg-secondary/50"
+                  />
+                  <p className="text-xs text-muted-foreground">Link de pagamento da Cakto para a página pública de checkout</p>
+                </div>
+                <Button
                   type="submit" 
                   className="w-full" 
                   disabled={createMutation.isPending || updateMutation.isPending}
