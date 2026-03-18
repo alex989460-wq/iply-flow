@@ -708,6 +708,7 @@ export default function Customers() {
       username: customer.username || '',
       screens: customer.screens ? String(customer.screens) : '1',
       extra_months: customer.extra_months ? String(customer.extra_months) : '0',
+      activate_on_server: false,
     });
     setIsOpen(true);
   };
