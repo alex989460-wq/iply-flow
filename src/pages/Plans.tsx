@@ -104,7 +104,7 @@ export default function Plans() {
   });
 
   const resetForm = () => {
-    setFormData({ plan_name: '', duration_days: 30, price: 0 });
+    setFormData({ plan_name: '', duration_days: 30, price: 0, checkout_url: '' });
     setEditingPlan(null);
   };
 
