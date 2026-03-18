@@ -175,23 +175,6 @@ export default function PublicCheckout() {
               />
             </div>
 
-            {servers.length > 0 && (
-              <div className="space-y-2">
-                <Label className="flex items-center gap-2">
-                  <Server className="w-4 h-4" /> Servidor
-                </Label>
-                <Select value={serverId} onValueChange={setServerId} required>
-                  <SelectTrigger className="bg-secondary/30">
-                    <SelectValue placeholder="Selecione o servidor" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {servers.map(s => (
-                      <SelectItem key={s.id} value={s.id}>{s.server_name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
 
             <div className="space-y-2">
               <Label className="flex items-center gap-2">
