@@ -35,7 +35,6 @@ export default function PublicCheckout() {
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [username, setUsername] = useState('');
-  const [serverId, setServerId] = useState('');
   const [planId, setPlanId] = useState('');
 
   useEffect(() => {
@@ -71,7 +70,7 @@ export default function PublicCheckout() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim() || !phone.trim() || !username.trim() || !serverId || !planId || !selectedPlan) {
+    if (!name.trim() || !phone.trim() || !username.trim() || !planId || !selectedPlan) {
       toast({ title: 'Preencha todos os campos', variant: 'destructive' });
       return;
     }
@@ -87,7 +86,7 @@ export default function PublicCheckout() {
         name: name.trim(),
         phone: phoneNormalized,
         username: username.trim(),
-        server_id: serverId,
+        server_id: servers.length > 0 ? servers[0].id : null,
         plan_id: planId,
         checkout_url: selectedPlan.checkout_url,
       });
@@ -165,34 +164,17 @@ export default function PublicCheckout() {
 
             <div className="space-y-2">
               <Label className="flex items-center gap-2">
-                <User className="w-4 h-4" /> Usuário Desejado
+                <User className="w-4 h-4" /> Nome de usuário recebido no teste
               </Label>
               <Input
                 value={username}
                 onChange={e => setUsername(e.target.value.replace(/\s/g, ''))}
-                placeholder="meususuario"
+                placeholder="Digite o usuário que você recebeu no teste"
                 required
                 className="bg-secondary/30"
               />
             </div>
 
-            {servers.length > 0 && (
-              <div className="space-y-2">
-                <Label className="flex items-center gap-2">
-                  <Server className="w-4 h-4" /> Servidor
-                </Label>
-                <Select value={serverId} onValueChange={setServerId} required>
-                  <SelectTrigger className="bg-secondary/30">
-                    <SelectValue placeholder="Selecione o servidor" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {servers.map(s => (
-                      <SelectItem key={s.id} value={s.id}>{s.server_name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
 
             <div className="space-y-2">
               <Label className="flex items-center gap-2">
@@ -228,7 +210,7 @@ export default function PublicCheckout() {
               type="submit"
               className="w-full"
               size="lg"
-              disabled={submitting || !name || !phone || !username || !serverId || !planId}
+              disabled={submitting || !name || !phone || !username || !planId}
             >
               {submitting ? (
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
