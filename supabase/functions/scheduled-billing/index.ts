@@ -5,8 +5,8 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Mapping of billing types to template names
-const TEMPLATE_MAPPING: Record<string, string> = {
+// Default mapping of billing types to template names (fallback only)
+const DEFAULT_TEMPLATE_MAPPING: Record<string, string> = {
   'D-1': 'vence_amanha',
   'D0': 'hoje01',
   'D+1': 'vencido',
