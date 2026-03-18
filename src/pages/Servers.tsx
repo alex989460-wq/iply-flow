@@ -47,6 +47,7 @@ export default function Servers() {
     host: '',
     description: '',
     status: 'online' as ServerStatus,
+    is_public: false,
   });
 
   const queryClient = useQueryClient();
