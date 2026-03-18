@@ -33,7 +33,6 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { Plus, Pencil, Trash2, Loader2, Server, Globe } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
-import { Plus, Pencil, Trash2, Loader2, Server } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { Database } from '@/integrations/supabase/types';
 
