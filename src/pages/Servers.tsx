@@ -246,7 +246,20 @@ export default function Servers() {
                     className="bg-secondary/50"
                   />
                 </div>
-                <Button 
+                <div className="flex items-center justify-between rounded-lg border border-border p-3">
+                  <div className="flex items-center gap-2">
+                    <Globe className="w-4 h-4 text-primary" />
+                    <div>
+                      <Label className="text-sm">Visível na Página de Checkout</Label>
+                      <p className="text-xs text-muted-foreground">Exibir este servidor para novos clientes</p>
+                    </div>
+                  </div>
+                  <Switch
+                    checked={(formData as any).is_public || false}
+                    onCheckedChange={(checked) => setFormData({ ...formData, is_public: checked } as any)}
+                  />
+                </div>
+                <Button
                   type="submit" 
                   className="w-full" 
                   disabled={createMutation.isPending || updateMutation.isPending}
