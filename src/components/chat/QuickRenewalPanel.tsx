@@ -726,6 +726,7 @@ Obrigado pela preferência! 🙏`;
     setEditedStatus(customer.status);
     setEditedName(customer.name);
     setEditedPhone(customer.phone);
+    setActivateOnServer(true);
   };
 
   // Save customer data without renewal
