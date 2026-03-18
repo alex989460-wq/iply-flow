@@ -35,6 +35,7 @@ export default function Plans() {
     plan_name: '',
     duration_days: 30,
     price: 0,
+    checkout_url: '',
   });
 
   const queryClient = useQueryClient();
