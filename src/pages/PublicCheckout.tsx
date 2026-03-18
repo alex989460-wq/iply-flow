@@ -86,7 +86,7 @@ export default function PublicCheckout() {
         name: name.trim(),
         phone: phoneNormalized,
         username: username.trim(),
-        server_id: serverId,
+        server_id: servers.length > 0 ? servers[0].id : null,
         plan_id: planId,
         checkout_url: selectedPlan.checkout_url,
       });
