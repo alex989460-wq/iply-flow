@@ -35,7 +35,6 @@ export default function PublicCheckout() {
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [username, setUsername] = useState('');
-  const [serverId, setServerId] = useState('');
   const [planId, setPlanId] = useState('');
 
   useEffect(() => {
