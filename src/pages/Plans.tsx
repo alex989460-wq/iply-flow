@@ -35,6 +35,7 @@ export default function Plans() {
     plan_name: '',
     duration_days: 30,
     price: 0,
+    checkout_url: '',
   });
 
   const queryClient = useQueryClient();
@@ -103,7 +104,7 @@ export default function Plans() {
   });
 
   const resetForm = () => {
-    setFormData({ plan_name: '', duration_days: 30, price: 0 });
+    setFormData({ plan_name: '', duration_days: 30, price: 0, checkout_url: '' });
     setEditingPlan(null);
   };
 
@@ -113,6 +114,7 @@ export default function Plans() {
       plan_name: plan.plan_name,
       duration_days: plan.duration_days,
       price: Number(plan.price),
+      checkout_url: (plan as any).checkout_url || '',
     });
     setIsOpen(true);
   };
@@ -179,7 +181,17 @@ export default function Plans() {
                     className="bg-secondary/50"
                   />
                 </div>
-                <Button 
+                <div className="space-y-2">
+                  <Label>Link Checkout (Cakto)</Label>
+                  <Input
+                    value={formData.checkout_url}
+                    onChange={(e) => setFormData({ ...formData, checkout_url: e.target.value })}
+                    placeholder="https://pay.cakto.com.br/..."
+                    className="bg-secondary/50"
+                  />
+                  <p className="text-xs text-muted-foreground">Link de pagamento da Cakto para a página pública de checkout</p>
+                </div>
+                <Button
                   type="submit" 
                   className="w-full" 
                   disabled={createMutation.isPending || updateMutation.isPending}

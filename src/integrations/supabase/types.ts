@@ -766,6 +766,63 @@ export type Database = {
         }
         Relationships: []
       }
+      pending_new_customers: {
+        Row: {
+          checkout_url: string | null
+          created_at: string | null
+          expires_at: string | null
+          id: string
+          name: string
+          owner_id: string
+          phone: string
+          plan_id: string | null
+          server_id: string | null
+          used: boolean | null
+          username: string
+        }
+        Insert: {
+          checkout_url?: string | null
+          created_at?: string | null
+          expires_at?: string | null
+          id?: string
+          name: string
+          owner_id: string
+          phone: string
+          plan_id?: string | null
+          server_id?: string | null
+          used?: boolean | null
+          username: string
+        }
+        Update: {
+          checkout_url?: string | null
+          created_at?: string | null
+          expires_at?: string | null
+          id?: string
+          name?: string
+          owner_id?: string
+          phone?: string
+          plan_id?: string | null
+          server_id?: string | null
+          used?: boolean | null
+          username?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pending_new_customers_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "plans"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pending_new_customers_server_id_fkey"
+            columns: ["server_id"]
+            isOneToOne: false
+            referencedRelation: "servers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pending_renewal_selections: {
         Row: {
           created_at: string
@@ -803,6 +860,7 @@ export type Database = {
       }
       plans: {
         Row: {
+          checkout_url: string | null
           created_at: string
           created_by: string | null
           duration_days: number
@@ -811,6 +869,7 @@ export type Database = {
           price: number
         }
         Insert: {
+          checkout_url?: string | null
           created_at?: string
           created_by?: string | null
           duration_days: number
@@ -819,6 +878,7 @@ export type Database = {
           price: number
         }
         Update: {
+          checkout_url?: string | null
           created_at?: string
           created_by?: string | null
           duration_days?: number
@@ -1005,6 +1065,7 @@ export type Database = {
           description: string | null
           host: string
           id: string
+          is_public: boolean | null
           server_name: string
           status: Database["public"]["Enums"]["server_status"]
         }
@@ -1015,6 +1076,7 @@ export type Database = {
           description?: string | null
           host: string
           id?: string
+          is_public?: boolean | null
           server_name: string
           status?: Database["public"]["Enums"]["server_status"]
         }
@@ -1025,6 +1087,7 @@ export type Database = {
           description?: string | null
           host?: string
           id?: string
+          is_public?: boolean | null
           server_name?: string
           status?: Database["public"]["Enums"]["server_status"]
         }

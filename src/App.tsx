@@ -31,6 +31,7 @@ import ActivationApps from "./pages/ActivationApps";
 import ConsultaDue from "./pages/ConsultaDue";
 import MetaTemplates from "./pages/MetaTemplates";
 import MetaChat from "./pages/MetaChat";
+import PublicCheckout from "./pages/PublicCheckout";
 import { Loader2 } from "lucide-react";
 
 const queryClient = new QueryClient();
@@ -72,6 +73,7 @@ function AppRoutes() {
       <Route path="/pedido/:id" element={<PaymentConfirmation />} />
       <Route path="/confirmar-renovacao" element={<ConflictRenewal />} />
       <Route path="/consulta" element={<ConsultaDue />} />
+      <Route path="/checkout/:userId" element={<PublicCheckout />} />
       <Route path="/dashboard" element={<ProtectedRoute><Index /></ProtectedRoute>} />
       <Route path="/servers" element={<ProtectedRoute><Servers /></ProtectedRoute>} />
       <Route path="/plans" element={<ProtectedRoute><Plans /></ProtectedRoute>} />

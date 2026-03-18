@@ -56,3 +56,6 @@ verify_jwt = false
 
 [functions.meta-templates]
 verify_jwt = false
+
+[functions.public-checkout-data]
+verify_jwt = false

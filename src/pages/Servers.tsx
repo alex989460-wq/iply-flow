@@ -31,7 +31,8 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Pencil, Trash2, Loader2, Server } from 'lucide-react';
+import { Plus, Pencil, Trash2, Loader2, Server, Globe } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
 import { cn } from '@/lib/utils';
 import type { Database } from '@/integrations/supabase/types';
 
@@ -46,6 +47,7 @@ export default function Servers() {
     host: '',
     description: '',
     status: 'online' as ServerStatus,
+    is_public: false,
   });
 
   const queryClient = useQueryClient();
@@ -141,7 +143,7 @@ export default function Servers() {
   });
 
   const resetForm = () => {
-    setFormData({ server_name: '', host: '', description: '', status: 'online' });
+    setFormData({ server_name: '', host: '', description: '', status: 'online', is_public: false });
     setEditingServer(null);
   };
 
@@ -152,6 +154,7 @@ export default function Servers() {
       host: server.host,
       description: server.description || '',
       status: server.status,
+      is_public: (server as any).is_public || false,
     });
     setIsOpen(true);
   };
@@ -244,7 +247,20 @@ export default function Servers() {
                     className="bg-secondary/50"
                   />
                 </div>
-                <Button 
+                <div className="flex items-center justify-between rounded-lg border border-border p-3">
+                  <div className="flex items-center gap-2">
+                    <Globe className="w-4 h-4 text-primary" />
+                    <div>
+                      <Label className="text-sm">Visível na Página de Checkout</Label>
+                      <p className="text-xs text-muted-foreground">Exibir este servidor para novos clientes</p>
+                    </div>
+                  </div>
+                  <Switch
+                    checked={(formData as any).is_public || false}
+                    onCheckedChange={(checked) => setFormData({ ...formData, is_public: checked } as any)}
+                  />
+                </div>
+                <Button
                   type="submit" 
                   className="w-full" 
                   disabled={createMutation.isPending || updateMutation.isPending}
