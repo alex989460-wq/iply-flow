@@ -102,9 +102,57 @@ export default function QuickCustomerForm({ onSuccess, onCancel, initialPhone = 
       const { data: newCustomer, error } = await supabase
         .from('customers')
         .insert(insertData)
-        .select('id')
+        .select('id, name, phone, due_date, plan_id, username, server_id')
         .single();
       if (error) throw error;
+
+      // Auto-activate on server panel if toggle is on
+      if (data.activate_on_server && newCustomer?.username?.trim() && newCustomer?.server_id) {
+        try {
+          const { data: serverData } = await supabase
+            .from('servers')
+            .select('server_name, host')
+            .eq('id', newCustomer.server_id)
+            .single();
+
+          if (serverData) {
+            const serverHost = serverData.host || '';
+            const serverName = serverData.server_name || '';
+            const isTheBest = serverName.toLowerCase().includes('the best') || serverHost.toLowerCase().includes('the-best') || serverHost.toLowerCase().includes('painel.best');
+            const isNatv = serverName.toLowerCase().includes('natv') || serverHost.toLowerCase().includes('pixbot') || serverHost.toLowerCase().includes('natv');
+            const isVplay = serverName.toLowerCase().includes('vplay') || serverHost.toLowerCase().includes('vplay');
+            const isRush = serverName.toLowerCase().includes('rush') || serverHost.toLowerCase().includes('rush');
+
+            if (isTheBest) {
+              const months = Math.max(1, Math.round((plan?.duration_days || 30) / 30));
+              await supabase.functions.invoke('the-best-renew', {
+                body: { username: newCustomer.username.trim(), months, customer_id: newCustomer.id },
+              });
+            } else if (isNatv) {
+              const months = Math.max(1, Math.round((plan?.duration_days || 30) / 30));
+              await supabase.functions.invoke('natv-renew', {
+                body: { username: newCustomer.username.trim(), months, duration_days: plan?.duration_days || 30, customer_id: newCustomer.id },
+              });
+            } else if (isVplay) {
+              await supabase.functions.invoke('vplay-renew', {
+                body: { username: newCustomer.username.trim(), new_due_date: dueDate, customer_id: newCustomer.id },
+              });
+            } else if (isRush) {
+              const months = Math.max(1, Math.round((plan?.duration_days || 30) / 30));
+              await supabase.functions.invoke('rush-renew', {
+                body: { username: newCustomer.username.trim(), months, customer_id: newCustomer.id },
+              });
+            } else {
+              await supabase.functions.invoke('xui-renew', {
+                body: { username: newCustomer.username.trim(), new_due_date: dueDate, customer_id: newCustomer.id },
+              });
+            }
+            console.log('[QuickForm] Auto-renovado no servidor ao cadastrar');
+          }
+        } catch (e) {
+          console.error('[QuickForm] Erro auto-renew:', e);
+        }
+      }
 
       // Criar pagamento automático para o novo cliente
       const paymentAmount = data.custom_price 
