@@ -315,8 +315,8 @@ export default function QuickRenewalPanel({ isMobile = false, onClose }: QuickRe
       if (hasLetters) {
         // Exact (case-insensitive) username match to avoid pulling unrelated people
         filters.push(`username.ilike.${trimmed}`);
-        // More precise name search (starts with)
-        filters.push(`name.ilike.${trimmed}%`);
+        // Name search (contains) to handle partial names and special characters
+        filters.push(`name.ilike.%${trimmed}%`);
       } else if (trimmed === normalizedPhone) {
         // If the user typed only digits, allow exact username match for numeric usernames
         filters.push(`username.eq.${trimmed}`);

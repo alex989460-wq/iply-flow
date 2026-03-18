@@ -1018,9 +1018,10 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
   };
 
   const filteredCustomers = customers?.filter(customer => {
-    const searchLower = searchTerm.toLowerCase();
+    const searchLower = searchTerm.toLowerCase().trim();
+    const searchDigits = searchTerm.replace(/\D/g, '');
     const matchesSearch = customer.name.toLowerCase().includes(searchLower) ||
-                          customer.phone.includes(searchTerm) ||
+                          (searchDigits.length >= 3 && customer.phone.includes(searchDigits)) ||
                           (customer.username && customer.username.toLowerCase().includes(searchLower));
     const matchesStatus = statusFilter === 'all' || customer.status === statusFilter;
     
