@@ -210,7 +210,7 @@ export default function PublicCheckout() {
               type="submit"
               className="w-full"
               size="lg"
-              disabled={submitting || !name || !phone || !username || !serverId || !planId}
+              disabled={submitting || !name || !phone || !username || !planId}
             >
               {submitting ? (
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
