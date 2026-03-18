@@ -1459,6 +1459,18 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                   
                   {!showExtraMonthsConfirm && (
                     <div className="space-y-2">
+                      {(editedUsername.trim() || selectedCustomer?.username) && selectedCustomer?.server && (
+                        <div className="flex items-center gap-2 p-2 rounded-md bg-secondary/30 border border-border">
+                          <Checkbox
+                            id="activate_on_server_renewal"
+                            checked={activateOnServer}
+                            onCheckedChange={(checked) => setActivateOnServer(!!checked)}
+                          />
+                          <Label htmlFor="activate_on_server_renewal" className="text-xs cursor-pointer">
+                            Renovar no painel do servidor
+                          </Label>
+                        </div>
+                      )}
                       <div className="flex gap-2">
                         <Button 
                           className="flex-1 h-9" 
