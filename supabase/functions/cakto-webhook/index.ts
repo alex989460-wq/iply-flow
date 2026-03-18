@@ -490,8 +490,9 @@ serve(async (req) => {
     const isCreditCard = rawMethod.includes('credit') || rawMethod.includes('cartao') || rawMethod.includes('cartão') || rawMethod.includes('card');
     const paymentMethodDb = isCreditCard ? 'cartao_credito' : 'pix';
 
-    if (allMatchedCustomers.length === 0) {
-      // ── Check for pending new customer (from public checkout page) ──
+    // ── Check for pending new customer FIRST (from public checkout page) ──
+    // This must run BEFORE conflict detection so new customers with existing phones are handled correctly
+    {
       const { data: pendingNew } = await supabaseAdmin
         .from('pending_new_customers')
         .select('*')
