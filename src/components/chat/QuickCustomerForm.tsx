@@ -15,6 +15,7 @@ import {
 } from '@/components/ui/select';
 import { toast } from 'sonner';
 import { Loader2, X, UserPlus } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
 import type { Database } from '@/integrations/supabase/types';
 import { triggerWelcomeBot } from '@/hooks/useBotTriggers';
 
