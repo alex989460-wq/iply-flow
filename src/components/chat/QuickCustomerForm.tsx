@@ -38,6 +38,7 @@ export default function QuickCustomerForm({ onSuccess, onCancel, initialPhone = 
     notes: '',
     custom_price: '',
     extra_months: '0',
+    activate_on_server: true,
   });
 
   const queryClient = useQueryClient();
