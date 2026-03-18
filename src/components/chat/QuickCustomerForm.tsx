@@ -376,18 +376,16 @@ export default function QuickCustomerForm({ onSuccess, onCancel, initialPhone = 
           />
         </div>
 
-        {formData.username.trim() && formData.server_id && (
-          <div className="flex items-center gap-2 p-2 rounded-md bg-secondary/30 border border-border">
-            <Checkbox
-              id="activate_on_server_quick"
-              checked={formData.activate_on_server}
-              onCheckedChange={(checked) => setFormData(prev => ({ ...prev, activate_on_server: !!checked }))}
-            />
-            <Label htmlFor="activate_on_server_quick" className="text-xs cursor-pointer">
-              Ativar no painel do servidor
-            </Label>
-          </div>
-        )}
+        <div className="flex items-center gap-2 p-2 rounded-md bg-secondary/30 border border-border">
+          <Checkbox
+            id="activate_on_server_quick"
+            checked={formData.activate_on_server}
+            onCheckedChange={(checked) => setFormData(prev => ({ ...prev, activate_on_server: !!checked }))}
+          />
+          <Label htmlFor="activate_on_server_quick" className="text-xs cursor-pointer">
+            ⚡ Ativar no painel do servidor
+          </Label>
+        </div>
       </div>
 
       <Button 

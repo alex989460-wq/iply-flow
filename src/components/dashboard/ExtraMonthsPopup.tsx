@@ -10,7 +10,7 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { AlertTriangle, Calendar, User, X } from 'lucide-react';
+import { AlertTriangle, Calendar, User, X, EyeOff } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
@@ -23,6 +23,20 @@ interface CustomerWithExtraMonths {
 }
 
 const POPUP_KEY = 'extra_months_popup_shown';
+const DISMISSED_KEY = 'extra_months_dismissed_ids';
+
+function getDismissedIds(): string[] {
+  try {
+    const raw = localStorage.getItem(DISMISSED_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+function setDismissedIds(ids: string[]) {
+  localStorage.setItem(DISMISSED_KEY, JSON.stringify(ids));
+}
 
 export default function ExtraMonthsPopup() {
   const { user, isAdmin } = useAuth();
@@ -32,13 +46,10 @@ export default function ExtraMonthsPopup() {
   useEffect(() => {
     if (!user || !isAdmin) return;
 
-    // Check if popup was already shown today
     const lastShown = localStorage.getItem(POPUP_KEY);
     const today = new Date().toDateString();
     
-    if (lastShown === today) {
-      return;
-    }
+    if (lastShown === today) return;
 
     const fetchCustomersWithExtraMonths = async () => {
       const { data, error } = await supabase
@@ -53,15 +64,27 @@ export default function ExtraMonthsPopup() {
       }
 
       if (data && data.length > 0) {
-        setCustomers(data);
-        setOpen(true);
-        // Mark as shown today
-        localStorage.setItem(POPUP_KEY, today);
+        const dismissed = getDismissedIds();
+        const filtered = data.filter(c => !dismissed.includes(c.id));
+        if (filtered.length > 0) {
+          setCustomers(filtered);
+          setOpen(true);
+          localStorage.setItem(POPUP_KEY, today);
+        }
       }
     };
 
     fetchCustomersWithExtraMonths();
   }, [user, isAdmin]);
+
+  const handleDismiss = (customerId: string) => {
+    const dismissed = getDismissedIds();
+    dismissed.push(customerId);
+    setDismissedIds(dismissed);
+    const remaining = customers.filter(c => c.id !== customerId);
+    setCustomers(remaining);
+    if (remaining.length === 0) setOpen(false);
+  };
 
   if (!isAdmin || customers.length === 0) return null;
 
@@ -98,10 +121,17 @@ export default function ExtraMonthsPopup() {
                     </div>
                   </div>
                 </div>
-                <div className="text-right">
+                <div className="flex items-center gap-2">
                   <span className="px-2 py-1 text-xs font-bold rounded-full bg-amber-500 text-white">
                     +{customer.extra_months} {customer.extra_months === 1 ? 'mês' : 'meses'}
                   </span>
+                  <button
+                    onClick={() => handleDismiss(customer.id)}
+                    className="p-1 rounded-md hover:bg-destructive/20 text-muted-foreground hover:text-destructive transition-colors"
+                    title="Remover da notificação"
+                  >
+                    <EyeOff className="w-3.5 h-3.5" />
+                  </button>
                 </div>
               </div>
             ))}
