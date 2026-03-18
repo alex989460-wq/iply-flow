@@ -690,7 +690,7 @@ export default function Customers() {
   });
 
   const resetForm = () => {
-    setFormData({ name: '', phone: '', server_id: '', plan_id: '', status: 'ativa', notes: '', due_date: '', custom_price: '', username: '', screens: '1', extra_months: '0' });
+    setFormData({ name: '', phone: '', server_id: '', plan_id: '', status: 'ativa', notes: '', due_date: '', custom_price: '', username: '', screens: '1', extra_months: '0', activate_on_server: true });
     setEditingCustomer(null);
   };
 
