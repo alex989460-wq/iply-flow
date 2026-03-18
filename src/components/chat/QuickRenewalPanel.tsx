@@ -420,8 +420,8 @@ export default function QuickRenewalPanel({ isMobile = false, onClose }: QuickRe
       if (updateError) throw updateError;
 
       const xuiUsername = (editedUsername.trim() || customer.username || '').trim();
-      // Skip external server renewal when customer has extra_months — only deduct locally
-      const skipServerRenewal = customer.extra_months > 0;
+      // Skip external server renewal when customer has extra_months or toggle is off
+      const skipServerRenewal = customer.extra_months > 0 || !activateOnServer;
       if (xuiUsername && !skipServerRenewal) {
         try {
           const serverHost = (customer as any).server?.host || '';
