@@ -1957,6 +1957,18 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
                         className="bg-secondary/50"
                       />
                     </div>
+                    {!editingCustomer && formData.username.trim() && formData.server_id && (
+                      <div className="col-span-2 flex items-center gap-2 p-3 rounded-lg bg-secondary/30 border border-border">
+                        <Checkbox
+                          id="activate_on_server"
+                          checked={formData.activate_on_server}
+                          onCheckedChange={(checked) => setFormData({ ...formData, activate_on_server: !!checked })}
+                        />
+                        <Label htmlFor="activate_on_server" className="text-sm cursor-pointer">
+                          Ativar automaticamente no painel do servidor
+                        </Label>
+                      </div>
+                    )}
                     <div className="space-y-2">
                       <Label>Telas</Label>
                       <Select
