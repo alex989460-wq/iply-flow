@@ -805,7 +805,9 @@ serve(async (req) => {
           due_date: newDueDateStr,
         }), { headers: jsonHeaders });
       }
+    }
 
+    if (allMatchedCustomers.length === 0) {
       console.warn(`[Cakto] Nenhum cliente encontrado para telefone: ${phone}`);
       // Log not found
       await supabaseAdmin.from('message_logs').insert({
