@@ -577,14 +577,39 @@ serve(async (req) => {
         });
 
         // ── Activate on server panel ──
-        if (newCustomer.server_id && newCustomer.username) {
-          const { data: serverData } = await supabaseAdmin
-            .from('servers')
-            .select('server_name, host, auto_renew')
-            .eq('id', newCustomer.server_id)
+        // If server_id is set, use that server. Otherwise, try all owner's auto_renew servers.
+        if (newCustomer.username) {
+          let serversToTry: any[] = [];
+
+          if (newCustomer.server_id) {
+            const { data: serverData } = await supabaseAdmin
+              .from('servers')
+              .select('id, server_name, host, auto_renew')
+              .eq('id', newCustomer.server_id)
+              .maybeSingle();
+            if (serverData?.auto_renew) serversToTry = [serverData];
+          } else {
+            // No server selected — get all owner's servers with auto_renew
+            const { data: ownerServers } = await supabaseAdmin
+              .from('servers')
+              .select('id, server_name, host, auto_renew')
+              .eq('created_by', pendingNew.owner_id)
+              .eq('auto_renew', true);
+            serversToTry = ownerServers || [];
+            console.log(`[Cakto] Sem server_id — tentando ${serversToTry.length} servidor(es) do owner`);
+          }
+
+          const { data: resellerApiSettings } = await supabaseAdmin
+            .from('reseller_api_settings')
+            .select('*')
+            .eq('user_id', pendingNew.owner_id)
             .maybeSingle();
 
-          if (serverData?.auto_renew) {
+          const newMonthsNum = newMonths || Math.max(1, Math.round(planDuration / 30));
+          let activatedServerId: string | null = null;
+          let activatedServerName: string | null = null;
+
+          for (const serverData of serversToTry) {
             const sNameLower = (serverData.server_name || '').toLowerCase();
             const sHostLower = (serverData.host || '').toLowerCase();
             const isVplay = sNameLower.includes('vplay') || sHostLower.includes('vplay');
@@ -592,17 +617,9 @@ serve(async (req) => {
             const isTheBest = sNameLower.includes('best') || sHostLower.includes('best');
             const isNatv = sNameLower.includes('natv') || sHostLower.includes('natv');
 
-            const { data: resellerApiSettings } = await supabaseAdmin
-              .from('reseller_api_settings')
-              .select('*')
-              .eq('user_id', pendingNew.owner_id)
-              .maybeSingle();
-
-            const newMonthsNum = newMonths || Math.max(1, Math.round(planDuration / 30));
-
-            if (isTheBest && resellerApiSettings?.the_best_username && resellerApiSettings?.the_best_password) {
-              const tbBaseUrl = (resellerApiSettings.the_best_base_url || '').replace(/\/+$/, '') || 'https://api.painel.best';
-              try {
+            try {
+              if (isTheBest && resellerApiSettings?.the_best_username && resellerApiSettings?.the_best_password) {
+                const tbBaseUrl = (resellerApiSettings.the_best_base_url || '').replace(/\/+$/, '') || 'https://api.painel.best';
                 const loginResp = await fetch(`${tbBaseUrl}/auth/token/`, {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
@@ -611,7 +628,6 @@ serve(async (req) => {
                 const loginData = await loginResp.json();
                 const token = loginData.access || loginData.token || '';
                 if (token) {
-                  // Create new user on The Best panel
                   const createResp = await fetch(`${tbBaseUrl}/lines/`, {
                     method: 'POST',
                     headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
@@ -619,32 +635,26 @@ serve(async (req) => {
                   });
                   const createResult = await createResp.json();
                   console.log(`[Cakto] The Best criar usuário ${newCustomer.username}:`, JSON.stringify(createResult));
+                  if (createResp.ok) { activatedServerId = serverData.id; activatedServerName = serverData.server_name; }
                 }
-              } catch (e) {
-                console.error(`[Cakto] Erro criando no The Best:`, e);
               }
-            }
 
-            if (isNatv) {
-              const natvApiKey = resellerApiSettings?.natv_api_key || Deno.env.get('NATV_API_KEY') || '';
-              const natvBaseUrl = (resellerApiSettings?.natv_base_url || Deno.env.get('NATV_BASE_URL') || '').replace(/\/+$/, '');
-              if (natvApiKey && natvBaseUrl) {
-                try {
+              if (isNatv) {
+                const natvApiKey = resellerApiSettings?.natv_api_key || Deno.env.get('NATV_API_KEY') || '';
+                const natvBaseUrl = (resellerApiSettings?.natv_base_url || Deno.env.get('NATV_BASE_URL') || '').replace(/\/+$/, '');
+                if (natvApiKey && natvBaseUrl) {
                   const natvResp = await fetch(`${natvBaseUrl}/user/activation`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${natvApiKey}` },
                     body: JSON.stringify({ username: newCustomer.username, months: newMonthsNum }),
                   });
                   console.log(`[Cakto] NATV criar ${newCustomer.username}: status=${natvResp.status}`);
-                } catch (e) {
-                  console.error(`[Cakto] Erro criando no NATV:`, e);
+                  if (natvResp.ok) { activatedServerId = serverData.id; activatedServerName = serverData.server_name; }
                 }
               }
-            }
 
-            if (isVplay) {
-              try {
-                await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/vplay-renew`, {
+              if (isVplay) {
+                const vplayResp = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/vplay-renew`, {
                   method: 'POST',
                   headers: {
                     'Content-Type': 'application/json',
@@ -653,15 +663,12 @@ serve(async (req) => {
                   },
                   body: JSON.stringify({ username: newCustomer.username, new_due_date: newDueDateStr, customer_id: newCustomer.id }),
                 });
-                console.log(`[Cakto] VPlay criar ${newCustomer.username}`);
-              } catch (e) {
-                console.error(`[Cakto] Erro criando no VPlay:`, e);
+                console.log(`[Cakto] VPlay criar ${newCustomer.username}: ok=${vplayResp.ok}`);
+                if (vplayResp.ok) { activatedServerId = serverData.id; activatedServerName = serverData.server_name; }
               }
-            }
 
-            if (isRush && resellerApiSettings?.rush_username && resellerApiSettings?.rush_password && resellerApiSettings?.rush_token) {
-              try {
-                await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/rush-renew`, {
+              if (isRush && resellerApiSettings?.rush_username && resellerApiSettings?.rush_password && resellerApiSettings?.rush_token) {
+                const rushResp = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/rush-renew`, {
                   method: 'POST',
                   headers: {
                     'Content-Type': 'application/json',
@@ -676,11 +683,22 @@ serve(async (req) => {
                     screens: newCustomer.screens || 1,
                   }),
                 });
-                console.log(`[Cakto] Rush criar ${newCustomer.username}`);
-              } catch (e) {
-                console.error(`[Cakto] Erro criando no Rush:`, e);
+                console.log(`[Cakto] Rush criar ${newCustomer.username}: ok=${rushResp.ok}`);
+                if (rushResp.ok) { activatedServerId = serverData.id; activatedServerName = serverData.server_name; }
               }
+            } catch (e) {
+              console.error(`[Cakto] Erro ativando no servidor ${serverData.server_name}:`, e);
             }
+
+            // Stop at first successful activation
+            if (activatedServerId) break;
+          }
+
+          // Update customer with the server that actually activated
+          if (activatedServerId && !newCustomer.server_id) {
+            await supabaseAdmin.from('customers').update({ server_id: activatedServerId }).eq('id', newCustomer.id);
+            newCustomer.server_id = activatedServerId;
+            console.log(`[Cakto] ✅ Cliente atualizado com servidor: ${activatedServerName} (${activatedServerId})`);
           }
         }
 
