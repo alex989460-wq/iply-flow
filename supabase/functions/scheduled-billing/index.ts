@@ -20,6 +20,9 @@ interface BillingSchedule {
   send_d_minus_1: boolean;
   send_d0: boolean;
   send_d_plus_1: boolean;
+  template_d_minus_1: string | null;
+  template_d0: string | null;
+  template_d_plus_1: string | null;
 }
 
 // Format YYYY-MM-DD in America/Sao_Paulo
