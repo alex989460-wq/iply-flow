@@ -6,6 +6,8 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Label } from '@/components/ui/label';
 import { 
   Search, User, Calendar, CreditCard, CheckCircle, Phone, RefreshCw, 
   Server, Copy, Settings, Wifi, Download, Key, Bell, Smile, MessageSquare,
