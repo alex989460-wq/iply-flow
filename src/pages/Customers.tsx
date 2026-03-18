@@ -260,8 +260,8 @@ export default function Customers() {
 
       const newCustomer = insertedRows?.[0];
 
-      // Auto-renovar no servidor XUI/TheBest ao cadastrar
-      if (newCustomer?.username?.trim() && newCustomer?.server_id) {
+      // Auto-renovar no servidor XUI/TheBest ao cadastrar (only if toggle is on)
+      if (data.activate_on_server && newCustomer?.username?.trim() && newCustomer?.server_id) {
         try {
           const { data: serverData } = await supabase
             .from('servers')
