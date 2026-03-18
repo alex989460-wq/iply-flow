@@ -143,7 +143,7 @@ export default function Servers() {
   });
 
   const resetForm = () => {
-    setFormData({ server_name: '', host: '', description: '', status: 'online' });
+    setFormData({ server_name: '', host: '', description: '', status: 'online', is_public: false });
     setEditingServer(null);
   };
 
@@ -154,6 +154,7 @@ export default function Servers() {
       host: server.host,
       description: server.description || '',
       status: server.status,
+      is_public: (server as any).is_public || false,
     });
     setIsOpen(true);
   };
