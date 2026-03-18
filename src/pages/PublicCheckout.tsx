@@ -70,7 +70,7 @@ export default function PublicCheckout() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim() || !phone.trim() || !username.trim() || !serverId || !planId || !selectedPlan) {
+    if (!name.trim() || !phone.trim() || !username.trim() || !planId || !selectedPlan) {
       toast({ title: 'Preencha todos os campos', variant: 'destructive' });
       return;
     }
