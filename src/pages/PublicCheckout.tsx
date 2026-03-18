@@ -164,12 +164,12 @@ export default function PublicCheckout() {
 
             <div className="space-y-2">
               <Label className="flex items-center gap-2">
-                <User className="w-4 h-4" /> Usuário Desejado
+                <User className="w-4 h-4" /> Nome de usuário recebido no teste
               </Label>
               <Input
                 value={username}
                 onChange={e => setUsername(e.target.value.replace(/\s/g, ''))}
-                placeholder="meususuario"
+                placeholder="Digite o usuário que você recebeu no teste"
                 required
                 className="bg-secondary/30"
               />
