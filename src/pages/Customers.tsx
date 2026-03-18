@@ -109,6 +109,7 @@ export default function Customers() {
     username: '',
     screens: '1',
     extra_months: '0',
+    activate_on_server: true,
   });
 
   // Import states
