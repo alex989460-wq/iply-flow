@@ -109,6 +109,7 @@ export default function Customers() {
     username: '',
     screens: '1',
     extra_months: '0',
+    activate_on_server: true,
   });
 
   // Import states
@@ -259,8 +260,8 @@ export default function Customers() {
 
       const newCustomer = insertedRows?.[0];
 
-      // Auto-renovar no servidor XUI/TheBest ao cadastrar
-      if (newCustomer?.username?.trim() && newCustomer?.server_id) {
+      // Auto-renovar no servidor XUI/TheBest ao cadastrar (only if toggle is on)
+      if (data.activate_on_server && newCustomer?.username?.trim() && newCustomer?.server_id) {
         try {
           const { data: serverData } = await supabase
             .from('servers')
@@ -689,7 +690,7 @@ export default function Customers() {
   });
 
   const resetForm = () => {
-    setFormData({ name: '', phone: '', server_id: '', plan_id: '', status: 'ativa', notes: '', due_date: '', custom_price: '', username: '', screens: '1', extra_months: '0' });
+    setFormData({ name: '', phone: '', server_id: '', plan_id: '', status: 'ativa', notes: '', due_date: '', custom_price: '', username: '', screens: '1', extra_months: '0', activate_on_server: true });
     setEditingCustomer(null);
   };
 
@@ -707,6 +708,7 @@ export default function Customers() {
       username: customer.username || '',
       screens: customer.screens ? String(customer.screens) : '1',
       extra_months: customer.extra_months ? String(customer.extra_months) : '0',
+      activate_on_server: false,
     });
     setIsOpen(true);
   };
@@ -1018,9 +1020,10 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
   };
 
   const filteredCustomers = customers?.filter(customer => {
-    const searchLower = searchTerm.toLowerCase();
+    const searchLower = searchTerm.toLowerCase().trim();
+    const searchDigits = searchTerm.replace(/\D/g, '');
     const matchesSearch = customer.name.toLowerCase().includes(searchLower) ||
-                          customer.phone.includes(searchTerm) ||
+                          (searchDigits.length >= 3 && customer.phone.includes(searchDigits)) ||
                           (customer.username && customer.username.toLowerCase().includes(searchLower));
     const matchesStatus = statusFilter === 'all' || customer.status === statusFilter;
     
@@ -1955,6 +1958,18 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
                         className="bg-secondary/50"
                       />
                     </div>
+                    {!editingCustomer && formData.username.trim() && formData.server_id && (
+                      <div className="col-span-2 flex items-center gap-2 p-3 rounded-lg bg-secondary/30 border border-border">
+                        <Checkbox
+                          id="activate_on_server"
+                          checked={formData.activate_on_server}
+                          onCheckedChange={(checked) => setFormData({ ...formData, activate_on_server: !!checked })}
+                        />
+                        <Label htmlFor="activate_on_server" className="text-sm cursor-pointer">
+                          Ativar automaticamente no painel do servidor
+                        </Label>
+                      </div>
+                    )}
                     <div className="space-y-2">
                       <Label>Telas</Label>
                       <Select

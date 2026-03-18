@@ -5,8 +5,8 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Mapping of billing types to template names
-const TEMPLATE_MAPPING: Record<string, string> = {
+// Default mapping of billing types to template names (fallback only)
+const DEFAULT_TEMPLATE_MAPPING: Record<string, string> = {
   'D-1': 'vence_amanha',
   'D0': 'hoje01',
   'D+1': 'vencido',
@@ -20,6 +20,9 @@ interface BillingSchedule {
   send_d_minus_1: boolean;
   send_d0: boolean;
   send_d_plus_1: boolean;
+  template_d_minus_1: string | null;
+  template_d0: string | null;
+  template_d_plus_1: string | null;
 }
 
 // Format YYYY-MM-DD in America/Sao_Paulo
@@ -336,10 +339,18 @@ Deno.serve(async (req) => {
       for (let i = 0; i < customersToProcess.length; i += BATCH_SIZE) {
         const batch = customersToProcess.slice(i, i + BATCH_SIZE);
         
+        // Build template mapping from schedule's saved templates
+        const templateMapping: Record<string, string> = { ...DEFAULT_TEMPLATE_MAPPING };
+        if (schedule.template_d_minus_1) templateMapping['D-1'] = schedule.template_d_minus_1;
+        if (schedule.template_d0) templateMapping['D0'] = schedule.template_d0;
+        if (schedule.template_d_plus_1) templateMapping['D+1'] = schedule.template_d_plus_1;
+
         const batchPromises = batch.map(async (customer) => {
           const billingType = customer.billingType as 'D-1' | 'D0' | 'D+1';
-          const templateName = TEMPLATE_MAPPING[billingType];
+          const templateName = templateMapping[billingType];
           
+          console.log(`[Scheduled] Using template "${templateName}" for ${billingType} (from schedule config)`);
+
           const sendResult = await sendWhatsAppTemplate(
             customer.phone,
             templateName,

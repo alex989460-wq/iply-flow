@@ -6,6 +6,8 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Label } from '@/components/ui/label';
 import { 
   Search, User, Calendar, CreditCard, CheckCircle, Phone, RefreshCw, 
   Server, Copy, Settings, Wifi, Download, Key, Bell, Smile, MessageSquare,
@@ -108,6 +110,7 @@ export default function QuickRenewalPanel({ isMobile = false, onClose }: QuickRe
   const [editedStatus, setEditedStatus] = useState<string>('ativa');
   const [editedName, setEditedName] = useState<string>('');
   const [editedPhone, setEditedPhone] = useState<string>('');
+  const [activateOnServer, setActivateOnServer] = useState<boolean>(true);
   const queryClient = useQueryClient();
 
   // Fetch vplay servers
@@ -315,8 +318,8 @@ export default function QuickRenewalPanel({ isMobile = false, onClose }: QuickRe
       if (hasLetters) {
         // Exact (case-insensitive) username match to avoid pulling unrelated people
         filters.push(`username.ilike.${trimmed}`);
-        // More precise name search (starts with)
-        filters.push(`name.ilike.${trimmed}%`);
+        // Name search (contains) to handle partial names and special characters
+        filters.push(`name.ilike.%${trimmed}%`);
       } else if (trimmed === normalizedPhone) {
         // If the user typed only digits, allow exact username match for numeric usernames
         filters.push(`username.eq.${trimmed}`);
@@ -419,8 +422,8 @@ export default function QuickRenewalPanel({ isMobile = false, onClose }: QuickRe
       if (updateError) throw updateError;
 
       const xuiUsername = (editedUsername.trim() || customer.username || '').trim();
-      // Skip external server renewal when customer has extra_months — only deduct locally
-      const skipServerRenewal = customer.extra_months > 0;
+      // Skip external server renewal when customer has extra_months or toggle is off
+      const skipServerRenewal = customer.extra_months > 0 || !activateOnServer;
       if (xuiUsername && !skipServerRenewal) {
         try {
           const serverHost = (customer as any).server?.host || '';
@@ -723,6 +726,7 @@ Obrigado pela preferência! 🙏`;
     setEditedStatus(customer.status);
     setEditedName(customer.name);
     setEditedPhone(customer.phone);
+    setActivateOnServer(true);
   };
 
   // Save customer data without renewal
@@ -1458,6 +1462,18 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                   
                   {!showExtraMonthsConfirm && (
                     <div className="space-y-2">
+                      {(editedUsername.trim() || selectedCustomer?.username) && selectedCustomer?.server && (
+                        <div className="flex items-center gap-2 p-2 rounded-md bg-secondary/30 border border-border">
+                          <Checkbox
+                            id="activate_on_server_renewal"
+                            checked={activateOnServer}
+                            onCheckedChange={(checked) => setActivateOnServer(!!checked)}
+                          />
+                          <Label htmlFor="activate_on_server_renewal" className="text-xs cursor-pointer">
+                            Renovar no painel do servidor
+                          </Label>
+                        </div>
+                      )}
                       <div className="flex gap-2">
                         <Button 
                           className="flex-1 h-9" 
