@@ -20,6 +20,7 @@ interface CustomerWithExtraMonths {
   phone: string;
   due_date: string;
   extra_months: number;
+  servers: { server_name: string } | null;
 }
 
 const POPUP_KEY = 'extra_months_popup_shown';
@@ -54,7 +55,7 @@ export default function ExtraMonthsPopup() {
     const fetchCustomersWithExtraMonths = async () => {
       const { data, error } = await supabase
         .from('customers')
-        .select('id, name, phone, due_date, extra_months')
+        .select('id, name, phone, due_date, extra_months, servers(server_name)')
         .gt('extra_months', 0)
         .order('due_date', { ascending: true });
 
@@ -119,6 +120,9 @@ export default function ExtraMonthsPopup() {
                       <Calendar className="w-3 h-3" />
                       <span>Vence: {format(new Date(customer.due_date + 'T12:00:00'), "dd/MM/yyyy", { locale: ptBR })}</span>
                     </div>
+                    {customer.servers?.server_name && (
+                      <p className="text-xs text-muted-foreground">⚡ {customer.servers.server_name}</p>
+                    )}
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
