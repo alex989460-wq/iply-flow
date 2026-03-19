@@ -55,7 +55,7 @@ export default function ExtraMonthsPopup() {
     const fetchCustomersWithExtraMonths = async () => {
       const { data, error } = await supabase
         .from('customers')
-        .select('id, name, phone, due_date, extra_months')
+        .select('id, name, phone, due_date, extra_months, servers(server_name)')
         .gt('extra_months', 0)
         .order('due_date', { ascending: true });
 
