@@ -360,7 +360,7 @@ export default function Customers() {
 
   const updateMutation = useMutation({
     mutationFn: async ({ id, data }: { id: string; data: any }) => {
-      const updateData: any = { ...data };
+      const { activate_on_server, ...updateData } = { ...data };
       if (data.due_date) {
         updateData.due_date = data.due_date;
       }
