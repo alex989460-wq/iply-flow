@@ -20,6 +20,7 @@ interface CustomerWithExtraMonths {
   phone: string;
   due_date: string;
   extra_months: number;
+  servers: { server_name: string } | null;
 }
 
 const POPUP_KEY = 'extra_months_popup_shown';
