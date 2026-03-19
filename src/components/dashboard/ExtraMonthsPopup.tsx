@@ -120,6 +120,9 @@ export default function ExtraMonthsPopup() {
                       <Calendar className="w-3 h-3" />
                       <span>Vence: {format(new Date(customer.due_date + 'T12:00:00'), "dd/MM/yyyy", { locale: ptBR })}</span>
                     </div>
+                    {customer.servers?.server_name && (
+                      <p className="text-xs text-muted-foreground">⚡ {customer.servers.server_name}</p>
+                    )}
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
