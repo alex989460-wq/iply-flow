@@ -248,7 +248,7 @@ export default function Customers() {
         dueDate = dueDateObj.toISOString().split('T')[0];
       }
       
-      const { due_date, ...restData } = data;
+      const { due_date, activate_on_server, ...restData } = data;
       
       const { data: insertedRows, error } = await supabase.from('customers').insert({
         ...restData,
