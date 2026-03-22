@@ -403,6 +403,7 @@ export type Database = {
           id: string
           name: string
           notes: string | null
+          password: string | null
           phone: string
           plan_id: string | null
           screens: number
@@ -420,6 +421,7 @@ export type Database = {
           id?: string
           name: string
           notes?: string | null
+          password?: string | null
           phone: string
           plan_id?: string | null
           screens?: number
@@ -437,6 +439,7 @@ export type Database = {
           id?: string
           name?: string
           notes?: string | null
+          password?: string | null
           phone?: string
           plan_id?: string | null
           screens?: number
