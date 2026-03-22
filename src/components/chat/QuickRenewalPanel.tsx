@@ -335,6 +335,7 @@ export default function QuickRenewalPanel({ isMobile = false, onClose }: QuickRe
           name,
           phone,
           username,
+          password,
           status,
           due_date,
           custom_price,
