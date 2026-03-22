@@ -111,6 +111,7 @@ export default function Customers() {
     due_date: '',
     custom_price: '',
     username: '',
+    password: '',
     screens: '1',
     extra_months: '0',
     activate_on_server: true,
