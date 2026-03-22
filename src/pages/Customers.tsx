@@ -2546,6 +2546,9 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
                       <TableCell>
                         <span className="font-mono text-xs">{customer.username || '-'}</span>
                       </TableCell>
+                      <TableCell>
+                        <span className="font-mono text-xs">{customer.password || '-'}</span>
+                      </TableCell>
                       <TableCell>{getStatusBadge(customer.status)}</TableCell>
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-0.5">
