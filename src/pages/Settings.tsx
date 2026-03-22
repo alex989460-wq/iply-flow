@@ -1194,6 +1194,11 @@ export default function Settings() {
           <TabsContent value="metas" className="mt-6">
             <GoalsSettingsCard />
           </TabsContent>
+
+          {/* Backups Tab */}
+          <TabsContent value="backups" className="mt-6">
+            <BackupManagerCard />
+          </TabsContent>
         </Tabs>
       </div>
     </DashboardLayout>
