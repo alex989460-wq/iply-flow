@@ -205,7 +205,8 @@ async function handleRush(supabaseAdmin: any, apiSettings: any, action: string, 
   console.log('[Rush] Iniciando sync...');
   const allUsers: any[] = [];
 
-  for (const type of ['iptv', 'p2p']) {
+  const typesToSync = rushSubType ? [rushSubType] : ['iptv', 'p2p'];
+  for (const type of typesToSync) {
     let page = 1;
     let hasMore = true;
     while (hasMore) {
