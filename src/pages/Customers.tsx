@@ -2496,6 +2496,7 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
                       <TableHead className="font-semibold cursor-pointer select-none hover:text-primary" onClick={() => handleSort('username')}>
                         <span className="flex items-center">Usuário <SortIcon column="username" /></span>
                       </TableHead>
+                      <TableHead className="font-semibold">Senha</TableHead>
                       <TableHead className="font-semibold cursor-pointer select-none hover:text-primary" onClick={() => handleSort('status')}>
                         <span className="flex items-center">Status <SortIcon column="status" /></span>
                       </TableHead>
