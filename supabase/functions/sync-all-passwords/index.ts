@@ -212,7 +212,7 @@ Deno.serve(async (req) => {
         port: parseInt(mysqlPort),
       });
 
-      const rows = await client.query('SELECT username, password, exp_date FROM lines WHERE username IS NOT NULL');
+      const rows = await client.query('SELECT username, password, exp_date FROM `lines` WHERE username IS NOT NULL');
       
       let updated = 0;
       for (const row of rows) {
