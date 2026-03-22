@@ -712,6 +712,7 @@ export default function Customers() {
       due_date: customer.due_date || '',
       custom_price: customer.custom_price ? String(customer.custom_price) : '',
       username: customer.username || '',
+      password: customer.password || '',
       screens: customer.screens ? String(customer.screens) : '1',
       extra_months: customer.extra_months ? String(customer.extra_months) : '0',
       activate_on_server: false,
