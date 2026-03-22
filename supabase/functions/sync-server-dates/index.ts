@@ -125,11 +125,8 @@ async function handleTheBest(supabaseAdmin: any, apiSettings: any, action: strin
     return new Response(JSON.stringify({ error: 'Nenhum servidor The Best encontrado' }), { status: 400, headers: jsonHeaders });
   }
 
-  // Get customers from THE BEST servers
-  const { data: customers } = await supabaseAdmin
-    .from('customers')
-    .select('id, username, due_date, server_id')
-    .in('server_id', theBestServerIds);
+  // Get ALL customers from THE BEST servers (paginated)
+  const customers = await fetchAllCustomers(supabaseAdmin, theBestServerIds);
 
   // Build username -> line map
   const lineMap = new Map<string, any>();
