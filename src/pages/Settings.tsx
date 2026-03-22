@@ -650,7 +650,7 @@ export default function Settings() {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-6 max-w-3xl">
+          <TabsList className="grid w-full grid-cols-7 max-w-4xl">
             <TabsTrigger value="cobranca" className="flex items-center gap-2">
               <CreditCard className="w-4 h-4 text-green-500" />
               <span className="hidden sm:inline">Cobrança</span>
@@ -678,6 +678,11 @@ export default function Settings() {
               <Target className="w-4 h-4 text-amber-500" />
               <span className="hidden sm:inline">Metas</span>
               <span className="sm:hidden">Metas</span>
+            </TabsTrigger>
+            <TabsTrigger value="backups" className="flex items-center gap-2">
+              <Database className="w-4 h-4 text-blue-500" />
+              <span className="hidden sm:inline">Backups</span>
+              <span className="sm:hidden">Back.</span>
             </TabsTrigger>
           </TabsList>
 
