@@ -2470,15 +2470,33 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
                           onCheckedChange={toggleSelectAll}
                         />
                       </TableHead>
-                      <TableHead className="font-semibold">Nome</TableHead>
-                      <TableHead className="font-semibold">Telefone</TableHead>
-                      <TableHead className="font-semibold">Servidor</TableHead>
-                      <TableHead className="font-semibold">Plano</TableHead>
-                      <TableHead className="font-semibold text-center">Telas</TableHead>
-                      <TableHead className="font-semibold">Valor</TableHead>
-                      <TableHead className="font-semibold">Vencimento</TableHead>
-                      <TableHead className="font-semibold">Usuário</TableHead>
-                      <TableHead className="font-semibold">Status</TableHead>
+                      <TableHead className="font-semibold cursor-pointer select-none hover:text-primary" onClick={() => handleSort('name')}>
+                        <span className="flex items-center">Nome <SortIcon column="name" /></span>
+                      </TableHead>
+                      <TableHead className="font-semibold cursor-pointer select-none hover:text-primary" onClick={() => handleSort('phone')}>
+                        <span className="flex items-center">Telefone <SortIcon column="phone" /></span>
+                      </TableHead>
+                      <TableHead className="font-semibold cursor-pointer select-none hover:text-primary" onClick={() => handleSort('server')}>
+                        <span className="flex items-center">Servidor <SortIcon column="server" /></span>
+                      </TableHead>
+                      <TableHead className="font-semibold cursor-pointer select-none hover:text-primary" onClick={() => handleSort('plan')}>
+                        <span className="flex items-center">Plano <SortIcon column="plan" /></span>
+                      </TableHead>
+                      <TableHead className="font-semibold text-center cursor-pointer select-none hover:text-primary" onClick={() => handleSort('screens')}>
+                        <span className="flex items-center justify-center">Telas <SortIcon column="screens" /></span>
+                      </TableHead>
+                      <TableHead className="font-semibold cursor-pointer select-none hover:text-primary" onClick={() => handleSort('value')}>
+                        <span className="flex items-center">Valor <SortIcon column="value" /></span>
+                      </TableHead>
+                      <TableHead className="font-semibold cursor-pointer select-none hover:text-primary" onClick={() => handleSort('due_date')}>
+                        <span className="flex items-center">Vencimento <SortIcon column="due_date" /></span>
+                      </TableHead>
+                      <TableHead className="font-semibold cursor-pointer select-none hover:text-primary" onClick={() => handleSort('username')}>
+                        <span className="flex items-center">Usuário <SortIcon column="username" /></span>
+                      </TableHead>
+                      <TableHead className="font-semibold cursor-pointer select-none hover:text-primary" onClick={() => handleSort('status')}>
+                        <span className="flex items-center">Status <SortIcon column="status" /></span>
+                      </TableHead>
                       <TableHead className="font-semibold text-right">Ações</TableHead>
                     </TableRow>
                   </TableHeader>
