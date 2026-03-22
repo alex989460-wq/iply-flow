@@ -1642,7 +1642,7 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
               Migrar Servidor
             </Button>
 
-            <AlertDialog open={isDeleteAllOpen} onOpenChange={(open) => !isDeletingAll && setIsDeleteAllOpen(open)}>
+            <AlertDialog open={isDeleteAllOpen} onOpenChange={(open) => { if (!isDeletingAll) { setIsDeleteAllOpen(open); if (!open) setDeleteConfirmKeyword(''); } }}>
               <AlertDialogTrigger asChild>
                 <Button variant="outline" size="sm" className="border-destructive/30 text-destructive hover:bg-destructive/10" disabled={!customers || customers.length === 0}>
                   <Trash2 className="w-4 h-4 mr-2" />
@@ -1675,18 +1675,37 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
                     </p>
                   </div>
                 ) : (
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                    <Button
-                      variant="destructive"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        handleDeleteAll();
-                      }}
-                    >
-                      Sim, excluir todos
-                    </Button>
-                  </AlertDialogFooter>
+                  <div className="space-y-4">
+                    <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-lg space-y-2">
+                      <div className="flex items-center gap-2 text-sm font-medium text-destructive">
+                        <Shield className="w-4 h-4" />
+                        Confirmação de segurança
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Digite <strong className="text-destructive">EXCLUIR TODOS</strong> para confirmar a exclusão
+                      </p>
+                      <Input
+                        value={deleteConfirmKeyword}
+                        onChange={(e) => setDeleteConfirmKeyword(e.target.value)}
+                        placeholder="Digite EXCLUIR TODOS"
+                        className="bg-background/50 border-destructive/30"
+                        autoComplete="off"
+                      />
+                    </div>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel onClick={() => setDeleteConfirmKeyword('')}>Cancelar</AlertDialogCancel>
+                      <Button
+                        variant="destructive"
+                        disabled={deleteConfirmKeyword !== 'EXCLUIR TODOS'}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          handleDeleteAll();
+                        }}
+                      >
+                        Sim, excluir todos
+                      </Button>
+                    </AlertDialogFooter>
+                  </div>
                 )}
               </AlertDialogContent>
             </AlertDialog>
