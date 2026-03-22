@@ -59,7 +59,7 @@ serve(async (req) => {
     }
     const userId = claimsData.claims.sub as string;
 
-    const { server_type, action } = await req.json();
+    const { server_type, action, rush_sub_type } = await req.json();
 
     const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabaseAdmin = createClient(Deno.env.get('SUPABASE_URL')!, serviceRoleKey, {
