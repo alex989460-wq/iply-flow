@@ -1261,6 +1261,17 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                     )}
                   </div>
 
+                  {/* Password - Read only display */}
+                  {selectedCustomer.password && (
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2 text-muted-foreground">
+                        <Key className="h-3.5 w-3.5" />
+                        <span>Senha:</span>
+                      </div>
+                      <span className="font-mono text-sm">{selectedCustomer.password}</span>
+                    </div>
+                  )}
+
                   {/* Screens Selector */}
                   <div className="space-y-1">
                     <label className="text-xs text-muted-foreground">Telas:</label>
