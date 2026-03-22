@@ -2278,6 +2278,20 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
                   <SelectItem value="bloqueado">Bloqueados</SelectItem>
                 </SelectContent>
               </Select>
+              <Select value={serverFilter} onValueChange={(v) => handleFilterChange(setServerFilter, v)}>
+                <SelectTrigger className="w-[160px] bg-background/50 border-border/50 h-10">
+                  <SelectValue placeholder="Servidor" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos Servidores</SelectItem>
+                  <SelectItem value="none">Sem Servidor</SelectItem>
+                  {servers?.map((server) => (
+                    <SelectItem key={server.id} value={server.id}>
+                      {server.server_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               <Select value={dueDateFilter} onValueChange={(v) => handleFilterChange(setDueDateFilter, v)}>
                 <SelectTrigger className="w-[165px] bg-background/50 border-border/50 h-10">
                   <SelectValue placeholder="Vencimento" />
