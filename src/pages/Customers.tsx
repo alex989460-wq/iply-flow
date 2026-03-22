@@ -1031,6 +1031,9 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
                           (searchDigits.length >= 3 && customer.phone.includes(searchDigits)) ||
                           (customer.username && customer.username.toLowerCase().includes(searchLower));
     const matchesStatus = statusFilter === 'all' || customer.status === statusFilter;
+    const matchesServer = serverFilter === 'all' 
+      || (serverFilter === 'none' && !customer.server_id)
+      || customer.server_id === serverFilter;
     
     // Due date filtering
     let matchesDueDate = true;
@@ -1062,7 +1065,33 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
       }
     }
     
-    return matchesSearch && matchesStatus && matchesDueDate;
+    return matchesSearch && matchesStatus && matchesDueDate && matchesServer;
+  })?.sort((a: any, b: any) => {
+    if (!sortColumn) return 0;
+    const dir = sortDirection === 'asc' ? 1 : -1;
+    
+    switch (sortColumn) {
+      case 'name':
+        return dir * (a.name || '').localeCompare(b.name || '');
+      case 'phone':
+        return dir * (a.phone || '').localeCompare(b.phone || '');
+      case 'server':
+        return dir * ((a.servers?.server_name || '') .localeCompare(b.servers?.server_name || ''));
+      case 'plan':
+        return dir * ((a.plans?.plan_name || '').localeCompare(b.plans?.plan_name || ''));
+      case 'screens':
+        return dir * ((a.screens || 0) - (b.screens || 0));
+      case 'value':
+        return dir * ((Number(a.custom_price || a.plans?.price || 0)) - (Number(b.custom_price || b.plans?.price || 0)));
+      case 'due_date':
+        return dir * ((a.due_date || '').localeCompare(b.due_date || ''));
+      case 'username':
+        return dir * ((a.username || '').localeCompare(b.username || ''));
+      case 'status':
+        return dir * ((a.status || '').localeCompare(b.status || ''));
+      default:
+        return 0;
+    }
   });
 
   // Pagination
@@ -1072,6 +1101,23 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
     (currentPage - 1) * pageSize,
     currentPage * pageSize
   );
+
+  const handleSort = (column: string) => {
+    if (sortColumn === column) {
+      setSortDirection(d => d === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortColumn(column);
+      setSortDirection('desc');
+    }
+    setCurrentPage(1);
+  };
+
+  const SortIcon = ({ column }: { column: string }) => {
+    if (sortColumn !== column) return <ArrowUpDown className="w-3 h-3 ml-1 opacity-40" />;
+    return sortDirection === 'asc' 
+      ? <ArrowUp className="w-3 h-3 ml-1 text-primary" /> 
+      : <ArrowDown className="w-3 h-3 ml-1 text-primary" />;
+  };
 
   // Reset to page 1 when filters change
   const handleFilterChange = (setter: (val: string) => void, value: string) => {
