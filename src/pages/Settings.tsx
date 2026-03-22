@@ -17,6 +17,7 @@ import GoalsSettingsCard from '@/components/settings/GoalsSettingsCard';
 import ResellerApiSettings from '@/components/settings/ResellerApiSettings';
 import AutoRenewServersCard from '@/components/settings/AutoRenewServersCard';
 import BillingSettingsCard from '@/components/settings/BillingSettingsCard';
+import BackupManagerCard from '@/components/settings/BackupManagerCard';
 
 async function getFunctionsHttpErrorDetails(err: unknown): Promise<{ message?: string; raw?: any } | null> {
   // supabase-js / @supabase/functions-js throws FunctionsHttpError with `.context` as a Response
