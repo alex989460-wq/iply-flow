@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -35,6 +36,24 @@ import PublicCheckout from "./pages/PublicCheckout";
 import { Loader2 } from "lucide-react";
 
 const queryClient = new QueryClient();
+
+function AutoBackup() {
+  const { user } = useAuth();
+  useEffect(() => {
+    if (!user) return;
+    const runBackup = async () => {
+      try {
+        const { supabase } = await import("@/integrations/supabase/client");
+        await supabase.functions.invoke('auto-backup');
+        console.log('[Backup] Auto-backup executado');
+      } catch (e) { console.error('[Backup] Erro:', e); }
+    };
+    runBackup();
+    const interval = setInterval(runBackup, 10 * 60 * 1000); // 10 min
+    return () => clearInterval(interval);
+  }, [user]);
+  return null;
+}
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -105,6 +124,7 @@ const App = () => (
         <Sonner />
         <BrowserRouter>
           <AuthProvider>
+            <AutoBackup />
             <SidebarProvider>
               <AppRoutes />
             </SidebarProvider>

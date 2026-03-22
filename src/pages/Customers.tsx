@@ -37,7 +37,8 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { 
   Plus, Pencil, Trash2, Loader2, Users, RefreshCw, Search, CalendarIcon,
-  Upload, Phone, FileText, Download, MessageSquare, AlertTriangle, Send, Copy, Check, ArrowRightLeft
+  Upload, Phone, FileText, Download, MessageSquare, AlertTriangle, Send, Copy, Check, ArrowRightLeft,
+  ArrowUpDown, ArrowUp, ArrowDown, Shield
 } from 'lucide-react';
 import ServerMigrationModal from '@/components/customers/ServerMigrationModal';
 import {
@@ -74,7 +75,10 @@ export default function Customers() {
   const [editingCustomer, setEditingCustomer] = useState<any | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [serverFilter, setServerFilter] = useState<string>('all');
   const [dueDateFilter, setDueDateFilter] = useState<string>('all');
+  const [sortColumn, setSortColumn] = useState<string>('');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   const [pageSize, setPageSize] = useState<number>(50);
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [searchParams, setSearchParams] = useSearchParams();
@@ -123,6 +127,7 @@ export default function Customers() {
   const [isDeleteAllOpen, setIsDeleteAllOpen] = useState(false);
   const [isDeletingAll, setIsDeletingAll] = useState(false);
   const [deleteAllProgress, setDeleteAllProgress] = useState(0);
+  const [deleteConfirmKeyword, setDeleteConfirmKeyword] = useState('');
 
   // Send billing states
   const [isSendBillingOpen, setIsSendBillingOpen] = useState(false);
@@ -1026,6 +1031,9 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
                           (searchDigits.length >= 3 && customer.phone.includes(searchDigits)) ||
                           (customer.username && customer.username.toLowerCase().includes(searchLower));
     const matchesStatus = statusFilter === 'all' || customer.status === statusFilter;
+    const matchesServer = serverFilter === 'all' 
+      || (serverFilter === 'none' && !customer.server_id)
+      || customer.server_id === serverFilter;
     
     // Due date filtering
     let matchesDueDate = true;
@@ -1057,7 +1065,33 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
       }
     }
     
-    return matchesSearch && matchesStatus && matchesDueDate;
+    return matchesSearch && matchesStatus && matchesDueDate && matchesServer;
+  })?.sort((a: any, b: any) => {
+    if (!sortColumn) return 0;
+    const dir = sortDirection === 'asc' ? 1 : -1;
+    
+    switch (sortColumn) {
+      case 'name':
+        return dir * (a.name || '').localeCompare(b.name || '');
+      case 'phone':
+        return dir * (a.phone || '').localeCompare(b.phone || '');
+      case 'server':
+        return dir * ((a.servers?.server_name || '') .localeCompare(b.servers?.server_name || ''));
+      case 'plan':
+        return dir * ((a.plans?.plan_name || '').localeCompare(b.plans?.plan_name || ''));
+      case 'screens':
+        return dir * ((a.screens || 0) - (b.screens || 0));
+      case 'value':
+        return dir * ((Number(a.custom_price || a.plans?.price || 0)) - (Number(b.custom_price || b.plans?.price || 0)));
+      case 'due_date':
+        return dir * ((a.due_date || '').localeCompare(b.due_date || ''));
+      case 'username':
+        return dir * ((a.username || '').localeCompare(b.username || ''));
+      case 'status':
+        return dir * ((a.status || '').localeCompare(b.status || ''));
+      default:
+        return 0;
+    }
   });
 
   // Pagination
@@ -1067,6 +1101,23 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
     (currentPage - 1) * pageSize,
     currentPage * pageSize
   );
+
+  const handleSort = (column: string) => {
+    if (sortColumn === column) {
+      setSortDirection(d => d === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortColumn(column);
+      setSortDirection('desc');
+    }
+    setCurrentPage(1);
+  };
+
+  const SortIcon = ({ column }: { column: string }) => {
+    if (sortColumn !== column) return <ArrowUpDown className="w-3 h-3 ml-1 opacity-40" />;
+    return sortDirection === 'asc' 
+      ? <ArrowUp className="w-3 h-3 ml-1 text-primary" /> 
+      : <ArrowDown className="w-3 h-3 ml-1 text-primary" />;
+  };
 
   // Reset to page 1 when filters change
   const handleFilterChange = (setter: (val: string) => void, value: string) => {
@@ -1591,7 +1642,7 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
               Migrar Servidor
             </Button>
 
-            <AlertDialog open={isDeleteAllOpen} onOpenChange={(open) => !isDeletingAll && setIsDeleteAllOpen(open)}>
+            <AlertDialog open={isDeleteAllOpen} onOpenChange={(open) => { if (!isDeletingAll) { setIsDeleteAllOpen(open); if (!open) setDeleteConfirmKeyword(''); } }}>
               <AlertDialogTrigger asChild>
                 <Button variant="outline" size="sm" className="border-destructive/30 text-destructive hover:bg-destructive/10" disabled={!customers || customers.length === 0}>
                   <Trash2 className="w-4 h-4 mr-2" />
@@ -1624,18 +1675,37 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
                     </p>
                   </div>
                 ) : (
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                    <Button
-                      variant="destructive"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        handleDeleteAll();
-                      }}
-                    >
-                      Sim, excluir todos
-                    </Button>
-                  </AlertDialogFooter>
+                  <div className="space-y-4">
+                    <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-lg space-y-2">
+                      <div className="flex items-center gap-2 text-sm font-medium text-destructive">
+                        <Shield className="w-4 h-4" />
+                        Confirmação de segurança
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Digite <strong className="text-destructive">EXCLUIR TODOS</strong> para confirmar a exclusão
+                      </p>
+                      <Input
+                        value={deleteConfirmKeyword}
+                        onChange={(e) => setDeleteConfirmKeyword(e.target.value)}
+                        placeholder="Digite EXCLUIR TODOS"
+                        className="bg-background/50 border-destructive/30"
+                        autoComplete="off"
+                      />
+                    </div>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel onClick={() => setDeleteConfirmKeyword('')}>Cancelar</AlertDialogCancel>
+                      <Button
+                        variant="destructive"
+                        disabled={deleteConfirmKeyword !== 'EXCLUIR TODOS'}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          handleDeleteAll();
+                        }}
+                      >
+                        Sim, excluir todos
+                      </Button>
+                    </AlertDialogFooter>
+                  </div>
                 )}
               </AlertDialogContent>
             </AlertDialog>
@@ -2227,6 +2297,20 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
                   <SelectItem value="bloqueado">Bloqueados</SelectItem>
                 </SelectContent>
               </Select>
+              <Select value={serverFilter} onValueChange={(v) => handleFilterChange(setServerFilter, v)}>
+                <SelectTrigger className="w-[160px] bg-background/50 border-border/50 h-10">
+                  <SelectValue placeholder="Servidor" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos Servidores</SelectItem>
+                  <SelectItem value="none">Sem Servidor</SelectItem>
+                  {servers?.map((server) => (
+                    <SelectItem key={server.id} value={server.id}>
+                      {server.server_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               <Select value={dueDateFilter} onValueChange={(v) => handleFilterChange(setDueDateFilter, v)}>
                 <SelectTrigger className="w-[165px] bg-background/50 border-border/50 h-10">
                   <SelectValue placeholder="Vencimento" />
@@ -2386,15 +2470,33 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
                           onCheckedChange={toggleSelectAll}
                         />
                       </TableHead>
-                      <TableHead className="font-semibold">Nome</TableHead>
-                      <TableHead className="font-semibold">Telefone</TableHead>
-                      <TableHead className="font-semibold">Servidor</TableHead>
-                      <TableHead className="font-semibold">Plano</TableHead>
-                      <TableHead className="font-semibold text-center">Telas</TableHead>
-                      <TableHead className="font-semibold">Valor</TableHead>
-                      <TableHead className="font-semibold">Vencimento</TableHead>
-                      <TableHead className="font-semibold">Usuário</TableHead>
-                      <TableHead className="font-semibold">Status</TableHead>
+                      <TableHead className="font-semibold cursor-pointer select-none hover:text-primary" onClick={() => handleSort('name')}>
+                        <span className="flex items-center">Nome <SortIcon column="name" /></span>
+                      </TableHead>
+                      <TableHead className="font-semibold cursor-pointer select-none hover:text-primary" onClick={() => handleSort('phone')}>
+                        <span className="flex items-center">Telefone <SortIcon column="phone" /></span>
+                      </TableHead>
+                      <TableHead className="font-semibold cursor-pointer select-none hover:text-primary" onClick={() => handleSort('server')}>
+                        <span className="flex items-center">Servidor <SortIcon column="server" /></span>
+                      </TableHead>
+                      <TableHead className="font-semibold cursor-pointer select-none hover:text-primary" onClick={() => handleSort('plan')}>
+                        <span className="flex items-center">Plano <SortIcon column="plan" /></span>
+                      </TableHead>
+                      <TableHead className="font-semibold text-center cursor-pointer select-none hover:text-primary" onClick={() => handleSort('screens')}>
+                        <span className="flex items-center justify-center">Telas <SortIcon column="screens" /></span>
+                      </TableHead>
+                      <TableHead className="font-semibold cursor-pointer select-none hover:text-primary" onClick={() => handleSort('value')}>
+                        <span className="flex items-center">Valor <SortIcon column="value" /></span>
+                      </TableHead>
+                      <TableHead className="font-semibold cursor-pointer select-none hover:text-primary" onClick={() => handleSort('due_date')}>
+                        <span className="flex items-center">Vencimento <SortIcon column="due_date" /></span>
+                      </TableHead>
+                      <TableHead className="font-semibold cursor-pointer select-none hover:text-primary" onClick={() => handleSort('username')}>
+                        <span className="flex items-center">Usuário <SortIcon column="username" /></span>
+                      </TableHead>
+                      <TableHead className="font-semibold cursor-pointer select-none hover:text-primary" onClick={() => handleSort('status')}>
+                        <span className="flex items-center">Status <SortIcon column="status" /></span>
+                      </TableHead>
                       <TableHead className="font-semibold text-right">Ações</TableHead>
                     </TableRow>
                   </TableHeader>

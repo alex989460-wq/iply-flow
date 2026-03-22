@@ -369,6 +369,30 @@ export type Database = {
           },
         ]
       }
+      customer_backups: {
+        Row: {
+          backup_data: Json
+          backup_type: string
+          created_at: string
+          id: string
+          total_customers: number
+        }
+        Insert: {
+          backup_data: Json
+          backup_type?: string
+          created_at?: string
+          id?: string
+          total_customers?: number
+        }
+        Update: {
+          backup_data?: Json
+          backup_type?: string
+          created_at?: string
+          id?: string
+          total_customers?: number
+        }
+        Relationships: []
+      }
       customers: {
         Row: {
           created_at: string
