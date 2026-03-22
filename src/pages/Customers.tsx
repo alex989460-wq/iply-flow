@@ -2030,6 +2030,15 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
                         className="bg-secondary/50"
                       />
                     </div>
+                    <div className="space-y-2">
+                      <Label>Senha</Label>
+                      <Input
+                        value={formData.password}
+                        onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                        placeholder="Senha do cliente"
+                        className="bg-secondary/50"
+                      />
+                    </div>
                     {!editingCustomer && (
                       <div className="col-span-2 flex items-center gap-2 p-3 rounded-lg bg-secondary/30 border border-border">
                         <Checkbox
