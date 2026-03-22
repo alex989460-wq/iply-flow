@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { Loader2, Eye, EyeOff, Save, AlertCircle, CheckCircle2, Unplug, Phone, RefreshCw, Server, FileText, Users, UserPlus, Trash2, Target, CreditCard } from 'lucide-react';
+import { Loader2, Eye, EyeOff, Save, AlertCircle, CheckCircle2, Unplug, Phone, RefreshCw, Server, FileText, Users, UserPlus, Trash2, Target, CreditCard, Database } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
@@ -17,6 +17,7 @@ import GoalsSettingsCard from '@/components/settings/GoalsSettingsCard';
 import ResellerApiSettings from '@/components/settings/ResellerApiSettings';
 import AutoRenewServersCard from '@/components/settings/AutoRenewServersCard';
 import BillingSettingsCard from '@/components/settings/BillingSettingsCard';
+import BackupManagerCard from '@/components/settings/BackupManagerCard';
 
 async function getFunctionsHttpErrorDetails(err: unknown): Promise<{ message?: string; raw?: any } | null> {
   // supabase-js / @supabase/functions-js throws FunctionsHttpError with `.context` as a Response
@@ -649,7 +650,7 @@ export default function Settings() {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-6 max-w-3xl">
+          <TabsList className="grid w-full grid-cols-7 max-w-4xl">
             <TabsTrigger value="cobranca" className="flex items-center gap-2">
               <CreditCard className="w-4 h-4 text-green-500" />
               <span className="hidden sm:inline">Cobrança</span>
@@ -677,6 +678,11 @@ export default function Settings() {
               <Target className="w-4 h-4 text-amber-500" />
               <span className="hidden sm:inline">Metas</span>
               <span className="sm:hidden">Metas</span>
+            </TabsTrigger>
+            <TabsTrigger value="backups" className="flex items-center gap-2">
+              <Database className="w-4 h-4 text-blue-500" />
+              <span className="hidden sm:inline">Backups</span>
+              <span className="sm:hidden">Back.</span>
             </TabsTrigger>
           </TabsList>
 
@@ -1187,6 +1193,11 @@ export default function Settings() {
           {/* Metas Tab */}
           <TabsContent value="metas" className="mt-6">
             <GoalsSettingsCard />
+          </TabsContent>
+
+          {/* Backups Tab */}
+          <TabsContent value="backups" className="mt-6">
+            <BackupManagerCard />
           </TabsContent>
         </Tabs>
       </div>

@@ -59,3 +59,6 @@ verify_jwt = false
 
 [functions.public-checkout-data]
 verify_jwt = false
+
+[functions.auto-backup]
+verify_jwt = false
