@@ -124,6 +124,7 @@ const App = () => (
         <Sonner />
         <BrowserRouter>
           <AuthProvider>
+            <AutoBackup />
             <SidebarProvider>
               <AppRoutes />
             </SidebarProvider>
