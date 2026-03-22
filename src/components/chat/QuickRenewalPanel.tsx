@@ -43,6 +43,7 @@ interface Customer {
   name: string;
   phone: string;
   username: string | null;
+  password: string | null;
   status: 'ativa' | 'inativa' | 'suspensa' | 'bloqueado';
   due_date: string;
   custom_price: number | null;
