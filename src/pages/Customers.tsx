@@ -998,6 +998,7 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
       plan_id: formData.plan_id || null,
       custom_price: formData.custom_price ? parseFloat(formData.custom_price) : null,
       username: formData.username || null,
+      password: formData.password || null,
       screens: formData.screens ? parseInt(formData.screens, 10) : 1,
       extra_months: formData.extra_months ? parseInt(formData.extra_months, 10) : 0,
       created_by: editingCustomer ? undefined : user?.id,
