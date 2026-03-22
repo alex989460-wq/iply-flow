@@ -75,7 +75,10 @@ export default function Customers() {
   const [editingCustomer, setEditingCustomer] = useState<any | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [serverFilter, setServerFilter] = useState<string>('all');
   const [dueDateFilter, setDueDateFilter] = useState<string>('all');
+  const [sortColumn, setSortColumn] = useState<string>('');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   const [pageSize, setPageSize] = useState<number>(50);
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [searchParams, setSearchParams] = useSearchParams();
