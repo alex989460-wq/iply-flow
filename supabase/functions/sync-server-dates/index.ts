@@ -75,7 +75,7 @@ serve(async (req) => {
     if (server_type === 'the_best') {
       return await handleTheBest(supabaseAdmin, apiSettings, action, jsonHeaders);
     } else if (server_type === 'rush') {
-      return await handleRush(supabaseAdmin, apiSettings, action, jsonHeaders);
+      return await handleRush(supabaseAdmin, apiSettings, action, jsonHeaders, rush_sub_type);
     }
     return new Response(JSON.stringify({ error: 'server_type inválido' }), { status: 400, headers: jsonHeaders });
   } catch (error: unknown) {
