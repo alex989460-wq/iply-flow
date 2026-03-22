@@ -1301,6 +1301,18 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      batch_update_customers_natv: { Args: never; Returns: undefined }
+      bulk_update_customers: {
+        Args: {
+          due_dates: string[]
+          plan_ids: string[]
+          screen_counts: number[]
+          server_ids: string[]
+          statuses: string[]
+          usernames: string[]
+        }
+        Returns: number
+      }
       get_dashboard_stats_optimized: { Args: never; Returns: Json }
       get_monthly_revenue: { Args: never; Returns: Json }
       get_plan_distribution: { Args: never; Returns: Json }
