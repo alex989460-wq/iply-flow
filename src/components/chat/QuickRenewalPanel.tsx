@@ -43,6 +43,7 @@ interface Customer {
   name: string;
   phone: string;
   username: string | null;
+  password: string | null;
   status: 'ativa' | 'inativa' | 'suspensa' | 'bloqueado';
   due_date: string;
   custom_price: number | null;
@@ -334,6 +335,7 @@ export default function QuickRenewalPanel({ isMobile = false, onClose }: QuickRe
           name,
           phone,
           username,
+          password,
           status,
           due_date,
           custom_price,
@@ -1258,6 +1260,17 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                       </p>
                     )}
                   </div>
+
+                  {/* Password - Read only display */}
+                  {selectedCustomer.password && (
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2 text-muted-foreground">
+                        <Key className="h-3.5 w-3.5" />
+                        <span>Senha:</span>
+                      </div>
+                      <span className="font-mono text-sm">{selectedCustomer.password}</span>
+                    </div>
+                  )}
 
                   {/* Screens Selector */}
                   <div className="space-y-1">

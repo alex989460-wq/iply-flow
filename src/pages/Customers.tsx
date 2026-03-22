@@ -111,6 +111,7 @@ export default function Customers() {
     due_date: '',
     custom_price: '',
     username: '',
+    password: '',
     screens: '1',
     extra_months: '0',
     activate_on_server: true,
@@ -695,7 +696,7 @@ export default function Customers() {
   });
 
   const resetForm = () => {
-    setFormData({ name: '', phone: '', server_id: '', plan_id: '', status: 'ativa', notes: '', due_date: '', custom_price: '', username: '', screens: '1', extra_months: '0', activate_on_server: true });
+    setFormData({ name: '', phone: '', server_id: '', plan_id: '', status: 'ativa', notes: '', due_date: '', custom_price: '', username: '', password: '', screens: '1', extra_months: '0', activate_on_server: true });
     setEditingCustomer(null);
   };
 
@@ -711,6 +712,7 @@ export default function Customers() {
       due_date: customer.due_date || '',
       custom_price: customer.custom_price ? String(customer.custom_price) : '',
       username: customer.username || '',
+      password: customer.password || '',
       screens: customer.screens ? String(customer.screens) : '1',
       extra_months: customer.extra_months ? String(customer.extra_months) : '0',
       activate_on_server: false,
@@ -996,6 +998,7 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
       plan_id: formData.plan_id || null,
       custom_price: formData.custom_price ? parseFloat(formData.custom_price) : null,
       username: formData.username || null,
+      password: formData.password || null,
       screens: formData.screens ? parseInt(formData.screens, 10) : 1,
       extra_months: formData.extra_months ? parseInt(formData.extra_months, 10) : 0,
       created_by: editingCustomer ? undefined : user?.id,
@@ -2028,6 +2031,15 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
                         className="bg-secondary/50"
                       />
                     </div>
+                    <div className="space-y-2">
+                      <Label>Senha</Label>
+                      <Input
+                        value={formData.password}
+                        onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                        placeholder="Senha do cliente"
+                        className="bg-secondary/50"
+                      />
+                    </div>
                     {!editingCustomer && (
                       <div className="col-span-2 flex items-center gap-2 p-3 rounded-lg bg-secondary/30 border border-border">
                         <Checkbox
@@ -2494,6 +2506,7 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
                       <TableHead className="font-semibold cursor-pointer select-none hover:text-primary" onClick={() => handleSort('username')}>
                         <span className="flex items-center">Usuário <SortIcon column="username" /></span>
                       </TableHead>
+                      <TableHead className="font-semibold">Senha</TableHead>
                       <TableHead className="font-semibold cursor-pointer select-none hover:text-primary" onClick={() => handleSort('status')}>
                         <span className="flex items-center">Status <SortIcon column="status" /></span>
                       </TableHead>
@@ -2542,6 +2555,9 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
                       </TableCell>
                       <TableCell>
                         <span className="font-mono text-xs">{customer.username || '-'}</span>
+                      </TableCell>
+                      <TableCell>
+                        <span className="font-mono text-xs">{customer.password || '-'}</span>
                       </TableCell>
                       <TableCell>{getStatusBadge(customer.status)}</TableCell>
                       <TableCell className="text-right">
