@@ -127,6 +127,7 @@ export default function Customers() {
   const [isDeleteAllOpen, setIsDeleteAllOpen] = useState(false);
   const [isDeletingAll, setIsDeletingAll] = useState(false);
   const [deleteAllProgress, setDeleteAllProgress] = useState(0);
+  const [deleteConfirmKeyword, setDeleteConfirmKeyword] = useState('');
 
   // Send billing states
   const [isSendBillingOpen, setIsSendBillingOpen] = useState(false);
