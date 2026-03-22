@@ -201,40 +201,46 @@ async function handleRush(supabaseAdmin: any, apiSettings: any, action: string, 
     return new Response(JSON.stringify(samples), { headers: jsonHeaders });
   }
 
-  // Fetch ALL users from Rush - try pagination with page param, also try without per_page limit
+  // Fetch ALL users from Rush using parallel page fetches
   console.log('[Rush] Iniciando sync...');
   const allUsers: any[] = [];
 
   const typesToSync = rushSubType ? [rushSubType] : ['iptv', 'p2p'];
   for (const type of typesToSync) {
-    let page = 1;
-    let hasMore = true;
-    while (hasMore) {
-      // Rush may use different pagination - try both page and offset
-      const url = `${rBase}/${type}/list?${authParams}&page=${page}`;
-      console.log(`[Rush] Fetching ${type} page ${page}`);
-      const resp = await fetch(url, { headers: { 'Accept': 'application/json' } });
-      if (!resp.ok) { await resp.text(); break; }
-      const data = await resp.json();
-      
-      // Rush may return { items: [...] } or { data: [...] } or just [...]
-      const items = data.items || data.data || (Array.isArray(data) ? data : []);
-      const totalPages = data.total_pages || data.totalPages || data.pages || 0;
-      const totalItems = data.total || data.totalItems || data.count || 0;
-      
-      console.log(`[Rush] ${type} page ${page}: ${items.length} items, total: ${totalItems}, totalPages: ${totalPages}`);
-      
-      if (items.length === 0) break;
-      for (const item of items) { item._rush_type = type; }
-      allUsers.push(...items);
-      
-      // Check if more pages
-      if (totalPages && page >= totalPages) break;
-      if (items.length < 10) break; // Less than a page = last page
-      page++;
-      
-      // Safety limit
-      if (page > 200) break;
+    // First fetch page 1 to get totalPages
+    const firstUrl = `${rBase}/${type}/list?${authParams}&page=1`;
+    const firstResp = await fetch(firstUrl, { headers: { 'Accept': 'application/json' } });
+    if (!firstResp.ok) { await firstResp.text(); continue; }
+    const firstData = await firstResp.json();
+    const firstItems = firstData.items || firstData.data || (Array.isArray(firstData) ? firstData : []);
+    const totalPages = firstData.total_pages || firstData.totalPages || firstData.pages || 1;
+    const totalItems = firstData.total || firstData.totalItems || firstData.count || 0;
+    
+    console.log(`[Rush] ${type}: ${totalItems} total, ${totalPages} pages`);
+    for (const item of firstItems) { item._rush_type = type; }
+    allUsers.push(...firstItems);
+
+    if (totalPages <= 1) continue;
+
+    // Fetch remaining pages in parallel batches of 10
+    for (let batchStart = 2; batchStart <= totalPages; batchStart += 10) {
+      const batchEnd = Math.min(batchStart + 9, totalPages);
+      const promises = [];
+      for (let p = batchStart; p <= batchEnd; p++) {
+        promises.push(
+          fetch(`${rBase}/${type}/list?${authParams}&page=${p}`, { headers: { 'Accept': 'application/json' } })
+            .then(async (r) => {
+              if (!r.ok) { await r.text(); return []; }
+              const d = await r.json();
+              const items = d.items || d.data || (Array.isArray(d) ? d : []);
+              return items.map((i: any) => ({ ...i, _rush_type: type }));
+            })
+            .catch(() => [])
+        );
+      }
+      const results = await Promise.all(promises);
+      for (const items of results) allUsers.push(...items);
+      console.log(`[Rush] ${type} batch ${batchStart}-${batchEnd} done (total: ${allUsers.length})`);
     }
   }
 
