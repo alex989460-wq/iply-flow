@@ -37,7 +37,8 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { 
   Plus, Pencil, Trash2, Loader2, Users, RefreshCw, Search, CalendarIcon,
-  Upload, Phone, FileText, Download, MessageSquare, AlertTriangle, Send, Copy, Check, ArrowRightLeft
+  Upload, Phone, FileText, Download, MessageSquare, AlertTriangle, Send, Copy, Check, ArrowRightLeft,
+  ArrowUpDown, ArrowUp, ArrowDown, Shield
 } from 'lucide-react';
 import ServerMigrationModal from '@/components/customers/ServerMigrationModal';
 import {
