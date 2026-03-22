@@ -174,7 +174,7 @@ async function handleTheBest(supabaseAdmin: any, apiSettings: any, action: strin
 }
 
 // ============ RUSH ============
-async function handleRush(supabaseAdmin: any, apiSettings: any, action: string, jsonHeaders: any) {
+async function handleRush(supabaseAdmin: any, apiSettings: any, action: string, jsonHeaders: any, rushSubType?: string) {
   const rUser = apiSettings?.rush_username;
   const rPass = apiSettings?.rush_password;
   const rToken = apiSettings?.rush_token;
