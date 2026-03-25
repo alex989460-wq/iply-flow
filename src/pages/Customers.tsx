@@ -216,7 +216,7 @@ export default function Customers() {
       
       // Get count first
       let countQuery = supabase.from('customers').select('*', { count: 'exact', head: true });
-      if (statusFilter !== 'all') countQuery = countQuery.eq('status', statusFilter);
+      if (statusFilter !== 'all') countQuery = countQuery.eq('status', statusFilter as any);
       if (serverFilter !== 'all') {
         if (serverFilter === 'none') countQuery = countQuery.is('server_id', null);
         else countQuery = countQuery.eq('server_id', serverFilter);
