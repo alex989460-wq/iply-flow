@@ -13,12 +13,11 @@ const CHART_COLORS = [
 
 const REQUEST_TIMEOUT_MS = 12000;
 
-const withTimeout = async <T,>(promise: Promise<T>, label: string): Promise<T> => {
+const withTimeout = async (request: any, label: string): Promise<any> => {
+  const promise = typeof request?.then === 'function' ? request : Promise.resolve(request);
   return Promise.race([
     promise,
-    new Promise<T>((_, reject) =>
-      setTimeout(() => reject(new Error(`${label} timeout`)), REQUEST_TIMEOUT_MS),
-    ),
+    new Promise((_, reject) => setTimeout(() => reject(new Error(`${label} timeout`)), REQUEST_TIMEOUT_MS)),
   ]);
 };
 
@@ -68,10 +67,10 @@ export function useDashboardStats() {
         if (planResult.error) throw planResult.error;
         if (serverResult.error) throw serverResult.error;
 
-        const stats = (statsResult.data || {}) as unknown as DashboardStats;
-        const revenue = (revenueResult.data || {}) as unknown as RevenueStats;
-        const planDist = (planResult.data || []) as unknown as PlanDistItem[];
-        const serverDist = (serverResult.data || []) as unknown as ServerDistItem[];
+        const stats = (statsResult.data || {}) as DashboardStats;
+        const revenue = (revenueResult.data || {}) as RevenueStats;
+        const planDist = (planResult.data || []) as PlanDistItem[];
+        const serverDist = (serverResult.data || []) as ServerDistItem[];
 
         const planDistribution = planDist.map((item, index) => ({
           ...item,
@@ -146,10 +145,11 @@ async function fetchAllPayments(buildQuery: () => any) {
   let from = 0;
 
   while (true) {
-    const { data, error } = await withTimeout(
+    const response = await withTimeout(
       buildQuery().range(from, from + pageSize - 1),
       `payments_page_${from}`,
     );
+    const { data, error } = response || {};
 
     if (error) throw error;
     if (!data || data.length === 0) break;
