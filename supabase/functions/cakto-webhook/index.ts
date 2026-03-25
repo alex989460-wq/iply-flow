@@ -469,7 +469,8 @@ serve(async (req) => {
 
     // Filter out customers expired for more than 90 days - they are clearly abandoned and should not cause conflicts
     const EXPIRED_THRESHOLD_DAYS = 90;
-    const thresholdDate = new Date(today);
+    const nowForConflictFilter = new Date();
+    const thresholdDate = new Date(nowForConflictFilter);
     thresholdDate.setDate(thresholdDate.getDate() - EXPIRED_THRESHOLD_DAYS);
     const thresholdStr = thresholdDate.toISOString().split('T')[0];
     const beforeExpiredFilter = allMatchedCustomers.length;
