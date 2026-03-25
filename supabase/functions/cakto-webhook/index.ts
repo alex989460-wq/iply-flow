@@ -460,11 +460,29 @@ serve(async (req) => {
       }
     }
 
-    // Filter out suspended and blocked customers to avoid false conflicts
-    const excludedCount = allMatchedCustomers.filter((c: any) => c.status === 'suspensa' || c.status === 'bloqueado').length;
-    if (excludedCount > 0) {
-      console.log(`[Cakto] Removendo ${excludedCount} cliente(s) com status 'suspensa'/'bloqueado' para evitar conflitos.`);
-      allMatchedCustomers = allMatchedCustomers.filter((c: any) => c.status !== 'suspensa' && c.status !== 'bloqueado');
+    // Filter out suspended, blocked and inactive customers to avoid false conflicts
+    const excludedByStatus = allMatchedCustomers.filter((c: any) => c.status === 'suspensa' || c.status === 'bloqueado' || c.status === 'inativa').length;
+    if (excludedByStatus > 0) {
+      console.log(`[Cakto] Removendo ${excludedByStatus} cliente(s) com status 'suspensa'/'bloqueado'/'inativa' para evitar conflitos.`);
+      allMatchedCustomers = allMatchedCustomers.filter((c: any) => c.status !== 'suspensa' && c.status !== 'bloqueado' && c.status !== 'inativa');
+    }
+
+    // Filter out customers expired for more than 90 days - they are clearly abandoned and should not cause conflicts
+    const EXPIRED_THRESHOLD_DAYS = 90;
+    const thresholdDate = new Date(today);
+    thresholdDate.setDate(thresholdDate.getDate() - EXPIRED_THRESHOLD_DAYS);
+    const thresholdStr = thresholdDate.toISOString().split('T')[0];
+    const beforeExpiredFilter = allMatchedCustomers.length;
+    allMatchedCustomers = allMatchedCustomers.filter((c: any) => {
+      const dueDate = c.due_date || '';
+      if (dueDate && dueDate < thresholdStr) {
+        console.log(`[Cakto] Removendo cliente "${c.name}" (venc: ${dueDate}) - expirado há mais de ${EXPIRED_THRESHOLD_DAYS} dias, não deve causar conflito.`);
+        return false;
+      }
+      return true;
+    });
+    if (allMatchedCustomers.length < beforeExpiredFilter) {
+      console.log(`[Cakto] ${beforeExpiredFilter - allMatchedCustomers.length} cliente(s) removido(s) por vencimento antigo (>${EXPIRED_THRESHOLD_DAYS} dias).`);
     }
 
     // Sort by due_date ascending (closest to expiration / already expired first)
