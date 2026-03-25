@@ -101,10 +101,14 @@ async function syncCustomers(supabaseAdmin: any, customers: any[], apiUserMap: M
     if (!newDue) { noDate++; continue; }
     if (newDue === cust.due_date) { unchanged++; continue; }
 
-    const newStatus = newDue >= todayStr ? 'ativa' : 'inativa';
+    // Only update status to 'ativa' if due_date is future; never force 'inativa' (keep current status)
+    const updateData: any = { due_date: newDue };
+    if (newDue >= todayStr && cust.status === 'inativa') {
+      updateData.status = 'ativa';
+    }
     const { error } = await supabaseAdmin
       .from('customers')
-      .update({ due_date: newDue, status: newStatus })
+      .update(updateData)
       .eq('id', cust.id);
     if (!error) {
       updated++;
