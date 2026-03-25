@@ -163,31 +163,93 @@ export default function Customers() {
   }, [searchParams, setSearchParams]);
 
   const { data: customers, isLoading } = useQuery({
-    queryKey: ['customers'],
+    queryKey: ['customers', debouncedSearch, statusFilter, serverFilter, dueDateFilter],
     queryFn: async () => {
-      // Fetch customers with optimized parallel pagination
       const pageSize = 1000;
       
-      // First, get total count
-      const { count, error: countError } = await supabase
-        .from('customers')
-        .select('*', { count: 'exact', head: true });
-      
-      if (countError) throw countError;
-      
-      const totalPages = Math.ceil((count || 0) / pageSize);
-      
-      if (totalPages === 0) return [];
-      
-      // Fetch all pages in parallel
-      const pagePromises = Array.from({ length: totalPages }, (_, page) =>
-        supabase
+      // Build a base query helper that applies all filters
+      const buildQuery = (page: number) => {
+        let q = supabase
           .from('customers')
           .select('*, plans(plan_name, duration_days, price), servers(server_name), creator:profiles!customers_created_by_profiles_fkey(full_name)')
           .order('created_at', { ascending: false })
-          .range(page * pageSize, (page + 1) * pageSize - 1)
-      );
+          .range(page * pageSize, (page + 1) * pageSize - 1);
+        
+        // Server-side status filter
+        if (statusFilter !== 'all') {
+          q = q.eq('status', statusFilter);
+        }
+        // Server-side server filter
+        if (serverFilter !== 'all') {
+          if (serverFilter === 'none') {
+            q = q.is('server_id', null);
+          } else {
+            q = q.eq('server_id', serverFilter);
+          }
+        }
+        // Server-side due date filter
+        if (dueDateFilter !== 'all') {
+          const now = new Date();
+          const today = now.toISOString().split('T')[0];
+          const tomorrow = new Date(now); tomorrow.setDate(now.getDate() + 1);
+          const yesterday = new Date(now); yesterday.setDate(now.getDate() - 1);
+          switch (dueDateFilter) {
+            case 'due_today': q = q.eq('due_date', today); break;
+            case 'due_tomorrow': q = q.eq('due_date', tomorrow.toISOString().split('T')[0]); break;
+            case 'overdue_1day': q = q.eq('due_date', yesterday.toISOString().split('T')[0]); break;
+            case 'overdue': q = q.lt('due_date', today); break;
+          }
+        }
+        // Server-side search
+        if (debouncedSearch.trim()) {
+          const term = debouncedSearch.trim();
+          const digits = term.replace(/\D/g, '');
+          if (digits.length >= 3) {
+            // Phone or username search
+            q = q.or(`phone.ilike.%${digits}%,username.ilike.%${term}%,name.ilike.%${term}%`);
+          } else {
+            q = q.or(`name.ilike.%${term}%,username.ilike.%${term}%`);
+          }
+        }
+        return q;
+      };
       
+      // Get count first
+      let countQuery = supabase.from('customers').select('*', { count: 'exact', head: true });
+      if (statusFilter !== 'all') countQuery = countQuery.eq('status', statusFilter);
+      if (serverFilter !== 'all') {
+        if (serverFilter === 'none') countQuery = countQuery.is('server_id', null);
+        else countQuery = countQuery.eq('server_id', serverFilter);
+      }
+      if (dueDateFilter !== 'all') {
+        const now = new Date();
+        const today = now.toISOString().split('T')[0];
+        const tomorrow = new Date(now); tomorrow.setDate(now.getDate() + 1);
+        const yesterday = new Date(now); yesterday.setDate(now.getDate() - 1);
+        switch (dueDateFilter) {
+          case 'due_today': countQuery = countQuery.eq('due_date', today); break;
+          case 'due_tomorrow': countQuery = countQuery.eq('due_date', tomorrow.toISOString().split('T')[0]); break;
+          case 'overdue_1day': countQuery = countQuery.eq('due_date', yesterday.toISOString().split('T')[0]); break;
+          case 'overdue': countQuery = countQuery.lt('due_date', today); break;
+        }
+      }
+      if (debouncedSearch.trim()) {
+        const term = debouncedSearch.trim();
+        const digits = term.replace(/\D/g, '');
+        if (digits.length >= 3) {
+          countQuery = countQuery.or(`phone.ilike.%${digits}%,username.ilike.%${term}%,name.ilike.%${term}%`);
+        } else {
+          countQuery = countQuery.or(`name.ilike.%${term}%,username.ilike.%${term}%`);
+        }
+      }
+      
+      const { count, error: countError } = await countQuery;
+      if (countError) throw countError;
+      
+      const totalPages = Math.ceil((count || 0) / pageSize);
+      if (totalPages === 0) return [];
+      
+      const pagePromises = Array.from({ length: totalPages }, (_, page) => buildQuery(page));
       const results = await Promise.all(pagePromises);
       
       const allData: any[] = [];
@@ -198,8 +260,8 @@ export default function Customers() {
       
       return allData;
     },
-    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
-    gcTime: 10 * 60 * 1000, // Keep in garbage collection for 10 minutes
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
     refetchOnWindowFocus: false,
   });
 
