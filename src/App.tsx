@@ -39,19 +39,37 @@ const queryClient = new QueryClient();
 
 function AutoBackup() {
   const { user } = useAuth();
+
   useEffect(() => {
     if (!user) return;
+
+    const LAST_BACKUP_KEY = 'last_auto_backup_at';
+    const BACKUP_COOLDOWN_MS = 6 * 60 * 60 * 1000; // 6h
+
     const runBackup = async () => {
       try {
+        const lastRun = Number(localStorage.getItem(LAST_BACKUP_KEY) || 0);
+        const now = Date.now();
+        if (now - lastRun < BACKUP_COOLDOWN_MS) return;
+
+        // Set before invoking to avoid hammering backend in case of timeout/errors
+        localStorage.setItem(LAST_BACKUP_KEY, String(now));
+
         const { supabase } = await import("@/integrations/supabase/client");
-        await supabase.functions.invoke('auto-backup');
-        console.log('[Backup] Auto-backup executado');
-      } catch (e) { console.error('[Backup] Erro:', e); }
+        await Promise.race([
+          supabase.functions.invoke('auto-backup', { body: { backup_type: 'auto_background' } }),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('Auto-backup timeout')), 8000)),
+        ]);
+      } catch (e) {
+        console.error('[Backup] Erro:', e);
+      }
     };
+
     runBackup();
-    const interval = setInterval(runBackup, 10 * 60 * 1000); // 10 min
+    const interval = setInterval(runBackup, BACKUP_COOLDOWN_MS);
     return () => clearInterval(interval);
   }, [user]);
+
   return null;
 }
 
