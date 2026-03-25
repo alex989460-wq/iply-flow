@@ -177,7 +177,7 @@ export default function Customers() {
         
         // Server-side status filter
         if (statusFilter !== 'all') {
-          q = q.eq('status', statusFilter);
+          q = q.eq('status', statusFilter as any);
         }
         // Server-side server filter
         if (serverFilter !== 'all') {
