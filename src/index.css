@@ -176,9 +176,9 @@
     @apply font-semibold tracking-tight;
   }
 
-  /* Smooth transitions for theme changes */
-  *, *::before, *::after {
-    transition-property: background-color, border-color, color, fill, stroke, box-shadow;
+  /* Smooth transitions for theme changes - only on interactive elements */
+  button, a, input, select, textarea, [role="button"], .sidebar-link, .stat-card, .card-hover-lift {
+    transition-property: background-color, border-color, color, box-shadow;
     transition-duration: 200ms;
     transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
   }

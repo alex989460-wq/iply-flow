@@ -191,7 +191,9 @@ export default function Customers() {
       
       return allData;
     },
-    staleTime: 30000, // Cache for 30 seconds
+    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
+    gcTime: 10 * 60 * 1000, // Keep in garbage collection for 10 minutes
+    refetchOnWindowFocus: false,
   });
 
   // Fetch all profiles for user assignment
