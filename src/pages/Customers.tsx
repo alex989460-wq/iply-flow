@@ -1098,49 +1098,8 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
     return <span className={styles[status] || styles.inativa}>{labels[status] || status}</span>;
   };
 
-  const filteredCustomers = customers?.filter(customer => {
-    const searchLower = searchTerm.toLowerCase().trim();
-    const searchDigits = searchTerm.replace(/\D/g, '');
-    const matchesSearch = customer.name.toLowerCase().includes(searchLower) ||
-                          (searchDigits.length >= 3 && customer.phone.includes(searchDigits)) ||
-                          (customer.username && customer.username.toLowerCase().includes(searchLower));
-    const matchesStatus = statusFilter === 'all' || customer.status === statusFilter;
-    const matchesServer = serverFilter === 'all' 
-      || (serverFilter === 'none' && !customer.server_id)
-      || customer.server_id === serverFilter;
-    
-    // Due date filtering
-    let matchesDueDate = true;
-    if (dueDateFilter !== 'all') {
-      const now = new Date();
-      const today = now.toISOString().split('T')[0];
-      
-      const tomorrow = new Date(now);
-      tomorrow.setDate(tomorrow.getDate() + 1);
-      const tomorrowStr = tomorrow.toISOString().split('T')[0];
-      
-      const yesterday = new Date(now);
-      yesterday.setDate(yesterday.getDate() - 1);
-      const yesterdayStr = yesterday.toISOString().split('T')[0];
-
-      switch (dueDateFilter) {
-        case 'due_today':
-          matchesDueDate = customer.due_date === today;
-          break;
-        case 'due_tomorrow':
-          matchesDueDate = customer.due_date === tomorrowStr;
-          break;
-        case 'overdue_1day':
-          matchesDueDate = customer.due_date === yesterdayStr;
-          break;
-        case 'overdue':
-          matchesDueDate = customer.due_date < today;
-          break;
-      }
-    }
-    
-    return matchesSearch && matchesStatus && matchesDueDate && matchesServer;
-  })?.sort((a: any, b: any) => {
+  // Filtering is now done server-side; only apply sorting here
+  const filteredCustomers = customers?.slice()?.sort((a: any, b: any) => {
     if (!sortColumn) return 0;
     const dir = sortDirection === 'asc' ? 1 : -1;
     
