@@ -14,7 +14,7 @@ async function fetchAllCustomers(admin: any, serverIds: string[]) {
   while (true) {
     const { data } = await admin
       .from('customers')
-      .select('id, username, due_date, server_id')
+      .select('id, username, due_date, server_id, status')
       .in('server_id', serverIds)
       .range(from, from + pageSize - 1);
     if (!data || data.length === 0) break;
