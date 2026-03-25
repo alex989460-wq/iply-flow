@@ -1079,42 +1079,39 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
     return <span className={styles[status] || styles.inativa}>{labels[status] || status}</span>;
   };
 
-  // Filtering is now done server-side; only apply sorting here
-  const filteredCustomers = customers?.slice()?.sort((a: any, b: any) => {
+  // Filtering is now server-side; apply only local sorting on current page
+  const filteredCustomers = customers.slice().sort((a: any, b: any) => {
     if (!sortColumn) return 0;
     const dir = sortDirection === 'asc' ? 1 : -1;
-    
+
     switch (sortColumn) {
       case 'name':
         return dir * (a.name || '').localeCompare(b.name || '');
       case 'phone':
         return dir * (a.phone || '').localeCompare(b.phone || '');
       case 'server':
-        return dir * ((a.servers?.server_name || '') .localeCompare(b.servers?.server_name || ''));
+        return dir * ((a.servers?.server_name || '').localeCompare(b.servers?.server_name || ''));
       case 'plan':
         return dir * ((a.plans?.plan_name || '').localeCompare(b.plans?.plan_name || ''));
       case 'screens':
         return dir * ((a.screens || 0) - (b.screens || 0));
       case 'value':
-        return dir * ((Number(a.custom_price || a.plans?.price || 0)) - (Number(b.custom_price || b.plans?.price || 0)));
+        return dir * (Number(a.custom_price || a.plans?.price || 0) - Number(b.custom_price || b.plans?.price || 0));
       case 'due_date':
-        return dir * ((a.due_date || '').localeCompare(b.due_date || ''));
+        return dir * (a.due_date || '').localeCompare(b.due_date || '');
       case 'username':
-        return dir * ((a.username || '').localeCompare(b.username || ''));
+        return dir * (a.username || '').localeCompare(b.username || '');
       case 'status':
-        return dir * ((a.status || '').localeCompare(b.status || ''));
+        return dir * (a.status || '').localeCompare(b.status || '');
       default:
         return 0;
     }
   });
 
-  // Pagination
-  const totalFiltered = filteredCustomers?.length || 0;
-  const totalPages = Math.ceil(totalFiltered / pageSize);
-  const paginatedCustomers = filteredCustomers?.slice(
-    (currentPage - 1) * pageSize,
-    currentPage * pageSize
-  );
+  // Pagination (already paginated on server)
+  const totalFiltered = totalCustomersCount;
+  const totalPages = Math.max(1, Math.ceil(totalFiltered / pageSize));
+  const paginatedCustomers = filteredCustomers;
 
   const handleSort = (column: string) => {
     if (sortColumn === column) {
