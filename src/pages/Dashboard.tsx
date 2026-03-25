@@ -44,10 +44,15 @@ export default function Dashboard() {
     access_expires_at: string;
     is_active: boolean;
   } | null>(null);
+  const [loadingGuardExpired, setLoadingGuardExpired] = useState(false);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setLoadingGuardExpired(true), 10000);
+    return () => clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
     if (user && !isAdmin) {
-      // Fetch reseller access info
       const fetchResellerAccess = async () => {
         const { data } = await supabase
           .from('reseller_access')
@@ -60,7 +65,7 @@ export default function Dashboard() {
     }
   }, [user, isAdmin]);
 
-  if (statsLoading) {
+  if (statsLoading && !loadingGuardExpired) {
     return (
       <DashboardLayout>
         <div className="flex items-center justify-center h-96">
@@ -100,6 +105,12 @@ export default function Dashboard() {
       <div className="space-y-4 sm:space-y-6 lg:space-y-8">
         {/* Welcome Header */}
         <WelcomeHeader />
+
+        {stats?.backendUnavailable && (
+          <div className="rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+            Não foi possível conectar ao backend agora. A tela abriu em modo seguro; tente novamente em alguns segundos.
+          </div>
+        )}
 
         {/* Reseller Access Expiration Card - Only for non-admin users */}
         {!isAdmin && resellerAccess && (
