@@ -83,14 +83,13 @@ serve(async (req) => {
         { global: { headers: { Authorization: authHeader } } },
       );
 
-      const token = authHeader.replace('Bearer ', '');
-      const { data: claimsData, error: claimsError } = await supabase.auth.getClaims(token);
-      if (claimsError || !claimsData?.claims) {
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError || !user) {
         return new Response(JSON.stringify({ error: 'Não autorizado' }), {
           status: 401, headers: jsonHeaders,
         });
       }
-      callerUserId = claimsData.claims.sub as string;
+      callerUserId = user.id;
     } else {
       console.log('[TheBest] Chamada interna autorizada pelo webhook da Cakto');
     }
