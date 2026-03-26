@@ -637,7 +637,8 @@ serve(async (req) => {
             const isVplay = sNameLower.includes('vplay') || sHostLower.includes('vplay');
             const isRush = sNameLower.includes('rush') || sHostLower.includes('rush');
             const isTheBest = sNameLower.includes('best') || sHostLower.includes('best');
-            const isNatv = sNameLower.includes('natv') || sHostLower.includes('natv');
+            const isNatv2 = sNameLower.includes('natv²') || sNameLower.includes('natv2') || sHostLower.includes('natv2');
+            const isNatv = !isNatv2 && (sNameLower.includes('natv') || sHostLower.includes('natv'));
 
             try {
               if (isTheBest && resellerApiSettings?.the_best_username && resellerApiSettings?.the_best_password) {
@@ -661,16 +662,20 @@ serve(async (req) => {
                 }
               }
 
-              if (isNatv) {
-                const natvApiKey = resellerApiSettings?.natv_api_key || Deno.env.get('NATV_API_KEY') || '';
-                const natvBaseUrl = (resellerApiSettings?.natv_base_url || Deno.env.get('NATV_BASE_URL') || '').replace(/\/+$/, '');
+              if (isNatv || isNatv2) {
+                const natvApiKey = isNatv2
+                  ? (resellerApiSettings?.natv2_api_key || Deno.env.get('NATV2_API_KEY') || '')
+                  : (resellerApiSettings?.natv_api_key || Deno.env.get('NATV_API_KEY') || '');
+                const natvBaseUrl = isNatv2
+                  ? ((resellerApiSettings?.natv2_base_url || Deno.env.get('NATV2_BASE_URL') || '').replace(/\/+$/, ''))
+                  : ((resellerApiSettings?.natv_base_url || Deno.env.get('NATV_BASE_URL') || '').replace(/\/+$/, ''));
                 if (natvApiKey && natvBaseUrl) {
                   const natvResp = await fetch(`${natvBaseUrl}/user/activation`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${natvApiKey}` },
                     body: JSON.stringify({ username: newCustomer.username, months: newMonthsNum }),
                   });
-                  console.log(`[Cakto] NATV criar ${newCustomer.username}: status=${natvResp.status}`);
+                  console.log(`[Cakto] ${isNatv2 ? 'NATV2' : 'NATV'} criar ${newCustomer.username}: status=${natvResp.status}`);
                   if (natvResp.ok) { activatedServerId = serverData.id; activatedServerName = serverData.server_name; }
                 }
               }
