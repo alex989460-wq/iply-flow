@@ -1885,9 +1885,10 @@ serve(async (req) => {
       const isVplay = sNameLower.includes('vplay') || sHostLower.includes('vplay');
       const isRush = sNameLower.includes('rush') || sHostLower.includes('rush');
       const isTheBest = sNameLower.includes('best') || sHostLower.includes('best');
-      const isNatv = sNameLower.includes('natv') || sHostLower.includes('natv');
+      const isNatv2 = sNameLower.includes('natv²') || sNameLower.includes('natv2') || sHostLower.includes('natv2');
+      const isNatv = !isNatv2 && (sNameLower.includes('natv') || sHostLower.includes('natv'));
 
-      console.log(`[Cakto] Servidor: "${serverName}" (host: "${serverHost}") | auto_renew: ${autoRenew} | Tipo: ${isVplay ? 'VPlay' : isRush ? 'Rush' : isTheBest ? 'The Best' : isNatv ? 'NATV' : 'desconhecido'}`);
+      console.log(`[Cakto] Servidor: "${serverName}" (host: "${serverHost}") | auto_renew: ${autoRenew} | Tipo: ${isVplay ? 'VPlay' : isRush ? 'Rush' : isTheBest ? 'The Best' : isNatv2 ? 'NATV2' : isNatv ? 'NATV' : 'desconhecido'}`);
 
       if (!matchedCustomer.server_id) {
         console.log(`[Cakto] Cliente sem servidor configurado. Pulando renovação no painel.`);
