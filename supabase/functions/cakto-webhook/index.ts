@@ -1312,7 +1312,7 @@ serve(async (req) => {
         for (const cust of allMatchedCustomers) {
           // Per-customer plan matching: determine duration for EACH customer individually
           let custDurationDays = durationDays;
-          let custMonthsToAdd = monthsToAdd;
+          let custMonthsToAdd: number | undefined = monthsToAdd;
           let custBestMatch = bestMatch;
           let custPlanName = matchedPlanName;
 
@@ -1324,7 +1324,7 @@ serve(async (req) => {
               custDurationDays = custPlan.duration_days;
               custPlanName = custPlan.plan_name;
               const daysToMonthsMap: Record<number, number> = { 30: 1, 90: 3, 180: 6, 365: 12 };
-              custMonthsToAdd = daysToMonthsMap[custDurationDays] || undefined;
+              custMonthsToAdd = daysToMonthsMap[custDurationDays];
             }
           }
 
@@ -2238,6 +2238,8 @@ serve(async (req) => {
         console.warn(`[Cakto] ⚠️ ${failedRenewals.length} renovação(ões) falharam. Tentando retry em 5s...`);
         await new Promise(resolve => setTimeout(resolve, 5000));
 
+        const retryMonths = monthsToAdd || Math.max(1, Math.round(durationDays / 30));
+
         for (const failed of failedRenewals) {
           try {
             const retryPanel = failed.panel;
@@ -2266,13 +2268,13 @@ serve(async (req) => {
               retryResp = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/the-best-renew`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'x-cakto-webhook-secret': Deno.env.get('CAKTO_WEBHOOK_SECRET') || '' },
-                body: JSON.stringify({ username: retryUsername, months: renewMonths, customer_id: matchedCustomer.id }),
+                body: JSON.stringify({ username: retryUsername, months: retryMonths, customer_id: matchedCustomer.id }),
               });
             } else if (retryPanel === 'rush') {
               retryResp = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/rush-renew`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'x-cakto-webhook-secret': Deno.env.get('CAKTO_WEBHOOK_SECRET') || '' },
-                body: JSON.stringify({ username: retryUsername, months: renewMonths, customer_id: matchedCustomer.id }),
+                body: JSON.stringify({ username: retryUsername, months: retryMonths, customer_id: matchedCustomer.id }),
               });
             }
 
