@@ -2096,7 +2096,7 @@ serve(async (req) => {
           }
         }
 
-        if (!isVplay && !isNatv && !isTheBest && !isRush) {
+        if (!isVplay && !isNatv && !isNatv2 && !isTheBest && !isRush) {
           console.log(`[Cakto] Tipo de servidor não reconhecido: "${serverName}". Nenhuma renovação externa. Apenas due_date atualizado.`);
         }
       }
