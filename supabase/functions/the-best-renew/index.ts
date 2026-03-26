@@ -26,6 +26,34 @@ async function getTheBestToken(baseUrl: string, username: string, password: stri
   return token;
 }
 
+function buildUsernameVariants(rawUsername: string): string[] {
+  const base = String(rawUsername || '').trim();
+  const variants = new Set<string>();
+  if (!base) return [];
+
+  variants.add(base);
+
+  const digits = base.replace(/\D/g, '');
+  if (digits) {
+    variants.add(digits);
+    if (digits.startsWith('55') && digits.length >= 12) {
+      const withoutCountry = digits.slice(2);
+      variants.add(withoutCountry);
+      if (withoutCountry.length === 11 && withoutCountry[2] === '9') {
+        variants.add(withoutCountry.slice(0, 2) + withoutCountry.slice(3));
+        variants.add('55' + withoutCountry.slice(0, 2) + withoutCountry.slice(3));
+      } else if (withoutCountry.length === 10) {
+        variants.add(withoutCountry.slice(0, 2) + '9' + withoutCountry.slice(2));
+        variants.add('55' + withoutCountry.slice(0, 2) + '9' + withoutCountry.slice(2));
+      }
+    } else if (digits.length >= 10) {
+      variants.add('55' + digits);
+    }
+  }
+
+  return [...variants].filter(Boolean);
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -129,32 +157,54 @@ serve(async (req) => {
     const token = await getTheBestToken(tbBaseUrl, tbUsername, tbPassword);
     console.log(`[TheBest] Token obtido com sucesso`);
 
-    // Step 2: Search for the user by username
-    const searchUrl = `${tbBaseUrl}/lines/?search=${encodeURIComponent(username.trim())}&per_page=10`;
-    console.log(`[TheBest] Buscando usuário: ${searchUrl}`);
+    // Step 2: Search for the user by username (with fallback variants)
+    const usernameCandidates = buildUsernameVariants(username);
+    const normalizedOriginal = username.trim().toLowerCase();
+    let matchedLine: any = null;
+    let usedSearchTerm = username.trim();
+    let lastSearchErrorStatus = 0;
+    let lastSearchErrorText = '';
+    let lastSearchedUsernames: string[] = [];
 
-    const searchResponse = await fetch(searchUrl, {
-      method: 'GET',
-      headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' },
-    });
+    for (const candidate of usernameCandidates) {
+      const searchUrl = `${tbBaseUrl}/lines/?search=${encodeURIComponent(candidate)}&per_page=10`;
+      console.log(`[TheBest] Buscando usuário com termo: ${candidate}`);
 
-    if (!searchResponse.ok) {
-      const errorText = await searchResponse.text();
-      console.error(`[TheBest] Erro na busca: ${searchResponse.status} - ${errorText}`);
-      return new Response(
-        JSON.stringify({ error: `Erro ao buscar usuário na API The Best: ${searchResponse.status}` }),
-        { status: searchResponse.status, headers: jsonHeaders },
-      );
+      const searchResponse = await fetch(searchUrl, {
+        method: 'GET',
+        headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' },
+      });
+
+      if (!searchResponse.ok) {
+        lastSearchErrorStatus = searchResponse.status;
+        lastSearchErrorText = await searchResponse.text();
+        console.error(`[TheBest] Erro na busca (${candidate}): ${searchResponse.status} - ${lastSearchErrorText}`);
+        continue;
+      }
+
+      const searchData = await searchResponse.json();
+      const results = searchData.results || searchData.data || searchData;
+      const lines = Array.isArray(results) ? results : [];
+      lastSearchedUsernames = lines.map((l: any) => String(l.username || '').trim());
+
+      const normalizedCandidate = candidate.trim().toLowerCase();
+      matchedLine = lines.find((line: any) => {
+        const lineUsername = String(line.username || '').trim().toLowerCase();
+        return lineUsername === normalizedCandidate || lineUsername === normalizedOriginal;
+      });
+
+      if (matchedLine) {
+        usedSearchTerm = candidate;
+        break;
+      }
     }
 
-    const searchData = await searchResponse.json();
-    const results = searchData.results || searchData.data || searchData;
-    const lines = Array.isArray(results) ? results : [];
-
-    const normalizedUsername = username.trim().toLowerCase();
-    const matchedLine = lines.find((line: any) =>
-      String(line.username || '').trim().toLowerCase() === normalizedUsername
-    );
+    if (!matchedLine && lastSearchErrorStatus >= 400 && lastSearchErrorStatus !== 404 && lastSearchedUsernames.length === 0) {
+      return new Response(
+        JSON.stringify({ error: `Erro ao buscar usuário na API The Best: ${lastSearchErrorStatus} - ${lastSearchErrorText}` }),
+        { status: lastSearchErrorStatus, headers: jsonHeaders },
+      );
+    }
 
     if (!matchedLine) {
       console.log(`[TheBest] Usuário não encontrado: ${username}`);
@@ -162,14 +212,15 @@ serve(async (req) => {
         JSON.stringify({
           success: false,
           error: `Usuário "${username}" não encontrado na API The Best`,
-          searched: lines.map((l: any) => l.username),
+          searched: lastSearchedUsernames,
+          tried: usernameCandidates,
         }),
         { headers: jsonHeaders },
       );
     }
 
     const lineId = matchedLine.id;
-    console.log(`[TheBest] Usuário encontrado: id=${lineId}, username=${matchedLine.username}`);
+    console.log(`[TheBest] Usuário encontrado: id=${lineId}, username=${matchedLine.username}, termo=${usedSearchTerm}`);
 
     // Step 3: Renew the user
     const renewUrl = `${tbBaseUrl}/lines/${lineId}/renew/`;
