@@ -22,6 +22,7 @@ export default function ResellerApiSettings() {
   const [showTheBestPassword, setShowTheBestPassword] = useState(false);
   const [showRushPassword, setShowRushPassword] = useState(false);
   const [showRushToken, setShowRushToken] = useState(false);
+  const [showNatv2Key, setShowNatv2Key] = useState(false);
 
   const [settings, setSettings] = useState({
     cakto_webhook_secret: '',
@@ -29,6 +30,8 @@ export default function ResellerApiSettings() {
     cakto_client_secret: '',
     natv_api_key: '',
     natv_base_url: '',
+    natv2_api_key: '',
+    natv2_base_url: '',
     the_best_username: '',
     the_best_password: '',
     the_best_base_url: '',
