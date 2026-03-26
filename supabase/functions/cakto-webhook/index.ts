@@ -1897,7 +1897,7 @@ serve(async (req) => {
       } else {
         const { data: resellerApiSettings } = await supabaseAdmin
           .from('reseller_api_settings')
-          .select('natv_api_key, natv_base_url, the_best_username, the_best_password, the_best_base_url, rush_username, rush_password, rush_token, rush_base_url')
+          .select('natv_api_key, natv_base_url, natv2_api_key, natv2_base_url, the_best_username, the_best_password, the_best_base_url, rush_username, rush_password, rush_token, rush_base_url')
           .eq('user_id', matchedCustomer.created_by)
           .maybeSingle();
 
