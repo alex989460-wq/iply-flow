@@ -91,8 +91,41 @@ serve(async (req) => {
       const expDateString = `${new_due_date} 23:59:59`;
       const normalizedUsername = String(username).trim();
 
-      // Search for user in standard XUI/VPlay tables
-      const targetTables = ['lines', 'users', 'user'];
+      // Build username variants (phone number variations)
+      const usernameVariants = new Set<string>([normalizedUsername]);
+      const digits = normalizedUsername.replace(/\D/g, '');
+      if (digits) {
+        usernameVariants.add(digits);
+        if (digits.startsWith('55') && digits.length >= 12) {
+          const withoutCountry = digits.slice(2);
+          usernameVariants.add(withoutCountry);
+          if (withoutCountry.length === 11 && withoutCountry[2] === '9') {
+            usernameVariants.add(withoutCountry.slice(0, 2) + withoutCountry.slice(3));
+          } else if (withoutCountry.length === 10) {
+            usernameVariants.add(withoutCountry.slice(0, 2) + '9' + withoutCountry.slice(2));
+          }
+        } else if (digits.length >= 10 && !digits.startsWith('55')) {
+          usernameVariants.add('55' + digits);
+        }
+      }
+      const allUsernames = [...usernameVariants].filter(Boolean);
+      console.log(`[VPlay] Variantes de username: ${allUsernames.join(', ')}`);
+
+      // Priority tables first, then discover all tables
+      const priorityTables = ['lines', 'users', 'user', 'reg_users', 'line', 'accounts', 'subscribers', 'clients', 'members', 'streams'];
+      let allDbTables: string[] = [];
+      try {
+        const [tablesResult] = await connection.query('SHOW TABLES');
+        allDbTables = (tablesResult as any[]).map((row) => Object.values(row)[0] as string);
+        console.log(`[VPlay] Tabelas no banco: ${allDbTables.join(', ')}`);
+      } catch { /* ignore */ }
+
+      // Merge: priority first, then remaining
+      const targetTables = [...priorityTables];
+      for (const t of allDbTables) {
+        if (!targetTables.includes(t)) targetTables.push(t);
+      }
+
       let foundTable = '';
       let foundUser: any = null;
       let foundColumns = new Set<string>();
@@ -105,40 +138,50 @@ serve(async (req) => {
           const tableColumns = new Set(columnsArray.map((col) => String(col.Field)));
           const columnMeta = new Map(columnsArray.map((col) => [String(col.Field), col]));
 
+          // Skip tables without any expiry-like column (not user tables)
+          const hasExpiry = ['exp_date', 'expiration', 'expiration_date', 'expire_date', 'expiry_date', 'expires_at', 'expire_at']
+            .some((c) => tableColumns.has(c));
+          const hasIdentifier = ['username', 'user_name', 'login', 'user', 'email', 'name', 'id']
+            .some((c) => tableColumns.has(c));
+          if (!hasExpiry || !hasIdentifier) continue;
+
           const identifierColumns = ['username', 'user_name', 'login', 'user', 'email', 'name']
             .filter((c) => tableColumns.has(c));
 
-          const whereClauses: string[] = [];
-          const queryParams: Array<string | number> = [];
+          for (const usernameCandidate of allUsernames) {
+            const whereClauses: string[] = [];
+            const queryParams: Array<string | number> = [];
 
-          for (const column of identifierColumns) {
-            whereClauses.push(`TRIM(CAST(\`${column}\` AS CHAR)) = TRIM(?)`);
-            queryParams.push(normalizedUsername);
+            for (const column of identifierColumns) {
+              whereClauses.push(`TRIM(CAST(\`${column}\` AS CHAR)) = TRIM(?)`);
+              queryParams.push(usernameCandidate);
+            }
+
+            if (/^\d+$/.test(usernameCandidate) && tableColumns.has('id')) {
+              whereClauses.push('`id` = ?');
+              queryParams.push(Number(usernameCandidate));
+            }
+
+            if (whereClauses.length === 0) continue;
+
+            const [rows] = await connection.execute(
+              `SELECT * FROM \`${tableName}\` WHERE ${whereClauses.join(' OR ')} LIMIT 1`,
+              queryParams,
+            );
+
+            const results = rows as any[];
+            if (results.length > 0) {
+              foundTable = tableName;
+              foundUser = results[0];
+              foundColumns = tableColumns;
+              foundColumnMeta = columnMeta;
+              console.log(`[VPlay] Usuário encontrado em ${tableName}, id=${foundUser.id}, username_variant=${usernameCandidate}`);
+              break;
+            }
           }
-
-          if (/^\d+$/.test(normalizedUsername) && tableColumns.has('id')) {
-            whereClauses.push('`id` = ?');
-            queryParams.push(Number(normalizedUsername));
-          }
-
-          if (whereClauses.length === 0) continue;
-
-          const [rows] = await connection.execute(
-            `SELECT * FROM \`${tableName}\` WHERE ${whereClauses.join(' OR ')} LIMIT 1`,
-            queryParams,
-          );
-
-          const results = rows as any[];
-          if (results.length > 0) {
-            foundTable = tableName;
-            foundUser = results[0];
-            foundColumns = tableColumns;
-            foundColumnMeta = columnMeta;
-            console.log(`[VPlay] Usuário encontrado em ${tableName}, id=${foundUser.id}`);
-            break;
-          }
+          if (foundUser) break;
         } catch {
-          // table doesn't exist, continue
+          // table doesn't exist or error, continue
         }
       }
 
