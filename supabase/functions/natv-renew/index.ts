@@ -87,9 +87,11 @@ serve(async (req) => {
       }
     }
 
+    const panelLabel = isNatv2 ? 'NATV2' : 'NATV';
+
     if (!natvApiKey || !natvBaseUrl) {
       return new Response(
-        JSON.stringify({ error: 'NATV_API_KEY ou NATV_BASE_URL não configurados' }),
+        JSON.stringify({ error: `${panelLabel}_API_KEY ou ${panelLabel}_BASE_URL não configurados` }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
       );
     }
@@ -115,7 +117,7 @@ serve(async (req) => {
       Math.abs(curr - renewMonths) < Math.abs(prev - renewMonths) ? curr : prev
     );
 
-    console.log(`[NATV] Renovando usuário: ${username}, meses: ${finalMonths}`);
+    console.log(`[${panelLabel}] Renovando usuário: ${username}, meses: ${finalMonths}`);
 
     const natvResp = await fetch(`${natvBaseUrl}/user/activation`, {
       method: 'POST',
