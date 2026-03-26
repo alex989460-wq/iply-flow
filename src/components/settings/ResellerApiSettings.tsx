@@ -147,6 +147,7 @@ export default function ResellerApiSettings() {
 
   const hasCakto = !!settings.cakto_webhook_secret;
   const hasNatv = !!settings.natv_api_key && !!settings.natv_base_url;
+  const hasNatv2 = !!settings.natv2_api_key && !!settings.natv2_base_url;
   const hasTheBest = !!settings.the_best_username && !!settings.the_best_password;
   const hasRush = !!settings.rush_username && !!settings.rush_password && !!settings.rush_token;
 
