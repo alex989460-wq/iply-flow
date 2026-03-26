@@ -132,11 +132,11 @@ serve(async (req) => {
     let result: any;
     try { result = JSON.parse(natvText); } catch { result = { raw: natvText }; }
 
-    console.log(`[NATV] Resposta: status=${natvResp.status}`, JSON.stringify(result));
+    console.log(`[${panelLabel}] Resposta: status=${natvResp.status}`, JSON.stringify(result));
 
     if (!natvResp.ok) {
       return new Response(
-        JSON.stringify({ success: false, error: `Erro NATV: ${natvResp.status}`, result }),
+        JSON.stringify({ success: false, error: `Erro ${panelLabel}: ${natvResp.status}`, result }),
         { status: natvResp.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
       );
     }
@@ -168,7 +168,7 @@ serve(async (req) => {
               .from('reseller_access')
               .update({ credits: newCredits })
               .eq('id', ownerAccess.id);
-            console.log(`[NATV] ${finalMonths} crédito(s) descontado(s). Saldo: ${newCredits}`);
+            console.log(`[${panelLabel}] ${finalMonths} crédito(s) descontado(s). Saldo: ${newCredits}`);
           }
         }
       }
@@ -177,7 +177,7 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({
         success: true,
-        message: `Usuário ${username} renovado por ${finalMonths} mês(es) no NATV`,
+        message: `Usuário ${username} renovado por ${finalMonths} mês(es) no ${panelLabel}`,
         result,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
@@ -186,7 +186,7 @@ serve(async (req) => {
     const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
     console.error('[NATV] Erro:', error);
     return new Response(
-      JSON.stringify({ error: `Erro ao renovar no NATV: ${errorMessage}` }),
+      JSON.stringify({ error: `Erro ao renovar no painel: ${errorMessage}` }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
     );
   }
