@@ -1036,6 +1036,8 @@ export type Database = {
           id: string
           natv_api_key: string | null
           natv_base_url: string | null
+          natv2_api_key: string | null
+          natv2_base_url: string | null
           rush_base_url: string | null
           rush_password: string | null
           rush_token: string | null
@@ -1054,6 +1056,8 @@ export type Database = {
           id?: string
           natv_api_key?: string | null
           natv_base_url?: string | null
+          natv2_api_key?: string | null
+          natv2_base_url?: string | null
           rush_base_url?: string | null
           rush_password?: string | null
           rush_token?: string | null
@@ -1072,6 +1076,8 @@ export type Database = {
           id?: string
           natv_api_key?: string | null
           natv_base_url?: string | null
+          natv2_api_key?: string | null
+          natv2_base_url?: string | null
           rush_base_url?: string | null
           rush_password?: string | null
           rush_token?: string | null

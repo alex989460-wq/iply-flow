@@ -22,6 +22,7 @@ export default function ResellerApiSettings() {
   const [showTheBestPassword, setShowTheBestPassword] = useState(false);
   const [showRushPassword, setShowRushPassword] = useState(false);
   const [showRushToken, setShowRushToken] = useState(false);
+  const [showNatv2Key, setShowNatv2Key] = useState(false);
 
   const [settings, setSettings] = useState({
     cakto_webhook_secret: '',
@@ -29,6 +30,8 @@ export default function ResellerApiSettings() {
     cakto_client_secret: '',
     natv_api_key: '',
     natv_base_url: '',
+    natv2_api_key: '',
+    natv2_base_url: '',
     the_best_username: '',
     the_best_password: '',
     the_best_base_url: '',
@@ -63,6 +66,8 @@ export default function ResellerApiSettings() {
           cakto_client_secret: d.cakto_client_secret || '',
           natv_api_key: d.natv_api_key || '',
           natv_base_url: d.natv_base_url || '',
+          natv2_api_key: d.natv2_api_key || '',
+          natv2_base_url: d.natv2_base_url || '',
           the_best_username: d.the_best_username || '',
           the_best_password: d.the_best_password || '',
           the_best_base_url: d.the_best_base_url || '',
@@ -90,6 +95,8 @@ export default function ResellerApiSettings() {
         cakto_client_secret: settings.cakto_client_secret || '',
         natv_api_key: settings.natv_api_key || '',
         natv_base_url: settings.natv_base_url || '',
+        natv2_api_key: settings.natv2_api_key || '',
+        natv2_base_url: settings.natv2_base_url || '',
         the_best_username: settings.the_best_username || '',
         the_best_password: settings.the_best_password || '',
         the_best_base_url: settings.the_best_base_url || '',
@@ -140,6 +147,7 @@ export default function ResellerApiSettings() {
 
   const hasCakto = !!settings.cakto_webhook_secret;
   const hasNatv = !!settings.natv_api_key && !!settings.natv_base_url;
+  const hasNatv2 = !!settings.natv2_api_key && !!settings.natv2_base_url;
   const hasTheBest = !!settings.the_best_username && !!settings.the_best_password;
   const hasRush = !!settings.rush_username && !!settings.rush_password && !!settings.rush_token;
 
@@ -300,6 +308,57 @@ export default function ResellerApiSettings() {
             />
             <p className="text-xs text-muted-foreground">
               Ex: https://revenda.pixbot.link/api
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* NATV² */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Key className="w-5 h-5 text-cyan-500" />
+            NATV² (Painel)
+            {hasNatv2 && <CheckCircle2 className="w-5 h-5 text-green-500" />}
+          </CardTitle>
+          <CardDescription>
+            Configure as credenciais do painel NATV² para renovação automática
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="natv2_key">API Key</Label>
+            <div className="relative">
+              <Input
+                id="natv2_key"
+                type={showNatv2Key ? 'text' : 'password'}
+                value={settings.natv2_api_key}
+                onChange={(e) => setSettings({ ...settings, natv2_api_key: e.target.value })}
+                placeholder="Cole sua API Key do NATV²"
+                className="pr-10"
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="absolute right-0 top-0 h-full"
+                onClick={() => setShowNatv2Key(!showNatv2Key)}
+              >
+                {showNatv2Key ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </Button>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="natv2_url">URL Base da API</Label>
+            <Input
+              id="natv2_url"
+              value={settings.natv2_base_url}
+              onChange={(e) => setSettings({ ...settings, natv2_base_url: e.target.value })}
+              placeholder="https://revenda.exemplo.com/api"
+            />
+            <p className="text-xs text-muted-foreground">
+              Ex: https://revenda.exemplo.com/api
             </p>
           </div>
         </CardContent>
