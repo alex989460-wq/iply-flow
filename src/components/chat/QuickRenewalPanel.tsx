@@ -60,6 +60,7 @@ interface Customer {
   server: {
     id: string;
     server_name: string;
+    host: string;
   } | null;
 }
 
@@ -344,7 +345,7 @@ export default function QuickRenewalPanel({ isMobile = false, onClose }: QuickRe
           notes,
           start_date,
           plan:plans(id, plan_name, price, duration_days),
-          server:servers(id, server_name)
+          server:servers(id, server_name, host)
         `)
         .or(orFilter)
         .limit(10);
@@ -428,12 +429,15 @@ export default function QuickRenewalPanel({ isMobile = false, onClose }: QuickRe
       const skipServerRenewal = customer.extra_months > 0 || !activateOnServer;
       if (xuiUsername && !skipServerRenewal) {
         try {
-          const serverHost = (customer as any).server?.host || '';
-          const serverName = (customer as any).server?.server_name || '';
-          const isTheBest = serverName.toLowerCase().includes('the best') || serverHost.toLowerCase().includes('the-best') || serverHost.toLowerCase().includes('painel.best');
-          const isNatv = serverName.toLowerCase().includes('natv') || serverHost.toLowerCase().includes('pixbot') || serverHost.toLowerCase().includes('natv');
-          const isVplay = serverName.toLowerCase().includes('vplay') || serverHost.toLowerCase().includes('vplay');
-          const isRush = serverName.toLowerCase().includes('rush') || serverHost.toLowerCase().includes('rush');
+          const serverHost = customer.server?.host || '';
+          const serverName = customer.server?.server_name || '';
+          const sn = serverName.toLowerCase();
+          const sh = serverHost.toLowerCase();
+          const isNatv2 = sn.includes('natv²') || sn.includes('natv2') || sh.includes('natv2');
+          const isTheBest = sn.includes('the best') || sh.includes('the-best') || sh.includes('painel.best');
+          const isNatv = !isNatv2 && (sn.includes('natv') || sh.includes('pixbot') || sh.includes('natv'));
+          const isVplay = sn.includes('vplay') || sh.includes('vplay');
+          const isRush = sn.includes('rush') || sh.includes('rush');
 
           if (isTheBest) {
             const months = Math.max(1, Math.round(durationDays / 30));
