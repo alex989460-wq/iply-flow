@@ -439,7 +439,21 @@ export default function QuickRenewalPanel({ isMobile = false, onClose }: QuickRe
           const isVplay = sn.includes('vplay') || sh.includes('vplay');
           const isRush = sn.includes('rush') || sh.includes('rush');
 
-          if (isTheBest) {
+          if (isNatv2) {
+            const months = Math.max(1, Math.round(durationDays / 30));
+            const { data: n2Result, error: n2Error } = await supabase.functions.invoke('natv-renew', {
+              body: { username: xuiUsername, months, duration_days: durationDays, customer_id: customer.id, panel: 'natv2' },
+            });
+            if (n2Error) {
+              console.error('[NATV2] Erro:', n2Error);
+              toast.warning(`Renovado localmente, mas falha no servidor NATV²: ${n2Error.message}`);
+            } else if (!n2Result?.success) {
+              console.warn('[NATV2] Falha:', n2Result?.error);
+              toast.warning(`Renovado localmente, mas: ${n2Result?.error || 'Falha no servidor NATV²'}`);
+            } else {
+              console.log('[NATV2] Sucesso:', n2Result);
+            }
+          } else if (isTheBest) {
             const months = Math.max(1, Math.round(durationDays / 30));
             const { data: tbResult, error: tbError } = await supabase.functions.invoke('the-best-renew', {
               body: { username: xuiUsername, months, customer_id: customer.id },
