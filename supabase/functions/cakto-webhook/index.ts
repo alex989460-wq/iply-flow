@@ -460,14 +460,14 @@ serve(async (req) => {
       }
     }
 
-    // Filter out suspended, blocked and inactive customers to avoid false conflicts
-    const excludedByStatus = allMatchedCustomers.filter((c: any) => c.status === 'suspensa' || c.status === 'bloqueado' || c.status === 'inativa').length;
+    // Filter out suspended and blocked customers - they should NEVER be renewed
+    const excludedByStatus = allMatchedCustomers.filter((c: any) => c.status === 'suspensa' || c.status === 'bloqueado').length;
     if (excludedByStatus > 0) {
-      console.log(`[Cakto] Removendo ${excludedByStatus} cliente(s) com status 'suspensa'/'bloqueado'/'inativa' para evitar conflitos.`);
-      allMatchedCustomers = allMatchedCustomers.filter((c: any) => c.status !== 'suspensa' && c.status !== 'bloqueado' && c.status !== 'inativa');
+      console.log(`[Cakto] Removendo ${excludedByStatus} cliente(s) com status 'suspensa'/'bloqueado' para evitar conflitos.`);
+      allMatchedCustomers = allMatchedCustomers.filter((c: any) => c.status !== 'suspensa' && c.status !== 'bloqueado');
     }
 
-    // Filter out customers expired for more than 90 days - they are clearly abandoned and should not cause conflicts
+    // Filter out customers expired for more than 90 days (regardless of status) - they are abandoned
     const EXPIRED_THRESHOLD_DAYS = 90;
     const nowForConflictFilter = new Date();
     const thresholdDate = new Date(nowForConflictFilter);
@@ -477,7 +477,7 @@ serve(async (req) => {
     allMatchedCustomers = allMatchedCustomers.filter((c: any) => {
       const dueDate = c.due_date || '';
       if (dueDate && dueDate < thresholdStr) {
-        console.log(`[Cakto] Removendo cliente "${c.name}" (venc: ${dueDate}) - expirado há mais de ${EXPIRED_THRESHOLD_DAYS} dias, não deve causar conflito.`);
+        console.log(`[Cakto] Removendo cliente "${c.name}" (status: ${c.status}, venc: ${dueDate}) - expirado há mais de ${EXPIRED_THRESHOLD_DAYS} dias.`);
         return false;
       }
       return true;
@@ -485,6 +485,9 @@ serve(async (req) => {
     if (allMatchedCustomers.length < beforeExpiredFilter) {
       console.log(`[Cakto] ${beforeExpiredFilter - allMatchedCustomers.length} cliente(s) removido(s) por vencimento antigo (>${EXPIRED_THRESHOLD_DAYS} dias).`);
     }
+    
+    // NOTE: Customers with status 'inativa' but due_date within 90 days ARE kept for renewal.
+    // They are recently expired and should be renewed when payment is received.
 
     // Sort by due_date ascending (closest to expiration / already expired first)
     // This ensures each payment renews the most urgent customer
