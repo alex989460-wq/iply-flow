@@ -155,9 +155,8 @@ serve(async (req) => {
         { global: { headers: { Authorization: authHeader } } },
       );
 
-      const token = authHeader.replace('Bearer ', '');
-      const { error: claimsError } = await supabase.auth.getClaims(token);
-      if (claimsError) {
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError || !user) {
         return new Response(JSON.stringify({ error: 'Não autorizado' }), {
           status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
