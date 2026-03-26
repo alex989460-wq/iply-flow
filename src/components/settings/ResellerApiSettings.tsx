@@ -313,6 +313,57 @@ export default function ResellerApiSettings() {
         </CardContent>
       </Card>
 
+      {/* NATV² */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Key className="w-5 h-5 text-cyan-500" />
+            NATV² (Painel)
+            {hasNatv2 && <CheckCircle2 className="w-5 h-5 text-green-500" />}
+          </CardTitle>
+          <CardDescription>
+            Configure as credenciais do painel NATV² para renovação automática
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="natv2_key">API Key</Label>
+            <div className="relative">
+              <Input
+                id="natv2_key"
+                type={showNatv2Key ? 'text' : 'password'}
+                value={settings.natv2_api_key}
+                onChange={(e) => setSettings({ ...settings, natv2_api_key: e.target.value })}
+                placeholder="Cole sua API Key do NATV²"
+                className="pr-10"
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="absolute right-0 top-0 h-full"
+                onClick={() => setShowNatv2Key(!showNatv2Key)}
+              >
+                {showNatv2Key ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </Button>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="natv2_url">URL Base da API</Label>
+            <Input
+              id="natv2_url"
+              value={settings.natv2_base_url}
+              onChange={(e) => setSettings({ ...settings, natv2_base_url: e.target.value })}
+              placeholder="https://revenda.exemplo.com/api"
+            />
+            <p className="text-xs text-muted-foreground">
+              Ex: https://revenda.exemplo.com/api
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* The Best */}
       <Card>
         <CardHeader>
