@@ -637,7 +637,8 @@ serve(async (req) => {
             const isVplay = sNameLower.includes('vplay') || sHostLower.includes('vplay');
             const isRush = sNameLower.includes('rush') || sHostLower.includes('rush');
             const isTheBest = sNameLower.includes('best') || sHostLower.includes('best');
-            const isNatv = sNameLower.includes('natv') || sHostLower.includes('natv');
+            const isNatv2 = sNameLower.includes('natv²') || sNameLower.includes('natv2') || sHostLower.includes('natv2');
+            const isNatv = !isNatv2 && (sNameLower.includes('natv') || sHostLower.includes('natv'));
 
             try {
               if (isTheBest && resellerApiSettings?.the_best_username && resellerApiSettings?.the_best_password) {
@@ -661,16 +662,20 @@ serve(async (req) => {
                 }
               }
 
-              if (isNatv) {
-                const natvApiKey = resellerApiSettings?.natv_api_key || Deno.env.get('NATV_API_KEY') || '';
-                const natvBaseUrl = (resellerApiSettings?.natv_base_url || Deno.env.get('NATV_BASE_URL') || '').replace(/\/+$/, '');
+              if (isNatv || isNatv2) {
+                const natvApiKey = isNatv2
+                  ? (resellerApiSettings?.natv2_api_key || Deno.env.get('NATV2_API_KEY') || '')
+                  : (resellerApiSettings?.natv_api_key || Deno.env.get('NATV_API_KEY') || '');
+                const natvBaseUrl = isNatv2
+                  ? ((resellerApiSettings?.natv2_base_url || Deno.env.get('NATV2_BASE_URL') || '').replace(/\/+$/, ''))
+                  : ((resellerApiSettings?.natv_base_url || Deno.env.get('NATV_BASE_URL') || '').replace(/\/+$/, ''));
                 if (natvApiKey && natvBaseUrl) {
                   const natvResp = await fetch(`${natvBaseUrl}/user/activation`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${natvApiKey}` },
                     body: JSON.stringify({ username: newCustomer.username, months: newMonthsNum }),
                   });
-                  console.log(`[Cakto] NATV criar ${newCustomer.username}: status=${natvResp.status}`);
+                  console.log(`[Cakto] ${isNatv2 ? 'NATV2' : 'NATV'} criar ${newCustomer.username}: status=${natvResp.status}`);
                   if (natvResp.ok) { activatedServerId = serverData.id; activatedServerName = serverData.server_name; }
                 }
               }
@@ -1880,9 +1885,10 @@ serve(async (req) => {
       const isVplay = sNameLower.includes('vplay') || sHostLower.includes('vplay');
       const isRush = sNameLower.includes('rush') || sHostLower.includes('rush');
       const isTheBest = sNameLower.includes('best') || sHostLower.includes('best');
-      const isNatv = sNameLower.includes('natv') || sHostLower.includes('natv');
+      const isNatv2 = sNameLower.includes('natv²') || sNameLower.includes('natv2') || sHostLower.includes('natv2');
+      const isNatv = !isNatv2 && (sNameLower.includes('natv') || sHostLower.includes('natv'));
 
-      console.log(`[Cakto] Servidor: "${serverName}" (host: "${serverHost}") | auto_renew: ${autoRenew} | Tipo: ${isVplay ? 'VPlay' : isRush ? 'Rush' : isTheBest ? 'The Best' : isNatv ? 'NATV' : 'desconhecido'}`);
+      console.log(`[Cakto] Servidor: "${serverName}" (host: "${serverHost}") | auto_renew: ${autoRenew} | Tipo: ${isVplay ? 'VPlay' : isRush ? 'Rush' : isTheBest ? 'The Best' : isNatv2 ? 'NATV2' : isNatv ? 'NATV' : 'desconhecido'}`);
 
       if (!matchedCustomer.server_id) {
         console.log(`[Cakto] Cliente sem servidor configurado. Pulando renovação no painel.`);
@@ -1891,7 +1897,7 @@ serve(async (req) => {
       } else {
         const { data: resellerApiSettings } = await supabaseAdmin
           .from('reseller_api_settings')
-          .select('natv_api_key, natv_base_url, the_best_username, the_best_password, the_best_base_url, rush_username, rush_password, rush_token, rush_base_url')
+          .select('natv_api_key, natv_base_url, natv2_api_key, natv2_base_url, the_best_username, the_best_password, the_best_base_url, rush_username, rush_password, rush_token, rush_base_url')
           .eq('user_id', matchedCustomer.created_by)
           .maybeSingle();
 
@@ -1923,18 +1929,23 @@ serve(async (req) => {
           }
         }
 
-        // ── NATV renewal ──
-        if (isNatv) {
+        // ── NATV / NATV² renewal ──
+        if (isNatv || isNatv2) {
           let natvApiKey = '';
           let natvBaseUrl = '';
-          if (resellerApiSettings?.natv_api_key && resellerApiSettings?.natv_base_url) {
+          const panelLabel = isNatv2 ? 'NATV2' : 'NATV';
+          if (isNatv2 && resellerApiSettings?.natv2_api_key && resellerApiSettings?.natv2_base_url) {
+            natvApiKey = resellerApiSettings.natv2_api_key;
+            natvBaseUrl = resellerApiSettings.natv2_base_url.replace(/\/+$/, '');
+            console.log(`[Cakto] Usando chaves NATV2 do revendedor`);
+          } else if (!isNatv2 && resellerApiSettings?.natv_api_key && resellerApiSettings?.natv_base_url) {
             natvApiKey = resellerApiSettings.natv_api_key;
             natvBaseUrl = resellerApiSettings.natv_base_url.replace(/\/+$/, '');
             console.log(`[Cakto] Usando chaves NATV do revendedor`);
           } else {
-            natvApiKey = Deno.env.get('NATV_API_KEY') || '';
-            natvBaseUrl = (Deno.env.get('NATV_BASE_URL') || '').replace(/\/+$/, '');
-            if (natvApiKey && natvBaseUrl) console.log(`[Cakto] Usando chaves NATV globais (fallback)`);
+            natvApiKey = Deno.env.get(isNatv2 ? 'NATV2_API_KEY' : 'NATV_API_KEY') || '';
+            natvBaseUrl = (Deno.env.get(isNatv2 ? 'NATV2_BASE_URL' : 'NATV_BASE_URL') || '').replace(/\/+$/, '');
+            if (natvApiKey && natvBaseUrl) console.log(`[Cakto] Usando chaves ${panelLabel} globais (fallback)`);
           }
           if (natvApiKey && natvBaseUrl) {
             const daysToMonths: Record<number, number> = { 30: 1, 60: 2, 90: 3, 120: 4, 150: 5, 180: 6, 360: 12, 365: 12 };
@@ -1945,7 +1956,7 @@ serve(async (req) => {
             );
             for (const username of allUsernames) {
               try {
-                console.log(`[Cakto] Renovando NATV: ${username} por ${natvMonths} meses`);
+                console.log(`[Cakto] Renovando ${panelLabel}: ${username} por ${natvMonths} meses`);
                 const natvResp = await fetch(`${natvBaseUrl}/user/activation`, {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${natvApiKey}` },
@@ -1954,12 +1965,12 @@ serve(async (req) => {
                 const natvText = await natvResp.text();
                 let result: any;
                 try { result = JSON.parse(natvText); } catch { result = { raw: natvText }; }
-                renewResults.push({ panel: 'natv', username, success: natvResp.ok, result });
-                console.log(`[Cakto] NATV renew ${username}: status=${natvResp.status}`, JSON.stringify(result));
+                renewResults.push({ panel: panelLabel.toLowerCase(), username, success: natvResp.ok, result });
+                console.log(`[Cakto] ${panelLabel} renew ${username}: status=${natvResp.status}`, JSON.stringify(result));
               } catch (e) {
                 const errMsg = e instanceof Error ? e.message : 'Erro desconhecido';
-                renewResults.push({ panel: 'natv', username, success: false, error: errMsg });
-                console.error(`[Cakto] Erro renovando NATV ${username}:`, e);
+                renewResults.push({ panel: panelLabel.toLowerCase(), username, success: false, error: errMsg });
+                console.error(`[Cakto] Erro renovando ${panelLabel} ${username}:`, e);
               }
             }
           } else {
@@ -2085,7 +2096,7 @@ serve(async (req) => {
           }
         }
 
-        if (!isVplay && !isNatv && !isTheBest && !isRush) {
+        if (!isVplay && !isNatv && !isNatv2 && !isTheBest && !isRush) {
           console.log(`[Cakto] Tipo de servidor não reconhecido: "${serverName}". Nenhuma renovação externa. Apenas due_date atualizado.`);
         }
       }

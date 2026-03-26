@@ -60,6 +60,7 @@ interface Customer {
   server: {
     id: string;
     server_name: string;
+    host: string;
   } | null;
 }
 
@@ -344,7 +345,7 @@ export default function QuickRenewalPanel({ isMobile = false, onClose }: QuickRe
           notes,
           start_date,
           plan:plans(id, plan_name, price, duration_days),
-          server:servers(id, server_name)
+          server:servers(id, server_name, host)
         `)
         .or(orFilter)
         .limit(10);
@@ -428,14 +429,31 @@ export default function QuickRenewalPanel({ isMobile = false, onClose }: QuickRe
       const skipServerRenewal = customer.extra_months > 0 || !activateOnServer;
       if (xuiUsername && !skipServerRenewal) {
         try {
-          const serverHost = (customer as any).server?.host || '';
-          const serverName = (customer as any).server?.server_name || '';
-          const isTheBest = serverName.toLowerCase().includes('the best') || serverHost.toLowerCase().includes('the-best') || serverHost.toLowerCase().includes('painel.best');
-          const isNatv = serverName.toLowerCase().includes('natv') || serverHost.toLowerCase().includes('pixbot') || serverHost.toLowerCase().includes('natv');
-          const isVplay = serverName.toLowerCase().includes('vplay') || serverHost.toLowerCase().includes('vplay');
-          const isRush = serverName.toLowerCase().includes('rush') || serverHost.toLowerCase().includes('rush');
+          const serverHost = customer.server?.host || '';
+          const serverName = customer.server?.server_name || '';
+          const sn = serverName.toLowerCase();
+          const sh = serverHost.toLowerCase();
+          const isNatv2 = sn.includes('natv²') || sn.includes('natv2') || sh.includes('natv2');
+          const isTheBest = sn.includes('the best') || sh.includes('the-best') || sh.includes('painel.best');
+          const isNatv = !isNatv2 && (sn.includes('natv') || sh.includes('pixbot') || sh.includes('natv'));
+          const isVplay = sn.includes('vplay') || sh.includes('vplay');
+          const isRush = sn.includes('rush') || sh.includes('rush');
 
-          if (isTheBest) {
+          if (isNatv2) {
+            const months = Math.max(1, Math.round(durationDays / 30));
+            const { data: n2Result, error: n2Error } = await supabase.functions.invoke('natv-renew', {
+              body: { username: xuiUsername, months, duration_days: durationDays, customer_id: customer.id, panel: 'natv2' },
+            });
+            if (n2Error) {
+              console.error('[NATV2] Erro:', n2Error);
+              toast.warning(`Renovado localmente, mas falha no servidor NATV²: ${n2Error.message}`);
+            } else if (!n2Result?.success) {
+              console.warn('[NATV2] Falha:', n2Result?.error);
+              toast.warning(`Renovado localmente, mas: ${n2Result?.error || 'Falha no servidor NATV²'}`);
+            } else {
+              console.log('[NATV2] Sucesso:', n2Result);
+            }
+          } else if (isTheBest) {
             const months = Math.max(1, Math.round(durationDays / 30));
             const { data: tbResult, error: tbError } = await supabase.functions.invoke('the-best-renew', {
               body: { username: xuiUsername, months, customer_id: customer.id },
