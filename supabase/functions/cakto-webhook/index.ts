@@ -24,6 +24,131 @@ serve(async (req) => {
     }
   };
 
+  const normalizeBaseUrl = (rawUrl: string) => String(rawUrl || '').trim().replace(/\/+$/, '');
+
+  const buildUsernameVariants = (rawUsername: string): string[] => {
+    const base = String(rawUsername || '').trim();
+    const variants = new Set<string>();
+    if (!base) return [];
+
+    variants.add(base);
+    const digits = base.replace(/\D/g, '');
+    if (digits) {
+      variants.add(digits);
+
+      if (digits.startsWith('55') && digits.length >= 12) {
+        const withoutCountry = digits.slice(2);
+        variants.add(withoutCountry);
+
+        if (withoutCountry.length === 11 && withoutCountry[2] === '9') {
+          variants.add(withoutCountry.slice(0, 2) + withoutCountry.slice(3));
+          variants.add('55' + withoutCountry.slice(0, 2) + withoutCountry.slice(3));
+        } else if (withoutCountry.length === 10) {
+          variants.add(withoutCountry.slice(0, 2) + '9' + withoutCountry.slice(2));
+          variants.add('55' + withoutCountry.slice(0, 2) + '9' + withoutCountry.slice(2));
+        }
+      } else if (digits.length >= 10) {
+        variants.add('55' + digits);
+        if (digits.length === 11 && digits[2] === '9') {
+          variants.add(digits.slice(0, 2) + digits.slice(3));
+        } else if (digits.length === 10) {
+          variants.add(digits.slice(0, 2) + '9' + digits.slice(2));
+        }
+      }
+    }
+
+    return [...variants].filter(Boolean);
+  };
+
+  const buildNatvEndpointCandidates = (baseUrl: string): string[] => {
+    const normalizedBase = normalizeBaseUrl(baseUrl);
+    const bases = new Set<string>([normalizedBase]);
+
+    if (normalizedBase.endsWith('/api')) {
+      bases.add(normalizedBase.replace(/\/api$/, ''));
+    } else {
+      bases.add(`${normalizedBase}/api`);
+    }
+
+    const paths = ['/user/activation', '/users/activation'];
+    const urls = new Set<string>();
+    for (const b of bases) {
+      const cleanBase = normalizeBaseUrl(b);
+      for (const path of paths) {
+        urls.add(`${cleanBase}${path}`);
+      }
+    }
+
+    return [...urls];
+  };
+
+  const shouldTryNextNatvAttempt = (status: number, result: any) => {
+    if (status === 404 || status === 405) return true;
+    const detail = JSON.stringify(result || {}).toLowerCase();
+    return (
+      detail.includes('not found') ||
+      detail.includes('não encontrado') ||
+      detail.includes('nao encontrado') ||
+      detail.includes('usuário não encontrado') ||
+      detail.includes('usuario nao encontrado')
+    );
+  };
+
+  const tryNatvActivation = async (params: {
+    baseUrl: string;
+    apiKey: string;
+    username: string;
+    months: number;
+  }) => {
+    const endpointCandidates = buildNatvEndpointCandidates(params.baseUrl);
+    const usernameCandidates = buildUsernameVariants(params.username);
+    const attempts: Array<{ endpoint: string; username: string; status: number; result: any }> = [];
+
+    let lastAttempt: { endpoint: string; username: string; status: number; result: any } | null = null;
+
+    for (const endpoint of endpointCandidates) {
+      for (const usernameCandidate of usernameCandidates) {
+        try {
+          const natvResp = await fetchWithTimeout(endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${params.apiKey}` },
+            body: JSON.stringify({ username: usernameCandidate, months: params.months }),
+          });
+
+          const natvText = await natvResp.text();
+          let result: any;
+          try { result = JSON.parse(natvText); } catch { result = { raw: natvText }; }
+
+          const attempt = { endpoint, username: usernameCandidate, status: natvResp.status, result };
+          attempts.push(attempt);
+
+          if (natvResp.ok) {
+            return { success: true, ...attempt, attempts };
+          }
+
+          lastAttempt = attempt;
+          if (!shouldTryNextNatvAttempt(natvResp.status, result)) {
+            return { success: false, ...attempt, attempts };
+          }
+        } catch (error: unknown) {
+          const message = error instanceof Error ? error.message : 'Erro desconhecido';
+          const attempt = { endpoint, username: usernameCandidate, status: 500, result: { error: message } };
+          attempts.push(attempt);
+          lastAttempt = attempt;
+        }
+      }
+    }
+
+    const fallback = lastAttempt || {
+      endpoint: endpointCandidates[0] || `${normalizeBaseUrl(params.baseUrl)}/user/activation`,
+      username: usernameCandidates[0] || params.username,
+      status: 500,
+      result: { error: 'Falha em todas as tentativas NATV' },
+    };
+
+    return { success: false, ...fallback, attempts };
+  };
+
   try {
     // Validate webhook secret (prefer reseller-scoped validation when possible)
     const globalWebhookSecret = Deno.env.get('CAKTO_WEBHOOK_SECRET');
@@ -667,16 +792,19 @@ serve(async (req) => {
                   ? (resellerApiSettings?.natv2_api_key || Deno.env.get('NATV2_API_KEY') || '')
                   : (resellerApiSettings?.natv_api_key || Deno.env.get('NATV_API_KEY') || '');
                 const natvBaseUrl = isNatv2
-                  ? ((resellerApiSettings?.natv2_base_url || Deno.env.get('NATV2_BASE_URL') || '').replace(/\/+$/, ''))
-                  : ((resellerApiSettings?.natv_base_url || Deno.env.get('NATV_BASE_URL') || '').replace(/\/+$/, ''));
+                  ? normalizeBaseUrl(resellerApiSettings?.natv2_base_url || Deno.env.get('NATV2_BASE_URL') || '')
+                  : normalizeBaseUrl(resellerApiSettings?.natv_base_url || Deno.env.get('NATV_BASE_URL') || '');
                 if (natvApiKey && natvBaseUrl) {
-                  const natvResp = await fetch(`${natvBaseUrl}/user/activation`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${natvApiKey}` },
-                    body: JSON.stringify({ username: newCustomer.username, months: newMonthsNum }),
+                  const natvTry = await tryNatvActivation({
+                    baseUrl: natvBaseUrl,
+                    apiKey: natvApiKey,
+                    username: newCustomer.username,
+                    months: newMonthsNum,
                   });
-                  console.log(`[Cakto] ${isNatv2 ? 'NATV2' : 'NATV'} criar ${newCustomer.username}: status=${natvResp.status}`);
-                  if (natvResp.ok) { activatedServerId = serverData.id; activatedServerName = serverData.server_name; }
+                  console.log(
+                    `[Cakto] ${isNatv2 ? 'NATV2' : 'NATV'} criar ${newCustomer.username}: status=${natvTry.status}, endpoint=${natvTry.endpoint}, username=${natvTry.username}`,
+                  );
+                  if (natvTry.success) { activatedServerId = serverData.id; activatedServerName = serverData.server_name; }
                 }
               }
 
@@ -1936,15 +2064,15 @@ serve(async (req) => {
           const panelLabel = isNatv2 ? 'NATV2' : 'NATV';
           if (isNatv2 && resellerApiSettings?.natv2_api_key && resellerApiSettings?.natv2_base_url) {
             natvApiKey = resellerApiSettings.natv2_api_key;
-            natvBaseUrl = resellerApiSettings.natv2_base_url.replace(/\/+$/, '');
+            natvBaseUrl = normalizeBaseUrl(resellerApiSettings.natv2_base_url);
             console.log(`[Cakto] Usando chaves NATV2 do revendedor`);
           } else if (!isNatv2 && resellerApiSettings?.natv_api_key && resellerApiSettings?.natv_base_url) {
             natvApiKey = resellerApiSettings.natv_api_key;
-            natvBaseUrl = resellerApiSettings.natv_base_url.replace(/\/+$/, '');
+            natvBaseUrl = normalizeBaseUrl(resellerApiSettings.natv_base_url);
             console.log(`[Cakto] Usando chaves NATV do revendedor`);
           } else {
             natvApiKey = Deno.env.get(isNatv2 ? 'NATV2_API_KEY' : 'NATV_API_KEY') || '';
-            natvBaseUrl = (Deno.env.get(isNatv2 ? 'NATV2_BASE_URL' : 'NATV_BASE_URL') || '').replace(/\/+$/, '');
+            natvBaseUrl = normalizeBaseUrl(Deno.env.get(isNatv2 ? 'NATV2_BASE_URL' : 'NATV_BASE_URL') || '');
             if (natvApiKey && natvBaseUrl) console.log(`[Cakto] Usando chaves ${panelLabel} globais (fallback)`);
           }
           if (natvApiKey && natvBaseUrl) {
@@ -1957,16 +2085,15 @@ serve(async (req) => {
             for (const username of allUsernames) {
               try {
                 console.log(`[Cakto] Renovando ${panelLabel}: ${username} por ${natvMonths} meses`);
-                const natvResp = await fetch(`${natvBaseUrl}/user/activation`, {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${natvApiKey}` },
-                  body: JSON.stringify({ username, months: natvMonths }),
-                });
-                const natvText = await natvResp.text();
-                let result: any;
-                try { result = JSON.parse(natvText); } catch { result = { raw: natvText }; }
-                renewResults.push({ panel: panelLabel.toLowerCase(), username, success: natvResp.ok, result });
-                console.log(`[Cakto] ${panelLabel} renew ${username}: status=${natvResp.status}`, JSON.stringify(result));
+                const natvTry = await tryNatvActivation({ baseUrl: natvBaseUrl, apiKey: natvApiKey, username, months: natvMonths });
+                const result = {
+                  ...natvTry.result,
+                  endpoint: natvTry.endpoint,
+                  used_username: natvTry.username,
+                  attempts: natvTry.attempts,
+                };
+                renewResults.push({ panel: panelLabel.toLowerCase(), username, success: natvTry.success, result });
+                console.log(`[Cakto] ${panelLabel} renew ${username}: status=${natvTry.status}`, JSON.stringify(result));
               } catch (e) {
                 const errMsg = e instanceof Error ? e.message : 'Erro desconhecido';
                 renewResults.push({ panel: panelLabel.toLowerCase(), username, success: false, error: errMsg });
@@ -2118,11 +2245,16 @@ serve(async (req) => {
             console.log(`[Cakto] 🔄 Retry: ${retryPanel} / ${retryUsername}`);
 
             let retryResp: Response | null = null;
-            if (retryPanel === 'natv') {
+            if (retryPanel === 'natv' || retryPanel === 'natv2') {
               retryResp = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/natv-renew`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'x-cakto-webhook-secret': Deno.env.get('CAKTO_WEBHOOK_SECRET') || '' },
-                body: JSON.stringify({ username: retryUsername, duration_days: durationDays, customer_id: matchedCustomer.id }),
+                body: JSON.stringify({
+                  username: retryUsername,
+                  duration_days: durationDays,
+                  customer_id: matchedCustomer.id,
+                  ...(retryPanel === 'natv2' ? { panel: 'natv2' } : {}),
+                }),
               });
             } else if (retryPanel === 'vplay') {
               retryResp = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/vplay-renew`, {
@@ -2130,7 +2262,7 @@ serve(async (req) => {
                 headers: { 'Content-Type': 'application/json', 'x-cakto-webhook-secret': Deno.env.get('CAKTO_WEBHOOK_SECRET') || '' },
                 body: JSON.stringify({ username: retryUsername, new_due_date: newDueDate, customer_id: matchedCustomer.id }),
               });
-            } else if (retryPanel === 'the-best') {
+            } else if (retryPanel === 'the-best' || retryPanel === 'the_best') {
               retryResp = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/the-best-renew`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'x-cakto-webhook-secret': Deno.env.get('CAKTO_WEBHOOK_SECRET') || '' },
