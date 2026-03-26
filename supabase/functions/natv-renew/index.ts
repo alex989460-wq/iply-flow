@@ -40,7 +40,8 @@ serve(async (req) => {
       }
     }
 
-    const { username, months, duration_days, customer_id } = await req.json();
+    const { username, months, duration_days, customer_id, panel } = await req.json();
+    const isNatv2 = panel === 'natv2';
 
     // Try per-reseller settings first, then fall back to global env vars
     let natvApiKey = '';
@@ -61,11 +62,15 @@ serve(async (req) => {
       if (customerOwner?.created_by) {
         const { data: resellerSettings } = await supabaseAdminLookup
           .from('reseller_api_settings')
-          .select('natv_api_key, natv_base_url')
+          .select('natv_api_key, natv_base_url, natv2_api_key, natv2_base_url')
           .eq('user_id', customerOwner.created_by)
           .maybeSingle();
 
-        if (resellerSettings?.natv_api_key && resellerSettings?.natv_base_url) {
+        if (isNatv2 && resellerSettings?.natv2_api_key && resellerSettings?.natv2_base_url) {
+          natvApiKey = resellerSettings.natv2_api_key;
+          natvBaseUrl = resellerSettings.natv2_base_url.replace(/\/+$/, '');
+          console.log(`[NATV2] Usando chaves do revendedor`);
+        } else if (!isNatv2 && resellerSettings?.natv_api_key && resellerSettings?.natv_base_url) {
           natvApiKey = resellerSettings.natv_api_key;
           natvBaseUrl = resellerSettings.natv_base_url.replace(/\/+$/, '');
           console.log(`[NATV] Usando chaves do revendedor`);
@@ -75,10 +80,10 @@ serve(async (req) => {
 
     // Fallback to global env vars
     if (!natvApiKey || !natvBaseUrl) {
-      natvApiKey = Deno.env.get('NATV_API_KEY') || '';
-      natvBaseUrl = (Deno.env.get('NATV_BASE_URL') || '').replace(/\/+$/, '');
+      natvApiKey = Deno.env.get(isNatv2 ? 'NATV2_API_KEY' : 'NATV_API_KEY') || '';
+      natvBaseUrl = (Deno.env.get(isNatv2 ? 'NATV2_BASE_URL' : 'NATV_BASE_URL') || '').replace(/\/+$/, '');
       if (natvApiKey && natvBaseUrl) {
-        console.log(`[NATV] Usando chaves globais (fallback)`);
+        console.log(`[${isNatv2 ? 'NATV2' : 'NATV'}] Usando chaves globais (fallback)`);
       }
     }
 
