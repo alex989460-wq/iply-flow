@@ -8,6 +8,34 @@ const corsHeaders = {
 
 const DEFAULT_BASE_URL = 'https://api-new.painel.ai';
 
+function buildUsernameVariants(rawUsername: string): string[] {
+  const base = String(rawUsername || '').trim();
+  const variants = new Set<string>();
+  if (!base) return [];
+
+  variants.add(base);
+
+  const digits = base.replace(/\D/g, '');
+  if (digits) {
+    variants.add(digits);
+    if (digits.startsWith('55') && digits.length >= 12) {
+      const withoutCountry = digits.slice(2);
+      variants.add(withoutCountry);
+      if (withoutCountry.length === 11 && withoutCountry[2] === '9') {
+        variants.add(withoutCountry.slice(0, 2) + withoutCountry.slice(3));
+        variants.add('55' + withoutCountry.slice(0, 2) + withoutCountry.slice(3));
+      } else if (withoutCountry.length === 10) {
+        variants.add(withoutCountry.slice(0, 2) + '9' + withoutCountry.slice(2));
+        variants.add('55' + withoutCountry.slice(0, 2) + '9' + withoutCountry.slice(2));
+      }
+    } else if (digits.length >= 10) {
+      variants.add('55' + digits);
+    }
+  }
+
+  return [...variants].filter(Boolean);
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -124,44 +152,49 @@ serve(async (req) => {
 
     // Step 1: Find user's internal numeric ID via /list endpoint
     const userId = (username || '').trim();
+    const usernameCandidates = buildUsernameVariants(userId);
     const typesToTry = requestedType ? [requestedType] : ['iptv', 'p2p'];
-    console.log(`[Rush] Buscando ID interno para username: ${userId}, tipos a tentar: ${typesToTry.join(', ')}`);
+    console.log(`[Rush] Buscando ID interno para username: ${userId}, variações: ${usernameCandidates.join(', ')}, tipos: ${typesToTry.join(', ')}`);
 
     let internalId = '';
     let userType = '';
+    let matchedUsername = userId;
     for (const tryType of typesToTry) {
-      // First try with search parameter to avoid pagination issues
-      const searchUrl = `${rBaseUrl}/${tryType}/list?${authParams}&search=${encodeURIComponent(userId)}`;
-      console.log(`[Rush] Buscando em ${tryType} com search=${userId}`);
-      const listResp = await fetch(searchUrl, { headers: { 'Accept': 'application/json' } });
+      for (const candidate of usernameCandidates) {
+        const searchUrl = `${rBaseUrl}/${tryType}/list?${authParams}&search=${encodeURIComponent(candidate)}`;
+        console.log(`[Rush] Buscando em ${tryType} com search=${candidate}`);
+        const listResp = await fetch(searchUrl, { headers: { 'Accept': 'application/json' } });
 
-      if (listResp.ok) {
-        const listData = await listResp.json();
-        const items = listData.items || listData.data || (Array.isArray(listData) ? listData : []);
-        console.log(`[Rush] ${tryType} retornou ${items.length} resultado(s) para busca "${userId}"`);
-        const normalizedUsername = userId.toLowerCase();
-        const matchedUser = items.find((u: any) => {
-          const uName = String(u.username || '').trim().toLowerCase();
-          return uName === normalizedUsername;
-        });
+        if (listResp.ok) {
+          const listData = await listResp.json();
+          const items = listData.items || listData.data || (Array.isArray(listData) ? listData : []);
+          console.log(`[Rush] ${tryType} retornou ${items.length} resultado(s) para busca "${candidate}"`);
+          const normalizedCandidate = candidate.toLowerCase();
+          const normalizedOriginal = userId.toLowerCase();
+          const matchedUser = items.find((u: any) => {
+            const uName = String(u.username || '').trim().toLowerCase();
+            return uName === normalizedCandidate || uName === normalizedOriginal;
+          });
 
-        if (matchedUser) {
-          internalId = String(matchedUser.id);
-          userType = tryType;
-          console.log(`[Rush] Usuário encontrado em ${tryType}: username=${matchedUser.username}, id=${internalId}`);
-          break;
+          if (matchedUser) {
+            internalId = String(matchedUser.id);
+            userType = tryType;
+            matchedUsername = String(matchedUser.username || candidate);
+            console.log(`[Rush] Usuário encontrado em ${tryType}: username=${matchedUsername}, id=${internalId}`);
+            break;
+          }
         } else {
-          console.log(`[Rush] Username "${userId}" não encontrado em ${tryType} (${items.length} resultados)`);
+          const errText = await listResp.text();
+          console.error(`[Rush] Falha ao buscar ${tryType} (${candidate}): ${listResp.status} - ${errText}`);
         }
-      } else {
-        const errText = await listResp.text();
-        console.error(`[Rush] Falha ao buscar ${tryType}: ${listResp.status} - ${errText}`);
       }
+
+      if (internalId) break;
     }
 
     if (!internalId) {
       return new Response(
-        JSON.stringify({ success: false, error: `Username "${userId}" não encontrado em nenhum tipo (${typesToTry.join(', ')})` }),
+        JSON.stringify({ success: false, error: `Username "${userId}" não encontrado em nenhum tipo (${typesToTry.join(', ')})`, tried: usernameCandidates }),
         { headers: jsonHeaders },
       );
     }
@@ -234,7 +267,7 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({
         success: true,
-        message: `Usuário ${username} renovado por ${renewMonths} mês(es) na Rush (${userType})`,
+        message: `Usuário ${matchedUsername} renovado por ${renewMonths} mês(es) na Rush (${userType})`,
         user_id: userId,
         renew_data: renewData,
       }),
