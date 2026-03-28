@@ -71,7 +71,7 @@ serve(async (req) => {
           status: 401, headers: jsonHeaders,
         });
       }
-      callerUserId = claimsData.claims.sub as string;
+      callerUserId = user.id;
     } else {
       console.log('[Rush] Chamada interna autorizada pelo webhook da Cakto');
     }
