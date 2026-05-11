@@ -555,6 +555,29 @@ serve(async (req) => {
       { auth: { autoRefreshToken: false, persistSession: false } },
     );
 
+    // ── EARLY IDEMPOTENCY: Block duplicate Cakto events by caktoId ──
+    // The same Cakto event can be delivered multiple times (retries). Use the
+    // payments.source field tagged as `cakto:<caktoId>` as an idempotency key.
+    if (caktoId) {
+      const sourceTag = `cakto:${caktoId}`;
+      const { data: alreadyProcessed } = await supabaseAdmin
+        .from('payments')
+        .select('id, customer_id, created_at')
+        .eq('source', sourceTag)
+        .limit(1)
+        .maybeSingle();
+
+      if (alreadyProcessed) {
+        console.warn(`[Cakto] 🛡️ Evento Cakto já processado (caktoId: ${caktoId}, paymentId: ${alreadyProcessed.id}). Ignorando retry.`);
+        return new Response(JSON.stringify({
+          success: true,
+          message: 'Evento já processado',
+          duplicate: true,
+          caktoId,
+        }), { headers: jsonHeaders });
+      }
+    }
+
     if (webhookOwnerId) {
       console.log(`[Cakto] Escopo aplicado: buscando clientes apenas do owner ${webhookOwnerId}`);
     }
