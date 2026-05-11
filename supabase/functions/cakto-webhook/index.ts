@@ -1644,7 +1644,7 @@ serve(async (req) => {
           payment_date: today.toISOString().split('T')[0],
           method: paymentMethodDb,
           confirmed: true,
-          source: 'cakto',
+          source: caktoId ? `cakto:${caktoId}` : 'cakto',
         });
         console.log(`[Cakto] Pagamento registrado para ${cust.name} (${cust.username || '-'}): R$ ${payAmount.toFixed(2)}`);
       }
