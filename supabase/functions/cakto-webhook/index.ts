@@ -730,7 +730,7 @@ serve(async (req) => {
             payment_date: todayStr,
             method: paymentMethodDb,
             confirmed: true,
-            source: 'cakto',
+            source: caktoId ? `cakto:${caktoId}` : 'cakto',
           });
         }
 
@@ -989,7 +989,7 @@ serve(async (req) => {
           customer_name: newCustomer.name,
           customer_phone: pendingNew.phone,
           message_type: 'new_customer',
-          source: 'cakto',
+          source: caktoId ? `cakto:${caktoId}` : 'cakto',
           status: 'success',
           metadata: { checkout: true, amount: amountNumeric, plan: newPlan?.plan_name },
         });
@@ -1009,7 +1009,7 @@ serve(async (req) => {
       await supabaseAdmin.from('message_logs').insert({
         customer_phone: phoneDigits,
         message_type: 'confirmation',
-        source: 'cakto',
+        source: caktoId ? `cakto:${caktoId}` : 'cakto',
         status: 'not_found',
         error_message: `Nenhum cliente encontrado. Variantes: ${[...searchVariants].join(', ')}`,
         metadata: { phone_original: phone, searched_variants: [...searchVariants], amount: amountNumeric },
@@ -1387,7 +1387,7 @@ serve(async (req) => {
                 payment_date: todayStr,
                 method: paymentMethodDb,
                 confirmed: true,
-                source: 'cakto',
+                source: caktoId ? `cakto:${caktoId}` : 'cakto',
               });
             }
             console.log(`[Cakto] Multi-renovação (extra abatido): ${cust.name} (${cust.username || '-'}) → ${custNewDue} (${custPlanName})`);
@@ -1420,7 +1420,7 @@ serve(async (req) => {
               payment_date: todayStr,
               method: paymentMethodDb,
               confirmed: true,
-              source: 'cakto',
+              source: caktoId ? `cakto:${caktoId}` : 'cakto',
             });
           }
 
@@ -1454,7 +1454,7 @@ serve(async (req) => {
           customer_name: allMatchedCustomers.map((c: any) => c.name).join(', '),
           customer_phone: phoneDigits,
           message_type: 'confirmation',
-          source: 'cakto',
+          source: caktoId ? `cakto:${caktoId}` : 'cakto',
           status: 'success',
           metadata: {
             multi_renewal: true,
@@ -1502,7 +1502,7 @@ serve(async (req) => {
           payment_date: todayStr,
           method: paymentMethodDb,
           confirmed: false,
-          source: 'cakto',
+          source: caktoId ? `cakto:${caktoId}` : 'cakto',
         }).select('id').single();
         if (insertedPayment) conflictPaymentId = insertedPayment.id;
         console.log(`[Cakto] Pagamento registrado SEM confirmação para decisão do admin (id: ${conflictPaymentId})`);
@@ -1800,7 +1800,7 @@ serve(async (req) => {
           customer_name: matchedCustomer.name,
           customer_phone: metaPhone,
           message_type: 'confirmation',
-          source: 'cakto',
+          source: caktoId ? `cakto:${caktoId}` : 'cakto',
           status: msgSuccess ? 'success' : 'error',
           error_message: msgSuccess ? null : lastError,
           whatsapp_response: lastResponse,
@@ -1867,7 +1867,7 @@ serve(async (req) => {
           customer_name: matchedCustomer.name,
           customer_phone: matchedCustomer.phone,
           message_type: 'confirmation',
-          source: 'cakto',
+          source: caktoId ? `cakto:${caktoId}` : 'cakto',
           status: 'skipped',
           error_message: 'Nenhum departamento configurado',
         });
@@ -2327,7 +2327,7 @@ serve(async (req) => {
             customer_name: matchedCustomer.name,
             customer_phone: matchedCustomer.phone,
             message_type: 'server_renewal_failed',
-            source: 'cakto',
+            source: caktoId ? `cakto:${caktoId}` : 'cakto',
             status: 'error',
             error_message: `Falha ao renovar no servidor ${serverName} (após retry): ${JSON.stringify(failedRenewals)}`,
             metadata: { server_name: serverName, server_host: serverHost, renewals: failedRenewals, usernames: allUsernames },
