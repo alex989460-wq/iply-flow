@@ -135,42 +135,58 @@ export default function BankStatementImportModal({ open, onOpenChange, onImport 
     return isNaN(value) ? 0 : value;
   };
 
-  const parsePdfText = (text: string): string[][] => {
-    // Parse bank statement PDF text into structured data
-    const lines = text.split('\n').filter(line => line.trim());
-    const data: string[][] = [];
-    
-    // Common patterns for Brazilian bank statements
-    const datePattern = /(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/;
-    const amountPattern = /R?\$?\s*([\d.,]+(?:,\d{2})?)/;
-    
-    // Add header row
-    data.push(['Data', 'Descrição', 'Valor']);
-    
-    for (const line of lines) {
-      const dateMatch = line.match(datePattern);
-      const amountMatches = line.match(new RegExp(amountPattern.source, 'g'));
-      
-      if (dateMatch && amountMatches && amountMatches.length > 0) {
-        const date = dateMatch[1];
-        // Get the last amount match (usually the transaction value)
-        const amountStr = amountMatches[amountMatches.length - 1];
-        // Extract description (remove date and amounts from the line)
-        let description = line
-          .replace(datePattern, '')
-          .replace(new RegExp(amountPattern.source, 'g'), '')
-          .replace(/[R$]/g, '')
-          .trim();
-        
-        // Clean up excessive whitespace
-        description = description.replace(/\s+/g, ' ').trim();
-        
-        if (description && description.length > 3) {
-          data.push([date, description, amountStr]);
+  const parsePdfText = (rawText: string): string[][] => {
+    const data: string[][] = [['Data', 'Descrição', 'Valor']];
+    const text = rawText.replace(/[ \t]+/g, ' ');
+
+    const months: Record<string, string> = {
+      JAN: '01', FEV: '02', MAR: '03', ABR: '04', MAI: '05', JUN: '06',
+      JUL: '07', AGO: '08', SET: '09', OUT: '10', NOV: '11', DEZ: '12',
+    };
+
+    // Try Brazilian date headers (e.g., "02 ABR 2026") used by Nubank/Itaú/etc.
+    const ptDateRe = /\b(\d{1,2})\s+(JAN|FEV|MAR|ABR|MAI|JUN|JUL|AGO|SET|OUT|NOV|DEZ)\s+(\d{4})\b/gi;
+    const headers: { idx: number; date: string }[] = [];
+    let m: RegExpExecArray | null;
+    while ((m = ptDateRe.exec(text))) {
+      const day = m[1].padStart(2, '0');
+      const mon = months[m[2].toUpperCase()];
+      headers.push({ idx: m.index, date: `${day}/${mon}/${m[3]}` });
+    }
+
+    // Expense keywords (debits only)
+    const expenseFrag = /(Transferência enviada pelo Pix|Transferência enviada|Pagamento de boleto|Pagamento de fatura|Pagamento da fatura|Pagamento efetuado|Pagamento agendado|Compra no débito|Débito automático|Débito de tarifa|IOF|Tarifa)([\s\S]*?)(-?\s*R?\$?\s*\d{1,3}(?:\.\d{3})*,\d{2})/gi;
+
+    if (headers.length > 0) {
+      for (let i = 0; i < headers.length; i++) {
+        const start = headers[i].idx;
+        const end = i + 1 < headers.length ? headers[i + 1].idx : text.length;
+        const block = text.slice(start, end);
+        let f: RegExpExecArray | null;
+        const re = new RegExp(expenseFrag.source, 'gi');
+        while ((f = re.exec(block))) {
+          const desc = (f[1] + ' ' + f[2]).replace(/\s+/g, ' ').trim().slice(0, 150);
+          const amt = f[3].replace(/[-\sR$]/g, '');
+          data.push([headers[i].date, desc, amt]);
+        }
+      }
+    } else {
+      // Fallback: numeric date lines
+      const lines = rawText.split('\n').filter(l => l.trim());
+      const dateRe = /(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/;
+      const amtRe = /(-?\s*R?\$?\s*\d{1,3}(?:\.\d{3})*,\d{2})/g;
+      for (const line of lines) {
+        const dm = line.match(dateRe);
+        const ams = line.match(amtRe);
+        if (dm && ams && ams.length) {
+          // skip clearly-credit lines
+          if (/recebid|entrada|crédito|credito/i.test(line)) continue;
+          let desc = line.replace(dateRe, '').replace(amtRe, '').replace(/\s+/g, ' ').trim();
+          if (desc.length > 3) data.push([dm[1], desc, ams[ams.length - 1].replace(/[-\sR$]/g, '')]);
         }
       }
     }
-    
+
     return data;
   };
 
