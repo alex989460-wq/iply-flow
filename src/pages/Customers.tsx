@@ -204,11 +204,50 @@ export default function Customers() {
         if (debouncedSearch.trim()) {
           const term = debouncedSearch.trim();
           const digits = term.replace(/\D/g, '');
-          if (digits.length >= 3) {
-            q = q.or(`phone.ilike.%${digits}%,username.ilike.%${term}%,name.ilike.%${term}%`);
-          } else {
-            q = q.or(`name.ilike.%${term}%,username.ilike.%${term}%`);
+          const hasLetters = /[a-zA-ZÀ-ÿ]/.test(term);
+          const isPhoneSearch = !hasLetters && digits.length >= 4;
+
+          // Generate phone variations to handle the 9th digit (Brazilian mobile)
+          const phoneVariations: string[] = [];
+          const addVar = (v: string) => { if (v && !phoneVariations.includes(v)) phoneVariations.push(v); };
+
+          if (isPhoneSearch) {
+            addVar(digits);
+            if (digits.startsWith('55') && digits.length >= 12) {
+              const ddd = digits.slice(2, 4);
+              const rest = digits.slice(4);
+              if (rest.length === 8) addVar('55' + ddd + '9' + rest);
+              if (rest.startsWith('9') && rest.length === 9) addVar('55' + ddd + rest.slice(1));
+              addVar(ddd + rest);
+              if (rest.length === 8) addVar(ddd + '9' + rest);
+              if (rest.startsWith('9') && rest.length === 9) addVar(ddd + rest.slice(1));
+            } else if (digits.length >= 10) {
+              const ddd = digits.slice(0, 2);
+              const rest = digits.slice(2);
+              if (rest.length === 8) addVar(ddd + '9' + rest);
+              if (rest.startsWith('9') && rest.length === 9) addVar(ddd + rest.slice(1));
+              addVar('55' + digits);
+              if (rest.length === 8) addVar('55' + ddd + '9' + rest);
+              if (rest.startsWith('9') && rest.length === 9) addVar('55' + ddd + rest.slice(1));
+            }
           }
+
+          const filters: string[] = [];
+          if (isPhoneSearch) {
+            phoneVariations.forEach(v => filters.push(`phone.ilike.%${v}%`));
+            filters.push(`username.ilike.%${term}%`);
+          } else if (hasLetters) {
+            filters.push(`name.ilike.%${term}%`);
+            filters.push(`username.ilike.%${term}%`);
+          } else if (digits.length >= 3) {
+            filters.push(`phone.ilike.%${digits}%`);
+            filters.push(`username.ilike.%${term}%`);
+            filters.push(`name.ilike.%${term}%`);
+          } else {
+            filters.push(`name.ilike.%${term}%`);
+            filters.push(`username.ilike.%${term}%`);
+          }
+          q = q.or(filters.join(','));
         }
 
         return q;
