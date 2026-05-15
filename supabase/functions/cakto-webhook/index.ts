@@ -637,6 +637,9 @@ serve(async (req) => {
     // NOTE: Customers with status 'inativa' but due_date within 90 days ARE kept for renewal.
     // They are recently expired and should be renewed when payment is received.
 
+    // Capture pre-completeness sibling count (same phone) for multi-screen payment detection
+    const preCompletenessSiblingCount = allMatchedCustomers.length;
+
     // Filter out customers without username AND server_id - never auto-renew incomplete records.
     // If at least one complete customer exists, drop the incomplete ones (always prefer complete).
     const hasCompleteCandidate = allMatchedCustomers.some(
@@ -676,7 +679,7 @@ serve(async (req) => {
 
     // ── Determine payment amount and method early ──
     const paymentAmount = caktoData?.amount || caktoData?.baseAmount || body?.sale?.amount || body?.amount || 0;
-    const amountNumeric = Number(String(paymentAmount).replace(/[^\d.,]/g, '').replace(',', '.')) || 0;
+    let amountNumeric = Number(String(paymentAmount).replace(/[^\d.,]/g, '').replace(',', '.')) || 0;
 
     // Detect payment method from Cakto payload
     const rawMethod = (caktoData?.payment_method || caktoData?.paymentMethod || caktoData?.method || body?.payment_method || '').toString().toLowerCase();
@@ -1182,6 +1185,33 @@ serve(async (req) => {
     }
 
     // ── Determine duration from paid amount by matching against plans ──
+
+    // Normalize multi-screen payments BEFORE plan matching:
+    // If pre-filter we had multiple siblings on the same phone (multi-screen account),
+    // and the paid amount equals N×singlePrice (N=2..5), treat it as N renewals
+    // of the unit plan instead of matching the multiplied total to an unrelated plan
+    // (e.g. avoids picking "Bimestral" 60 days for R$60 paid as 2× R$30).
+    if (!isMultiScreen && preCompletenessSiblingCount > 1 && amountNumeric > 0) {
+      let singlePrice = 0;
+      if (matchedCustomer.custom_price) {
+        singlePrice = Number(matchedCustomer.custom_price);
+      } else if (matchedCustomer.plan_id) {
+        const { data: curPlan } = await supabaseAdmin
+          .from('plans').select('price').eq('id', matchedCustomer.plan_id).maybeSingle();
+        if (curPlan) singlePrice = Number(curPlan.price);
+      }
+      if (singlePrice > 0) {
+        for (let n = 2; n <= 5; n++) {
+          const expected = singlePrice * n;
+          const tol = expected * 0.05;
+          if (Math.abs(amountNumeric - expected) <= tol) {
+            console.log(`[Cakto] 🖥️ Pagamento multi-tela detectado: R$ ${amountNumeric.toFixed(2)} = ${n}× R$ ${singlePrice.toFixed(2)}. Forçando match pelo preço unitário (1 mês por tela paga).`);
+            amountNumeric = singlePrice;
+            break;
+          }
+        }
+      }
+    }
 
     // Load all plans for this owner to find the best match by price
     const { data: allPlans } = await supabaseAdmin
