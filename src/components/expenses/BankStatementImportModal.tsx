@@ -205,9 +205,14 @@ export default function BankStatementImportModal({ open, onOpenChange, onImport 
         for (let i = 1; i <= pdf.numPages; i++) {
           const page = await pdf.getPage(i);
           const textContent = await page.getTextContent();
-          const pageText = textContent.items
-            .map((item: any) => item.str)
-            .join(' ');
+          const lineMap: Record<number, string[]> = {};
+          for (const item of textContent.items as any[]) {
+            const y = Math.round(item.transform[5]);
+            if (!lineMap[y]) lineMap[y] = [];
+            lineMap[y].push(item.str);
+          }
+          const sortedY = Object.keys(lineMap).map(Number).sort((a, b) => b - a);
+          const pageText = sortedY.map(y => lineMap[y].join(' ')).join('\n');
           fullText += pageText + '\n';
         }
         
