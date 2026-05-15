@@ -637,6 +637,29 @@ serve(async (req) => {
     // NOTE: Customers with status 'inativa' but due_date within 90 days ARE kept for renewal.
     // They are recently expired and should be renewed when payment is received.
 
+    // Filter out customers without username AND server_id - never auto-renew incomplete records.
+    // If at least one complete customer exists, drop the incomplete ones (always prefer complete).
+    const hasCompleteCandidate = allMatchedCustomers.some(
+      (c: any) => !!(c.username && c.username.trim()) && !!c.server_id
+    );
+    if (hasCompleteCandidate) {
+      const beforeIncomplete = allMatchedCustomers.length;
+      allMatchedCustomers = allMatchedCustomers.filter((c: any) => {
+        const hasUsername = !!(c.username && c.username.trim());
+        const hasServer = !!c.server_id;
+        if (!hasUsername || !hasServer) {
+          console.log(`[Cakto] Removendo "${c.name}" (id=${c.id}) — incompleto (usuário=${hasUsername}, servidor=${hasServer}). Existe cliente completo com mesmo telefone.`);
+          return false;
+        }
+        return true;
+      });
+      console.log(`[Cakto] Filtro de completude: ${beforeIncomplete} → ${allMatchedCustomers.length}`);
+    } else if (allMatchedCustomers.length > 0) {
+      // No complete candidate at all — block auto renewal entirely
+      console.warn(`[Cakto] ⚠️ Nenhum cliente completo (com usuário E servidor) entre os ${allMatchedCustomers.length} candidato(s). Renovação automática bloqueada.`);
+      allMatchedCustomers = [];
+    }
+
     // Sort by due_date ascending (closest to expiration / already expired first)
     // This ensures each payment renews the most urgent customer
     allMatchedCustomers.sort((a: any, b: any) => {
