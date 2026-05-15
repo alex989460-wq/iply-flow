@@ -637,6 +637,9 @@ serve(async (req) => {
     // NOTE: Customers with status 'inativa' but due_date within 90 days ARE kept for renewal.
     // They are recently expired and should be renewed when payment is received.
 
+    // Capture pre-completeness sibling count (same phone) for multi-screen payment detection
+    const preCompletenessSiblingCount = allMatchedCustomers.length;
+
     // Filter out customers without username AND server_id - never auto-renew incomplete records.
     // If at least one complete customer exists, drop the incomplete ones (always prefer complete).
     const hasCompleteCandidate = allMatchedCustomers.some(
