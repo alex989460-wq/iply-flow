@@ -679,7 +679,7 @@ serve(async (req) => {
 
     // ── Determine payment amount and method early ──
     const paymentAmount = caktoData?.amount || caktoData?.baseAmount || body?.sale?.amount || body?.amount || 0;
-    const amountNumeric = Number(String(paymentAmount).replace(/[^\d.,]/g, '').replace(',', '.')) || 0;
+    let amountNumeric = Number(String(paymentAmount).replace(/[^\d.,]/g, '').replace(',', '.')) || 0;
 
     // Detect payment method from Cakto payload
     const rawMethod = (caktoData?.payment_method || caktoData?.paymentMethod || caktoData?.method || body?.payment_method || '').toString().toLowerCase();
