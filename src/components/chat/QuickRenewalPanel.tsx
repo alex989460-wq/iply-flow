@@ -42,6 +42,7 @@ interface Customer {
   id: string;
   name: string;
   phone: string;
+  extra_phone?: string | null;
   username: string | null;
   password: string | null;
   status: 'ativa' | 'inativa' | 'suspensa' | 'bloqueado';
