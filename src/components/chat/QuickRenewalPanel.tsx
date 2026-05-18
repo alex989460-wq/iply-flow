@@ -781,11 +781,15 @@ Obrigado pela preferência! 🙏`;
       const updateData: Record<string, unknown> = {
         name: editedName.trim(),
         phone: editedPhone.trim(),
+        extra_phone: editedExtraPhone.trim() || null,
         username: editedUsername.trim() || null,
         screens: selectedScreens,
         status: editedStatus,
         server_id: editedServerId,
       };
+      if (editedDueDate && editedDueDate !== selectedCustomer.due_date) {
+        updateData.due_date = editedDueDate;
+      }
       if (selectedPlanId) updateData.plan_id = selectedPlanId;
       const planPrice = selectedPlan?.price ?? selectedCustomer.plan?.price ?? 0;
       if (renewalPrice !== planPrice) {
