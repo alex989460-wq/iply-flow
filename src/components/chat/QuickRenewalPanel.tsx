@@ -1350,14 +1350,17 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                     </Select>
                   </div>
                   
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2 text-muted-foreground">
-                      <Calendar className="h-3.5 w-3.5" />
-                      <span>Vencimento:</span>
-                    </div>
-                    <span className={`font-medium ${isCustomerOverdue(selectedCustomer.due_date) ? 'text-destructive' : ''}`}>
-                      {formatDate(selectedCustomer.due_date)}
-                    </span>
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground flex items-center gap-1">
+                      <Calendar className="h-3 w-3" />
+                      Vencimento:
+                    </label>
+                    <Input
+                      type="date"
+                      value={editedDueDate}
+                      onChange={(e) => setEditedDueDate(e.target.value)}
+                      className={`h-8 text-sm ${isCustomerOverdue(selectedCustomer.due_date) ? 'text-destructive' : ''}`}
+                    />
                   </div>
                   
                   {/* Plan Selector */}
