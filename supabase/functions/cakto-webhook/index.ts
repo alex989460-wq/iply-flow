@@ -1139,6 +1139,29 @@ serve(async (req) => {
       }
     }
 
+    // ── FINAL SAFETY: never let an incomplete record (no username/server) reach renewal ──
+    {
+      const beforeFinal = allMatchedCustomers.length;
+      const completeOnly = allMatchedCustomers.filter(
+        (c: any) => !!(c.username && c.username.trim()) && !!c.server_id
+      );
+      if (completeOnly.length > 0 && completeOnly.length !== beforeFinal) {
+        console.log(`[Cakto] 🛡️ Safety final: descartando ${beforeFinal - completeOnly.length} registro(s) incompleto(s) antes da renovação.`);
+        allMatchedCustomers = completeOnly;
+      } else if (completeOnly.length === 0 && beforeFinal > 0) {
+        console.warn(`[Cakto] 🛡️ Safety final: nenhum candidato completo. Renovação bloqueada.`);
+        allMatchedCustomers = [];
+      }
+    }
+
+    if (allMatchedCustomers.length === 0) {
+      console.warn(`[Cakto] Nenhum cliente elegível após filtros de completude. Webhook encerrado sem renovação.`);
+      return new Response(JSON.stringify({
+        success: false,
+        message: 'Nenhum cliente elegível (sem usuário/servidor) para renovação automática.',
+      }), { headers: jsonHeaders });
+    }
+
     // ── Detect multi-screen: same person with multiple records (same name) ──
     const primaryName = allMatchedCustomers[0]?.name?.trim().toUpperCase() || '';
     const samePersonCustomers = allMatchedCustomers.filter((c: any) => 
