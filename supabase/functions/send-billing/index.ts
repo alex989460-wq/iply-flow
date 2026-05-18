@@ -399,9 +399,19 @@ Deno.serve(async (req) => {
         const billingType = customer.billingType as 'D-1' | 'D0' | 'D+1';
         const templateName = templateMapping[billingType];
         
-        // Send WhatsApp template
+        // Send WhatsApp template (main phone)
         const sendResult = await sendWhatsAppTemplate(customer.phone, templateName, zapToken, apiBaseUrl, departmentId);
-        
+
+        // Also send to extra_phone if configured
+        if (customer.extra_phone && String(customer.extra_phone).replace(/\D/g, '').length >= 10) {
+          try {
+            await sendWhatsAppTemplate(customer.extra_phone, templateName, zapToken, apiBaseUrl, departmentId);
+            console.log(`[Billing] Extra phone notified for ${customer.name}: ${customer.extra_phone}`);
+          } catch (e) {
+            console.error(`[Billing] Failed to send to extra_phone for ${customer.name}:`, e);
+          }
+        }
+
         // Log the billing attempt
         await supabase
           .from('billing_logs')
