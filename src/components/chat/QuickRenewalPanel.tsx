@@ -313,9 +313,10 @@ export default function QuickRenewalPanel({ isMobile = false, onClose }: QuickRe
       // Build OR filter for phone variations AND username/name search
       const filters: string[] = [];
       
-      // Add phone filters
+      // Add phone filters (main + extra)
       phoneVariations.forEach(v => {
         filters.push(`phone.ilike.%${v}%`);
+        filters.push(`extra_phone.ilike.%${v}%`);
       });
       
       // Username and name search
