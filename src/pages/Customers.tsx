@@ -2593,7 +2593,14 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
                       </TableCell>
                       <TableCell className="font-medium">{customer.name}</TableCell>
                       <TableCell>
-                        <span className="font-mono text-xs bg-muted/50 px-2 py-1 rounded">{customer.phone}</span>
+                        <div className="flex flex-col gap-1">
+                          <span className="font-mono text-xs bg-muted/50 px-2 py-1 rounded">{customer.phone}</span>
+                          {customer.extra_phone && (
+                            <span className="font-mono text-[10px] bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 px-2 py-0.5 rounded" title="Telefone extra">
+                              + {customer.extra_phone}
+                            </span>
+                          )}
+                        </div>
                       </TableCell>
                       <TableCell className="text-muted-foreground">{customer.servers?.server_name || '-'}</TableCell>
                       <TableCell className="text-muted-foreground">{customer.plans?.plan_name || '-'}</TableCell>
