@@ -111,6 +111,7 @@ export default function Customers() {
   const [formData, setFormData] = useState({
     name: '',
     phone: '',
+    extra_phone: '',
     server_id: '',
     plan_id: '',
     status: 'ativa' as CustomerStatus,
@@ -234,13 +235,17 @@ export default function Customers() {
 
           const filters: string[] = [];
           if (isPhoneSearch) {
-            phoneVariations.forEach(v => filters.push(`phone.ilike.%${v}%`));
+            phoneVariations.forEach(v => {
+              filters.push(`phone.ilike.%${v}%`);
+              filters.push(`extra_phone.ilike.%${v}%`);
+            });
             filters.push(`username.ilike.%${term}%`);
           } else if (hasLetters) {
             filters.push(`name.ilike.%${term}%`);
             filters.push(`username.ilike.%${term}%`);
           } else if (digits.length >= 3) {
             filters.push(`phone.ilike.%${digits}%`);
+            filters.push(`extra_phone.ilike.%${digits}%`);
             filters.push(`username.ilike.%${term}%`);
             filters.push(`name.ilike.%${term}%`);
           } else {
@@ -787,7 +792,7 @@ export default function Customers() {
   });
 
   const resetForm = () => {
-    setFormData({ name: '', phone: '', server_id: '', plan_id: '', status: 'ativa', notes: '', due_date: '', custom_price: '', username: '', password: '', screens: '1', extra_months: '0', activate_on_server: true });
+    setFormData({ name: '', phone: '', extra_phone: '', server_id: '', plan_id: '', status: 'ativa', notes: '', due_date: '', custom_price: '', username: '', password: '', screens: '1', extra_months: '0', activate_on_server: true });
     setEditingCustomer(null);
   };
 
@@ -796,6 +801,7 @@ export default function Customers() {
     setFormData({
       name: customer.name,
       phone: customer.phone,
+      extra_phone: customer.extra_phone || '',
       server_id: customer.server_id || '',
       plan_id: customer.plan_id || '',
       status: customer.status,
@@ -1955,6 +1961,15 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
                         className="bg-secondary/50"
                       />
                     </div>
+                    <div className="space-y-2 col-span-2">
+                      <Label>Telefone Extra (opcional)</Label>
+                      <Input
+                        value={formData.extra_phone}
+                        onChange={(e) => setFormData({ ...formData, extra_phone: e.target.value })}
+                        placeholder="Ex: telefone do(a) esposo(a)"
+                        className="bg-secondary/50"
+                      />
+                    </div>
                     <div className="space-y-2">
                       <Label>Servidor</Label>
                       <Select
@@ -2578,7 +2593,14 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
                       </TableCell>
                       <TableCell className="font-medium">{customer.name}</TableCell>
                       <TableCell>
-                        <span className="font-mono text-xs bg-muted/50 px-2 py-1 rounded">{customer.phone}</span>
+                        <div className="flex flex-col gap-1">
+                          <span className="font-mono text-xs bg-muted/50 px-2 py-1 rounded">{customer.phone}</span>
+                          {customer.extra_phone && (
+                            <span className="font-mono text-[10px] bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 px-2 py-0.5 rounded" title="Telefone extra">
+                              + {customer.extra_phone}
+                            </span>
+                          )}
+                        </div>
                       </TableCell>
                       <TableCell className="text-muted-foreground">{customer.servers?.server_name || '-'}</TableCell>
                       <TableCell className="text-muted-foreground">{customer.plans?.plan_name || '-'}</TableCell>
