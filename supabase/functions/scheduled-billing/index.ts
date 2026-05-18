@@ -260,7 +260,7 @@ Deno.serve(async (req) => {
       // Get customers for this user (ativa and inativa only - suspensa is excluded)
       const { data: customers } = await supabase
         .from('customers')
-        .select('id, name, phone, due_date, status')
+        .select('id, name, phone, extra_phone, due_date, status')
         .in('status', ['ativa', 'inativa'])
         .eq('created_by', schedule.user_id)
         .in('due_date', [yesterday, today, tomorrow]);
@@ -358,6 +358,22 @@ Deno.serve(async (req) => {
             zapSettings.api_base_url,
             departmentId
           );
+
+          // Also send to extra_phone if configured
+          if (customer.extra_phone && String(customer.extra_phone).replace(/\D/g, '').length >= 10) {
+            try {
+              await sendWhatsAppTemplate(
+                customer.extra_phone,
+                templateName,
+                zapSettings.zap_api_token,
+                zapSettings.api_base_url,
+                departmentId
+              );
+              console.log(`[Scheduled] Extra phone notified for ${customer.name}: ${customer.extra_phone}`);
+            } catch (e) {
+              console.error(`[Scheduled] Extra phone send failed for ${customer.name}:`, e);
+            }
+          }
 
           // Log the attempt
           await supabase

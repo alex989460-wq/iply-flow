@@ -725,7 +725,7 @@ serve(async (req) => {
     for (const variant of searchVariants) {
       let customerQuery = supabaseAdmin
         .from('customers')
-        .select('id, name, phone, username, server_id, plan_id, due_date, created_by, status, created_at, custom_price, screens, notes, start_date, extra_months')
+        .select('id, name, phone, extra_phone, username, server_id, plan_id, due_date, created_by, status, created_at, custom_price, screens, notes, start_date, extra_months')
         .ilike('phone', `%${variant}%`)
         .order('created_at', { ascending: false })
         .limit(20);
@@ -1205,7 +1205,7 @@ serve(async (req) => {
         // TRUST selected IDs as source of truth (do not depend on phone-matched list)
         let selectedByIdsQuery = supabaseAdmin
           .from('customers')
-          .select('id, name, phone, username, server_id, plan_id, due_date, created_by, status, created_at, custom_price, screens, notes, start_date, extra_months')
+          .select('id, name, phone, extra_phone, username, server_id, plan_id, due_date, created_by, status, created_at, custom_price, screens, notes, start_date, extra_months')
           .in('id', pendingSelectionIds)
           .eq('status', 'ativa');
 
@@ -2101,6 +2101,37 @@ serve(async (req) => {
           
           if (!msgSuccess) {
             console.error(`[Cakto] FALHA TOTAL: Mensagem NÃO enviada para cliente ${matchedCustomer.name} (${metaPhone}) - texto e template falharam`);
+          }
+        }
+
+        // Also send confirmation to extra_phone if configured
+        const extraPhoneRaw = (matchedCustomer as any).extra_phone;
+        if (extraPhoneRaw && String(extraPhoneRaw).replace(/\D/g, '').length >= 10) {
+          try {
+            let extraPhone = String(extraPhoneRaw).replace(/\D/g, '');
+            if (!extraPhone.startsWith('55')) extraPhone = '55' + extraPhone;
+            await fetchWithTimeout(
+              `${Deno.env.get('SUPABASE_URL')}/functions/v1/zap-responder`,
+              {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+                },
+                body: JSON.stringify({
+                  action: 'enviar-mensagem',
+                  department_id: zapSettings.selected_department_id,
+                  number: extraPhone,
+                  text: whatsappMessage,
+                  user_id: matchedCustomer.created_by,
+                  image_url: billingSettings?.renewal_image_url || undefined,
+                }),
+              },
+              MESSAGE_SEND_TIMEOUT_MS,
+            );
+            console.log(`[Cakto] Confirmação também enviada ao telefone extra ${extraPhone}`);
+          } catch (extraErr) {
+            console.error(`[Cakto] Falha ao enviar para telefone extra:`, extraErr);
           }
         }
       } else {
