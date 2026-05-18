@@ -116,6 +116,7 @@ export default function QuickRenewalPanel({ isMobile = false, onClose }: QuickRe
   const [editedExtraPhone, setEditedExtraPhone] = useState<string>('');
   const [editedDueDate, setEditedDueDate] = useState<string>('');
   const [activateOnServer, setActivateOnServer] = useState<boolean>(true);
+  const [deleteConfirmText, setDeleteConfirmText] = useState<string>('');
   const queryClient = useQueryClient();
 
   // Fetch vplay servers
