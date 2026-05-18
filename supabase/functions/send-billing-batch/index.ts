@@ -18,6 +18,7 @@ interface Customer {
   id: string;
   name: string;
   phone: string;
+  extra_phone?: string | null;
   due_date: string;
   status: string;
   billingType?: 'D-1' | 'D0' | 'D+1';
