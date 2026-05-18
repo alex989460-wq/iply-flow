@@ -775,6 +775,29 @@ Obrigado pela preferência! 🙏`;
     },
   });
 
+  // Adjust extra_months (+/-)
+  const adjustExtraMonths = useMutation({
+    mutationFn: async (delta: number) => {
+      if (!selectedCustomer) throw new Error('Nenhum cliente selecionado');
+      const next = Math.max(0, (selectedCustomer.extra_months || 0) + delta);
+      const { error } = await supabase
+        .from('customers')
+        .update({ extra_months: next })
+        .eq('id', selectedCustomer.id);
+      if (error) throw error;
+      return next;
+    },
+    onSuccess: (next) => {
+      toast.success(`Meses extras atualizados: ${next}`);
+      setSelectedCustomer((prev) => prev ? { ...prev, extra_months: next } : prev);
+      queryClient.invalidateQueries({ queryKey: ['customer-search'] });
+      queryClient.invalidateQueries({ queryKey: ['customers'] });
+    },
+    onError: (error: Error) => {
+      toast.error('Erro ao atualizar meses extras: ' + error.message);
+    },
+  });
+
   // Save customer data without renewal
   const saveCustomerData = useMutation({
     mutationFn: async () => {
