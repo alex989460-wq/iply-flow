@@ -725,7 +725,7 @@ serve(async (req) => {
     for (const variant of searchVariants) {
       let customerQuery = supabaseAdmin
         .from('customers')
-        .select('id, name, phone, username, server_id, plan_id, due_date, created_by, status, created_at, custom_price, screens, notes, start_date, extra_months')
+        .select('id, name, phone, extra_phone, username, server_id, plan_id, due_date, created_by, status, created_at, custom_price, screens, notes, start_date, extra_months')
         .ilike('phone', `%${variant}%`)
         .order('created_at', { ascending: false })
         .limit(20);
@@ -1205,7 +1205,7 @@ serve(async (req) => {
         // TRUST selected IDs as source of truth (do not depend on phone-matched list)
         let selectedByIdsQuery = supabaseAdmin
           .from('customers')
-          .select('id, name, phone, username, server_id, plan_id, due_date, created_by, status, created_at, custom_price, screens, notes, start_date, extra_months')
+          .select('id, name, phone, extra_phone, username, server_id, plan_id, due_date, created_by, status, created_at, custom_price, screens, notes, start_date, extra_months')
           .in('id', pendingSelectionIds)
           .eq('status', 'ativa');
 
