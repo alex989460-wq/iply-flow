@@ -235,13 +235,17 @@ export default function Customers() {
 
           const filters: string[] = [];
           if (isPhoneSearch) {
-            phoneVariations.forEach(v => filters.push(`phone.ilike.%${v}%`));
+            phoneVariations.forEach(v => {
+              filters.push(`phone.ilike.%${v}%`);
+              filters.push(`extra_phone.ilike.%${v}%`);
+            });
             filters.push(`username.ilike.%${term}%`);
           } else if (hasLetters) {
             filters.push(`name.ilike.%${term}%`);
             filters.push(`username.ilike.%${term}%`);
           } else if (digits.length >= 3) {
             filters.push(`phone.ilike.%${digits}%`);
+            filters.push(`extra_phone.ilike.%${digits}%`);
             filters.push(`username.ilike.%${term}%`);
             filters.push(`name.ilike.%${term}%`);
           } else {
