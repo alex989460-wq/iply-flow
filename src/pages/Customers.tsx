@@ -1957,6 +1957,15 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
                         className="bg-secondary/50"
                       />
                     </div>
+                    <div className="space-y-2 col-span-2">
+                      <Label>Telefone Extra (opcional)</Label>
+                      <Input
+                        value={formData.extra_phone}
+                        onChange={(e) => setFormData({ ...formData, extra_phone: e.target.value })}
+                        placeholder="Ex: telefone do(a) esposo(a)"
+                        className="bg-secondary/50"
+                      />
+                    </div>
                     <div className="space-y-2">
                       <Label>Servidor</Label>
                       <Select
