@@ -359,6 +359,22 @@ Deno.serve(async (req) => {
             departmentId
           );
 
+          // Also send to extra_phone if configured
+          if (customer.extra_phone && String(customer.extra_phone).replace(/\D/g, '').length >= 10) {
+            try {
+              await sendWhatsAppTemplate(
+                customer.extra_phone,
+                templateName,
+                zapSettings.zap_api_token,
+                zapSettings.api_base_url,
+                departmentId
+              );
+              console.log(`[Scheduled] Extra phone notified for ${customer.name}: ${customer.extra_phone}`);
+            } catch (e) {
+              console.error(`[Scheduled] Extra phone send failed for ${customer.name}:`, e);
+            }
+          }
+
           // Log the attempt
           await supabase
             .from('billing_logs')
