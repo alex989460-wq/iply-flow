@@ -406,6 +406,7 @@ export default function QuickRenewalPanel({ isMobile = false, onClose }: QuickRe
         status: 'ativa' as const,
         screens: selectedScreens,
         username: editedUsername.trim() || null,
+        extra_phone: editedExtraPhone.trim() || customer.extra_phone || null,
         // Decrement extra_months if customer has any
         extra_months: customer.extra_months > 0 ? customer.extra_months - 1 : 0,
       };
@@ -579,6 +580,8 @@ Obrigado pela preferência! 🙏`;
 
           const phone = customer.phone.replace(/\D/g, '');
           const phoneWithCode = phone.startsWith('55') ? phone : `55${phone}`;
+          const extraPhone = (editedExtraPhone.trim() || customer.extra_phone || '').replace(/\D/g, '');
+          const extraPhoneWithCode = extraPhone ? (extraPhone.startsWith('55') ? extraPhone : `55${extraPhone}`) : '';
           const formattedTime = format(new Date(), 'HH:mm', { locale: ptBR });
           const formattedDueDate = format(new Date(newDueDate + 'T12:00:00'), 'dd/MM/yyyy', { locale: ptBR });
           const serverName = customer.server?.server_name || '-';
@@ -622,6 +625,26 @@ Obrigado pela preferência! 🙏`;
           } else {
             console.log('Mensagem de confirmação enviada:', msgData);
             toast.success('Mensagem de confirmação enviada!');
+          }
+
+          if (extraPhoneWithCode && extraPhoneWithCode !== phoneWithCode && extraPhone.length >= 10) {
+            const { data: extraMsgData, error: extraMsgError } = await supabase.functions.invoke('zap-responder', {
+              body: {
+                action: 'enviar-mensagem',
+                department_id: zapSettings.selected_department_id,
+                number: extraPhoneWithCode,
+                text: whatsappMessage,
+                image_url: imageUrl,
+              },
+            });
+
+            if (extraMsgError) {
+              console.error('Erro ao enviar confirmação para telefone extra:', extraMsgError);
+            } else if (!extraMsgData?.success) {
+              console.error('Falha ao enviar confirmação para telefone extra:', extraMsgData);
+            } else {
+              console.log('Mensagem de confirmação enviada para telefone extra:', extraMsgData);
+            }
           }
 
           // Send admin/reseller notification
