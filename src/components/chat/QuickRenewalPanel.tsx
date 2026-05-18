@@ -1569,20 +1569,20 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
             </div>
           )}
 
-          {/* Quick Messages Section - Modern Design */}
+          {/* Quick Messages Section - Compact Chip Design */}
           <Collapsible open={isLinksOpen} onOpenChange={setIsLinksOpen}>
             <div className="flex items-center justify-between px-1">
-              <CollapsibleTrigger className="flex items-center gap-2 text-sm font-semibold text-foreground hover:text-primary transition-colors group">
-                <div className={`p-1 rounded-md bg-primary/10 group-hover:bg-primary/20 transition-colors`}>
-                  {isLinksOpen ? <ChevronUp className="h-3.5 w-3.5 text-primary" /> : <ChevronDown className="h-3.5 w-3.5 text-primary" />}
+              <CollapsibleTrigger className="flex items-center gap-1.5 text-xs font-semibold text-foreground hover:text-primary transition-colors group">
+                <div className="p-0.5 rounded bg-primary/10 group-hover:bg-primary/20 transition-colors">
+                  {isLinksOpen ? <ChevronUp className="h-3 w-3 text-primary" /> : <ChevronDown className="h-3 w-3 text-primary" />}
                 </div>
                 <span>Mensagens Rápidas</span>
-                <Badge variant="secondary" className="text-[10px] h-4 px-1.5">{quickMessages.length}</Badge>
+                <Badge variant="secondary" className="text-[9px] h-3.5 px-1 leading-none">{quickMessages.length}</Badge>
               </CollapsibleTrigger>
               <Dialog open={isConfigOpen} onOpenChange={setIsConfigOpen}>
                 <DialogTrigger asChild>
-                  <Button variant="ghost" size="icon" className="h-7 w-7 rounded-full hover:bg-primary/10">
-                    <Settings className="h-3.5 w-3.5" />
+                  <Button variant="ghost" size="icon" className="h-6 w-6 rounded-full hover:bg-primary/10">
+                    <Settings className="h-3 w-3" />
                   </Button>
                 </DialogTrigger>
                 <DialogContent className="max-w-lg">
@@ -1682,112 +1682,99 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                 </DialogContent>
               </Dialog>
             </div>
-            <CollapsibleContent className="mt-3">
-              {/* Message Grid */}
-              <div className="grid grid-cols-2 gap-1.5">
-                {quickMessages.map((msg) => {
-                  const isSelected = selectedQuickMessage?.id === msg.id;
-                  // Category-based colors
-                  const getCategoryColor = (cat: string) => {
-                    const lowerCat = cat.toLowerCase();
-                    if (lowerCat.includes('pix') || lowerCat.includes('pagamento')) return 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30';
-                    if (lowerCat.includes('suporte') || lowerCat.includes('ajuda')) return 'bg-blue-500/20 text-blue-400 border-blue-500/30';
-                    if (lowerCat.includes('saudacao') || lowerCat.includes('boas')) return 'bg-amber-500/20 text-amber-400 border-amber-500/30';
-                    if (lowerCat.includes('instalacao') || lowerCat.includes('app')) return 'bg-purple-500/20 text-purple-400 border-purple-500/30';
-                    return 'bg-primary/20 text-primary border-primary/30';
-                  };
-                  
-                  return (
-                    <button
-                      key={msg.id}
-                      type="button"
-                      className={`relative p-2.5 rounded-lg border text-left transition-all duration-200 group ${
-                        isSelected 
-                          ? 'bg-primary/15 border-primary/50 shadow-sm shadow-primary/20' 
-                          : 'bg-card/50 border-border/50 hover:border-primary/30 hover:bg-card'
-                      }`}
-                      onClick={() => setSelectedQuickMessage(isSelected ? null : msg)}
-                    >
-                      <div className="flex items-start gap-2">
-                        <div className={`p-1.5 rounded-md ${getCategoryColor(msg.category)} transition-colors`}>
-                          {getIcon(msg.icon)}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className={`text-xs font-medium truncate ${isSelected ? 'text-primary' : 'text-foreground'}`}>
-                            {msg.title}
-                          </p>
-                          <p className="text-[10px] text-muted-foreground truncate mt-0.5">
-                            {msg.category}
-                          </p>
-                        </div>
-                      </div>
-                      {/* Quick copy button on hover */}
-                      <div 
-                        className={`absolute top-1 right-1 p-1 rounded-md bg-background/80 backdrop-blur-sm border border-border/50 transition-opacity ${
-                          isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+            <CollapsibleContent className="mt-2">
+              {/* Compact chip grid — denser, more modern */}
+              {quickMessages.length > 0 ? (
+                <div className="grid grid-cols-3 gap-1">
+                  {quickMessages.map((msg) => {
+                    const isSelected = selectedQuickMessage?.id === msg.id;
+                    const getCategoryDot = (cat: string) => {
+                      const lowerCat = cat.toLowerCase();
+                      if (lowerCat.includes('pix') || lowerCat.includes('pagamento')) return 'bg-emerald-500';
+                      if (lowerCat.includes('suporte') || lowerCat.includes('ajuda')) return 'bg-blue-500';
+                      if (lowerCat.includes('saudacao') || lowerCat.includes('boas')) return 'bg-amber-500';
+                      if (lowerCat.includes('instalacao') || lowerCat.includes('app')) return 'bg-purple-500';
+                      if (lowerCat.includes('manutenc') || lowerCat.includes('sistema')) return 'bg-orange-500';
+                      if (lowerCat.includes('strimo') || lowerCat.includes('player')) return 'bg-rose-500';
+                      return 'bg-primary';
+                    };
+
+                    return (
+                      <button
+                        key={msg.id}
+                        type="button"
+                        title={`${msg.title} — ${msg.category}`}
+                        className={`group relative flex items-center gap-1.5 px-2 py-1.5 rounded-md border text-left transition-all overflow-hidden ${
+                          isSelected
+                            ? 'bg-primary/15 border-primary/50 shadow-sm'
+                            : 'bg-card/40 border-border/40 hover:border-primary/40 hover:bg-card'
                         }`}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleCopyMessage(msg.content);
-                        }}
+                        onClick={() => setSelectedQuickMessage(isSelected ? null : msg)}
                       >
-                        <Copy className="h-3 w-3 text-muted-foreground hover:text-primary transition-colors" />
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-              
-              {quickMessages.length === 0 && (
-                <div className="text-center py-6 bg-muted/20 rounded-lg border border-dashed border-border">
-                  <MessageSquare className="h-8 w-8 mx-auto text-muted-foreground/50 mb-2" />
-                  <p className="text-xs text-muted-foreground">Nenhuma mensagem configurada</p>
+                        <span className={`flex-shrink-0 h-1.5 w-1.5 rounded-full ${getCategoryDot(msg.category)}`} />
+                        <span className={`text-[10px] font-medium truncate flex-1 ${isSelected ? 'text-primary' : 'text-foreground'}`}>
+                          {msg.title}
+                        </span>
+                        <Copy
+                          className="flex-shrink-0 h-2.5 w-2.5 text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-primary transition-opacity"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleCopyMessage(msg.content);
+                          }}
+                        />
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="text-center py-4 bg-muted/20 rounded-md border border-dashed border-border">
+                  <MessageSquare className="h-6 w-6 mx-auto text-muted-foreground/50 mb-1" />
+                  <p className="text-[10px] text-muted-foreground">Nenhuma mensagem</p>
                   <Button
                     variant="link"
                     size="sm"
-                    className="text-xs mt-1 h-auto p-0"
+                    className="text-[10px] mt-0.5 h-auto p-0"
                     onClick={() => setIsConfigOpen(true)}
                   >
-                    Adicionar primeira mensagem
+                    Adicionar
                   </Button>
                 </div>
               )}
 
               {/* Expanded message preview */}
               {selectedQuickMessage && (
-                <div className="mt-3 animate-in slide-in-from-top-2 duration-200">
-                  <Card className="bg-gradient-to-br from-card to-card/50 border-primary/20 shadow-lg shadow-primary/5">
-                    <CardContent className="p-3 space-y-3">
+                <div className="mt-2 animate-in slide-in-from-top-1 duration-150">
+                  <Card className="bg-gradient-to-br from-card to-card/50 border-primary/30 shadow-sm">
+                    <CardContent className="p-2.5 space-y-2">
                       <div className="flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <div className="p-1.5 rounded-md bg-primary/20">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <div className="p-1 rounded bg-primary/20">
                             {getIcon(selectedQuickMessage.icon)}
                           </div>
                           <div className="min-w-0">
-                            <p className="text-sm font-semibold text-foreground truncate">{selectedQuickMessage.title}</p>
-                            <p className="text-[10px] text-muted-foreground">{selectedQuickMessage.category}</p>
+                            <p className="text-xs font-semibold text-foreground truncate leading-tight">{selectedQuickMessage.title}</p>
+                            <p className="text-[9px] text-muted-foreground leading-tight">{selectedQuickMessage.category}</p>
                           </div>
                         </div>
                         <Button
                           size="sm"
-                          className="h-8 text-xs gap-1.5 bg-primary hover:bg-primary/90"
+                          className="h-7 text-[10px] gap-1 px-2 bg-primary hover:bg-primary/90"
                           onClick={() => handleCopyMessage(selectedQuickMessage.content)}
                         >
-                          <Copy className="h-3.5 w-3.5" />
+                          <Copy className="h-3 w-3" />
                           Copiar
                         </Button>
                       </div>
-                      <div className="relative">
-                        <pre className="text-xs text-foreground whitespace-pre-wrap bg-background/60 backdrop-blur-sm p-3 rounded-lg border border-border/50 max-h-32 overflow-auto select-text font-sans leading-relaxed">
-                          {selectedQuickMessage.content}
-                        </pre>
-                      </div>
+                      <pre className="text-[11px] text-foreground whitespace-pre-wrap bg-background/60 p-2 rounded border border-border/50 max-h-28 overflow-auto select-text font-sans leading-snug">
+                        {selectedQuickMessage.content}
+                      </pre>
                     </CardContent>
                   </Card>
                 </div>
               )}
             </CollapsibleContent>
           </Collapsible>
+
 
           {/* Vplay Test Section - Below Quick Messages */}
           <div className="mt-4 p-3 rounded-lg bg-violet-500/5 border border-violet-500/20">
