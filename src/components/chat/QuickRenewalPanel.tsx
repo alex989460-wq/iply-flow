@@ -1456,6 +1456,9 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                       <X className="h-3 w-3 mr-1" />
                     )}
                     Excluir Cliente
+                  </Button>
+
+
 
                   {/* Copy Data with PIX Button (always visible) */}
                   <Button 
