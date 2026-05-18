@@ -42,6 +42,7 @@ interface Customer {
   id: string;
   name: string;
   phone: string;
+  extra_phone?: string | null;
   username: string | null;
   password: string | null;
   status: 'ativa' | 'inativa' | 'suspensa' | 'bloqueado';
@@ -112,6 +113,8 @@ export default function QuickRenewalPanel({ isMobile = false, onClose }: QuickRe
   const [editedStatus, setEditedStatus] = useState<string>('ativa');
   const [editedName, setEditedName] = useState<string>('');
   const [editedPhone, setEditedPhone] = useState<string>('');
+  const [editedExtraPhone, setEditedExtraPhone] = useState<string>('');
+  const [editedDueDate, setEditedDueDate] = useState<string>('');
   const [activateOnServer, setActivateOnServer] = useState<boolean>(true);
   const queryClient = useQueryClient();
 
@@ -335,6 +338,7 @@ export default function QuickRenewalPanel({ isMobile = false, onClose }: QuickRe
           id,
           name,
           phone,
+          extra_phone,
           username,
           password,
           status,
@@ -746,8 +750,29 @@ Obrigado pela preferência! 🙏`;
     setEditedStatus(customer.status);
     setEditedName(customer.name);
     setEditedPhone(customer.phone);
+    setEditedExtraPhone(customer.extra_phone || '');
+    setEditedDueDate(customer.due_date);
     setActivateOnServer(true);
   };
+
+  // Delete customer mutation
+  const deleteCustomer = useMutation({
+    mutationFn: async () => {
+      if (!selectedCustomer) throw new Error('Nenhum cliente selecionado');
+      const { error } = await supabase.from('customers').delete().eq('id', selectedCustomer.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success('Cliente excluído!');
+      setSelectedCustomer(null);
+      setSearchTerm('');
+      queryClient.invalidateQueries({ queryKey: ['customer-search'] });
+      queryClient.invalidateQueries({ queryKey: ['customers'] });
+    },
+    onError: (error: Error) => {
+      toast.error('Erro ao excluir: ' + error.message);
+    },
+  });
 
   // Save customer data without renewal
   const saveCustomerData = useMutation({
@@ -756,11 +781,15 @@ Obrigado pela preferência! 🙏`;
       const updateData: Record<string, unknown> = {
         name: editedName.trim(),
         phone: editedPhone.trim(),
+        extra_phone: editedExtraPhone.trim() || null,
         username: editedUsername.trim() || null,
         screens: selectedScreens,
         status: editedStatus,
         server_id: editedServerId,
       };
+      if (editedDueDate && editedDueDate !== selectedCustomer.due_date) {
+        updateData.due_date = editedDueDate;
+      }
       if (selectedPlanId) updateData.plan_id = selectedPlanId;
       const planPrice = selectedPlan?.price ?? selectedCustomer.plan?.price ?? 0;
       if (renewalPrice !== planPrice) {
@@ -1241,6 +1270,17 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                     <Input
                       value={editedPhone}
                       onChange={(e) => setEditedPhone(e.target.value)}
+                      placeholder="Telefone principal"
+                      className="h-7 text-sm border-dashed"
+                    />
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <Phone className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+                    <Input
+                      value={editedExtraPhone}
+                      onChange={(e) => setEditedExtraPhone(e.target.value)}
+                      placeholder="Telefone extra (ex: esposa)"
                       className="h-7 text-sm border-dashed"
                     />
                   </div>
@@ -1310,14 +1350,17 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                     </Select>
                   </div>
                   
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2 text-muted-foreground">
-                      <Calendar className="h-3.5 w-3.5" />
-                      <span>Vencimento:</span>
-                    </div>
-                    <span className={`font-medium ${isCustomerOverdue(selectedCustomer.due_date) ? 'text-destructive' : ''}`}>
-                      {formatDate(selectedCustomer.due_date)}
-                    </span>
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground flex items-center gap-1">
+                      <Calendar className="h-3 w-3" />
+                      Vencimento:
+                    </label>
+                    <Input
+                      type="date"
+                      value={editedDueDate}
+                      onChange={(e) => setEditedDueDate(e.target.value)}
+                      className={`h-8 text-sm ${isCustomerOverdue(selectedCustomer.due_date) ? 'text-destructive' : ''}`}
+                    />
                   </div>
                   
                   {/* Plan Selector */}
@@ -1394,6 +1437,28 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                     )}
                     Salvar Dados
                   </Button>
+
+                  {/* Delete Customer Button */}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full h-8 text-xs border-destructive/50 text-destructive hover:bg-destructive/10"
+                    onClick={() => {
+                      if (confirm(`Excluir o cliente "${selectedCustomer.name}"? Esta ação não pode ser desfeita.`)) {
+                        deleteCustomer.mutate();
+                      }
+                    }}
+                    disabled={deleteCustomer.isPending}
+                  >
+                    {deleteCustomer.isPending ? (
+                      <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                    ) : (
+                      <X className="h-3 w-3 mr-1" />
+                    )}
+                    Excluir Cliente
+                  </Button>
+
+
 
                   {/* Copy Data with PIX Button (always visible) */}
                   <Button 
