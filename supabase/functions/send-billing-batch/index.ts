@@ -541,6 +541,28 @@ Deno.serve(async (req) => {
             departmentId!
           );
         }
+
+        // Also send to extra_phone if configured
+        if (customer.extra_phone && String(customer.extra_phone).replace(/\D/g, '').length >= 10) {
+          try {
+            if (isMetaCloud) {
+              await sendWhatsAppTemplateMeta(
+                customer.extra_phone,
+                templateName,
+                zapSettings.meta_access_token,
+                zapSettings.meta_phone_number_id
+              );
+            } else {
+              const zapToken = zapSettings?.zap_api_token || Deno.env.get('ZAP_RESPONDER_TOKEN');
+              const apiBaseUrl = zapSettings?.api_base_url || 'https://api.zapresponder.com.br/api';
+              const departmentId = zapSettings?.selected_department_id;
+              await sendWhatsAppTemplateZap(customer.extra_phone, templateName, zapToken!, apiBaseUrl, departmentId!);
+            }
+            console.log(`[Billing Batch] Extra phone notified for ${customer.name}: ${customer.extra_phone}`);
+          } catch (e) {
+            console.error(`[Billing Batch] Extra phone send failed for ${customer.name}:`, e);
+          }
+        }
         
         // Log to database with effective API type
         const logMessage = `[${normalizedPhone}] Template: ${templateName} via ${effectiveApiType}`;
