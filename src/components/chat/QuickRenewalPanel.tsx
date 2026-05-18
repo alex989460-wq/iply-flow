@@ -1438,25 +1438,66 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                     Salvar Dados
                   </Button>
 
-                  {/* Delete Customer Button */}
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="w-full h-8 text-xs border-destructive/50 text-destructive hover:bg-destructive/10"
-                    onClick={() => {
-                      if (confirm(`Excluir o cliente "${selectedCustomer.name}"? Esta ação não pode ser desfeita.`)) {
-                        deleteCustomer.mutate();
-                      }
-                    }}
-                    disabled={deleteCustomer.isPending}
-                  >
-                    {deleteCustomer.isPending ? (
-                      <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                    ) : (
-                      <X className="h-3 w-3 mr-1" />
-                    )}
-                    Excluir Cliente
-                  </Button>
+                  {/* Delete Customer - compact with keyword confirmation */}
+                  <Dialog>
+                    <DialogTrigger asChild>
+                      <button
+                        type="button"
+                        className="text-[10px] text-destructive/70 hover:text-destructive underline underline-offset-2 inline-flex items-center gap-1 self-start"
+                      >
+                        <X className="h-2.5 w-2.5" />
+                        Excluir cliente
+                      </button>
+                    </DialogTrigger>
+                    <DialogContent className="max-w-sm">
+                      <DialogHeader>
+                        <DialogTitle className="text-destructive flex items-center gap-2">
+                          <AlertTriangle className="h-4 w-4" />
+                          Excluir cliente
+                        </DialogTitle>
+                      </DialogHeader>
+                      <div className="space-y-3">
+                        <p className="text-sm text-muted-foreground">
+                          Você está prestes a excluir <strong className="text-foreground">{selectedCustomer.name}</strong>. Esta ação é permanente.
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          Para confirmar, digite <strong className="text-destructive">excluir</strong> abaixo:
+                        </p>
+                        <Input
+                          autoFocus
+                          value={deleteConfirmText}
+                          onChange={(e) => setDeleteConfirmText(e.target.value)}
+                          placeholder="excluir"
+                          className="h-8 text-sm"
+                        />
+                        <div className="flex gap-2 justify-end">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setDeleteConfirmText('')}
+                          >
+                            Cancelar
+                          </Button>
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            disabled={deleteConfirmText.trim().toLowerCase() !== 'excluir' || deleteCustomer.isPending}
+                            onClick={() => {
+                              deleteCustomer.mutate();
+                              setDeleteConfirmText('');
+                            }}
+                          >
+                            {deleteCustomer.isPending ? (
+                              <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                            ) : (
+                              <X className="h-3 w-3 mr-1" />
+                            )}
+                            Excluir
+                          </Button>
+                        </div>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
 
 
 
