@@ -750,8 +750,29 @@ Obrigado pela preferência! 🙏`;
     setEditedStatus(customer.status);
     setEditedName(customer.name);
     setEditedPhone(customer.phone);
+    setEditedExtraPhone(customer.extra_phone || '');
+    setEditedDueDate(customer.due_date);
     setActivateOnServer(true);
   };
+
+  // Delete customer mutation
+  const deleteCustomer = useMutation({
+    mutationFn: async () => {
+      if (!selectedCustomer) throw new Error('Nenhum cliente selecionado');
+      const { error } = await supabase.from('customers').delete().eq('id', selectedCustomer.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success('Cliente excluído!');
+      setSelectedCustomer(null);
+      setSearchTerm('');
+      queryClient.invalidateQueries({ queryKey: ['customer-search'] });
+      queryClient.invalidateQueries({ queryKey: ['customers'] });
+    },
+    onError: (error: Error) => {
+      toast.error('Erro ao excluir: ' + error.message);
+    },
+  });
 
   // Save customer data without renewal
   const saveCustomerData = useMutation({
