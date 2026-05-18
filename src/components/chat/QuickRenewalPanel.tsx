@@ -1270,6 +1270,17 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                     <Input
                       value={editedPhone}
                       onChange={(e) => setEditedPhone(e.target.value)}
+                      placeholder="Telefone principal"
+                      className="h-7 text-sm border-dashed"
+                    />
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <Phone className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+                    <Input
+                      value={editedExtraPhone}
+                      onChange={(e) => setEditedExtraPhone(e.target.value)}
+                      placeholder="Telefone extra (ex: esposa)"
                       className="h-7 text-sm border-dashed"
                     />
                   </div>
