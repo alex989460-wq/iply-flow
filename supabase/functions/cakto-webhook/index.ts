@@ -1078,34 +1078,88 @@ serve(async (req) => {
         const { data: selectedByIds } = await selectedByIdsQuery;
 
         if (selectedByIds && selectedByIds.length > 0) {
-          allMatchedCustomers = selectedByIds;
+          // Apply completeness filter also on the external pre-selection path:
+          // never renew records without username AND server_id when a complete one exists,
+          // and block entirely if none of the selected IDs is complete.
+          let filteredSelected = selectedByIds;
+          const hasCompleteSel = filteredSelected.some(
+            (c: any) => !!(c.username && c.username.trim()) && !!c.server_id
+          );
+          if (hasCompleteSel) {
+            const beforeSel = filteredSelected.length;
+            filteredSelected = filteredSelected.filter((c: any) => {
+              const ok = !!(c.username && c.username.trim()) && !!c.server_id;
+              if (!ok) {
+                console.log(`[Cakto] (pré-seleção) Removendo "${c.name}" (id=${c.id}) — incompleto. Existe completo selecionado.`);
+              }
+              return ok;
+            });
+            console.log(`[Cakto] (pré-seleção) Filtro de completude: ${beforeSel} → ${filteredSelected.length}`);
+          } else {
+            console.warn(`[Cakto] ⚠️ (pré-seleção) Nenhum cliente completo entre os ${filteredSelected.length} pré-selecionados. Renovação automática bloqueada.`);
+            filteredSelected = [];
+          }
 
-          // Keep deterministic ordering (closest due first)
-          allMatchedCustomers.sort((a: any, b: any) => {
-            const dateA = a.due_date ? new Date(a.due_date + 'T00:00:00').getTime() : 0;
-            const dateB = b.due_date ? new Date(b.due_date + 'T00:00:00').getTime() : 0;
-            if (dateA !== dateB) return dateA - dateB;
-            const score = (c: any) =>
-              (c.username?.trim() ? 2 : 0) +
-              (c.server_id ? 2 : 0) +
-              (c.plan_id ? 1 : 0);
-            return score(b) - score(a);
-          });
+          if (filteredSelected.length === 0) {
+            // Mark selection rows as used so they don't loop, but keep allMatchedCustomers from phone-match path
+            await supabaseAdmin
+              .from('pending_renewal_selections')
+              .update({ used: true })
+              .in('id', pendingSelectionRowIds)
+              .eq('used', false);
+          } else {
+            allMatchedCustomers = filteredSelected;
 
-          hasPreSelection = true;
-          preSelectedMultiRenewal = selectedByIds.length > 1;
-          console.log(`[Cakto] ✅ Usando ${selectedByIds.length} cliente(s) pré-selecionado(s) do site externo (IDs confiáveis)`);
+            // Keep deterministic ordering (closest due first)
+            allMatchedCustomers.sort((a: any, b: any) => {
+              const dateA = a.due_date ? new Date(a.due_date + 'T00:00:00').getTime() : 0;
+              const dateB = b.due_date ? new Date(b.due_date + 'T00:00:00').getTime() : 0;
+              if (dateA !== dateB) return dateA - dateB;
+              const score = (c: any) =>
+                (c.username?.trim() ? 2 : 0) +
+                (c.server_id ? 2 : 0) +
+                (c.plan_id ? 1 : 0);
+              return score(b) - score(a);
+            });
 
-          // Mark ONLY the consumed selection rows as used
-          await supabaseAdmin
-            .from('pending_renewal_selections')
-            .update({ used: true })
-            .in('id', pendingSelectionRowIds)
-            .eq('used', false);
+            hasPreSelection = true;
+            preSelectedMultiRenewal = filteredSelected.length > 1;
+            console.log(`[Cakto] ✅ Usando ${filteredSelected.length} cliente(s) pré-selecionado(s) do site externo (IDs confiáveis, filtrados)`);
+
+            // Mark ONLY the consumed selection rows as used
+            await supabaseAdmin
+              .from('pending_renewal_selections')
+              .update({ used: true })
+              .in('id', pendingSelectionRowIds)
+              .eq('used', false);
+          }
         } else {
           console.warn('[Cakto] Seleção pendente encontrada, mas nenhum customer_id válido/ativo para este owner.');
         }
       }
+    }
+
+    // ── FINAL SAFETY: never let an incomplete record (no username/server) reach renewal ──
+    {
+      const beforeFinal = allMatchedCustomers.length;
+      const completeOnly = allMatchedCustomers.filter(
+        (c: any) => !!(c.username && c.username.trim()) && !!c.server_id
+      );
+      if (completeOnly.length > 0 && completeOnly.length !== beforeFinal) {
+        console.log(`[Cakto] 🛡️ Safety final: descartando ${beforeFinal - completeOnly.length} registro(s) incompleto(s) antes da renovação.`);
+        allMatchedCustomers = completeOnly;
+      } else if (completeOnly.length === 0 && beforeFinal > 0) {
+        console.warn(`[Cakto] 🛡️ Safety final: nenhum candidato completo. Renovação bloqueada.`);
+        allMatchedCustomers = [];
+      }
+    }
+
+    if (allMatchedCustomers.length === 0) {
+      console.warn(`[Cakto] Nenhum cliente elegível após filtros de completude. Webhook encerrado sem renovação.`);
+      return new Response(JSON.stringify({
+        success: false,
+        message: 'Nenhum cliente elegível (sem usuário/servidor) para renovação automática.',
+      }), { headers: jsonHeaders });
     }
 
     // ── Detect multi-screen: same person with multiple records (same name) ──
