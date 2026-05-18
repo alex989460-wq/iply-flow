@@ -111,6 +111,7 @@ export default function Customers() {
   const [formData, setFormData] = useState({
     name: '',
     phone: '',
+    extra_phone: '',
     server_id: '',
     plan_id: '',
     status: 'ativa' as CustomerStatus,
