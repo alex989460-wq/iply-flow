@@ -797,6 +797,7 @@ export default function Customers() {
     setFormData({
       name: customer.name,
       phone: customer.phone,
+      extra_phone: customer.extra_phone || '',
       server_id: customer.server_id || '',
       plan_id: customer.plan_id || '',
       status: customer.status,
