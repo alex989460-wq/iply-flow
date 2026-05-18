@@ -1126,12 +1126,13 @@ serve(async (req) => {
             preSelectedMultiRenewal = filteredSelected.length > 1;
             console.log(`[Cakto] ✅ Usando ${filteredSelected.length} cliente(s) pré-selecionado(s) do site externo (IDs confiáveis, filtrados)`);
 
-          // Mark ONLY the consumed selection rows as used
-          await supabaseAdmin
-            .from('pending_renewal_selections')
-            .update({ used: true })
-            .in('id', pendingSelectionRowIds)
-            .eq('used', false);
+            // Mark ONLY the consumed selection rows as used
+            await supabaseAdmin
+              .from('pending_renewal_selections')
+              .update({ used: true })
+              .in('id', pendingSelectionRowIds)
+              .eq('used', false);
+          }
         } else {
           console.warn('[Cakto] Seleção pendente encontrada, mas nenhum customer_id válido/ativo para este owner.');
         }
