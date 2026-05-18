@@ -200,11 +200,149 @@ serve(async (req) => {
     const event = body?.event || body?.type || body?.status;
     const dataStatus = body?.data?.status;
     const paidAt = body?.data?.paidAt;
-    
+
+    // ── REFUND / CANCEL / CHARGEBACK DETECTION ──
+    // Sends a WhatsApp alert to the reseller's notification_phone so they can
+    // block the customer's access manually. Does NOT touch the database.
+    const eventStr = String(event || '').toLowerCase();
+    const statusStr = String(dataStatus || '').toLowerCase();
+    const isRefundOrCancel =
+      eventStr.includes('refund') ||
+      eventStr.includes('reembols') ||
+      eventStr.includes('chargeback') ||
+      eventStr.includes('cancel') ||
+      eventStr.includes('dispute') ||
+      eventStr.includes('charge_back') ||
+      statusStr.includes('refund') ||
+      statusStr.includes('reembols') ||
+      statusStr.includes('chargeback') ||
+      statusStr.includes('cancel') ||
+      statusStr.includes('disput');
+
+    if (isRefundOrCancel) {
+      console.warn(`[Cakto] 🚨 Evento de reembolso/cancelamento detectado: event=${event}, status=${dataStatus}`);
+
+      try {
+        const caktoDataRef = body?.data || body;
+        const customerRef = caktoDataRef?.customer || caktoDataRef?.buyer || body?.customer || body;
+        const refPhone = customerRef?.phone || customerRef?.phone_number || customerRef?.cellphone || caktoDataRef?.phone || body?.phone || '';
+        const refName = customerRef?.name || customerRef?.full_name || caktoDataRef?.name || 'Cliente';
+        const refEmail = customerRef?.email || caktoDataRef?.email || '';
+        const refAmount = caktoDataRef?.amount || caktoDataRef?.baseAmount || body?.amount || 0;
+        const refProduct = caktoDataRef?.product?.name || caktoDataRef?.offer?.name || caktoDataRef?.plan?.name || '-';
+        const refReason = caktoDataRef?.refund?.reason || caktoDataRef?.reason || caktoDataRef?.cancellation_reason || '-';
+
+        const refPhoneDigits = String(refPhone || '').replace(/\D/g, '');
+
+        // Find matching customer(s) for context (best-effort, no mutation)
+        let matchedInfo = '';
+        if (refPhoneDigits.length >= 10 && webhookOwnerId) {
+          const variants = new Set<string>([refPhoneDigits]);
+          const noCC = refPhoneDigits.startsWith('55') ? refPhoneDigits.slice(2) : refPhoneDigits;
+          variants.add(noCC);
+          variants.add(`55${noCC}`);
+          if (noCC.length === 11 && noCC[2] === '9') {
+            variants.add(`55${noCC.slice(0, 2)}${noCC.slice(3)}`);
+          } else if (noCC.length === 10) {
+            variants.add(`55${noCC.slice(0, 2)}9${noCC.slice(2)}`);
+          }
+
+          const orFilter = [...variants].map((v) => `phone.ilike.%${v}%`).join(',');
+          const { data: matches } = await supabaseAdmin
+            .from('customers')
+            .select('id, name, username, due_date, status, server_id')
+            .or(orFilter)
+            .eq('created_by', webhookOwnerId)
+            .limit(5);
+
+          if (matches && matches.length > 0) {
+            matchedInfo = matches.map((c: any) =>
+              `  • *${c.name}* (${c.username || '-'}) — venc: ${c.due_date} — status: ${c.status}`
+            ).join('\n');
+          }
+        }
+
+        // Resolve notification phone via owner's billing_settings (fallback: any reseller's settings)
+        let notifPhone = '';
+        if (webhookOwnerId) {
+          const { data: bSettings } = await supabaseAdmin
+            .from('billing_settings')
+            .select('notification_phone')
+            .eq('user_id', webhookOwnerId)
+            .maybeSingle();
+          notifPhone = bSettings?.notification_phone || '';
+        }
+        if (!notifPhone) {
+          const { data: anyBilling } = await supabaseAdmin
+            .from('billing_settings')
+            .select('notification_phone')
+            .not('notification_phone', 'is', null)
+            .neq('notification_phone', '')
+            .limit(1)
+            .maybeSingle();
+          notifPhone = anyBilling?.notification_phone || '';
+        }
+
+        if (notifPhone) {
+          const isRefund = eventStr.includes('refund') || statusStr.includes('refund') || eventStr.includes('reembols') || statusStr.includes('reembols');
+          const isChargeback = eventStr.includes('chargeback') || statusStr.includes('chargeback') || eventStr.includes('disput') || statusStr.includes('disput');
+          const icon = isChargeback ? '⚠️' : isRefund ? '💸' : '🚫';
+          const label = isChargeback ? 'CHARGEBACK / DISPUTA' : isRefund ? 'REEMBOLSO SOLICITADO' : 'CANCELAMENTO';
+
+          const amountNum = Number(String(refAmount).replace(/[^\d.,]/g, '').replace(',', '.')) || 0;
+
+          const alertMsg = `${icon} *${label}*\n\n` +
+            `👤 Cliente: *${refName}*\n` +
+            `📞 Tel: *${refPhoneDigits || '-'}*\n` +
+            (refEmail ? `📧 Email: ${refEmail}\n` : '') +
+            `📦 Produto: *${refProduct}*\n` +
+            `💰 Valor: *R$ ${amountNum.toFixed(2)}*\n` +
+            `📝 Motivo: ${refReason}\n` +
+            (matchedInfo ? `\n📋 *Conta(s) vinculada(s):*\n${matchedInfo}\n` : '\n⚠️ Nenhuma conta vinculada encontrada para este telefone.\n') +
+            `\n🔒 *Ação recomendada:* bloquear o acesso e entrar em contato com o cliente.`;
+
+          await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/zap-responder`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+            },
+            body: JSON.stringify({
+              action: 'sendText',
+              number: notifPhone,
+              text: alertMsg,
+              user_id: webhookOwnerId,
+            }),
+          }).catch((e) => console.error('[Cakto] Erro ao enviar alerta de reembolso:', e));
+
+          await supabaseAdmin.from('message_logs').insert({
+            user_id: webhookOwnerId,
+            message_type: 'refund_alert',
+            source: 'cakto',
+            customer_phone: refPhoneDigits,
+            customer_name: refName,
+            status: 'sent',
+            metadata: { event, dataStatus, amount: amountNum, reason: refReason, product: refProduct },
+          });
+
+          console.log(`[Cakto] ✅ Alerta de ${label} enviado para ${notifPhone}`);
+        } else {
+          console.warn('[Cakto] Reembolso/cancelamento detectado mas sem notification_phone configurado.');
+        }
+      } catch (refundErr) {
+        console.error('[Cakto] Erro ao processar alerta de reembolso:', refundErr);
+      }
+
+      return new Response(JSON.stringify({
+        success: true,
+        message: `Evento ${event} (${dataStatus}) — alerta enviado ao administrador`,
+      }), { headers: jsonHeaders });
+    }
+
     // CRITICAL: Require BOTH approved event AND paid status to avoid processing unpaid PIX
     const isApprovedEvent = event === 'purchase_approved' || event === 'approved';
     const isPaidStatus = dataStatus === 'paid';
-    
+
     if (!isApprovedEvent && !isPaidStatus) {
       console.log(`[Cakto] Evento ignorado: ${event} (data.status: ${dataStatus})`);
       return new Response(JSON.stringify({ success: true, message: `Evento ${event} ignorado` }), { headers: jsonHeaders });
