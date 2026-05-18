@@ -1438,6 +1438,25 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                     Salvar Dados
                   </Button>
 
+                  {/* Delete Customer Button */}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full h-8 text-xs border-destructive/50 text-destructive hover:bg-destructive/10"
+                    onClick={() => {
+                      if (confirm(`Excluir o cliente "${selectedCustomer.name}"? Esta ação não pode ser desfeita.`)) {
+                        deleteCustomer.mutate();
+                      }
+                    }}
+                    disabled={deleteCustomer.isPending}
+                  >
+                    {deleteCustomer.isPending ? (
+                      <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                    ) : (
+                      <X className="h-3 w-3 mr-1" />
+                    )}
+                    Excluir Cliente
+
                   {/* Copy Data with PIX Button (always visible) */}
                   <Button 
                     variant="outline" 
