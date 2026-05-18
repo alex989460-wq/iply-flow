@@ -1531,20 +1531,48 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                       </Button>
                     </div>
                   )}
-                  {/* Extra Months Warning */}
-                  {selectedCustomer.extra_months > 0 && (
-                    <div className="mt-2 p-2 bg-amber-500/10 border border-amber-500/30 rounded-lg">
-                      <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400 mb-1">
+                  {/* Extra Months Control */}
+                  <div className="mt-2 p-2 bg-amber-500/10 border border-amber-500/30 rounded-lg space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400">
                         <AlertTriangle className="h-4 w-4" />
                         <span className="text-xs font-semibold">
                           {selectedCustomer.extra_months} {selectedCustomer.extra_months === 1 ? 'mês extra' : 'meses extras'}
                         </span>
                       </div>
-                      <p className="text-xs text-muted-foreground">
-                        Este cliente possui meses adicionais devido a renovação incorreta anterior.
-                      </p>
+                      <div className="flex items-center gap-1">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-6 w-6 p-0 text-xs"
+                          disabled={selectedCustomer.extra_months <= 0 || adjustExtraMonths.isPending}
+                          onClick={() => adjustExtraMonths.mutate(-1)}
+                          title="Remover 1 mês extra"
+                        >
+                          −
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-6 px-2 text-xs border-amber-500/50 text-amber-600 dark:text-amber-400 hover:bg-amber-500/10"
+                          disabled={adjustExtraMonths.isPending}
+                          onClick={() => adjustExtraMonths.mutate(1)}
+                          title="Adicionar 1 mês extra"
+                        >
+                          {adjustExtraMonths.isPending ? (
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                          ) : (
+                            <>+ Mês extra</>
+                          )}
+                        </Button>
+                      </div>
                     </div>
-                  )}
+                    {selectedCustomer.extra_months > 0 && (
+                      <p className="text-[10px] text-muted-foreground">
+                        Meses extras são abatidos automaticamente na próxima renovação e não disparam renovação no servidor.
+                      </p>
+                    )}
+                  </div>
                 </div>
 
                 <div className="pt-2 border-t border-border space-y-2">
