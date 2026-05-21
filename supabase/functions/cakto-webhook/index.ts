@@ -693,26 +693,30 @@ serve(async (req) => {
       { auth: { autoRefreshToken: false, persistSession: false } },
     );
 
-    // ── EARLY IDEMPOTENCY: Block duplicate Cakto events by caktoId ──
-    // The same Cakto event can be delivered multiple times (retries). Use the
-    // payments.source field tagged as `cakto:<caktoId>` as an idempotency key.
+    // ── EARLY IDEMPOTENCY (ATOMIC LOCK): Block duplicate Cakto events by caktoId ──
+    // Uses a dedicated table with PRIMARY KEY(cakto_id) so concurrent retries
+    // (especially during slow multi-screen renewals 2/3 telas) are rejected
+    // atomically by the unique constraint — no race condition window.
     if (caktoId) {
-      const sourceTag = `cakto:${caktoId}`;
-      const { data: alreadyProcessed } = await supabaseAdmin
-        .from('payments')
-        .select('id, customer_id, created_at')
-        .eq('source', sourceTag)
-        .limit(1)
-        .maybeSingle();
+      const { error: lockError } = await supabaseAdmin
+        .from('cakto_processed_events')
+        .insert({ cakto_id: caktoId, owner_id: webhookOwnerId ?? null });
 
-      if (alreadyProcessed) {
-        console.warn(`[Cakto] 🛡️ Evento Cakto já processado (caktoId: ${caktoId}, paymentId: ${alreadyProcessed.id}). Ignorando retry.`);
-        return new Response(JSON.stringify({
-          success: true,
-          message: 'Evento já processado',
-          duplicate: true,
-          caktoId,
-        }), { headers: jsonHeaders });
+      if (lockError) {
+        // 23505 = unique_violation → event already being processed / processed
+        const isDuplicate = (lockError as any).code === '23505'
+          || /duplicate key|already exists/i.test(lockError.message || '');
+        if (isDuplicate) {
+          console.warn(`[Cakto] 🛡️ Evento Cakto já processado/em processamento (caktoId: ${caktoId}). Ignorando retry.`);
+          return new Response(JSON.stringify({
+            success: true,
+            message: 'Evento já processado',
+            duplicate: true,
+            caktoId,
+          }), { headers: jsonHeaders });
+        }
+        // Non-duplicate insert error: log but continue (don't lose payment)
+        console.error(`[Cakto] ⚠️ Falha ao gravar lock idempotente (continuando): ${lockError.message}`);
       }
     }
 
