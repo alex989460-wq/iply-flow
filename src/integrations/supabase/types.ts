@@ -369,6 +369,24 @@ export type Database = {
           },
         ]
       }
+      cakto_processed_events: {
+        Row: {
+          cakto_id: string
+          created_at: string
+          owner_id: string | null
+        }
+        Insert: {
+          cakto_id: string
+          created_at?: string
+          owner_id?: string | null
+        }
+        Update: {
+          cakto_id?: string
+          created_at?: string
+          owner_id?: string | null
+        }
+        Relationships: []
+      }
       customer_backups: {
         Row: {
           backup_data: Json
