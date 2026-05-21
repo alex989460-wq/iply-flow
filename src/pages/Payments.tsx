@@ -304,16 +304,30 @@ export default function Payments() {
                       </TableCell>
                       <TableCell>{getMethodLabel(payment.method)}</TableCell>
                       <TableCell>
-                        {(payment as any).source === 'cakto' ? (
-                          <Badge variant="secondary" className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 gap-1">
-                            <Bot className="w-3 h-3" />
-                            Automático
-                          </Badge>
-                        ) : (
-                          <Badge variant="outline" className="text-muted-foreground gap-1">
-                            Manual
-                          </Badge>
-                        )}
+                        {(() => {
+                          const src = String((payment as any).source || '');
+                          if (src.startsWith('cakto')) {
+                            return (
+                              <Badge variant="secondary" className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 gap-1">
+                                <Bot className="w-3 h-3" />
+                                Cakto
+                              </Badge>
+                            );
+                          }
+                          if (src.startsWith('pc_') || src.startsWith('pc:')) {
+                            return (
+                              <Badge variant="secondary" className="bg-blue-500/20 text-blue-400 border-blue-500/30 gap-1">
+                                <Bot className="w-3 h-3" />
+                                Checkout
+                              </Badge>
+                            );
+                          }
+                          return (
+                            <Badge variant="outline" className="text-muted-foreground gap-1">
+                              Manual
+                            </Badge>
+                          );
+                        })()}
                       </TableCell>
                       <TableCell>
                         {payment.payment_date.split('-').reverse().join('/')}
