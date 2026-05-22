@@ -174,6 +174,33 @@ async function checkNatv(username: string, apiKey: string, baseUrl: string): Pro
       });
     }
 
+    // 3) Fallback: check on NATV panel (per owner's reseller_api_settings, with global fallback)
+    const { data: ownerSettings } = await supabase
+      .from('reseller_api_settings')
+      .select('natv_api_key, natv_base_url, natv2_api_key, natv2_base_url')
+      .eq('user_id', ownerId)
+      .maybeSingle();
+
+    const natvKey = ownerSettings?.natv_api_key || Deno.env.get('NATV_API_KEY') || '';
+    const natvBase = ownerSettings?.natv_base_url || Deno.env.get('NATV_BASE_URL') || '';
+    if (await checkNatv(username, natvKey, natvBase)) {
+      return new Response(JSON.stringify({
+        found: true,
+        source: 'natv',
+        customer: { name: 'Novo cliente (teste NATV)', username, due_date: null, status: 'novo' },
+      }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+
+    const natv2Key = ownerSettings?.natv2_api_key || '';
+    const natv2Base = ownerSettings?.natv2_base_url || '';
+    if (await checkNatv(username, natv2Key, natv2Base)) {
+      return new Response(JSON.stringify({
+        found: true,
+        source: 'natv2',
+        customer: { name: 'Novo cliente (teste NATV)', username, due_date: null, status: 'novo' },
+      }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+
     return new Response(JSON.stringify({ found: false }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
