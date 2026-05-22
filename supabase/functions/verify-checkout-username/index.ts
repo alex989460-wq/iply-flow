@@ -101,32 +101,59 @@ async function checkNatv(username: string, apiKey: string, baseUrl: string): Pro
     return Object.values(item).some((v) => v && typeof v === 'object' && isMatch(v));
   };
 
-  const buildUrls = () => {
-    const urls = new Set<string>();
+  const buildRequests = () => {
+    const requests: Array<{ url: string; init: RequestInit }> = [];
+    const seen = new Set<string>();
     const encoded = encodeURIComponent(username.trim());
     for (const root of roots) {
       const clean = root.replace(/\/+$/, '');
-      for (const path of ['/users', '/user']) {
-        urls.add(`${clean}${path}?search=${encoded}`);
-        urls.add(`${clean}${path}?username=${encoded}`);
-        urls.add(`${clean}${path}?login=${encoded}`);
-        for (let page = 1; page <= 10; page++) {
-          urls.add(`${clean}${path}?page=${page}&per_page=100&limit=100`);
+      for (const path of ['/user/search', '/users/search']) {
+        const url = `${clean}${path}`;
+        const key = `POST ${url}`;
+        if (!seen.has(key)) {
+          seen.add(key);
+          requests.push({
+            url,
+            init: { method: 'POST', body: JSON.stringify({ username: username.trim() }) },
+          });
         }
-        urls.add(`${clean}${path}`);
+      }
+      for (const path of ['/users', '/user']) {
+        for (const url of [`${clean}${path}?search=${encoded}`, `${clean}${path}?username=${encoded}`, `${clean}${path}?login=${encoded}`]) {
+          const key = `GET ${url}`;
+          if (!seen.has(key)) {
+            seen.add(key);
+            requests.push({ url, init: { method: 'GET' } });
+          }
+        }
+        for (let page = 1; page <= 10; page++) {
+          const url = `${clean}${path}?page=${page}&per_page=100&limit=100`;
+          const key = `GET ${url}`;
+          if (!seen.has(key)) {
+            seen.add(key);
+            requests.push({ url, init: { method: 'GET' } });
+          }
+        }
+        const url = `${clean}${path}`;
+        const key = `GET ${url}`;
+        if (!seen.has(key)) {
+          seen.add(key);
+          requests.push({ url, init: { method: 'GET' } });
+        }
       }
     }
-    return [...urls];
+    return requests;
   };
 
-  for (const url of buildUrls()) {
+  for (const request of buildRequests()) {
     try {
-      const res = await fetch(url, {
+      const res = await fetch(request.url, {
+        ...request.init,
         headers: { 'Authorization': `Bearer ${apiKey}`, 'Accept': 'application/json' },
         signal: AbortSignal.timeout(8000),
       });
-      const safeUrl = new URL(url);
-      console.log(`[verify] NATV ${safeUrl.pathname}${safeUrl.search} -> ${res.status}`);
+      const safeUrl = new URL(request.url);
+      console.log(`[verify] NATV ${request.init.method || 'GET'} ${safeUrl.pathname}${safeUrl.search} -> ${res.status}`);
       if (!res.ok) continue;
       const data = await res.json();
       const users = extractUsers(data);
