@@ -126,12 +126,17 @@ export default function PublicCheckout() {
       const phoneDigits = phone.replace(/\D/g, '');
       const phoneNormalized = phoneDigits.startsWith('55') ? phoneDigits : '55' + phoneDigits;
 
+      // Prefer the server detected during username verification (vplay/natv).
+      // Fallback to first available server if none was detected.
+      const detectedServerId =
+        verifyResult.status === 'ok' && verifyResult.server_id ? verifyResult.server_id : null;
+
       const { error } = await supabase.from('pending_new_customers' as any).insert({
         owner_id: userId,
         name: name.trim(),
         phone: phoneNormalized,
         username: username.trim(),
-        server_id: servers.length > 0 ? servers[0].id : null,
+        server_id: detectedServerId || (servers.length > 0 ? servers[0].id : null),
         plan_id: planId,
         checkout_url: selectedPlan.checkout_url,
       });
