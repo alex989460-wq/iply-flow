@@ -71,7 +71,38 @@ async function checkVplay(username: string): Promise<{ found: boolean; table?: s
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
+}
+
+async function checkNatv(username: string, apiKey: string, baseUrl: string): Promise<boolean> {
+  if (!apiKey || !baseUrl) return false;
+  const base = baseUrl.trim().replace(/\/+$/, '');
+  const candidates = [
+    base.endsWith('/api') ? `${base}/users` : `${base}/api/users`,
+    `${base}/users`,
+  ];
+  const u = username.trim().toLowerCase();
+  for (const url of candidates) {
+    try {
+      const res = await fetch(url, {
+        headers: { 'Authorization': `Bearer ${apiKey}` },
+        signal: AbortSignal.timeout(8000),
+      });
+      if (!res.ok) continue;
+      const data = await res.json();
+      const users = Array.isArray(data) ? data : (data.data || data.users || []);
+      const found = users.some((x: any) => {
+        const name = String(x.username || x.login || x.user || '').trim().toLowerCase();
+        return name === u;
+      });
+      if (found) return true;
+      // We got a valid list; if not found here, no need to retry other URL
+      return false;
+    } catch (e) {
+      console.error('[verify] NATV check error:', e);
+    }
   }
+  return false;
+}
 
   try {
     const url = new URL(req.url);
@@ -141,6 +172,33 @@ serve(async (req) => {
       }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
+    }
+
+    // 3) Fallback: check on NATV panel (per owner's reseller_api_settings, with global fallback)
+    const { data: ownerSettings } = await supabase
+      .from('reseller_api_settings')
+      .select('natv_api_key, natv_base_url, natv2_api_key, natv2_base_url')
+      .eq('user_id', ownerId)
+      .maybeSingle();
+
+    const natvKey = ownerSettings?.natv_api_key || Deno.env.get('NATV_API_KEY') || '';
+    const natvBase = ownerSettings?.natv_base_url || Deno.env.get('NATV_BASE_URL') || '';
+    if (await checkNatv(username, natvKey, natvBase)) {
+      return new Response(JSON.stringify({
+        found: true,
+        source: 'natv',
+        customer: { name: 'Novo cliente (teste NATV)', username, due_date: null, status: 'novo' },
+      }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+
+    const natv2Key = ownerSettings?.natv2_api_key || '';
+    const natv2Base = ownerSettings?.natv2_base_url || '';
+    if (await checkNatv(username, natv2Key, natv2Base)) {
+      return new Response(JSON.stringify({
+        found: true,
+        source: 'natv2',
+        customer: { name: 'Novo cliente (teste NATV)', username, due_date: null, status: 'novo' },
+      }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
     return new Response(JSON.stringify({ found: false }), {
