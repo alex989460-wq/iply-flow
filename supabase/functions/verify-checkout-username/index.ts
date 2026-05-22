@@ -219,12 +219,28 @@ async function checkNatv(username: string, apiKey: string, baseUrl: string): Pro
       });
     }
 
+    // Helper: resolve owner's server_id matching a host keyword (e.g. 'vplay', 'natv')
+    const resolveServerId = async (keyword: string): Promise<string | null> => {
+      const { data: ownerServers } = await supabase
+        .from('servers')
+        .select('id, host')
+        .eq('created_by', ownerId);
+      if (!ownerServers) return null;
+      const k = keyword.toLowerCase();
+      const hit = ownerServers.find((s: any) =>
+        String(s.host || '').toLowerCase().includes(k)
+      );
+      return hit?.id || null;
+    };
+
     // 2) Fallback: check on Vplay panel (new test users not yet in customers)
     const vplay = await checkVplay(username);
     if (vplay.found) {
+      const server_id = await resolveServerId('vplay');
       return new Response(JSON.stringify({
         found: true,
         source: 'vplay',
+        server_id,
         customer: {
           name: 'Novo cliente (teste Vplay)',
           username,
@@ -246,9 +262,11 @@ async function checkNatv(username: string, apiKey: string, baseUrl: string): Pro
     const natvKey = ownerSettings?.natv_api_key || Deno.env.get('NATV_API_KEY') || '';
     const natvBase = ownerSettings?.natv_base_url || Deno.env.get('NATV_BASE_URL') || '';
     if (await checkNatv(username, natvKey, natvBase)) {
+      const server_id = await resolveServerId('natv');
       return new Response(JSON.stringify({
         found: true,
         source: 'natv',
+        server_id,
         customer: { name: 'Novo cliente (teste NATV)', username, due_date: null, status: 'novo' },
       }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
@@ -256,12 +274,15 @@ async function checkNatv(username: string, apiKey: string, baseUrl: string): Pro
     const natv2Key = ownerSettings?.natv2_api_key || '';
     const natv2Base = ownerSettings?.natv2_base_url || '';
     if (await checkNatv(username, natv2Key, natv2Base)) {
+      const server_id = await resolveServerId('natv');
       return new Response(JSON.stringify({
         found: true,
         source: 'natv2',
+        server_id,
         customer: { name: 'Novo cliente (teste NATV)', username, due_date: null, status: 'novo' },
       }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
+
 
     return new Response(JSON.stringify({ found: false }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
