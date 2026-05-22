@@ -39,10 +39,11 @@ export default function PublicCheckout() {
   const [verifying, setVerifying] = useState(false);
   const [verifyResult, setVerifyResult] = useState<
     | { status: 'idle' }
-    | { status: 'ok'; name: string; due_date: string | null }
+    | { status: 'ok'; name: string; due_date: string | null; server_id?: string | null; source?: string }
     | { status: 'notfound' }
     | { status: 'error' }
   >({ status: 'idle' });
+
 
   useEffect(() => {
     if (!userId) return;
