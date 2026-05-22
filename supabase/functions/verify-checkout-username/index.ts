@@ -71,7 +71,38 @@ async function checkVplay(username: string): Promise<{ found: boolean; table?: s
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
+}
+
+async function checkNatv(username: string, apiKey: string, baseUrl: string): Promise<boolean> {
+  if (!apiKey || !baseUrl) return false;
+  const base = baseUrl.trim().replace(/\/+$/, '');
+  const candidates = [
+    base.endsWith('/api') ? `${base}/users` : `${base}/api/users`,
+    `${base}/users`,
+  ];
+  const u = username.trim().toLowerCase();
+  for (const url of candidates) {
+    try {
+      const res = await fetch(url, {
+        headers: { 'Authorization': `Bearer ${apiKey}` },
+        signal: AbortSignal.timeout(8000),
+      });
+      if (!res.ok) continue;
+      const data = await res.json();
+      const users = Array.isArray(data) ? data : (data.data || data.users || []);
+      const found = users.some((x: any) => {
+        const name = String(x.username || x.login || x.user || '').trim().toLowerCase();
+        return name === u;
+      });
+      if (found) return true;
+      // We got a valid list; if not found here, no need to retry other URL
+      return false;
+    } catch (e) {
+      console.error('[verify] NATV check error:', e);
+    }
   }
+  return false;
+}
 
   try {
     const url = new URL(req.url);
