@@ -178,33 +178,46 @@ export default function PublicCheckout() {
 
             <div className="space-y-2">
               <Label className="flex items-center gap-2">
-                <Package className="w-4 h-4" /> Plano
+                <Package className="w-4 h-4" /> Escolha seu plano
               </Label>
-              <Select value={planId} onValueChange={setPlanId} required>
-                <SelectTrigger className="bg-secondary/30">
-                  <SelectValue placeholder="Selecione o plano" />
-                </SelectTrigger>
-                <SelectContent>
-                  {plans.map(p => (
-                    <SelectItem key={p.id} value={p.id}>
-                      {p.plan_name} - R$ {Number(p.price).toFixed(2)} ({p.duration_days} dias)
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="grid gap-2">
+                {plans.map(p => {
+                  const isSelected = planId === p.id;
+                  return (
+                    <button
+                      type="button"
+                      key={p.id}
+                      onClick={() => setPlanId(p.id)}
+                      className={`group relative flex items-center justify-between rounded-xl border p-4 text-left transition-all ${
+                        isSelected
+                          ? 'border-primary bg-primary/10 shadow-[0_0_0_1px_hsl(var(--primary))]'
+                          : 'border-border/60 bg-secondary/20 hover:border-primary/40 hover:bg-secondary/40'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div
+                          className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition-colors ${
+                            isSelected ? 'border-primary bg-primary' : 'border-muted-foreground/40'
+                          }`}
+                        >
+                          {isSelected && <Check className="h-3 w-3 text-primary-foreground" strokeWidth={3} />}
+                        </div>
+                        <div>
+                          <p className="font-semibold leading-tight">{p.plan_name}</p>
+                          <p className="text-xs text-muted-foreground mt-0.5">{p.duration_days} dias</p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className={`text-lg font-bold ${isSelected ? 'text-primary' : 'text-foreground'}`}>
+                          R$ {Number(p.price).toFixed(2)}
+                        </p>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
-            {selectedPlan && (
-              <div className="rounded-lg bg-primary/5 border border-primary/20 p-4 text-center">
-                <p className="text-sm text-muted-foreground">Valor do plano</p>
-                <p className="text-2xl font-bold text-primary">
-                  R$ {Number(selectedPlan.price).toFixed(2)}
-                </p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  {selectedPlan.plan_name} • {selectedPlan.duration_days} dias
-                </p>
-              </div>
-            )}
 
             <Button
               type="submit"
