@@ -125,9 +125,12 @@ async function checkNatv(username: string, apiKey: string, baseUrl: string): Pro
         headers: { 'Authorization': `Bearer ${apiKey}`, 'Accept': 'application/json' },
         signal: AbortSignal.timeout(8000),
       });
+      const safeUrl = new URL(url);
+      console.log(`[verify] NATV ${safeUrl.pathname}${safeUrl.search} -> ${res.status}`);
       if (!res.ok) continue;
       const data = await res.json();
       const users = extractUsers(data);
+      console.log(`[verify] NATV users checked: ${users.length}`);
       if (users.some(isMatch)) return true;
     } catch (e) {
       console.error('[verify] NATV check error:', e);
