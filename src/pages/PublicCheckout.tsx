@@ -204,14 +204,38 @@ export default function PublicCheckout() {
               <Label className="flex items-center gap-2">
                 <User className="w-4 h-4" /> Nome de usuário recebido no teste
               </Label>
-              <Input
-                value={username}
-                onChange={e => setUsername(e.target.value.replace(/\s/g, ''))}
-                placeholder="Digite o usuário que você recebeu no teste"
-                required
-                className="bg-secondary/30"
-              />
+              <div className="relative">
+                <Input
+                  value={username}
+                  onChange={e => setUsername(e.target.value.replace(/\s/g, ''))}
+                  placeholder="Digite o usuário que você recebeu no teste"
+                  required
+                  className={`bg-secondary/30 pr-10 ${
+                    verifyResult.status === 'ok' ? 'border-green-500/60' :
+                    verifyResult.status === 'notfound' ? 'border-destructive/60' : ''
+                  }`}
+                />
+                <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                  {verifying && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />}
+                  {!verifying && verifyResult.status === 'ok' && <CheckCircle2 className="w-4 h-4 text-green-500" />}
+                  {!verifying && verifyResult.status === 'notfound' && <AlertCircle className="w-4 h-4 text-destructive" />}
+                </div>
+              </div>
+              {!verifying && verifyResult.status === 'ok' && (
+                <p className="text-xs text-green-500 flex items-center gap-1">
+                  <CheckCircle2 className="w-3 h-3" /> Usuário encontrado: <span className="font-semibold">{verifyResult.name}</span>
+                </p>
+              )}
+              {!verifying && verifyResult.status === 'notfound' && (
+                <p className="text-xs text-destructive flex items-center gap-1">
+                  <AlertCircle className="w-3 h-3" /> Usuário não encontrado. Verifique se digitou corretamente o usuário recebido no teste.
+                </p>
+              )}
+              {!verifying && verifyResult.status === 'error' && (
+                <p className="text-xs text-muted-foreground">Não foi possível verificar agora.</p>
+              )}
             </div>
+
 
 
             <div className="space-y-2">
