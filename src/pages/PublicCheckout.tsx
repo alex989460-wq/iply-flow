@@ -66,6 +66,37 @@ export default function PublicCheckout() {
     fetchData();
   }, [userId]);
 
+  // Debounced username verification
+  useEffect(() => {
+    const u = username.trim();
+    if (!u || !userId) {
+      setVerifyResult({ status: 'idle' });
+      setVerifying(false);
+      return;
+    }
+    setVerifying(true);
+    const handle = setTimeout(async () => {
+      try {
+        const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
+        const resp = await fetch(
+          `https://${projectId}.supabase.co/functions/v1/verify-checkout-username?owner_id=${userId}&username=${encodeURIComponent(u)}`,
+          { headers: { 'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY } }
+        );
+        const data = await resp.json();
+        if (data.found) {
+          setVerifyResult({ status: 'ok', name: data.customer.name, due_date: data.customer.due_date });
+        } else {
+          setVerifyResult({ status: 'notfound' });
+        }
+      } catch {
+        setVerifyResult({ status: 'error' });
+      } finally {
+        setVerifying(false);
+      }
+    }, 600);
+    return () => clearTimeout(handle);
+  }, [username, userId]);
+
   const selectedPlan = plans.find(p => p.id === planId);
 
   const formatPhone = (value: string) => {
