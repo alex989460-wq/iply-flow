@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Loader2, ShoppingCart, User, Phone, Package, ExternalLink, Check } from 'lucide-react';
+import { Loader2, ShoppingCart, User, Phone, Package, ExternalLink, Check, AlertCircle, CheckCircle2 } from 'lucide-react';
 
 import { useToast } from '@/hooks/use-toast';
 
@@ -36,6 +36,13 @@ export default function PublicCheckout() {
   const [phone, setPhone] = useState('');
   const [username, setUsername] = useState('');
   const [planId, setPlanId] = useState('');
+  const [verifying, setVerifying] = useState(false);
+  const [verifyResult, setVerifyResult] = useState<
+    | { status: 'idle' }
+    | { status: 'ok'; name: string; due_date: string | null }
+    | { status: 'notfound' }
+    | { status: 'error' }
+  >({ status: 'idle' });
 
   useEffect(() => {
     if (!userId) return;
@@ -58,6 +65,37 @@ export default function PublicCheckout() {
     };
     fetchData();
   }, [userId]);
+
+  // Debounced username verification
+  useEffect(() => {
+    const u = username.trim();
+    if (!u || !userId) {
+      setVerifyResult({ status: 'idle' });
+      setVerifying(false);
+      return;
+    }
+    setVerifying(true);
+    const handle = setTimeout(async () => {
+      try {
+        const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
+        const resp = await fetch(
+          `https://${projectId}.supabase.co/functions/v1/verify-checkout-username?owner_id=${userId}&username=${encodeURIComponent(u)}`,
+          { headers: { 'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY } }
+        );
+        const data = await resp.json();
+        if (data.found) {
+          setVerifyResult({ status: 'ok', name: data.customer.name, due_date: data.customer.due_date });
+        } else {
+          setVerifyResult({ status: 'notfound' });
+        }
+      } catch {
+        setVerifyResult({ status: 'error' });
+      } finally {
+        setVerifying(false);
+      }
+    }, 600);
+    return () => clearTimeout(handle);
+  }, [username, userId]);
 
   const selectedPlan = plans.find(p => p.id === planId);
 
@@ -166,14 +204,38 @@ export default function PublicCheckout() {
               <Label className="flex items-center gap-2">
                 <User className="w-4 h-4" /> Nome de usuário recebido no teste
               </Label>
-              <Input
-                value={username}
-                onChange={e => setUsername(e.target.value.replace(/\s/g, ''))}
-                placeholder="Digite o usuário que você recebeu no teste"
-                required
-                className="bg-secondary/30"
-              />
+              <div className="relative">
+                <Input
+                  value={username}
+                  onChange={e => setUsername(e.target.value.replace(/\s/g, ''))}
+                  placeholder="Digite o usuário que você recebeu no teste"
+                  required
+                  className={`bg-secondary/30 pr-10 ${
+                    verifyResult.status === 'ok' ? 'border-green-500/60' :
+                    verifyResult.status === 'notfound' ? 'border-destructive/60' : ''
+                  }`}
+                />
+                <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                  {verifying && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />}
+                  {!verifying && verifyResult.status === 'ok' && <CheckCircle2 className="w-4 h-4 text-green-500" />}
+                  {!verifying && verifyResult.status === 'notfound' && <AlertCircle className="w-4 h-4 text-destructive" />}
+                </div>
+              </div>
+              {!verifying && verifyResult.status === 'ok' && (
+                <p className="text-xs text-green-500 flex items-center gap-1">
+                  <CheckCircle2 className="w-3 h-3" /> Usuário encontrado: <span className="font-semibold">{verifyResult.name}</span>
+                </p>
+              )}
+              {!verifying && verifyResult.status === 'notfound' && (
+                <p className="text-xs text-destructive flex items-center gap-1">
+                  <AlertCircle className="w-3 h-3" /> Usuário não encontrado. Verifique se digitou corretamente o usuário recebido no teste.
+                </p>
+              )}
+              {!verifying && verifyResult.status === 'error' && (
+                <p className="text-xs text-muted-foreground">Não foi possível verificar agora.</p>
+              )}
             </div>
+
 
 
             <div className="space-y-2">
@@ -223,14 +285,19 @@ export default function PublicCheckout() {
               type="submit"
               className="w-full"
               size="lg"
-              disabled={submitting || !name || !phone || !username || !planId}
+              disabled={
+                submitting || !name || !phone || !username || !planId ||
+                verifying || verifyResult.status !== 'ok'
+              }
             >
               {submitting ? (
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
               ) : (
                 <ExternalLink className="w-4 h-4 mr-2" />
               )}
-              Ir para Pagamento
+              {verifying ? 'Verificando usuário...' :
+                verifyResult.status === 'notfound' ? 'Usuário inválido' :
+                'Ir para Pagamento'}
             </Button>
           </form>
         </CardContent>
