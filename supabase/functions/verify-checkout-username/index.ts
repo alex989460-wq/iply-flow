@@ -75,28 +75,90 @@ serve(async (req) => {
 
 async function checkNatv(username: string, apiKey: string, baseUrl: string): Promise<boolean> {
   if (!apiKey || !baseUrl) return false;
+
+  const target = username.trim().toLowerCase();
   const base = baseUrl.trim().replace(/\/+$/, '');
-  const candidates = [
-    base.endsWith('/api') ? `${base}/users` : `${base}/api/users`,
-    `${base}/users`,
-  ];
-  const u = username.trim().toLowerCase();
-  for (const url of candidates) {
+  const roots = new Set<string>([base]);
+  if (base.endsWith('/api')) roots.add(base.replace(/\/api$/, ''));
+  else roots.add(`${base}/api`);
+
+  const extractUsers = (value: any): any[] => {
+    if (Array.isArray(value)) return value;
+    if (!value || typeof value !== 'object') return [];
+    for (const key of ['data', 'users', 'items', 'results', 'records']) {
+      const nested = extractUsers(value[key]);
+      if (nested.length) return nested;
+    }
+    return [value];
+  };
+
+  const isMatch = (item: any): boolean => {
+    if (!item || typeof item !== 'object') return false;
+    const direct = [item.username, item.login, item.user, item.name, item.email]
+      .map((v) => String(v || '').trim().toLowerCase())
+      .some((v) => v === target);
+    if (direct) return true;
+    return Object.values(item).some((v) => v && typeof v === 'object' && isMatch(v));
+  };
+
+  const buildRequests = () => {
+    const requests: Array<{ url: string; init: RequestInit }> = [];
+    const seen = new Set<string>();
+    const encoded = encodeURIComponent(username.trim());
+    for (const root of roots) {
+      const clean = root.replace(/\/+$/, '');
+      for (const path of ['/user/search', '/users/search']) {
+        const url = `${clean}${path}`;
+        const key = `POST ${url}`;
+        if (!seen.has(key)) {
+          seen.add(key);
+          requests.push({
+            url,
+            init: { method: 'POST', body: JSON.stringify({ username: username.trim() }) },
+          });
+        }
+      }
+      for (const path of ['/users', '/user']) {
+        for (const url of [`${clean}${path}?search=${encoded}`, `${clean}${path}?username=${encoded}`, `${clean}${path}?login=${encoded}`]) {
+          const key = `GET ${url}`;
+          if (!seen.has(key)) {
+            seen.add(key);
+            requests.push({ url, init: { method: 'GET' } });
+          }
+        }
+        for (let page = 1; page <= 10; page++) {
+          const url = `${clean}${path}?page=${page}&per_page=100&limit=100`;
+          const key = `GET ${url}`;
+          if (!seen.has(key)) {
+            seen.add(key);
+            requests.push({ url, init: { method: 'GET' } });
+          }
+        }
+        const url = `${clean}${path}`;
+        const key = `GET ${url}`;
+        if (!seen.has(key)) {
+          seen.add(key);
+          requests.push({ url, init: { method: 'GET' } });
+        }
+      }
+    }
+    return requests;
+  };
+
+  for (const request of buildRequests()) {
     try {
-      const res = await fetch(url, {
-        headers: { 'Authorization': `Bearer ${apiKey}` },
+      const res = await fetch(request.url, {
+        ...request.init,
+        headers: { 'Authorization': `Bearer ${apiKey}`, 'Accept': 'application/json', 'Content-Type': 'application/json' },
         signal: AbortSignal.timeout(8000),
       });
+      const safeUrl = new URL(request.url);
+      console.log(`[verify] NATV ${request.init.method || 'GET'} ${safeUrl.pathname}${safeUrl.search} -> ${res.status}`);
       if (!res.ok) continue;
       const data = await res.json();
-      const users = Array.isArray(data) ? data : (data.data || data.users || []);
-      const found = users.some((x: any) => {
-        const name = String(x.username || x.login || x.user || '').trim().toLowerCase();
-        return name === u;
-      });
-      if (found) return true;
-      // We got a valid list; if not found here, no need to retry other URL
-      return false;
+      const users = extractUsers(data);
+      console.log(`[verify] NATV users checked: ${users.length}`);
+      if (users.some(isMatch)) return true;
     } catch (e) {
       console.error('[verify] NATV check error:', e);
     }
