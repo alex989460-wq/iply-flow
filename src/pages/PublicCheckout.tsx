@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Loader2, ShoppingCart, User, Phone, Package, ExternalLink, Check } from 'lucide-react';
+import { Loader2, ShoppingCart, User, Phone, Package, ExternalLink, Check, AlertCircle, CheckCircle2 } from 'lucide-react';
 
 import { useToast } from '@/hooks/use-toast';
 
@@ -36,6 +36,13 @@ export default function PublicCheckout() {
   const [phone, setPhone] = useState('');
   const [username, setUsername] = useState('');
   const [planId, setPlanId] = useState('');
+  const [verifying, setVerifying] = useState(false);
+  const [verifyResult, setVerifyResult] = useState<
+    | { status: 'idle' }
+    | { status: 'ok'; name: string; due_date: string | null }
+    | { status: 'notfound' }
+    | { status: 'error' }
+  >({ status: 'idle' });
 
   useEffect(() => {
     if (!userId) return;
