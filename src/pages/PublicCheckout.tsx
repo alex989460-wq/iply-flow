@@ -285,14 +285,19 @@ export default function PublicCheckout() {
               type="submit"
               className="w-full"
               size="lg"
-              disabled={submitting || !name || !phone || !username || !planId}
+              disabled={
+                submitting || !name || !phone || !username || !planId ||
+                verifying || verifyResult.status !== 'ok'
+              }
             >
               {submitting ? (
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
               ) : (
                 <ExternalLink className="w-4 h-4 mr-2" />
               )}
-              Ir para Pagamento
+              {verifying ? 'Verificando usuário...' :
+                verifyResult.status === 'notfound' ? 'Usuário inválido' :
+                'Ir para Pagamento'}
             </Button>
           </form>
         </CardContent>
