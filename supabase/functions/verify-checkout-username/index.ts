@@ -149,7 +149,7 @@ async function checkNatv(username: string, apiKey: string, baseUrl: string): Pro
     try {
       const res = await fetch(request.url, {
         ...request.init,
-        headers: { 'Authorization': `Bearer ${apiKey}`, 'Accept': 'application/json' },
+        headers: { 'Authorization': `Bearer ${apiKey}`, 'Accept': 'application/json', 'Content-Type': 'application/json' },
         signal: AbortSignal.timeout(8000),
       });
       const safeUrl = new URL(request.url);
