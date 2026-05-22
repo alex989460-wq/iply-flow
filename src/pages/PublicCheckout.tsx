@@ -39,10 +39,11 @@ export default function PublicCheckout() {
   const [verifying, setVerifying] = useState(false);
   const [verifyResult, setVerifyResult] = useState<
     | { status: 'idle' }
-    | { status: 'ok'; name: string; due_date: string | null }
+    | { status: 'ok'; name: string; due_date: string | null; server_id?: string | null; source?: string }
     | { status: 'notfound' }
     | { status: 'error' }
   >({ status: 'idle' });
+
 
   useEffect(() => {
     if (!userId) return;
@@ -84,7 +85,13 @@ export default function PublicCheckout() {
         );
         const data = await resp.json();
         if (data.found) {
-          setVerifyResult({ status: 'ok', name: data.customer.name, due_date: data.customer.due_date });
+          setVerifyResult({
+            status: 'ok',
+            name: data.customer.name,
+            due_date: data.customer.due_date,
+            server_id: data.server_id ?? null,
+            source: data.source,
+          });
         } else {
           setVerifyResult({ status: 'notfound' });
         }
@@ -119,12 +126,17 @@ export default function PublicCheckout() {
       const phoneDigits = phone.replace(/\D/g, '');
       const phoneNormalized = phoneDigits.startsWith('55') ? phoneDigits : '55' + phoneDigits;
 
+      // Prefer the server detected during username verification (vplay/natv).
+      // Fallback to first available server if none was detected.
+      const detectedServerId =
+        verifyResult.status === 'ok' && verifyResult.server_id ? verifyResult.server_id : null;
+
       const { error } = await supabase.from('pending_new_customers' as any).insert({
         owner_id: userId,
         name: name.trim(),
         phone: phoneNormalized,
         username: username.trim(),
-        server_id: servers.length > 0 ? servers[0].id : null,
+        server_id: detectedServerId || (servers.length > 0 ? servers[0].id : null),
         plan_id: planId,
         checkout_url: selectedPlan.checkout_url,
       });
