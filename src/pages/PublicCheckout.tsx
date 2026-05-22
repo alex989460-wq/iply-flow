@@ -85,7 +85,13 @@ export default function PublicCheckout() {
         );
         const data = await resp.json();
         if (data.found) {
-          setVerifyResult({ status: 'ok', name: data.customer.name, due_date: data.customer.due_date });
+          setVerifyResult({
+            status: 'ok',
+            name: data.customer.name,
+            due_date: data.customer.due_date,
+            server_id: data.server_id ?? null,
+            source: data.source,
+          });
         } else {
           setVerifyResult({ status: 'notfound' });
         }
