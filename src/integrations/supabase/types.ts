@@ -814,6 +814,63 @@ export type Database = {
         }
         Relationships: []
       }
+      pending_manual_renewals: {
+        Row: {
+          amount: number | null
+          created_at: string
+          customer_id: string | null
+          customer_name: string
+          customer_phone: string | null
+          error_details: Json | null
+          id: string
+          new_due_date: string | null
+          owner_id: string
+          plan_name: string | null
+          reason: string
+          server_host: string | null
+          server_id: string | null
+          server_name: string | null
+          source: string | null
+          username: string | null
+        }
+        Insert: {
+          amount?: number | null
+          created_at?: string
+          customer_id?: string | null
+          customer_name: string
+          customer_phone?: string | null
+          error_details?: Json | null
+          id?: string
+          new_due_date?: string | null
+          owner_id: string
+          plan_name?: string | null
+          reason?: string
+          server_host?: string | null
+          server_id?: string | null
+          server_name?: string | null
+          source?: string | null
+          username?: string | null
+        }
+        Update: {
+          amount?: number | null
+          created_at?: string
+          customer_id?: string | null
+          customer_name?: string
+          customer_phone?: string | null
+          error_details?: Json | null
+          id?: string
+          new_due_date?: string | null
+          owner_id?: string
+          plan_name?: string | null
+          reason?: string
+          server_host?: string | null
+          server_id?: string | null
+          server_name?: string | null
+          source?: string | null
+          username?: string | null
+        }
+        Relationships: []
+      }
       pending_new_customers: {
         Row: {
           checkout_url: string | null
