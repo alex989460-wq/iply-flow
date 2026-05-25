@@ -2,6 +2,7 @@ import { ReactNode } from 'react';
 import Sidebar from './Sidebar';
 import { cn } from '@/lib/utils';
 import { useSidebar } from '@/contexts/SidebarContext';
+import PendingManualRenewalsFloat from '@/components/PendingManualRenewalsFloat';
 
 interface DashboardLayoutProps {
   children: ReactNode;
@@ -22,6 +23,8 @@ export default function DashboardLayout({ children, noPadding }: DashboardLayout
           {children}
         </div>
       </main>
+      <PendingManualRenewalsFloat />
     </div>
   );
 }
+
