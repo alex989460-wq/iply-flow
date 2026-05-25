@@ -2636,6 +2636,27 @@ serve(async (req) => {
           console.error('[Cakto] Erro ao registrar falha no message_logs:', logErr);
         }
 
+        try {
+          await supabaseAdmin.from('pending_manual_renewals').insert({
+            owner_id: matchedCustomer.created_by,
+            customer_id: matchedCustomer.id,
+            customer_name: matchedCustomer.name,
+            customer_phone: matchedCustomer.phone,
+            username: (failedRenewals.map(r => r.username).filter(Boolean).join(', ')) || allUsernames.join(', '),
+            server_id: matchedCustomer.server_id,
+            server_name: serverName,
+            server_host: serverHost,
+            plan_name: matchedPlanName || null,
+            amount: amountNumeric || 0,
+            new_due_date: newDueDate,
+            reason: 'renewal_failed',
+            source: caktoId ? `cakto:${caktoId}` : 'cakto',
+            error_details: { renewals: failedRenewals },
+          });
+        } catch (pmrErr) {
+          console.error('[Cakto] Erro ao inserir pending_manual_renewals (renewal_failed):', pmrErr);
+        }
+
       // ── Send WhatsApp alert to admin about the failure ──
         // Re-fetch settings since zapSettings/billingSettings may be out of scope
         let failZapDeptId = '';
