@@ -2528,6 +2528,26 @@ serve(async (req) => {
 
         if (!isVplay && !isNatv && !isNatv2 && !isTheBest && !isRush) {
           console.log(`[Cakto] Tipo de servidor não reconhecido: "${serverName}". Nenhuma renovação externa. Apenas due_date atualizado.`);
+          try {
+            await supabaseAdmin.from('pending_manual_renewals').insert({
+              owner_id: matchedCustomer.created_by,
+              customer_id: matchedCustomer.id,
+              customer_name: matchedCustomer.name,
+              customer_phone: matchedCustomer.phone,
+              username: allUsernames.join(', '),
+              server_id: matchedCustomer.server_id,
+              server_name: serverName,
+              server_host: serverHost,
+              plan_name: matchedPlanName || null,
+              amount: amountNumeric || 0,
+              new_due_date: newDueDate,
+              reason: 'no_api',
+              source: caktoId ? `cakto:${caktoId}` : 'cakto',
+              error_details: { message: 'Servidor sem API de renovação automática' },
+            });
+          } catch (pmrErr) {
+            console.error('[Cakto] Erro ao inserir pending_manual_renewals (no_api):', pmrErr);
+          }
         }
       }
 
