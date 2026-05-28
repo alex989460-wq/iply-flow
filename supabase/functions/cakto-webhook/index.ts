@@ -1846,12 +1846,45 @@ serve(async (req) => {
         console.error('[Cakto] Erro ao notificar sobre conflito:', e);
       }
 
+      // ── Registrar pendência no painel flutuante (uma por cliente em conflito) ──
+      try {
+        const appUrl = 'https://iply-flow.lovable.app';
+        const pendingRows = conflictCustomers.map((c: any) => ({
+          owner_id: c.created_by || matchedCustomer.created_by,
+          customer_id: c.id,
+          customer_name: c.name,
+          customer_phone: c.phone || phoneDigits,
+          username: c.username || null,
+          server_id: c.server_id || null,
+          server_name: null,
+          server_host: null,
+          plan_name: matchedPlanName || null,
+          amount: amountNumeric || 0,
+          new_due_date: null,
+          reason: 'manual',
+          source: caktoId ? `cakto:${caktoId}` : 'cakto',
+          error_details: {
+            conflict: true,
+            conflict_reason: conflictReason,
+            payment_id: conflictPaymentId,
+            confirm_url: `${appUrl}/confirmar-renovacao?payment_id=${conflictPaymentId}&customer_id=${c.id}`,
+            total_conflicts: conflictCustomers.length,
+          },
+        }));
+        const { error: pmrErr } = await supabaseAdmin.from('pending_manual_renewals').insert(pendingRows);
+        if (pmrErr) console.error('[Cakto] Erro ao inserir pendências de conflito:', pmrErr);
+        else console.log(`[Cakto] ${pendingRows.length} pendência(s) de conflito registradas no flutuante.`);
+      } catch (e) {
+        console.error('[Cakto] Erro ao registrar pendência de conflito:', e);
+      }
+
       return new Response(JSON.stringify({
         success: true,
         message: `Conflito detectado (${conflictReason}). Pagamento registrado sem confirmação.`,
         conflict: true,
         customers: conflictCustomers.map((c: any) => ({ name: c.name, username: c.username, due_date: c.due_date })),
       }), { headers: jsonHeaders });
+
     }
 
     // Renew ALL customers in customersToRenew (supports multi-screen) — skip if multi-renewal already handled

@@ -165,6 +165,19 @@ export default function PendingManualRenewalsFloat() {
                   <div className="flex items-center gap-1.5"><Calendar className="h-3 w-3" />Novo venc.: {new Date(it.new_due_date + 'T00:00:00').toLocaleDateString('pt-BR')}</div>
                 )}
                 {it.plan_name && <div className="text-[11px]">📦 {it.plan_name}{it.amount ? ` • R$ ${Number(it.amount).toFixed(2)}` : ''}</div>}
+                {it.error_details?.conflict_reason && (
+                  <div className="text-[11px] text-amber-600 dark:text-amber-400">🧩 {it.error_details.conflict_reason}</div>
+                )}
+                {it.error_details?.confirm_url && (
+                  <a
+                    href={it.error_details.confirm_url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-[11px] text-primary underline break-all"
+                  >
+                    Confirmar este cliente →
+                  </a>
+                )}
               </div>
             </div>
           ))}
@@ -173,3 +186,4 @@ export default function PendingManualRenewalsFloat() {
     </div>
   );
 }
+
