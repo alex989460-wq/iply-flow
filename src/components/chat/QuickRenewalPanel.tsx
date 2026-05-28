@@ -1137,7 +1137,7 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
   };
 
   return (
-    <div className={`${isMobile ? 'w-full' : 'w-72 shrink-0 border-l border-border'} bg-background/50 flex flex-col h-full max-h-full min-h-0 overflow-hidden text-[13px]`}>
+    <div className={`${isMobile ? 'w-full' : 'w-96 shrink-0 border-l border-border'} bg-background/50 flex flex-col h-full max-h-full min-h-0 overflow-hidden text-[13px]`}>
       {!isMobile && (
         <div className="p-3 border-b border-border space-y-2">
           <div className="flex items-center justify-between">
