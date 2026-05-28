@@ -2321,16 +2321,49 @@ serve(async (req) => {
 
       console.log(`[Cakto] Servidor: "${serverName}" (host: "${serverHost}") | auto_renew: ${autoRenew} | Tipo: ${isVplay ? 'VPlay' : isRush ? 'Rush' : isTheBest ? 'The Best' : isNatv2 ? 'NATV2' : isNatv ? 'NATV' : 'desconhecido'}`);
 
+      const isKnownApiServer = isVplay || isRush || isTheBest || isNatv || isNatv2;
+
+      // ── Helper: insert pendência manual ──
+      const insertManualPending = async (reason: string, details: any) => {
+        try {
+          await supabaseAdmin.from('pending_manual_renewals').insert({
+            owner_id: matchedCustomer.created_by,
+            customer_id: matchedCustomer.id,
+            customer_name: matchedCustomer.name,
+            customer_phone: matchedCustomer.phone,
+            username: allUsernames.join(', '),
+            server_id: matchedCustomer.server_id,
+            server_name: serverName || null,
+            server_host: serverHost || null,
+            plan_name: matchedPlanName || null,
+            amount: amountNumeric || 0,
+            new_due_date: newDueDate,
+            reason,
+            source: caktoId ? `cakto:${caktoId}` : 'cakto',
+            error_details: details,
+          });
+        } catch (pmrErr) {
+          console.error(`[Cakto] Erro ao inserir pending_manual_renewals (${reason}):`, pmrErr);
+        }
+      };
+
       if (!matchedCustomer.server_id) {
-        console.log(`[Cakto] Cliente sem servidor configurado. Pulando renovação no painel.`);
+        console.log(`[Cakto] Cliente sem servidor configurado. Criando pendência manual.`);
+        await insertManualPending('no_api', { message: 'Cliente sem servidor configurado' });
+      } else if (!isKnownApiServer) {
+        // Servidor sem API (P2Cine, Uniplay, etc) — sempre vira pendência, independente de auto_renew
+        console.log(`[Cakto] Servidor "${serverName}" sem API conhecida. Criando pendência manual.`);
+        await insertManualPending('no_api', { message: `Servidor "${serverName}" sem API de renovação automática` });
       } else if (!autoRenew) {
-        console.log(`[Cakto] Servidor "${serverName}" não está habilitado para renovação automática. Pulando.`);
+        console.log(`[Cakto] Servidor "${serverName}" não está habilitado para renovação automática. Criando pendência manual.`);
+        await insertManualPending('no_api', { message: `Renovação automática desabilitada para servidor "${serverName}"` });
       } else {
         const { data: resellerApiSettings } = await supabaseAdmin
           .from('reseller_api_settings')
           .select('natv_api_key, natv_base_url, natv2_api_key, natv2_base_url, the_best_username, the_best_password, the_best_base_url, rush_username, rush_password, rush_token, rush_base_url')
           .eq('user_id', matchedCustomer.created_by)
           .maybeSingle();
+
 
         // ── VPlay renewal ──
         if (isVplay) {
