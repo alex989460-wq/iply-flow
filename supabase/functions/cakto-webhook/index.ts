@@ -1046,6 +1046,44 @@ serve(async (req) => {
             newCustomer.server_id = activatedServerId;
             console.log(`[Cakto] ✅ Cliente atualizado com servidor: ${activatedServerName} (${activatedServerId})`);
           }
+
+          // ── If activation failed/skipped, push to pending_manual_renewals ──
+          if (!activatedServerId) {
+            let serverNameForQueue: string | null = null;
+            let serverHostForQueue: string | null = null;
+            let reasonForQueue = 'renewal_failed';
+            if (newCustomer.server_id) {
+              const { data: srvInfo } = await supabaseAdmin
+                .from('servers').select('server_name, host').eq('id', newCustomer.server_id).maybeSingle();
+              serverNameForQueue = srvInfo?.server_name || null;
+              serverHostForQueue = srvInfo?.host || null;
+              const sLow = `${serverNameForQueue || ''} ${serverHostForQueue || ''}`.toLowerCase();
+              const hasApi = ['vplay','rush','best','natv'].some(k => sLow.includes(k));
+              if (!hasApi) reasonForQueue = 'no_api';
+            } else {
+              reasonForQueue = 'no_api';
+            }
+            await supabaseAdmin.from('pending_manual_renewals').insert({
+              owner_id: pendingNew.owner_id,
+              customer_id: newCustomer.id,
+              customer_name: newCustomer.name,
+              customer_phone: newCustomer.phone,
+              username: newCustomer.username,
+              server_id: newCustomer.server_id,
+              server_name: serverNameForQueue,
+              server_host: serverHostForQueue,
+              plan_name: newPlan?.plan_name || null,
+              amount: amountNumeric,
+              new_due_date: newDueDateStr,
+              reason: reasonForQueue,
+              error_details: {
+                source: 'new_customer_checkout',
+                note: 'Cliente novo via checkout — ativação automática não confirmada. Verifique o usuário no painel.',
+                username: newCustomer.username,
+              },
+            });
+            console.log(`[Cakto] ⚠️ Novo cliente sem ativação confirmada — adicionado à fila manual (${reasonForQueue})`);
+          }
         }
 
         // ── Send WhatsApp confirmation ──
