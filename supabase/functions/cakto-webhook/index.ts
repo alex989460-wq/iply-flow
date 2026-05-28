@@ -1552,28 +1552,41 @@ serve(async (req) => {
     if (preSelectedMultiRenewal && allMatchedCustomers.length > 1) {
       console.log(`[Cakto] Multi-renovação pré-selecionada: ${allMatchedCustomers.length} clientes`);
 
-      // When pre-selected from external site, TRUST the selection - skip amount validation
-      // The external site already validated which customers the client chose
-      if (hasPreSelection) {
-        console.log(`[Cakto] ✅ Pré-seleção confiável do site externo. Pulando validação de valor.`);
-      } else {
-        // Only validate amount if NOT pre-selected (fallback safety)
-        const loadPrices = await Promise.all(allMatchedCustomers.map(async (c: any) => {
-          if (c.custom_price) return Number(c.custom_price);
-          if (c.plan_id) {
-            const { data: p } = await supabaseAdmin.from('plans').select('price').eq('id', c.plan_id).maybeSingle();
-            return p ? Number(p.price) : 0;
-          }
-          return 0;
-        }));
-        const expectedTotal = loadPrices.reduce((s, p) => s + p, 0);
-        const tolerance = expectedTotal * 0.15;
-
-        if (expectedTotal > 0 && Math.abs(amountNumeric - expectedTotal) > tolerance) {
-          console.warn(`[Cakto] Valor pago R$ ${amountNumeric.toFixed(2)} não corresponde ao total esperado R$ ${expectedTotal.toFixed(2)} para ${allMatchedCustomers.length} clientes. Ignorando pré-seleção.`);
-          // Fall through to single-customer logic below
-          preSelectedMultiRenewal = false;
+      // ALWAYS validate paid amount vs sum of per-customer plan prices — even when
+      // selection came from the external site. If the paid amount is short, narrow
+      // the renewal set to the most urgent customers that fit within what was paid.
+      // Prevents the bug where 1 Semestral payment (R$175) renewed 2 Semestral
+      // customers for 6 months each (would require R$350).
+      const loadPrices = await Promise.all(allMatchedCustomers.map(async (c: any) => {
+        if (c.custom_price) return Number(c.custom_price);
+        if (c.plan_id) {
+          const { data: p } = await supabaseAdmin.from('plans').select('price').eq('id', c.plan_id).maybeSingle();
+          return p ? Number(p.price) : 0;
         }
+        return 0;
+      }));
+      const expectedTotal = loadPrices.reduce((s, p) => s + p, 0);
+      const tolerance = expectedTotal * 0.15;
+
+      if (expectedTotal > 0 && amountNumeric > 0 && (expectedTotal - amountNumeric) > tolerance) {
+        // Paid amount is short. allMatchedCustomers is already sorted by due_date asc.
+        // Keep the most urgent customers whose cumulative price fits within paid amount (+15%).
+        const fitting: any[] = [];
+        let running = 0;
+        for (let i = 0; i < allMatchedCustomers.length; i++) {
+          const price = loadPrices[i] || 0;
+          const nextTotal = running + price;
+          if (nextTotal <= amountNumeric * 1.15) {
+            fitting.push(allMatchedCustomers[i]);
+            running = nextTotal;
+          } else {
+            break;
+          }
+        }
+        if (fitting.length === 0) fitting.push(allMatchedCustomers[0]);
+        console.warn(`[Cakto] ⚠️ Valor pago R$ ${amountNumeric.toFixed(2)} insuficiente para ${allMatchedCustomers.length} clientes (esperado R$ ${expectedTotal.toFixed(2)}). Renovando apenas ${fitting.length} mais urgente(s).`);
+        allMatchedCustomers = fitting;
+        preSelectedMultiRenewal = fitting.length > 1;
       }
 
       if (preSelectedMultiRenewal) {
