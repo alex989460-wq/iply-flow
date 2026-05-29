@@ -372,6 +372,7 @@ serve(async (req) => {
     // Extract customer data - Cakto wraps everything inside body.data
     const caktoData = body?.data || body;
     const caktoId = caktoData?.id || caktoData?.refId || '';
+    caktoIdForError = caktoId;
     const customer = caktoData?.customer || caktoData?.buyer || body?.customer || body;
     const phone = customer?.phone || customer?.phone_number || customer?.cellphone || caktoData?.phone || body?.phone;
     
