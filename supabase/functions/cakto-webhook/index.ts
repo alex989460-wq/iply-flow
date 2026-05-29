@@ -149,12 +149,18 @@ serve(async (req) => {
     return { success: false, ...fallback, attempts };
   };
 
+  // Hoisted for use inside the global catch (notify floating panel on failure)
+  let bodyForError: any = null;
+  let ownerForError: string | null = null;
+  let caktoIdForError: string = '';
+
   try {
     // Validate webhook secret (prefer reseller-scoped validation when possible)
     const globalWebhookSecret = Deno.env.get('CAKTO_WEBHOOK_SECRET');
     const receivedSecret = req.headers.get('x-webhook-secret') || req.headers.get('X-Webhook-Secret');
 
     const body = await req.json();
+    bodyForError = body;
     console.log('[Cakto] Payload recebido:', JSON.stringify(body));
 
     const payloadSecret = body?.secret || body?.webhook_secret;
