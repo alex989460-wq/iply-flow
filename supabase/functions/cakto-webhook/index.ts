@@ -149,12 +149,18 @@ serve(async (req) => {
     return { success: false, ...fallback, attempts };
   };
 
+  // Hoisted for use inside the global catch (notify floating panel on failure)
+  let bodyForError: any = null;
+  let ownerForError: string | null = null;
+  let caktoIdForError: string = '';
+
   try {
     // Validate webhook secret (prefer reseller-scoped validation when possible)
     const globalWebhookSecret = Deno.env.get('CAKTO_WEBHOOK_SECRET');
     const receivedSecret = req.headers.get('x-webhook-secret') || req.headers.get('X-Webhook-Secret');
 
     const body = await req.json();
+    bodyForError = body;
     console.log('[Cakto] Payload recebido:', JSON.stringify(body));
 
     const payloadSecret = body?.secret || body?.webhook_secret;
@@ -181,6 +187,7 @@ serve(async (req) => {
       if (matchingReseller?.user_id) {
         secretValid = true;
         webhookOwnerId = matchingReseller.user_id;
+        ownerForError = webhookOwnerId;
         console.log(`[Cakto] Secret validado via revendedor: ${webhookOwnerId}`);
       }
 
@@ -365,6 +372,7 @@ serve(async (req) => {
     // Extract customer data - Cakto wraps everything inside body.data
     const caktoData = body?.data || body;
     const caktoId = caktoData?.id || caktoData?.refId || '';
+    caktoIdForError = caktoId;
     const customer = caktoData?.customer || caktoData?.buyer || body?.customer || body;
     const phone = customer?.phone || customer?.phone_number || customer?.cellphone || caktoData?.phone || body?.phone;
     
@@ -2840,7 +2848,75 @@ serve(async (req) => {
 
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
+    const errorStack = error instanceof Error ? error.stack : undefined;
     console.error('[Cakto] Erro:', error);
-    return new Response(JSON.stringify({ error: errorMessage }), { status: 500, headers: jsonHeaders });
+
+    // Notify the floating panel so the reseller can review/handle manually,
+    // AND return 200 to stop Cakto retries (prevents duplicate auto-renewal
+    // after the reseller has already renewed manually).
+    try {
+      const supabaseAdmin = createClient(
+        Deno.env.get('SUPABASE_URL')!,
+        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+        { auth: { autoRefreshToken: false, persistSession: false } },
+      );
+
+      const data = bodyForError?.data || bodyForError || {};
+      const customer = data?.customer || data?.buyer || bodyForError?.customer || {};
+      const customerName = customer?.name || customer?.full_name || 'Pagamento Cakto (erro)';
+      const customerPhone = customer?.phone || customer?.phone_number || customer?.cellphone || data?.phone || null;
+      const amount = Number(data?.amount ?? data?.value ?? data?.price ?? bodyForError?.amount ?? 0) || null;
+      const planName = data?.product?.name || data?.plan?.name || data?.offer?.name || null;
+      const username = data?.refId || data?.ref || data?.username || null;
+
+      // Idempotency: avoid duplicate panel rows on Cakto retries for the same event.
+      // We do this by trying to register the cakto event lock first; if it already exists,
+      // a panel row was likely already inserted on a previous attempt.
+      let shouldInsertPanel = true;
+      if (caktoIdForError) {
+        const { error: lockErr } = await supabaseAdmin
+          .from('cakto_processed_events')
+          .insert({ cakto_id: caktoIdForError, owner_id: ownerForError });
+        if (lockErr && ((lockErr as any).code === '23505' || /duplicate|already exists/i.test(lockErr.message || ''))) {
+          shouldInsertPanel = false;
+          console.warn(`[Cakto] Erro em retry já notificado (caktoId: ${caktoIdForError}). Pulando inserção duplicada.`);
+        }
+      }
+
+      if (shouldInsertPanel && ownerForError) {
+        await supabaseAdmin.from('pending_manual_renewals').insert({
+          owner_id: ownerForError,
+          customer_name: customerName,
+          customer_phone: customerPhone,
+          username: username,
+          server_name: null,
+          server_host: null,
+          plan_name: planName,
+          amount: amount,
+          new_due_date: null,
+          reason: 'webhook_error',
+          error_details: {
+            error: errorMessage,
+            stack: errorStack?.slice(0, 800),
+            cakto_id: caktoIdForError || null,
+            payload: bodyForError,
+          },
+        });
+        console.log('[Cakto] ⚠️ Erro registrado no painel flutuante para revisão manual.');
+      } else if (shouldInsertPanel && !ownerForError) {
+        console.warn('[Cakto] Erro antes de identificar o revendedor — painel flutuante não notificado.');
+      }
+    } catch (panelErr) {
+      console.error('[Cakto] Falha ao registrar erro no painel flutuante:', panelErr);
+    }
+
+    // Return 200 so Cakto does NOT retry. The pending row is the source of truth
+    // for the reseller to act on. Avoids the manual-renewal then auto-renewal duplicate.
+    return new Response(JSON.stringify({
+      success: false,
+      handled: true,
+      queued_for_manual_review: true,
+      error: errorMessage,
+    }), { status: 200, headers: jsonHeaders });
   }
 });

@@ -25,12 +25,14 @@ interface PendingItem {
 const REASON_LABEL: Record<string, string> = {
   no_api: 'Servidor sem API',
   renewal_failed: 'Falha na renovação',
+  webhook_error: 'Erro no Webhook',
   manual: 'Manual',
 };
 
 const REASON_COLOR: Record<string, string> = {
   no_api: 'bg-amber-500',
   renewal_failed: 'bg-red-500',
+  webhook_error: 'bg-red-600',
   manual: 'bg-blue-500',
 };
 
