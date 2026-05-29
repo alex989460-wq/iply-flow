@@ -1360,31 +1360,67 @@ serve(async (req) => {
     let isMultiScreen = samePersonCustomers.length > 1 && samePersonCustomers.length === allMatchedCustomers.length;
     
     if (isMultiScreen && amountNumeric > 0) {
-      // Load price for each screen to calculate expected total
-      let singlePrice = 0;
-      const first = samePersonCustomers[0];
-      if (first.custom_price) {
-        singlePrice = Number(first.custom_price);
-      } else if (first.plan_id) {
-        const { data: firstPlan } = await supabaseAdmin.from('plans').select('price').eq('id', first.plan_id).maybeSingle();
-        if (firstPlan) singlePrice = Number(firstPlan.price);
+      // Compute per-customer price (custom_price or plan price). Records may have
+      // DIFFERENT plans/prices each (e.g. one "Mensal" R$35 + one "Mensal 2 Telas" R$60).
+      // Expected total = SUM of each individual price (not singlePrice × N).
+      const planIds = Array.from(new Set(samePersonCustomers.map((c: any) => c.plan_id).filter(Boolean)));
+      let plansById: Record<string, number> = {};
+      if (planIds.length > 0) {
+        const { data: pls } = await supabaseAdmin.from('plans').select('id, price').in('id', planIds);
+        (pls || []).forEach((p: any) => { plansById[p.id] = Number(p.price); });
       }
-      
-      const expectedMultiTotal = singlePrice * samePersonCustomers.length;
-      const singleTolerance = singlePrice * 0.15;
-      const multiTolerance = expectedMultiTotal * 0.15;
-      
-      const paidForSingle = singlePrice > 0 && Math.abs(amountNumeric - singlePrice) <= singleTolerance;
+      const perPrices = samePersonCustomers.map((c: any) => {
+        if (c.custom_price) return Number(c.custom_price);
+        if (c.plan_id && plansById[c.plan_id] != null) return plansById[c.plan_id];
+        return 0;
+      });
+      const expectedMultiTotal = perPrices.reduce((a: number, b: number) => a + b, 0);
+      const firstPrice = perPrices[0] || 0;
+      const multiTolerance = Math.max(expectedMultiTotal * 0.15, 1);
+      const singleTolerance = Math.max(firstPrice * 0.15, 1);
+
+      const paidForSingle = firstPrice > 0 && Math.abs(amountNumeric - firstPrice) <= singleTolerance;
       const paidForAll = expectedMultiTotal > 0 && Math.abs(amountNumeric - expectedMultiTotal) <= multiTolerance;
-      
+
       if (paidForAll) {
-        console.log(`[Cakto] 🖥️ Multi-tela: valor pago R$ ${amountNumeric.toFixed(2)} ≈ total R$ ${expectedMultiTotal.toFixed(2)} (${samePersonCustomers.length} telas). Renovando TODOS.`);
+        console.log(`[Cakto] 🖥️ Multi-tela: valor pago R$ ${amountNumeric.toFixed(2)} ≈ soma R$ ${expectedMultiTotal.toFixed(2)} (${samePersonCustomers.length} registros: ${perPrices.map((p:number)=>p.toFixed(2)).join('+')}). Renovando TODOS.`);
       } else if (paidForSingle) {
         isMultiScreen = false;
-        console.log(`[Cakto] 🖥️ Multi-tela detectado MAS valor pago R$ ${amountNumeric.toFixed(2)} ≈ individual R$ ${singlePrice.toFixed(2)}. Renovando apenas 1 (mais urgente).`);
+        console.log(`[Cakto] 🖥️ Multi-tela detectado MAS valor pago R$ ${amountNumeric.toFixed(2)} ≈ individual R$ ${firstPrice.toFixed(2)}. Renovando apenas 1 (mais urgente).`);
       } else {
         isMultiScreen = false;
-        console.log(`[Cakto] 🖥️ Multi-tela detectado MAS valor pago R$ ${amountNumeric.toFixed(2)} não corresponde a individual R$ ${singlePrice.toFixed(2)} nem total R$ ${expectedMultiTotal.toFixed(2)}. Renovando apenas 1 (segurança).`);
+        console.log(`[Cakto] 🖥️ Multi-tela detectado MAS valor pago R$ ${amountNumeric.toFixed(2)} não corresponde a individual R$ ${firstPrice.toFixed(2)} nem à soma R$ ${expectedMultiTotal.toFixed(2)} [${perPrices.map((p:number)=>p.toFixed(2)).join('+')}]. Enviando para fila manual (segurança).`);
+        // Queue all involved customers for manual review instead of silently picking one
+        try {
+          for (const c of samePersonCustomers) {
+            await supabaseAdmin.from('pending_manual_renewals').insert({
+              owner_id: c.created_by,
+              customer_id: c.id,
+              customer_name: c.name,
+              customer_phone: c.phone,
+              username: c.username,
+              server_id: c.server_id || null,
+              server_name: null,
+              server_host: null,
+              plan_name: null,
+              amount: amountNumeric,
+              new_due_date: null,
+              reason: 'renewal_failed',
+              error_details: {
+                conflict_reason: `Valor R$ ${amountNumeric.toFixed(2)} não bate com soma (R$ ${expectedMultiTotal.toFixed(2)}) nem individual (R$ ${firstPrice.toFixed(2)}) das ${samePersonCustomers.length} telas`,
+                per_prices: perPrices,
+                cakto_id: caktoId || null,
+              },
+            });
+          }
+          return new Response(JSON.stringify({
+            success: true,
+            queued_manual: true,
+            message: 'Valor não confere com telas — enviado para fila manual',
+          }), { headers: jsonHeaders });
+        } catch (qErr) {
+          console.error('[Cakto] Falha ao enfileirar manual multi-tela:', qErr);
+        }
       }
     }
     
