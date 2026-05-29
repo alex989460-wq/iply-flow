@@ -187,6 +187,7 @@ serve(async (req) => {
       if (matchingReseller?.user_id) {
         secretValid = true;
         webhookOwnerId = matchingReseller.user_id;
+        ownerForError = webhookOwnerId;
         console.log(`[Cakto] Secret validado via revendedor: ${webhookOwnerId}`);
       }
 
