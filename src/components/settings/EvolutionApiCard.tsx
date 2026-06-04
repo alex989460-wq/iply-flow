@@ -206,11 +206,11 @@ export default function EvolutionApiCard() {
             {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
             Salvar
           </Button>
-          <Button variant="outline" onClick={test} disabled={testing || !hasRow || !form.is_enabled}>
+          <Button variant="outline" onClick={test} disabled={testing || !hasRow}>
             {testing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Plug className="w-4 h-4 mr-2" />}
             Testar conexão
           </Button>
-          <Button variant="outline" onClick={configureWebhook} disabled={settingWebhook || !hasRow || !form.is_enabled}>
+          <Button variant="outline" onClick={configureWebhook} disabled={settingWebhook || !hasRow}>
             {settingWebhook ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Webhook className="w-4 h-4 mr-2" />}
             Configurar webhook
           </Button>
