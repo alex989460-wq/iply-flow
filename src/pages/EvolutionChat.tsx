@@ -1,12 +1,13 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Dialog, DialogContent } from '@/components/ui/dialog';
 import {
   Loader2, Send, Zap, Plus, RefreshCw, Search, MessageSquare,
-  Phone, X, Smile, Mic, Paperclip, Square, Trash2, Image as ImageIcon, FileText,
+  Phone, X, Smile, Mic, Paperclip, Trash2, Image as ImageIcon, FileText,
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -24,6 +25,8 @@ interface EvoMessage {
   message_type: string;
   media_url: string | null;
   media_mime: string | null;
+  external_id?: string | null;
+  raw?: unknown;
   created_at: string;
   _pending?: boolean;
   _failed?: boolean;
@@ -64,6 +67,30 @@ function relativeTime(iso: string) {
   return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
 }
 
+function getNestedValue(source: unknown, path: string[]): unknown {
+  return path.reduce<unknown>((acc, key) => (acc && typeof acc === 'object' ? (acc as Record<string, unknown>)[key] : undefined), source);
+}
+
+function rawBase64From(raw: unknown) {
+  const paths = [
+    ['data', 'Message', 'base64'], ['Message', 'base64'], ['base64'],
+    ['data', 'Message', 'imageMessage', 'base64'], ['data', 'Message', 'stickerMessage', 'base64'],
+  ];
+  for (const path of paths) {
+    const value = getNestedValue(raw, path);
+    if (typeof value === 'string' && value.length > 80) return value;
+  }
+  return null;
+}
+
+function mediaSource(m: EvoMessage) {
+  if (m.media_url) return m.media_url;
+  const base64 = rawBase64From(m.raw);
+  if (!base64) return null;
+  const mime = m.media_mime || (m.message_type === 'sticker' ? 'image/webp' : 'image/jpeg');
+  return base64.startsWith('data:') ? base64 : `data:${mime};base64,${base64}`;
+}
+
 async function fileToBase64(file: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
     const r = new FileReader();
@@ -89,6 +116,7 @@ export default function EvolutionChat() {
   const [showQuickReplies, setShowQuickReplies] = useState(false);
   const [recording, setRecording] = useState(false);
   const [recordSeconds, setRecordSeconds] = useState(0);
+  const [previewImage, setPreviewImage] = useState<{ url: string; caption: string } | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imgInputRef = useRef<HTMLInputElement>(null);
@@ -96,6 +124,30 @@ export default function EvolutionChat() {
   const recordChunks = useRef<Blob[]>([]);
   const recordTimerRef = useRef<number | null>(null);
   const avatarFetchRef = useRef<Set<string>>(new Set());
+  const contactSyncRef = useRef(false);
+
+  const mergeMessage = useCallback((prev: EvoMessage[], incoming: EvoMessage) => {
+    if (prev.some((m) => m.id === incoming.id)) return prev;
+    if (incoming.external_id && prev.some((m) => m.external_id === incoming.external_id)) return prev;
+
+    const tempIndex = [...prev].reverse().findIndex((m) =>
+      m.id.startsWith('tmp-') &&
+      m.phone === incoming.phone &&
+      m.direction === incoming.direction &&
+      m.message_type === incoming.message_type &&
+      Math.abs(new Date(m.created_at).getTime() - new Date(incoming.created_at).getTime()) < 120000 &&
+      (m.content === incoming.content || incoming.message_type !== 'text')
+    );
+
+    if (tempIndex >= 0) {
+      const realIndex = prev.length - 1 - tempIndex;
+      const copy = [...prev];
+      copy[realIndex] = incoming;
+      return copy;
+    }
+
+    return [...prev, incoming];
+  }, []);
 
   const load = async () => {
     if (!user) return;
@@ -109,7 +161,7 @@ export default function EvolutionChat() {
       toast({ title: 'Erro', description: msgRes.error.message, variant: 'destructive' });
       return;
     }
-    setMessages(((msgRes.data || []) as unknown) as EvoMessage[]);
+    setMessages((((msgRes.data || []) as unknown) as EvoMessage[]).reduce((acc, msg) => mergeMessage(acc, msg), [] as EvoMessage[]));
     const cmap: Record<string, EvoContact> = {};
     for (const c of ((contRes.data || []) as EvoContact[])) cmap[c.phone] = c;
     setContacts(cmap);
@@ -124,15 +176,7 @@ export default function EvolutionChat() {
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'evolution_messages', filter: `user_id=eq.${user.id}` }, (payload) => {
         const m = payload.new as EvoMessage;
         setMessages((prev) => {
-          // dedupe: replace pending optimistic message with same phone+content+out
-          const idx = prev.findIndex(p => p._pending && p.phone === m.phone && p.direction === 'out' && p.content === m.content);
-          if (idx >= 0) {
-            const copy = [...prev];
-            copy[idx] = m;
-            return copy;
-          }
-          if (prev.some(p => p.id === m.id)) return prev;
-          return [...prev, m];
+          return mergeMessage(prev, m);
         });
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'evolution_contacts', filter: `user_id=eq.${user.id}` }, (payload) => {
@@ -141,13 +185,14 @@ export default function EvolutionChat() {
       })
       .subscribe();
     return () => { supabase.removeChannel(ch); };
-  }, [user]);
+  }, [user, mergeMessage]);
 
   // Fetch profile pic when opening a conversation without one
   useEffect(() => {
     if (!selectedPhone) return;
     const c = contacts[selectedPhone];
     if (c?.profile_pic_url) return;
+    if (avatarFetchRef.current.has(selectedPhone)) return;
     avatarFetchRef.current.add(selectedPhone);
     supabase.functions.invoke('evolution-send', {
       body: { action: 'fetch-profile-pic', phone: selectedPhone },
@@ -158,6 +203,12 @@ export default function EvolutionChat() {
       }));
     }).catch(() => {});
   }, [selectedPhone, contacts]);
+
+  useEffect(() => {
+    if (!user || contactSyncRef.current) return;
+    contactSyncRef.current = true;
+    supabase.functions.invoke('evolution-send', { body: { action: 'sync-contacts' } }).catch(() => undefined);
+  }, [user]);
 
   const conversations = useMemo(() => {
     const map = new Map<string, { phone: string; name: string | null; last: EvoMessage | null; unread: number; lastAt: string }>();
@@ -345,13 +396,23 @@ export default function EvolutionChat() {
   }, [thread]);
 
   const renderMessageBody = (m: EvoMessage) => {
-    if (m.message_type === 'image' && m.media_url) {
+    const src = mediaSource(m);
+    if ((m.message_type === 'image' || m.message_type === 'sticker') && src) {
+      const label = m.content.replace(/^📷\s*/, '').replace(/^\[sticker\]$/, 'Sticker');
       return (
         <div className="space-y-1">
-          <img src={m.media_url} alt="" className="rounded-lg max-w-full max-h-64 object-cover" />
-          {m.content && !m.content.startsWith('📷') && <div className="text-sm">{m.content}</div>}
+          <button type="button" onClick={() => setPreviewImage({ url: src, caption: label })} className="block focus:outline-none focus:ring-2 focus:ring-ring rounded-lg">
+            <img src={src} alt={label || 'Imagem da conversa'} className={cn('rounded-lg object-cover', m.message_type === 'sticker' ? 'max-w-32 max-h-32' : 'max-w-full max-h-64')} loading="lazy" />
+          </button>
+          {label && label !== 'Imagem' && <div className="text-sm">{label}</div>}
         </div>
       );
+    }
+    if (m.message_type === 'image' && !m.media_url) {
+      return <div className="whitespace-pre-wrap break-words leading-snug">Imagem recebida</div>;
+    }
+    if (m.message_type === 'sticker' && !m.media_url) {
+      return <div className="whitespace-pre-wrap break-words leading-snug">Sticker recebido</div>;
     }
     if (m.message_type === 'audio' && m.media_url) {
       return <audio controls src={m.media_url} className="max-w-[240px] h-9" />;
@@ -605,6 +666,13 @@ export default function EvolutionChat() {
           )
         )}
       </div>
+      <Dialog open={!!previewImage} onOpenChange={(open) => !open && setPreviewImage(null)}>
+        <DialogContent className="max-w-5xl p-2 bg-background/95 border-border">
+          {previewImage && (
+            <img src={previewImage.url} alt={previewImage.caption || 'Imagem ampliada'} className="max-h-[85vh] w-full object-contain rounded-md" />
+          )}
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   );
 }

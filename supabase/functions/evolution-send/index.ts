@@ -40,6 +40,33 @@ function publicMediaFromSignedUrl(url: string | null) {
   }
 }
 
+function findUrlDeep(value: unknown): string | null {
+  if (typeof value === 'string') return /^https?:\/\//i.test(value) ? value : null;
+  if (!value || typeof value !== 'object') return null;
+  const obj = value as Record<string, unknown>;
+  const direct = obj.profilePictureUrl || obj.profilePicUrl || obj.profilePicture || obj.avatar || obj.url || obj.picture || obj.pictureUrl || obj.URL;
+  if (typeof direct === 'string' && /^https?:\/\//i.test(direct)) return direct;
+  for (const child of Object.values(obj)) {
+    const found = findUrlDeep(child);
+    if (found) return found;
+  }
+  return null;
+}
+
+async function insertOutgoingMessage(admin: any, row: Record<string, unknown>) {
+  if (row.external_id) {
+    const { data: existing } = await admin
+      .from('evolution_messages')
+      .select('id')
+      .eq('user_id', row.user_id)
+      .eq('external_id', row.external_id)
+      .maybeSingle();
+    if (existing?.id) return;
+  }
+  const { error } = await admin.from('evolution_messages').insert(row);
+  if (error && error.code !== '23505') console.error('[evolution-send] insert failed', error);
+}
+
 async function fetchJson(url: string, init: RequestInit = {}, timeoutMs = 8000) {
   const r = await fetch(url, { ...init, signal: AbortSignal.timeout(timeoutMs) });
   const data = await r.json().catch(() => ({}));
@@ -204,14 +231,14 @@ Deno.serve(async (req) => {
         const summary = log.map((a) => `${a.mode}:${a.status}`).join(' | ');
         return jsonResponse({ error: `Falha ao enviar (${summary})`, status: result.status, mode, data: result.data, attempts: log }, 200);
       }
-      await admin.from('evolution_messages').insert({
+      await insertOutgoingMessage(admin, {
         user_id: user.id,
         remote_jid: `${phone}@s.whatsapp.net`,
         phone,
         direction: 'out',
         content: text,
         status: 'sent',
-        external_id: result.data?.key?.id || result.data?.messageId || result.data?.data?.Info?.ID || null,
+        external_id: result.data?.key?.id || result.data?.messageId || result.data?.data?.Info?.ID || result.data?.Info?.ID || null,
         raw: result.data,
       });
       return jsonResponse({ ok: true, mode, data: result.data });
@@ -224,7 +251,9 @@ Deno.serve(async (req) => {
       const number = `${phone}@s.whatsapp.net`;
       const tries = [
         { url: `${baseUrl}/user/avatar`, method: 'POST', headers: evolutionHeaders(apiKey, true), body: { number: phone, preview: false } },
+        { url: `${baseUrl}/user/avatar`, method: 'POST', headers: evolutionHeaders(apiKey, true), body: { number, preview: false } },
         { url: `${baseUrl}/user/info`, method: 'POST', headers: evolutionHeaders(apiKey, true), body: { number: [phone] } },
+        { url: `${baseUrl}/user/info`, method: 'POST', headers: evolutionHeaders(apiKey, true), body: { number: [number] } },
         { url: `${baseUrl}/user/avatar`, method: 'POST', headers: evolutionHeaders(apiKey, true, instance), body: { number: phone, preview: false } },
         { url: `${baseUrl}/chat/fetchProfilePictureUrl/${encodeURIComponent(instance)}`, method: 'POST', headers: evolutionHeaders(apiKey, true), body: { number: phone } },
         { url: `${baseUrl}/chat/fetchProfilePictureUrl/${encodeURIComponent(instance)}`, method: 'POST', headers: evolutionHeaders(apiKey, true), body: { number } },
@@ -234,8 +263,7 @@ Deno.serve(async (req) => {
       for (const t of tries) {
         const r = await fetchJson(t.url, { method: t.method, headers: t.headers, body: JSON.stringify(t.body) }, 3000)
           .catch(() => ({ ok: false, status: 0, data: {} as any }));
-        const row = Array.isArray(r?.data?.data) ? r.data.data[0] : Array.isArray(r?.data) ? r.data[0] : r?.data?.data || r?.data || {};
-        const url = row?.profilePictureUrl || row?.profilePicUrl || row?.profilePicture || row?.avatar || row?.url || row?.picture || row?.pictureUrl || null;
+        const url = findUrlDeep(r?.data);
         if (url) {
           await admin.from('evolution_contacts').upsert({
             user_id: user.id, phone, profile_pic_url: url, updated_at: new Date().toISOString(),
@@ -244,6 +272,31 @@ Deno.serve(async (req) => {
         }
       }
       return jsonResponse({ ok: false, url: null });
+    }
+
+    // SYNC CONTACTS FROM EVOLUTION GO
+    if (action === 'sync-contacts') {
+      const r = await fetchJson(`${baseUrl}/user/contacts`, { headers: evolutionHeaders(apiKey) }, 10000)
+        .catch((error) => ({ ok: false, status: 0, data: { error: String(error?.message || error) } }));
+      const rows = Array.isArray(r.data?.data) ? r.data.data : Array.isArray(r.data) ? r.data : [];
+      const payload = rows.map((item: any) => {
+        const rawPhone = String(item?.number || item?.phone || item?.jid || item?.id || '').split('@')[0];
+        const phone = normalizePhone(rawPhone);
+        if (!phone) return null;
+        const row: Record<string, unknown> = {
+          user_id: user.id,
+          phone,
+          name: item?.name || item?.pushName || item?.notify || item?.verifiedName || null,
+          updated_at: new Date().toISOString(),
+        };
+        const avatar = findUrlDeep(item);
+        if (avatar) row.profile_pic_url = avatar;
+        return row;
+      }).filter(Boolean);
+      if (payload.length) {
+        await admin.from('evolution_contacts').upsert(payload, { onConflict: 'user_id,phone' });
+      }
+      return jsonResponse({ ok: r.ok, count: payload.length, status: r.status });
     }
 
     // SEND MEDIA (audio / image / file) — body: { phone, mediaBase64, mimetype, filename, mediaType: 'audio'|'image'|'document', caption? }
@@ -313,7 +366,7 @@ Deno.serve(async (req) => {
         return jsonResponse({ error: `Falha ao enviar mídia (${summary})`, attempts: log, data: result.data }, 200);
       }
 
-      await admin.from('evolution_messages').insert({
+      await insertOutgoingMessage(admin, {
         user_id: user.id,
         remote_jid: `${phone}@s.whatsapp.net`,
         phone,
@@ -323,7 +376,7 @@ Deno.serve(async (req) => {
         media_url: mediaUrl,
         media_mime: mimetype,
         status: 'sent',
-        external_id: result.data?.key?.id || result.data?.messageId || null,
+        external_id: result.data?.key?.id || result.data?.messageId || result.data?.data?.Info?.ID || result.data?.Info?.ID || null,
         raw: result.data,
       });
 
