@@ -88,6 +88,19 @@ async function resolveGoInstanceId(baseUrl: string, apiKey: string, instance: st
   return found?.id || '';
 }
 
+async function resolveGoInstance(baseUrl: string, apiKey: string, instance: string) {
+  const wanted = String(instance || '').toLowerCase();
+  const r = await fetchJson(`${baseUrl}/instance/all`, {
+    headers: evolutionHeaders(apiKey),
+  }).catch(() => null);
+  const rows = Array.isArray(r?.data?.data) ? r?.data?.data : Array.isArray(r?.data) ? r?.data : [];
+  return rows.find((item: any) =>
+    String(item?.id || item?.instanceId || '').toLowerCase() === wanted ||
+    String(item?.name || item?.instanceName || item?.instance?.instanceName || '').toLowerCase() === wanted ||
+    String(item?.token || item?.hash || '') === apiKey
+  ) || null;
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
@@ -123,40 +136,55 @@ Deno.serve(async (req) => {
     // Note: is_enabled gate removed — if the row exists and is configured, allow sending.
     // The toggle remains purely informational for bot/automation modules.
     const baseUrl = String(settings.base_url || '').replace(/\/$/, '');
-    const apiKey = settings.api_key;
-    const instance = settings.instance_name;
-    if (!baseUrl || !apiKey || !instance) {
-      return jsonResponse({ error: 'Configuração incompleta' }, 400);
+    const apiKey = String(settings.api_key || '').trim();
+    const instance = String(settings.instance_name || '').trim();
+    if (!baseUrl || !apiKey) {
+      return jsonResponse({ error: 'Informe URL Base e API Key em Configurações → Evolution.' }, 200);
     }
 
-    // TEST CONNECTION
+    // TEST PANEL LOGIN / CONNECTION
     if (action === 'test') {
-      // Try Evolution Go global list first — works with master apikey
-      const list = await fetchJson(`${baseUrl}/instance/all`, {
-        headers: evolutionHeaders(apiKey),
-      }).catch((error) => ({ ok: false, status: 0, data: { error: String(error?.message || error) } }));
+      const adminEndpoints = [
+        `${baseUrl}/instance/all`,
+        `${baseUrl}/instance/fetchInstances`,
+        `${baseUrl}/instance/list`,
+      ];
 
-      if (list.ok) {
+      for (const url of adminEndpoints) {
+        const list = await fetchJson(url, {
+          headers: evolutionHeaders(apiKey),
+        }).catch((error) => ({ ok: false, status: 0, data: { error: String(error?.message || error) } }));
+
+        if (!list.ok) continue;
+
         const rows = Array.isArray(list.data?.data) ? list.data.data : Array.isArray(list.data) ? list.data : [];
-        const wanted = String(instance || '').toLowerCase();
+        if (!instance) {
+          return jsonResponse({
+            ok: true,
+            status: list.status,
+            mode: 'evolution-panel',
+            data: { state: 'logged', instances: rows.length },
+          });
+        }
+
+        const wanted = instance.toLowerCase();
         const found = rows.find((it: any) =>
-          String(it?.name || '').toLowerCase() === wanted ||
-          String(it?.id || '').toLowerCase() === wanted
+          String(it?.name || it?.instanceName || it?.instance?.instanceName || '').toLowerCase() === wanted ||
+          String(it?.id || it?.instanceId || '').toLowerCase() === wanted
         );
 
         if (!found) {
           return jsonResponse({
             ok: false,
             status: 404,
-            mode: 'evolution-go',
-            data: { instance: { state: 'close' }, error: `Instância "${instance}" não encontrada. Disponíveis: ${rows.map((r: any) => r.name).join(', ') || 'nenhuma'}` },
+            mode: 'evolution-panel',
+            data: { instance: { state: 'close' }, error: `Instância "${instance}" não encontrada. Adicione ou selecione em Conexões WhatsApp.` },
           });
         }
 
-        // Use instance-scoped token to query its real state
-        const instToken = found.token || apiKey;
+        const instToken = found.token || found.hash || apiKey;
         const goStatus = await fetchJson(`${baseUrl}/instance/status`, {
-          headers: { apikey: instToken, instanceId: found.id },
+          headers: { apikey: instToken, instanceId: found.id || found.instanceId || '' },
         }).catch(() => ({ ok: false, status: 0, data: {} }));
 
         const sd = goStatus.data?.data || goStatus.data || {};
@@ -167,21 +195,24 @@ Deno.serve(async (req) => {
         return jsonResponse({
           ok: true,
           status: goStatus.status || 200,
-          mode: 'evolution-go',
-          data: { instance: { state, name: found.name, id: found.id } },
+          mode: 'evolution-panel',
+          data: { instance: { state, name: found.name || found.instanceName, id: found.id || found.instanceId } },
         });
       }
 
-      // Fallback: classic Evolution API
-      const classic = await fetchJson(`${baseUrl}/instance/connectionState/${encodeURIComponent(instance)}`, {
-        headers: evolutionHeaders(apiKey),
-      }).catch((error) => ({ ok: false, status: 0, data: { error: String(error?.message || error) } }));
+      if (instance) {
+        const classic = await fetchJson(`${baseUrl}/instance/connectionState/${encodeURIComponent(instance)}`, {
+          headers: evolutionHeaders(apiKey),
+        }).catch((error) => ({ ok: false, status: 0, data: { error: String(error?.message || error) } }));
+        return jsonResponse({ ok: classic.ok, status: classic.status, mode: 'evolution-api', data: classic.data });
+      }
 
-      return jsonResponse({ ok: classic.ok, status: classic.status, mode: 'evolution-api', data: classic.data });
+      return jsonResponse({ ok: false, status: 401, mode: 'evolution-panel', error: 'Não foi possível entrar no painel Evolution. Confira URL Base e API Key global.' }, 200);
     }
 
     // SET WEBHOOK
     if (action === 'set-webhook') {
+      if (!instance) return jsonResponse({ error: 'Escolha uma instância em Conexões WhatsApp antes de configurar o webhook.' }, 200);
       const webhookUrl = `${supabaseUrl}/functions/v1/evolution-webhook?token=${settings.webhook_token}`;
       const classic = await fetchJson(`${baseUrl}/webhook/set/${encodeURIComponent(instance)}`, {
         method: 'POST',
@@ -217,6 +248,7 @@ Deno.serve(async (req) => {
 
     // SEND
     if (action === 'send') {
+      if (!instance) return jsonResponse({ error: 'Escolha uma instância em Conexões WhatsApp antes de enviar mensagens.' }, 200);
       const phone = normalizePhone(body.phone);
       const text = String(body.text || '').trim();
       if (!phone || !text) {
@@ -272,6 +304,7 @@ Deno.serve(async (req) => {
 
     // FETCH PROFILE PICTURE
     if (action === 'fetch-profile-pic') {
+      if (!instance) return jsonResponse({ error: 'Escolha uma instância em Conexões WhatsApp.' }, 200);
       const phone = normalizePhone(body.phone);
       if (!phone) return jsonResponse({ error: 'phone obrigatório' }, 400);
       const number = `${phone}@s.whatsapp.net`;
@@ -302,6 +335,7 @@ Deno.serve(async (req) => {
 
     // SYNC CONTACTS FROM EVOLUTION GO
     if (action === 'sync-contacts') {
+      if (!instance) return jsonResponse({ error: 'Escolha uma instância em Conexões WhatsApp.' }, 200);
       const r = await fetchJson(`${baseUrl}/user/contacts`, { headers: evolutionHeaders(apiKey) }, 10000)
         .catch((error) => ({ ok: false, status: 0, data: { error: String(error?.message || error) } }));
       const rows = Array.isArray(r.data?.data) ? r.data.data : Array.isArray(r.data) ? r.data : [];
@@ -327,6 +361,7 @@ Deno.serve(async (req) => {
 
     // SEND MEDIA (audio / image / file) — body: { phone, mediaBase64, mimetype, filename, mediaType: 'audio'|'image'|'document', caption? }
     if (action === 'send-media') {
+      if (!instance) return jsonResponse({ error: 'Escolha uma instância em Conexões WhatsApp antes de enviar arquivos.' }, 200);
       const phone = normalizePhone(body.phone);
       const mediaType = String(body.mediaType || 'document');
       const mimetype = String(body.mimetype || 'application/octet-stream');
@@ -420,10 +455,14 @@ Deno.serve(async (req) => {
     // QR / CONNECT — returns a base64 QR (data URL) so the user can scan it in-app
     if (action === 'qr-connect') {
       const targetInstance = String(body.instance || instance).trim();
+      if (!targetInstance) return jsonResponse({ error: 'Crie ou selecione uma instância em Conexões WhatsApp.' }, 200);
+      const foundInstance = await resolveGoInstance(baseUrl, apiKey, targetInstance);
+      const scopedApiKey = foundInstance?.token || foundInstance?.hash || apiKey;
+      const scopedInstanceId = foundInstance?.id || foundInstance?.instanceId || targetInstance;
 
       // First check if already connected (Evolution Go instance-scoped status)
       const status = await fetchJson(`${baseUrl}/instance/status`, {
-        headers: evolutionHeaders(apiKey),
+        headers: evolutionHeaders(scopedApiKey, false, scopedInstanceId),
       }, 5000).catch(() => ({ ok: false, status: 0, data: {} as any }));
       const sd = status?.data?.data || status?.data || {};
       if (sd?.Connected || sd?.connected) {
@@ -432,17 +471,18 @@ Deno.serve(async (req) => {
 
       // Trigger reconnect for Evolution Go so a QR is generated, then fetch /instance/qr
       await fetchJson(`${baseUrl}/instance/reconnect`, {
-        method: 'POST', headers: evolutionHeaders(apiKey, true), body: '{}',
+        method: 'POST', headers: evolutionHeaders(scopedApiKey, true, scopedInstanceId), body: '{}',
       }, 5000).catch(() => null);
 
       const tries = [
-        { url: `${baseUrl}/instance/qr`, method: 'GET', headers: evolutionHeaders(apiKey) },
+        { url: `${baseUrl}/instance/qr`, method: 'GET', headers: evolutionHeaders(scopedApiKey, false, scopedInstanceId) },
+        { url: `${baseUrl}/instance/connect`, method: 'POST', headers: evolutionHeaders(scopedApiKey, true, scopedInstanceId) },
         { url: `${baseUrl}/instance/connect/${encodeURIComponent(targetInstance)}`, method: 'GET', headers: evolutionHeaders(apiKey) },
         { url: `${baseUrl}/instance/qr/${encodeURIComponent(targetInstance)}`, method: 'GET', headers: evolutionHeaders(apiKey) },
         { url: `${baseUrl}/instance/qrcode/${encodeURIComponent(targetInstance)}`, method: 'GET', headers: evolutionHeaders(apiKey) },
       ];
       for (const t of tries) {
-        const r = await fetchJson(t.url, { method: t.method, headers: t.headers }, 10000)
+        const r = await fetchJson(t.url, { method: t.method, headers: t.headers, body: t.method === 'POST' ? '{}' : undefined }, 10000)
           .catch(() => ({ ok: false, status: 0, data: {} as any }));
         if (!r.ok) continue;
         const data = r.data || {};

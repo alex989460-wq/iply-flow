@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Loader2, Save, Plug, Webhook, Zap, Copy, ExternalLink } from 'lucide-react';
+import { Loader2, Save, Plug, Webhook, Zap, Copy, QrCode } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
@@ -143,11 +143,11 @@ export default function EvolutionApiCard() {
           <div>
             <CardTitle className="flex items-center gap-2">
               <Zap className="w-5 h-5 text-primary" />
-              Evolution API
+              Login do Painel Evolution
               {form.is_enabled && <Badge variant="default">Ativo</Badge>}
             </CardTitle>
             <CardDescription>
-              Provider independente. Não afeta o Zap Responder ou Meta Cloud.
+              Salve a URL e a API Key global para manter o painel conectado. As instâncias ficam em Conexões WhatsApp.
             </CardDescription>
           </div>
           <Switch
@@ -157,7 +157,7 @@ export default function EvolutionApiCard() {
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="grid gap-3 md:grid-cols-2">
+        <div className="grid gap-3">
           <div className="space-y-1">
             <Label>URL Base</Label>
             <Input
@@ -167,24 +167,16 @@ export default function EvolutionApiCard() {
             />
           </div>
           <div className="space-y-1">
-            <Label>Instance Name <span className="text-muted-foreground text-xs">(opcional com API global)</span></Label>
-            <Input
-              placeholder="deixe em branco se usa API Key global"
-              value={form.instance_name}
-              onChange={(e) => setForm((f) => ({ ...f, instance_name: e.target.value }))}
-            />
-            <p className="text-[11px] text-muted-foreground">
-              Com a <b>GLOBAL_API_KEY</b> do Evolution GO, deixe vazio. Você escolhe/cria as instâncias em <a href="/whatsapp-connections" className="underline text-primary">Conexões WhatsApp</a>.
-            </p>
-          </div>
-          <div className="space-y-1 md:col-span-2">
-            <Label>API Key (apikey)</Label>
+            <Label>API Key global</Label>
             <Input
               type="password"
-              placeholder="apikey da instância"
+              placeholder="API Key global do painel Evolution"
               value={form.api_key}
               onChange={(e) => setForm((f) => ({ ...f, api_key: e.target.value }))}
             />
+            <p className="text-[11px] text-muted-foreground">
+              Esta tela salva o login do painel. Para criar ou conectar número por QR, use <a href="/evolution-instances" className="underline text-primary">Conexões WhatsApp</a>.
+            </p>
           </div>
         </div>
 
@@ -213,26 +205,28 @@ export default function EvolutionApiCard() {
         <div className="flex flex-wrap gap-2">
           <Button onClick={save} disabled={saving}>
             {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
-            Salvar
+            Salvar login
           </Button>
           <Button variant="outline" onClick={test} disabled={testing || !hasRow}>
             {testing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Plug className="w-4 h-4 mr-2" />}
-            Testar conexão
+            Verificar painel
           </Button>
-          <Button variant="outline" onClick={configureWebhook} disabled={settingWebhook || !hasRow}>
-            {settingWebhook ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Webhook className="w-4 h-4 mr-2" />}
-            Configurar webhook
-          </Button>
+          {form.instance_name.trim() && (
+            <Button variant="outline" onClick={configureWebhook} disabled={settingWebhook || !hasRow}>
+              {settingWebhook ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Webhook className="w-4 h-4 mr-2" />}
+              Configurar webhook
+            </Button>
+          )}
           <Button variant="ghost" asChild>
-            <a href="/chat-evolution" className="flex items-center">
-              <ExternalLink className="w-4 h-4 mr-2" /> Abrir Chat Evolution
+            <a href="/evolution-instances" className="flex items-center">
+              <QrCode className="w-4 h-4 mr-2" /> Ir para Conexões WhatsApp
             </a>
           </Button>
         </div>
 
         {connState && (
           <div className="text-xs text-muted-foreground">
-            Estado da instância: <span className="font-medium text-foreground">{connState}</span>
+Status do painel/instância: <span className="font-medium text-foreground">{connState}</span>
           </div>
         )}
       </CardContent>
