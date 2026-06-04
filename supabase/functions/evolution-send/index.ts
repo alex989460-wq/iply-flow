@@ -41,8 +41,13 @@ Deno.serve(async (req) => {
       .eq('user_id', user.id)
       .maybeSingle();
 
-    if (!settings || !settings.is_enabled) {
-      return new Response(JSON.stringify({ error: 'Evolution não configurada/ativada' }), {
+    if (!settings) {
+      return new Response(JSON.stringify({ error: 'Evolution não configurada' }), {
+        status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+    if (action === 'send' && !settings.is_enabled) {
+      return new Response(JSON.stringify({ error: 'Evolution não está ativada' }), {
         status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
