@@ -235,7 +235,7 @@ Deno.serve(async (req) => {
         const r = await fetchJson(t.url, { method: t.method, headers: t.headers, body: JSON.stringify(t.body) }, 3000)
           .catch(() => ({ ok: false, status: 0, data: {} as any }));
         const row = Array.isArray(r?.data?.data) ? r.data.data[0] : Array.isArray(r?.data) ? r.data[0] : r?.data?.data || r?.data || {};
-        const url = row?.profilePictureUrl || row?.profilePicture || row?.avatar || row?.url || row?.picture || row?.pictureUrl || null;
+        const url = row?.profilePictureUrl || row?.profilePicUrl || row?.profilePicture || row?.avatar || row?.url || row?.picture || row?.pictureUrl || null;
         if (url) {
           await admin.from('evolution_contacts').upsert({
             user_id: user.id, phone, profile_pic_url: url, updated_at: new Date().toISOString(),
