@@ -168,6 +168,7 @@ export default function EvolutionChat() {
     if (!selectedPhone) return;
     const c = contacts[selectedPhone];
     if (c?.profile_pic_url) return;
+    if (avatarFetchRef.current.has(selectedPhone)) return;
     avatarFetchRef.current.add(selectedPhone);
     supabase.functions.invoke('evolution-send', {
       body: { action: 'fetch-profile-pic', phone: selectedPhone },
@@ -178,6 +179,12 @@ export default function EvolutionChat() {
       }));
     }).catch(() => {});
   }, [selectedPhone, contacts]);
+
+  useEffect(() => {
+    if (!user || contactSyncRef.current) return;
+    contactSyncRef.current = true;
+    supabase.functions.invoke('evolution-send', { body: { action: 'sync-contacts' } }).catch(() => undefined);
+  }, [user]);
 
   const conversations = useMemo(() => {
     const map = new Map<string, { phone: string; name: string | null; last: EvoMessage | null; unread: number; lastAt: string }>();
