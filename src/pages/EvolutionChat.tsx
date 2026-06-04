@@ -305,14 +305,15 @@ export default function EvolutionChat() {
     });
   };
 
-  const sendMedia = async (file: File, mediaType: 'image' | 'audio' | 'document') => {
+  const sendMedia = async (file: File, mediaType: 'image' | 'audio' | 'document', caption = '') => {
     if (!selectedPhone) return;
     setSending(true);
     const tempId = `tmp-${Date.now()}`;
     const previewUrl = URL.createObjectURL(file);
+    const labelFallback = mediaType === 'audio' ? '🎤 Áudio' : mediaType === 'image' ? '📷 Imagem' : `📎 ${file.name}`;
     const optimistic: EvoMessage = {
       id: tempId, phone: selectedPhone, contact_name: null, direction: 'out',
-      content: mediaType === 'audio' ? '🎤 Áudio' : mediaType === 'image' ? '📷 Imagem' : `📎 ${file.name}`,
+      content: caption || labelFallback,
       message_type: mediaType, media_url: previewUrl, media_mime: file.type,
       created_at: new Date().toISOString(), _pending: true,
     };
@@ -327,6 +328,7 @@ export default function EvolutionChat() {
           mimetype: file.type || (mediaType === 'audio' ? 'audio/ogg' : 'application/octet-stream'),
           filename: file.name || `media-${Date.now()}`,
           mediaBase64: base64,
+          caption,
         },
       });
       if (error || data?.error) {
