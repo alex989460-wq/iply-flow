@@ -391,6 +391,127 @@ Deno.serve(async (req) => {
       return jsonResponse({ ok: true, mode, mediaUrl, data: result.data });
     }
 
+    // QR / CONNECT — returns a base64 QR (data URL) so the user can scan it in-app
+    if (action === 'qr-connect') {
+      const targetInstance = String(body.instance || instance).trim();
+      const tries = [
+        { url: `${baseUrl}/instance/connect/${encodeURIComponent(targetInstance)}`, method: 'GET', headers: evolutionHeaders(apiKey) },
+        { url: `${baseUrl}/instance/qr/${encodeURIComponent(targetInstance)}`, method: 'GET', headers: evolutionHeaders(apiKey) },
+        { url: `${baseUrl}/instance/qrcode/${encodeURIComponent(targetInstance)}`, method: 'GET', headers: evolutionHeaders(apiKey) },
+        { url: `${baseUrl}/instance/qr`, method: 'GET', headers: evolutionHeaders(apiKey, false, targetInstance) },
+      ];
+      for (const t of tries) {
+        const r = await fetchJson(t.url, { method: t.method, headers: t.headers }, 10000)
+          .catch(() => ({ ok: false, status: 0, data: {} as any }));
+        if (!r.ok) continue;
+        const data = r.data || {};
+        // many shapes: { base64 }, { qrcode: { base64 } }, { code }, { qr }, { data: { qrcode } }
+        const findQr = (v: any): string | null => {
+          if (!v) return null;
+          if (typeof v === 'string') {
+            if (v.startsWith('data:image')) return v;
+            if (/^[A-Za-z0-9+/=]{200,}$/.test(v)) return `data:image/png;base64,${v}`;
+            return null;
+          }
+          if (typeof v !== 'object') return null;
+          for (const key of ['base64', 'qrcode', 'qr', 'code', 'image']) {
+            const found = findQr(v[key]);
+            if (found) return found;
+          }
+          for (const child of Object.values(v)) {
+            const found = findQr(child);
+            if (found) return found;
+          }
+          return null;
+        };
+        const qr = findQr(data);
+        const pairingCode = data?.pairingCode || data?.code || data?.qrcode?.pairingCode || null;
+        if (qr) return jsonResponse({ ok: true, qr, pairingCode, instance: targetInstance });
+      }
+      return jsonResponse({ ok: false, error: 'Não foi possível obter o QR Code da instância.' }, 200);
+    }
+
+    // LIST INSTANCES
+    if (action === 'list-instances') {
+      const tries = [
+        `${baseUrl}/instance/fetchInstances`,
+        `${baseUrl}/instance/all`,
+        `${baseUrl}/instance/list`,
+      ];
+      for (const url of tries) {
+        const r = await fetchJson(url, { headers: evolutionHeaders(apiKey) }, 8000)
+          .catch(() => ({ ok: false, status: 0, data: {} as any }));
+        if (!r.ok) continue;
+        const rows = Array.isArray(r.data?.data) ? r.data.data : Array.isArray(r.data) ? r.data : [];
+        const list = rows.map((item: any) => ({
+          id: item?.id || item?.instanceId || item?.name || '',
+          name: item?.name || item?.instanceName || item?.instance?.instanceName || item?.id || '',
+          state: item?.connectionStatus || item?.state || item?.instance?.state || item?.status || 'unknown',
+          phone: item?.ownerJid?.split?.('@')?.[0] || item?.owner?.split?.('@')?.[0] || item?.number || null,
+          profile_name: item?.profileName || item?.profilePictureUrl ? item?.profileName : null,
+          profile_pic: item?.profilePictureUrl || item?.profilePicUrl || null,
+          token: item?.token || item?.hash || null,
+        }));
+        return jsonResponse({ ok: true, instances: list, current: instance });
+      }
+      return jsonResponse({ ok: false, error: 'Não foi possível listar instâncias.' }, 200);
+    }
+
+    // CREATE INSTANCE
+    if (action === 'create-instance') {
+      const name = String(body.name || '').trim();
+      if (!name) return jsonResponse({ error: 'name obrigatório' }, 400);
+      const webhookUrl = `${supabaseUrl}/functions/v1/evolution-webhook?token=${settings.webhook_token}`;
+      const payloads = [
+        // Evolution API classic
+        { url: `${baseUrl}/instance/create`, body: { instanceName: name, qrcode: true, integration: 'WHATSAPP-BAILEYS', webhook: { url: webhookUrl, events: ['MESSAGES_UPSERT'] } } },
+        // Evolution Go style
+        { url: `${baseUrl}/instance/create`, body: { name, webhookUrl, subscribe: ['MESSAGE','SEND_MESSAGE','CONNECTION'], immediate: true } },
+      ];
+      let last: any = { ok: false, status: 0, data: {} };
+      for (const p of payloads) {
+        const r = await fetchJson(p.url, {
+          method: 'POST',
+          headers: evolutionHeaders(apiKey, true),
+          body: JSON.stringify(p.body),
+        }, 12000).catch((error) => ({ ok: false, status: 0, data: { error: String(error?.message || error) } }));
+        last = r;
+        if (r.ok) return jsonResponse({ ok: true, data: r.data, name });
+      }
+      return jsonResponse({ ok: false, status: last.status, error: last.data?.message || last.data?.error || 'Falha ao criar instância.', data: last.data }, 200);
+    }
+
+    // DISCONNECT / LOGOUT INSTANCE
+    if (action === 'logout-instance') {
+      const targetInstance = String(body.instance || instance).trim();
+      const tries = [
+        { url: `${baseUrl}/instance/logout/${encodeURIComponent(targetInstance)}`, method: 'DELETE' },
+        { url: `${baseUrl}/instance/logout/${encodeURIComponent(targetInstance)}`, method: 'POST' },
+        { url: `${baseUrl}/instance/disconnect`, method: 'POST' },
+      ];
+      for (const t of tries) {
+        const r = await fetchJson(t.url, { method: t.method, headers: evolutionHeaders(apiKey, true, targetInstance) }, 8000)
+          .catch(() => ({ ok: false, status: 0, data: {} as any }));
+        if (r.ok) return jsonResponse({ ok: true, data: r.data });
+      }
+      return jsonResponse({ ok: false, error: 'Falha ao desconectar instância.' }, 200);
+    }
+
+    // SET ACTIVE INSTANCE (saves to evolution_settings.instance_name)
+    if (action === 'set-active-instance') {
+      const name = String(body.name || '').trim();
+      if (!name) return jsonResponse({ error: 'name obrigatório' }, 400);
+      const { error } = await admin
+        .from('evolution_settings')
+        .update({ instance_name: name })
+        .eq('user_id', user.id);
+      if (error) return jsonResponse({ error: error.message }, 500);
+      return jsonResponse({ ok: true });
+    }
+
+    return jsonResponse({ error: 'action inválida' }, 400);
+    }
+
     return jsonResponse({ error: 'action inválida' }, 400);
   } catch (e) {
     console.error('[evolution-send]', e);
