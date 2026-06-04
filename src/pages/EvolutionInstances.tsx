@@ -38,12 +38,14 @@ export default function EvolutionInstances() {
   const [loading, setLoading] = useState(true);
   const [instances, setInstances] = useState<InstanceRow[]>([]);
   const [current, setCurrent] = useState<string>('');
+  const [adminMode, setAdminMode] = useState(true);
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState('');
   const [qrOpen, setQrOpen] = useState(false);
   const [qrLoading, setQrLoading] = useState(false);
   const [qrImg, setQrImg] = useState<string | null>(null);
   const [qrInstance, setQrInstance] = useState<string | null>(null);
+  const [qrMsg, setQrMsg] = useState<string | null>(null);
   const pollRef = useRef<number | null>(null);
 
   const fetchInstances = useCallback(async () => {
@@ -57,6 +59,7 @@ export default function EvolutionInstances() {
     if (data?.ok) {
       setInstances(data.instances || []);
       setCurrent(data.current || '');
+      setAdminMode(!!data.adminMode);
     } else if (data?.error) {
       toast({ title: 'Atenção', description: data.error });
     }
