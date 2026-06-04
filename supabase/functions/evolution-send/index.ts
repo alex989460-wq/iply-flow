@@ -194,7 +194,8 @@ Deno.serve(async (req) => {
 
       if (!result.ok) {
         console.error('[evolution-send] all attempts failed', log, result);
-        return jsonResponse({ error: 'Falha ao enviar', status: result.status, mode, data: result.data, attempts: log }, 502);
+        const summary = log.map((a) => `${a.mode}:${a.status}`).join(' | ');
+        return jsonResponse({ error: `Falha ao enviar (${summary})`, status: result.status, mode, data: result.data, attempts: log }, 200);
       }
       await admin.from('evolution_messages').insert({
         user_id: user.id,
