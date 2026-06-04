@@ -234,14 +234,17 @@ export default function EvolutionChat() {
     const arr = Array.from(map.values()).sort((a, b) =>
       new Date(b.lastAt || 0).getTime() - new Date(a.lastAt || 0).getTime()
     );
-    if (!search.trim()) return arr;
+    let filtered = arr;
+    if (filter === 'unread') filtered = arr.filter(c => c.unread > 0 && c.last?.direction === 'in');
+    else if (filter === 'media') filtered = arr.filter(c => c.last && ['image', 'audio', 'document', 'sticker'].includes(c.last.message_type));
+    if (!search.trim()) return filtered;
     const q = search.toLowerCase();
-    return arr.filter(c =>
+    return filtered.filter(c =>
       c.phone.includes(q.replace(/\D/g, '')) ||
       (c.name || contacts[c.phone]?.name || '').toLowerCase().includes(q) ||
       (c.last?.content || '').toLowerCase().includes(q)
     );
-  }, [messages, search, contacts, selectedPhone]);
+  }, [messages, search, contacts, selectedPhone, filter]);
 
   const thread = useMemo(() => messages.filter((m) => m.phone === selectedPhone), [messages, selectedPhone]);
   const selectedContact = useMemo(() => contacts[selectedPhone || ''] || null, [contacts, selectedPhone]);
