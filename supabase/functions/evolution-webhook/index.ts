@@ -44,6 +44,14 @@ function mediaMimeFrom(message: any) {
     || null;
 }
 
+function profilePicFrom(...items: any[]) {
+  for (const item of items) {
+    const url = item?.ProfilePicURL || item?.profilePictureUrl || item?.profilePicture || item?.avatar || item?.picture || item?.pictureUrl;
+    if (url) return url;
+  }
+  return null;
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
@@ -94,9 +102,10 @@ Deno.serve(async (req) => {
             status: info.IsFromMe ? 'sent' : 'received',
             raw: body,
           });
-          if (info.PushName) {
+          const profilePicUrl = profilePicFrom(info, data, body);
+          if (info.PushName || profilePicUrl) {
             await admin.from('evolution_contacts').upsert({
-              user_id: settings.user_id, phone, name: info.PushName, updated_at: new Date().toISOString(),
+              user_id: settings.user_id, phone, name: info.PushName || null, profile_pic_url: profilePicUrl, updated_at: new Date().toISOString(),
             }, { onConflict: 'user_id,phone' });
           }
         }
@@ -139,9 +148,10 @@ Deno.serve(async (req) => {
         status: fromMe ? 'sent' : 'received',
         raw: m,
       });
-      if (m?.pushName) {
+      const profilePicUrl = profilePicFrom(m, m?.message, m?.contact, body);
+      if (m?.pushName || profilePicUrl) {
         await admin.from('evolution_contacts').upsert({
-          user_id: settings.user_id, phone, name: m.pushName, updated_at: new Date().toISOString(),
+          user_id: settings.user_id, phone, name: m?.pushName || null, profile_pic_url: profilePicUrl, updated_at: new Date().toISOString(),
         }, { onConflict: 'user_id,phone' });
       }
     }
