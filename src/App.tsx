@@ -33,6 +33,7 @@ import ConsultaDue from "./pages/ConsultaDue";
 import MetaTemplates from "./pages/MetaTemplates";
 import MetaChat from "./pages/MetaChat";
 import EvolutionChat from "./pages/EvolutionChat";
+import EvolutionInstances from "./pages/EvolutionInstances";
 import PublicCheckout from "./pages/PublicCheckout";
 import { Loader2 } from "lucide-react";
 
