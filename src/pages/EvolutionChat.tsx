@@ -556,28 +556,28 @@ export default function EvolutionChat() {
             </div>
           ) : (
             <>
-              <div className="px-3 py-2 border-b border-border bg-card/50 flex items-center gap-2">
+              <div className="px-3 py-2 border-b border-[#0b1115] bg-[#202c33] flex items-center gap-3 shadow-sm">
                 {isMobile && (
-                  <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setSelectedPhone(null)}>
+                  <Button size="icon" variant="ghost" className="h-8 w-8 text-[#aebac1] hover:bg-white/5" onClick={() => setSelectedPhone(null)}>
                     <X className="w-4 h-4" />
                   </Button>
                 )}
                 <button
                   type="button"
                   onClick={() => selectedContact?.profile_pic_url && setAvatarPreview(selectedContact.profile_pic_url)}
-                  className="rounded-full focus:outline-none focus:ring-2 focus:ring-ring"
+                  className="rounded-full focus:outline-none focus:ring-2 focus:ring-[#00a884]"
                   aria-label="Ver avatar"
                 >
-                  <Avatar className="h-9 w-9 hover:opacity-80 transition-opacity">
+                  <Avatar className="h-10 w-10 hover:opacity-80 transition-opacity ring-1 ring-white/10">
                     {selectedContact?.profile_pic_url && <AvatarImage src={selectedContact.profile_pic_url} />}
-                    <AvatarFallback className="text-[11px] bg-gradient-to-br from-primary/20 to-primary/5 text-primary">
+                    <AvatarFallback className="text-xs bg-[#00a884]/20 text-[#00a884]">
                       {initials(selectedName, selectedPhone)}
                     </AvatarFallback>
                   </Avatar>
                 </button>
                 <div className="flex-1 min-w-0">
-                  <div className="text-sm font-semibold truncate">{selectedName || formatPhone(selectedPhone)}</div>
-                  <div className="text-[10px] text-muted-foreground flex items-center gap-1">
+                  <div className="text-sm font-semibold truncate text-[#e9edef]">{selectedName || formatPhone(selectedPhone)}</div>
+                  <div className="text-[11px] text-[#8696a0] flex items-center gap-1">
                     <Phone className="w-2.5 h-2.5" /> {formatPhone(selectedPhone)}
                   </div>
                 </div>
@@ -589,31 +589,32 @@ export default function EvolutionChat() {
                 )}
               </div>
 
-              <div ref={scrollRef} className="flex-1 overflow-auto p-3 space-y-2"
-                style={{ backgroundImage: 'radial-gradient(circle at 1px 1px, hsl(var(--muted-foreground) / 0.06) 1px, transparent 0)', backgroundSize: '18px 18px' }}>
+              <div ref={scrollRef} className="flex-1 overflow-auto px-3 py-3 space-y-2 bg-[#0b141a]"
+                style={{ backgroundImage: 'radial-gradient(circle at 1px 1px, rgba(255,255,255,0.025) 1px, transparent 0)', backgroundSize: '22px 22px' }}>
                 {groupedThread.length === 0 && (
-                  <div className="text-xs text-muted-foreground text-center py-10">Sem mensagens. Envie a primeira abaixo.</div>
+                  <div className="text-xs text-[#8696a0] text-center py-10">Sem mensagens. Envie a primeira abaixo.</div>
                 )}
                 {groupedThread.map((g) => (
                   <div key={g.date} className="space-y-1.5">
                     <div className="flex justify-center my-2">
-                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-card border border-border text-muted-foreground">{g.date}</span>
+                      <span className="text-[11px] px-3 py-1 rounded-md bg-[#1d282f] text-[#aebac1] shadow-sm">{g.date}</span>
                     </div>
                     {g.items.map((m) => (
                       <div key={m.id} className={cn('flex', m.direction === 'out' ? 'justify-end' : 'justify-start')}>
                         <div className={cn(
-                          'max-w-[78%] md:max-w-[65%] rounded-2xl px-3 py-1.5 text-sm shadow-sm relative',
-                          m.direction === 'out' ? 'bg-primary text-primary-foreground rounded-br-sm' : 'bg-card border border-border rounded-bl-sm',
+                          'max-w-[78%] md:max-w-[65%] rounded-lg px-2 py-1 text-sm shadow-sm relative text-[#e9edef]',
+                          m.direction === 'out' ? 'bg-[#005c4b] rounded-tr-sm' : 'bg-[#202c33] rounded-tl-sm',
                           m._failed && 'ring-1 ring-destructive',
                         )}>
-                          {renderMessageBody(m)}
-                          <div className={cn('text-[9px] mt-0.5 text-right opacity-70',
-                            m.direction === 'out' ? 'text-primary-foreground' : 'text-muted-foreground')}>
-                            {new Date(m.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                          <div className="px-1.5 pt-0.5">
+                            {renderMessageBody(m)}
+                          </div>
+                          <div className="flex items-center justify-end gap-1 px-1.5 pb-0.5 mt-0.5 text-[10px] text-[#aebac1]">
+                            <span>{new Date(m.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
                             {m.direction === 'out' && (
-                              m._failed ? <span className="ml-1">⚠️</span>
-                              : m._pending ? <span className="ml-1">⏳</span>
-                              : <span className="ml-1">✓✓</span>
+                              m._failed ? <span className="text-destructive">⚠️</span>
+                              : m._pending ? <span>⏳</span>
+                              : <span className="text-[#53bdeb] font-bold leading-none">✓✓</span>
                             )}
                           </div>
                         </div>
