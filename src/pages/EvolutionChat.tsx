@@ -628,28 +628,30 @@ export default function EvolutionChat() {
               </div>
 
               {showQuickReplies && (
-                <div className="px-2 py-1.5 border-t border-border bg-card/50 flex gap-1 overflow-x-auto">
+                <div className="px-2 py-1.5 border-t border-[#0b1115] bg-[#1d282f] flex gap-1 overflow-x-auto">
                   {QUICK_REPLIES.map((q) => (
-                    <Button key={q} size="sm" variant="outline" className="h-7 text-[11px] shrink-0"
-                      onClick={() => setDraft(d => (d ? d + ' ' : '') + q)}>{q}</Button>
+                    <button key={q}
+                      className="h-7 px-2.5 text-[11px] shrink-0 rounded-full bg-[#2a3942] text-[#e9edef] hover:bg-[#374248] transition-colors"
+                      onClick={() => setDraft(d => (d ? d + ' ' : '') + q)}>{q}</button>
                   ))}
                 </div>
               )}
 
               {/* Composer */}
-              <div className="p-2 border-t border-border bg-card/30 flex items-end gap-1.5">
+              <div className="px-2 py-2 border-t border-[#0b1115] bg-[#202c33] flex items-end gap-1.5">
                 <input ref={imgInputRef} type="file" accept="image/*" hidden onChange={onPickFile('image')} />
                 <input ref={fileInputRef} type="file" hidden onChange={onPickFile('document')} />
+                <input ref={stickerInputRef} type="file" accept="image/webp,image/png" hidden onChange={onPickFile('sticker')} />
 
                 {recording ? (
-                  <div className="flex-1 flex items-center gap-2 px-3 py-2 rounded-2xl bg-destructive/10 border border-destructive/30">
+                  <div className="flex-1 flex items-center gap-2 px-3 py-2 rounded-lg bg-destructive/15 border border-destructive/30">
                     <div className="w-2 h-2 rounded-full bg-destructive animate-pulse" />
-                    <span className="text-xs font-medium">Gravando... {Math.floor(recordSeconds / 60)}:{String(recordSeconds % 60).padStart(2, '0')}</span>
+                    <span className="text-xs font-medium text-[#e9edef]">Gravando... {Math.floor(recordSeconds / 60)}:{String(recordSeconds % 60).padStart(2, '0')}</span>
                     <div className="flex-1" />
-                    <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => stopRecording(true)} title="Cancelar">
+                    <Button size="icon" variant="ghost" className="h-8 w-8 hover:bg-white/5" onClick={() => stopRecording(true)} title="Cancelar">
                       <Trash2 className="w-4 h-4 text-destructive" />
                     </Button>
-                    <Button size="icon" className="h-8 w-8" onClick={() => stopRecording(false)} title="Enviar">
+                    <Button size="icon" className="h-8 w-8 bg-[#00a884] hover:bg-[#06cf9c] text-white" onClick={() => stopRecording(false)} title="Enviar">
                       <Send className="w-4 h-4" />
                     </Button>
                   </div>
@@ -657,14 +659,14 @@ export default function EvolutionChat() {
                   <>
                     <Popover>
                       <PopoverTrigger asChild>
-                        <Button size="icon" variant="ghost" className="h-9 w-9 shrink-0" title="Emoji">
-                          <Smile className="w-4 h-4" />
+                        <Button size="icon" variant="ghost" className="h-9 w-9 shrink-0 text-[#aebac1] hover:bg-white/5 hover:text-[#e9edef]" title="Emoji">
+                          <Smile className="w-5 h-5" />
                         </Button>
                       </PopoverTrigger>
                       <PopoverContent side="top" align="start" className="p-0 border-0 w-auto bg-transparent shadow-none">
                         <EmojiPicker
                           onEmojiClick={(e) => setDraft(d => d + e.emoji)}
-                          theme={Theme.AUTO}
+                          theme={Theme.DARK}
                           emojiStyle={EmojiStyle.NATIVE}
                           width={320}
                           height={380}
@@ -673,17 +675,21 @@ export default function EvolutionChat() {
                         />
                       </PopoverContent>
                     </Popover>
-                    <Button size="icon" variant="ghost" className="h-9 w-9 shrink-0"
+                    <Button size="icon" variant="ghost" className="h-9 w-9 shrink-0 text-[#aebac1] hover:bg-white/5 hover:text-[#e9edef]"
+                      onClick={() => stickerInputRef.current?.click()} title="Sticker (.webp)" disabled={sending}>
+                      <Sticker className="w-5 h-5" />
+                    </Button>
+                    <Button size="icon" variant="ghost" className="h-9 w-9 shrink-0 text-[#aebac1] hover:bg-white/5 hover:text-[#e9edef]"
                       onClick={() => setShowQuickReplies(v => !v)} title="Respostas rápidas">
-                      <Zap className={cn('w-4 h-4', showQuickReplies && 'text-primary')} />
+                      <Zap className={cn('w-5 h-5', showQuickReplies && 'text-[#00a884]')} />
                     </Button>
-                    <Button size="icon" variant="ghost" className="h-9 w-9 shrink-0"
+                    <Button size="icon" variant="ghost" className="h-9 w-9 shrink-0 text-[#aebac1] hover:bg-white/5 hover:text-[#e9edef]"
                       onClick={() => imgInputRef.current?.click()} title="Imagem" disabled={sending}>
-                      <ImageIcon className="w-4 h-4" />
+                      <ImageIcon className="w-5 h-5" />
                     </Button>
-                    <Button size="icon" variant="ghost" className="h-9 w-9 shrink-0"
+                    <Button size="icon" variant="ghost" className="h-9 w-9 shrink-0 text-[#aebac1] hover:bg-white/5 hover:text-[#e9edef]"
                       onClick={() => fileInputRef.current?.click()} title="Arquivo" disabled={sending}>
-                      <Paperclip className="w-4 h-4" />
+                      <Paperclip className="w-5 h-5" />
                     </Button>
                     <textarea
                       placeholder="Digite uma mensagem..."
@@ -691,15 +697,15 @@ export default function EvolutionChat() {
                       onChange={(e) => setDraft(e.target.value)}
                       onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
                       rows={1}
-                      className="flex-1 resize-none rounded-2xl border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring max-h-32"
-                      style={{ minHeight: 36 }}
+                      className="flex-1 resize-none rounded-lg border-0 bg-[#2a3942] text-[#e9edef] placeholder:text-[#8696a0] px-4 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#00a884] max-h-32"
+                      style={{ minHeight: 40 }}
                     />
                     {draft.trim() ? (
-                      <Button onClick={send} size="icon" className="h-9 w-9 shrink-0 rounded-full">
+                      <Button onClick={send} size="icon" className="h-10 w-10 shrink-0 rounded-full bg-[#00a884] hover:bg-[#06cf9c] text-white">
                         <Send className="w-4 h-4" />
                       </Button>
                     ) : (
-                      <Button onClick={startRecording} size="icon" className="h-9 w-9 shrink-0 rounded-full" title="Gravar áudio">
+                      <Button onClick={startRecording} size="icon" className="h-10 w-10 shrink-0 rounded-full bg-[#00a884] hover:bg-[#06cf9c] text-white" title="Gravar áudio">
                         <Mic className="w-4 h-4" />
                       </Button>
                     )}
