@@ -88,6 +88,19 @@ async function resolveGoInstanceId(baseUrl: string, apiKey: string, instance: st
   return found?.id || '';
 }
 
+async function resolveGoInstance(baseUrl: string, apiKey: string, instance: string) {
+  const wanted = String(instance || '').toLowerCase();
+  const r = await fetchJson(`${baseUrl}/instance/all`, {
+    headers: evolutionHeaders(apiKey),
+  }).catch(() => null);
+  const rows = Array.isArray(r?.data?.data) ? r?.data?.data : Array.isArray(r?.data) ? r?.data : [];
+  return rows.find((item: any) =>
+    String(item?.id || item?.instanceId || '').toLowerCase() === wanted ||
+    String(item?.name || item?.instanceName || item?.instance?.instanceName || '').toLowerCase() === wanted ||
+    String(item?.token || item?.hash || '') === apiKey
+  ) || null;
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
@@ -199,6 +212,7 @@ Deno.serve(async (req) => {
 
     // SET WEBHOOK
     if (action === 'set-webhook') {
+      if (!instance) return jsonResponse({ error: 'Escolha uma instância em Conexões WhatsApp antes de configurar o webhook.' }, 200);
       const webhookUrl = `${supabaseUrl}/functions/v1/evolution-webhook?token=${settings.webhook_token}`;
       const classic = await fetchJson(`${baseUrl}/webhook/set/${encodeURIComponent(instance)}`, {
         method: 'POST',
@@ -234,6 +248,7 @@ Deno.serve(async (req) => {
 
     // SEND
     if (action === 'send') {
+      if (!instance) return jsonResponse({ error: 'Escolha uma instância em Conexões WhatsApp antes de enviar mensagens.' }, 200);
       const phone = normalizePhone(body.phone);
       const text = String(body.text || '').trim();
       if (!phone || !text) {
@@ -289,6 +304,7 @@ Deno.serve(async (req) => {
 
     // FETCH PROFILE PICTURE
     if (action === 'fetch-profile-pic') {
+      if (!instance) return jsonResponse({ error: 'Escolha uma instância em Conexões WhatsApp.' }, 200);
       const phone = normalizePhone(body.phone);
       if (!phone) return jsonResponse({ error: 'phone obrigatório' }, 400);
       const number = `${phone}@s.whatsapp.net`;
@@ -319,6 +335,7 @@ Deno.serve(async (req) => {
 
     // SYNC CONTACTS FROM EVOLUTION GO
     if (action === 'sync-contacts') {
+      if (!instance) return jsonResponse({ error: 'Escolha uma instância em Conexões WhatsApp.' }, 200);
       const r = await fetchJson(`${baseUrl}/user/contacts`, { headers: evolutionHeaders(apiKey) }, 10000)
         .catch((error) => ({ ok: false, status: 0, data: { error: String(error?.message || error) } }));
       const rows = Array.isArray(r.data?.data) ? r.data.data : Array.isArray(r.data) ? r.data : [];
@@ -344,6 +361,7 @@ Deno.serve(async (req) => {
 
     // SEND MEDIA (audio / image / file) — body: { phone, mediaBase64, mimetype, filename, mediaType: 'audio'|'image'|'document', caption? }
     if (action === 'send-media') {
+      if (!instance) return jsonResponse({ error: 'Escolha uma instância em Conexões WhatsApp antes de enviar arquivos.' }, 200);
       const phone = normalizePhone(body.phone);
       const mediaType = String(body.mediaType || 'document');
       const mimetype = String(body.mimetype || 'application/octet-stream');
