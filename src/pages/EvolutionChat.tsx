@@ -388,11 +388,13 @@ export default function EvolutionChat() {
     recorderRef.current = null;
   };
 
-  const onPickFile = (kind: 'image' | 'document') => (e: React.ChangeEvent<HTMLInputElement>) => {
+  const onPickFile = (kind: 'image' | 'document' | 'sticker') => (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
     if (f) {
       if (kind === 'image') {
         setImageToSend({ file: f, url: URL.createObjectURL(f), caption: '' });
+      } else if (kind === 'sticker') {
+        sendMedia(f, 'sticker' as 'image');
       } else {
         sendMedia(f, kind);
       }
