@@ -397,7 +397,7 @@ export default function EvolutionChat() {
       } else if (kind === 'sticker') {
         sendMedia(f, 'sticker' as 'image');
       } else {
-        sendMedia(f, kind);
+        setDocToSend({ file: f, caption: '' });
       }
     }
     e.target.value = '';
