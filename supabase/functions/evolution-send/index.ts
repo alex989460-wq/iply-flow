@@ -688,6 +688,64 @@ Deno.serve(async (req) => {
       return jsonResponse({ ok: true });
     }
 
+    // UPDATE INSTANCE SETTINGS (Advanced + Webhook) — Evolution Go
+    if (action === 'update-instance-settings') {
+      const targetInstance = String(body.instance || instance).trim();
+      if (!targetInstance) return jsonResponse({ error: 'instance obrigatório' }, 400);
+      const instAuth = await resolveInstanceAuth(baseUrl, apiKey, targetInstance);
+      const advanced = body.advanced || null;
+      const webhook = body.webhook || null;
+      const results: Record<string, any> = {};
+
+      if (advanced && typeof advanced === 'object') {
+        const advBody = {
+          alwaysOnline: !!advanced.alwaysOnline,
+          rejectCall: !!advanced.rejectCall,
+          msgCall: advanced.msgCall || '',
+          readMessages: !!advanced.readMessages,
+          readStatus: !!advanced.readStatus,
+          groupsIgnore: !!advanced.ignoreGroups,
+          ignoreStatus: !!advanced.ignoreStatus,
+          syncFullHistory: !!advanced.syncFullHistory,
+        };
+        const tries = [
+          { url: `${baseUrl}/instance/settings`, method: 'PUT', headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: advBody },
+          { url: `${baseUrl}/instance/settings`, method: 'POST', headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: advBody },
+          { url: `${baseUrl}/settings/set/${encodeURIComponent(targetInstance)}`, method: 'POST', headers: evolutionHeaders(apiKey, true), body: advBody },
+        ];
+        for (const t of tries) {
+          const r = await fetchJson(t.url, { method: t.method, headers: t.headers, body: JSON.stringify(t.body) }, 8000)
+            .catch((error) => ({ ok: false, status: 0, data: { error: String(error?.message || error) } }));
+          results.advanced = { ok: r.ok, status: r.status, data: r.data };
+          if (r.ok) break;
+          if (r.status !== 404 && r.status !== 405) break;
+        }
+      }
+
+      if (webhook && typeof webhook === 'object') {
+        const webhookUrl = String(webhook.url || `${supabaseUrl}/functions/v1/evolution-webhook?token=${settings.webhook_token}`);
+        const events: string[] = Array.isArray(webhook.events) ? webhook.events : [];
+        const enabled = webhook.enabled !== false;
+        const goBody = { webhookUrl, subscribe: events, enabled, immediate: true };
+        const classicBody = { webhook: { enabled, url: webhookUrl, events, byEvents: false, base64: false } };
+        const tries = [
+          { url: `${baseUrl}/instance/webhook`, method: 'PUT', headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: goBody },
+          { url: `${baseUrl}/instance/webhook`, method: 'POST', headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: goBody },
+          { url: `${baseUrl}/webhook/set/${encodeURIComponent(targetInstance)}`, method: 'POST', headers: evolutionHeaders(apiKey, true), body: classicBody },
+        ];
+        for (const t of tries) {
+          const r = await fetchJson(t.url, { method: t.method, headers: t.headers, body: JSON.stringify(t.body) }, 8000)
+            .catch((error) => ({ ok: false, status: 0, data: { error: String(error?.message || error) } }));
+          results.webhook = { ok: r.ok, status: r.status, data: r.data, webhookUrl };
+          if (r.ok) break;
+          if (r.status !== 404 && r.status !== 405) break;
+        }
+      }
+
+      const ok = (!advanced || results.advanced?.ok) && (!webhook || results.webhook?.ok);
+      return jsonResponse({ ok, results });
+    }
+
     return jsonResponse({ error: 'action inválida' }, 400);
   } catch (e) {
     console.error('[evolution-send]', e);
