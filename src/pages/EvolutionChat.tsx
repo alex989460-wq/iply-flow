@@ -134,7 +134,7 @@ export default function EvolutionChat() {
       toast({ title: 'Erro', description: msgRes.error.message, variant: 'destructive' });
       return;
     }
-    setMessages(((msgRes.data || []) as unknown) as EvoMessage[]);
+    setMessages((((msgRes.data || []) as unknown) as EvoMessage[]).reduce((acc, msg) => mergeMessage(acc, msg), [] as EvoMessage[]));
     const cmap: Record<string, EvoContact> = {};
     for (const c of ((contRes.data || []) as EvoContact[])) cmap[c.phone] = c;
     setContacts(cmap);
@@ -149,15 +149,7 @@ export default function EvolutionChat() {
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'evolution_messages', filter: `user_id=eq.${user.id}` }, (payload) => {
         const m = payload.new as EvoMessage;
         setMessages((prev) => {
-          // dedupe: replace pending optimistic message with same phone+content+out
-          const idx = prev.findIndex(p => p._pending && p.phone === m.phone && p.direction === 'out' && p.content === m.content);
-          if (idx >= 0) {
-            const copy = [...prev];
-            copy[idx] = m;
-            return copy;
-          }
-          if (prev.some(p => p.id === m.id)) return prev;
-          return [...prev, m];
+          return mergeMessage(prev, m);
         });
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'evolution_contacts', filter: `user_id=eq.${user.id}` }, (payload) => {
@@ -166,7 +158,7 @@ export default function EvolutionChat() {
       })
       .subscribe();
     return () => { supabase.removeChannel(ch); };
-  }, [user]);
+  }, [user, mergeMessage]);
 
   // Fetch profile pic when opening a conversation without one
   useEffect(() => {
