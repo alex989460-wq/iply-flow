@@ -52,6 +52,13 @@ function profilePicFrom(...items: any[]) {
   return null;
 }
 
+function contactPayload(userId: string, phone: string, name?: string | null, profilePicUrl?: string | null) {
+  const row: Record<string, unknown> = { user_id: userId, phone, updated_at: new Date().toISOString() };
+  if (name) row.name = name;
+  if (profilePicUrl) row.profile_pic_url = profilePicUrl;
+  return row;
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
@@ -104,9 +111,10 @@ Deno.serve(async (req) => {
           });
           const profilePicUrl = profilePicFrom(info, data, body);
           if (info.PushName || profilePicUrl) {
-            await admin.from('evolution_contacts').upsert({
-              user_id: settings.user_id, phone, name: info.PushName || null, profile_pic_url: profilePicUrl, updated_at: new Date().toISOString(),
-            }, { onConflict: 'user_id,phone' });
+            await admin.from('evolution_contacts').upsert(
+              contactPayload(settings.user_id, phone, info.PushName, profilePicUrl),
+              { onConflict: 'user_id,phone' }
+            );
           }
         }
       }
@@ -150,9 +158,10 @@ Deno.serve(async (req) => {
       });
       const profilePicUrl = profilePicFrom(m, m?.message, m?.contact, body);
       if (m?.pushName || profilePicUrl) {
-        await admin.from('evolution_contacts').upsert({
-          user_id: settings.user_id, phone, name: m?.pushName || null, profile_pic_url: profilePicUrl, updated_at: new Date().toISOString(),
-        }, { onConflict: 'user_id,phone' });
+        await admin.from('evolution_contacts').upsert(
+          contactPayload(settings.user_id, phone, m?.pushName, profilePicUrl),
+          { onConflict: 'user_id,phone' }
+        );
       }
     }
 
