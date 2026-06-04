@@ -358,15 +358,15 @@ Deno.serve(async (req) => {
       const phone = normalizePhone(body.phone);
       if (!phone) return jsonResponse({ error: 'phone obrigatório' }, 400);
       const number = `${phone}@s.whatsapp.net`;
+      const instAuth = await resolveInstanceAuth(baseUrl, apiKey, instance);
       const tries = [
-        { url: `${baseUrl}/user/avatar`, method: 'POST', headers: evolutionHeaders(apiKey, true), body: { number: phone, preview: false } },
-        { url: `${baseUrl}/user/avatar`, method: 'POST', headers: evolutionHeaders(apiKey, true), body: { number, preview: false } },
-        { url: `${baseUrl}/user/info`, method: 'POST', headers: evolutionHeaders(apiKey, true), body: { number: [phone] } },
-        { url: `${baseUrl}/user/info`, method: 'POST', headers: evolutionHeaders(apiKey, true), body: { number: [number] } },
-        { url: `${baseUrl}/user/avatar`, method: 'POST', headers: evolutionHeaders(apiKey, true, instance), body: { number: phone, preview: false } },
+        { url: `${baseUrl}/user/avatar`, method: 'POST', headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: phone, preview: false } },
+        { url: `${baseUrl}/user/avatar`, method: 'POST', headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number, preview: false } },
+        { url: `${baseUrl}/user/info`, method: 'POST', headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: [phone] } },
+        { url: `${baseUrl}/user/info`, method: 'POST', headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: [number] } },
         { url: `${baseUrl}/chat/fetchProfilePictureUrl/${encodeURIComponent(instance)}`, method: 'POST', headers: evolutionHeaders(apiKey, true), body: { number: phone } },
         { url: `${baseUrl}/chat/fetchProfilePictureUrl/${encodeURIComponent(instance)}`, method: 'POST', headers: evolutionHeaders(apiKey, true), body: { number } },
-        { url: `${baseUrl}/chat/getProfilePicture`, method: 'POST', headers: evolutionHeaders(apiKey, true, instance), body: { number: phone } },
+        { url: `${baseUrl}/chat/getProfilePicture`, method: 'POST', headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: phone } },
         { url: `${baseUrl}/chat/whatsappProfile/${encodeURIComponent(instance)}`, method: 'POST', headers: evolutionHeaders(apiKey, true), body: { number: phone } },
       ];
       for (const t of tries) {
@@ -386,7 +386,8 @@ Deno.serve(async (req) => {
     // SYNC CONTACTS FROM EVOLUTION GO
     if (action === 'sync-contacts') {
       if (!instance) return jsonResponse({ error: 'Escolha uma instância em Conexões WhatsApp.' }, 200);
-      const r = await fetchJson(`${baseUrl}/user/contacts`, { headers: evolutionHeaders(apiKey) }, 10000)
+      const instAuth = await resolveInstanceAuth(baseUrl, apiKey, instance);
+      const r = await fetchJson(`${baseUrl}/user/contacts`, { headers: evolutionHeaders(instAuth.apiKey, false, instAuth.instanceId) }, 10000)
         .catch((error) => ({ ok: false, status: 0, data: { error: String(error?.message || error) } }));
       const rows = Array.isArray(r.data?.data) ? r.data.data : Array.isArray(r.data) ? r.data : [];
       const payload = rows.map((item: any) => {
