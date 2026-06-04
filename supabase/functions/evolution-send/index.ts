@@ -53,6 +53,20 @@ function findUrlDeep(value: unknown): string | null {
   return null;
 }
 
+async function insertOutgoingMessage(admin: any, row: Record<string, unknown>) {
+  if (row.external_id) {
+    const { data: existing } = await admin
+      .from('evolution_messages')
+      .select('id')
+      .eq('user_id', row.user_id)
+      .eq('external_id', row.external_id)
+      .maybeSingle();
+    if (existing?.id) return;
+  }
+  const { error } = await admin.from('evolution_messages').insert(row);
+  if (error && error.code !== '23505') console.error('[evolution-send] insert failed', error);
+}
+
 async function fetchJson(url: string, init: RequestInit = {}, timeoutMs = 8000) {
   const r = await fetch(url, { ...init, signal: AbortSignal.timeout(timeoutMs) });
   const data = await r.json().catch(() => ({}));
@@ -217,14 +231,14 @@ Deno.serve(async (req) => {
         const summary = log.map((a) => `${a.mode}:${a.status}`).join(' | ');
         return jsonResponse({ error: `Falha ao enviar (${summary})`, status: result.status, mode, data: result.data, attempts: log }, 200);
       }
-      await admin.from('evolution_messages').insert({
+      await insertOutgoingMessage(admin, {
         user_id: user.id,
         remote_jid: `${phone}@s.whatsapp.net`,
         phone,
         direction: 'out',
         content: text,
         status: 'sent',
-        external_id: result.data?.key?.id || result.data?.messageId || result.data?.data?.Info?.ID || null,
+        external_id: result.data?.key?.id || result.data?.messageId || result.data?.data?.Info?.ID || result.data?.Info?.ID || null,
         raw: result.data,
       });
       return jsonResponse({ ok: true, mode, data: result.data });
@@ -325,7 +339,7 @@ Deno.serve(async (req) => {
         return jsonResponse({ error: `Falha ao enviar mídia (${summary})`, attempts: log, data: result.data }, 200);
       }
 
-      await admin.from('evolution_messages').insert({
+      await insertOutgoingMessage(admin, {
         user_id: user.id,
         remote_jid: `${phone}@s.whatsapp.net`,
         phone,
@@ -335,7 +349,7 @@ Deno.serve(async (req) => {
         media_url: mediaUrl,
         media_mime: mimetype,
         status: 'sent',
-        external_id: result.data?.key?.id || result.data?.messageId || null,
+        external_id: result.data?.key?.id || result.data?.messageId || result.data?.data?.Info?.ID || result.data?.Info?.ID || null,
         raw: result.data,
       });
 
