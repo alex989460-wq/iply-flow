@@ -30,6 +30,47 @@ function evolutionHeaders(apiKey: string, contentType = false, instanceId = '') 
   return headers;
 }
 
+function phoneFromJid(value: unknown) {
+  if (typeof value !== 'string') return null;
+  const digits = value.split('@')[0].split(':')[0].replace(/\D/g, '');
+  return digits.length >= 8 ? digits : null;
+}
+
+function extractInstancePhone(item: any, statusData: any = {}) {
+  const candidates = [
+    item?.ownerJid, item?.jid, item?.myJid, item?.phone, item?.number, item?.owner,
+    item?.instance?.ownerJid, item?.instance?.jid, item?.instance?.myJid,
+    item?.data?.ownerJid, item?.data?.jid, item?.data?.myJid,
+    statusData?.ownerJid, statusData?.jid, statusData?.myJid, statusData?.phone, statusData?.number,
+  ];
+  for (const candidate of candidates) {
+    const phone = phoneFromJid(candidate);
+    if (phone) return phone;
+  }
+  return null;
+}
+
+function normalizeInstanceState(item: any, statusData: any = {}) {
+  const rawState = String(item?.connectionStatus || item?.state || item?.instance?.state || item?.status || '').toLowerCase();
+  if (/open|online|connected/.test(rawState)) return 'open';
+  if (/connecting|qr|pair/.test(rawState)) return 'connecting';
+  if (/close|disconnect|offline/.test(rawState)) return 'close';
+
+  const loggedIn = statusData?.LoggedIn ?? statusData?.loggedIn ?? item?.LoggedIn ?? item?.loggedIn ?? item?.instance?.loggedIn;
+  const connected = statusData?.Connected ?? statusData?.connected ?? item?.Connected ?? item?.connected ?? item?.instance?.connected;
+  if (loggedIn === true) return 'open';
+  if (connected === true) return 'connecting';
+  if (loggedIn === false || connected === false) return 'close';
+  return 'unknown';
+}
+
+async function getGoInstanceStatus(baseUrl: string, apiKey: string, instanceId = '') {
+  const status = await fetchJson(`${baseUrl}/instance/status`, {
+    headers: evolutionHeaders(apiKey, false, instanceId),
+  }, 5000).catch(() => ({ ok: false, status: 0, data: {} as any }));
+  return status?.data?.data || status?.data || {};
+}
+
 function publicMediaFromSignedUrl(url: string | null) {
   if (!url) return null;
   try {
@@ -82,9 +123,8 @@ async function resolveGoInstanceId(baseUrl: string, apiKey: string, instance: st
   const wanted = String(instance || '').toLowerCase();
   const found = rows.find((item: any) =>
     String(item?.id || '').toLowerCase() === wanted ||
-    String(item?.name || '').toLowerCase() === wanted ||
-    String(item?.token || '') === apiKey
-  );
+    String(item?.name || item?.instanceName || item?.instance?.instanceName || '').toLowerCase() === wanted
+  ) || rows.find((item: any) => String(item?.token || item?.hash || '') === apiKey);
   return found?.id || '';
 }
 
@@ -96,9 +136,8 @@ async function resolveGoInstance(baseUrl: string, apiKey: string, instance: stri
   const rows = Array.isArray(r?.data?.data) ? r?.data?.data : Array.isArray(r?.data) ? r?.data : [];
   return rows.find((item: any) =>
     String(item?.id || item?.instanceId || '').toLowerCase() === wanted ||
-    String(item?.name || item?.instanceName || item?.instance?.instanceName || '').toLowerCase() === wanted ||
-    String(item?.token || item?.hash || '') === apiKey
-  ) || null;
+    String(item?.name || item?.instanceName || item?.instance?.instanceName || '').toLowerCase() === wanted
+  ) || rows.find((item: any) => String(item?.token || item?.hash || '') === apiKey) || null;
 }
 
 Deno.serve(async (req) => {
