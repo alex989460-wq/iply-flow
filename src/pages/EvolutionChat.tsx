@@ -32,6 +32,7 @@ interface EvoMessage {
   external_id?: string | null;
   raw?: unknown;
   created_at: string;
+  instance_name?: string | null;
   _pending?: boolean;
   _failed?: boolean;
 }
