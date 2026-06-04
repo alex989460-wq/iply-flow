@@ -562,22 +562,31 @@ export default function EvolutionChat() {
                     <X className="w-4 h-4" />
                   </Button>
                 )}
-                <Avatar className="h-8 w-8">
-                  {selectedContact?.profile_pic_url && <AvatarImage src={selectedContact.profile_pic_url} />}
-                  <AvatarFallback className="text-[11px] bg-gradient-to-br from-primary/20 to-primary/5 text-primary">
-                    {initials(selectedName, selectedPhone)}
-                  </AvatarFallback>
-                </Avatar>
+                <button
+                  type="button"
+                  onClick={() => selectedContact?.profile_pic_url && setAvatarPreview(selectedContact.profile_pic_url)}
+                  className="rounded-full focus:outline-none focus:ring-2 focus:ring-ring"
+                  aria-label="Ver avatar"
+                >
+                  <Avatar className="h-9 w-9 hover:opacity-80 transition-opacity">
+                    {selectedContact?.profile_pic_url && <AvatarImage src={selectedContact.profile_pic_url} />}
+                    <AvatarFallback className="text-[11px] bg-gradient-to-br from-primary/20 to-primary/5 text-primary">
+                      {initials(selectedName, selectedPhone)}
+                    </AvatarFallback>
+                  </Avatar>
+                </button>
                 <div className="flex-1 min-w-0">
                   <div className="text-sm font-semibold truncate">{selectedName || formatPhone(selectedPhone)}</div>
                   <div className="text-[10px] text-muted-foreground flex items-center gap-1">
                     <Phone className="w-2.5 h-2.5" /> {formatPhone(selectedPhone)}
                   </div>
                 </div>
-                <Button size="sm" variant={showRenewalPanel ? 'default' : 'outline'} className="h-7 text-[11px] px-2"
-                  onClick={() => setShowRenewalPanel(v => !v)}>
-                  <RefreshCw className="w-3 h-3 mr-1" /> Renovar
-                </Button>
+                {isMobile && (
+                  <Button size="sm" variant={showRenewalPanel ? 'default' : 'outline'} className="h-7 text-[11px] px-2"
+                    onClick={() => setShowRenewalPanel(v => !v)}>
+                    <RefreshCw className="w-3 h-3 mr-1" /> Renovar
+                  </Button>
+                )}
               </div>
 
               <div ref={scrollRef} className="flex-1 overflow-auto p-3 space-y-2"
