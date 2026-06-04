@@ -499,13 +499,10 @@ Deno.serve(async (req) => {
       const scopedApiKey = foundInstance?.token || foundInstance?.hash || apiKey;
       const scopedInstanceId = foundInstance?.id || foundInstance?.instanceId || targetInstance;
 
-      // First check if already connected (Evolution Go instance-scoped status)
-      const status = await fetchJson(`${baseUrl}/instance/status`, {
-        headers: evolutionHeaders(scopedApiKey, false, scopedInstanceId),
-      }, 5000).catch(() => ({ ok: false, status: 0, data: {} as any }));
-      const sd = status?.data?.data || status?.data || {};
-      if (sd?.Connected || sd?.connected) {
-        return jsonResponse({ ok: true, alreadyConnected: true, instance: targetInstance });
+      // First check if already logged in. Evolution Go can report Connected=false while the number is already linked.
+      const sd = await getGoInstanceStatus(baseUrl, scopedApiKey, scopedInstanceId);
+      if (sd?.LoggedIn === true || sd?.loggedIn === true) {
+        return jsonResponse({ ok: true, alreadyConnected: true, instance: targetInstance, phone: extractInstancePhone(foundInstance, sd) });
       }
 
       // Trigger reconnect for Evolution Go so a QR is generated, then fetch /instance/qr
@@ -514,6 +511,8 @@ Deno.serve(async (req) => {
       }, 5000).catch(() => null);
 
       const tries = [
+        { url: `${baseUrl}/instance/${encodeURIComponent(targetInstance)}/qrcode`, method: 'GET', headers: evolutionHeaders(apiKey) },
+        { url: `${baseUrl}/instance/${encodeURIComponent(scopedInstanceId)}/qrcode`, method: 'GET', headers: evolutionHeaders(scopedApiKey) },
         { url: `${baseUrl}/instance/qr`, method: 'GET', headers: evolutionHeaders(scopedApiKey, false, scopedInstanceId) },
         { url: `${baseUrl}/instance/connect`, method: 'POST', headers: evolutionHeaders(scopedApiKey, true, scopedInstanceId) },
         { url: `${baseUrl}/instance/connect/${encodeURIComponent(targetInstance)}`, method: 'GET', headers: evolutionHeaders(apiKey) },
