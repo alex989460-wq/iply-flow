@@ -119,6 +119,9 @@ export default function EvolutionChat() {
   const [recording, setRecording] = useState(false);
   const [recordSeconds, setRecordSeconds] = useState(0);
   const [previewImage, setPreviewImage] = useState<{ url: string; caption: string } | null>(null);
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const [imageToSend, setImageToSend] = useState<{ file: File; url: string; caption: string } | null>(null);
+  const [filter, setFilter] = useState<'all' | 'unread' | 'media'>('all');
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imgInputRef = useRef<HTMLInputElement>(null);
