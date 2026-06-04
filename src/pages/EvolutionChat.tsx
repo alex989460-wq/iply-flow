@@ -157,7 +157,7 @@ export default function EvolutionChat() {
         [selectedPhone]: { phone: selectedPhone, name: prev[selectedPhone]?.name || null, profile_pic_url: data.url },
       }));
     }).catch(() => {});
-  }, [selectedPhone]);
+  }, [selectedPhone, contacts]);
 
   const conversations = useMemo(() => {
     const map = new Map<string, { phone: string; name: string | null; last: EvoMessage | null; unread: number; lastAt: string }>();
