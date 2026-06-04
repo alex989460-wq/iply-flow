@@ -314,7 +314,7 @@ export default function EvolutionChat() {
     setSending(true);
     const tempId = `tmp-${Date.now()}`;
     const previewUrl = URL.createObjectURL(file);
-    const labelFallback = mediaType === 'audio' ? '🎤 Áudio' : mediaType === 'image' ? '📷 Imagem' : `📎 ${file.name}`;
+    const labelFallback = mediaType === 'audio' ? '🎤 Áudio' : mediaType === 'image' ? '📷 Imagem' : mediaType === 'sticker' ? '🌟 Sticker' : `📎 ${file.name}`;
     const optimistic: EvoMessage = {
       id: tempId, phone: selectedPhone, contact_name: null, direction: 'out',
       content: caption || labelFallback,
