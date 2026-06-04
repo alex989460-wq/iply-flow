@@ -706,33 +706,77 @@ export default function EvolutionChat() {
           )}
         </div>
 
-        {/* Quick Renewal Panel */}
-        {showRenewalPanel && (
-          isMobile ? (
-            <div className="fixed inset-0 z-50 bg-background/95 backdrop-blur-sm animate-in fade-in slide-in-from-bottom-4 duration-200">
-              <div className="flex flex-col h-full">
-                <div className="flex items-center justify-between px-3 py-2 border-b border-border">
-                  <h2 className="text-sm font-semibold">Renovação Rápida</h2>
-                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setShowRenewalPanel(false)}>
-                    <X className="w-4 h-4" />
-                  </Button>
-                </div>
-                <div className="flex-1 overflow-auto">
-                  <QuickRenewalPanel isMobile onClose={() => setShowRenewalPanel(false)} />
-                </div>
+        {/* Quick Renewal Panel — sempre visível no desktop, modal no mobile */}
+        {!isMobile && (
+          <div className="hidden md:block border-l border-border">
+            <QuickRenewalPanel />
+          </div>
+        )}
+        {isMobile && showRenewalPanel && (
+          <div className="fixed inset-0 z-50 bg-background/95 backdrop-blur-sm animate-in fade-in slide-in-from-bottom-4 duration-200">
+            <div className="flex flex-col h-full">
+              <div className="flex items-center justify-between px-3 py-2 border-b border-border">
+                <h2 className="text-sm font-semibold">Renovação Rápida</h2>
+                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setShowRenewalPanel(false)}>
+                  <X className="w-4 h-4" />
+                </Button>
+              </div>
+              <div className="flex-1 overflow-auto">
+                <QuickRenewalPanel isMobile onClose={() => setShowRenewalPanel(false)} />
               </div>
             </div>
-          ) : (
-            <div className="hidden md:block border-l border-border">
-              <QuickRenewalPanel />
-            </div>
-          )
+          </div>
         )}
       </div>
+
+      {/* Lightbox de imagens das conversas */}
       <Dialog open={!!previewImage} onOpenChange={(open) => !open && setPreviewImage(null)}>
         <DialogContent className="max-w-5xl p-2 bg-background/95 border-border">
           {previewImage && (
             <img src={previewImage.url} alt={previewImage.caption || 'Imagem ampliada'} className="max-h-[85vh] w-full object-contain rounded-md" />
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Preview do avatar do contato */}
+      <Dialog open={!!avatarPreview} onOpenChange={(open) => !open && setAvatarPreview(null)}>
+        <DialogContent className="max-w-md p-2 bg-background/95 border-border">
+          {avatarPreview && (
+            <img src={avatarPreview} alt="Avatar do contato" className="w-full h-auto object-contain rounded-md" />
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Pré-visualização de imagem com legenda antes de enviar */}
+      <Dialog open={!!imageToSend} onOpenChange={(open) => { if (!open) { if (imageToSend) URL.revokeObjectURL(imageToSend.url); setImageToSend(null); } }}>
+        <DialogContent className="max-w-lg p-4 bg-background border-border">
+          {imageToSend && (
+            <div className="space-y-3">
+              <div className="text-sm font-semibold">Enviar imagem</div>
+              <div className="rounded-md overflow-hidden bg-muted/40 flex items-center justify-center max-h-[55vh]">
+                <img src={imageToSend.url} alt="Pré-visualização" className="max-h-[55vh] w-auto object-contain" />
+              </div>
+              <textarea
+                placeholder="Adicionar legenda (opcional)..."
+                value={imageToSend.caption}
+                onChange={(e) => setImageToSend(s => s ? { ...s, caption: e.target.value } : s)}
+                rows={2}
+                className="w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+              />
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" size="sm" onClick={() => { URL.revokeObjectURL(imageToSend.url); setImageToSend(null); }}>
+                  Cancelar
+                </Button>
+                <Button size="sm" disabled={sending} onClick={() => {
+                  const data = imageToSend;
+                  setImageToSend(null);
+                  sendMedia(data.file, 'image', data.caption.trim());
+                  URL.revokeObjectURL(data.url);
+                }}>
+                  <Send className="w-3.5 h-3.5 mr-1" /> Enviar
+                </Button>
+              </div>
+            </div>
           )}
         </DialogContent>
       </Dialog>
