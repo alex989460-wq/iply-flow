@@ -631,6 +631,13 @@ export default function EvolutionChat() {
           )
         )}
       </div>
+      <Dialog open={!!previewImage} onOpenChange={(open) => !open && setPreviewImage(null)}>
+        <DialogContent className="max-w-5xl p-2 bg-background/95 border-border">
+          {previewImage && (
+            <img src={previewImage.url} alt={previewImage.caption || 'Imagem ampliada'} className="max-h-[85vh] w-full object-contain rounded-md" />
+          )}
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   );
 }
