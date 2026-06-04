@@ -10,6 +10,22 @@ function jidToPhone(jid: string) {
   return String(jid || '').split('@')[0].replace(/\D/g, '');
 }
 
+function messageText(message: any) {
+  return message?.conversation ||
+    message?.extendedTextMessage?.text ||
+    message?.imageMessage?.caption ||
+    message?.videoMessage?.caption ||
+    '';
+}
+
+function messageType(message: any, fallback = '') {
+  return message?.imageMessage ? 'image'
+    : message?.videoMessage ? 'video'
+    : message?.audioMessage ? 'audio'
+    : message?.documentMessage ? 'document'
+    : fallback || 'text';
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
@@ -35,6 +51,34 @@ Deno.serve(async (req) => {
     const event = body?.event || body?.type || '';
     const data = body?.data || body;
 
+    if (event === 'Message' && data?.Info) {
+      const info = data.Info;
+      const remoteJid = info.Chat || '';
+      if (remoteJid && !remoteJid.includes('@g.us')) {
+        const phone = jidToPhone(remoteJid);
+        const msg = data.Message || {};
+        const type = messageType(msg, String(info.MediaType || info.Type || '').toLowerCase());
+        if (phone) {
+          await admin.from('evolution_messages').insert({
+            user_id: settings.user_id,
+            remote_jid: remoteJid,
+            phone,
+            contact_name: info.PushName || null,
+            direction: info.IsFromMe ? 'out' : 'in',
+            content: messageText(msg) || `[${type}]`,
+            message_type: type,
+            external_id: info.ID || null,
+            status: info.IsFromMe ? 'sent' : 'received',
+            raw: body,
+          });
+        }
+      }
+
+      return new Response(JSON.stringify({ ok: true }), {
+        status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     // Normalize messages.upsert
     const msgs: any[] = Array.isArray(data?.messages) ? data.messages
       : Array.isArray(data) ? data
@@ -49,17 +93,8 @@ Deno.serve(async (req) => {
       if (!phone) continue;
       const fromMe = !!key.fromMe;
       const msg = m?.message || {};
-      const content =
-        msg?.conversation ||
-        msg?.extendedTextMessage?.text ||
-        msg?.imageMessage?.caption ||
-        msg?.videoMessage?.caption ||
-        '';
-      const messageType = msg?.imageMessage ? 'image'
-        : msg?.videoMessage ? 'video'
-        : msg?.audioMessage ? 'audio'
-        : msg?.documentMessage ? 'document'
-        : 'text';
+      const content = messageText(msg);
+      const type = messageType(msg);
 
       await admin.from('evolution_messages').insert({
         user_id: settings.user_id,
@@ -67,8 +102,8 @@ Deno.serve(async (req) => {
         phone,
         contact_name: m?.pushName || null,
         direction: fromMe ? 'out' : 'in',
-        content: content || `[${messageType}]`,
-        message_type: messageType,
+        content: content || `[${type}]`,
+        message_type: type,
         external_id: key.id || null,
         status: fromMe ? 'sent' : 'received',
         raw: m,
