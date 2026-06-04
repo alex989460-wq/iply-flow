@@ -18,6 +18,7 @@ import ResellerApiSettings from '@/components/settings/ResellerApiSettings';
 import AutoRenewServersCard from '@/components/settings/AutoRenewServersCard';
 import BillingSettingsCard from '@/components/settings/BillingSettingsCard';
 import BackupManagerCard from '@/components/settings/BackupManagerCard';
+import EvolutionApiCard from '@/components/settings/EvolutionApiCard';
 
 async function getFunctionsHttpErrorDetails(err: unknown): Promise<{ message?: string; raw?: any } | null> {
   // supabase-js / @supabase/functions-js throws FunctionsHttpError with `.context` as a Response
@@ -650,7 +651,7 @@ export default function Settings() {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-7 max-w-4xl">
+          <TabsList className="grid w-full grid-cols-8 max-w-5xl">
             <TabsTrigger value="cobranca" className="flex items-center gap-2">
               <CreditCard className="w-4 h-4 text-green-500" />
               <span className="hidden sm:inline">Cobrança</span>
@@ -664,6 +665,10 @@ export default function Settings() {
               <span className="hidden sm:inline">WhatsApp Oficial</span>
               <span className="sm:hidden">WA Oficial</span>
               {isMetaConnected && <CheckCircle2 className="w-4 h-4 text-green-500" />}
+            </TabsTrigger>
+            <TabsTrigger value="evolution" className="flex items-center gap-2">
+              <span className="hidden sm:inline">Evolution</span>
+              <span className="sm:hidden">Evo</span>
             </TabsTrigger>
             <TabsTrigger value="apis_externas" className="flex items-center gap-2">
               <span className="hidden sm:inline">APIs Externas</span>
@@ -685,6 +690,10 @@ export default function Settings() {
               <span className="sm:hidden">Back.</span>
             </TabsTrigger>
           </TabsList>
+
+          <TabsContent value="evolution" className="mt-6">
+            <EvolutionApiCard />
+          </TabsContent>
 
           {/* Cobrança Tab */}
           <TabsContent value="cobranca" className="mt-6">
