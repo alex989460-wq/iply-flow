@@ -50,6 +50,55 @@ export default function EvolutionInstances() {
   const [qrMsg, setQrMsg] = useState<string | null>(null);
   const pollRef = useRef<number | null>(null);
 
+  const WEBHOOK_EVENTS = ['ALL','MESSAGE','SEND_MESSAGE','READ_RECEIPT','PRESENCE','HISTORY_SYNC','CHAT_PRESENCE','CALL','CONNECTION','QRCODE','CONTACTS','CHATS','GROUPS'];
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsInstance, setSettingsInstance] = useState<string | null>(null);
+  const [savingSettings, setSavingSettings] = useState(false);
+  const [advanced, setAdvanced] = useState({
+    alwaysOnline: false,
+    rejectCall: false,
+    msgCall: '',
+    readMessages: false,
+    ignoreGroups: false,
+    ignoreStatus: false,
+    readStatus: false,
+    syncFullHistory: false,
+  });
+  const [webhookEvents, setWebhookEvents] = useState<string[]>(['MESSAGE','SEND_MESSAGE','CONNECTION']);
+
+  const openSettings = (name: string) => {
+    setSettingsInstance(name);
+    setSettingsOpen(true);
+  };
+
+  const toggleEvent = (ev: string) => {
+    setWebhookEvents((prev) => {
+      if (ev === 'ALL') return prev.includes('ALL') ? [] : ['ALL'];
+      const next = prev.filter((e) => e !== 'ALL');
+      return next.includes(ev) ? next.filter((e) => e !== ev) : [...next, ev];
+    });
+  };
+
+  const saveSettings = async () => {
+    if (!settingsInstance) return;
+    setSavingSettings(true);
+    const { data, error } = await supabase.functions.invoke('evolution-send', {
+      body: {
+        action: 'update-instance-settings',
+        instance: settingsInstance,
+        advanced,
+        webhook: { events: webhookEvents, enabled: webhookEvents.length > 0 },
+      },
+    });
+    setSavingSettings(false);
+    if (error || !data?.ok) {
+      toast({ title: 'Falha', description: error?.message || 'Não foi possível aplicar todas as configurações.', variant: 'destructive' });
+      return;
+    }
+    toast({ title: 'Salvo', description: `Configurações de "${settingsInstance}" aplicadas.` });
+    setSettingsOpen(false);
+  };
+
   const fetchInstances = useCallback(async () => {
     const { data, error } = await supabase.functions.invoke('evolution-send', {
       body: { action: 'list-instances' },
