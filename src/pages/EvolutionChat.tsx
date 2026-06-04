@@ -798,6 +798,45 @@ export default function EvolutionChat() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Pré-visualização de documento com legenda */}
+      <Dialog open={!!docToSend} onOpenChange={(open) => { if (!open) setDocToSend(null); }}>
+        <DialogContent className="max-w-md p-4 bg-background border-border">
+          {docToSend && (
+            <div className="space-y-3">
+              <div className="text-sm font-semibold">Enviar arquivo</div>
+              <div className="flex items-center gap-3 rounded-md border border-border bg-muted/30 px-3 py-3">
+                <div className="w-10 h-10 rounded-lg bg-primary/15 flex items-center justify-center shrink-0">
+                  <FileText className="w-5 h-5 text-primary" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm font-medium truncate">{docToSend.file.name}</div>
+                  <div className="text-[11px] text-muted-foreground">
+                    {(docToSend.file.size / 1024).toFixed(1)} KB
+                  </div>
+                </div>
+              </div>
+              <textarea
+                placeholder="Adicionar legenda (opcional)..."
+                value={docToSend.caption}
+                onChange={(e) => setDocToSend(s => s ? { ...s, caption: e.target.value } : s)}
+                rows={2}
+                className="w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+              />
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" size="sm" onClick={() => setDocToSend(null)}>Cancelar</Button>
+                <Button size="sm" disabled={sending} onClick={() => {
+                  const data = docToSend;
+                  setDocToSend(null);
+                  sendMedia(data.file, 'document', data.caption.trim());
+                }}>
+                  <Send className="w-3.5 h-3.5 mr-1" /> Enviar
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   );
 }
