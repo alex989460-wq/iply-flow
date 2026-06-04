@@ -324,9 +324,11 @@ export default function EvolutionInstances() {
                 <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
               ) : qrImg ? (
                 <img src={qrImg} alt="QR Code" className="w-full h-full object-contain" />
+              ) : qrMsg ? (
+                <div className="text-xs text-emerald-600 text-center px-4 font-medium">{qrMsg}</div>
               ) : (
                 <div className="text-xs text-rose-500 text-center px-4">
-                  Não foi possível obter o QR. Tente novamente em alguns segundos.
+                  Não foi possível obter o QR. Tente novamente.
                 </div>
               )}
             </div>
