@@ -40,6 +40,19 @@ function publicMediaFromSignedUrl(url: string | null) {
   }
 }
 
+function findUrlDeep(value: unknown): string | null {
+  if (typeof value === 'string') return /^https?:\/\//i.test(value) ? value : null;
+  if (!value || typeof value !== 'object') return null;
+  const obj = value as Record<string, unknown>;
+  const direct = obj.profilePictureUrl || obj.profilePicUrl || obj.profilePicture || obj.avatar || obj.url || obj.picture || obj.pictureUrl || obj.URL;
+  if (typeof direct === 'string' && /^https?:\/\//i.test(direct)) return direct;
+  for (const child of Object.values(obj)) {
+    const found = findUrlDeep(child);
+    if (found) return found;
+  }
+  return null;
+}
+
 async function fetchJson(url: string, init: RequestInit = {}, timeoutMs = 8000) {
   const r = await fetch(url, { ...init, signal: AbortSignal.timeout(timeoutMs) });
   const data = await r.json().catch(() => ({}));
@@ -234,8 +247,7 @@ Deno.serve(async (req) => {
       for (const t of tries) {
         const r = await fetchJson(t.url, { method: t.method, headers: t.headers, body: JSON.stringify(t.body) }, 3000)
           .catch(() => ({ ok: false, status: 0, data: {} as any }));
-        const row = Array.isArray(r?.data?.data) ? r.data.data[0] : Array.isArray(r?.data) ? r.data[0] : r?.data?.data || r?.data || {};
-        const url = row?.profilePictureUrl || row?.profilePicUrl || row?.profilePicture || row?.avatar || row?.url || row?.picture || row?.pictureUrl || null;
+        const url = findUrlDeep(r?.data);
         if (url) {
           await admin.from('evolution_contacts').upsert({
             user_id: user.id, phone, profile_pic_url: url, updated_at: new Date().toISOString(),
