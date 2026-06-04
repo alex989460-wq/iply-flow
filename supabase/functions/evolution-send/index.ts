@@ -160,26 +160,42 @@ Deno.serve(async (req) => {
       if (!phone || !text) {
         return jsonResponse({ error: 'phone e text obrigatórios' }, 400);
       }
-      const classic = await fetchJson(`${baseUrl}/message/sendText/${encodeURIComponent(instance)}`, {
-        method: 'POST',
-        headers: evolutionHeaders(apiKey, true),
-        body: JSON.stringify({ number: phone, text }),
-      }).catch((error) => ({ ok: false, status: 0, data: { error: String(error?.message || error) } }));
 
-      let result = classic;
+      const instanceId = await resolveGoInstanceId(baseUrl, apiKey, instance).catch(() => '');
+
+      // Try a list of known endpoint variants for both Evolution API (classic) and Evolution Go
+      const attempts: Array<{ url: string; headers: Record<string, string>; body: any; mode: string }> = [
+        // Classic Evolution API (Node)
+        { url: `${baseUrl}/message/sendText/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: phone, text }, mode: 'evolution-api' },
+        { url: `${baseUrl}/message/sendText/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: phone, textMessage: { text } }, mode: 'evolution-api-v1' },
+        // Evolution Go (global endpoint + instanceId header)
+        { url: `${baseUrl}/message/sendText`, headers: evolutionHeaders(apiKey, true, instanceId || instance), body: { number: phone, text }, mode: 'evolution-go' },
+        { url: `${baseUrl}/message/sendText`, headers: evolutionHeaders(apiKey, true, instanceId || instance), body: { number: phone, message: text }, mode: 'evolution-go-msg' },
+        // Evolution Go alt
+        { url: `${baseUrl}/send/text`, headers: evolutionHeaders(apiKey, true, instanceId || instance), body: { number: phone, text }, mode: 'evolution-go-send' },
+      ];
+
+      let result: any = { ok: false, status: 0, data: {} };
       let mode = 'evolution-api';
-      if (!classic.ok && classic.status === 404) {
-        const go = await fetchJson(`${baseUrl}/send/text`, {
+      const log: any[] = [];
+      for (const att of attempts) {
+        const r = await fetchJson(att.url, {
           method: 'POST',
-          headers: evolutionHeaders(apiKey, true),
-          body: JSON.stringify({ number: phone, text }),
+          headers: att.headers,
+          body: JSON.stringify(att.body),
         }).catch((error) => ({ ok: false, status: 0, data: { error: String(error?.message || error) } }));
-        result = go;
-        mode = 'evolution-go';
+        log.push({ url: att.url, mode: att.mode, status: r.status });
+        if (r.ok) { result = r; mode = att.mode; break; }
+        // Only continue when it's a routing-style failure
+        if (r.status !== 404 && r.status !== 405 && r.status !== 400) {
+          result = r; mode = att.mode; break;
+        }
+        result = r; mode = att.mode;
       }
 
       if (!result.ok) {
-        return jsonResponse({ error: 'Falha ao enviar', status: result.status, mode, data: result.data }, 502);
+        console.error('[evolution-send] all attempts failed', log, result);
+        return jsonResponse({ error: 'Falha ao enviar', status: result.status, mode, data: result.data, attempts: log }, 502);
       }
       await admin.from('evolution_messages').insert({
         user_id: user.id,
