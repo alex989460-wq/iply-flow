@@ -457,12 +457,18 @@ export default function EvolutionChat() {
           isMobile && selectedPhone ? 'hidden' : 'flex',
           'w-full md:w-80 lg:w-96'
         )}>
-          <div className="px-3 py-2 border-b border-border flex items-center gap-2">
-            <div className="w-7 h-7 rounded-full bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center">
-              <Zap className="w-3.5 h-3.5 text-primary-foreground" />
+          <div className="px-3 py-2.5 border-b border-border flex items-center gap-2 bg-gradient-to-r from-emerald-600/15 via-primary/10 to-cyan-500/10">
+            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-700 flex items-center justify-center shadow-lg shadow-emerald-500/20">
+              <Zap className="w-4 h-4 text-white" />
             </div>
-            <h2 className="font-semibold text-sm flex-1">Evolution Chat</h2>
-            <Button size="icon" variant="ghost" className="h-7 w-7" onClick={load}>
+            <div className="flex-1 min-w-0">
+              <h2 className="font-bold text-sm leading-tight">Evolution Chat</h2>
+              <p className="text-[10px] text-muted-foreground leading-tight">WhatsApp Multi-Sessão</p>
+            </div>
+            <Button asChild size="icon" variant="ghost" className="h-8 w-8 text-emerald-500 hover:text-emerald-400 hover:bg-emerald-500/10" title="Conectar / Gerenciar instâncias">
+              <Link to="/evolution-instances"><QrCode className="w-4 h-4" /></Link>
+            </Button>
+            <Button size="icon" variant="ghost" className="h-8 w-8" onClick={load} title="Atualizar">
               <RefreshCw className={cn('w-3.5 h-3.5', loading && 'animate-spin')} />
             </Button>
           </div>
