@@ -311,6 +311,7 @@ Deno.serve(async (req) => {
     }
 
     return jsonResponse({ error: 'action inválida' }, 400);
+  } catch (e) {
     console.error('[evolution-send]', e);
     return jsonResponse({ error: String((e as Error).message || e) }, 500);
   }
