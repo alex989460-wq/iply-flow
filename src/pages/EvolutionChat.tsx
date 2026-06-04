@@ -651,9 +651,27 @@ export default function EvolutionChat() {
                   </div>
                 ) : (
                   <>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button size="icon" variant="ghost" className="h-9 w-9 shrink-0" title="Emoji">
+                          <Smile className="w-4 h-4" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent side="top" align="start" className="p-0 border-0 w-auto bg-transparent shadow-none">
+                        <EmojiPicker
+                          onEmojiClick={(e) => setDraft(d => d + e.emoji)}
+                          theme={Theme.AUTO}
+                          emojiStyle={EmojiStyle.NATIVE}
+                          width={320}
+                          height={380}
+                          searchPlaceholder="Buscar emoji..."
+                          previewConfig={{ showPreview: false }}
+                        />
+                      </PopoverContent>
+                    </Popover>
                     <Button size="icon" variant="ghost" className="h-9 w-9 shrink-0"
                       onClick={() => setShowQuickReplies(v => !v)} title="Respostas rápidas">
-                      <Smile className={cn('w-4 h-4', showQuickReplies && 'text-primary')} />
+                      <Zap className={cn('w-4 h-4', showQuickReplies && 'text-primary')} />
                     </Button>
                     <Button size="icon" variant="ghost" className="h-9 w-9 shrink-0"
                       onClick={() => imgInputRef.current?.click()} title="Imagem" disabled={sending}>
