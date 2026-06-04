@@ -81,11 +81,10 @@ Deno.serve(async (req) => {
       .maybeSingle();
 
     if (!settings) {
-      return jsonResponse({ error: 'Evolution não configurada' }, 400);
+      return jsonResponse({ error: 'Evolution não configurada' }, 200);
     }
-    if (action === 'send' && !settings.is_enabled) {
-      return jsonResponse({ error: 'Evolution não está ativada' }, 400);
-    }
+    // Note: is_enabled gate removed — if the row exists and is configured, allow sending.
+    // The toggle remains purely informational for bot/automation modules.
     const baseUrl = String(settings.base_url || '').replace(/\/$/, '');
     const apiKey = settings.api_key;
     const instance = settings.instance_name;
@@ -195,7 +194,8 @@ Deno.serve(async (req) => {
 
       if (!result.ok) {
         console.error('[evolution-send] all attempts failed', log, result);
-        return jsonResponse({ error: 'Falha ao enviar', status: result.status, mode, data: result.data, attempts: log }, 502);
+        const summary = log.map((a) => `${a.mode}:${a.status}`).join(' | ');
+        return jsonResponse({ error: `Falha ao enviar (${summary})`, status: result.status, mode, data: result.data, attempts: log }, 200);
       }
       await admin.from('evolution_messages').insert({
         user_id: user.id,
