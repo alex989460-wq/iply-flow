@@ -30,8 +30,18 @@ function evolutionHeaders(apiKey: string, contentType = false, instanceId = '') 
   return headers;
 }
 
-async function fetchJson(url: string, init: RequestInit = {}) {
-  const r = await fetch(url, { ...init, signal: AbortSignal.timeout(15000) });
+function publicMediaFromSignedUrl(url: string | null) {
+  if (!url) return null;
+  try {
+    const u = new URL(url);
+    return `${u.origin}${u.pathname}${u.search}`;
+  } catch {
+    return url;
+  }
+}
+
+async function fetchJson(url: string, init: RequestInit = {}, timeoutMs = 8000) {
+  const r = await fetch(url, { ...init, signal: AbortSignal.timeout(timeoutMs) });
   const data = await r.json().catch(() => ({}));
   return { ok: r.ok, status: r.status, data };
 }
@@ -160,18 +170,15 @@ Deno.serve(async (req) => {
         return jsonResponse({ error: 'phone e text obrigatórios' }, 400);
       }
 
-      const instanceId = await resolveGoInstanceId(baseUrl, apiKey, instance).catch(() => '');
-
       // Try a list of known endpoint variants for both Evolution API (classic) and Evolution Go
       const attempts: Array<{ url: string; headers: Record<string, string>; body: any; mode: string }> = [
+        // Evolution Go (instance token endpoint) — fastest path for this project
+        { url: `${baseUrl}/send/text`, headers: evolutionHeaders(apiKey, true), body: { number: phone, text }, mode: 'evolution-go-send' },
+        { url: `${baseUrl}/message/sendText`, headers: evolutionHeaders(apiKey, true, instance), body: { number: phone, text }, mode: 'evolution-go' },
+        { url: `${baseUrl}/message/sendText`, headers: evolutionHeaders(apiKey, true, instance), body: { number: phone, message: text }, mode: 'evolution-go-msg' },
         // Classic Evolution API (Node)
         { url: `${baseUrl}/message/sendText/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: phone, text }, mode: 'evolution-api' },
         { url: `${baseUrl}/message/sendText/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: phone, textMessage: { text } }, mode: 'evolution-api-v1' },
-        // Evolution Go (global endpoint + instanceId header)
-        { url: `${baseUrl}/message/sendText`, headers: evolutionHeaders(apiKey, true, instanceId || instance), body: { number: phone, text }, mode: 'evolution-go' },
-        { url: `${baseUrl}/message/sendText`, headers: evolutionHeaders(apiKey, true, instanceId || instance), body: { number: phone, message: text }, mode: 'evolution-go-msg' },
-        // Evolution Go alt
-        { url: `${baseUrl}/send/text`, headers: evolutionHeaders(apiKey, true, instanceId || instance), body: { number: phone, text }, mode: 'evolution-go-send' },
       ];
 
       let result: any = { ok: false, status: 0, data: {} };
@@ -215,16 +222,20 @@ Deno.serve(async (req) => {
       const phone = normalizePhone(body.phone);
       if (!phone) return jsonResponse({ error: 'phone obrigatório' }, 400);
       const number = `${phone}@s.whatsapp.net`;
-      const instanceId = await resolveGoInstanceId(baseUrl, apiKey, instance).catch(() => '');
       const tries = [
+        { url: `${baseUrl}/user/avatar`, method: 'POST', headers: evolutionHeaders(apiKey, true), body: { number: phone, preview: false } },
+        { url: `${baseUrl}/user/info`, method: 'POST', headers: evolutionHeaders(apiKey, true), body: { number: [phone] } },
+        { url: `${baseUrl}/user/avatar`, method: 'POST', headers: evolutionHeaders(apiKey, true, instance), body: { number: phone, preview: false } },
+        { url: `${baseUrl}/chat/fetchProfilePictureUrl/${encodeURIComponent(instance)}`, method: 'POST', headers: evolutionHeaders(apiKey, true), body: { number: phone } },
         { url: `${baseUrl}/chat/fetchProfilePictureUrl/${encodeURIComponent(instance)}`, method: 'POST', headers: evolutionHeaders(apiKey, true), body: { number } },
-        { url: `${baseUrl}/chat/getProfilePicture`, method: 'POST', headers: evolutionHeaders(apiKey, true, instanceId || instance), body: { number } },
-        { url: `${baseUrl}/chat/whatsappProfile/${encodeURIComponent(instance)}`, method: 'POST', headers: evolutionHeaders(apiKey, true), body: { number } },
+        { url: `${baseUrl}/chat/getProfilePicture`, method: 'POST', headers: evolutionHeaders(apiKey, true, instance), body: { number: phone } },
+        { url: `${baseUrl}/chat/whatsappProfile/${encodeURIComponent(instance)}`, method: 'POST', headers: evolutionHeaders(apiKey, true), body: { number: phone } },
       ];
       for (const t of tries) {
-        const r = await fetchJson(t.url, { method: t.method, headers: t.headers, body: JSON.stringify(t.body) })
+        const r = await fetchJson(t.url, { method: t.method, headers: t.headers, body: JSON.stringify(t.body) }, 3000)
           .catch(() => ({ ok: false, status: 0, data: {} as any }));
-        const url = r?.data?.profilePictureUrl || r?.data?.data?.profilePictureUrl || r?.data?.url || r?.data?.picture || null;
+        const row = Array.isArray(r?.data?.data) ? r.data.data[0] : Array.isArray(r?.data) ? r.data[0] : r?.data?.data || r?.data || {};
+        const url = row?.profilePictureUrl || row?.profilePicUrl || row?.profilePicture || row?.avatar || row?.url || row?.picture || row?.pictureUrl || null;
         if (url) {
           await admin.from('evolution_contacts').upsert({
             user_id: user.id, phone, profile_pic_url: url, updated_at: new Date().toISOString(),
@@ -259,20 +270,29 @@ Deno.serve(async (req) => {
         console.error('[evolution-send] storage upload failed', e);
       }
 
-      const instanceId = await resolveGoInstanceId(baseUrl, apiKey, instance).catch(() => '');
+      const mediaForEvolution = publicMediaFromSignedUrl(mediaUrl) || `data:${mimetype};base64,${mediaBase64}`;
+      const cleanMime = mimetype.split(';')[0] || mimetype;
 
       let attempts: Array<{ url: string; headers: Record<string, string>; body: any; mode: string }> = [];
       if (mediaType === 'audio') {
         attempts = [
-          { url: `${baseUrl}/message/sendWhatsAppAudio/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: phone, audio: mediaBase64, encoding: true }, mode: 'evolution-api' },
-          { url: `${baseUrl}/message/sendAudio/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: phone, audio: mediaBase64 }, mode: 'evolution-api-alt' },
-          { url: `${baseUrl}/message/sendWhatsAppAudio`, headers: evolutionHeaders(apiKey, true, instanceId || instance), body: { number: phone, audio: mediaBase64 }, mode: 'evolution-go' },
+          { url: `${baseUrl}/send/media`, headers: evolutionHeaders(apiKey, true), body: { number: phone, type: 'audio', url: mediaForEvolution, filename, caption }, mode: 'evolution-go-send-media-token' },
+          { url: `${baseUrl}/message/sendWhatsAppAudio/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: phone, audio: mediaForEvolution }, mode: 'evolution-api-audio-url' },
+          { url: `${baseUrl}/message/sendWhatsAppAudio/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: phone, audio: mediaBase64 }, mode: 'evolution-api-audio-base64' },
+          { url: `${baseUrl}/message/sendMedia/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: phone, mediatype: 'audio', mimetype: cleanMime, fileName: filename, caption, media: mediaForEvolution }, mode: 'evolution-api-media-audio' },
+          { url: `${baseUrl}/send/media`, headers: evolutionHeaders(apiKey, true, instance), body: { number: phone, type: 'audio', url: mediaForEvolution, filename, caption }, mode: 'evolution-go-send-media' },
+          { url: `${baseUrl}/message/sendMedia`, headers: evolutionHeaders(apiKey, true, instance), body: { number: phone, type: 'audio', url: mediaForEvolution, filename, caption }, mode: 'evolution-go-message-media' },
         ];
       } else {
         const isImg = mediaType === 'image';
+        const goType = isImg ? 'image' : 'document';
         attempts = [
-          { url: `${baseUrl}/message/sendMedia/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: phone, mediatype: isImg ? 'image' : 'document', mimetype, fileName: filename, caption, media: mediaBase64 }, mode: 'evolution-api' },
-          { url: `${baseUrl}/message/sendMedia`, headers: evolutionHeaders(apiKey, true, instanceId || instance), body: { number: phone, mediatype: isImg ? 'image' : 'document', mimetype, fileName: filename, caption, media: mediaBase64 }, mode: 'evolution-go' },
+          { url: `${baseUrl}/send/media`, headers: evolutionHeaders(apiKey, true), body: { number: phone, type: goType, url: mediaForEvolution, filename, caption }, mode: 'evolution-go-send-media-token' },
+          { url: `${baseUrl}/message/sendMedia/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: phone, mediatype: goType, mimetype: cleanMime, fileName: filename, caption, media: mediaForEvolution }, mode: 'evolution-api-url' },
+          { url: `${baseUrl}/message/sendMedia/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: phone, mediatype: goType, mimetype: cleanMime, fileName: filename, caption, media: mediaBase64 }, mode: 'evolution-api-base64' },
+          { url: `${baseUrl}/send/media`, headers: evolutionHeaders(apiKey, true, instance), body: { number: phone, type: goType, url: mediaForEvolution, filename, caption }, mode: 'evolution-go-send-media' },
+          { url: `${baseUrl}/message/sendMedia`, headers: evolutionHeaders(apiKey, true, instance), body: { number: phone, type: goType, url: mediaForEvolution, filename, caption }, mode: 'evolution-go-message-media' },
+          { url: `${baseUrl}/message/sendMedia`, headers: evolutionHeaders(apiKey, true, instance), body: { number: phone, mediatype: goType, mimetype: cleanMime, fileName: filename, caption, media: mediaForEvolution }, mode: 'evolution-go-classic-body' },
         ];
       }
 

@@ -44,6 +44,21 @@ function mediaMimeFrom(message: any) {
     || null;
 }
 
+function profilePicFrom(...items: any[]) {
+  for (const item of items) {
+    const url = item?.ProfilePicURL || item?.profilePictureUrl || item?.profilePicUrl || item?.profilePicture || item?.avatar || item?.picture || item?.pictureUrl;
+    if (url) return url;
+  }
+  return null;
+}
+
+function contactPayload(userId: string, phone: string, name?: string | null, profilePicUrl?: string | null) {
+  const row: Record<string, unknown> = { user_id: userId, phone, updated_at: new Date().toISOString() };
+  if (name) row.name = name;
+  if (profilePicUrl) row.profile_pic_url = profilePicUrl;
+  return row;
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
@@ -94,10 +109,12 @@ Deno.serve(async (req) => {
             status: info.IsFromMe ? 'sent' : 'received',
             raw: body,
           });
-          if (info.PushName) {
-            await admin.from('evolution_contacts').upsert({
-              user_id: settings.user_id, phone, name: info.PushName, updated_at: new Date().toISOString(),
-            }, { onConflict: 'user_id,phone' });
+          const profilePicUrl = profilePicFrom(info, data, body);
+          if (info.PushName || profilePicUrl) {
+            await admin.from('evolution_contacts').upsert(
+              contactPayload(settings.user_id, phone, info.PushName, profilePicUrl),
+              { onConflict: 'user_id,phone' }
+            );
           }
         }
       }
@@ -139,10 +156,12 @@ Deno.serve(async (req) => {
         status: fromMe ? 'sent' : 'received',
         raw: m,
       });
-      if (m?.pushName) {
-        await admin.from('evolution_contacts').upsert({
-          user_id: settings.user_id, phone, name: m.pushName, updated_at: new Date().toISOString(),
-        }, { onConflict: 'user_id,phone' });
+      const profilePicUrl = profilePicFrom(m, m?.message, m?.contact, body);
+      if (m?.pushName || profilePicUrl) {
+        await admin.from('evolution_contacts').upsert(
+          contactPayload(settings.user_id, phone, m?.pushName, profilePicUrl),
+          { onConflict: 'user_id,phone' }
+        );
       }
     }
 

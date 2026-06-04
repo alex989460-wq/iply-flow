@@ -95,13 +95,14 @@ export default function EvolutionChat() {
   const recorderRef = useRef<MediaRecorder | null>(null);
   const recordChunks = useRef<Blob[]>([]);
   const recordTimerRef = useRef<number | null>(null);
+  const avatarFetchRef = useRef<Set<string>>(new Set());
 
   const load = async () => {
     if (!user) return;
     setLoading(true);
     const [msgRes, contRes] = await Promise.all([
       supabase.from('evolution_messages').select('*').eq('user_id', user.id).order('created_at', { ascending: true }).limit(3000),
-      (supabase as any).from('evolution_contacts').select('phone, name, profile_pic_url').eq('user_id', user.id),
+      supabase.from('evolution_contacts').select('phone, name, profile_pic_url').eq('user_id', user.id),
     ]);
     setLoading(false);
     if (msgRes.error) {
@@ -110,7 +111,7 @@ export default function EvolutionChat() {
     }
     setMessages(((msgRes.data || []) as unknown) as EvoMessage[]);
     const cmap: Record<string, EvoContact> = {};
-    for (const c of (((contRes as any)?.data || []) as EvoContact[])) cmap[c.phone] = c;
+    for (const c of ((contRes.data || []) as EvoContact[])) cmap[c.phone] = c;
     setContacts(cmap);
   };
 
@@ -147,6 +148,7 @@ export default function EvolutionChat() {
     if (!selectedPhone) return;
     const c = contacts[selectedPhone];
     if (c?.profile_pic_url) return;
+    avatarFetchRef.current.add(selectedPhone);
     supabase.functions.invoke('evolution-send', {
       body: { action: 'fetch-profile-pic', phone: selectedPhone },
     }).then(({ data }) => {
@@ -155,46 +157,70 @@ export default function EvolutionChat() {
         [selectedPhone]: { phone: selectedPhone, name: prev[selectedPhone]?.name || null, profile_pic_url: data.url },
       }));
     }).catch(() => {});
-  }, [selectedPhone]);
+  }, [selectedPhone, contacts]);
 
   const conversations = useMemo(() => {
-    const map = new Map<string, { phone: string; name: string | null; last: EvoMessage; unread: number }>();
+    const map = new Map<string, { phone: string; name: string | null; last: EvoMessage | null; unread: number; lastAt: string }>();
+    Object.values(contacts).forEach((c) => {
+      map.set(c.phone, { phone: c.phone, name: c.name, last: null, unread: 0, lastAt: c.phone === selectedPhone ? new Date().toISOString() : '' });
+    });
     for (const m of messages) {
       const cur = map.get(m.phone);
       if (!cur) {
-        map.set(m.phone, { phone: m.phone, name: m.contact_name, last: m, unread: m.direction === 'in' ? 1 : 0 });
+        map.set(m.phone, { phone: m.phone, name: m.contact_name, last: m, unread: m.direction === 'in' ? 1 : 0, lastAt: m.created_at });
       } else {
-        if (new Date(m.created_at) > new Date(cur.last.created_at)) cur.last = m;
+        if (!cur.last || new Date(m.created_at) > new Date(cur.last.created_at)) cur.last = m;
         if (m.contact_name && !cur.name) cur.name = m.contact_name;
         if (m.direction === 'in') cur.unread += 1;
+        cur.lastAt = cur.last?.created_at || cur.lastAt;
       }
     }
     const arr = Array.from(map.values()).sort((a, b) =>
-      new Date(b.last.created_at).getTime() - new Date(a.last.created_at).getTime()
+      new Date(b.lastAt || 0).getTime() - new Date(a.lastAt || 0).getTime()
     );
     if (!search.trim()) return arr;
     const q = search.toLowerCase();
     return arr.filter(c =>
       c.phone.includes(q.replace(/\D/g, '')) ||
       (c.name || contacts[c.phone]?.name || '').toLowerCase().includes(q) ||
-      c.last.content.toLowerCase().includes(q)
+      (c.last?.content || '').toLowerCase().includes(q)
     );
-  }, [messages, search, contacts]);
+  }, [messages, search, contacts, selectedPhone]);
 
   const thread = useMemo(() => messages.filter((m) => m.phone === selectedPhone), [messages, selectedPhone]);
   const selectedContact = useMemo(() => contacts[selectedPhone || ''] || null, [contacts, selectedPhone]);
   const selectedName = selectedContact?.name || conversations.find(c => c.phone === selectedPhone)?.name || null;
 
   useEffect(() => {
+    const pending = conversations
+      .map((c) => c.phone)
+      .filter((phone) => !contacts[phone]?.profile_pic_url && !avatarFetchRef.current.has(phone))
+      .slice(0, 8);
+    pending.forEach((phone) => {
+      avatarFetchRef.current.add(phone);
+      supabase.functions.invoke('evolution-send', { body: { action: 'fetch-profile-pic', phone } })
+        .then(({ data }) => {
+          if (data?.url) setContacts(prev => ({
+            ...prev,
+            [phone]: { phone, name: prev[phone]?.name || null, profile_pic_url: data.url },
+          }));
+        })
+        .catch(() => undefined);
+    });
+  }, [conversations, contacts]);
+
+  useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
   }, [thread.length, selectedPhone]);
 
-  const startConversation = () => {
+  const startConversation = async () => {
     const digits = newPhone.replace(/\D/g, '');
-    if (!digits) return;
+    if (!digits || !user) return;
     const phone = digits.startsWith('55') ? digits : `55${digits}`;
+    setContacts(prev => ({ ...prev, [phone]: prev[phone] || { phone, name: null, profile_pic_url: null } }));
     setSelectedPhone(phone);
     setNewPhone('');
+    await supabase.from('evolution_contacts').upsert({ user_id: user.id, phone }, { onConflict: 'user_id,phone' });
   };
 
   // OPTIMISTIC TEXT SEND — message appears instantly, request goes in background
@@ -226,18 +252,17 @@ export default function EvolutionChat() {
   const sendMedia = async (file: File, mediaType: 'image' | 'audio' | 'document') => {
     if (!selectedPhone) return;
     setSending(true);
+    const tempId = `tmp-${Date.now()}`;
+    const previewUrl = URL.createObjectURL(file);
+    const optimistic: EvoMessage = {
+      id: tempId, phone: selectedPhone, contact_name: null, direction: 'out',
+      content: mediaType === 'audio' ? '🎤 Áudio' : mediaType === 'image' ? '📷 Imagem' : `📎 ${file.name}`,
+      message_type: mediaType, media_url: previewUrl, media_mime: file.type,
+      created_at: new Date().toISOString(), _pending: true,
+    };
+    setMessages(prev => [...prev, optimistic]);
     try {
       const base64 = await fileToBase64(file);
-      const tempId = `tmp-${Date.now()}`;
-      const previewUrl = URL.createObjectURL(file);
-      const optimistic: EvoMessage = {
-        id: tempId, phone: selectedPhone, contact_name: null, direction: 'out',
-        content: mediaType === 'audio' ? '🎤 Áudio' : mediaType === 'image' ? '📷 Imagem' : `📎 ${file.name}`,
-        message_type: mediaType, media_url: previewUrl, media_mime: file.type,
-        created_at: new Date().toISOString(), _pending: true,
-      };
-      setMessages(prev => [...prev, optimistic]);
-
       const { data, error } = await supabase.functions.invoke('evolution-send', {
         body: {
           action: 'send-media',
@@ -286,8 +311,8 @@ export default function EvolutionChat() {
       setRecording(true);
       setRecordSeconds(0);
       recordTimerRef.current = window.setInterval(() => setRecordSeconds(s => s + 1), 1000);
-    } catch (e: any) {
-      toast({ title: 'Microfone bloqueado', description: e?.message || 'Permita o acesso ao microfone.', variant: 'destructive' });
+    } catch (e: unknown) {
+      toast({ title: 'Microfone bloqueado', description: e instanceof Error ? e.message : 'Permita o acesso ao microfone.', variant: 'destructive' });
     }
   };
 
@@ -297,7 +322,7 @@ export default function EvolutionChat() {
     const rec = recorderRef.current;
     if (!rec) return;
     if (cancel) { recordChunks.current = []; }
-    try { rec.stop(); } catch {}
+    try { rec.stop(); } catch { recorderRef.current = null; }
     recorderRef.current = null;
   };
 
@@ -382,7 +407,7 @@ export default function EvolutionChat() {
             ) : (
               conversations.map((c) => {
                 const active = selectedPhone === c.phone;
-                const isOut = c.last.direction === 'out';
+                const isOut = c.last?.direction === 'out';
                 const cc = contacts[c.phone];
                 const displayName = cc?.name || c.name || formatPhone(c.phone);
                 return (
@@ -403,14 +428,14 @@ export default function EvolutionChat() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between gap-2">
                         <div className="text-sm font-medium truncate">{displayName}</div>
-                        <div className="text-[10px] text-muted-foreground shrink-0">{relativeTime(c.last.created_at)}</div>
+                        <div className="text-[10px] text-muted-foreground shrink-0">{c.last ? relativeTime(c.last.created_at) : 'novo'}</div>
                       </div>
                       <div className="flex items-center justify-between gap-2 mt-0.5">
                         <div className="text-[11px] text-muted-foreground truncate">
                           {isOut && <span className="text-primary mr-1">✓</span>}
-                          {c.last.content}
+                          {c.last?.content || 'Nova conversa'}
                         </div>
-                        {!active && c.unread > 0 && c.last.direction === 'in' && (
+                        {!active && c.unread > 0 && c.last?.direction === 'in' && (
                           <Badge className="h-4 min-w-4 px-1 text-[9px] bg-primary">{c.unread > 99 ? '99+' : c.unread}</Badge>
                         )}
                       </div>
