@@ -272,6 +272,29 @@ Deno.serve(async (req) => {
       return jsonResponse({ ok: false, url: null });
     }
 
+    // SYNC CONTACTS FROM EVOLUTION GO
+    if (action === 'sync-contacts') {
+      const r = await fetchJson(`${baseUrl}/user/contacts`, { headers: evolutionHeaders(apiKey) }, 10000)
+        .catch((error) => ({ ok: false, status: 0, data: { error: String(error?.message || error) } }));
+      const rows = Array.isArray(r.data?.data) ? r.data.data : Array.isArray(r.data) ? r.data : [];
+      const payload = rows.map((item: any) => {
+        const rawPhone = String(item?.number || item?.phone || item?.jid || item?.id || '').split('@')[0];
+        const phone = normalizePhone(rawPhone);
+        if (!phone) return null;
+        return {
+          user_id: user.id,
+          phone,
+          name: item?.name || item?.pushName || item?.notify || item?.verifiedName || null,
+          profile_pic_url: findUrlDeep(item),
+          updated_at: new Date().toISOString(),
+        };
+      }).filter(Boolean);
+      if (payload.length) {
+        await admin.from('evolution_contacts').upsert(payload, { onConflict: 'user_id,phone' });
+      }
+      return jsonResponse({ ok: r.ok, count: payload.length, status: r.status });
+    }
+
     // SEND MEDIA (audio / image / file) — body: { phone, mediaBase64, mimetype, filename, mediaType: 'audio'|'image'|'document', caption? }
     if (action === 'send-media') {
       const phone = normalizePhone(body.phone);
