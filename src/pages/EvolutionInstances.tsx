@@ -77,27 +77,37 @@ export default function EvolutionInstances() {
     setQrInstance(instanceName);
     setQrOpen(true);
     setQrImg(null);
+    setQrMsg(null);
     setQrLoading(true);
     const loadQr = async () => {
       const { data } = await supabase.functions.invoke('evolution-send', {
         body: { action: 'qr-connect', instance: instanceName },
       });
+      if (data?.alreadyConnected) {
+        setQrMsg('Esta instância já está conectada.');
+        setQrLoading(false);
+        return true;
+      }
       if (data?.ok && data.qr) {
         setQrImg(data.qr);
+        setQrMsg(null);
+      } else if (data?.error) {
+        setQrMsg(data.error);
       }
       setQrLoading(false);
+      return false;
     };
-    await loadQr();
-    // poll every 20s in case QR rotates / fetch instances every 8s to detect connection
+    const connected = await loadQr();
+    if (connected) return;
     pollRef.current = window.setInterval(async () => {
-      await loadQr();
+      const done = await loadQr();
       const { data } = await supabase.functions.invoke('evolution-send', {
         body: { action: 'list-instances' },
       });
       if (data?.ok) {
         setInstances(data.instances || []);
         const me = (data.instances || []).find((i: InstanceRow) => i.name === instanceName);
-        if (me && /open|connected|online/i.test(me.state)) {
+        if (done || (me && /open|connected|online/i.test(me.state))) {
           toast({ title: 'Conectado!', description: `${instanceName} agora está online.` });
           closeQr();
         }
@@ -109,6 +119,7 @@ export default function EvolutionInstances() {
     setQrOpen(false);
     setQrImg(null);
     setQrInstance(null);
+    setQrMsg(null);
     if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
   };
 
