@@ -386,7 +386,13 @@ export default function EvolutionChat() {
 
   const onPickFile = (kind: 'image' | 'document') => (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
-    if (f) sendMedia(f, kind);
+    if (f) {
+      if (kind === 'image') {
+        setImageToSend({ file: f, url: URL.createObjectURL(f), caption: '' });
+      } else {
+        sendMedia(f, kind);
+      }
+    }
     e.target.value = '';
   };
 
