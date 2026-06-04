@@ -129,13 +129,14 @@ export default function Sidebar() {
         <nav className="flex-1 p-3 space-y-1 overflow-y-auto scrollbar-thin">
           {filteredMenuItems.map((item, index) => {
             const isActive = location.pathname === item.path;
+            const badgeCount = item.badgeKey ? badgeCounts[item.badgeKey] : 0;
             return (
               <NavLink
                 key={item.path}
                 to={item.path}
                 style={{ animationDelay: `${index * 30}ms` }}
                 className={cn(
-                  "group flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 animate-fade-in",
+                  "group flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 animate-fade-in relative",
                   "hover:bg-gradient-to-r hover:from-primary/10 hover:to-primary/5",
                   isActive 
                     ? "bg-gradient-to-r from-primary/20 to-primary/10 text-primary shadow-sm border border-primary/20" 
@@ -144,15 +145,25 @@ export default function Sidebar() {
                 )}
               >
                 <div className={cn(
-                  "flex items-center justify-center rounded-lg transition-all duration-200",
+                  "flex items-center justify-center rounded-lg transition-all duration-200 relative",
                   collapsed ? "w-10 h-10" : "w-8 h-8",
                   isActive 
                     ? "bg-primary text-primary-foreground shadow-md shadow-primary/30" 
                     : "bg-secondary/50 group-hover:bg-secondary group-hover:scale-105"
                 )}>
                   <item.icon className={cn(collapsed ? "w-5 h-5" : "w-4 h-4")} />
+                  {collapsed && badgeCount > 0 && (
+                    <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full bg-destructive text-destructive-foreground text-[9px] font-bold flex items-center justify-center">
+                      {badgeCount > 99 ? '99+' : badgeCount}
+                    </span>
+                  )}
                 </div>
-                {!collapsed && <span className="truncate">{item.label}</span>}
+                {!collapsed && <span className="truncate flex-1">{item.label}</span>}
+                {!collapsed && badgeCount > 0 && (
+                  <Badge className="h-5 min-w-5 px-1.5 text-[10px] bg-destructive text-destructive-foreground hover:bg-destructive">
+                    {badgeCount > 99 ? '99+' : badgeCount}
+                  </Badge>
+                )}
               </NavLink>
             );
           })}
