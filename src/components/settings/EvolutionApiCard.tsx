@@ -167,12 +167,15 @@ export default function EvolutionApiCard() {
             />
           </div>
           <div className="space-y-1">
-            <Label>Instance Name</Label>
+            <Label>Instance Name <span className="text-muted-foreground text-xs">(opcional com API global)</span></Label>
             <Input
-              placeholder="minha-instancia"
+              placeholder="deixe em branco se usa API Key global"
               value={form.instance_name}
               onChange={(e) => setForm((f) => ({ ...f, instance_name: e.target.value }))}
             />
+            <p className="text-[11px] text-muted-foreground">
+              Com a <b>GLOBAL_API_KEY</b> do Evolution GO, deixe vazio. Você escolhe/cria as instâncias em <a href="/whatsapp-connections" className="underline text-primary">Conexões WhatsApp</a>.
+            </p>
           </div>
           <div className="space-y-1 md:col-span-2">
             <Label>API Key (apikey)</Label>
