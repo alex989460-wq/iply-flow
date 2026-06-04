@@ -64,8 +64,10 @@ export default function Sidebar() {
   const { signOut, user, isAdmin } = useAuth();
   const location = useLocation();
   const { collapsed, setCollapsed, toggle } = useSidebar();
-  
+  const evolutionUnread = useEvolutionUnread();
+
   const filteredMenuItems = menuItems.filter(item => !item.adminOnly || isAdmin);
+  const badgeCounts: Record<BadgeKey, number> = { evolution: evolutionUnread };
 
   return (
     <>
