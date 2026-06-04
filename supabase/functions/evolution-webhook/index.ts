@@ -233,6 +233,7 @@ Deno.serve(async (req) => {
 
       await insertMessageOnce(admin, {
         user_id: settings.user_id,
+        instance_name: instanceName,
         remote_jid: remoteJid,
         phone,
         contact_name: m?.pushName || null,
