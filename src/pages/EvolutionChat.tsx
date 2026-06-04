@@ -244,12 +244,29 @@ export default function EvolutionChat() {
     supabase.functions.invoke('evolution-send', { body: { action: 'sync-contacts' } }).catch(() => undefined);
   }, [user]);
 
+  // Filter messages by current instance. Legacy messages (instance_name = null) are shown for all.
+  const instanceMessages = useMemo(() => {
+    if (!currentInstance) return messages;
+    return messages.filter(m => !m.instance_name || m.instance_name === currentInstance);
+  }, [messages, currentInstance]);
+
+  // Phones that have at least one message on this instance (used to filter the conversations sidebar)
+  const instancePhones = useMemo(() => {
+    if (!currentInstance) return null;
+    const set = new Set<string>();
+    for (const m of messages) {
+      if (m.instance_name === currentInstance) set.add(m.phone);
+    }
+    return set;
+  }, [messages, currentInstance]);
+
   const conversations = useMemo(() => {
     const map = new Map<string, { phone: string; name: string | null; last: EvoMessage | null; unread: number; lastAt: string }>();
     Object.values(contacts).forEach((c) => {
+      if (instancePhones && !instancePhones.has(c.phone) && c.phone !== selectedPhone) return;
       map.set(c.phone, { phone: c.phone, name: c.name, last: null, unread: 0, lastAt: c.phone === selectedPhone ? new Date().toISOString() : '' });
     });
-    for (const m of messages) {
+    for (const m of instanceMessages) {
       const cur = map.get(m.phone);
       if (!cur) {
         map.set(m.phone, { phone: m.phone, name: m.contact_name, last: m, unread: m.direction === 'in' ? 1 : 0, lastAt: m.created_at });
@@ -273,9 +290,9 @@ export default function EvolutionChat() {
       (c.name || contacts[c.phone]?.name || '').toLowerCase().includes(q) ||
       (c.last?.content || '').toLowerCase().includes(q)
     );
-  }, [messages, search, contacts, selectedPhone, filter]);
+  }, [instanceMessages, search, contacts, selectedPhone, filter, instancePhones]);
 
-  const thread = useMemo(() => messages.filter((m) => m.phone === selectedPhone), [messages, selectedPhone]);
+  const thread = useMemo(() => instanceMessages.filter((m) => m.phone === selectedPhone), [instanceMessages, selectedPhone]);
   const selectedContact = useMemo(() => contacts[selectedPhone || ''] || null, [contacts, selectedPhone]);
   const selectedName = selectedContact?.name || conversations.find(c => c.phone === selectedPhone)?.name || null;
 
