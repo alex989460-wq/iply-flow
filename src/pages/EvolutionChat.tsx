@@ -309,7 +309,7 @@ export default function EvolutionChat() {
     });
   };
 
-  const sendMedia = async (file: File, mediaType: 'image' | 'audio' | 'document', caption = '') => {
+  const sendMedia = async (file: File, mediaType: 'image' | 'audio' | 'document' | 'sticker', caption = '') => {
     if (!selectedPhone) return;
     setSending(true);
     const tempId = `tmp-${Date.now()}`;
