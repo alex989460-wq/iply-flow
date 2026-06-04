@@ -95,6 +95,7 @@ export default function EvolutionChat() {
   const recorderRef = useRef<MediaRecorder | null>(null);
   const recordChunks = useRef<Blob[]>([]);
   const recordTimerRef = useRef<number | null>(null);
+  const avatarFetchRef = useRef<Set<string>>(new Set());
 
   const load = async () => {
     if (!user) return;
@@ -147,6 +148,7 @@ export default function EvolutionChat() {
     if (!selectedPhone) return;
     const c = contacts[selectedPhone];
     if (c?.profile_pic_url) return;
+    avatarFetchRef.current.add(selectedPhone);
     supabase.functions.invoke('evolution-send', {
       body: { action: 'fetch-profile-pic', phone: selectedPhone },
     }).then(({ data }) => {
@@ -156,6 +158,24 @@ export default function EvolutionChat() {
       }));
     }).catch(() => {});
   }, [selectedPhone]);
+
+  useEffect(() => {
+    const pending = conversations
+      .map((c) => c.phone)
+      .filter((phone) => !contacts[phone]?.profile_pic_url && !avatarFetchRef.current.has(phone))
+      .slice(0, 8);
+    pending.forEach((phone) => {
+      avatarFetchRef.current.add(phone);
+      supabase.functions.invoke('evolution-send', { body: { action: 'fetch-profile-pic', phone } })
+        .then(({ data }) => {
+          if (data?.url) setContacts(prev => ({
+            ...prev,
+            [phone]: { phone, name: prev[phone]?.name || null, profile_pic_url: data.url },
+          }));
+        })
+        .catch(() => undefined);
+    });
+  }, [conversations, contacts]);
 
   const conversations = useMemo(() => {
     const map = new Map<string, { phone: string; name: string | null; last: EvoMessage | null; unread: number; lastAt: string }>();
