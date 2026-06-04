@@ -433,6 +433,7 @@ Deno.serve(async (req) => {
 
     // LIST INSTANCES
     if (action === 'list-instances') {
+      // Try admin-key endpoints first (Evolution API classic / Go with global key)
       const tries = [
         `${baseUrl}/instance/fetchInstances`,
         `${baseUrl}/instance/all`,
@@ -443,18 +444,58 @@ Deno.serve(async (req) => {
           .catch(() => ({ ok: false, status: 0, data: {} as any }));
         if (!r.ok) continue;
         const rows = Array.isArray(r.data?.data) ? r.data.data : Array.isArray(r.data) ? r.data : [];
+        if (rows.length === 0) continue;
         const list = rows.map((item: any) => ({
           id: item?.id || item?.instanceId || item?.name || '',
           name: item?.name || item?.instanceName || item?.instance?.instanceName || item?.id || '',
           state: item?.connectionStatus || item?.state || item?.instance?.state || item?.status || 'unknown',
           phone: item?.ownerJid?.split?.('@')?.[0] || item?.owner?.split?.('@')?.[0] || item?.number || null,
-          profile_name: item?.profileName || item?.profilePictureUrl ? item?.profileName : null,
+          profile_name: item?.profileName || null,
           profile_pic: item?.profilePictureUrl || item?.profilePicUrl || null,
           token: item?.token || item?.hash || null,
         }));
-        return jsonResponse({ ok: true, instances: list, current: instance });
+        return jsonResponse({ ok: true, instances: list, current: instance, adminMode: true });
       }
-      return jsonResponse({ ok: false, error: 'Não foi possível listar instâncias.' }, 200);
+
+      // Fallback: build a single entry from the instance-scoped /instance/status endpoint
+      // (the API key the user provided is an instance token, not the global admin key)
+      const status = await fetchJson(`${baseUrl}/instance/status`, {
+        headers: evolutionHeaders(apiKey),
+      }, 6000).catch(() => ({ ok: false, status: 0, data: {} as any }));
+
+      if (status.ok) {
+        const sd = status.data?.data || status.data || {};
+        const connected = !!(sd.Connected || sd.connected);
+        const loggedIn = !!(sd.LoggedIn || sd.loggedIn);
+        let phone: string | null = null;
+        // try /instance/connect to capture jid even when disconnected
+        const conn = await fetchJson(`${baseUrl}/instance/connect`, {
+          method: 'POST', headers: evolutionHeaders(apiKey, true), body: JSON.stringify({}),
+        }, 5000).catch(() => ({ ok: false, status: 0, data: {} as any }));
+        const jid = conn?.data?.data?.jid || conn?.data?.jid;
+        if (typeof jid === 'string') phone = jid.split('@')[0].split(':')[0];
+        return jsonResponse({
+          ok: true,
+          adminMode: false,
+          current: instance,
+          instances: [{
+            id: instance,
+            name: sd.Name || instance,
+            state: connected ? 'open' : loggedIn ? 'connecting' : 'close',
+            phone,
+            profile_name: sd.Name || null,
+            profile_pic: null,
+            token: null,
+          }],
+        });
+      }
+
+      return jsonResponse({
+        ok: false,
+        error: 'Não foi possível listar instâncias. Verifique URL/API Key em Configurações.',
+        instances: [],
+        current: instance,
+      }, 200);
     }
 
     // CREATE INSTANCE
