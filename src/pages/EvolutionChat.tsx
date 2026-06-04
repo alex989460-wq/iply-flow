@@ -336,7 +336,7 @@ export default function EvolutionChat() {
     const optimistic: EvoMessage = {
       id: tempId, phone: selectedPhone, contact_name: null, direction: 'out',
       content: text, message_type: 'text', media_url: null, media_mime: null,
-      created_at: new Date().toISOString(), _pending: true,
+      created_at: new Date().toISOString(), instance_name: currentInstance || null, _pending: true,
     };
     setMessages(prev => [...prev, optimistic]);
     setDraft('');
