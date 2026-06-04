@@ -394,18 +394,32 @@ Deno.serve(async (req) => {
     // QR / CONNECT — returns a base64 QR (data URL) so the user can scan it in-app
     if (action === 'qr-connect') {
       const targetInstance = String(body.instance || instance).trim();
+
+      // First check if already connected (Evolution Go instance-scoped status)
+      const status = await fetchJson(`${baseUrl}/instance/status`, {
+        headers: evolutionHeaders(apiKey),
+      }, 5000).catch(() => ({ ok: false, status: 0, data: {} as any }));
+      const sd = status?.data?.data || status?.data || {};
+      if (sd?.Connected || sd?.connected) {
+        return jsonResponse({ ok: true, alreadyConnected: true, instance: targetInstance });
+      }
+
+      // Trigger reconnect for Evolution Go so a QR is generated, then fetch /instance/qr
+      await fetchJson(`${baseUrl}/instance/reconnect`, {
+        method: 'POST', headers: evolutionHeaders(apiKey, true), body: '{}',
+      }, 5000).catch(() => null);
+
       const tries = [
+        { url: `${baseUrl}/instance/qr`, method: 'GET', headers: evolutionHeaders(apiKey) },
         { url: `${baseUrl}/instance/connect/${encodeURIComponent(targetInstance)}`, method: 'GET', headers: evolutionHeaders(apiKey) },
         { url: `${baseUrl}/instance/qr/${encodeURIComponent(targetInstance)}`, method: 'GET', headers: evolutionHeaders(apiKey) },
         { url: `${baseUrl}/instance/qrcode/${encodeURIComponent(targetInstance)}`, method: 'GET', headers: evolutionHeaders(apiKey) },
-        { url: `${baseUrl}/instance/qr`, method: 'GET', headers: evolutionHeaders(apiKey, false, targetInstance) },
       ];
       for (const t of tries) {
         const r = await fetchJson(t.url, { method: t.method, headers: t.headers }, 10000)
           .catch(() => ({ ok: false, status: 0, data: {} as any }));
         if (!r.ok) continue;
         const data = r.data || {};
-        // many shapes: { base64 }, { qrcode: { base64 } }, { code }, { qr }, { data: { qrcode } }
         const findQr = (v: any): string | null => {
           if (!v) return null;
           if (typeof v === 'string') {
@@ -428,7 +442,7 @@ Deno.serve(async (req) => {
         const pairingCode = data?.pairingCode || data?.code || data?.qrcode?.pairingCode || null;
         if (qr) return jsonResponse({ ok: true, qr, pairingCode, instance: targetInstance });
       }
-      return jsonResponse({ ok: false, error: 'Não foi possível obter o QR Code da instância.' }, 200);
+      return jsonResponse({ ok: false, error: 'Não foi possível obter o QR Code. A instância pode já estar conectada — clique em Atualizar.' }, 200);
     }
 
     // LIST INSTANCES
