@@ -41,7 +41,7 @@ function publicMediaFromSignedUrl(url: string | null) {
 }
 
 async function fetchJson(url: string, init: RequestInit = {}) {
-  const r = await fetch(url, { ...init, signal: AbortSignal.timeout(15000) });
+  const r = await fetch(url, { ...init, signal: AbortSignal.timeout(8000) });
   const data = await r.json().catch(() => ({}));
   return { ok: r.ok, status: r.status, data };
 }
@@ -227,12 +227,12 @@ Deno.serve(async (req) => {
       const number = `${phone}@s.whatsapp.net`;
       const instanceId = await resolveGoInstanceId(baseUrl, apiKey, instance).catch(() => '');
       const tries = [
-        { url: `${baseUrl}/chat/fetchProfilePictureUrl/${encodeURIComponent(instance)}`, method: 'POST', headers: evolutionHeaders(apiKey, true), body: { number: phone } },
-        { url: `${baseUrl}/chat/fetchProfilePictureUrl/${encodeURIComponent(instance)}`, method: 'POST', headers: evolutionHeaders(apiKey, true), body: { number } },
         { url: `${baseUrl}/user/avatar`, method: 'POST', headers: evolutionHeaders(apiKey, true), body: { number: phone, preview: false } },
         { url: `${baseUrl}/user/avatar`, method: 'POST', headers: evolutionHeaders(apiKey, true, instanceId || instance), body: { number: phone, preview: false } },
         { url: `${baseUrl}/user/info`, method: 'POST', headers: evolutionHeaders(apiKey, true), body: { number: [phone] } },
         { url: `${baseUrl}/user/info`, method: 'POST', headers: evolutionHeaders(apiKey, true, instanceId || instance), body: { number: [phone] } },
+        { url: `${baseUrl}/chat/fetchProfilePictureUrl/${encodeURIComponent(instance)}`, method: 'POST', headers: evolutionHeaders(apiKey, true), body: { number: phone } },
+        { url: `${baseUrl}/chat/fetchProfilePictureUrl/${encodeURIComponent(instance)}`, method: 'POST', headers: evolutionHeaders(apiKey, true), body: { number } },
         { url: `${baseUrl}/chat/getProfilePicture`, method: 'POST', headers: evolutionHeaders(apiKey, true, instanceId || instance), body: { number: phone } },
         { url: `${baseUrl}/chat/whatsappProfile/${encodeURIComponent(instance)}`, method: 'POST', headers: evolutionHeaders(apiKey, true), body: { number: phone } },
       ];
