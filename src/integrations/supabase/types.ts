@@ -523,6 +523,87 @@ export type Database = {
         }
         Relationships: []
       }
+      evolution_messages: {
+        Row: {
+          contact_name: string | null
+          content: string
+          created_at: string
+          direction: string
+          external_id: string | null
+          id: string
+          message_type: string
+          phone: string
+          raw: Json | null
+          remote_jid: string
+          status: string
+          user_id: string
+        }
+        Insert: {
+          contact_name?: string | null
+          content?: string
+          created_at?: string
+          direction: string
+          external_id?: string | null
+          id?: string
+          message_type?: string
+          phone: string
+          raw?: Json | null
+          remote_jid: string
+          status?: string
+          user_id: string
+        }
+        Update: {
+          contact_name?: string | null
+          content?: string
+          created_at?: string
+          direction?: string
+          external_id?: string | null
+          id?: string
+          message_type?: string
+          phone?: string
+          raw?: Json | null
+          remote_jid?: string
+          status?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      evolution_settings: {
+        Row: {
+          api_key: string
+          base_url: string
+          created_at: string
+          id: string
+          instance_name: string
+          is_enabled: boolean
+          updated_at: string
+          user_id: string
+          webhook_token: string
+        }
+        Insert: {
+          api_key?: string
+          base_url?: string
+          created_at?: string
+          id?: string
+          instance_name?: string
+          is_enabled?: boolean
+          updated_at?: string
+          user_id: string
+          webhook_token?: string
+        }
+        Update: {
+          api_key?: string
+          base_url?: string
+          created_at?: string
+          id?: string
+          instance_name?: string
+          is_enabled?: boolean
+          updated_at?: string
+          user_id?: string
+          webhook_token?: string
+        }
+        Relationships: []
+      }
       expenses: {
         Row: {
           amount: number
