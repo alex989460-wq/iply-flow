@@ -30,6 +30,16 @@ function evolutionHeaders(apiKey: string, contentType = false, instanceId = '') 
   return headers;
 }
 
+function publicMediaFromSignedUrl(url: string | null) {
+  if (!url) return null;
+  try {
+    const u = new URL(url);
+    return `${u.origin}${u.pathname}${u.search}`;
+  } catch {
+    return url;
+  }
+}
+
 async function fetchJson(url: string, init: RequestInit = {}) {
   const r = await fetch(url, { ...init, signal: AbortSignal.timeout(15000) });
   const data = await r.json().catch(() => ({}));
@@ -217,14 +227,18 @@ Deno.serve(async (req) => {
       const number = `${phone}@s.whatsapp.net`;
       const instanceId = await resolveGoInstanceId(baseUrl, apiKey, instance).catch(() => '');
       const tries = [
+        { url: `${baseUrl}/chat/fetchProfilePictureUrl/${encodeURIComponent(instance)}`, method: 'POST', headers: evolutionHeaders(apiKey, true), body: { number: phone } },
         { url: `${baseUrl}/chat/fetchProfilePictureUrl/${encodeURIComponent(instance)}`, method: 'POST', headers: evolutionHeaders(apiKey, true), body: { number } },
-        { url: `${baseUrl}/chat/getProfilePicture`, method: 'POST', headers: evolutionHeaders(apiKey, true, instanceId || instance), body: { number } },
-        { url: `${baseUrl}/chat/whatsappProfile/${encodeURIComponent(instance)}`, method: 'POST', headers: evolutionHeaders(apiKey, true), body: { number } },
+        { url: `${baseUrl}/user/avatar`, method: 'POST', headers: evolutionHeaders(apiKey, true, instanceId || instance), body: { number: phone, preview: false } },
+        { url: `${baseUrl}/user/info`, method: 'POST', headers: evolutionHeaders(apiKey, true, instanceId || instance), body: { number: [phone] } },
+        { url: `${baseUrl}/chat/getProfilePicture`, method: 'POST', headers: evolutionHeaders(apiKey, true, instanceId || instance), body: { number: phone } },
+        { url: `${baseUrl}/chat/whatsappProfile/${encodeURIComponent(instance)}`, method: 'POST', headers: evolutionHeaders(apiKey, true), body: { number: phone } },
       ];
       for (const t of tries) {
         const r = await fetchJson(t.url, { method: t.method, headers: t.headers, body: JSON.stringify(t.body) })
           .catch(() => ({ ok: false, status: 0, data: {} as any }));
-        const url = r?.data?.profilePictureUrl || r?.data?.data?.profilePictureUrl || r?.data?.url || r?.data?.picture || null;
+        const row = Array.isArray(r?.data?.data) ? r.data.data[0] : Array.isArray(r?.data) ? r.data[0] : r?.data?.data || r?.data || {};
+        const url = row?.profilePictureUrl || row?.profilePicture || row?.avatar || row?.url || row?.picture || row?.pictureUrl || null;
         if (url) {
           await admin.from('evolution_contacts').upsert({
             user_id: user.id, phone, profile_pic_url: url, updated_at: new Date().toISOString(),
