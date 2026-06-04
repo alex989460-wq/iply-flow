@@ -281,13 +281,15 @@ Deno.serve(async (req) => {
         const rawPhone = String(item?.number || item?.phone || item?.jid || item?.id || '').split('@')[0];
         const phone = normalizePhone(rawPhone);
         if (!phone) return null;
-        return {
+        const row: Record<string, unknown> = {
           user_id: user.id,
           phone,
           name: item?.name || item?.pushName || item?.notify || item?.verifiedName || null,
-          profile_pic_url: findUrlDeep(item),
           updated_at: new Date().toISOString(),
         };
+        const avatar = findUrlDeep(item);
+        if (avatar) row.profile_pic_url = avatar;
+        return row;
       }).filter(Boolean);
       if (payload.length) {
         await admin.from('evolution_contacts').upsert(payload, { onConflict: 'user_id,phone' });
