@@ -701,27 +701,17 @@ Deno.serve(async (req) => {
         const advBody = {
           alwaysOnline: !!advanced.alwaysOnline,
           rejectCall: !!advanced.rejectCall,
-          msgCall: advanced.msgCall || '',
+          msgRejectCall: advanced.msgCall || '',
           readMessages: !!advanced.readMessages,
-          readStatus: !!advanced.readStatus,
-          groupsIgnore: !!advanced.ignoreGroups,
+          ignoreGroups: !!advanced.ignoreGroups,
           ignoreStatus: !!advanced.ignoreStatus,
-          syncFullHistory: !!advanced.syncFullHistory,
         };
         const tries = [
-          // Evolution Go — instance-scoped (apikey is the per-instance token)
-          { url: `${baseUrl}/settings`, method: 'POST', headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: advBody },
-          { url: `${baseUrl}/settings`, method: 'PUT', headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: advBody },
-          { url: `${baseUrl}/instance/settings`, method: 'PUT', headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: advBody },
-          { url: `${baseUrl}/instance/settings`, method: 'POST', headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: advBody },
-          { url: `${baseUrl}/instance/settings`, method: 'PATCH', headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: advBody },
-          // Path-based with instance id (global key)
-          { url: `${baseUrl}/instance/${encodeURIComponent(instAuth.instanceId)}/settings`, method: 'PUT', headers: evolutionHeaders(apiKey, true), body: advBody },
-          { url: `${baseUrl}/instance/${encodeURIComponent(instAuth.instanceId)}/settings`, method: 'POST', headers: evolutionHeaders(apiKey, true), body: advBody },
-          { url: `${baseUrl}/instance/${encodeURIComponent(instAuth.instanceId)}/settings`, method: 'PATCH', headers: evolutionHeaders(apiKey, true), body: advBody },
-          // Path-based with name (Evolution API classic)
-          { url: `${baseUrl}/settings/set/${encodeURIComponent(targetInstance)}`, method: 'POST', headers: evolutionHeaders(apiKey, true), body: advBody },
-          { url: `${baseUrl}/instance/${encodeURIComponent(targetInstance)}/settings`, method: 'PUT', headers: evolutionHeaders(apiKey, true), body: advBody },
+          // Evolution Go (confirmed via swagger)
+          { url: `${baseUrl}/instance/${encodeURIComponent(instAuth.instanceId)}/advanced-settings`, method: 'PUT', headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: advBody },
+          { url: `${baseUrl}/instance/${encodeURIComponent(instAuth.instanceId)}/advanced-settings`, method: 'PUT', headers: evolutionHeaders(apiKey, true), body: advBody },
+          // Classic Evolution API fallback
+          { url: `${baseUrl}/settings/set/${encodeURIComponent(targetInstance)}`, method: 'POST', headers: evolutionHeaders(apiKey, true), body: { ...advBody, msgCall: advanced.msgCall || '', groupsIgnore: !!advanced.ignoreGroups, readStatus: false, syncFullHistory: false } },
         ];
         for (const t of tries) {
           const r = await fetchJson(t.url, { method: t.method, headers: t.headers, body: JSON.stringify(t.body) }, 8000)
@@ -736,19 +726,11 @@ Deno.serve(async (req) => {
         const webhookUrl = String(webhook.url || `${supabaseUrl}/functions/v1/evolution-webhook?token=${settings.webhook_token}`);
         const events: string[] = Array.isArray(webhook.events) ? webhook.events : [];
         const enabled = webhook.enabled !== false;
-        const goBody = { webhookUrl, subscribe: events, enabled, immediate: true };
-        const goBody2 = { url: webhookUrl, events, enabled, subscribe: events };
+        // Evolution Go does NOT have a separate /webhook endpoint — webhook is set via /instance/connect with subscribe[]
+        const goBody = { webhookUrl, subscribe: events, enabled, immediate: false };
         const classicBody = { webhook: { enabled, url: webhookUrl, events, byEvents: false, base64: false } };
         const tries = [
-          // Evolution Go — instance-scoped
-          { url: `${baseUrl}/webhook`, method: 'POST', headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: goBody },
-          { url: `${baseUrl}/webhook`, method: 'PUT', headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: goBody2 },
-          { url: `${baseUrl}/instance/webhook`, method: 'PUT', headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: goBody },
-          { url: `${baseUrl}/instance/webhook`, method: 'POST', headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: goBody },
-          // Path-based with instance id
-          { url: `${baseUrl}/instance/${encodeURIComponent(instAuth.instanceId)}/webhook`, method: 'PUT', headers: evolutionHeaders(apiKey, true), body: goBody },
-          { url: `${baseUrl}/instance/${encodeURIComponent(instAuth.instanceId)}/webhook`, method: 'POST', headers: evolutionHeaders(apiKey, true), body: goBody },
-          // Classic Evolution API
+          { url: `${baseUrl}/instance/connect`, method: 'POST', headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: goBody },
           { url: `${baseUrl}/webhook/set/${encodeURIComponent(targetInstance)}`, method: 'POST', headers: evolutionHeaders(apiKey, true), body: classicBody },
         ];
         for (const t of tries) {
