@@ -101,16 +101,16 @@ export default function EvolutionChat() {
     setLoading(true);
     const [msgRes, contRes] = await Promise.all([
       supabase.from('evolution_messages').select('*').eq('user_id', user.id).order('created_at', { ascending: true }).limit(3000),
-      supabase.from('evolution_contacts').select('phone, name, profile_pic_url').eq('user_id', user.id),
+      (supabase as any).from('evolution_contacts').select('phone, name, profile_pic_url').eq('user_id', user.id),
     ]);
     setLoading(false);
     if (msgRes.error) {
       toast({ title: 'Erro', description: msgRes.error.message, variant: 'destructive' });
       return;
     }
-    setMessages((msgRes.data || []) as EvoMessage[]);
+    setMessages(((msgRes.data || []) as unknown) as EvoMessage[]);
     const cmap: Record<string, EvoContact> = {};
-    for (const c of (contRes.data || []) as EvoContact[]) cmap[c.phone] = c;
+    for (const c of (((contRes as any)?.data || []) as EvoContact[])) cmap[c.phone] = c;
     setContacts(cmap);
   };
 
