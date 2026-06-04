@@ -523,6 +523,36 @@ export type Database = {
         }
         Relationships: []
       }
+      evolution_contacts: {
+        Row: {
+          created_at: string
+          id: string
+          name: string | null
+          phone: string
+          profile_pic_url: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name?: string | null
+          phone: string
+          profile_pic_url?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string | null
+          phone?: string
+          profile_pic_url?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       evolution_messages: {
         Row: {
           contact_name: string | null
@@ -531,8 +561,11 @@ export type Database = {
           direction: string
           external_id: string | null
           id: string
+          media_mime: string | null
+          media_url: string | null
           message_type: string
           phone: string
+          profile_pic_url: string | null
           raw: Json | null
           remote_jid: string
           status: string
@@ -545,8 +578,11 @@ export type Database = {
           direction: string
           external_id?: string | null
           id?: string
+          media_mime?: string | null
+          media_url?: string | null
           message_type?: string
           phone: string
+          profile_pic_url?: string | null
           raw?: Json | null
           remote_jid: string
           status?: string
@@ -559,8 +595,11 @@ export type Database = {
           direction?: string
           external_id?: string | null
           id?: string
+          media_mime?: string | null
+          media_url?: string | null
           message_type?: string
           phone?: string
+          profile_pic_url?: string | null
           raw?: Json | null
           remote_jid?: string
           status?: string
