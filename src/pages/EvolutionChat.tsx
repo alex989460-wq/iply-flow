@@ -362,13 +362,22 @@ export default function EvolutionChat() {
   }, [thread]);
 
   const renderMessageBody = (m: EvoMessage) => {
-    if (m.message_type === 'image' && m.media_url) {
+    if ((m.message_type === 'image' || m.message_type === 'sticker') && m.media_url) {
+      const label = m.content.replace(/^📷\s*/, '').replace(/^\[sticker\]$/, 'Sticker');
       return (
         <div className="space-y-1">
-          <img src={m.media_url} alt="" className="rounded-lg max-w-full max-h-64 object-cover" />
-          {m.content && !m.content.startsWith('📷') && <div className="text-sm">{m.content}</div>}
+          <button type="button" onClick={() => setPreviewImage({ url: m.media_url!, caption: label })} className="block focus:outline-none focus:ring-2 focus:ring-ring rounded-lg">
+            <img src={m.media_url} alt={label || 'Imagem da conversa'} className={cn('rounded-lg object-cover', m.message_type === 'sticker' ? 'max-w-32 max-h-32' : 'max-w-full max-h-64')} loading="lazy" />
+          </button>
+          {label && label !== 'Imagem' && <div className="text-sm">{label}</div>}
         </div>
       );
+    }
+    if (m.message_type === 'image' && !m.media_url) {
+      return <div className="whitespace-pre-wrap break-words leading-snug">Imagem recebida</div>;
+    }
+    if (m.message_type === 'sticker' && !m.media_url) {
+      return <div className="whitespace-pre-wrap break-words leading-snug">Sticker recebido</div>;
     }
     if (m.message_type === 'audio' && m.media_url) {
       return <audio controls src={m.media_url} className="max-w-[240px] h-9" />;
