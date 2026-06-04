@@ -336,6 +336,14 @@ Deno.serve(async (req) => {
           { url: `${baseUrl}/send/media`, headers: evolutionHeaders(apiKey, true, instance), body: { number: phone, type: 'audio', url: mediaForEvolution, filename, caption }, mode: 'evolution-go-send-media' },
           { url: `${baseUrl}/message/sendMedia`, headers: evolutionHeaders(apiKey, true, instance), body: { number: phone, type: 'audio', url: mediaForEvolution, filename, caption }, mode: 'evolution-go-message-media' },
         ];
+      } else if (mediaType === 'sticker') {
+        attempts = [
+          { url: `${baseUrl}/send/sticker`, headers: evolutionHeaders(apiKey, true), body: { number: phone, sticker: mediaForEvolution }, mode: 'evolution-go-send-sticker-token' },
+          { url: `${baseUrl}/message/sendSticker/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: phone, sticker: mediaForEvolution }, mode: 'evolution-api-sticker-url' },
+          { url: `${baseUrl}/message/sendSticker/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: phone, sticker: mediaBase64 }, mode: 'evolution-api-sticker-base64' },
+          { url: `${baseUrl}/send/sticker`, headers: evolutionHeaders(apiKey, true, instance), body: { number: phone, sticker: mediaForEvolution }, mode: 'evolution-go-send-sticker' },
+          { url: `${baseUrl}/message/sendMedia/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: phone, mediatype: 'sticker', mimetype: cleanMime, fileName: filename, media: mediaForEvolution }, mode: 'evolution-api-media-sticker' },
+        ];
       } else {
         const isImg = mediaType === 'image';
         const goType = isImg ? 'image' : 'document';
