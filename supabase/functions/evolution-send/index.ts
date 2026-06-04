@@ -140,16 +140,6 @@ Deno.serve(async (req) => {
       }
 
       const instanceId = await resolveGoInstanceId(baseUrl, apiKey, instance);
-      if (!instanceId) {
-        return jsonResponse({
-          ok: false,
-          status: 404,
-          mode: 'evolution-go',
-          webhookUrl,
-          error: 'Instância Evolution Go não encontrada. Use o UUID da instância ou confirme o nome cadastrado.',
-          data: classic.data,
-        });
-      }
 
       const go = await fetchJson(`${baseUrl}/instance/connect`, {
         method: 'POST',
