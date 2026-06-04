@@ -124,6 +124,7 @@ export default function EvolutionChat() {
   const [filter, setFilter] = useState<'all' | 'unread' | 'media'>('all');
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const stickerInputRef = useRef<HTMLInputElement>(null);
   const imgInputRef = useRef<HTMLInputElement>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const recordChunks = useRef<Blob[]>([]);
