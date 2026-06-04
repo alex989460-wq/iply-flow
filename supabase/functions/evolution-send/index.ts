@@ -12,6 +12,45 @@ function normalizePhone(p: string) {
   return digits.startsWith('55') ? digits : `55${digits}`;
 }
 
+function jsonResponse(payload: unknown, status = 200) {
+  return new Response(JSON.stringify(payload), {
+    status,
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+  });
+}
+
+function isUuid(value: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
+
+function evolutionHeaders(apiKey: string, contentType = false, instanceId = '') {
+  const headers: Record<string, string> = { apikey: apiKey };
+  if (contentType) headers['Content-Type'] = 'application/json';
+  if (instanceId) headers.instanceId = instanceId;
+  return headers;
+}
+
+async function fetchJson(url: string, init: RequestInit = {}) {
+  const r = await fetch(url, { ...init, signal: AbortSignal.timeout(15000) });
+  const data = await r.json().catch(() => ({}));
+  return { ok: r.ok, status: r.status, data };
+}
+
+async function resolveGoInstanceId(baseUrl: string, apiKey: string, instance: string) {
+  if (isUuid(instance)) return instance;
+  const r = await fetchJson(`${baseUrl}/instance/all`, {
+    headers: evolutionHeaders(apiKey),
+  }).catch(() => null);
+  const rows = Array.isArray(r?.data?.data) ? r?.data?.data : Array.isArray(r?.data) ? r?.data : [];
+  const wanted = String(instance || '').toLowerCase();
+  const found = rows.find((item: any) =>
+    String(item?.id || '').toLowerCase() === wanted ||
+    String(item?.name || '').toLowerCase() === wanted ||
+    String(item?.token || '') === apiKey
+  );
+  return found?.id || '';
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
@@ -42,22 +81,16 @@ Deno.serve(async (req) => {
       .maybeSingle();
 
     if (!settings) {
-      return new Response(JSON.stringify({ error: 'Evolution não configurada' }), {
-        status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+      return jsonResponse({ error: 'Evolution não configurada' }, 400);
     }
     if (action === 'send' && !settings.is_enabled) {
-      return new Response(JSON.stringify({ error: 'Evolution não está ativada' }), {
-        status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+      return jsonResponse({ error: 'Evolution não está ativada' }, 400);
     }
     const baseUrl = String(settings.base_url || '').replace(/\/$/, '');
     const apiKey = settings.api_key;
     const instance = settings.instance_name;
     if (!baseUrl || !apiKey || !instance) {
-      return new Response(JSON.stringify({ error: 'Configuração incompleta' }), {
-        status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+      return jsonResponse({ error: 'Configuração incompleta' }, 400);
     }
 
     // TEST CONNECTION
