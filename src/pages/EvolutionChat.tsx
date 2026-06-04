@@ -396,12 +396,13 @@ export default function EvolutionChat() {
   }, [thread]);
 
   const renderMessageBody = (m: EvoMessage) => {
-    if ((m.message_type === 'image' || m.message_type === 'sticker') && m.media_url) {
+    const src = mediaSource(m);
+    if ((m.message_type === 'image' || m.message_type === 'sticker') && src) {
       const label = m.content.replace(/^📷\s*/, '').replace(/^\[sticker\]$/, 'Sticker');
       return (
         <div className="space-y-1">
-          <button type="button" onClick={() => setPreviewImage({ url: m.media_url!, caption: label })} className="block focus:outline-none focus:ring-2 focus:ring-ring rounded-lg">
-            <img src={m.media_url} alt={label || 'Imagem da conversa'} className={cn('rounded-lg object-cover', m.message_type === 'sticker' ? 'max-w-32 max-h-32' : 'max-w-full max-h-64')} loading="lazy" />
+          <button type="button" onClick={() => setPreviewImage({ url: src, caption: label })} className="block focus:outline-none focus:ring-2 focus:ring-ring rounded-lg">
+            <img src={src} alt={label || 'Imagem da conversa'} className={cn('rounded-lg object-cover', m.message_type === 'sticker' ? 'max-w-32 max-h-32' : 'max-w-full max-h-64')} loading="lazy" />
           </button>
           {label && label !== 'Imagem' && <div className="text-sm">{label}</div>}
         </div>
