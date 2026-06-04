@@ -38,12 +38,14 @@ export default function EvolutionInstances() {
   const [loading, setLoading] = useState(true);
   const [instances, setInstances] = useState<InstanceRow[]>([]);
   const [current, setCurrent] = useState<string>('');
+  const [adminMode, setAdminMode] = useState(true);
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState('');
   const [qrOpen, setQrOpen] = useState(false);
   const [qrLoading, setQrLoading] = useState(false);
   const [qrImg, setQrImg] = useState<string | null>(null);
   const [qrInstance, setQrInstance] = useState<string | null>(null);
+  const [qrMsg, setQrMsg] = useState<string | null>(null);
   const pollRef = useRef<number | null>(null);
 
   const fetchInstances = useCallback(async () => {
@@ -57,6 +59,7 @@ export default function EvolutionInstances() {
     if (data?.ok) {
       setInstances(data.instances || []);
       setCurrent(data.current || '');
+      setAdminMode(!!data.adminMode);
     } else if (data?.error) {
       toast({ title: 'Atenção', description: data.error });
     }
@@ -74,27 +77,37 @@ export default function EvolutionInstances() {
     setQrInstance(instanceName);
     setQrOpen(true);
     setQrImg(null);
+    setQrMsg(null);
     setQrLoading(true);
     const loadQr = async () => {
       const { data } = await supabase.functions.invoke('evolution-send', {
         body: { action: 'qr-connect', instance: instanceName },
       });
+      if (data?.alreadyConnected) {
+        setQrMsg('Esta instância já está conectada.');
+        setQrLoading(false);
+        return true;
+      }
       if (data?.ok && data.qr) {
         setQrImg(data.qr);
+        setQrMsg(null);
+      } else if (data?.error) {
+        setQrMsg(data.error);
       }
       setQrLoading(false);
+      return false;
     };
-    await loadQr();
-    // poll every 20s in case QR rotates / fetch instances every 8s to detect connection
+    const connected = await loadQr();
+    if (connected) return;
     pollRef.current = window.setInterval(async () => {
-      await loadQr();
+      const done = await loadQr();
       const { data } = await supabase.functions.invoke('evolution-send', {
         body: { action: 'list-instances' },
       });
       if (data?.ok) {
         setInstances(data.instances || []);
         const me = (data.instances || []).find((i: InstanceRow) => i.name === instanceName);
-        if (me && /open|connected|online/i.test(me.state)) {
+        if (done || (me && /open|connected|online/i.test(me.state))) {
           toast({ title: 'Conectado!', description: `${instanceName} agora está online.` });
           closeQr();
         }
@@ -106,6 +119,7 @@ export default function EvolutionInstances() {
     setQrOpen(false);
     setQrImg(null);
     setQrInstance(null);
+    setQrMsg(null);
     if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
   };
 
@@ -184,6 +198,15 @@ export default function EvolutionInstances() {
           </div>
         </div>
 
+        {!adminMode && (
+          <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 text-amber-200 text-xs p-3 flex gap-2">
+            <span className="font-bold">⚠</span>
+            <div>
+              Sua API Key é <b>scoped por instância</b>, não a chave master da API Evolution. Por isso só aparece a instância atual e a criação de novas instâncias está indisponível. Para gerenciar várias, peça a <b>API Key global</b> ao seu provedor e atualize em <b>Configurações → Evolution API</b>.
+            </div>
+          </div>
+        )}
+
         {/* Create */}
         <Card className="border-border/60">
           <CardHeader className="pb-3">
@@ -193,6 +216,7 @@ export default function EvolutionInstances() {
             <CardDescription>Apenas escolha um nome. O webhook é configurado automaticamente.</CardDescription>
           </CardHeader>
           <CardContent>
+
             <div className="flex flex-col sm:flex-row gap-2">
               <div className="flex-1">
                 <Label className="text-xs">Nome da instância</Label>
@@ -300,9 +324,11 @@ export default function EvolutionInstances() {
                 <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
               ) : qrImg ? (
                 <img src={qrImg} alt="QR Code" className="w-full h-full object-contain" />
+              ) : qrMsg ? (
+                <div className="text-xs text-emerald-600 text-center px-4 font-medium">{qrMsg}</div>
               ) : (
                 <div className="text-xs text-rose-500 text-center px-4">
-                  Não foi possível obter o QR. Tente novamente em alguns segundos.
+                  Não foi possível obter o QR. Tente novamente.
                 </div>
               )}
             </div>
