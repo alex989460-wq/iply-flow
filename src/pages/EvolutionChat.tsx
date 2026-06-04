@@ -67,6 +67,30 @@ function relativeTime(iso: string) {
   return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
 }
 
+function getNestedValue(source: unknown, path: string[]): unknown {
+  return path.reduce<unknown>((acc, key) => (acc && typeof acc === 'object' ? (acc as Record<string, unknown>)[key] : undefined), source);
+}
+
+function rawBase64From(raw: unknown) {
+  const paths = [
+    ['data', 'Message', 'base64'], ['Message', 'base64'], ['base64'],
+    ['data', 'Message', 'imageMessage', 'base64'], ['data', 'Message', 'stickerMessage', 'base64'],
+  ];
+  for (const path of paths) {
+    const value = getNestedValue(raw, path);
+    if (typeof value === 'string' && value.length > 80) return value;
+  }
+  return null;
+}
+
+function mediaSource(m: EvoMessage) {
+  if (m.media_url) return m.media_url;
+  const base64 = rawBase64From(m.raw);
+  if (!base64) return null;
+  const mime = m.media_mime || (m.message_type === 'sticker' ? 'image/webp' : 'image/jpeg');
+  return base64.startsWith('data:') ? base64 : `data:${mime};base64,${base64}`;
+}
+
 async function fileToBase64(file: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
     const r = new FileReader();
