@@ -15,6 +15,7 @@ function messageText(message: any) {
     message?.extendedTextMessage?.text ||
     message?.imageMessage?.caption ||
     message?.videoMessage?.caption ||
+    message?.documentMessage?.caption ||
     '';
 }
 
@@ -23,7 +24,24 @@ function messageType(message: any, fallback = '') {
     : message?.videoMessage ? 'video'
     : message?.audioMessage ? 'audio'
     : message?.documentMessage ? 'document'
+    : message?.stickerMessage ? 'sticker'
     : fallback || 'text';
+}
+
+function mediaUrlFrom(message: any) {
+  return message?.imageMessage?.url
+    || message?.videoMessage?.url
+    || message?.audioMessage?.url
+    || message?.documentMessage?.url
+    || null;
+}
+
+function mediaMimeFrom(message: any) {
+  return message?.imageMessage?.mimetype
+    || message?.videoMessage?.mimetype
+    || message?.audioMessage?.mimetype
+    || message?.documentMessage?.mimetype
+    || null;
 }
 
 Deno.serve(async (req) => {
@@ -51,6 +69,7 @@ Deno.serve(async (req) => {
     const event = body?.event || body?.type || '';
     const data = body?.data || body;
 
+    // Evolution Go "Message" event format
     if (event === 'Message' && data?.Info) {
       const info = data.Info;
       const remoteJid = info.Chat || '';
@@ -58,6 +77,8 @@ Deno.serve(async (req) => {
         const phone = jidToPhone(remoteJid);
         const msg = data.Message || {};
         const type = messageType(msg, String(info.MediaType || info.Type || '').toLowerCase());
+        const mediaUrl = mediaUrlFrom(msg);
+        const mediaMime = mediaMimeFrom(msg);
         if (phone) {
           await admin.from('evolution_messages').insert({
             user_id: settings.user_id,
@@ -67,19 +88,25 @@ Deno.serve(async (req) => {
             direction: info.IsFromMe ? 'out' : 'in',
             content: messageText(msg) || `[${type}]`,
             message_type: type,
+            media_url: mediaUrl,
+            media_mime: mediaMime,
             external_id: info.ID || null,
             status: info.IsFromMe ? 'sent' : 'received',
             raw: body,
           });
+          if (info.PushName) {
+            await admin.from('evolution_contacts').upsert({
+              user_id: settings.user_id, phone, name: info.PushName, updated_at: new Date().toISOString(),
+            }, { onConflict: 'user_id,phone' });
+          }
         }
       }
-
       return new Response(JSON.stringify({ ok: true }), {
         status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    // Normalize messages.upsert
+    // Normalize messages.upsert from classic Evolution API
     const msgs: any[] = Array.isArray(data?.messages) ? data.messages
       : Array.isArray(data) ? data
       : data?.key ? [data]
@@ -88,13 +115,15 @@ Deno.serve(async (req) => {
     for (const m of msgs) {
       const key = m?.key || {};
       const remoteJid = key.remoteJid || m?.remoteJid || '';
-      if (!remoteJid || remoteJid.includes('@g.us')) continue; // skip groups
+      if (!remoteJid || remoteJid.includes('@g.us')) continue;
       const phone = jidToPhone(remoteJid);
       if (!phone) continue;
       const fromMe = !!key.fromMe;
       const msg = m?.message || {};
       const content = messageText(msg);
       const type = messageType(msg);
+      const mediaUrl = mediaUrlFrom(msg);
+      const mediaMime = mediaMimeFrom(msg);
 
       await admin.from('evolution_messages').insert({
         user_id: settings.user_id,
@@ -104,10 +133,17 @@ Deno.serve(async (req) => {
         direction: fromMe ? 'out' : 'in',
         content: content || `[${type}]`,
         message_type: type,
+        media_url: mediaUrl,
+        media_mime: mediaMime,
         external_id: key.id || null,
         status: fromMe ? 'sent' : 'received',
         raw: m,
       });
+      if (m?.pushName) {
+        await admin.from('evolution_contacts').upsert({
+          user_id: settings.user_id, phone, name: m.pushName, updated_at: new Date().toISOString(),
+        }, { onConflict: 'user_id,phone' });
+      }
     }
 
     return new Response(JSON.stringify({ ok: true }), {

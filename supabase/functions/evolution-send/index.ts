@@ -210,6 +210,106 @@ Deno.serve(async (req) => {
       return jsonResponse({ ok: true, mode, data: result.data });
     }
 
+    // FETCH PROFILE PICTURE
+    if (action === 'fetch-profile-pic') {
+      const phone = normalizePhone(body.phone);
+      if (!phone) return jsonResponse({ error: 'phone obrigatório' }, 400);
+      const number = `${phone}@s.whatsapp.net`;
+      const instanceId = await resolveGoInstanceId(baseUrl, apiKey, instance).catch(() => '');
+      const tries = [
+        { url: `${baseUrl}/chat/fetchProfilePictureUrl/${encodeURIComponent(instance)}`, method: 'POST', headers: evolutionHeaders(apiKey, true), body: { number } },
+        { url: `${baseUrl}/chat/getProfilePicture`, method: 'POST', headers: evolutionHeaders(apiKey, true, instanceId || instance), body: { number } },
+        { url: `${baseUrl}/chat/whatsappProfile/${encodeURIComponent(instance)}`, method: 'POST', headers: evolutionHeaders(apiKey, true), body: { number } },
+      ];
+      for (const t of tries) {
+        const r = await fetchJson(t.url, { method: t.method, headers: t.headers, body: JSON.stringify(t.body) })
+          .catch(() => ({ ok: false, status: 0, data: {} as any }));
+        const url = r?.data?.profilePictureUrl || r?.data?.data?.profilePictureUrl || r?.data?.url || r?.data?.picture || null;
+        if (url) {
+          await admin.from('evolution_contacts').upsert({
+            user_id: user.id, phone, profile_pic_url: url, updated_at: new Date().toISOString(),
+          }, { onConflict: 'user_id,phone' });
+          return jsonResponse({ ok: true, url });
+        }
+      }
+      return jsonResponse({ ok: false, url: null });
+    }
+
+    // SEND MEDIA (audio / image / file) — body: { phone, mediaBase64, mimetype, filename, mediaType: 'audio'|'image'|'document', caption? }
+    if (action === 'send-media') {
+      const phone = normalizePhone(body.phone);
+      const mediaType = String(body.mediaType || 'document');
+      const mimetype = String(body.mimetype || 'application/octet-stream');
+      const filename = String(body.filename || `media-${Date.now()}`);
+      const caption = String(body.caption || '');
+      const mediaBase64 = String(body.mediaBase64 || '');
+      if (!phone || !mediaBase64) return jsonResponse({ error: 'phone e mediaBase64 obrigatórios' }, 400);
+
+      // Upload to storage for our own preview
+      let mediaUrl: string | null = null;
+      try {
+        const bin = Uint8Array.from(atob(mediaBase64), (c) => c.charCodeAt(0));
+        const path = `${user.id}/${Date.now()}-${filename}`;
+        const { error: upErr } = await admin.storage.from('evolution-media').upload(path, bin, { contentType: mimetype, upsert: false });
+        if (!upErr) {
+          const { data: signed } = await admin.storage.from('evolution-media').createSignedUrl(path, 60 * 60 * 24 * 365);
+          mediaUrl = signed?.signedUrl || null;
+        }
+      } catch (e) {
+        console.error('[evolution-send] storage upload failed', e);
+      }
+
+      const instanceId = await resolveGoInstanceId(baseUrl, apiKey, instance).catch(() => '');
+
+      let attempts: Array<{ url: string; headers: Record<string, string>; body: any; mode: string }> = [];
+      if (mediaType === 'audio') {
+        attempts = [
+          { url: `${baseUrl}/message/sendWhatsAppAudio/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: phone, audio: mediaBase64, encoding: true }, mode: 'evolution-api' },
+          { url: `${baseUrl}/message/sendAudio/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: phone, audio: mediaBase64 }, mode: 'evolution-api-alt' },
+          { url: `${baseUrl}/message/sendWhatsAppAudio`, headers: evolutionHeaders(apiKey, true, instanceId || instance), body: { number: phone, audio: mediaBase64 }, mode: 'evolution-go' },
+        ];
+      } else {
+        const isImg = mediaType === 'image';
+        attempts = [
+          { url: `${baseUrl}/message/sendMedia/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: phone, mediatype: isImg ? 'image' : 'document', mimetype, fileName: filename, caption, media: mediaBase64 }, mode: 'evolution-api' },
+          { url: `${baseUrl}/message/sendMedia`, headers: evolutionHeaders(apiKey, true, instanceId || instance), body: { number: phone, mediatype: isImg ? 'image' : 'document', mimetype, fileName: filename, caption, media: mediaBase64 }, mode: 'evolution-go' },
+        ];
+      }
+
+      let result: any = { ok: false, status: 0, data: {} };
+      let mode = 'evolution-api';
+      const log: any[] = [];
+      for (const att of attempts) {
+        const r = await fetchJson(att.url, { method: 'POST', headers: att.headers, body: JSON.stringify(att.body) })
+          .catch((error) => ({ ok: false, status: 0, data: { error: String(error?.message || error) } }));
+        log.push({ url: att.url, mode: att.mode, status: r.status });
+        if (r.ok) { result = r; mode = att.mode; break; }
+        if (r.status !== 404 && r.status !== 405 && r.status !== 400) { result = r; mode = att.mode; break; }
+        result = r; mode = att.mode;
+      }
+
+      if (!result.ok) {
+        const summary = log.map((a) => `${a.mode}:${a.status}`).join(' | ');
+        return jsonResponse({ error: `Falha ao enviar mídia (${summary})`, attempts: log, data: result.data }, 200);
+      }
+
+      await admin.from('evolution_messages').insert({
+        user_id: user.id,
+        remote_jid: `${phone}@s.whatsapp.net`,
+        phone,
+        direction: 'out',
+        content: caption || (mediaType === 'audio' ? '🎤 Áudio' : mediaType === 'image' ? '📷 Imagem' : `📎 ${filename}`),
+        message_type: mediaType,
+        media_url: mediaUrl,
+        media_mime: mimetype,
+        status: 'sent',
+        external_id: result.data?.key?.id || result.data?.messageId || null,
+        raw: result.data,
+      });
+
+      return jsonResponse({ ok: true, mode, mediaUrl, data: result.data });
+    }
+
     return jsonResponse({ error: 'action inválida' }, 400);
   } catch (e) {
     console.error('[evolution-send]', e);
