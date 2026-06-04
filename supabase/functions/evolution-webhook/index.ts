@@ -102,6 +102,20 @@ function contactPayload(userId: string, phone: string, name?: string | null, pro
   return row;
 }
 
+async function insertMessageOnce(admin: any, row: Record<string, unknown>) {
+  if (row.external_id) {
+    const { data: existing } = await admin
+      .from('evolution_messages')
+      .select('id')
+      .eq('user_id', row.user_id)
+      .eq('external_id', row.external_id)
+      .maybeSingle();
+    if (existing?.id) return;
+  }
+  const { error } = await admin.from('evolution_messages').insert(row);
+  if (error && error.code !== '23505') console.error('[evolution-webhook] insert failed', error);
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
