@@ -26,6 +26,7 @@ interface EvoMessage {
   media_url: string | null;
   media_mime: string | null;
   external_id?: string | null;
+  raw?: unknown;
   created_at: string;
   _pending?: boolean;
   _failed?: boolean;
@@ -99,6 +100,7 @@ export default function EvolutionChat() {
   const recordChunks = useRef<Blob[]>([]);
   const recordTimerRef = useRef<number | null>(null);
   const avatarFetchRef = useRef<Set<string>>(new Set());
+  const contactSyncRef = useRef(false);
 
   const mergeMessage = useCallback((prev: EvoMessage[], incoming: EvoMessage) => {
     if (prev.some((m) => m.id === incoming.id)) return prev;
@@ -109,7 +111,8 @@ export default function EvolutionChat() {
       m.phone === incoming.phone &&
       m.direction === incoming.direction &&
       m.message_type === incoming.message_type &&
-      m.content === incoming.content
+      Math.abs(new Date(m.created_at).getTime() - new Date(incoming.created_at).getTime()) < 120000 &&
+      (m.content === incoming.content || incoming.message_type !== 'text')
     );
 
     if (tempIndex >= 0) {
