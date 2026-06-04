@@ -4,9 +4,10 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Dialog, DialogContent } from '@/components/ui/dialog';
 import {
   Loader2, Send, Zap, Plus, RefreshCw, Search, MessageSquare,
-  Phone, X, Smile, Mic, Paperclip, Square, Trash2, Image as ImageIcon, FileText,
+  Phone, X, Smile, Mic, Paperclip, Trash2, Image as ImageIcon, FileText,
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -24,6 +25,7 @@ interface EvoMessage {
   message_type: string;
   media_url: string | null;
   media_mime: string | null;
+  external_id?: string | null;
   created_at: string;
   _pending?: boolean;
   _failed?: boolean;
@@ -89,6 +91,7 @@ export default function EvolutionChat() {
   const [showQuickReplies, setShowQuickReplies] = useState(false);
   const [recording, setRecording] = useState(false);
   const [recordSeconds, setRecordSeconds] = useState(0);
+  const [previewImage, setPreviewImage] = useState<{ url: string; caption: string } | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imgInputRef = useRef<HTMLInputElement>(null);
@@ -96,6 +99,28 @@ export default function EvolutionChat() {
   const recordChunks = useRef<Blob[]>([]);
   const recordTimerRef = useRef<number | null>(null);
   const avatarFetchRef = useRef<Set<string>>(new Set());
+
+  const mergeMessage = (prev: EvoMessage[], incoming: EvoMessage) => {
+    if (prev.some((m) => m.id === incoming.id)) return prev;
+    if (incoming.external_id && prev.some((m) => m.external_id === incoming.external_id)) return prev;
+
+    const tempIndex = [...prev].reverse().findIndex((m) =>
+      m.id.startsWith('tmp-') &&
+      m.phone === incoming.phone &&
+      m.direction === incoming.direction &&
+      m.message_type === incoming.message_type &&
+      m.content === incoming.content
+    );
+
+    if (tempIndex >= 0) {
+      const realIndex = prev.length - 1 - tempIndex;
+      const copy = [...prev];
+      copy[realIndex] = incoming;
+      return copy;
+    }
+
+    return [...prev, incoming];
+  };
 
   const load = async () => {
     if (!user) return;
