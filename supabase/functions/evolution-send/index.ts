@@ -168,20 +168,28 @@ Deno.serve(async (req) => {
       const phone = normalizePhone(body.phone);
       const text = String(body.text || '').trim();
       if (!phone || !text) {
-        return new Response(JSON.stringify({ error: 'phone e text obrigatórios' }), {
-          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
+        return jsonResponse({ error: 'phone e text obrigatórios' }, 400);
       }
-      const r = await fetch(`${baseUrl}/message/sendText/${encodeURIComponent(instance)}`, {
+      const classic = await fetchJson(`${baseUrl}/message/sendText/${encodeURIComponent(instance)}`, {
         method: 'POST',
-        headers: { apikey: apiKey, 'Content-Type': 'application/json' },
+        headers: evolutionHeaders(apiKey, true),
         body: JSON.stringify({ number: phone, text }),
-      });
-      const json = await r.json().catch(() => ({}));
-      if (!r.ok) {
-        return new Response(JSON.stringify({ error: 'Falha ao enviar', status: r.status, data: json }), {
-          status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
+      }).catch((error) => ({ ok: false, status: 0, data: { error: String(error?.message || error) } }));
+
+      let result = classic;
+      let mode = 'evolution-api';
+      if (!classic.ok && classic.status === 404) {
+        const go = await fetchJson(`${baseUrl}/send/text`, {
+          method: 'POST',
+          headers: evolutionHeaders(apiKey, true),
+          body: JSON.stringify({ number: phone, text }),
+        }).catch((error) => ({ ok: false, status: 0, data: { error: String(error?.message || error) } }));
+        result = go;
+        mode = 'evolution-go';
+      }
+
+      if (!result.ok) {
+        return jsonResponse({ error: 'Falha ao enviar', status: result.status, mode, data: result.data }, 502);
       }
       await admin.from('evolution_messages').insert({
         user_id: user.id,
@@ -190,21 +198,15 @@ Deno.serve(async (req) => {
         direction: 'out',
         content: text,
         status: 'sent',
-        external_id: json?.key?.id || json?.messageId || null,
-        raw: json,
+        external_id: result.data?.key?.id || result.data?.messageId || result.data?.data?.Info?.ID || null,
+        raw: result.data,
       });
-      return new Response(JSON.stringify({ ok: true, data: json }), {
-        status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+      return jsonResponse({ ok: true, mode, data: result.data });
     }
 
-    return new Response(JSON.stringify({ error: 'action inválida' }), {
-      status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    return jsonResponse({ error: 'action inválida' }, 400);
   } catch (e) {
     console.error('[evolution-send]', e);
-    return new Response(JSON.stringify({ error: String((e as Error).message || e) }), {
-      status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    return jsonResponse({ error: String((e as Error).message || e) }, 500);
   }
 });
