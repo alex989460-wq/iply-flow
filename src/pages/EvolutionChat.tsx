@@ -159,24 +159,6 @@ export default function EvolutionChat() {
     }).catch(() => {});
   }, [selectedPhone]);
 
-  useEffect(() => {
-    const pending = conversations
-      .map((c) => c.phone)
-      .filter((phone) => !contacts[phone]?.profile_pic_url && !avatarFetchRef.current.has(phone))
-      .slice(0, 8);
-    pending.forEach((phone) => {
-      avatarFetchRef.current.add(phone);
-      supabase.functions.invoke('evolution-send', { body: { action: 'fetch-profile-pic', phone } })
-        .then(({ data }) => {
-          if (data?.url) setContacts(prev => ({
-            ...prev,
-            [phone]: { phone, name: prev[phone]?.name || null, profile_pic_url: data.url },
-          }));
-        })
-        .catch(() => undefined);
-    });
-  }, [conversations, contacts]);
-
   const conversations = useMemo(() => {
     const map = new Map<string, { phone: string; name: string | null; last: EvoMessage | null; unread: number; lastAt: string }>();
     Object.values(contacts).forEach((c) => {
@@ -208,6 +190,24 @@ export default function EvolutionChat() {
   const thread = useMemo(() => messages.filter((m) => m.phone === selectedPhone), [messages, selectedPhone]);
   const selectedContact = useMemo(() => contacts[selectedPhone || ''] || null, [contacts, selectedPhone]);
   const selectedName = selectedContact?.name || conversations.find(c => c.phone === selectedPhone)?.name || null;
+
+  useEffect(() => {
+    const pending = conversations
+      .map((c) => c.phone)
+      .filter((phone) => !contacts[phone]?.profile_pic_url && !avatarFetchRef.current.has(phone))
+      .slice(0, 8);
+    pending.forEach((phone) => {
+      avatarFetchRef.current.add(phone);
+      supabase.functions.invoke('evolution-send', { body: { action: 'fetch-profile-pic', phone } })
+        .then(({ data }) => {
+          if (data?.url) setContacts(prev => ({
+            ...prev,
+            [phone]: { phone, name: prev[phone]?.name || null, profile_pic_url: data.url },
+          }));
+        })
+        .catch(() => undefined);
+    });
+  }, [conversations, contacts]);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
