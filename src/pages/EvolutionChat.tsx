@@ -471,6 +471,26 @@ export default function EvolutionChat() {
               <Input placeholder="Novo número (DDD + nº)" value={newPhone} onChange={(e) => setNewPhone(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && startConversation()} className="h-8 text-xs" />
               <Button size="icon" className="h-8 w-8 shrink-0" onClick={startConversation}><Plus className="w-4 h-4" /></Button>
             </div>
+            <div className="flex gap-1">
+              {([
+                { id: 'all', label: 'Todas' },
+                { id: 'unread', label: 'Não lidas' },
+                { id: 'media', label: 'Mídia' },
+              ] as const).map((t) => (
+                <button
+                  key={t.id}
+                  onClick={() => setFilter(t.id)}
+                  className={cn(
+                    'flex-1 text-[11px] px-2 py-1 rounded-md border transition-colors',
+                    filter === t.id
+                      ? 'bg-primary text-primary-foreground border-primary'
+                      : 'bg-background hover:bg-accent border-border text-muted-foreground'
+                  )}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
           </div>
 
           <div className="flex-1 overflow-auto">
