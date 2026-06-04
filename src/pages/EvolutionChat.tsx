@@ -101,7 +101,7 @@ export default function EvolutionChat() {
     setLoading(true);
     const [msgRes, contRes] = await Promise.all([
       supabase.from('evolution_messages').select('*').eq('user_id', user.id).order('created_at', { ascending: true }).limit(3000),
-      (supabase as any).from('evolution_contacts').select('phone, name, profile_pic_url').eq('user_id', user.id),
+      supabase.from('evolution_contacts').select('phone, name, profile_pic_url').eq('user_id', user.id),
     ]);
     setLoading(false);
     if (msgRes.error) {
@@ -110,7 +110,7 @@ export default function EvolutionChat() {
     }
     setMessages(((msgRes.data || []) as unknown) as EvoMessage[]);
     const cmap: Record<string, EvoContact> = {};
-    for (const c of (((contRes as any)?.data || []) as EvoContact[])) cmap[c.phone] = c;
+    for (const c of ((contRes.data || []) as EvoContact[])) cmap[c.phone] = c;
     setContacts(cmap);
   };
 
@@ -290,8 +290,8 @@ export default function EvolutionChat() {
       setRecording(true);
       setRecordSeconds(0);
       recordTimerRef.current = window.setInterval(() => setRecordSeconds(s => s + 1), 1000);
-    } catch (e: any) {
-      toast({ title: 'Microfone bloqueado', description: e?.message || 'Permita o acesso ao microfone.', variant: 'destructive' });
+    } catch (e: unknown) {
+      toast({ title: 'Microfone bloqueado', description: e instanceof Error ? e.message : 'Permita o acesso ao microfone.', variant: 'destructive' });
     }
   };
 
@@ -301,7 +301,7 @@ export default function EvolutionChat() {
     const rec = recorderRef.current;
     if (!rec) return;
     if (cancel) { recordChunks.current = []; }
-    try { rec.stop(); } catch {}
+    try { rec.stop(); } catch { recorderRef.current = null; }
     recorderRef.current = null;
   };
 
