@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import EmojiPicker, { EmojiStyle, Theme } from 'emoji-picker-react';
 import {
   Loader2, Send, Zap, Plus, RefreshCw, Search, MessageSquare,
@@ -124,6 +125,9 @@ export default function EvolutionChat() {
   const [imageToSend, setImageToSend] = useState<{ file: File; url: string; caption: string } | null>(null);
   const [docToSend, setDocToSend] = useState<{ file: File; caption: string } | null>(null);
   const [filter, setFilter] = useState<'all' | 'unread' | 'media'>('all');
+  const [instances, setInstances] = useState<Array<{ id: string; name: string; phone: string | null; state: string; profile_name: string | null }>>([]);
+  const [currentInstance, setCurrentInstance] = useState<string>('');
+  const [switchingInstance, setSwitchingInstance] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const stickerInputRef = useRef<HTMLInputElement>(null);
@@ -133,6 +137,27 @@ export default function EvolutionChat() {
   const recordTimerRef = useRef<number | null>(null);
   const avatarFetchRef = useRef<Set<string>>(new Set());
   const contactSyncRef = useRef(false);
+
+  const loadInstances = useCallback(async () => {
+    const { data } = await supabase.functions.invoke('evolution-send', { body: { action: 'list-instances' } });
+    if (data?.instances) setInstances(data.instances);
+    if (data?.current) setCurrentInstance(data.current);
+  }, []);
+
+  const switchInstance = async (name: string) => {
+    if (!name || name === currentInstance) return;
+    setSwitchingInstance(true);
+    const { data, error } = await supabase.functions.invoke('evolution-send', {
+      body: { action: 'set-active-instance', name },
+    });
+    setSwitchingInstance(false);
+    if (error || data?.error) {
+      toast({ title: 'Erro', description: error?.message || data?.error, variant: 'destructive' });
+      return;
+    }
+    setCurrentInstance(name);
+    toast({ title: 'Instância ativa', description: `Agora enviando por: ${name}` });
+  };
 
   const mergeMessage = useCallback((prev: EvoMessage[], incoming: EvoMessage) => {
     if (prev.some((m) => m.id === incoming.id)) return prev;
@@ -175,7 +200,7 @@ export default function EvolutionChat() {
     setContacts(cmap);
   };
 
-  useEffect(() => { load(); }, [user]);
+  useEffect(() => { load(); loadInstances(); }, [user, loadInstances]);
 
   useEffect(() => {
     if (!user) return;
@@ -474,6 +499,28 @@ export default function EvolutionChat() {
           </div>
 
           <div className="p-2 space-y-2 border-b border-border">
+            <div className="flex items-center gap-1.5">
+              <Phone className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+              <Select value={currentInstance} onValueChange={switchInstance} disabled={switchingInstance || instances.length === 0}>
+                <SelectTrigger className="h-8 text-xs flex-1">
+                  <SelectValue placeholder={instances.length === 0 ? 'Nenhuma instância' : 'Selecionar instância'} />
+                </SelectTrigger>
+                <SelectContent>
+                  {instances.map((inst) => (
+                    <SelectItem key={inst.id || inst.name} value={inst.name}>
+                      <span className="flex items-center gap-2">
+                        <span className={cn('w-1.5 h-1.5 rounded-full', inst.state === 'open' ? 'bg-emerald-500' : 'bg-muted-foreground')} />
+                        <span className="font-medium">{inst.profile_name || inst.name}</span>
+                        {inst.phone && <span className="text-muted-foreground text-[10px]">{formatPhone(inst.phone)}</span>}
+                      </span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button size="icon" variant="ghost" className="h-7 w-7" onClick={loadInstances} title="Recarregar instâncias">
+                <RefreshCw className={cn('w-3 h-3', switchingInstance && 'animate-spin')} />
+              </Button>
+            </div>
             <div className="relative">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
               <Input placeholder="Pesquisar conversa..." value={search} onChange={(e) => setSearch(e.target.value)} className="h-8 text-xs pl-8" />
