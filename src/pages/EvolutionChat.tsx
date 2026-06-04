@@ -9,8 +9,9 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import EmojiPicker, { EmojiStyle, Theme } from 'emoji-picker-react';
 import {
   Loader2, Send, Zap, Plus, RefreshCw, Search, MessageSquare,
-  Phone, X, Smile, Mic, Paperclip, Trash2, Image as ImageIcon, FileText, Sticker,
+  Phone, X, Smile, Mic, Paperclip, Trash2, Image as ImageIcon, FileText, Sticker, QrCode,
 } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
