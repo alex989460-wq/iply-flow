@@ -273,20 +273,29 @@ Deno.serve(async (req) => {
         console.error('[evolution-send] storage upload failed', e);
       }
 
+      const mediaForEvolution = publicMediaFromSignedUrl(mediaUrl) || `data:${mimetype};base64,${mediaBase64}`;
+      const cleanMime = mimetype.split(';')[0] || mimetype;
+
       const instanceId = await resolveGoInstanceId(baseUrl, apiKey, instance).catch(() => '');
 
       let attempts: Array<{ url: string; headers: Record<string, string>; body: any; mode: string }> = [];
       if (mediaType === 'audio') {
         attempts = [
-          { url: `${baseUrl}/message/sendWhatsAppAudio/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: phone, audio: mediaBase64, encoding: true }, mode: 'evolution-api' },
-          { url: `${baseUrl}/message/sendAudio/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: phone, audio: mediaBase64 }, mode: 'evolution-api-alt' },
-          { url: `${baseUrl}/message/sendWhatsAppAudio`, headers: evolutionHeaders(apiKey, true, instanceId || instance), body: { number: phone, audio: mediaBase64 }, mode: 'evolution-go' },
+          { url: `${baseUrl}/message/sendWhatsAppAudio/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: phone, audio: mediaForEvolution }, mode: 'evolution-api-audio-url' },
+          { url: `${baseUrl}/message/sendWhatsAppAudio/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: phone, audio: mediaBase64 }, mode: 'evolution-api-audio-base64' },
+          { url: `${baseUrl}/message/sendMedia/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: phone, mediatype: 'audio', mimetype: cleanMime, fileName: filename, caption, media: mediaForEvolution }, mode: 'evolution-api-media-audio' },
+          { url: `${baseUrl}/send/media`, headers: evolutionHeaders(apiKey, true, instanceId || instance), body: { number: phone, type: 'audio', url: mediaForEvolution, filename, caption }, mode: 'evolution-go-send-media' },
+          { url: `${baseUrl}/message/sendMedia`, headers: evolutionHeaders(apiKey, true, instanceId || instance), body: { number: phone, type: 'audio', url: mediaForEvolution, filename, caption }, mode: 'evolution-go-message-media' },
         ];
       } else {
         const isImg = mediaType === 'image';
+        const goType = isImg ? 'image' : 'document';
         attempts = [
-          { url: `${baseUrl}/message/sendMedia/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: phone, mediatype: isImg ? 'image' : 'document', mimetype, fileName: filename, caption, media: mediaBase64 }, mode: 'evolution-api' },
-          { url: `${baseUrl}/message/sendMedia`, headers: evolutionHeaders(apiKey, true, instanceId || instance), body: { number: phone, mediatype: isImg ? 'image' : 'document', mimetype, fileName: filename, caption, media: mediaBase64 }, mode: 'evolution-go' },
+          { url: `${baseUrl}/message/sendMedia/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: phone, mediatype: goType, mimetype: cleanMime, fileName: filename, caption, media: mediaForEvolution }, mode: 'evolution-api-url' },
+          { url: `${baseUrl}/message/sendMedia/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: phone, mediatype: goType, mimetype: cleanMime, fileName: filename, caption, media: mediaBase64 }, mode: 'evolution-api-base64' },
+          { url: `${baseUrl}/send/media`, headers: evolutionHeaders(apiKey, true, instanceId || instance), body: { number: phone, type: goType, url: mediaForEvolution, filename, caption }, mode: 'evolution-go-send-media' },
+          { url: `${baseUrl}/message/sendMedia`, headers: evolutionHeaders(apiKey, true, instanceId || instance), body: { number: phone, type: goType, url: mediaForEvolution, filename, caption }, mode: 'evolution-go-message-media' },
+          { url: `${baseUrl}/message/sendMedia`, headers: evolutionHeaders(apiKey, true, instanceId || instance), body: { number: phone, mediatype: goType, mimetype: cleanMime, fileName: filename, caption, media: mediaForEvolution }, mode: 'evolution-go-classic-body' },
         ];
       }
 
