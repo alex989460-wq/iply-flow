@@ -157,7 +157,7 @@ export default function EvolutionApiCard() {
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="grid gap-3 md:grid-cols-2">
+        <div className="grid gap-3">
           <div className="space-y-1">
             <Label>URL Base</Label>
             <Input
@@ -167,24 +167,16 @@ export default function EvolutionApiCard() {
             />
           </div>
           <div className="space-y-1">
-            <Label>Instância ativa <span className="text-muted-foreground text-xs">(opcional)</span></Label>
-            <Input
-              placeholder="será preenchida em Conexões WhatsApp"
-              value={form.instance_name}
-              onChange={(e) => setForm((f) => ({ ...f, instance_name: e.target.value }))}
-            />
-            <p className="text-[11px] text-muted-foreground">
-              Com API Key global, deixe vazio aqui. Depois adicione ou selecione a instância em <a href="/evolution-instances" className="underline text-primary">Conexões WhatsApp</a>.
-            </p>
-          </div>
-          <div className="space-y-1 md:col-span-2">
-            <Label>API Key (apikey)</Label>
+            <Label>API Key global</Label>
             <Input
               type="password"
               placeholder="API Key global do painel Evolution"
               value={form.api_key}
               onChange={(e) => setForm((f) => ({ ...f, api_key: e.target.value }))}
             />
+            <p className="text-[11px] text-muted-foreground">
+              Esta tela salva o login do painel. Para criar ou conectar número por QR, use <a href="/evolution-instances" className="underline text-primary">Conexões WhatsApp</a>.
+            </p>
           </div>
         </div>
 
