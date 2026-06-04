@@ -111,6 +111,31 @@ async function insertMessageOnce(admin: any, row: Record<string, unknown>) {
       .eq('external_id', row.external_id)
       .maybeSingle();
     if (existing?.id) return;
+    if (row.direction === 'out') {
+      const since = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+      const { data: pendingOut } = await admin
+        .from('evolution_messages')
+        .select('id')
+        .eq('user_id', row.user_id)
+        .eq('phone', row.phone)
+        .eq('direction', 'out')
+        .eq('message_type', row.message_type)
+        .is('external_id', null)
+        .gte('created_at', since)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (pendingOut?.id) {
+        await admin.from('evolution_messages').update({
+          external_id: row.external_id,
+          status: row.status,
+          raw: row.raw,
+          media_url: row.media_url || undefined,
+          media_mime: row.media_mime || undefined,
+        }).eq('id', pendingOut.id);
+        return;
+      }
+    }
   }
   const { error } = await admin.from('evolution_messages').insert(row);
   if (error && error.code !== '23505') console.error('[evolution-webhook] insert failed', error);
