@@ -1,6 +1,7 @@
 import { NavLink, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSidebar } from '@/contexts/SidebarContext';
+import { useEvolutionUnread } from '@/hooks/useEvolutionUnread';
 import { cn } from '@/lib/utils';
 import {
   LayoutGrid,
@@ -25,11 +26,20 @@ import {
   Smartphone,
   FileText,
 } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import logoSg from '@/assets/logo-sg.png';
 
-const menuItems = [
+type BadgeKey = 'evolution';
+
+const menuItems: Array<{
+  icon: typeof LayoutGrid;
+  label: string;
+  path: string;
+  adminOnly: boolean;
+  badgeKey?: BadgeKey;
+}> = [
   { icon: LayoutGrid, label: 'Dashboard', path: '/dashboard', adminOnly: false },
   { icon: HardDrive, label: 'Servidores', path: '/servers', adminOnly: false },
   { icon: Layers3, label: 'Planos', path: '/plans', adminOnly: false },
@@ -38,8 +48,7 @@ const menuItems = [
   { icon: Receipt, label: 'Cobranças', path: '/billing', adminOnly: false },
   { icon: Megaphone, label: 'Disparo em Massa', path: '/mass-broadcast', adminOnly: false },
   { icon: MessageCircleMore, label: 'Chat', path: '/chat', adminOnly: false },
-  { icon: MessageCircleMore, label: 'Chat Oficial', path: '/meta-chat', adminOnly: false },
-  { icon: MessageCircleMore, label: 'Chat Evolution', path: '/chat-evolution', adminOnly: false },
+  { icon: MessageCircleMore, label: 'Chat Evolution', path: '/chat-evolution', adminOnly: false, badgeKey: 'evolution' },
   { icon: Bot, label: 'Gatilhos de Bot', path: '/bot-triggers', adminOnly: false },
   { icon: Smartphone, label: 'Ativação de Apps', path: '/activation-apps', adminOnly: false },
   { icon: FileText, label: 'Templates Meta', path: '/meta-templates', adminOnly: true },
@@ -55,8 +64,10 @@ export default function Sidebar() {
   const { signOut, user, isAdmin } = useAuth();
   const location = useLocation();
   const { collapsed, setCollapsed, toggle } = useSidebar();
-  
+  const evolutionUnread = useEvolutionUnread();
+
   const filteredMenuItems = menuItems.filter(item => !item.adminOnly || isAdmin);
+  const badgeCounts: Record<BadgeKey, number> = { evolution: evolutionUnread };
 
   return (
     <>
@@ -118,13 +129,14 @@ export default function Sidebar() {
         <nav className="flex-1 p-3 space-y-1 overflow-y-auto scrollbar-thin">
           {filteredMenuItems.map((item, index) => {
             const isActive = location.pathname === item.path;
+            const badgeCount = item.badgeKey ? badgeCounts[item.badgeKey] : 0;
             return (
               <NavLink
                 key={item.path}
                 to={item.path}
                 style={{ animationDelay: `${index * 30}ms` }}
                 className={cn(
-                  "group flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 animate-fade-in",
+                  "group flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 animate-fade-in relative",
                   "hover:bg-gradient-to-r hover:from-primary/10 hover:to-primary/5",
                   isActive 
                     ? "bg-gradient-to-r from-primary/20 to-primary/10 text-primary shadow-sm border border-primary/20" 
@@ -133,15 +145,25 @@ export default function Sidebar() {
                 )}
               >
                 <div className={cn(
-                  "flex items-center justify-center rounded-lg transition-all duration-200",
+                  "flex items-center justify-center rounded-lg transition-all duration-200 relative",
                   collapsed ? "w-10 h-10" : "w-8 h-8",
                   isActive 
                     ? "bg-primary text-primary-foreground shadow-md shadow-primary/30" 
                     : "bg-secondary/50 group-hover:bg-secondary group-hover:scale-105"
                 )}>
                   <item.icon className={cn(collapsed ? "w-5 h-5" : "w-4 h-4")} />
+                  {collapsed && badgeCount > 0 && (
+                    <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full bg-destructive text-destructive-foreground text-[9px] font-bold flex items-center justify-center">
+                      {badgeCount > 99 ? '99+' : badgeCount}
+                    </span>
+                  )}
                 </div>
-                {!collapsed && <span className="truncate">{item.label}</span>}
+                {!collapsed && <span className="truncate flex-1">{item.label}</span>}
+                {!collapsed && badgeCount > 0 && (
+                  <Badge className="h-5 min-w-5 px-1.5 text-[10px] bg-destructive text-destructive-foreground hover:bg-destructive">
+                    {badgeCount > 99 ? '99+' : badgeCount}
+                  </Badge>
+                )}
               </NavLink>
             );
           })}
