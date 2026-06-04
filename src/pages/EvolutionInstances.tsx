@@ -198,6 +198,15 @@ export default function EvolutionInstances() {
           </div>
         </div>
 
+        {!adminMode && (
+          <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 text-amber-200 text-xs p-3 flex gap-2">
+            <span className="font-bold">⚠</span>
+            <div>
+              Sua API Key é <b>scoped por instância</b>, não a chave master da API Evolution. Por isso só aparece a instância atual e a criação de novas instâncias está indisponível. Para gerenciar várias, peça a <b>API Key global</b> ao seu provedor e atualize em <b>Configurações → Evolution API</b>.
+            </div>
+          </div>
+        )}
+
         {/* Create */}
         <Card className="border-border/60">
           <CardHeader className="pb-3">
@@ -207,6 +216,7 @@ export default function EvolutionInstances() {
             <CardDescription>Apenas escolha um nome. O webhook é configurado automaticamente.</CardDescription>
           </CardHeader>
           <CardContent>
+
             <div className="flex flex-col sm:flex-row gap-2">
               <div className="flex-1">
                 <Label className="text-xs">Nome da instância</Label>
