@@ -30,6 +30,47 @@ function evolutionHeaders(apiKey: string, contentType = false, instanceId = '') 
   return headers;
 }
 
+function phoneFromJid(value: unknown) {
+  if (typeof value !== 'string') return null;
+  const digits = value.split('@')[0].split(':')[0].replace(/\D/g, '');
+  return digits.length >= 8 ? digits : null;
+}
+
+function extractInstancePhone(item: any, statusData: any = {}) {
+  const candidates = [
+    item?.ownerJid, item?.jid, item?.myJid, item?.phone, item?.number, item?.owner,
+    item?.instance?.ownerJid, item?.instance?.jid, item?.instance?.myJid,
+    item?.data?.ownerJid, item?.data?.jid, item?.data?.myJid,
+    statusData?.ownerJid, statusData?.jid, statusData?.myJid, statusData?.phone, statusData?.number,
+  ];
+  for (const candidate of candidates) {
+    const phone = phoneFromJid(candidate);
+    if (phone) return phone;
+  }
+  return null;
+}
+
+function normalizeInstanceState(item: any, statusData: any = {}) {
+  const rawState = String(item?.connectionStatus || item?.state || item?.instance?.state || item?.status || '').toLowerCase();
+  if (/open|online|connected/.test(rawState)) return 'open';
+  if (/connecting|qr|pair/.test(rawState)) return 'connecting';
+  if (/close|disconnect|offline/.test(rawState)) return 'close';
+
+  const loggedIn = statusData?.LoggedIn ?? statusData?.loggedIn ?? item?.LoggedIn ?? item?.loggedIn ?? item?.instance?.loggedIn;
+  const connected = statusData?.Connected ?? statusData?.connected ?? item?.Connected ?? item?.connected ?? item?.instance?.connected;
+  if (loggedIn === true) return 'open';
+  if (connected === true) return 'connecting';
+  if (loggedIn === false || connected === false) return 'close';
+  return 'unknown';
+}
+
+async function getGoInstanceStatus(baseUrl: string, apiKey: string, instanceId = '') {
+  const status = await fetchJson(`${baseUrl}/instance/status`, {
+    headers: evolutionHeaders(apiKey, false, instanceId),
+  }, 5000).catch(() => ({ ok: false, status: 0, data: {} as any }));
+  return status?.data?.data || status?.data || {};
+}
+
 function publicMediaFromSignedUrl(url: string | null) {
   if (!url) return null;
   try {
@@ -82,9 +123,8 @@ async function resolveGoInstanceId(baseUrl: string, apiKey: string, instance: st
   const wanted = String(instance || '').toLowerCase();
   const found = rows.find((item: any) =>
     String(item?.id || '').toLowerCase() === wanted ||
-    String(item?.name || '').toLowerCase() === wanted ||
-    String(item?.token || '') === apiKey
-  );
+    String(item?.name || item?.instanceName || item?.instance?.instanceName || '').toLowerCase() === wanted
+  ) || rows.find((item: any) => String(item?.token || item?.hash || '') === apiKey);
   return found?.id || '';
 }
 
@@ -96,9 +136,18 @@ async function resolveGoInstance(baseUrl: string, apiKey: string, instance: stri
   const rows = Array.isArray(r?.data?.data) ? r?.data?.data : Array.isArray(r?.data) ? r?.data : [];
   return rows.find((item: any) =>
     String(item?.id || item?.instanceId || '').toLowerCase() === wanted ||
-    String(item?.name || item?.instanceName || item?.instance?.instanceName || '').toLowerCase() === wanted ||
-    String(item?.token || item?.hash || '') === apiKey
-  ) || null;
+    String(item?.name || item?.instanceName || item?.instance?.instanceName || '').toLowerCase() === wanted
+  ) || rows.find((item: any) => String(item?.token || item?.hash || '') === apiKey) || null;
+}
+
+async function resolveInstanceAuth(baseUrl: string, apiKey: string, instance: string) {
+  const found = await resolveGoInstance(baseUrl, apiKey, instance);
+  return {
+    apiKey: found?.token || found?.hash || apiKey,
+    instanceId: found?.id || found?.instanceId || instance,
+    name: found?.name || found?.instanceName || found?.instance?.instanceName || instance,
+    row: found,
+  };
 }
 
 Deno.serve(async (req) => {
@@ -254,13 +303,14 @@ Deno.serve(async (req) => {
       if (!phone || !text) {
         return jsonResponse({ error: 'phone e text obrigatórios' }, 400);
       }
+      const instAuth = await resolveInstanceAuth(baseUrl, apiKey, instance);
 
       // Try a list of known endpoint variants for both Evolution API (classic) and Evolution Go
       const attempts: Array<{ url: string; headers: Record<string, string>; body: any; mode: string }> = [
         // Evolution Go (instance token endpoint) — fastest path for this project
-        { url: `${baseUrl}/send/text`, headers: evolutionHeaders(apiKey, true), body: { number: phone, text }, mode: 'evolution-go-send' },
-        { url: `${baseUrl}/message/sendText`, headers: evolutionHeaders(apiKey, true, instance), body: { number: phone, text }, mode: 'evolution-go' },
-        { url: `${baseUrl}/message/sendText`, headers: evolutionHeaders(apiKey, true, instance), body: { number: phone, message: text }, mode: 'evolution-go-msg' },
+        { url: `${baseUrl}/send/text`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: phone, text }, mode: 'evolution-go-send' },
+        { url: `${baseUrl}/message/sendText`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: phone, text }, mode: 'evolution-go' },
+        { url: `${baseUrl}/message/sendText`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: phone, message: text }, mode: 'evolution-go-msg' },
         // Classic Evolution API (Node)
         { url: `${baseUrl}/message/sendText/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: phone, text }, mode: 'evolution-api' },
         { url: `${baseUrl}/message/sendText/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: phone, textMessage: { text } }, mode: 'evolution-api-v1' },
@@ -308,15 +358,15 @@ Deno.serve(async (req) => {
       const phone = normalizePhone(body.phone);
       if (!phone) return jsonResponse({ error: 'phone obrigatório' }, 400);
       const number = `${phone}@s.whatsapp.net`;
+      const instAuth = await resolveInstanceAuth(baseUrl, apiKey, instance);
       const tries = [
-        { url: `${baseUrl}/user/avatar`, method: 'POST', headers: evolutionHeaders(apiKey, true), body: { number: phone, preview: false } },
-        { url: `${baseUrl}/user/avatar`, method: 'POST', headers: evolutionHeaders(apiKey, true), body: { number, preview: false } },
-        { url: `${baseUrl}/user/info`, method: 'POST', headers: evolutionHeaders(apiKey, true), body: { number: [phone] } },
-        { url: `${baseUrl}/user/info`, method: 'POST', headers: evolutionHeaders(apiKey, true), body: { number: [number] } },
-        { url: `${baseUrl}/user/avatar`, method: 'POST', headers: evolutionHeaders(apiKey, true, instance), body: { number: phone, preview: false } },
+        { url: `${baseUrl}/user/avatar`, method: 'POST', headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: phone, preview: false } },
+        { url: `${baseUrl}/user/avatar`, method: 'POST', headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number, preview: false } },
+        { url: `${baseUrl}/user/info`, method: 'POST', headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: [phone] } },
+        { url: `${baseUrl}/user/info`, method: 'POST', headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: [number] } },
         { url: `${baseUrl}/chat/fetchProfilePictureUrl/${encodeURIComponent(instance)}`, method: 'POST', headers: evolutionHeaders(apiKey, true), body: { number: phone } },
         { url: `${baseUrl}/chat/fetchProfilePictureUrl/${encodeURIComponent(instance)}`, method: 'POST', headers: evolutionHeaders(apiKey, true), body: { number } },
-        { url: `${baseUrl}/chat/getProfilePicture`, method: 'POST', headers: evolutionHeaders(apiKey, true, instance), body: { number: phone } },
+        { url: `${baseUrl}/chat/getProfilePicture`, method: 'POST', headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: phone } },
         { url: `${baseUrl}/chat/whatsappProfile/${encodeURIComponent(instance)}`, method: 'POST', headers: evolutionHeaders(apiKey, true), body: { number: phone } },
       ];
       for (const t of tries) {
@@ -336,7 +386,8 @@ Deno.serve(async (req) => {
     // SYNC CONTACTS FROM EVOLUTION GO
     if (action === 'sync-contacts') {
       if (!instance) return jsonResponse({ error: 'Escolha uma instância em Conexões WhatsApp.' }, 200);
-      const r = await fetchJson(`${baseUrl}/user/contacts`, { headers: evolutionHeaders(apiKey) }, 10000)
+      const instAuth = await resolveInstanceAuth(baseUrl, apiKey, instance);
+      const r = await fetchJson(`${baseUrl}/user/contacts`, { headers: evolutionHeaders(instAuth.apiKey, false, instAuth.instanceId) }, 10000)
         .catch((error) => ({ ok: false, status: 0, data: { error: String(error?.message || error) } }));
       const rows = Array.isArray(r.data?.data) ? r.data.data : Array.isArray(r.data) ? r.data : [];
       const payload = rows.map((item: any) => {
@@ -386,35 +437,36 @@ Deno.serve(async (req) => {
 
       const mediaForEvolution = publicMediaFromSignedUrl(mediaUrl) || `data:${mimetype};base64,${mediaBase64}`;
       const cleanMime = mimetype.split(';')[0] || mimetype;
+      const instAuth = await resolveInstanceAuth(baseUrl, apiKey, instance);
 
       let attempts: Array<{ url: string; headers: Record<string, string>; body: any; mode: string }> = [];
       if (mediaType === 'audio') {
         attempts = [
-          { url: `${baseUrl}/send/media`, headers: evolutionHeaders(apiKey, true), body: { number: phone, type: 'audio', url: mediaForEvolution, filename, caption }, mode: 'evolution-go-send-media-token' },
+          { url: `${baseUrl}/send/media`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: phone, type: 'audio', url: mediaForEvolution, filename, caption }, mode: 'evolution-go-send-media-token' },
           { url: `${baseUrl}/message/sendWhatsAppAudio/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: phone, audio: mediaForEvolution }, mode: 'evolution-api-audio-url' },
           { url: `${baseUrl}/message/sendWhatsAppAudio/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: phone, audio: mediaBase64 }, mode: 'evolution-api-audio-base64' },
           { url: `${baseUrl}/message/sendMedia/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: phone, mediatype: 'audio', mimetype: cleanMime, fileName: filename, caption, media: mediaForEvolution }, mode: 'evolution-api-media-audio' },
-          { url: `${baseUrl}/send/media`, headers: evolutionHeaders(apiKey, true, instance), body: { number: phone, type: 'audio', url: mediaForEvolution, filename, caption }, mode: 'evolution-go-send-media' },
-          { url: `${baseUrl}/message/sendMedia`, headers: evolutionHeaders(apiKey, true, instance), body: { number: phone, type: 'audio', url: mediaForEvolution, filename, caption }, mode: 'evolution-go-message-media' },
+          { url: `${baseUrl}/send/media`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: phone, type: 'audio', url: mediaForEvolution, filename, caption }, mode: 'evolution-go-send-media' },
+          { url: `${baseUrl}/message/sendMedia`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: phone, type: 'audio', url: mediaForEvolution, filename, caption }, mode: 'evolution-go-message-media' },
         ];
       } else if (mediaType === 'sticker') {
         attempts = [
-          { url: `${baseUrl}/send/sticker`, headers: evolutionHeaders(apiKey, true), body: { number: phone, sticker: mediaForEvolution }, mode: 'evolution-go-send-sticker-token' },
+          { url: `${baseUrl}/send/sticker`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: phone, sticker: mediaForEvolution }, mode: 'evolution-go-send-sticker-token' },
           { url: `${baseUrl}/message/sendSticker/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: phone, sticker: mediaForEvolution }, mode: 'evolution-api-sticker-url' },
           { url: `${baseUrl}/message/sendSticker/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: phone, sticker: mediaBase64 }, mode: 'evolution-api-sticker-base64' },
-          { url: `${baseUrl}/send/sticker`, headers: evolutionHeaders(apiKey, true, instance), body: { number: phone, sticker: mediaForEvolution }, mode: 'evolution-go-send-sticker' },
+          { url: `${baseUrl}/send/sticker`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: phone, sticker: mediaForEvolution }, mode: 'evolution-go-send-sticker' },
           { url: `${baseUrl}/message/sendMedia/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: phone, mediatype: 'sticker', mimetype: cleanMime, fileName: filename, media: mediaForEvolution }, mode: 'evolution-api-media-sticker' },
         ];
       } else {
         const isImg = mediaType === 'image';
         const goType = isImg ? 'image' : 'document';
         attempts = [
-          { url: `${baseUrl}/send/media`, headers: evolutionHeaders(apiKey, true), body: { number: phone, type: goType, url: mediaForEvolution, filename, caption }, mode: 'evolution-go-send-media-token' },
+          { url: `${baseUrl}/send/media`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: phone, type: goType, url: mediaForEvolution, filename, caption }, mode: 'evolution-go-send-media-token' },
           { url: `${baseUrl}/message/sendMedia/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: phone, mediatype: goType, mimetype: cleanMime, fileName: filename, caption, media: mediaForEvolution }, mode: 'evolution-api-url' },
           { url: `${baseUrl}/message/sendMedia/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: phone, mediatype: goType, mimetype: cleanMime, fileName: filename, caption, media: mediaBase64 }, mode: 'evolution-api-base64' },
-          { url: `${baseUrl}/send/media`, headers: evolutionHeaders(apiKey, true, instance), body: { number: phone, type: goType, url: mediaForEvolution, filename, caption }, mode: 'evolution-go-send-media' },
-          { url: `${baseUrl}/message/sendMedia`, headers: evolutionHeaders(apiKey, true, instance), body: { number: phone, type: goType, url: mediaForEvolution, filename, caption }, mode: 'evolution-go-message-media' },
-          { url: `${baseUrl}/message/sendMedia`, headers: evolutionHeaders(apiKey, true, instance), body: { number: phone, mediatype: goType, mimetype: cleanMime, fileName: filename, caption, media: mediaForEvolution }, mode: 'evolution-go-classic-body' },
+          { url: `${baseUrl}/send/media`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: phone, type: goType, url: mediaForEvolution, filename, caption }, mode: 'evolution-go-send-media' },
+          { url: `${baseUrl}/message/sendMedia`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: phone, type: goType, url: mediaForEvolution, filename, caption }, mode: 'evolution-go-message-media' },
+          { url: `${baseUrl}/message/sendMedia`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: phone, mediatype: goType, mimetype: cleanMime, fileName: filename, caption, media: mediaForEvolution }, mode: 'evolution-go-classic-body' },
         ];
       }
 
@@ -460,13 +512,10 @@ Deno.serve(async (req) => {
       const scopedApiKey = foundInstance?.token || foundInstance?.hash || apiKey;
       const scopedInstanceId = foundInstance?.id || foundInstance?.instanceId || targetInstance;
 
-      // First check if already connected (Evolution Go instance-scoped status)
-      const status = await fetchJson(`${baseUrl}/instance/status`, {
-        headers: evolutionHeaders(scopedApiKey, false, scopedInstanceId),
-      }, 5000).catch(() => ({ ok: false, status: 0, data: {} as any }));
-      const sd = status?.data?.data || status?.data || {};
-      if (sd?.Connected || sd?.connected) {
-        return jsonResponse({ ok: true, alreadyConnected: true, instance: targetInstance });
+      // First check if already logged in. Evolution Go can report Connected=false while the number is already linked.
+      const sd = await getGoInstanceStatus(baseUrl, scopedApiKey, scopedInstanceId);
+      if (sd?.LoggedIn === true || sd?.loggedIn === true) {
+        return jsonResponse({ ok: true, alreadyConnected: true, instance: targetInstance, phone: extractInstancePhone(foundInstance, sd) });
       }
 
       // Trigger reconnect for Evolution Go so a QR is generated, then fetch /instance/qr
@@ -475,6 +524,8 @@ Deno.serve(async (req) => {
       }, 5000).catch(() => null);
 
       const tries = [
+        { url: `${baseUrl}/instance/${encodeURIComponent(targetInstance)}/qrcode`, method: 'GET', headers: evolutionHeaders(apiKey) },
+        { url: `${baseUrl}/instance/${encodeURIComponent(scopedInstanceId)}/qrcode`, method: 'GET', headers: evolutionHeaders(scopedApiKey) },
         { url: `${baseUrl}/instance/qr`, method: 'GET', headers: evolutionHeaders(scopedApiKey, false, scopedInstanceId) },
         { url: `${baseUrl}/instance/connect`, method: 'POST', headers: evolutionHeaders(scopedApiKey, true, scopedInstanceId) },
         { url: `${baseUrl}/instance/connect/${encodeURIComponent(targetInstance)}`, method: 'GET', headers: evolutionHeaders(apiKey) },
@@ -525,14 +576,19 @@ Deno.serve(async (req) => {
         if (!r.ok) continue;
         const rows = Array.isArray(r.data?.data) ? r.data.data : Array.isArray(r.data) ? r.data : [];
         if (rows.length === 0) continue;
-        const list = rows.map((item: any) => ({
-          id: item?.id || item?.instanceId || item?.name || '',
-          name: item?.name || item?.instanceName || item?.instance?.instanceName || item?.id || '',
-          state: item?.connectionStatus || item?.state || item?.instance?.state || item?.status || 'unknown',
-          phone: item?.ownerJid?.split?.('@')?.[0] || item?.owner?.split?.('@')?.[0] || item?.number || null,
-          profile_name: item?.profileName || null,
-          profile_pic: item?.profilePictureUrl || item?.profilePicUrl || null,
-          token: item?.token || item?.hash || null,
+        const list = await Promise.all(rows.map(async (item: any) => {
+          const id = item?.id || item?.instanceId || item?.name || '';
+          const token = item?.token || item?.hash || null;
+          const statusData = token ? await getGoInstanceStatus(baseUrl, token, id) : {};
+          return {
+            id,
+            name: item?.name || item?.instanceName || item?.instance?.instanceName || item?.id || '',
+            state: normalizeInstanceState(item, statusData),
+            phone: extractInstancePhone(item, statusData),
+            profile_name: item?.profileName || statusData?.Name || statusData?.name || null,
+            profile_pic: item?.profilePictureUrl || item?.profilePicUrl || null,
+            token,
+          };
         }));
         return jsonResponse({ ok: true, instances: list, current: instance, adminMode: true });
       }
@@ -545,15 +601,13 @@ Deno.serve(async (req) => {
 
       if (status.ok) {
         const sd = status.data?.data || status.data || {};
-        const connected = !!(sd.Connected || sd.connected);
-        const loggedIn = !!(sd.LoggedIn || sd.loggedIn);
         let phone: string | null = null;
         // try /instance/connect to capture jid even when disconnected
         const conn = await fetchJson(`${baseUrl}/instance/connect`, {
           method: 'POST', headers: evolutionHeaders(apiKey, true), body: JSON.stringify({}),
         }, 5000).catch(() => ({ ok: false, status: 0, data: {} as any }));
         const jid = conn?.data?.data?.jid || conn?.data?.jid;
-        if (typeof jid === 'string') phone = jid.split('@')[0].split(':')[0];
+        phone = phoneFromJid(jid) || extractInstancePhone({}, sd);
         return jsonResponse({
           ok: true,
           adminMode: false,
@@ -561,7 +615,7 @@ Deno.serve(async (req) => {
           instances: [{
             id: instance,
             name: sd.Name || instance,
-            state: connected ? 'open' : loggedIn ? 'connecting' : 'close',
+            state: normalizeInstanceState({}, sd),
             phone,
             profile_name: sd.Name || null,
             profile_pic: null,
