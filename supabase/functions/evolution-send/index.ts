@@ -81,11 +81,10 @@ Deno.serve(async (req) => {
       .maybeSingle();
 
     if (!settings) {
-      return jsonResponse({ error: 'Evolution não configurada' }, 400);
+      return jsonResponse({ error: 'Evolution não configurada' }, 200);
     }
-    if (action === 'send' && !settings.is_enabled) {
-      return jsonResponse({ error: 'Evolution não está ativada' }, 400);
-    }
+    // Note: is_enabled gate removed — if the row exists and is configured, allow sending.
+    // The toggle remains purely informational for bot/automation modules.
     const baseUrl = String(settings.base_url || '').replace(/\/$/, '');
     const apiKey = settings.api_key;
     const instance = settings.instance_name;
