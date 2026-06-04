@@ -563,14 +563,19 @@ Deno.serve(async (req) => {
         if (!r.ok) continue;
         const rows = Array.isArray(r.data?.data) ? r.data.data : Array.isArray(r.data) ? r.data : [];
         if (rows.length === 0) continue;
-        const list = rows.map((item: any) => ({
-          id: item?.id || item?.instanceId || item?.name || '',
-          name: item?.name || item?.instanceName || item?.instance?.instanceName || item?.id || '',
-          state: item?.connectionStatus || item?.state || item?.instance?.state || item?.status || 'unknown',
-          phone: item?.ownerJid?.split?.('@')?.[0] || item?.owner?.split?.('@')?.[0] || item?.number || null,
-          profile_name: item?.profileName || null,
-          profile_pic: item?.profilePictureUrl || item?.profilePicUrl || null,
-          token: item?.token || item?.hash || null,
+        const list = await Promise.all(rows.map(async (item: any) => {
+          const id = item?.id || item?.instanceId || item?.name || '';
+          const token = item?.token || item?.hash || null;
+          const statusData = token ? await getGoInstanceStatus(baseUrl, token, id) : {};
+          return {
+            id,
+            name: item?.name || item?.instanceName || item?.instance?.instanceName || item?.id || '',
+            state: normalizeInstanceState(item, statusData),
+            phone: extractInstancePhone(item, statusData),
+            profile_name: item?.profileName || statusData?.Name || statusData?.name || null,
+            profile_pic: item?.profilePictureUrl || item?.profilePicUrl || null,
+            token,
+          };
         }));
         return jsonResponse({ ok: true, instances: list, current: instance, adminMode: true });
       }
@@ -583,15 +588,13 @@ Deno.serve(async (req) => {
 
       if (status.ok) {
         const sd = status.data?.data || status.data || {};
-        const connected = !!(sd.Connected || sd.connected);
-        const loggedIn = !!(sd.LoggedIn || sd.loggedIn);
         let phone: string | null = null;
         // try /instance/connect to capture jid even when disconnected
         const conn = await fetchJson(`${baseUrl}/instance/connect`, {
           method: 'POST', headers: evolutionHeaders(apiKey, true), body: JSON.stringify({}),
         }, 5000).catch(() => ({ ok: false, status: 0, data: {} as any }));
         const jid = conn?.data?.data?.jid || conn?.data?.jid;
-        if (typeof jid === 'string') phone = jid.split('@')[0].split(':')[0];
+        phone = phoneFromJid(jid) || extractInstancePhone({}, sd);
         return jsonResponse({
           ok: true,
           adminMode: false,
@@ -599,7 +602,7 @@ Deno.serve(async (req) => {
           instances: [{
             id: instance,
             name: sd.Name || instance,
-            state: connected ? 'open' : loggedIn ? 'connecting' : 'close',
+            state: normalizeInstanceState({}, sd),
             phone,
             profile_name: sd.Name || null,
             profile_pic: null,
