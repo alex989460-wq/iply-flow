@@ -193,13 +193,14 @@ export default function EvolutionChat() {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
   }, [thread.length, selectedPhone]);
 
-  const startConversation = () => {
+  const startConversation = async () => {
     const digits = newPhone.replace(/\D/g, '');
-    if (!digits) return;
+    if (!digits || !user) return;
     const phone = digits.startsWith('55') ? digits : `55${digits}`;
     setContacts(prev => ({ ...prev, [phone]: prev[phone] || { phone, name: null, profile_pic_url: null } }));
     setSelectedPhone(phone);
     setNewPhone('');
+    await supabase.from('evolution_contacts').upsert({ user_id: user.id, phone }, { onConflict: 'user_id,phone' });
   };
 
   // OPTIMISTIC TEXT SEND — message appears instantly, request goes in background
