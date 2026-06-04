@@ -1,0 +1,2 @@
+ALTER TABLE public.evolution_messages ADD COLUMN IF NOT EXISTS instance_name text;
+CREATE INDEX IF NOT EXISTS idx_evo_msg_user_instance ON public.evolution_messages (user_id, instance_name, created_at DESC);
