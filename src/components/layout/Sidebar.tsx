@@ -39,6 +39,7 @@ const menuItems = [
   { icon: Megaphone, label: 'Disparo em Massa', path: '/mass-broadcast', adminOnly: false },
   { icon: MessageCircleMore, label: 'Chat', path: '/chat', adminOnly: false },
   { icon: MessageCircleMore, label: 'Chat Oficial', path: '/meta-chat', adminOnly: false },
+  { icon: MessageCircleMore, label: 'Chat Evolution', path: '/chat-evolution', adminOnly: false },
   { icon: Bot, label: 'Gatilhos de Bot', path: '/bot-triggers', adminOnly: false },
   { icon: Smartphone, label: 'Ativação de Apps', path: '/activation-apps', adminOnly: false },
   { icon: FileText, label: 'Templates Meta', path: '/meta-templates', adminOnly: true },
