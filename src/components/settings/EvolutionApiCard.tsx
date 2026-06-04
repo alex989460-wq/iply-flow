@@ -100,7 +100,10 @@ export default function EvolutionApiCard() {
     setConnState(state);
     toast({
       title: data?.ok ? 'Conectado' : 'Resposta recebida',
-      description: `Estado: ${state}`,
+      description: data?.ok
+        ? `Estado: ${state} (${data?.mode || 'Evolution'})`
+        : `Estado: ${state} • HTTP ${data?.status || 'sem resposta'}`,
+      variant: data?.ok ? 'default' : 'destructive',
     });
   };
 
@@ -116,7 +119,10 @@ export default function EvolutionApiCard() {
     }
     toast({
       title: data?.ok ? 'Webhook configurado' : 'Resposta recebida',
-      description: data?.webhookUrl || 'Verifique a Evolution.',
+      description: data?.ok
+        ? `${data?.mode || 'Evolution'}: ${data?.webhookUrl}`
+        : data?.error || `Evolution respondeu HTTP ${data?.status || 'sem resposta'}`,
+      variant: data?.ok ? 'default' : 'destructive',
     });
   };
 
