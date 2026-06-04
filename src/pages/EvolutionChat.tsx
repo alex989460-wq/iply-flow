@@ -125,6 +125,9 @@ export default function EvolutionChat() {
   const [imageToSend, setImageToSend] = useState<{ file: File; url: string; caption: string } | null>(null);
   const [docToSend, setDocToSend] = useState<{ file: File; caption: string } | null>(null);
   const [filter, setFilter] = useState<'all' | 'unread' | 'media'>('all');
+  const [instances, setInstances] = useState<Array<{ id: string; name: string; phone: string | null; state: string; profile_name: string | null }>>([]);
+  const [currentInstance, setCurrentInstance] = useState<string>('');
+  const [switchingInstance, setSwitchingInstance] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const stickerInputRef = useRef<HTMLInputElement>(null);
@@ -134,6 +137,27 @@ export default function EvolutionChat() {
   const recordTimerRef = useRef<number | null>(null);
   const avatarFetchRef = useRef<Set<string>>(new Set());
   const contactSyncRef = useRef(false);
+
+  const loadInstances = useCallback(async () => {
+    const { data } = await supabase.functions.invoke('evolution-send', { body: { action: 'list-instances' } });
+    if (data?.instances) setInstances(data.instances);
+    if (data?.current) setCurrentInstance(data.current);
+  }, []);
+
+  const switchInstance = async (name: string) => {
+    if (!name || name === currentInstance) return;
+    setSwitchingInstance(true);
+    const { data, error } = await supabase.functions.invoke('evolution-send', {
+      body: { action: 'set-active-instance', name },
+    });
+    setSwitchingInstance(false);
+    if (error || data?.error) {
+      toast({ title: 'Erro', description: error?.message || data?.error, variant: 'destructive' });
+      return;
+    }
+    setCurrentInstance(name);
+    toast({ title: 'Instância ativa', description: `Agora enviando por: ${name}` });
+  };
 
   const mergeMessage = useCallback((prev: EvoMessage[], incoming: EvoMessage) => {
     if (prev.some((m) => m.id === incoming.id)) return prev;
