@@ -379,7 +379,7 @@ Deno.serve(async (req) => {
         remote_jid: `${phone}@s.whatsapp.net`,
         phone,
         direction: 'out',
-        content: caption || (mediaType === 'audio' ? '🎤 Áudio' : mediaType === 'image' ? '📷 Imagem' : `📎 ${filename}`),
+        content: caption || (mediaType === 'audio' ? '🎤 Áudio' : mediaType === 'image' ? '📷 Imagem' : mediaType === 'sticker' ? '🌟 Sticker' : `📎 ${filename}`),
         message_type: mediaType,
         media_url: mediaUrl,
         media_mime: mimetype,
