@@ -303,13 +303,14 @@ Deno.serve(async (req) => {
       if (!phone || !text) {
         return jsonResponse({ error: 'phone e text obrigatórios' }, 400);
       }
+      const instAuth = await resolveInstanceAuth(baseUrl, apiKey, instance);
 
       // Try a list of known endpoint variants for both Evolution API (classic) and Evolution Go
       const attempts: Array<{ url: string; headers: Record<string, string>; body: any; mode: string }> = [
         // Evolution Go (instance token endpoint) — fastest path for this project
-        { url: `${baseUrl}/send/text`, headers: evolutionHeaders(apiKey, true), body: { number: phone, text }, mode: 'evolution-go-send' },
-        { url: `${baseUrl}/message/sendText`, headers: evolutionHeaders(apiKey, true, instance), body: { number: phone, text }, mode: 'evolution-go' },
-        { url: `${baseUrl}/message/sendText`, headers: evolutionHeaders(apiKey, true, instance), body: { number: phone, message: text }, mode: 'evolution-go-msg' },
+        { url: `${baseUrl}/send/text`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: phone, text }, mode: 'evolution-go-send' },
+        { url: `${baseUrl}/message/sendText`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: phone, text }, mode: 'evolution-go' },
+        { url: `${baseUrl}/message/sendText`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: phone, message: text }, mode: 'evolution-go-msg' },
         // Classic Evolution API (Node)
         { url: `${baseUrl}/message/sendText/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: phone, text }, mode: 'evolution-api' },
         { url: `${baseUrl}/message/sendText/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: phone, textMessage: { text } }, mode: 'evolution-api-v1' },
