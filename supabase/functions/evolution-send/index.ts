@@ -455,10 +455,14 @@ Deno.serve(async (req) => {
     // QR / CONNECT — returns a base64 QR (data URL) so the user can scan it in-app
     if (action === 'qr-connect') {
       const targetInstance = String(body.instance || instance).trim();
+      if (!targetInstance) return jsonResponse({ error: 'Crie ou selecione uma instância em Conexões WhatsApp.' }, 200);
+      const foundInstance = await resolveGoInstance(baseUrl, apiKey, targetInstance);
+      const scopedApiKey = foundInstance?.token || foundInstance?.hash || apiKey;
+      const scopedInstanceId = foundInstance?.id || foundInstance?.instanceId || targetInstance;
 
       // First check if already connected (Evolution Go instance-scoped status)
       const status = await fetchJson(`${baseUrl}/instance/status`, {
-        headers: evolutionHeaders(apiKey),
+        headers: evolutionHeaders(scopedApiKey, false, scopedInstanceId),
       }, 5000).catch(() => ({ ok: false, status: 0, data: {} as any }));
       const sd = status?.data?.data || status?.data || {};
       if (sd?.Connected || sd?.connected) {
@@ -467,17 +471,18 @@ Deno.serve(async (req) => {
 
       // Trigger reconnect for Evolution Go so a QR is generated, then fetch /instance/qr
       await fetchJson(`${baseUrl}/instance/reconnect`, {
-        method: 'POST', headers: evolutionHeaders(apiKey, true), body: '{}',
+        method: 'POST', headers: evolutionHeaders(scopedApiKey, true, scopedInstanceId), body: '{}',
       }, 5000).catch(() => null);
 
       const tries = [
-        { url: `${baseUrl}/instance/qr`, method: 'GET', headers: evolutionHeaders(apiKey) },
+        { url: `${baseUrl}/instance/qr`, method: 'GET', headers: evolutionHeaders(scopedApiKey, false, scopedInstanceId) },
+        { url: `${baseUrl}/instance/connect`, method: 'POST', headers: evolutionHeaders(scopedApiKey, true, scopedInstanceId) },
         { url: `${baseUrl}/instance/connect/${encodeURIComponent(targetInstance)}`, method: 'GET', headers: evolutionHeaders(apiKey) },
         { url: `${baseUrl}/instance/qr/${encodeURIComponent(targetInstance)}`, method: 'GET', headers: evolutionHeaders(apiKey) },
         { url: `${baseUrl}/instance/qrcode/${encodeURIComponent(targetInstance)}`, method: 'GET', headers: evolutionHeaders(apiKey) },
       ];
       for (const t of tries) {
-        const r = await fetchJson(t.url, { method: t.method, headers: t.headers }, 10000)
+        const r = await fetchJson(t.url, { method: t.method, headers: t.headers, body: t.method === 'POST' ? '{}' : undefined }, 10000)
           .catch(() => ({ ok: false, status: 0, data: {} as any }));
         if (!r.ok) continue;
         const data = r.data || {};
