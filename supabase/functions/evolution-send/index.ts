@@ -583,11 +583,12 @@ Deno.serve(async (req) => {
       const name = String(body.name || '').trim();
       if (!name) return jsonResponse({ error: 'name obrigatório' }, 400);
       const webhookUrl = `${supabaseUrl}/functions/v1/evolution-webhook?token=${settings.webhook_token}`;
+      const instToken = (crypto as any).randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
       const payloads = [
+        // Evolution Go style (requires token)
+        { url: `${baseUrl}/instance/create`, body: { name, token: instToken, webhookUrl, subscribe: ['MESSAGE','SEND_MESSAGE','CONNECTION'], immediate: true } },
         // Evolution API classic
-        { url: `${baseUrl}/instance/create`, body: { instanceName: name, qrcode: true, integration: 'WHATSAPP-BAILEYS', webhook: { url: webhookUrl, events: ['MESSAGES_UPSERT'] } } },
-        // Evolution Go style
-        { url: `${baseUrl}/instance/create`, body: { name, webhookUrl, subscribe: ['MESSAGE','SEND_MESSAGE','CONNECTION'], immediate: true } },
+        { url: `${baseUrl}/instance/create`, body: { instanceName: name, token: instToken, qrcode: true, integration: 'WHATSAPP-BAILEYS', webhook: { url: webhookUrl, events: ['MESSAGES_UPSERT'] } } },
       ];
       let last: any = { ok: false, status: 0, data: {} };
       for (const p of payloads) {
