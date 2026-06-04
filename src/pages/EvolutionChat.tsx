@@ -499,6 +499,28 @@ export default function EvolutionChat() {
           </div>
 
           <div className="p-2 space-y-2 border-b border-border">
+            <div className="flex items-center gap-1.5">
+              <Phone className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+              <Select value={currentInstance} onValueChange={switchInstance} disabled={switchingInstance || instances.length === 0}>
+                <SelectTrigger className="h-8 text-xs flex-1">
+                  <SelectValue placeholder={instances.length === 0 ? 'Nenhuma instância' : 'Selecionar instância'} />
+                </SelectTrigger>
+                <SelectContent>
+                  {instances.map((inst) => (
+                    <SelectItem key={inst.id || inst.name} value={inst.name}>
+                      <span className="flex items-center gap-2">
+                        <span className={cn('w-1.5 h-1.5 rounded-full', inst.state === 'open' ? 'bg-emerald-500' : 'bg-muted-foreground')} />
+                        <span className="font-medium">{inst.profile_name || inst.name}</span>
+                        {inst.phone && <span className="text-muted-foreground text-[10px]">{formatPhone(inst.phone)}</span>}
+                      </span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button size="icon" variant="ghost" className="h-7 w-7" onClick={loadInstances} title="Recarregar instâncias">
+                <RefreshCw className={cn('w-3 h-3', switchingInstance && 'animate-spin')} />
+              </Button>
+            </div>
             <div className="relative">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
               <Input placeholder="Pesquisar conversa..." value={search} onChange={(e) => setSearch(e.target.value)} className="h-8 text-xs pl-8" />
