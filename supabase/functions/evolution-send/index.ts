@@ -229,7 +229,9 @@ Deno.serve(async (req) => {
       const tries = [
         { url: `${baseUrl}/chat/fetchProfilePictureUrl/${encodeURIComponent(instance)}`, method: 'POST', headers: evolutionHeaders(apiKey, true), body: { number: phone } },
         { url: `${baseUrl}/chat/fetchProfilePictureUrl/${encodeURIComponent(instance)}`, method: 'POST', headers: evolutionHeaders(apiKey, true), body: { number } },
+        { url: `${baseUrl}/user/avatar`, method: 'POST', headers: evolutionHeaders(apiKey, true), body: { number: phone, preview: false } },
         { url: `${baseUrl}/user/avatar`, method: 'POST', headers: evolutionHeaders(apiKey, true, instanceId || instance), body: { number: phone, preview: false } },
+        { url: `${baseUrl}/user/info`, method: 'POST', headers: evolutionHeaders(apiKey, true), body: { number: [phone] } },
         { url: `${baseUrl}/user/info`, method: 'POST', headers: evolutionHeaders(apiKey, true, instanceId || instance), body: { number: [phone] } },
         { url: `${baseUrl}/chat/getProfilePicture`, method: 'POST', headers: evolutionHeaders(apiKey, true, instanceId || instance), body: { number: phone } },
         { url: `${baseUrl}/chat/whatsappProfile/${encodeURIComponent(instance)}`, method: 'POST', headers: evolutionHeaders(apiKey, true), body: { number: phone } },
@@ -284,6 +286,7 @@ Deno.serve(async (req) => {
           { url: `${baseUrl}/message/sendWhatsAppAudio/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: phone, audio: mediaForEvolution }, mode: 'evolution-api-audio-url' },
           { url: `${baseUrl}/message/sendWhatsAppAudio/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: phone, audio: mediaBase64 }, mode: 'evolution-api-audio-base64' },
           { url: `${baseUrl}/message/sendMedia/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: phone, mediatype: 'audio', mimetype: cleanMime, fileName: filename, caption, media: mediaForEvolution }, mode: 'evolution-api-media-audio' },
+          { url: `${baseUrl}/send/media`, headers: evolutionHeaders(apiKey, true), body: { number: phone, type: 'audio', url: mediaForEvolution, filename, caption }, mode: 'evolution-go-send-media-token' },
           { url: `${baseUrl}/send/media`, headers: evolutionHeaders(apiKey, true, instanceId || instance), body: { number: phone, type: 'audio', url: mediaForEvolution, filename, caption }, mode: 'evolution-go-send-media' },
           { url: `${baseUrl}/message/sendMedia`, headers: evolutionHeaders(apiKey, true, instanceId || instance), body: { number: phone, type: 'audio', url: mediaForEvolution, filename, caption }, mode: 'evolution-go-message-media' },
         ];
@@ -293,6 +296,7 @@ Deno.serve(async (req) => {
         attempts = [
           { url: `${baseUrl}/message/sendMedia/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: phone, mediatype: goType, mimetype: cleanMime, fileName: filename, caption, media: mediaForEvolution }, mode: 'evolution-api-url' },
           { url: `${baseUrl}/message/sendMedia/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: phone, mediatype: goType, mimetype: cleanMime, fileName: filename, caption, media: mediaBase64 }, mode: 'evolution-api-base64' },
+          { url: `${baseUrl}/send/media`, headers: evolutionHeaders(apiKey, true), body: { number: phone, type: goType, url: mediaForEvolution, filename, caption }, mode: 'evolution-go-send-media-token' },
           { url: `${baseUrl}/send/media`, headers: evolutionHeaders(apiKey, true, instanceId || instance), body: { number: phone, type: goType, url: mediaForEvolution, filename, caption }, mode: 'evolution-go-send-media' },
           { url: `${baseUrl}/message/sendMedia`, headers: evolutionHeaders(apiKey, true, instanceId || instance), body: { number: phone, type: goType, url: mediaForEvolution, filename, caption }, mode: 'evolution-go-message-media' },
           { url: `${baseUrl}/message/sendMedia`, headers: evolutionHeaders(apiKey, true, instanceId || instance), body: { number: phone, mediatype: goType, mimetype: cleanMime, fileName: filename, caption, media: mediaForEvolution }, mode: 'evolution-go-classic-body' },
