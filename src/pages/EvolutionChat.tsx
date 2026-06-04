@@ -386,7 +386,7 @@ export default function EvolutionChat() {
             ) : (
               conversations.map((c) => {
                 const active = selectedPhone === c.phone;
-                const isOut = c.last.direction === 'out';
+                const isOut = c.last?.direction === 'out';
                 const cc = contacts[c.phone];
                 const displayName = cc?.name || c.name || formatPhone(c.phone);
                 return (
@@ -407,14 +407,14 @@ export default function EvolutionChat() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between gap-2">
                         <div className="text-sm font-medium truncate">{displayName}</div>
-                        <div className="text-[10px] text-muted-foreground shrink-0">{relativeTime(c.last.created_at)}</div>
+                        <div className="text-[10px] text-muted-foreground shrink-0">{c.last ? relativeTime(c.last.created_at) : 'novo'}</div>
                       </div>
                       <div className="flex items-center justify-between gap-2 mt-0.5">
                         <div className="text-[11px] text-muted-foreground truncate">
                           {isOut && <span className="text-primary mr-1">✓</span>}
-                          {c.last.content}
+                          {c.last?.content || 'Nova conversa'}
                         </div>
-                        {!active && c.unread > 0 && c.last.direction === 'in' && (
+                        {!active && c.unread > 0 && c.last?.direction === 'in' && (
                           <Badge className="h-4 min-w-4 px-1 text-[9px] bg-primary">{c.unread > 99 ? '99+' : c.unread}</Badge>
                         )}
                       </div>
