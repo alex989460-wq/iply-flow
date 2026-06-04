@@ -9,7 +9,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import EmojiPicker, { EmojiStyle, Theme } from 'emoji-picker-react';
 import {
   Loader2, Send, Zap, Plus, RefreshCw, Search, MessageSquare,
-  Phone, X, Smile, Mic, Paperclip, Trash2, Image as ImageIcon, FileText,
+  Phone, X, Smile, Mic, Paperclip, Trash2, Image as ImageIcon, FileText, Sticker,
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -124,6 +124,7 @@ export default function EvolutionChat() {
   const [filter, setFilter] = useState<'all' | 'unread' | 'media'>('all');
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const stickerInputRef = useRef<HTMLInputElement>(null);
   const imgInputRef = useRef<HTMLInputElement>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const recordChunks = useRef<Blob[]>([]);
@@ -308,12 +309,12 @@ export default function EvolutionChat() {
     });
   };
 
-  const sendMedia = async (file: File, mediaType: 'image' | 'audio' | 'document', caption = '') => {
+  const sendMedia = async (file: File, mediaType: 'image' | 'audio' | 'document' | 'sticker', caption = '') => {
     if (!selectedPhone) return;
     setSending(true);
     const tempId = `tmp-${Date.now()}`;
     const previewUrl = URL.createObjectURL(file);
-    const labelFallback = mediaType === 'audio' ? '🎤 Áudio' : mediaType === 'image' ? '📷 Imagem' : `📎 ${file.name}`;
+    const labelFallback = mediaType === 'audio' ? '🎤 Áudio' : mediaType === 'image' ? '📷 Imagem' : mediaType === 'sticker' ? '🌟 Sticker' : `📎 ${file.name}`;
     const optimistic: EvoMessage = {
       id: tempId, phone: selectedPhone, contact_name: null, direction: 'out',
       content: caption || labelFallback,
@@ -387,11 +388,13 @@ export default function EvolutionChat() {
     recorderRef.current = null;
   };
 
-  const onPickFile = (kind: 'image' | 'document') => (e: React.ChangeEvent<HTMLInputElement>) => {
+  const onPickFile = (kind: 'image' | 'document' | 'sticker') => (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
     if (f) {
       if (kind === 'image') {
         setImageToSend({ file: f, url: URL.createObjectURL(f), caption: '' });
+      } else if (kind === 'sticker') {
+        sendMedia(f, 'sticker' as 'image');
       } else {
         sendMedia(f, kind);
       }
@@ -556,28 +559,28 @@ export default function EvolutionChat() {
             </div>
           ) : (
             <>
-              <div className="px-3 py-2 border-b border-border bg-card/50 flex items-center gap-2">
+              <div className="px-3 py-2 border-b border-[#0b1115] bg-[#202c33] flex items-center gap-3 shadow-sm">
                 {isMobile && (
-                  <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setSelectedPhone(null)}>
+                  <Button size="icon" variant="ghost" className="h-8 w-8 text-[#aebac1] hover:bg-white/5" onClick={() => setSelectedPhone(null)}>
                     <X className="w-4 h-4" />
                   </Button>
                 )}
                 <button
                   type="button"
                   onClick={() => selectedContact?.profile_pic_url && setAvatarPreview(selectedContact.profile_pic_url)}
-                  className="rounded-full focus:outline-none focus:ring-2 focus:ring-ring"
+                  className="rounded-full focus:outline-none focus:ring-2 focus:ring-[#00a884]"
                   aria-label="Ver avatar"
                 >
-                  <Avatar className="h-9 w-9 hover:opacity-80 transition-opacity">
+                  <Avatar className="h-10 w-10 hover:opacity-80 transition-opacity ring-1 ring-white/10">
                     {selectedContact?.profile_pic_url && <AvatarImage src={selectedContact.profile_pic_url} />}
-                    <AvatarFallback className="text-[11px] bg-gradient-to-br from-primary/20 to-primary/5 text-primary">
+                    <AvatarFallback className="text-xs bg-[#00a884]/20 text-[#00a884]">
                       {initials(selectedName, selectedPhone)}
                     </AvatarFallback>
                   </Avatar>
                 </button>
                 <div className="flex-1 min-w-0">
-                  <div className="text-sm font-semibold truncate">{selectedName || formatPhone(selectedPhone)}</div>
-                  <div className="text-[10px] text-muted-foreground flex items-center gap-1">
+                  <div className="text-sm font-semibold truncate text-[#e9edef]">{selectedName || formatPhone(selectedPhone)}</div>
+                  <div className="text-[11px] text-[#8696a0] flex items-center gap-1">
                     <Phone className="w-2.5 h-2.5" /> {formatPhone(selectedPhone)}
                   </div>
                 </div>
@@ -589,31 +592,32 @@ export default function EvolutionChat() {
                 )}
               </div>
 
-              <div ref={scrollRef} className="flex-1 overflow-auto p-3 space-y-2"
-                style={{ backgroundImage: 'radial-gradient(circle at 1px 1px, hsl(var(--muted-foreground) / 0.06) 1px, transparent 0)', backgroundSize: '18px 18px' }}>
+              <div ref={scrollRef} className="flex-1 overflow-auto px-3 py-3 space-y-2 bg-[#0b141a]"
+                style={{ backgroundImage: 'radial-gradient(circle at 1px 1px, rgba(255,255,255,0.025) 1px, transparent 0)', backgroundSize: '22px 22px' }}>
                 {groupedThread.length === 0 && (
-                  <div className="text-xs text-muted-foreground text-center py-10">Sem mensagens. Envie a primeira abaixo.</div>
+                  <div className="text-xs text-[#8696a0] text-center py-10">Sem mensagens. Envie a primeira abaixo.</div>
                 )}
                 {groupedThread.map((g) => (
                   <div key={g.date} className="space-y-1.5">
                     <div className="flex justify-center my-2">
-                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-card border border-border text-muted-foreground">{g.date}</span>
+                      <span className="text-[11px] px-3 py-1 rounded-md bg-[#1d282f] text-[#aebac1] shadow-sm">{g.date}</span>
                     </div>
                     {g.items.map((m) => (
                       <div key={m.id} className={cn('flex', m.direction === 'out' ? 'justify-end' : 'justify-start')}>
                         <div className={cn(
-                          'max-w-[78%] md:max-w-[65%] rounded-2xl px-3 py-1.5 text-sm shadow-sm relative',
-                          m.direction === 'out' ? 'bg-primary text-primary-foreground rounded-br-sm' : 'bg-card border border-border rounded-bl-sm',
+                          'max-w-[78%] md:max-w-[65%] rounded-lg px-2 py-1 text-sm shadow-sm relative text-[#e9edef]',
+                          m.direction === 'out' ? 'bg-[#005c4b] rounded-tr-sm' : 'bg-[#202c33] rounded-tl-sm',
                           m._failed && 'ring-1 ring-destructive',
                         )}>
-                          {renderMessageBody(m)}
-                          <div className={cn('text-[9px] mt-0.5 text-right opacity-70',
-                            m.direction === 'out' ? 'text-primary-foreground' : 'text-muted-foreground')}>
-                            {new Date(m.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                          <div className="px-1.5 pt-0.5">
+                            {renderMessageBody(m)}
+                          </div>
+                          <div className="flex items-center justify-end gap-1 px-1.5 pb-0.5 mt-0.5 text-[10px] text-[#aebac1]">
+                            <span>{new Date(m.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
                             {m.direction === 'out' && (
-                              m._failed ? <span className="ml-1">⚠️</span>
-                              : m._pending ? <span className="ml-1">⏳</span>
-                              : <span className="ml-1">✓✓</span>
+                              m._failed ? <span className="text-destructive">⚠️</span>
+                              : m._pending ? <span>⏳</span>
+                              : <span className="text-[#53bdeb] font-bold leading-none">✓✓</span>
                             )}
                           </div>
                         </div>
@@ -624,28 +628,30 @@ export default function EvolutionChat() {
               </div>
 
               {showQuickReplies && (
-                <div className="px-2 py-1.5 border-t border-border bg-card/50 flex gap-1 overflow-x-auto">
+                <div className="px-2 py-1.5 border-t border-[#0b1115] bg-[#1d282f] flex gap-1 overflow-x-auto">
                   {QUICK_REPLIES.map((q) => (
-                    <Button key={q} size="sm" variant="outline" className="h-7 text-[11px] shrink-0"
-                      onClick={() => setDraft(d => (d ? d + ' ' : '') + q)}>{q}</Button>
+                    <button key={q}
+                      className="h-7 px-2.5 text-[11px] shrink-0 rounded-full bg-[#2a3942] text-[#e9edef] hover:bg-[#374248] transition-colors"
+                      onClick={() => setDraft(d => (d ? d + ' ' : '') + q)}>{q}</button>
                   ))}
                 </div>
               )}
 
               {/* Composer */}
-              <div className="p-2 border-t border-border bg-card/30 flex items-end gap-1.5">
+              <div className="px-2 py-2 border-t border-[#0b1115] bg-[#202c33] flex items-end gap-1.5">
                 <input ref={imgInputRef} type="file" accept="image/*" hidden onChange={onPickFile('image')} />
                 <input ref={fileInputRef} type="file" hidden onChange={onPickFile('document')} />
+                <input ref={stickerInputRef} type="file" accept="image/webp,image/png" hidden onChange={onPickFile('sticker')} />
 
                 {recording ? (
-                  <div className="flex-1 flex items-center gap-2 px-3 py-2 rounded-2xl bg-destructive/10 border border-destructive/30">
+                  <div className="flex-1 flex items-center gap-2 px-3 py-2 rounded-lg bg-destructive/15 border border-destructive/30">
                     <div className="w-2 h-2 rounded-full bg-destructive animate-pulse" />
-                    <span className="text-xs font-medium">Gravando... {Math.floor(recordSeconds / 60)}:{String(recordSeconds % 60).padStart(2, '0')}</span>
+                    <span className="text-xs font-medium text-[#e9edef]">Gravando... {Math.floor(recordSeconds / 60)}:{String(recordSeconds % 60).padStart(2, '0')}</span>
                     <div className="flex-1" />
-                    <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => stopRecording(true)} title="Cancelar">
+                    <Button size="icon" variant="ghost" className="h-8 w-8 hover:bg-white/5" onClick={() => stopRecording(true)} title="Cancelar">
                       <Trash2 className="w-4 h-4 text-destructive" />
                     </Button>
-                    <Button size="icon" className="h-8 w-8" onClick={() => stopRecording(false)} title="Enviar">
+                    <Button size="icon" className="h-8 w-8 bg-[#00a884] hover:bg-[#06cf9c] text-white" onClick={() => stopRecording(false)} title="Enviar">
                       <Send className="w-4 h-4" />
                     </Button>
                   </div>
@@ -653,14 +659,14 @@ export default function EvolutionChat() {
                   <>
                     <Popover>
                       <PopoverTrigger asChild>
-                        <Button size="icon" variant="ghost" className="h-9 w-9 shrink-0" title="Emoji">
-                          <Smile className="w-4 h-4" />
+                        <Button size="icon" variant="ghost" className="h-9 w-9 shrink-0 text-[#aebac1] hover:bg-white/5 hover:text-[#e9edef]" title="Emoji">
+                          <Smile className="w-5 h-5" />
                         </Button>
                       </PopoverTrigger>
                       <PopoverContent side="top" align="start" className="p-0 border-0 w-auto bg-transparent shadow-none">
                         <EmojiPicker
                           onEmojiClick={(e) => setDraft(d => d + e.emoji)}
-                          theme={Theme.AUTO}
+                          theme={Theme.DARK}
                           emojiStyle={EmojiStyle.NATIVE}
                           width={320}
                           height={380}
@@ -669,17 +675,21 @@ export default function EvolutionChat() {
                         />
                       </PopoverContent>
                     </Popover>
-                    <Button size="icon" variant="ghost" className="h-9 w-9 shrink-0"
+                    <Button size="icon" variant="ghost" className="h-9 w-9 shrink-0 text-[#aebac1] hover:bg-white/5 hover:text-[#e9edef]"
+                      onClick={() => stickerInputRef.current?.click()} title="Sticker (.webp)" disabled={sending}>
+                      <Sticker className="w-5 h-5" />
+                    </Button>
+                    <Button size="icon" variant="ghost" className="h-9 w-9 shrink-0 text-[#aebac1] hover:bg-white/5 hover:text-[#e9edef]"
                       onClick={() => setShowQuickReplies(v => !v)} title="Respostas rápidas">
-                      <Zap className={cn('w-4 h-4', showQuickReplies && 'text-primary')} />
+                      <Zap className={cn('w-5 h-5', showQuickReplies && 'text-[#00a884]')} />
                     </Button>
-                    <Button size="icon" variant="ghost" className="h-9 w-9 shrink-0"
+                    <Button size="icon" variant="ghost" className="h-9 w-9 shrink-0 text-[#aebac1] hover:bg-white/5 hover:text-[#e9edef]"
                       onClick={() => imgInputRef.current?.click()} title="Imagem" disabled={sending}>
-                      <ImageIcon className="w-4 h-4" />
+                      <ImageIcon className="w-5 h-5" />
                     </Button>
-                    <Button size="icon" variant="ghost" className="h-9 w-9 shrink-0"
+                    <Button size="icon" variant="ghost" className="h-9 w-9 shrink-0 text-[#aebac1] hover:bg-white/5 hover:text-[#e9edef]"
                       onClick={() => fileInputRef.current?.click()} title="Arquivo" disabled={sending}>
-                      <Paperclip className="w-4 h-4" />
+                      <Paperclip className="w-5 h-5" />
                     </Button>
                     <textarea
                       placeholder="Digite uma mensagem..."
@@ -687,15 +697,15 @@ export default function EvolutionChat() {
                       onChange={(e) => setDraft(e.target.value)}
                       onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
                       rows={1}
-                      className="flex-1 resize-none rounded-2xl border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring max-h-32"
-                      style={{ minHeight: 36 }}
+                      className="flex-1 resize-none rounded-lg border-0 bg-[#2a3942] text-[#e9edef] placeholder:text-[#8696a0] px-4 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#00a884] max-h-32"
+                      style={{ minHeight: 40 }}
                     />
                     {draft.trim() ? (
-                      <Button onClick={send} size="icon" className="h-9 w-9 shrink-0 rounded-full">
+                      <Button onClick={send} size="icon" className="h-10 w-10 shrink-0 rounded-full bg-[#00a884] hover:bg-[#06cf9c] text-white">
                         <Send className="w-4 h-4" />
                       </Button>
                     ) : (
-                      <Button onClick={startRecording} size="icon" className="h-9 w-9 shrink-0 rounded-full" title="Gravar áudio">
+                      <Button onClick={startRecording} size="icon" className="h-10 w-10 shrink-0 rounded-full bg-[#00a884] hover:bg-[#06cf9c] text-white" title="Gravar áudio">
                         <Mic className="w-4 h-4" />
                       </Button>
                     )}
