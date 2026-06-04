@@ -131,27 +131,53 @@ Deno.serve(async (req) => {
 
     // TEST CONNECTION
     if (action === 'test') {
+      // Try Evolution Go global list first — works with master apikey
+      const list = await fetchJson(`${baseUrl}/instance/all`, {
+        headers: evolutionHeaders(apiKey),
+      }).catch((error) => ({ ok: false, status: 0, data: { error: String(error?.message || error) } }));
+
+      if (list.ok) {
+        const rows = Array.isArray(list.data?.data) ? list.data.data : Array.isArray(list.data) ? list.data : [];
+        const wanted = String(instance || '').toLowerCase();
+        const found = rows.find((it: any) =>
+          String(it?.name || '').toLowerCase() === wanted ||
+          String(it?.id || '').toLowerCase() === wanted
+        );
+
+        if (!found) {
+          return jsonResponse({
+            ok: false,
+            status: 404,
+            mode: 'evolution-go',
+            data: { instance: { state: 'close' }, error: `Instância "${instance}" não encontrada. Disponíveis: ${rows.map((r: any) => r.name).join(', ') || 'nenhuma'}` },
+          });
+        }
+
+        // Use instance-scoped token to query its real state
+        const instToken = found.token || apiKey;
+        const goStatus = await fetchJson(`${baseUrl}/instance/status`, {
+          headers: { apikey: instToken, instanceId: found.id },
+        }).catch(() => ({ ok: false, status: 0, data: {} }));
+
+        const sd = goStatus.data?.data || goStatus.data || {};
+        const connected = sd.Connected ?? sd.connected ?? found.connected;
+        const loggedIn = sd.LoggedIn ?? sd.loggedIn ?? found.loggedIn;
+        const state = connected ? 'open' : loggedIn ? 'connecting' : 'close';
+
+        return jsonResponse({
+          ok: true,
+          status: goStatus.status || 200,
+          mode: 'evolution-go',
+          data: { instance: { state, name: found.name, id: found.id } },
+        });
+      }
+
+      // Fallback: classic Evolution API
       const classic = await fetchJson(`${baseUrl}/instance/connectionState/${encodeURIComponent(instance)}`, {
         headers: evolutionHeaders(apiKey),
       }).catch((error) => ({ ok: false, status: 0, data: { error: String(error?.message || error) } }));
 
-      if (classic.ok || classic.status !== 404) {
-        return jsonResponse({ ok: classic.ok, status: classic.status, mode: 'evolution-api', data: classic.data });
-      }
-
-      const goStatus = await fetchJson(`${baseUrl}/instance/status`, {
-        headers: evolutionHeaders(apiKey),
-      }).catch((error) => ({ ok: false, status: 0, data: { error: String(error?.message || error) } }));
-      const statusData = goStatus.data?.data || goStatus.data || {};
-      const state = statusData.Connected || statusData.connected ? 'open' : statusData.LoggedIn || statusData.loggedIn ? 'connecting' : 'close';
-
-      return jsonResponse({
-        ok: goStatus.ok,
-        status: goStatus.status,
-        mode: 'evolution-go',
-        data: { ...goStatus.data, instance: { state } },
-        fallback: { status: classic.status, data: classic.data },
-      });
+      return jsonResponse({ ok: classic.ok, status: classic.status, mode: 'evolution-api', data: classic.data });
     }
 
     // SET WEBHOOK
