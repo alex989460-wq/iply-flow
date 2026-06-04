@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -100,7 +100,7 @@ export default function EvolutionChat() {
   const recordTimerRef = useRef<number | null>(null);
   const avatarFetchRef = useRef<Set<string>>(new Set());
 
-  const mergeMessage = (prev: EvoMessage[], incoming: EvoMessage) => {
+  const mergeMessage = useCallback((prev: EvoMessage[], incoming: EvoMessage) => {
     if (prev.some((m) => m.id === incoming.id)) return prev;
     if (incoming.external_id && prev.some((m) => m.external_id === incoming.external_id)) return prev;
 
@@ -120,7 +120,7 @@ export default function EvolutionChat() {
     }
 
     return [...prev, incoming];
-  };
+  }, []);
 
   const load = async () => {
     if (!user) return;
