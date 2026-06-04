@@ -392,6 +392,78 @@ export default function EvolutionInstances() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Settings Dialog */}
+      <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <SettingsIcon className="w-5 h-5 text-primary" /> Configurações da instância
+            </DialogTitle>
+            <DialogDescription>
+              Ajustes avançados e eventos de webhook para <b className="text-foreground">{settingsInstance}</b>.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-6 py-2">
+            <div className="space-y-3">
+              <h3 className="text-sm font-semibold">Configurações Avançadas</h3>
+              {[
+                { key: 'alwaysOnline', label: 'Always Online', desc: 'Manter sempre online no WhatsApp' },
+                { key: 'rejectCall', label: 'Reject Call', desc: 'Rejeitar chamadas automaticamente' },
+                { key: 'readMessages', label: 'Read Messages', desc: 'Marcar mensagens como lidas' },
+                { key: 'ignoreGroups', label: 'Ignore Groups', desc: 'Ignorar mensagens de grupos' },
+                { key: 'ignoreStatus', label: 'Ignore Status', desc: 'Ignorar atualizações de status' },
+              ].map((opt) => (
+                <div key={opt.key} className="flex items-start justify-between gap-3 p-3 rounded-lg border border-border/60">
+                  <div className="flex-1">
+                    <div className="text-sm font-medium">{opt.label}</div>
+                    <div className="text-xs text-muted-foreground">{opt.desc}</div>
+                  </div>
+                  <Switch
+                    checked={(advanced as any)[opt.key]}
+                    onCheckedChange={(v) => setAdvanced((a) => ({ ...a, [opt.key]: v }))}
+                  />
+                </div>
+              ))}
+              {advanced.rejectCall && (
+                <div className="space-y-1">
+                  <Label className="text-xs">Mensagem ao rejeitar chamada (opcional)</Label>
+                  <Input
+                    placeholder="Ex: No momento não atendo chamadas, envie uma mensagem."
+                    value={advanced.msgCall}
+                    onChange={(e) => setAdvanced((a) => ({ ...a, msgCall: e.target.value }))}
+                  />
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-3">
+              <h3 className="text-sm font-semibold">Eventos do Webhook</h3>
+              <p className="text-xs text-muted-foreground">Selecione quais eventos a Evolution deve enviar para o sistema.</p>
+              <div className="grid grid-cols-2 gap-2">
+                {WEBHOOK_EVENTS.map((ev) => (
+                  <label key={ev} className="flex items-center gap-2 p-2 rounded border border-border/60 cursor-pointer hover:bg-muted/50">
+                    <Checkbox
+                      checked={webhookEvents.includes(ev) || (ev !== 'ALL' && webhookEvents.includes('ALL'))}
+                      onCheckedChange={() => toggleEvent(ev)}
+                    />
+                    <span className="text-xs font-medium">{ev}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setSettingsOpen(false)}>Cancelar</Button>
+            <Button onClick={saveSettings} disabled={savingSettings} className="gap-2">
+              {savingSettings ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+              Salvar configurações
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   );
 }
