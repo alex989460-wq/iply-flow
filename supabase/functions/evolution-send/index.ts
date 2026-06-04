@@ -140,6 +140,16 @@ async function resolveGoInstance(baseUrl: string, apiKey: string, instance: stri
   ) || rows.find((item: any) => String(item?.token || item?.hash || '') === apiKey) || null;
 }
 
+async function resolveInstanceAuth(baseUrl: string, apiKey: string, instance: string) {
+  const found = await resolveGoInstance(baseUrl, apiKey, instance);
+  return {
+    apiKey: found?.token || found?.hash || apiKey,
+    instanceId: found?.id || found?.instanceId || instance,
+    name: found?.name || found?.instanceName || found?.instance?.instanceName || instance,
+    row: found,
+  };
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
