@@ -46,7 +46,7 @@ function mediaMimeFrom(message: any) {
 
 function profilePicFrom(...items: any[]) {
   for (const item of items) {
-    const url = item?.ProfilePicURL || item?.profilePictureUrl || item?.profilePicture || item?.avatar || item?.picture || item?.pictureUrl;
+    const url = item?.ProfilePicURL || item?.profilePictureUrl || item?.profilePicUrl || item?.profilePicture || item?.avatar || item?.picture || item?.pictureUrl;
     if (url) return url;
   }
   return null;
