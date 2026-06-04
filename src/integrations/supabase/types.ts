@@ -561,6 +561,7 @@ export type Database = {
           direction: string
           external_id: string | null
           id: string
+          instance_name: string | null
           media_mime: string | null
           media_url: string | null
           message_type: string
@@ -578,6 +579,7 @@ export type Database = {
           direction: string
           external_id?: string | null
           id?: string
+          instance_name?: string | null
           media_mime?: string | null
           media_url?: string | null
           message_type?: string
@@ -595,6 +597,7 @@ export type Database = {
           direction?: string
           external_id?: string | null
           id?: string
+          instance_name?: string | null
           media_mime?: string | null
           media_url?: string | null
           message_type?: string

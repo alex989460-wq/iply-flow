@@ -166,6 +166,12 @@ Deno.serve(async (req) => {
     const event = body?.event || body?.type || '';
     const data = body?.data || body;
 
+    // Resolve which instance this event belongs to (Evolution Go + classic variants)
+    const instanceName: string | null =
+      data?.Info?.Instance || data?.instance || data?.instanceName ||
+      body?.instance || body?.instanceName || body?.instanceId ||
+      data?.instanceId || settings.instance_name || null;
+
     // Evolution Go "Message" event format
     if (event === 'Message' && data?.Info) {
       const info = data.Info;
@@ -179,6 +185,7 @@ Deno.serve(async (req) => {
         if (phone) {
           await insertMessageOnce(admin, {
             user_id: settings.user_id,
+            instance_name: instanceName,
             remote_jid: remoteJid,
             phone,
             contact_name: info.PushName || null,
@@ -226,6 +233,7 @@ Deno.serve(async (req) => {
 
       await insertMessageOnce(admin, {
         user_id: settings.user_id,
+        instance_name: instanceName,
         remote_jid: remoteJid,
         phone,
         contact_name: m?.pushName || null,
