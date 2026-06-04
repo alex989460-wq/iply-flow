@@ -29,10 +29,11 @@ function messageType(message: any, fallback = '') {
 }
 
 function mediaUrlFrom(message: any) {
-  return message?.imageMessage?.url
-    || message?.videoMessage?.url
-    || message?.audioMessage?.url
-    || message?.documentMessage?.url
+  return message?.imageMessage?.url || message?.imageMessage?.URL || message?.imageMessage?.staticURL
+    || message?.videoMessage?.url || message?.videoMessage?.URL
+    || message?.audioMessage?.url || message?.audioMessage?.URL
+    || message?.documentMessage?.url || message?.documentMessage?.URL
+    || message?.stickerMessage?.url || message?.stickerMessage?.URL
     || null;
 }
 
