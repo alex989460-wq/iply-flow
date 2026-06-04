@@ -123,40 +123,55 @@ Deno.serve(async (req) => {
     // Note: is_enabled gate removed — if the row exists and is configured, allow sending.
     // The toggle remains purely informational for bot/automation modules.
     const baseUrl = String(settings.base_url || '').replace(/\/$/, '');
-    const apiKey = settings.api_key;
-    const instance = settings.instance_name;
-    if (!baseUrl || !apiKey || !instance) {
-      return jsonResponse({ error: 'Configuração incompleta' }, 400);
+    const apiKey = String(settings.api_key || '').trim();
+    const instance = String(settings.instance_name || '').trim();
+    if (!baseUrl || !apiKey) {
+      return jsonResponse({ error: 'Informe URL Base e API Key em Configurações → Evolution.' }, 200);
     }
 
-    // TEST CONNECTION
+    // TEST PANEL LOGIN / CONNECTION
     if (action === 'test') {
-      // Try Evolution Go global list first — works with master apikey
-      const list = await fetchJson(`${baseUrl}/instance/all`, {
-        headers: evolutionHeaders(apiKey),
-      }).catch((error) => ({ ok: false, status: 0, data: { error: String(error?.message || error) } }));
+      const adminEndpoints = [
+        `${baseUrl}/instance/all`,
+        `${baseUrl}/instance/fetchInstances`,
+        `${baseUrl}/instance/list`,
+      ];
 
-      if (list.ok) {
+      for (const url of adminEndpoints) {
+        const list = await fetchJson(url, {
+          headers: evolutionHeaders(apiKey),
+        }).catch((error) => ({ ok: false, status: 0, data: { error: String(error?.message || error) } }));
+
+        if (!list.ok) continue;
+
         const rows = Array.isArray(list.data?.data) ? list.data.data : Array.isArray(list.data) ? list.data : [];
-        const wanted = String(instance || '').toLowerCase();
+        if (!instance) {
+          return jsonResponse({
+            ok: true,
+            status: list.status,
+            mode: 'evolution-panel',
+            data: { state: 'logged', instances: rows.length },
+          });
+        }
+
+        const wanted = instance.toLowerCase();
         const found = rows.find((it: any) =>
-          String(it?.name || '').toLowerCase() === wanted ||
-          String(it?.id || '').toLowerCase() === wanted
+          String(it?.name || it?.instanceName || it?.instance?.instanceName || '').toLowerCase() === wanted ||
+          String(it?.id || it?.instanceId || '').toLowerCase() === wanted
         );
 
         if (!found) {
           return jsonResponse({
             ok: false,
             status: 404,
-            mode: 'evolution-go',
-            data: { instance: { state: 'close' }, error: `Instância "${instance}" não encontrada. Disponíveis: ${rows.map((r: any) => r.name).join(', ') || 'nenhuma'}` },
+            mode: 'evolution-panel',
+            data: { instance: { state: 'close' }, error: `Instância "${instance}" não encontrada. Adicione ou selecione em Conexões WhatsApp.` },
           });
         }
 
-        // Use instance-scoped token to query its real state
-        const instToken = found.token || apiKey;
+        const instToken = found.token || found.hash || apiKey;
         const goStatus = await fetchJson(`${baseUrl}/instance/status`, {
-          headers: { apikey: instToken, instanceId: found.id },
+          headers: { apikey: instToken, instanceId: found.id || found.instanceId || '' },
         }).catch(() => ({ ok: false, status: 0, data: {} }));
 
         const sd = goStatus.data?.data || goStatus.data || {};
@@ -167,17 +182,19 @@ Deno.serve(async (req) => {
         return jsonResponse({
           ok: true,
           status: goStatus.status || 200,
-          mode: 'evolution-go',
-          data: { instance: { state, name: found.name, id: found.id } },
+          mode: 'evolution-panel',
+          data: { instance: { state, name: found.name || found.instanceName, id: found.id || found.instanceId } },
         });
       }
 
-      // Fallback: classic Evolution API
-      const classic = await fetchJson(`${baseUrl}/instance/connectionState/${encodeURIComponent(instance)}`, {
-        headers: evolutionHeaders(apiKey),
-      }).catch((error) => ({ ok: false, status: 0, data: { error: String(error?.message || error) } }));
+      if (instance) {
+        const classic = await fetchJson(`${baseUrl}/instance/connectionState/${encodeURIComponent(instance)}`, {
+          headers: evolutionHeaders(apiKey),
+        }).catch((error) => ({ ok: false, status: 0, data: { error: String(error?.message || error) } }));
+        return jsonResponse({ ok: classic.ok, status: classic.status, mode: 'evolution-api', data: classic.data });
+      }
 
-      return jsonResponse({ ok: classic.ok, status: classic.status, mode: 'evolution-api', data: classic.data });
+      return jsonResponse({ ok: false, status: 401, mode: 'evolution-panel', error: 'Não foi possível entrar no painel Evolution. Confira URL Base e API Key global.' }, 200);
     }
 
     // SET WEBHOOK
