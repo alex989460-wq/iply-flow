@@ -200,7 +200,7 @@ export default function EvolutionChat() {
     setContacts(cmap);
   };
 
-  useEffect(() => { load(); }, [user]);
+  useEffect(() => { load(); loadInstances(); }, [user, loadInstances]);
 
   useEffect(() => {
     if (!user) return;
