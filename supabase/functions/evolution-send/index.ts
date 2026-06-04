@@ -540,9 +540,12 @@ Deno.serve(async (req) => {
     if (action === 'logout-instance') {
       const targetInstance = String(body.instance || instance).trim();
       const tries = [
+        // Evolution Go (instance-scoped, no path id)
+        { url: `${baseUrl}/instance/logout`, method: 'DELETE' },
+        { url: `${baseUrl}/instance/disconnect`, method: 'POST' },
+        // Evolution API classic
         { url: `${baseUrl}/instance/logout/${encodeURIComponent(targetInstance)}`, method: 'DELETE' },
         { url: `${baseUrl}/instance/logout/${encodeURIComponent(targetInstance)}`, method: 'POST' },
-        { url: `${baseUrl}/instance/disconnect`, method: 'POST' },
       ];
       for (const t of tries) {
         const r = await fetchJson(t.url, { method: t.method, headers: evolutionHeaders(apiKey, true, targetInstance) }, 8000)
