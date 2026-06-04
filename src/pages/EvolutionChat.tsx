@@ -364,7 +364,7 @@ export default function EvolutionChat() {
       id: tempId, phone: selectedPhone, contact_name: null, direction: 'out',
       content: caption || labelFallback,
       message_type: mediaType, media_url: previewUrl, media_mime: file.type,
-      created_at: new Date().toISOString(), _pending: true,
+      created_at: new Date().toISOString(), instance_name: currentInstance || null, _pending: true,
     };
     setMessages(prev => [...prev, optimistic]);
     try {
