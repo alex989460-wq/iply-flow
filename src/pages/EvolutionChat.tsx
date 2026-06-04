@@ -158,28 +158,32 @@ export default function EvolutionChat() {
   }, [selectedPhone]);
 
   const conversations = useMemo(() => {
-    const map = new Map<string, { phone: string; name: string | null; last: EvoMessage; unread: number }>();
+    const map = new Map<string, { phone: string; name: string | null; last: EvoMessage | null; unread: number; lastAt: string }>();
+    Object.values(contacts).forEach((c) => {
+      map.set(c.phone, { phone: c.phone, name: c.name, last: null, unread: 0, lastAt: c.phone === selectedPhone ? new Date().toISOString() : '' });
+    });
     for (const m of messages) {
       const cur = map.get(m.phone);
       if (!cur) {
-        map.set(m.phone, { phone: m.phone, name: m.contact_name, last: m, unread: m.direction === 'in' ? 1 : 0 });
+        map.set(m.phone, { phone: m.phone, name: m.contact_name, last: m, unread: m.direction === 'in' ? 1 : 0, lastAt: m.created_at });
       } else {
-        if (new Date(m.created_at) > new Date(cur.last.created_at)) cur.last = m;
+        if (!cur.last || new Date(m.created_at) > new Date(cur.last.created_at)) cur.last = m;
         if (m.contact_name && !cur.name) cur.name = m.contact_name;
         if (m.direction === 'in') cur.unread += 1;
+        cur.lastAt = cur.last?.created_at || cur.lastAt;
       }
     }
     const arr = Array.from(map.values()).sort((a, b) =>
-      new Date(b.last.created_at).getTime() - new Date(a.last.created_at).getTime()
+      new Date(b.lastAt || 0).getTime() - new Date(a.lastAt || 0).getTime()
     );
     if (!search.trim()) return arr;
     const q = search.toLowerCase();
     return arr.filter(c =>
       c.phone.includes(q.replace(/\D/g, '')) ||
       (c.name || contacts[c.phone]?.name || '').toLowerCase().includes(q) ||
-      c.last.content.toLowerCase().includes(q)
+      (c.last?.content || '').toLowerCase().includes(q)
     );
-  }, [messages, search, contacts]);
+  }, [messages, search, contacts, selectedPhone]);
 
   const thread = useMemo(() => messages.filter((m) => m.phone === selectedPhone), [messages, selectedPhone]);
   const selectedContact = useMemo(() => contacts[selectedPhone || ''] || null, [contacts, selectedPhone]);
@@ -193,6 +197,7 @@ export default function EvolutionChat() {
     const digits = newPhone.replace(/\D/g, '');
     if (!digits) return;
     const phone = digits.startsWith('55') ? digits : `55${digits}`;
+    setContacts(prev => ({ ...prev, [phone]: prev[phone] || { phone, name: null, profile_pic_url: null } }));
     setSelectedPhone(phone);
     setNewPhone('');
   };
@@ -226,18 +231,17 @@ export default function EvolutionChat() {
   const sendMedia = async (file: File, mediaType: 'image' | 'audio' | 'document') => {
     if (!selectedPhone) return;
     setSending(true);
+    const tempId = `tmp-${Date.now()}`;
+    const previewUrl = URL.createObjectURL(file);
+    const optimistic: EvoMessage = {
+      id: tempId, phone: selectedPhone, contact_name: null, direction: 'out',
+      content: mediaType === 'audio' ? '🎤 Áudio' : mediaType === 'image' ? '📷 Imagem' : `📎 ${file.name}`,
+      message_type: mediaType, media_url: previewUrl, media_mime: file.type,
+      created_at: new Date().toISOString(), _pending: true,
+    };
+    setMessages(prev => [...prev, optimistic]);
     try {
       const base64 = await fileToBase64(file);
-      const tempId = `tmp-${Date.now()}`;
-      const previewUrl = URL.createObjectURL(file);
-      const optimistic: EvoMessage = {
-        id: tempId, phone: selectedPhone, contact_name: null, direction: 'out',
-        content: mediaType === 'audio' ? '🎤 Áudio' : mediaType === 'image' ? '📷 Imagem' : `📎 ${file.name}`,
-        message_type: mediaType, media_url: previewUrl, media_mime: file.type,
-        created_at: new Date().toISOString(), _pending: true,
-      };
-      setMessages(prev => [...prev, optimistic]);
-
       const { data, error } = await supabase.functions.invoke('evolution-send', {
         body: {
           action: 'send-media',
