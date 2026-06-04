@@ -1,6 +1,7 @@
 import { NavLink, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSidebar } from '@/contexts/SidebarContext';
+import { useEvolutionUnread } from '@/hooks/useEvolutionUnread';
 import { cn } from '@/lib/utils';
 import {
   LayoutGrid,
@@ -25,11 +26,20 @@ import {
   Smartphone,
   FileText,
 } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import logoSg from '@/assets/logo-sg.png';
 
-const menuItems = [
+type BadgeKey = 'evolution';
+
+const menuItems: Array<{
+  icon: typeof LayoutGrid;
+  label: string;
+  path: string;
+  adminOnly: boolean;
+  badgeKey?: BadgeKey;
+}> = [
   { icon: LayoutGrid, label: 'Dashboard', path: '/dashboard', adminOnly: false },
   { icon: HardDrive, label: 'Servidores', path: '/servers', adminOnly: false },
   { icon: Layers3, label: 'Planos', path: '/plans', adminOnly: false },
@@ -38,8 +48,7 @@ const menuItems = [
   { icon: Receipt, label: 'Cobranças', path: '/billing', adminOnly: false },
   { icon: Megaphone, label: 'Disparo em Massa', path: '/mass-broadcast', adminOnly: false },
   { icon: MessageCircleMore, label: 'Chat', path: '/chat', adminOnly: false },
-  { icon: MessageCircleMore, label: 'Chat Oficial', path: '/meta-chat', adminOnly: false },
-  { icon: MessageCircleMore, label: 'Chat Evolution', path: '/chat-evolution', adminOnly: false },
+  { icon: MessageCircleMore, label: 'Chat Evolution', path: '/chat-evolution', adminOnly: false, badgeKey: 'evolution' },
   { icon: Bot, label: 'Gatilhos de Bot', path: '/bot-triggers', adminOnly: false },
   { icon: Smartphone, label: 'Ativação de Apps', path: '/activation-apps', adminOnly: false },
   { icon: FileText, label: 'Templates Meta', path: '/meta-templates', adminOnly: true },
