@@ -149,10 +149,10 @@ Deno.serve(async (req) => {
         const phone = jidToPhone(remoteJid);
         const msg = data.Message || {};
         const type = messageType(msg, String(info.MediaType || info.Type || '').toLowerCase());
-        const mediaUrl = mediaUrlFrom(msg);
         const mediaMime = mediaMimeFrom(msg);
+        const mediaUrl = await storeIncomingMedia(admin, settings.user_id, info.ID || null, type, mediaMime, mediaBase64From(data) || mediaBase64From(msg), mediaUrlFrom(msg));
         if (phone) {
-          await admin.from('evolution_messages').insert({
+          await insertMessageOnce(admin, {
             user_id: settings.user_id,
             remote_jid: remoteJid,
             phone,
@@ -196,10 +196,10 @@ Deno.serve(async (req) => {
       const msg = m?.message || {};
       const content = messageText(msg);
       const type = messageType(msg);
-      const mediaUrl = mediaUrlFrom(msg);
       const mediaMime = mediaMimeFrom(msg);
+      const mediaUrl = await storeIncomingMedia(admin, settings.user_id, key.id || null, type, mediaMime, mediaBase64From(m) || mediaBase64From(msg), mediaUrlFrom(msg));
 
-      await admin.from('evolution_messages').insert({
+      await insertMessageOnce(admin, {
         user_id: settings.user_id,
         remote_jid: remoteJid,
         phone,
