@@ -9,8 +9,9 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import EmojiPicker, { EmojiStyle, Theme } from 'emoji-picker-react';
 import {
   Loader2, Send, Zap, Plus, RefreshCw, Search, MessageSquare,
-  Phone, X, Smile, Mic, Paperclip, Trash2, Image as ImageIcon, FileText, Sticker,
+  Phone, X, Smile, Mic, Paperclip, Trash2, Image as ImageIcon, FileText, Sticker, QrCode,
 } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
@@ -121,6 +122,7 @@ export default function EvolutionChat() {
   const [previewImage, setPreviewImage] = useState<{ url: string; caption: string } | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [imageToSend, setImageToSend] = useState<{ file: File; url: string; caption: string } | null>(null);
+  const [docToSend, setDocToSend] = useState<{ file: File; caption: string } | null>(null);
   const [filter, setFilter] = useState<'all' | 'unread' | 'media'>('all');
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -396,7 +398,7 @@ export default function EvolutionChat() {
       } else if (kind === 'sticker') {
         sendMedia(f, 'sticker' as 'image');
       } else {
-        sendMedia(f, kind);
+        setDocToSend({ file: f, caption: '' });
       }
     }
     e.target.value = '';
@@ -455,12 +457,18 @@ export default function EvolutionChat() {
           isMobile && selectedPhone ? 'hidden' : 'flex',
           'w-full md:w-80 lg:w-96'
         )}>
-          <div className="px-3 py-2 border-b border-border flex items-center gap-2">
-            <div className="w-7 h-7 rounded-full bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center">
-              <Zap className="w-3.5 h-3.5 text-primary-foreground" />
+          <div className="px-3 py-2.5 border-b border-border flex items-center gap-2 bg-gradient-to-r from-emerald-600/15 via-primary/10 to-cyan-500/10">
+            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-700 flex items-center justify-center shadow-lg shadow-emerald-500/20">
+              <Zap className="w-4 h-4 text-white" />
             </div>
-            <h2 className="font-semibold text-sm flex-1">Evolution Chat</h2>
-            <Button size="icon" variant="ghost" className="h-7 w-7" onClick={load}>
+            <div className="flex-1 min-w-0">
+              <h2 className="font-bold text-sm leading-tight">Evolution Chat</h2>
+              <p className="text-[10px] text-muted-foreground leading-tight">WhatsApp Multi-Sessão</p>
+            </div>
+            <Button asChild size="icon" variant="ghost" className="h-8 w-8 text-emerald-500 hover:text-emerald-400 hover:bg-emerald-500/10" title="Conectar / Gerenciar instâncias">
+              <Link to="/evolution-instances"><QrCode className="w-4 h-4" /></Link>
+            </Button>
+            <Button size="icon" variant="ghost" className="h-8 w-8" onClick={load} title="Atualizar">
               <RefreshCw className={cn('w-3.5 h-3.5', loading && 'animate-spin')} />
             </Button>
           </div>
@@ -782,6 +790,45 @@ export default function EvolutionChat() {
                   setImageToSend(null);
                   sendMedia(data.file, 'image', data.caption.trim());
                   URL.revokeObjectURL(data.url);
+                }}>
+                  <Send className="w-3.5 h-3.5 mr-1" /> Enviar
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Pré-visualização de documento com legenda */}
+      <Dialog open={!!docToSend} onOpenChange={(open) => { if (!open) setDocToSend(null); }}>
+        <DialogContent className="max-w-md p-4 bg-background border-border">
+          {docToSend && (
+            <div className="space-y-3">
+              <div className="text-sm font-semibold">Enviar arquivo</div>
+              <div className="flex items-center gap-3 rounded-md border border-border bg-muted/30 px-3 py-3">
+                <div className="w-10 h-10 rounded-lg bg-primary/15 flex items-center justify-center shrink-0">
+                  <FileText className="w-5 h-5 text-primary" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm font-medium truncate">{docToSend.file.name}</div>
+                  <div className="text-[11px] text-muted-foreground">
+                    {(docToSend.file.size / 1024).toFixed(1)} KB
+                  </div>
+                </div>
+              </div>
+              <textarea
+                placeholder="Adicionar legenda (opcional)..."
+                value={docToSend.caption}
+                onChange={(e) => setDocToSend(s => s ? { ...s, caption: e.target.value } : s)}
+                rows={2}
+                className="w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+              />
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" size="sm" onClick={() => setDocToSend(null)}>Cancelar</Button>
+                <Button size="sm" disabled={sending} onClick={() => {
+                  const data = docToSend;
+                  setDocToSend(null);
+                  sendMedia(data.file, 'document', data.caption.trim());
                 }}>
                   <Send className="w-3.5 h-3.5 mr-1" /> Enviar
                 </Button>

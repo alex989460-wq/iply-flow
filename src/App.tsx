@@ -33,6 +33,7 @@ import ConsultaDue from "./pages/ConsultaDue";
 import MetaTemplates from "./pages/MetaTemplates";
 import MetaChat from "./pages/MetaChat";
 import EvolutionChat from "./pages/EvolutionChat";
+import EvolutionInstances from "./pages/EvolutionInstances";
 import PublicCheckout from "./pages/PublicCheckout";
 import { Loader2 } from "lucide-react";
 
@@ -106,6 +107,7 @@ function AppRoutes() {
       <Route path="/meta-templates" element={<ProtectedRoute><MetaTemplates /></ProtectedRoute>} />
       <Route path="/meta-chat" element={<ProtectedRoute><MetaChat /></ProtectedRoute>} />
       <Route path="/chat-evolution" element={<ProtectedRoute><EvolutionChat /></ProtectedRoute>} />
+      <Route path="/evolution-instances" element={<ProtectedRoute><EvolutionInstances /></ProtectedRoute>} />
       <Route path="*" element={<NotFound />} />
     </Routes>
   );
