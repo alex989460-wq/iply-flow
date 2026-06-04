@@ -95,21 +95,35 @@ Deno.serve(async (req) => {
 
     // TEST CONNECTION
     if (action === 'test') {
-      const r = await fetch(`${baseUrl}/instance/connectionState/${encodeURIComponent(instance)}`, {
-        headers: { apikey: apiKey },
-      });
-      const json = await r.json().catch(() => ({}));
-      return new Response(JSON.stringify({ ok: r.ok, status: r.status, data: json }), {
-        status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      const classic = await fetchJson(`${baseUrl}/instance/connectionState/${encodeURIComponent(instance)}`, {
+        headers: evolutionHeaders(apiKey),
+      }).catch((error) => ({ ok: false, status: 0, data: { error: String(error?.message || error) } }));
+
+      if (classic.ok || classic.status !== 404) {
+        return jsonResponse({ ok: classic.ok, status: classic.status, mode: 'evolution-api', data: classic.data });
+      }
+
+      const goStatus = await fetchJson(`${baseUrl}/instance/status`, {
+        headers: evolutionHeaders(apiKey),
+      }).catch((error) => ({ ok: false, status: 0, data: { error: String(error?.message || error) } }));
+      const statusData = goStatus.data?.data || goStatus.data || {};
+      const state = statusData.Connected || statusData.connected ? 'open' : statusData.LoggedIn || statusData.loggedIn ? 'connecting' : 'close';
+
+      return jsonResponse({
+        ok: goStatus.ok,
+        status: goStatus.status,
+        mode: 'evolution-go',
+        data: { ...goStatus.data, instance: { state } },
+        fallback: { status: classic.status, data: classic.data },
       });
     }
 
     // SET WEBHOOK
     if (action === 'set-webhook') {
       const webhookUrl = `${supabaseUrl}/functions/v1/evolution-webhook?token=${settings.webhook_token}`;
-      const r = await fetch(`${baseUrl}/webhook/set/${encodeURIComponent(instance)}`, {
+      const classic = await fetchJson(`${baseUrl}/webhook/set/${encodeURIComponent(instance)}`, {
         method: 'POST',
-        headers: { apikey: apiKey, 'Content-Type': 'application/json' },
+        headers: evolutionHeaders(apiKey, true),
         body: JSON.stringify({
           webhook: {
             enabled: true,
@@ -119,11 +133,34 @@ Deno.serve(async (req) => {
             base64: false,
           },
         }),
-      });
-      const json = await r.json().catch(() => ({}));
-      return new Response(JSON.stringify({ ok: r.ok, webhookUrl, data: json }), {
-        status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+      }).catch((error) => ({ ok: false, status: 0, data: { error: String(error?.message || error) } }));
+
+      if (classic.ok || classic.status !== 404) {
+        return jsonResponse({ ok: classic.ok, status: classic.status, mode: 'evolution-api', webhookUrl, data: classic.data });
+      }
+
+      const instanceId = await resolveGoInstanceId(baseUrl, apiKey, instance);
+      if (!instanceId) {
+        return jsonResponse({
+          ok: false,
+          status: 404,
+          mode: 'evolution-go',
+          webhookUrl,
+          error: 'Instância Evolution Go não encontrada. Use o UUID da instância ou confirme o nome cadastrado.',
+          data: classic.data,
+        });
+      }
+
+      const go = await fetchJson(`${baseUrl}/instance/connect`, {
+        method: 'POST',
+        headers: evolutionHeaders(apiKey, true, instanceId),
+        body: JSON.stringify({
+          webhookUrl,
+          subscribe: ['MESSAGE', 'SEND_MESSAGE', 'CONNECTION'],
+          immediate: true,
+        }),
+      }).catch((error) => ({ ok: false, status: 0, data: { error: String(error?.message || error) } }));
+      return jsonResponse({ ok: go.ok, status: go.status, mode: 'evolution-go', webhookUrl, data: go.data });
     }
 
     // SEND
