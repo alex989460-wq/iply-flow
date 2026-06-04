@@ -5,10 +5,12 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { Switch } from '@/components/ui/switch';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Loader2, QrCode, Plus, RefreshCw, LogOut, CheckCircle2, Smartphone,
-  Wifi, WifiOff, Zap, ShieldCheck, Sparkles,
+  Wifi, WifiOff, Zap, ShieldCheck, Sparkles, Settings as SettingsIcon, Save,
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -47,6 +49,55 @@ export default function EvolutionInstances() {
   const [qrInstance, setQrInstance] = useState<string | null>(null);
   const [qrMsg, setQrMsg] = useState<string | null>(null);
   const pollRef = useRef<number | null>(null);
+
+  const WEBHOOK_EVENTS = ['ALL','MESSAGE','SEND_MESSAGE','READ_RECEIPT','PRESENCE','HISTORY_SYNC','CHAT_PRESENCE','CALL','CONNECTION','QRCODE','CONTACTS','CHATS','GROUPS'];
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsInstance, setSettingsInstance] = useState<string | null>(null);
+  const [savingSettings, setSavingSettings] = useState(false);
+  const [advanced, setAdvanced] = useState({
+    alwaysOnline: false,
+    rejectCall: false,
+    msgCall: '',
+    readMessages: false,
+    ignoreGroups: false,
+    ignoreStatus: false,
+    readStatus: false,
+    syncFullHistory: false,
+  });
+  const [webhookEvents, setWebhookEvents] = useState<string[]>(['MESSAGE','SEND_MESSAGE','CONNECTION']);
+
+  const openSettings = (name: string) => {
+    setSettingsInstance(name);
+    setSettingsOpen(true);
+  };
+
+  const toggleEvent = (ev: string) => {
+    setWebhookEvents((prev) => {
+      if (ev === 'ALL') return prev.includes('ALL') ? [] : ['ALL'];
+      const next = prev.filter((e) => e !== 'ALL');
+      return next.includes(ev) ? next.filter((e) => e !== ev) : [...next, ev];
+    });
+  };
+
+  const saveSettings = async () => {
+    if (!settingsInstance) return;
+    setSavingSettings(true);
+    const { data, error } = await supabase.functions.invoke('evolution-send', {
+      body: {
+        action: 'update-instance-settings',
+        instance: settingsInstance,
+        advanced,
+        webhook: { events: webhookEvents, enabled: webhookEvents.length > 0 },
+      },
+    });
+    setSavingSettings(false);
+    if (error || !data?.ok) {
+      toast({ title: 'Falha', description: error?.message || 'Não foi possível aplicar todas as configurações.', variant: 'destructive' });
+      return;
+    }
+    toast({ title: 'Salvo', description: `Configurações de "${settingsInstance}" aplicadas.` });
+    setSettingsOpen(false);
+  };
 
   const fetchInstances = useCallback(async () => {
     const { data, error } = await supabase.functions.invoke('evolution-send', {
@@ -293,6 +344,9 @@ export default function EvolutionInstances() {
                           <CheckCircle2 className="w-3.5 h-3.5" /> Usar no Chat
                         </Button>
                       )}
+                      <Button size="sm" variant="outline" onClick={() => openSettings(inst.name)} className="gap-1.5">
+                        <SettingsIcon className="w-3.5 h-3.5" /> Configurar
+                      </Button>
                       {connected && (
                         <Button size="sm" variant="ghost" onClick={() => logout(inst.name)} className="gap-1.5 text-rose-400 hover:text-rose-300 hover:bg-rose-500/10">
                           <LogOut className="w-3.5 h-3.5" /> Desconectar
@@ -336,6 +390,78 @@ export default function EvolutionInstances() {
               Instância: <b className="text-foreground">{qrInstance}</b> · O QR atualiza automaticamente.
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Settings Dialog */}
+      <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <SettingsIcon className="w-5 h-5 text-primary" /> Configurações da instância
+            </DialogTitle>
+            <DialogDescription>
+              Ajustes avançados e eventos de webhook para <b className="text-foreground">{settingsInstance}</b>.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-6 py-2">
+            <div className="space-y-3">
+              <h3 className="text-sm font-semibold">Configurações Avançadas</h3>
+              {[
+                { key: 'alwaysOnline', label: 'Always Online', desc: 'Manter sempre online no WhatsApp' },
+                { key: 'rejectCall', label: 'Reject Call', desc: 'Rejeitar chamadas automaticamente' },
+                { key: 'readMessages', label: 'Read Messages', desc: 'Marcar mensagens como lidas' },
+                { key: 'ignoreGroups', label: 'Ignore Groups', desc: 'Ignorar mensagens de grupos' },
+                { key: 'ignoreStatus', label: 'Ignore Status', desc: 'Ignorar atualizações de status' },
+              ].map((opt) => (
+                <div key={opt.key} className="flex items-start justify-between gap-3 p-3 rounded-lg border border-border/60">
+                  <div className="flex-1">
+                    <div className="text-sm font-medium">{opt.label}</div>
+                    <div className="text-xs text-muted-foreground">{opt.desc}</div>
+                  </div>
+                  <Switch
+                    checked={(advanced as any)[opt.key]}
+                    onCheckedChange={(v) => setAdvanced((a) => ({ ...a, [opt.key]: v }))}
+                  />
+                </div>
+              ))}
+              {advanced.rejectCall && (
+                <div className="space-y-1">
+                  <Label className="text-xs">Mensagem ao rejeitar chamada (opcional)</Label>
+                  <Input
+                    placeholder="Ex: No momento não atendo chamadas, envie uma mensagem."
+                    value={advanced.msgCall}
+                    onChange={(e) => setAdvanced((a) => ({ ...a, msgCall: e.target.value }))}
+                  />
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-3">
+              <h3 className="text-sm font-semibold">Eventos do Webhook</h3>
+              <p className="text-xs text-muted-foreground">Selecione quais eventos a Evolution deve enviar para o sistema.</p>
+              <div className="grid grid-cols-2 gap-2">
+                {WEBHOOK_EVENTS.map((ev) => (
+                  <label key={ev} className="flex items-center gap-2 p-2 rounded border border-border/60 cursor-pointer hover:bg-muted/50">
+                    <Checkbox
+                      checked={webhookEvents.includes(ev) || (ev !== 'ALL' && webhookEvents.includes('ALL'))}
+                      onCheckedChange={() => toggleEvent(ev)}
+                    />
+                    <span className="text-xs font-medium">{ev}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setSettingsOpen(false)}>Cancelar</Button>
+            <Button onClick={saveSettings} disabled={savingSettings} className="gap-2">
+              {savingSettings ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+              Salvar configurações
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </DashboardLayout>
