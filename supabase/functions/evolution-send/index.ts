@@ -409,14 +409,17 @@ Deno.serve(async (req) => {
       if (!text) return jsonResponse({ error: 'text obrigatório' }, 400);
       const instAuth = await resolveInstanceAuth(baseUrl, apiKey, instance);
 
+      // Per Evolution API v2 docs all fields are required
       const classicBody: Record<string, unknown> = {
         type: 'text',
         content: text,
+        caption: '',
         backgroundColor: '#075E54',
         font: 1,
         allContacts: true,
+        statusJidList: [],
       };
-      const goBody: Record<string, unknown> = { text, type: 'text', backgroundColor: '#075E54', font: 1 };
+      const goBody: Record<string, unknown> = { text, content: text, type: 'text', backgroundColor: '#075E54', font: 1, allContacts: true, statusJidList: [] };
 
       const attempts: Array<{ url: string; headers: Record<string, string>; body: any; mode: string }> = [
         { url: `${baseUrl}/message/sendStatus/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: classicBody, mode: 'evolution-api-status' },
