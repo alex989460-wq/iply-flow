@@ -402,6 +402,63 @@ Deno.serve(async (req) => {
       return jsonResponse({ ok: true, mode, data: result.data });
     }
 
+    // SEND STATUS (broadcast to status@broadcast - text status)
+    if (action === 'send-status') {
+      if (!instance) return jsonResponse({ error: 'Escolha uma instância em Conexões WhatsApp antes de postar status.' }, 200);
+      const text = String(body.text || '').trim();
+      if (!text) return jsonResponse({ error: 'text obrigatório' }, 400);
+      const instAuth = await resolveInstanceAuth(baseUrl, apiKey, instance);
+
+      const classicBody: Record<string, unknown> = {
+        type: 'text',
+        content: text,
+        backgroundColor: '#075E54',
+        font: 1,
+        allContacts: true,
+      };
+      const goBody: Record<string, unknown> = { text, type: 'text', backgroundColor: '#075E54', font: 1 };
+
+      const attempts: Array<{ url: string; headers: Record<string, string>; body: any; mode: string }> = [
+        { url: `${baseUrl}/message/sendStatus/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: classicBody, mode: 'evolution-api-status' },
+        { url: `${baseUrl}/message/sendStatus`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: goBody, mode: 'evolution-go-status' },
+        { url: `${baseUrl}/send/status`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: goBody, mode: 'evolution-go-send-status' },
+      ];
+
+      let result: any = { ok: false, status: 0, data: {} };
+      let mode = 'evolution-api-status';
+      const log: any[] = [];
+      for (const att of attempts) {
+        const r = await fetchJson(att.url, {
+          method: 'POST',
+          headers: att.headers,
+          body: JSON.stringify(att.body),
+        }).catch((error) => ({ ok: false, status: 0, data: { error: String(error?.message || error) } }));
+        log.push({ url: att.url, mode: att.mode, status: r.status });
+        if (r.ok) { result = r; mode = att.mode; break; }
+        if (r.status !== 404 && r.status !== 405 && r.status !== 400) { result = r; mode = att.mode; break; }
+        result = r; mode = att.mode;
+      }
+
+      if (!result.ok) {
+        const summary = log.map((a) => `${a.mode}:${a.status}`).join(' | ');
+        return jsonResponse({ error: `Seu painel Evolution não permitiu publicar Status (${summary}). Alguns painéis exigem plano/recurso de Status habilitado.`, attempts: log }, 200);
+      }
+
+      await insertOutgoingMessage(admin, {
+        user_id: user.id,
+        instance_name: instance,
+        remote_jid: 'status@broadcast',
+        phone: 'status',
+        direction: 'out',
+        content: text,
+        status: 'sent',
+        external_id: result.data?.key?.id || result.data?.messageId || null,
+        raw: result.data,
+      });
+      return jsonResponse({ ok: true, mode, data: result.data });
+    }
+
+
     // FETCH PROFILE PICTURE
     if (action === 'fetch-profile-pic') {
       if (!instance) return jsonResponse({ error: 'Escolha uma instância em Conexões WhatsApp.' }, 200);

@@ -191,7 +191,10 @@ export default function EvolutionChat() {
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [imageToSend, setImageToSend] = useState<{ file: File; url: string; caption: string } | null>(null);
   const [docToSend, setDocToSend] = useState<{ file: File; caption: string } | null>(null);
-  const [filter, setFilter] = useState<'all' | 'unread' | 'media' | 'groups' | 'contacts'>('all');
+  const [filter, setFilter] = useState<'all' | 'unread' | 'media' | 'groups' | 'contacts' | 'status'>('all');
+  const [showStatusComposer, setShowStatusComposer] = useState(false);
+  const [statusDraft, setStatusDraft] = useState('');
+  const [postingStatus, setPostingStatus] = useState(false);
   const [instances, setInstances] = useState<Array<{ id: string; name: string; phone: string | null; state: string; profile_name: string | null }>>([]);
   const [currentInstance, setCurrentInstance] = useState<string>('');
   const [switchingInstance, setSwitchingInstance] = useState(false);
@@ -406,8 +409,16 @@ export default function EvolutionChat() {
     let filtered = arr;
     if (filter === 'unread') filtered = arr.filter(c => c.unread > 0 && c.last?.direction === 'in');
     else if (filter === 'media') filtered = arr.filter(c => c.last && ['image', 'audio', 'document', 'sticker'].includes(c.last.message_type));
-    else if (filter === 'groups') filtered = arr.filter(c => c.phone && c.phone.length > 15);
-    else if (filter === 'contacts') filtered = arr.filter(c => c.phone && c.phone.length <= 15);
+    else if (filter === 'groups') filtered = arr.filter(c => c.phone && c.phone.length > 15 && c.phone !== 'status');
+    else if (filter === 'contacts') filtered = arr.filter(c => c.phone && c.phone.length <= 15 && c.phone !== 'status');
+    else if (filter === 'status') {
+      const statusConv = arr.find(c => c.phone === 'status')
+        || { phone: 'status', name: 'Status (WhatsApp)', last: null, unread: 0, lastAt: '', lastOutAt: '' };
+      filtered = [statusConv];
+    } else {
+      // 'all' — hide synthetic status entry from the main list
+      filtered = arr.filter(c => c.phone !== 'status');
+    }
     if (!search.trim()) return filtered;
     const q = search.toLowerCase();
     return filtered.filter(c =>
@@ -584,6 +595,23 @@ export default function EvolutionChat() {
       });
       return;
     }
+  };
+
+  const postStatus = async () => {
+    const text = statusDraft.trim();
+    if (!text) return;
+    setPostingStatus(true);
+    const { data, error } = await supabase.functions.invoke('evolution-send', {
+      body: { action: 'send-status', text },
+    });
+    setPostingStatus(false);
+    if (error || data?.error) {
+      toast({ title: 'Falha ao postar status', description: error?.message || data?.error || 'O painel Evolution rejeitou o envio.', variant: 'destructive' });
+      return;
+    }
+    toast({ title: '📢 Status publicado' });
+    setStatusDraft('');
+    setShowStatusComposer(false);
   };
 
 
@@ -853,10 +881,14 @@ export default function EvolutionChat() {
                 { id: 'contacts', label: 'Contatos' },
                 { id: 'groups', label: 'Grupos' },
                 { id: 'media', label: 'Mídia' },
+                { id: 'status', label: '📢 Status' },
               ] as const).map((t) => (
                 <button
                   key={t.id}
-                  onClick={() => setFilter(t.id)}
+                  onClick={() => {
+                    setFilter(t.id);
+                    if (t.id === 'status') setSelectedPhone('status');
+                  }}
                   className={cn(
                     'flex-1 text-[11px] px-2 py-1 rounded-md border transition-colors',
                     filter === t.id
@@ -883,7 +915,8 @@ export default function EvolutionChat() {
                 const active = selectedPhone === c.phone;
                 const isOut = c.last?.direction === 'out';
                 const cc = contacts[c.phone];
-                const displayName = cc?.name || c.name || formatPhone(c.phone);
+                const isStatusEntry = c.phone === 'status';
+                const displayName = isStatusEntry ? '📢 Status (WhatsApp)' : (cc?.name || c.name || formatPhone(c.phone));
                 const isPinnedContact = pinnedContacts.has(c.phone);
                 return (
                   <ContextMenu key={c.phone}>
@@ -970,15 +1003,29 @@ export default function EvolutionChat() {
                     </AvatarFallback>
                   </Avatar>
                   <div className="flex-1 min-w-0 text-left">
-                    <div className="text-sm font-semibold truncate text-[#e9edef]">{selectedName || formatPhone(selectedPhone)}</div>
+                    <div className="text-sm font-semibold truncate text-[#e9edef]">
+                      {selectedPhone === 'status' ? '📢 Status (WhatsApp)' : (selectedName || formatPhone(selectedPhone))}
+                    </div>
                     <div className="text-[11px] text-[#8696a0] flex items-center gap-1">
-                      <Phone className="w-2.5 h-2.5" /> {formatPhone(selectedPhone)}
-                      <span className="mx-1 opacity-50">•</span>
-                      <span className="text-[#00a884]">toque para ver detalhes</span>
+                      {selectedPhone === 'status' ? (
+                        <span>Atualizações recebidas dos seus contatos</span>
+                      ) : (
+                        <>
+                          <Phone className="w-2.5 h-2.5" /> {formatPhone(selectedPhone)}
+                          <span className="mx-1 opacity-50">•</span>
+                          <span className="text-[#00a884]">toque para ver detalhes</span>
+                        </>
+                      )}
                     </div>
                   </div>
                 </button>
-                {isMobile && (
+                {selectedPhone === 'status' && (
+                  <Button size="sm" className="h-7 text-[11px] px-2 bg-[#00a884] hover:bg-[#02906f] text-white"
+                    onClick={() => setShowStatusComposer(true)}>
+                    <Plus className="w-3 h-3 mr-1" /> Postar status
+                  </Button>
+                )}
+                {isMobile && selectedPhone !== 'status' && (
                   <Button size="sm" variant={showRenewalPanel ? 'default' : 'outline'} className="h-7 text-[11px] px-2"
                     onClick={() => setShowRenewalPanel(v => !v)}>
                     <RefreshCw className="w-3 h-3 mr-1" /> Renovar
@@ -1221,6 +1268,17 @@ export default function EvolutionChat() {
 
 
               {/* Composer */}
+              {selectedPhone === 'status' ? (
+                <div className="px-4 py-3 border-t border-[#0b1115] bg-[#202c33] flex items-center justify-between gap-3">
+                  <div className="text-[12px] text-[#8696a0]">
+                    Visualizando Status. Use o botão <span className="text-[#00a884] font-medium">Postar status</span> acima para publicar.
+                  </div>
+                  <Button size="sm" className="h-8 bg-[#00a884] hover:bg-[#02906f] text-white"
+                    onClick={() => setShowStatusComposer(true)}>
+                    <Plus className="w-3.5 h-3.5 mr-1" /> Postar
+                  </Button>
+                </div>
+              ) : (
               <div className="px-2 py-2 border-t border-[#0b1115] bg-[#202c33] flex items-end gap-1.5">
                 <input ref={imgInputRef} type="file" accept="image/*" hidden onChange={onPickFile('image')} />
                 <input ref={fileInputRef} type="file" hidden onChange={onPickFile('document')} />
@@ -1309,6 +1367,7 @@ export default function EvolutionChat() {
                   </>
                 )}
               </div>
+              )}
             </>
           )}
         </div>
@@ -1472,6 +1531,35 @@ export default function EvolutionChat() {
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showStatusComposer} onOpenChange={setShowStatusComposer}>
+        <DialogContent className="max-w-md">
+          <div className="space-y-3">
+            <div className="text-base font-semibold">📢 Postar Status no WhatsApp</div>
+            <div className="text-xs text-muted-foreground">
+              O texto será publicado como Status (broadcast) visível para seus contatos por 24h.
+            </div>
+            <textarea
+              value={statusDraft}
+              onChange={(e) => setStatusDraft(e.target.value)}
+              placeholder="Escreva seu status..."
+              rows={4}
+              maxLength={700}
+              className="w-full rounded-md border border-border bg-background p-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+            />
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[11px] text-muted-foreground">{statusDraft.length}/700</span>
+              <div className="flex gap-2">
+                <Button size="sm" variant="outline" onClick={() => setShowStatusComposer(false)}>Cancelar</Button>
+                <Button size="sm" disabled={postingStatus || !statusDraft.trim()} onClick={postStatus}>
+                  {postingStatus ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <Send className="w-3.5 h-3.5 mr-1" />}
+                  Publicar
+                </Button>
+              </div>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </DashboardLayout>
