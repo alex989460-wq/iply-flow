@@ -243,9 +243,20 @@ export default function EvolutionInstances() {
                 Gerencie quantas linhas quiser, escaneie o QR direto pelo navegador e ative qual será usada no Chat Evolution.
               </p>
             </div>
-            <Button variant="outline" size="sm" onClick={fetchInstances}>
-              <RefreshCw className="w-4 h-4 mr-2" /> Atualizar
-            </Button>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={async () => {
+                const { data, error } = await supabase.functions.invoke('evolution-send', { body: { action: 'set-webhook-all' } });
+                if (error) { toast({ title: 'Erro', description: error.message, variant: 'destructive' }); return; }
+                const okCount = (data?.results || []).filter((r: any) => r.ok).length;
+                const total = (data?.results || []).length;
+                toast({ title: 'Webhooks configurados', description: `${okCount}/${total} instâncias OK` });
+              }}>
+                <CheckCircle2 className="w-4 h-4 mr-2" /> Configurar webhooks (todas)
+              </Button>
+              <Button variant="outline" size="sm" onClick={fetchInstances}>
+                <RefreshCw className="w-4 h-4 mr-2" /> Atualizar
+              </Button>
+            </div>
           </div>
         </div>
 
