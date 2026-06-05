@@ -941,7 +941,20 @@ export default function EvolutionChat() {
                       placeholder="Digite uma mensagem..."
                       value={draft}
                       onChange={(e) => setDraft(e.target.value)}
-                      onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && (e.ctrlKey || e.shiftKey)) {
+                          e.preventDefault();
+                          const t = e.currentTarget;
+                          const start = t.selectionStart ?? draft.length;
+                          const end = t.selectionEnd ?? draft.length;
+                          const next = draft.slice(0, start) + '\n' + draft.slice(end);
+                          setDraft(next);
+                          requestAnimationFrame(() => { t.selectionStart = t.selectionEnd = start + 1; });
+                        } else if (e.key === 'Enter') {
+                          e.preventDefault();
+                          send();
+                        }
+                      }}
                       rows={1}
                       className="flex-1 resize-none rounded-lg border-0 bg-[#2a3942] text-[#e9edef] placeholder:text-[#8696a0] px-4 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#00a884] max-h-32"
                       style={{ minHeight: 40 }}
