@@ -29,7 +29,10 @@ interface ResellerAccess {
   updated_at: string;
   credits: number;
   parent_reseller_id: string | null;
+  max_evolution_instances?: number | null;
 }
+
+interface _Unused {
 
 const editSchema = z.object({
   full_name: z.string().min(2, "Nome deve ter no mínimo 2 caracteres").max(100),
