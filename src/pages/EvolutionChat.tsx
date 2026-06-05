@@ -354,7 +354,7 @@ export default function EvolutionChat() {
       (c.name || contacts[c.phone]?.name || '').toLowerCase().includes(q) ||
       (c.last?.content || '').toLowerCase().includes(q)
     );
-  }, [instanceMessages, search, contacts, selectedPhone, filter, instancePhones]);
+  }, [instanceMessages, search, contacts, selectedPhone, filter, instancePhones, pinnedContacts]);
 
   const thread = useMemo(() => instanceMessages.filter((m) => m.phone === selectedPhone), [instanceMessages, selectedPhone]);
   const selectedContact = useMemo(() => contacts[selectedPhone || ''] || null, [contacts, selectedPhone]);
