@@ -247,6 +247,11 @@ export default function BillingSettingsCard() {
         notification_phone: data.notification_phone || '',
         renewal_message_template: data.renewal_message_template || null,
         renewal_image_url: data.renewal_image_url || '',
+        use_evolution_billing: !!data.use_evolution_billing,
+        evolution_instance: data.evolution_instance || null,
+        evolution_msg_d_minus_1: data.evolution_msg_d_minus_1 || null,
+        evolution_msg_d0: data.evolution_msg_d0 || null,
+        evolution_msg_d_plus_1: data.evolution_msg_d_plus_1 || null,
       };
 
       if (settings?.id) {
