@@ -1249,14 +1249,75 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
   const openSendBillingDialog = async (customer: any) => {
     setSendingBillingCustomer(customer);
     setSelectedTemplate('');
+    const evoDefault = !!billingSettings?.use_evolution_billing;
+    setUseEvolutionForBilling(evoDefault);
+    setSelectedEvoTemplateKey('D0');
     setIsSendBillingOpen(true);
-    if (templates.length === 0) {
+    if (!evoDefault && templates.length === 0 && zapSettings?.selected_department_id) {
       await fetchTemplates();
     }
   };
 
+  const renderEvolutionTemplate = (tpl: string, c: any): string => {
+    const dueDate = c?.due_date
+      ? new Date(c.due_date + 'T12:00:00').toLocaleDateString('pt-BR')
+      : '';
+    const map: Record<string, string> = {
+      nome: c?.name || '',
+      vencimento: dueDate,
+      usuario: c?.username || '',
+      plano: c?.plans?.plan_name || '',
+      valor: c?.custom_price ? `R$ ${Number(c.custom_price).toFixed(2)}` : '',
+      servidor: c?.servers?.server_name || '',
+      pix: billingSettings?.pix_key || '',
+      telefone: c?.phone || '',
+    };
+    return tpl.replace(/\{\{\s*(\w+)\s*\}\}/g, (_m, k) => map[k] ?? '');
+  };
+
   const sendIndividualBilling = async () => {
-    if (!sendingBillingCustomer || !selectedTemplate || !zapSettings?.selected_department_id) return;
+    if (!sendingBillingCustomer) return;
+
+    // Evolution branch
+    if (useEvolutionForBilling) {
+      const instance = billingSettings?.evolution_instance;
+      if (!instance) {
+        toast({ title: 'Instância não configurada', description: 'Configure uma instância Evolution em Configurações → Cobrança.', variant: 'destructive' });
+        return;
+      }
+      const tplMap: Record<string, string> = {
+        'D-1': billingSettings?.evolution_msg_d_minus_1 || 'Olá {{nome}}, seu plano vence amanhã ({{vencimento}}). PIX: {{pix}}',
+        'D0': billingSettings?.evolution_msg_d0 || 'Olá {{nome}}, seu plano vence hoje ({{vencimento}}). PIX: {{pix}}',
+        'D+1': billingSettings?.evolution_msg_d_plus_1 || 'Olá {{nome}}, seu plano venceu em {{vencimento}}. PIX: {{pix}}',
+      };
+      const text = renderEvolutionTemplate(tplMap[selectedEvoTemplateKey], sendingBillingCustomer);
+      const phone = sendingBillingCustomer.phone.replace(/\D/g, '');
+      const phoneWithCode = phone.startsWith('55') ? phone : `55${phone}`;
+      setIsSendingBilling(true);
+      try {
+        const { data, error } = await supabase.functions.invoke('evolution-send', {
+          body: { action: 'send', instance, phone: phoneWithCode, text },
+        });
+        if (error) throw error;
+        if (data?.error) throw new Error(data.error);
+        await supabase.from('billing_logs').insert({
+          customer_id: sendingBillingCustomer.id,
+          billing_type: selectedEvoTemplateKey === 'D-1' ? 'D-1' : selectedEvoTemplateKey === 'D+1' ? 'D+1' : 'D0',
+          message: `Evolution (${instance}) - ${selectedEvoTemplateKey}`,
+          whatsapp_status: 'sent',
+        });
+        toast({ title: 'Cobrança enviada!', description: `Mensagem enviada pela Evolution para ${sendingBillingCustomer.name}.` });
+        setIsSendBillingOpen(false);
+        setSendingBillingCustomer(null);
+      } catch (err: any) {
+        toast({ title: 'Erro ao enviar pela Evolution', description: err.message, variant: 'destructive' });
+      } finally {
+        setIsSendingBilling(false);
+      }
+      return;
+    }
+
+    if (!selectedTemplate || !zapSettings?.selected_department_id) return;
     
     setIsSendingBilling(true);
     try {
