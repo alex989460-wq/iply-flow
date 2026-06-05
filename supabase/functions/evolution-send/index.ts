@@ -775,41 +775,48 @@ Deno.serve(async (req) => {
 
       const instAuth = await resolveInstanceAuth(baseUrl, apiKey, targetInstance);
       // Try logout first (some panels require it before delete)
-      await fetchJson(`${baseUrl}/instance/logout`, {
-        method: 'DELETE', headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId),
-      }, 5000).catch(() => null);
+      const logoutTries = [
+        { url: `${baseUrl}/instance/logout`, method: 'DELETE', headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId) },
+        { url: `${baseUrl}/instance/logout/${encodeURIComponent(targetInstance)}`, method: 'DELETE', headers: evolutionHeaders(apiKey, true) },
+      ];
+      for (const t of logoutTries) {
+        await fetchJson(t.url, { method: t.method, headers: t.headers }, 5000).catch(() => null);
+      }
 
       const tries = [
-        // Evolution Go
+        // Evolution Go (instance-scoped auth)
+        { url: `${baseUrl}/instance/${encodeURIComponent(instAuth.instanceId)}`, method: 'DELETE', headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId) },
         { url: `${baseUrl}/instance/${encodeURIComponent(instAuth.instanceId)}`, method: 'DELETE', headers: evolutionHeaders(apiKey, true) },
         { url: `${baseUrl}/instance/delete`, method: 'DELETE', headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId) },
-        // Classic Evolution API
+        // Classic Evolution API (global key)
         { url: `${baseUrl}/instance/delete/${encodeURIComponent(targetInstance)}`, method: 'DELETE', headers: evolutionHeaders(apiKey, true) },
         { url: `${baseUrl}/instance/delete/${encodeURIComponent(targetInstance)}`, method: 'POST', headers: evolutionHeaders(apiKey, true) },
+        { url: `${baseUrl}/instance/${encodeURIComponent(targetInstance)}`, method: 'DELETE', headers: evolutionHeaders(apiKey, true) },
+        { url: `${baseUrl}/manager/instance/delete/${encodeURIComponent(targetInstance)}`, method: 'DELETE', headers: evolutionHeaders(apiKey, true) },
       ];
-      const attempts: Array<{ url: string; method: string; status: number }> = [];
+      const attempts: Array<{ url: string; method: string; status: number; body?: any }> = [];
       let ok = false;
       for (const t of tries) {
         const r = await fetchJson(t.url, { method: t.method, headers: t.headers, body: t.method === 'POST' ? '{}' : undefined }, 8000)
           .catch(() => ({ ok: false, status: 0, data: {} as any }));
-        attempts.push({ url: t.url, method: t.method, status: r.status });
-        if (r.ok) { ok = true; break; }
+        attempts.push({ url: t.url, method: t.method, status: r.status, body: r.data });
+        if (r.ok || r.status === 404) { ok = true; break; } // 404 = already gone
       }
 
       // Remove ownership record regardless of remote outcome (so user isn't locked out of slot)
-      await admin.from('user_evolution_instances')
-        .delete()
-        .eq('instance_name', targetInstance)
-        .eq('user_id', isAdminUser ? (await admin.from('user_evolution_instances').select('user_id').eq('instance_name', targetInstance).maybeSingle()).data?.user_id || user.id : user.id);
+      const ownerDel = admin.from('user_evolution_instances').delete().eq('instance_name', targetInstance);
+      if (!isAdminUser) ownerDel.eq('user_id', user.id);
+      await ownerDel;
 
       // Clear active instance if it was the deleted one
       if (settings.instance_name === targetInstance) {
         await admin.from('evolution_settings').update({ instance_name: '' }).eq('user_id', user.id);
       }
 
-      if (!ok) return jsonResponse({ ok: false, error: 'Falha ao excluir no painel Evolution (registro local removido).', attempts }, 200);
+      if (!ok) return jsonResponse({ ok: false, error: 'Falha ao excluir no painel Evolution. Registro local removido — tente novamente ou exclua manualmente no painel.', attempts }, 200);
       return jsonResponse({ ok: true, attempts });
     }
+
 
 
     // SET ACTIVE INSTANCE (saves to evolution_settings.instance_name)

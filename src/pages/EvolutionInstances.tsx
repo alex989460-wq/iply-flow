@@ -232,13 +232,22 @@ export default function EvolutionInstances() {
     const { data, error } = await supabase.functions.invoke('evolution-send', {
       body: { action: 'delete-instance', instance: name },
     });
-    if (error || (!data?.ok && !data?.attempts)) {
-      toast({ title: 'Falha', description: data?.error || error?.message || 'Erro ao excluir', variant: 'destructive' });
+    if (error || !data?.ok) {
+      const attemptsInfo = Array.isArray(data?.attempts)
+        ? ` (tentativas: ${data.attempts.map((a: any) => `${a.method} ${a.status}`).join(', ')})`
+        : '';
+      toast({
+        title: 'Falha ao excluir',
+        description: (data?.error || error?.message || 'Erro ao excluir') + attemptsInfo,
+        variant: 'destructive',
+      });
+      fetchInstances();
       return;
     }
     toast({ title: 'Instância excluída', description: name });
     fetchInstances();
   };
+
 
   return (
     <DashboardLayout>
