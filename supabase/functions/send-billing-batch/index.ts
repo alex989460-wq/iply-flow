@@ -235,6 +235,60 @@ async function sendWhatsAppTemplateZap(
   }
 }
 
+// Send free text via Evolution API
+async function sendEvolutionText(
+  baseUrl: string,
+  apiKey: string,
+  instance: string,
+  phone: string,
+  text: string,
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    let formattedPhone = phone.replace(/\D/g, '');
+    if (!formattedPhone.startsWith('55') && formattedPhone.length <= 11) {
+      formattedPhone = '55' + formattedPhone;
+    }
+    const cleanBase = baseUrl.replace(/\/$/, '');
+    const attempts = [
+      { url: `${cleanBase}/send/text`, body: { number: formattedPhone, text } },
+      { url: `${cleanBase}/message/sendText/${encodeURIComponent(instance)}`, body: { number: formattedPhone, text } },
+      { url: `${cleanBase}/message/sendText/${encodeURIComponent(instance)}`, body: { number: formattedPhone, textMessage: { text } } },
+    ];
+    let lastErr = '';
+    for (const a of attempts) {
+      try {
+        const r = await fetch(a.url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', apikey: apiKey, Authorization: `Bearer ${apiKey}` },
+          body: JSON.stringify(a.body),
+        });
+        if (r.ok) return { success: true };
+        lastErr = `HTTP ${r.status}`;
+        if (r.status !== 404 && r.status !== 405 && r.status !== 400) break;
+      } catch (e: any) {
+        lastErr = String(e?.message || e);
+      }
+    }
+    return { success: false, error: `Evolution: ${lastErr || 'falhou'}` };
+  } catch (e: any) {
+    return { success: false, error: String(e?.message || e) };
+  }
+}
+
+function renderEvolutionTemplate(tpl: string, c: Customer & Record<string, any>, extras: Record<string, any>): string {
+  const map: Record<string, string> = {
+    nome: c.name || '',
+    vencimento: c.due_date || '',
+    usuario: extras.usuario || (c as any).username || '',
+    plano: extras.plano || '',
+    valor: extras.valor || '',
+    servidor: extras.servidor || '',
+    pix: extras.pix || '',
+    telefone: c.phone || '',
+  };
+  return tpl.replace(/\{\{\s*(\w+)\s*\}\}/g, (_m, k) => map[k] ?? '');
+}
+
 // Get dates relative to São Paulo timezone
 function getRelativeDateSaoPaulo(daysOffset: number): string {
   const now = new Date();
