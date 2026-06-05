@@ -64,6 +64,26 @@ import { triggerWelcomeBot } from '@/hooks/useBotTriggers';
 
 type CustomerStatus = Database['public']['Enums']['customer_status'];
 
+function formatBrazilPhoneInput(value: string) {
+  const digits = value.replace(/\D/g, '').slice(0, 13);
+  if (!digits) return '';
+  if (digits.startsWith('55')) {
+    const ddd = digits.slice(2, 4);
+    const number = digits.slice(4);
+    if (!ddd) return '+55';
+    if (!number) return `+55 (${ddd}`;
+    const prefix = number.length > 4 ? number.slice(0, -4) : number;
+    const suffix = number.length > 4 ? number.slice(-4) : '';
+    return `+55 (${ddd}) ${prefix}${suffix ? `-${suffix}` : ''}`;
+  }
+  const ddd = digits.slice(0, 2);
+  const number = digits.slice(2);
+  if (!number) return ddd;
+  const prefix = number.length > 4 ? number.slice(0, -4) : number;
+  const suffix = number.length > 4 ? number.slice(-4) : '';
+  return `(${ddd}) ${prefix}${suffix ? `-${suffix}` : ''}`;
+}
+
 export default function Customers() {
   const [isOpen, setIsOpen] = useState(false);
   const [isRenewOpen, setIsRenewOpen] = useState(false);
