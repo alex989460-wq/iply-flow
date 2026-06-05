@@ -288,9 +288,14 @@ Deno.serve(async (req) => {
 
     // SET WEBHOOK ON ALL INSTANCES
     if (action === 'set-webhook-all') {
-      const list = await fetchJson(`${baseUrl}/instances`, { method: 'GET', headers: evolutionHeaders(apiKey, false) }, 10000)
-        .catch(() => ({ ok: false, status: 0, data: [] as any }));
-      const arr: any[] = Array.isArray(list.data) ? list.data : Array.isArray(list.data?.instances) ? list.data.instances : [];
+      const tries = [`${baseUrl}/instance/fetchInstances`, `${baseUrl}/instance/all`, `${baseUrl}/instance/list`];
+      let arr: any[] = [];
+      for (const url of tries) {
+        const r = await fetchJson(url, { headers: evolutionHeaders(apiKey) }, 8000).catch(() => ({ ok: false, data: {} as any }));
+        if (!r.ok) continue;
+        const rows = Array.isArray(r.data?.data) ? r.data.data : Array.isArray(r.data) ? r.data : [];
+        if (rows.length) { arr = rows; break; }
+      }
       const webhookUrl = `${supabaseUrl}/functions/v1/evolution-webhook?token=${settings.webhook_token}`;
       const results: any[] = [];
       for (const inst of arr) {
