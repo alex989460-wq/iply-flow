@@ -597,6 +597,23 @@ export default function EvolutionChat() {
     }
   };
 
+  const postStatus = async () => {
+    const text = statusDraft.trim();
+    if (!text) return;
+    setPostingStatus(true);
+    const { data, error } = await supabase.functions.invoke('evolution-send', {
+      body: { action: 'send-status', text },
+    });
+    setPostingStatus(false);
+    if (error || data?.error) {
+      toast({ title: 'Falha ao postar status', description: error?.message || data?.error || 'O painel Evolution rejeitou o envio.', variant: 'destructive' });
+      return;
+    }
+    toast({ title: '📢 Status publicado' });
+    setStatusDraft('');
+    setShowStatusComposer(false);
+  };
+
 
 
 
