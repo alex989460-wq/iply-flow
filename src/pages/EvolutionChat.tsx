@@ -122,39 +122,34 @@ function rawBase64From(raw: unknown) {
 }
 
 function extractQuotedFromRaw(raw: unknown): { id: string | null; text: string; fromMe: boolean } | null {
-  const r = raw as any;
-  const localQuoted = r?.__quoted || r?.data?.__quoted;
+  const localQuoted = (getNestedValue(raw, ['__quoted']) || getNestedValue(raw, ['data', '__quoted'])) as Record<string, unknown> | undefined;
   if (localQuoted?.id || localQuoted?.text) {
     return {
-      id: localQuoted.id || localQuoted.messageId || null,
-      text: localQuoted.text || '',
+      id: String(localQuoted.id || localQuoted.messageId || '') || null,
+      text: String(localQuoted.text || ''),
       fromMe: !!localQuoted.fromMe,
     };
   }
-  const msg = r?.data?.Message || r?.Message || r?.message || {};
-  const ctx = msg?.extendedTextMessage?.contextInfo
-    || msg?.imageMessage?.contextInfo
-    || msg?.videoMessage?.contextInfo
-    || msg?.audioMessage?.contextInfo
-    || msg?.documentMessage?.contextInfo
-    || msg?.stickerMessage?.contextInfo
-    || msg?.contextInfo;
+  const msg = (getNestedValue(raw, ['data', 'Message']) || getNestedValue(raw, ['Message']) || getNestedValue(raw, ['message']) || {}) as Record<string, unknown>;
+  const ctx = (getNestedValue(msg, ['extendedTextMessage', 'contextInfo'])
+    || getNestedValue(msg, ['imageMessage', 'contextInfo'])
+    || getNestedValue(msg, ['videoMessage', 'contextInfo'])
+    || getNestedValue(msg, ['audioMessage', 'contextInfo'])
+    || getNestedValue(msg, ['documentMessage', 'contextInfo'])
+    || getNestedValue(msg, ['stickerMessage', 'contextInfo'])
+    || getNestedValue(msg, ['contextInfo'])) as Record<string, unknown> | undefined;
   if (!ctx) return null;
-  const stanzaId = ctx?.stanzaId || ctx?.StanzaID || ctx?.stanzaID || null;
-  const qm = ctx?.quotedMessage || ctx?.QuotedMessage || null;
+  const stanzaId = String(ctx?.stanzaId || ctx?.StanzaID || ctx?.stanzaID || '') || null;
+  const qm = (ctx?.quotedMessage || ctx?.QuotedMessage || null) as Record<string, unknown> | null;
   if (!stanzaId && !qm) return null;
   const text =
-    qm?.conversation
-    || qm?.extendedTextMessage?.text
-    || qm?.imageMessage?.caption
-    || qm?.videoMessage?.caption
-    || qm?.documentMessage?.caption
+    String(qm?.conversation || getNestedValue(qm, ['extendedTextMessage', 'text']) || getNestedValue(qm, ['imageMessage', 'caption']) || getNestedValue(qm, ['videoMessage', 'caption']) || getNestedValue(qm, ['documentMessage', 'caption']) || '')
     || (qm?.audioMessage ? '🎤 Áudio' : '')
     || (qm?.imageMessage ? '📷 Imagem' : '')
     || (qm?.stickerMessage ? '🌟 Sticker' : '')
     || (qm?.documentMessage ? '📎 Documento' : '')
     || '';
-  const participant = ctx?.participant || ctx?.Participant || '';
+  const participant = String(ctx?.participant || ctx?.Participant || '');
   const fromMe = !!ctx?.fromMe || /@s\.whatsapp\.net/.test(participant) === false;
   return { id: stanzaId, text, fromMe };
 }
