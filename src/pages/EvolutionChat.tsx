@@ -336,9 +336,12 @@ export default function EvolutionChat() {
         cur.lastAt = cur.last?.created_at || cur.lastAt;
       }
     }
-    const arr = Array.from(map.values()).sort((a, b) =>
-      new Date(b.lastAt || 0).getTime() - new Date(a.lastAt || 0).getTime()
-    );
+    const arr = Array.from(map.values()).sort((a, b) => {
+      const pa = pinnedContacts.has(a.phone) ? 1 : 0;
+      const pb = pinnedContacts.has(b.phone) ? 1 : 0;
+      if (pa !== pb) return pb - pa;
+      return new Date(b.lastAt || 0).getTime() - new Date(a.lastAt || 0).getTime();
+    });
     let filtered = arr;
     if (filter === 'unread') filtered = arr.filter(c => c.unread > 0 && c.last?.direction === 'in');
     else if (filter === 'media') filtered = arr.filter(c => c.last && ['image', 'audio', 'document', 'sticker'].includes(c.last.message_type));
