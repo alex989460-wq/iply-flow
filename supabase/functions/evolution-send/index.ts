@@ -270,7 +270,7 @@ Deno.serve(async (req) => {
         method: 'POST',
         headers: evolutionHeaders(apiKey, true),
         body: JSON.stringify({
-          webhook: { enabled: true, url: webhookUrl, events: ['MESSAGES_UPSERT'], byEvents: false, base64: false },
+          webhook: { enabled: true, url: webhookUrl, events: ['MESSAGES_UPSERT'], byEvents: false, base64: true },
         }),
       }).catch((error) => ({ ok: false, status: 0, data: { error: String(error?.message || error) } }));
 
@@ -304,7 +304,7 @@ Deno.serve(async (req) => {
         const instAuth = await resolveInstanceAuth(baseUrl, apiKey, nm);
         const classic = await fetchJson(`${baseUrl}/webhook/set/${encodeURIComponent(nm)}`, {
           method: 'POST', headers: evolutionHeaders(apiKey, true),
-          body: JSON.stringify({ webhook: { enabled: true, url: webhookUrl, events: ['MESSAGES_UPSERT'], byEvents: false, base64: false } }),
+          body: JSON.stringify({ webhook: { enabled: true, url: webhookUrl, events: ['MESSAGES_UPSERT'], byEvents: false, base64: true } }),
         }).catch(() => ({ ok: false, status: 0 }));
         let ok = !!classic.ok;
         if (!ok) {
@@ -768,7 +768,7 @@ Deno.serve(async (req) => {
             fetchJson(`${baseUrl}/webhook/set/${encodeURIComponent(name)}`, {
               method: 'POST',
               headers: evolutionHeaders(apiKey, true),
-              body: JSON.stringify({ webhook: { enabled: true, url: webhookUrl, events: ['MESSAGES_UPSERT'], byEvents: false, base64: false } }),
+              body: JSON.stringify({ webhook: { enabled: true, url: webhookUrl, events: ['MESSAGES_UPSERT'], byEvents: false, base64: true } }),
             }, 8000).catch(() => null),
           );
           await Promise.all(postSetup);
@@ -926,7 +926,7 @@ Deno.serve(async (req) => {
         const enabled = webhook.enabled !== false;
         // Evolution Go does NOT have a separate /webhook endpoint — webhook is set via /instance/connect with subscribe[]
         const goBody = { webhookUrl, subscribe: events, enabled, immediate: false };
-        const classicBody = { webhook: { enabled, url: webhookUrl, events, byEvents: false, base64: false } };
+        const classicBody = { webhook: { enabled, url: webhookUrl, events, byEvents: false, base64: true } };
         const tries = [
           { url: `${baseUrl}/instance/connect`, method: 'POST', headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: goBody },
           { url: `${baseUrl}/webhook/set/${encodeURIComponent(targetInstance)}`, method: 'POST', headers: evolutionHeaders(apiKey, true), body: classicBody },

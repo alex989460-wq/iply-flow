@@ -68,23 +68,35 @@ function extensionFrom(mime: string, type: string) {
   return type === 'sticker' ? 'webp' : type;
 }
 
+function isUsableMediaUrl(url: string | null) {
+  if (!url) return false;
+  // WhatsApp's mmg/mms URLs are encrypted and can't be loaded directly
+  if (/mmg\.whatsapp\.net|mms\.whatsapp\.net|whatsapp\.net\/.+\.enc/i.test(url)) return false;
+  return /^https?:\/\//i.test(url) || url.startsWith('data:');
+}
+
 async function storeIncomingMedia(admin: any, userId: string, externalId: string | null, type: string, mime: string | null, base64: string | null, fallbackUrl: string | null) {
-  if (fallbackUrl) return fallbackUrl;
-  if (!base64) return null;
-  try {
-    const clean = base64.includes(',') ? base64.split(',').pop()! : base64;
-    const contentType = mime || defaultMime(type);
-    const ext = extensionFrom(contentType, type);
-    const path = `${userId}/incoming-${externalId || Date.now()}.${ext}`;
-    const bin = Uint8Array.from(atob(clean), (c) => c.charCodeAt(0));
-    const { error } = await admin.storage.from('evolution-media').upload(path, bin, { contentType, upsert: true });
-    if (error) return null;
-    const { data } = await admin.storage.from('evolution-media').createSignedUrl(path, 60 * 60 * 24 * 365);
-    return data?.signedUrl || null;
-  } catch (error) {
-    console.error('[evolution-webhook] media storage failed', error);
-    return null;
+  // Prefer uploading base64 to storage — WhatsApp's raw media URLs are encrypted and won't render
+  if (base64) {
+    try {
+      const clean = base64.includes(',') ? base64.split(',').pop()! : base64;
+      const contentType = mime || defaultMime(type);
+      const ext = extensionFrom(contentType, type);
+      const path = `${userId}/incoming-${externalId || Date.now()}.${ext}`;
+      const bin = Uint8Array.from(atob(clean), (c) => c.charCodeAt(0));
+      const { error } = await admin.storage.from('evolution-media').upload(path, bin, { contentType, upsert: true });
+      if (!error) {
+        const { data } = await admin.storage.from('evolution-media').createSignedUrl(path, 60 * 60 * 24 * 365);
+        if (data?.signedUrl) return data.signedUrl;
+      } else {
+        console.error('[evolution-webhook] media storage upload failed', error);
+      }
+    } catch (error) {
+      console.error('[evolution-webhook] media storage failed', error);
+    }
   }
+  if (isUsableMediaUrl(fallbackUrl)) return fallbackUrl;
+  return null;
 }
 
 function profilePicFrom(...items: any[]) {
