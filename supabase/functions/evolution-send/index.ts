@@ -103,6 +103,10 @@ async function insertOutgoingMessage(admin: any, row: Record<string, unknown>) {
       .eq('external_id', row.external_id)
       .maybeSingle();
     if (existing?.id) return;
+    if (existing?.id && (row.raw as any)?.__quoted) {
+      await admin.from('evolution_messages').update({ raw: row.raw }).eq('id', existing.id);
+      return;
+    }
   }
   const { error } = await admin.from('evolution_messages').insert(row);
   if (error && error.code !== '23505') console.error('[evolution-send] insert failed', error);
