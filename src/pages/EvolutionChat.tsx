@@ -123,6 +123,14 @@ function rawBase64From(raw: unknown) {
 
 function extractQuotedFromRaw(raw: unknown): { id: string | null; text: string; fromMe: boolean } | null {
   const r = raw as any;
+  const localQuoted = r?.__quoted || r?.data?.__quoted;
+  if (localQuoted?.id || localQuoted?.text) {
+    return {
+      id: localQuoted.id || localQuoted.messageId || null,
+      text: localQuoted.text || '',
+      fromMe: !!localQuoted.fromMe,
+    };
+  }
   const msg = r?.data?.Message || r?.Message || r?.message || {};
   const ctx = msg?.extendedTextMessage?.contextInfo
     || msg?.imageMessage?.contextInfo
@@ -147,8 +155,7 @@ function extractQuotedFromRaw(raw: unknown): { id: string | null; text: string; 
     || (qm?.documentMessage ? '📎 Documento' : '')
     || '';
   const participant = ctx?.participant || ctx?.Participant || '';
-  // If participant is empty AND fromMe context flag absent, default fromMe=false
-  const fromMe = !!ctx?.fromMe || !participant;
+  const fromMe = !!ctx?.fromMe || /@s\.whatsapp\.net/.test(participant) === false;
   return { id: stanzaId, text, fromMe };
 }
 
@@ -578,9 +585,10 @@ export default function EvolutionChat() {
       body: { action: 'send-reaction', phone: m.phone, messageId: m.external_id, fromMe: m.direction === 'out', emoji },
     });
     if (error || data?.error) {
-      // Rollback
-      setLocalReactions(prev => { const n = { ...prev }; delete n[m.external_id!]; return n; });
-      toast({ title: 'Erro ao reagir', description: error?.message || data?.error, variant: 'destructive' });
+      toast({
+        title: 'Reação salva aqui',
+        description: 'Seu painel Evolution não aceitou sincronizar essa reação no WhatsApp, mas ela ficou visível no chat.',
+      });
       return;
     }
   };
@@ -608,10 +616,11 @@ export default function EvolutionChat() {
       fromMe: replyTo.direction === 'out',
       text: replyTo.content || '',
     } : null;
+    const quotedRaw = quoted ? { __quoted: { id: quoted.messageId, text: quoted.text, fromMe: quoted.fromMe } } : undefined;
     const optimistic: EvoMessage = {
       id: tempId, phone: selectedPhone, contact_name: null, direction: 'out',
       content: text, message_type: 'text', media_url: null, media_mime: null,
-      created_at: new Date().toISOString(), instance_name: currentInstance || null, _pending: true,
+      created_at: new Date().toISOString(), instance_name: currentInstance || null, raw: quotedRaw, _pending: true,
     };
     setMessages(prev => [...prev, optimistic]);
     setDraft('');
@@ -625,7 +634,7 @@ export default function EvolutionChat() {
         toast({ title: 'Erro ao enviar', description: error?.message || data?.error || 'Falha', variant: 'destructive' });
         return;
       }
-      setMessages(prev => prev.map(m => m.id === tempId ? { ...m, _pending: false } : m));
+      setMessages(prev => prev.map(m => m.id === tempId ? { ...m, _pending: false, raw: quotedRaw ? { ...(data || {}), ...quotedRaw } : data } : m));
     });
   };
 
