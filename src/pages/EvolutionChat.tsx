@@ -1367,6 +1367,7 @@ export default function EvolutionChat() {
                   </>
                 )}
               </div>
+              )}
             </>
           )}
         </div>
