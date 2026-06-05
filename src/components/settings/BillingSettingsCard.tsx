@@ -15,7 +15,8 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { Save, Loader2, Upload, Trash2, ImageIcon, RefreshCw } from 'lucide-react';
+import { Save, Loader2, Upload, Trash2, ImageIcon, RefreshCw, Zap } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
 
 interface BillingSettings {
   id?: string;
@@ -33,6 +34,11 @@ interface BillingSettings {
   notification_phone: string | null;
   renewal_message_template: string | null;
   renewal_image_url: string | null;
+  use_evolution_billing?: boolean;
+  evolution_instance?: string | null;
+  evolution_msg_d_minus_1?: string | null;
+  evolution_msg_d0?: string | null;
+  evolution_msg_d_plus_1?: string | null;
 }
 
 const DEFAULT_RENEWAL_TEMPLATE = `✅ Olá, *{{nome}}*. Obrigado por confirmar seu pagamento. Segue abaixo os dados da sua assinatura:
