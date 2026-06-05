@@ -551,15 +551,13 @@ export default function EvolutionChat() {
 
   // Extract reactionMessage from raw payload (Evolution Go + classic)
   const extractReaction = (raw: unknown): { targetId: string; emoji: string } | null => {
-    const r = raw as any;
-    const rm =
-      r?.data?.Message?.reactionMessage ||
-      r?.Message?.reactionMessage ||
-      r?.message?.reactionMessage ||
-      r?.reactionMessage;
+    const rm = (getNestedValue(raw, ['data', 'Message', 'reactionMessage']) ||
+      getNestedValue(raw, ['Message', 'reactionMessage']) ||
+      getNestedValue(raw, ['message', 'reactionMessage']) ||
+      getNestedValue(raw, ['reactionMessage'])) as Record<string, unknown> | undefined;
     if (!rm) return null;
-    const targetId = rm?.key?.id || rm?.key?.ID || rm?.Key?.ID || rm?.Key?.id || '';
-    const emoji = rm?.text || rm?.Text || '';
+    const targetId = String(getNestedValue(rm, ['key', 'id']) || getNestedValue(rm, ['key', 'ID']) || getNestedValue(rm, ['Key', 'ID']) || getNestedValue(rm, ['Key', 'id']) || '');
+    const emoji = String(rm?.text || rm?.Text || '');
     if (!targetId) return null;
     return { targetId, emoji };
   };
