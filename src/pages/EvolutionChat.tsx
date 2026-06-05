@@ -825,48 +825,65 @@ export default function EvolutionChat() {
                       const isPinned = pinnedIds.has(m.id);
                       return (
                       <div key={m.id} id={`evo-msg-${m.id}`} className={cn('group flex transition-all rounded-lg', m.direction === 'out' ? 'justify-end' : 'justify-start')}>
-                        <div className={cn(
-                          'max-w-[78%] md:max-w-[65%] rounded-lg px-2 py-1 text-sm shadow-sm relative text-[#e9edef] transition-transform hover:-translate-y-0.5',
-                          m.direction === 'out' ? 'bg-[#005c4b] rounded-tr-sm' : 'bg-[#202c33] rounded-tl-sm',
-                          m._failed && 'ring-1 ring-destructive',
-                          isPinned && 'ring-1 ring-[#00a884]/60',
-                        )}>
-                          {isPinned && (
-                            <Pin className="absolute -top-1.5 -left-1.5 w-3 h-3 text-[#00a884] bg-[#0b141a] rounded-full p-0.5" />
-                          )}
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <button
-                                className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity bg-black/30 hover:bg-black/50 rounded-full p-0.5"
-                                aria-label="Opções da mensagem"
-                              >
-                                <ChevronDown className="w-3 h-3 text-white" />
-                              </button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end" className="w-44">
-                              <DropdownMenuItem onClick={() => togglePin(m.id)}>
-                                {isPinned ? <><PinOff className="w-4 h-4 mr-2" /> Desafixar</> : <><Pin className="w-4 h-4 mr-2" /> Fixar mensagem</>}
-                              </DropdownMenuItem>
-                              {m.content && (
-                                <DropdownMenuItem onClick={() => copyText(m.content)}>
-                                  <Copy className="w-4 h-4 mr-2" /> Copiar texto
-                                </DropdownMenuItem>
+                        <ContextMenu>
+                          <ContextMenuTrigger asChild>
+                            <div className={cn(
+                              'max-w-[78%] md:max-w-[65%] rounded-lg px-2 py-1 text-sm shadow-sm relative text-[#e9edef] transition-transform hover:-translate-y-0.5 cursor-context-menu',
+                              m.direction === 'out' ? 'bg-[#005c4b] rounded-tr-sm' : 'bg-[#202c33] rounded-tl-sm',
+                              m._failed && 'ring-1 ring-destructive',
+                              isPinned && 'ring-1 ring-[#00a884]/60',
+                            )}>
+                              {isPinned && (
+                                <Pin className="absolute -top-1.5 -left-1.5 w-3 h-3 text-[#00a884] bg-[#0b141a] rounded-full p-0.5" />
                               )}
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                          <div className="px-1.5 pt-0.5">
-                            {renderMessageBody(m)}
-                          </div>
-                          <div className="flex items-center justify-end gap-1 px-1.5 pb-0.5 mt-0.5 text-[10px] text-[#aebac1]">
-                            {isPinned && <Pin className="w-2.5 h-2.5 text-[#00a884]" />}
-                            <span>{new Date(m.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
-                            {m.direction === 'out' && (
-                              m._failed ? <span className="text-destructive">⚠️</span>
-                              : m._pending ? <span>⏳</span>
-                              : <span className="text-[#53bdeb] font-bold leading-none">✓✓</span>
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <button
+                                    className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity bg-black/30 hover:bg-black/50 rounded-full p-0.5"
+                                    aria-label="Opções da mensagem"
+                                  >
+                                    <ChevronDown className="w-3 h-3 text-white" />
+                                  </button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end" className="w-44">
+                                  <DropdownMenuItem onClick={() => togglePin(m.id)}>
+                                    {isPinned ? <><PinOff className="w-4 h-4 mr-2" /> Desafixar</> : <><Pin className="w-4 h-4 mr-2" /> Fixar mensagem</>}
+                                  </DropdownMenuItem>
+                                  {m.content && (
+                                    <DropdownMenuItem onClick={() => copyText(m.content)}>
+                                      <Copy className="w-4 h-4 mr-2" /> Copiar texto
+                                    </DropdownMenuItem>
+                                  )}
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                              <div className="px-1.5 pt-0.5">
+                                {renderMessageBody(m)}
+                              </div>
+                              <div className="flex items-center justify-end gap-1 px-1.5 pb-0.5 mt-0.5 text-[10px] text-[#aebac1]">
+                                {isPinned && <Pin className="w-2.5 h-2.5 text-[#00a884]" />}
+                                <span>{new Date(m.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
+                                {m.direction === 'out' && (
+                                  m._failed ? <span className="text-destructive">⚠️</span>
+                                  : m._pending ? <span>⏳</span>
+                                  : <span className="text-[#53bdeb] font-bold leading-none">✓✓</span>
+                                )}
+                              </div>
+                            </div>
+                          </ContextMenuTrigger>
+                          <ContextMenuContent className="w-48">
+                            <ContextMenuItem onClick={() => togglePin(m.id)}>
+                              {isPinned ? <><PinOff className="w-4 h-4 mr-2" /> Desafixar</> : <><Pin className="w-4 h-4 mr-2" /> Fixar mensagem</>}
+                            </ContextMenuItem>
+                            {m.content && (
+                              <ContextMenuItem onClick={() => copyText(m.content)}>
+                                <Copy className="w-4 h-4 mr-2" /> Copiar texto
+                              </ContextMenuItem>
                             )}
-                          </div>
-                        </div>
+                            <ContextMenuItem onClick={() => scrollToMessage(m.id)}>
+                              <Info className="w-4 h-4 mr-2" /> Centralizar
+                            </ContextMenuItem>
+                          </ContextMenuContent>
+                        </ContextMenu>
                       </div>
                     );})}
                   </div>
