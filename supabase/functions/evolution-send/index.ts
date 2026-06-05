@@ -331,7 +331,7 @@ Deno.serve(async (req) => {
 
       // Build optional "quoted" payload (reply-to) compatible with both API flavors
       const quotedRaw = body.quoted as { messageId?: string; fromMe?: boolean; text?: string } | null | undefined;
-      const quoted = quotedRaw && quotedRaw.messageId ? {
+      const quotedClassic = quotedRaw && quotedRaw.messageId ? {
         key: {
           remoteJid: `${phone}@s.whatsapp.net`,
           fromMe: !!quotedRaw.fromMe,
@@ -339,14 +339,18 @@ Deno.serve(async (req) => {
         },
         message: { conversation: String(quotedRaw.text || '') },
       } : null;
+      const quotedGo = quotedRaw && quotedRaw.messageId ? {
+        messageId: String(quotedRaw.messageId),
+        participant: `${phone}@s.whatsapp.net`,
+      } : null;
 
       const goBody: Record<string, unknown> = { number: phone, text };
       const goBodyMsg: Record<string, unknown> = { number: phone, message: text };
       const classicBody: Record<string, unknown> = { number: phone, text };
       const classicBodyV1: Record<string, unknown> = { number: phone, textMessage: { text } };
-      if (quoted) {
-        goBody.quoted = quoted; goBodyMsg.quoted = quoted;
-        classicBody.quoted = quoted; classicBodyV1.quoted = quoted;
+      if (quotedGo && quotedClassic) {
+        goBody.quoted = quotedGo; goBodyMsg.quoted = quotedGo;
+        classicBody.quoted = quotedClassic; classicBodyV1.quoted = quotedClassic;
       }
 
       const attempts: Array<{ url: string; headers: Record<string, string>; body: any; mode: string }> = [
@@ -389,7 +393,7 @@ Deno.serve(async (req) => {
         content: text,
         status: 'sent',
         external_id: result.data?.key?.id || result.data?.messageId || result.data?.data?.Info?.ID || result.data?.Info?.ID || null,
-        raw: result.data,
+        raw: quotedRaw?.messageId ? { ...result.data, __quoted: { id: quotedRaw.messageId, text: quotedRaw.text || '', fromMe: !!quotedRaw.fromMe } } : result.data,
       });
       return jsonResponse({ ok: true, mode, data: result.data });
     }
@@ -465,6 +469,8 @@ Deno.serve(async (req) => {
       const key = { remoteJid: jid, fromMe, id: messageId };
 
       const attempts: Array<{ url: string; headers: Record<string, string>; body: any; mode: string }> = [
+        // Evolution Go official endpoint
+        { url: `${baseUrl}/message/react`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { id: messageId, number: phone, reaction: emoji }, mode: 'evo-go-react' },
         // Evolution API v2 (Node) — canonical
         { url: `${baseUrl}/message/sendReaction/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { key, reaction: emoji }, mode: 'evo-api-v2' },
         { url: `${baseUrl}/message/sendReaction/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { reactionMessage: { key, text: emoji } }, mode: 'evo-api-v2-rm' },
