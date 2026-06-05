@@ -169,6 +169,13 @@ export default function EvolutionChat() {
     catch { return new Set(); }
   });
   const [reactionPickerFor, setReactionPickerFor] = useState<EvoMessage | null>(null);
+  const [replyTo, setReplyTo] = useState<EvoMessage | null>(null);
+  const [hiddenIds, setHiddenIds] = useState<Set<string>>(new Set());
+  const [favorites, setFavorites] = useState<EvoMessage[]>(() => {
+    try { return JSON.parse(localStorage.getItem('evo_favorites') || '[]'); } catch { return []; }
+  });
+  const [showFavorites, setShowFavorites] = useState(false);
+  const composerRef = useRef<HTMLTextAreaElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const stickerInputRef = useRef<HTMLInputElement>(null);
