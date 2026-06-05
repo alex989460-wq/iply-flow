@@ -154,7 +154,7 @@ export default function EvolutionChat() {
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [imageToSend, setImageToSend] = useState<{ file: File; url: string; caption: string } | null>(null);
   const [docToSend, setDocToSend] = useState<{ file: File; caption: string } | null>(null);
-  const [filter, setFilter] = useState<'all' | 'unread' | 'media'>('all');
+  const [filter, setFilter] = useState<'all' | 'unread' | 'media' | 'groups' | 'contacts'>('all');
   const [instances, setInstances] = useState<Array<{ id: string; name: string; phone: string | null; state: string; profile_name: string | null }>>([]);
   const [currentInstance, setCurrentInstance] = useState<string>('');
   const [switchingInstance, setSwitchingInstance] = useState(false);
