@@ -748,37 +748,55 @@ export default function EvolutionChat() {
                 const isOut = c.last?.direction === 'out';
                 const cc = contacts[c.phone];
                 const displayName = cc?.name || c.name || formatPhone(c.phone);
+                const isPinnedContact = pinnedContacts.has(c.phone);
                 return (
-                  <button
-                    key={c.phone}
-                    onClick={() => setSelectedPhone(c.phone)}
-                    className={cn(
-                      'w-full text-left px-3 py-2.5 border-b border-border/40 hover:bg-accent/50 transition-colors flex gap-2.5 items-start',
-                      active && 'bg-accent'
-                    )}
-                  >
-                    <Avatar className="h-9 w-9 shrink-0">
-                      {cc?.profile_pic_url && <AvatarImage src={cc.profile_pic_url} alt={displayName} />}
-                      <AvatarFallback className="text-[11px] bg-gradient-to-br from-primary/20 to-primary/5 text-primary">
-                        {initials(displayName, c.phone)}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="text-sm font-medium truncate">{displayName}</div>
-                        <div className="text-[10px] text-muted-foreground shrink-0">{c.last ? relativeTime(c.last.created_at) : 'novo'}</div>
-                      </div>
-                      <div className="flex items-center justify-between gap-2 mt-0.5">
-                        <div className="text-[11px] text-muted-foreground truncate">
-                          {isOut && <span className="text-primary mr-1">✓</span>}
-                          {c.last?.content || 'Nova conversa'}
-                        </div>
-                        {!active && c.unread > 0 && c.last?.direction === 'in' && (
-                          <Badge className="h-4 min-w-4 px-1 text-[9px] bg-primary">{c.unread > 99 ? '99+' : c.unread}</Badge>
+                  <ContextMenu key={c.phone}>
+                    <ContextMenuTrigger asChild>
+                      <button
+                        onClick={() => setSelectedPhone(c.phone)}
+                        className={cn(
+                          'w-full text-left px-3 py-2.5 border-b border-border/40 hover:bg-accent/50 transition-colors flex gap-2.5 items-start',
+                          active && 'bg-accent',
+                          isPinnedContact && 'bg-gradient-to-r from-emerald-500/5 to-transparent',
                         )}
-                      </div>
-                    </div>
-                  </button>
+                      >
+                        <Avatar className="h-9 w-9 shrink-0">
+                          {cc?.profile_pic_url && <AvatarImage src={cc.profile_pic_url} alt={displayName} />}
+                          <AvatarFallback className="text-[11px] bg-gradient-to-br from-primary/20 to-primary/5 text-primary">
+                            {initials(displayName, c.phone)}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="text-sm font-medium truncate flex items-center gap-1">
+                              {isPinnedContact && <Pin className="w-3 h-3 text-emerald-500 shrink-0" />}
+                              {displayName}
+                            </div>
+                            <div className="text-[10px] text-muted-foreground shrink-0">{c.last ? relativeTime(c.last.created_at) : 'novo'}</div>
+                          </div>
+                          <div className="flex items-center justify-between gap-2 mt-0.5">
+                            <div className="text-[11px] text-muted-foreground truncate">
+                              {isOut && <span className="text-primary mr-1">✓</span>}
+                              {c.last?.content || 'Nova conversa'}
+                            </div>
+                            {!active && c.unread > 0 && c.last?.direction === 'in' && (
+                              <Badge className="h-4 min-w-4 px-1 text-[9px] bg-primary">{c.unread > 99 ? '99+' : c.unread}</Badge>
+                            )}
+                          </div>
+                        </div>
+                      </button>
+                    </ContextMenuTrigger>
+                    <ContextMenuContent className="w-44">
+                      <ContextMenuItem onClick={() => togglePinnedContact(c.phone)}>
+                        {isPinnedContact
+                          ? <><PinOff className="w-4 h-4 mr-2" /> Desafixar contato</>
+                          : <><Pin className="w-4 h-4 mr-2" /> Fixar contato</>}
+                      </ContextMenuItem>
+                      <ContextMenuItem onClick={() => copyText(formatPhone(c.phone))}>
+                        <Copy className="w-4 h-4 mr-2" /> Copiar número
+                      </ContextMenuItem>
+                    </ContextMenuContent>
+                  </ContextMenu>
                 );
               })
             )}
