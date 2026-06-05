@@ -385,8 +385,8 @@ Deno.serve(async (req) => {
         }).catch((error) => ({ ok: false, status: 0, data: { error: String(error?.message || error) } }));
         log.push({ url: att.url, mode: att.mode, status: r.status });
         if (r.ok) { result = r; mode = att.mode; break; }
-        // Only continue when it's a routing-style failure
-        if (r.status !== 404 && r.status !== 405 && r.status !== 400) {
+        // Continue on routing-style failures AND timeouts/network errors (status 0)
+        if (r.status !== 0 && r.status !== 404 && r.status !== 405 && r.status !== 400) {
           result = r; mode = att.mode; break;
         }
         result = r; mode = att.mode;
