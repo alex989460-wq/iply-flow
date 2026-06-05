@@ -330,7 +330,7 @@ export default function EvolutionChat() {
 
   // Fetch profile pic when opening a conversation without one
   useEffect(() => {
-    if (!selectedPhone || selectedPhone === 'status') return;
+    if (!selectedPhone || selectedPhone.startsWith('status:')) return;
     const c = contacts[selectedPhone];
     if (c?.profile_pic_url) return;
     if (avatarFetchRef.current.has(selectedPhone)) return;
@@ -409,15 +409,19 @@ export default function EvolutionChat() {
     let filtered = arr;
     if (filter === 'unread') filtered = arr.filter(c => c.unread > 0 && c.last?.direction === 'in');
     else if (filter === 'media') filtered = arr.filter(c => c.last && ['image', 'audio', 'document', 'sticker'].includes(c.last.message_type));
-    else if (filter === 'groups') filtered = arr.filter(c => c.phone && c.phone.length > 15 && c.phone !== 'status');
-    else if (filter === 'contacts') filtered = arr.filter(c => c.phone && c.phone.length <= 15 && c.phone !== 'status');
+    else if (filter === 'groups') filtered = arr.filter(c => c.phone && c.phone.length > 15 && !c.phone.startsWith('status'));
+    else if (filter === 'contacts') filtered = arr.filter(c => c.phone && c.phone.length <= 15 && !c.phone.startsWith('status'));
     else if (filter === 'status') {
-      const statusConv = arr.find(c => c.phone === 'status')
-        || { phone: 'status', name: 'Status (WhatsApp)', last: null, unread: 0, lastAt: '', lastOutAt: '' };
-      filtered = [statusConv];
+      // WhatsApp-Web style: "Meu status" + RECENTE list of contacts that posted
+      const meEntry = arr.find(c => c.phone === 'status:me')
+        || { phone: 'status:me', name: 'Meu status', last: null, unread: 0, lastAt: '', lastOutAt: '' };
+      const others = arr.filter(c => c.phone.startsWith('status:') && c.phone !== 'status:me' && c.phone !== 'status:unknown');
+      // Sort recent first
+      others.sort((a, b) => new Date(b.lastAt || 0).getTime() - new Date(a.lastAt || 0).getTime());
+      filtered = [meEntry, ...others];
     } else {
-      // 'all' — hide synthetic status entry from the main list
-      filtered = arr.filter(c => c.phone !== 'status');
+      // 'all' — hide synthetic status entries from the main list
+      filtered = arr.filter(c => !c.phone.startsWith('status'));
     }
     if (!search.trim()) return filtered;
     const q = search.toLowerCase();
@@ -447,8 +451,8 @@ export default function EvolutionChat() {
 
   useEffect(() => {
     const pending = conversations
-      .map((c) => c.phone)
-      .filter((phone) => !contacts[phone]?.profile_pic_url && !avatarFetchRef.current.has(phone))
+      .map((c) => c.phone.startsWith('status:') ? c.phone.slice('status:'.length) : c.phone)
+      .filter((phone) => phone && phone !== 'me' && phone !== 'unknown' && !contacts[phone]?.profile_pic_url && !avatarFetchRef.current.has(phone))
       .slice(0, 8);
     pending.forEach((phone) => {
       avatarFetchRef.current.add(phone);
@@ -887,7 +891,7 @@ export default function EvolutionChat() {
                   key={t.id}
                   onClick={() => {
                     setFilter(t.id);
-                    if (t.id === 'status') setSelectedPhone('status');
+                    if (t.id === 'status') setSelectedPhone('status:me');
                   }}
                   className={cn(
                     'flex-1 text-[11px] px-2 py-1 rounded-md border transition-colors',
@@ -914,9 +918,16 @@ export default function EvolutionChat() {
               conversations.map((c) => {
                 const active = selectedPhone === c.phone;
                 const isOut = c.last?.direction === 'out';
-                const cc = contacts[c.phone];
-                const isStatusEntry = c.phone === 'status';
-                const displayName = isStatusEntry ? '📢 Status (WhatsApp)' : (cc?.name || c.name || formatPhone(c.phone));
+                const isStatusEntry = c.phone.startsWith('status:');
+                const isMyStatus = c.phone === 'status:me';
+                const statusContactPhone = isStatusEntry && !isMyStatus ? c.phone.slice('status:'.length) : '';
+                const statusCC = statusContactPhone ? contacts[statusContactPhone] : null;
+                const cc = isStatusEntry ? statusCC : contacts[c.phone];
+                const displayName = isMyStatus
+                  ? 'Meu status'
+                  : isStatusEntry
+                    ? (statusCC?.name || c.name || formatPhone(statusContactPhone))
+                    : (contacts[c.phone]?.name || c.name || formatPhone(c.phone));
                 const isPinnedContact = pinnedContacts.has(c.phone);
                 return (
                   <ContextMenu key={c.phone}>
@@ -1004,11 +1015,15 @@ export default function EvolutionChat() {
                   </Avatar>
                   <div className="flex-1 min-w-0 text-left">
                     <div className="text-sm font-semibold truncate text-[#e9edef]">
-                      {selectedPhone === 'status' ? '📢 Status (WhatsApp)' : (selectedName || formatPhone(selectedPhone))}
+                      {selectedPhone === 'status:me'
+                        ? '📢 Meu status'
+                        : selectedPhone?.startsWith('status:')
+                          ? (contacts[selectedPhone.slice(7)]?.name || formatPhone(selectedPhone.slice(7)))
+                          : (selectedName || formatPhone(selectedPhone))}
                     </div>
                     <div className="text-[11px] text-[#8696a0] flex items-center gap-1">
-                      {selectedPhone === 'status' ? (
-                        <span>Atualizações recebidas dos seus contatos</span>
+                      {selectedPhone?.startsWith('status:') ? (
+                        <span>{selectedPhone === 'status:me' ? 'Suas publicações de status' : 'Status recente do contato'}</span>
                       ) : (
                         <>
                           <Phone className="w-2.5 h-2.5" /> {formatPhone(selectedPhone)}
@@ -1019,13 +1034,13 @@ export default function EvolutionChat() {
                     </div>
                   </div>
                 </button>
-                {selectedPhone === 'status' && (
+                {selectedPhone === 'status:me' && (
                   <Button size="sm" className="h-7 text-[11px] px-2 bg-[#00a884] hover:bg-[#02906f] text-white"
                     onClick={() => setShowStatusComposer(true)}>
                     <Plus className="w-3 h-3 mr-1" /> Postar status
                   </Button>
                 )}
-                {isMobile && selectedPhone !== 'status' && (
+                {isMobile && !selectedPhone?.startsWith('status:') && (
                   <Button size="sm" variant={showRenewalPanel ? 'default' : 'outline'} className="h-7 text-[11px] px-2"
                     onClick={() => setShowRenewalPanel(v => !v)}>
                     <RefreshCw className="w-3 h-3 mr-1" /> Renovar
@@ -1268,15 +1283,19 @@ export default function EvolutionChat() {
 
 
               {/* Composer */}
-              {selectedPhone === 'status' ? (
+              {selectedPhone?.startsWith('status:') ? (
                 <div className="px-4 py-3 border-t border-[#0b1115] bg-[#202c33] flex items-center justify-between gap-3">
                   <div className="text-[12px] text-[#8696a0]">
-                    Visualizando Status. Use o botão <span className="text-[#00a884] font-medium">Postar status</span> acima para publicar.
+                    {selectedPhone === 'status:me'
+                      ? <>Suas publicações de status. Use <span className="text-[#00a884] font-medium">Postar status</span> para publicar.</>
+                      : 'Visualizando status do contato.'}
                   </div>
-                  <Button size="sm" className="h-8 bg-[#00a884] hover:bg-[#02906f] text-white"
-                    onClick={() => setShowStatusComposer(true)}>
-                    <Plus className="w-3.5 h-3.5 mr-1" /> Postar
-                  </Button>
+                  {selectedPhone === 'status:me' && (
+                    <Button size="sm" className="h-8 bg-[#00a884] hover:bg-[#02906f] text-white"
+                      onClick={() => setShowStatusComposer(true)}>
+                      <Plus className="w-3.5 h-3.5 mr-1" /> Postar
+                    </Button>
+                  )}
                 </div>
               ) : (
               <div className="px-2 py-2 border-t border-[#0b1115] bg-[#202c33] flex items-end gap-1.5">
