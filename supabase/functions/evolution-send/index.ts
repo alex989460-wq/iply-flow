@@ -533,31 +533,25 @@ Deno.serve(async (req) => {
       const key = { remoteJid: jid, fromMe, id: messageId };
 
       const attempts: Array<{ url: string; headers: Record<string, string>; body: any; mode: string }> = [
-        // Evolution Go official endpoint
-        { url: `${baseUrl}/message/react`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { id: messageId, number: phone, reaction: emoji }, mode: 'evo-go-react' },
-        // Evolution API v2 (Node) — canonical
+        // Evolution API v2 (canonical, per docs)
         { url: `${baseUrl}/message/sendReaction/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { key, reaction: emoji }, mode: 'evo-api-v2' },
-        { url: `${baseUrl}/message/sendReaction/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { reactionMessage: { key, reaction: emoji } }, mode: 'evo-api-v2-rm' },
-        // Some forks expose it under /chat
-        { url: `${baseUrl}/chat/sendReaction/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { key, reaction: emoji }, mode: 'evo-api-chat' },
-        { url: `${baseUrl}/chat/sendReaction/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { reactionMessage: { key, reaction: emoji } }, mode: 'evo-api-chat-rm' },
-        // Evolution Go (instance token)
-        { url: `${baseUrl}/send/reaction`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { key, reaction: emoji }, mode: 'evo-go-send' },
-        { url: `${baseUrl}/send/reaction`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: phone, messageId, reaction: emoji, fromMe }, mode: 'evo-go-send-flat' },
+        // Evolution Go variants
         { url: `${baseUrl}/message/sendReaction`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { key, reaction: emoji }, mode: 'evo-go-msg' },
-        { url: `${baseUrl}/message/sendReaction`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { reactionMessage: { key, reaction: emoji } }, mode: 'evo-go-msg-rm' },
-        { url: `${baseUrl}/chat/sendReaction`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { key, reaction: emoji }, mode: 'evo-go-chat' },
-        { url: `${baseUrl}/chat/reaction`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { key, reaction: emoji }, mode: 'evo-go-chat2' },
+        { url: `${baseUrl}/message/react`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { id: messageId, number: phone, reaction: emoji }, mode: 'evo-go-react' },
+        { url: `${baseUrl}/send/reaction`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { key, reaction: emoji }, mode: 'evo-go-send' },
+        { url: `${baseUrl}/chat/sendReaction/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { key, reaction: emoji }, mode: 'evo-api-chat' },
       ];
       let result: any = { ok: false, status: 0, data: {} };
+      let mode = 'evo-api-v2';
       const log: any[] = [];
       for (const att of attempts) {
         const r = await fetchJson(att.url, { method: 'POST', headers: att.headers, body: JSON.stringify(att.body) })
           .catch((error) => ({ ok: false, status: 0, data: { error: String(error?.message || error) } }));
-        log.push({ mode: att.mode, status: r.status });
-        if (r.ok) { result = r; break; }
-        result = r;
+        log.push({ mode: att.mode, status: r.status, data: r.data });
+        if (r.ok) { result = r; mode = att.mode; break; }
+        result = r; mode = att.mode;
       }
+      console.log('[evolution-send] send-reaction', { instance, phone, messageId, emoji, fromMe, ok: result.ok, attempts: log });
       await insertOutgoingMessage(admin, {
         user_id: user.id,
         instance_name: instance,
@@ -571,9 +565,10 @@ Deno.serve(async (req) => {
         raw: { message: { reactionMessage: { key, text: emoji } }, __reactionLocal: !result.ok, attempts: log },
       });
       if (!result.ok) {
-        return jsonResponse({ ok: true, localOnly: true, warning: `Reação salva apenas no chat (${log.map(l => `${l.mode}:${l.status}`).join(' | ')})`, attempts: log }, 200);
+        const summary = log.map((l) => `${l.mode}:${l.status}${l.data?.message ? ` (${typeof l.data.message === 'string' ? l.data.message : JSON.stringify(l.data.message).slice(0, 120)})` : ''}`).join(' | ');
+        return jsonResponse({ ok: true, localOnly: true, warning: `Reação não foi entregue: ${summary}`, attempts: log, lastResponse: result.data }, 200);
       }
-      return jsonResponse({ ok: true, data: result.data });
+      return jsonResponse({ ok: true, mode, data: result.data });
     }
 
     // SEND MEDIA (audio / image / file) — body: { phone, mediaBase64, mimetype, filename, mediaType: 'audio'|'image'|'document', caption? }
