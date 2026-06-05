@@ -538,6 +538,63 @@ export type Database = {
         }
         Relationships: []
       }
+      evolution_billing_schedule: {
+        Row: {
+          created_at: string
+          id: string
+          is_enabled: boolean
+          last_run_at: string | null
+          last_run_status: string | null
+          max_delay_seconds: number
+          message_d_minus_1: string | null
+          message_d_plus_1: string | null
+          message_d0: string | null
+          min_delay_seconds: number
+          send_d_minus_1: boolean
+          send_d_plus_1: boolean
+          send_d0: boolean
+          send_time: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_enabled?: boolean
+          last_run_at?: string | null
+          last_run_status?: string | null
+          max_delay_seconds?: number
+          message_d_minus_1?: string | null
+          message_d_plus_1?: string | null
+          message_d0?: string | null
+          min_delay_seconds?: number
+          send_d_minus_1?: boolean
+          send_d_plus_1?: boolean
+          send_d0?: boolean
+          send_time?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_enabled?: boolean
+          last_run_at?: string | null
+          last_run_status?: string | null
+          max_delay_seconds?: number
+          message_d_minus_1?: string | null
+          message_d_plus_1?: string | null
+          message_d0?: string | null
+          min_delay_seconds?: number
+          send_d_minus_1?: boolean
+          send_d_plus_1?: boolean
+          send_d0?: boolean
+          send_time?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       evolution_contacts: {
         Row: {
           created_at: string

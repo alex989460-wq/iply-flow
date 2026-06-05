@@ -7,7 +7,9 @@ const corsHeaders = {
 };
 
 function jidToPhone(jid: string) {
-  return String(jid || '').split('@')[0].replace(/\D/g, '');
+  const raw = String(jid || '').split('@')[0];
+  if (raw === 'status') return 'status';
+  return raw.replace(/\D/g, '');
 }
 
 function messageText(message: any) {
@@ -218,8 +220,9 @@ Deno.serve(async (req) => {
     if (event === 'Message' && data?.Info) {
       const info = data.Info;
       const remoteJid = info.Chat || '';
-      if (remoteJid && !remoteJid.includes('@g.us')) {
-        const phone = jidToPhone(remoteJid);
+      const isStatus = remoteJid === 'status@broadcast' || remoteJid.startsWith('status@');
+      if (remoteJid && (!remoteJid.includes('@g.us') || isStatus)) {
+        const phone = isStatus ? 'status' : jidToPhone(remoteJid);
         const msg = data.Message || {};
         const type = messageType(msg, String(info.MediaType || info.Type || '').toLowerCase());
         const mediaMime = mediaMimeFrom(msg);
@@ -263,8 +266,9 @@ Deno.serve(async (req) => {
     for (const m of msgs) {
       const key = m?.key || {};
       const remoteJid = key.remoteJid || m?.remoteJid || '';
-      if (!remoteJid || remoteJid.includes('@g.us')) continue;
-      const phone = jidToPhone(remoteJid);
+      const isStatus = remoteJid === 'status@broadcast' || remoteJid.startsWith('status@');
+      if (!remoteJid || (remoteJid.includes('@g.us') && !isStatus)) continue;
+      const phone = isStatus ? 'status' : jidToPhone(remoteJid);
       if (!phone) continue;
       const fromMe = !!key.fromMe;
       const msg = m?.message || {};

@@ -334,65 +334,59 @@ Deno.serve(async (req) => {
 
       console.log(`[Scheduled Billing] Customers to process: ${customersToProcess.length}`);
 
-      // Process in parallel batches of 5 to speed up (CRITICAL OPTIMIZATION)
-      const BATCH_SIZE = 5;
-      for (let i = 0; i < customersToProcess.length; i += BATCH_SIZE) {
-        const batch = customersToProcess.slice(i, i + BATCH_SIZE);
-        
-        // Build template mapping from schedule's saved templates
-        const templateMapping: Record<string, string> = { ...DEFAULT_TEMPLATE_MAPPING };
-        if (schedule.template_d_minus_1) templateMapping['D-1'] = schedule.template_d_minus_1;
-        if (schedule.template_d0) templateMapping['D0'] = schedule.template_d0;
-        if (schedule.template_d_plus_1) templateMapping['D+1'] = schedule.template_d_plus_1;
+      // Sequential send with 15-30s random delay (anti-ban)
+      const MIN_DELAY_MS = 15_000;
+      const MAX_DELAY_MS = 30_000;
+      
+      // Build template mapping from schedule's saved templates
+      const templateMapping: Record<string, string> = { ...DEFAULT_TEMPLATE_MAPPING };
+      if (schedule.template_d_minus_1) templateMapping['D-1'] = schedule.template_d_minus_1;
+      if (schedule.template_d0) templateMapping['D0'] = schedule.template_d0;
+      if (schedule.template_d_plus_1) templateMapping['D+1'] = schedule.template_d_plus_1;
 
-        const batchPromises = batch.map(async (customer) => {
-          const billingType = customer.billingType as 'D-1' | 'D0' | 'D+1';
-          const templateName = templateMapping[billingType];
-          
-          console.log(`[Scheduled] Using template "${templateName}" for ${billingType} (from schedule config)`);
+      for (let i = 0; i < customersToProcess.length; i++) {
+        const customer = customersToProcess[i];
+        const billingType = customer.billingType as 'D-1' | 'D0' | 'D+1';
+        const templateName = templateMapping[billingType];
 
-          const sendResult = await sendWhatsAppTemplate(
-            customer.phone,
-            templateName,
-            zapSettings.zap_api_token,
-            zapSettings.api_base_url,
-            departmentId
-          );
+        console.log(`[Scheduled] (${i + 1}/${customersToProcess.length}) Template "${templateName}" -> ${customer.name}`);
 
-          // Also send to extra_phone if configured
-          if (customer.extra_phone && String(customer.extra_phone).replace(/\D/g, '').length >= 10) {
-            try {
-              await sendWhatsAppTemplate(
-                customer.extra_phone,
-                templateName,
-                zapSettings.zap_api_token,
-                zapSettings.api_base_url,
-                departmentId
-              );
-              console.log(`[Scheduled] Extra phone notified for ${customer.name}: ${customer.extra_phone}`);
-            } catch (e) {
-              console.error(`[Scheduled] Extra phone send failed for ${customer.name}:`, e);
-            }
+        const sendResult = await sendWhatsAppTemplate(
+          customer.phone,
+          templateName,
+          zapSettings.zap_api_token,
+          zapSettings.api_base_url,
+          departmentId
+        );
+
+        if (customer.extra_phone && String(customer.extra_phone).replace(/\D/g, '').length >= 10) {
+          try {
+            await sendWhatsAppTemplate(
+              customer.extra_phone,
+              templateName,
+              zapSettings.zap_api_token,
+              zapSettings.api_base_url,
+              departmentId
+            );
+          } catch (e) {
+            console.error(`[Scheduled] Extra phone send failed for ${customer.name}:`, e);
           }
+        }
 
-          // Log the attempt
-          await supabase
-            .from('billing_logs')
-            .insert({
-              customer_id: customer.id,
-              billing_type: billingType,
-              message: `[Agendado] [${normalizePhone(customer.phone)}] Template: ${templateName}`,
-              whatsapp_status: sendResult.success ? 'sent' : `error: ${sendResult.error}`,
-            });
-
-          return sendResult.success;
+        await supabase.from('billing_logs').insert({
+          customer_id: customer.id,
+          billing_type: billingType,
+          message: `[Agendado] [${normalizePhone(customer.phone)}] Template: ${templateName}`,
+          whatsapp_status: sendResult.success ? 'sent' : `error: ${sendResult.error}`,
         });
 
-        const results = await Promise.all(batchPromises);
-        
-        for (const success of results) {
-          if (success) sent++;
-          else errors++;
+        if (sendResult.success) sent++; else errors++;
+
+        // Anti-ban random delay before next send
+        if (i < customersToProcess.length - 1) {
+          const delay = Math.floor(Math.random() * (MAX_DELAY_MS - MIN_DELAY_MS + 1)) + MIN_DELAY_MS;
+          console.log(`[Scheduled] Waiting ${(delay / 1000).toFixed(1)}s before next send...`);
+          await new Promise((r) => setTimeout(r, delay));
         }
       }
 
