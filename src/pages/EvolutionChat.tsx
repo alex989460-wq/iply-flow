@@ -994,6 +994,54 @@ export default function EvolutionChat() {
         </DialogContent>
       </Dialog>
 
+      {/* Contact info side panel */}
+      <Dialog open={showContactInfo} onOpenChange={setShowContactInfo}>
+        <DialogContent className="max-w-md p-0 overflow-hidden bg-[#111b21] border-[#0b1115] text-[#e9edef]">
+          {selectedPhone && (
+            <div className="flex flex-col">
+              <div className="bg-gradient-to-br from-[#00a884]/30 via-[#1f2a30] to-[#202c33] px-6 pt-8 pb-5 flex flex-col items-center text-center">
+                <button onClick={() => selectedContact?.profile_pic_url && setAvatarPreview(selectedContact.profile_pic_url)}>
+                  <Avatar className="h-28 w-28 ring-4 ring-[#00a884]/40 shadow-xl hover:scale-105 transition-transform">
+                    {selectedContact?.profile_pic_url && <AvatarImage src={selectedContact.profile_pic_url} />}
+                    <AvatarFallback className="text-3xl bg-[#00a884]/20 text-[#00a884]">
+                      {initials(selectedName, selectedPhone)}
+                    </AvatarFallback>
+                  </Avatar>
+                </button>
+                <div className="mt-3 text-lg font-semibold">{selectedName || formatPhone(selectedPhone)}</div>
+                <div className="text-xs text-[#8696a0] flex items-center gap-1 mt-0.5">
+                  <Phone className="w-3 h-3" /> {formatPhone(selectedPhone)}
+                </div>
+              </div>
+              <div className="p-4 space-y-3">
+                <div className="grid grid-cols-3 gap-2">
+                  <Button variant="ghost" className="flex-col h-auto py-3 hover:bg-white/5 text-[#aebac1]" onClick={() => copyText(formatPhone(selectedPhone))}>
+                    <Copy className="w-5 h-5 text-[#00a884]" />
+                    <span className="text-[11px] mt-1">Copiar</span>
+                  </Button>
+                  <Button variant="ghost" className="flex-col h-auto py-3 hover:bg-white/5 text-[#aebac1]" onClick={() => window.open(`https://wa.me/${selectedPhone}`, '_blank')}>
+                    <ExternalLink className="w-5 h-5 text-[#00a884]" />
+                    <span className="text-[11px] mt-1">WhatsApp</span>
+                  </Button>
+                  <Button variant="ghost" className="flex-col h-auto py-3 hover:bg-white/5 text-[#aebac1]" onClick={() => { setShowContactInfo(false); setShowRenewalPanel(true); }}>
+                    <RefreshCw className="w-5 h-5 text-[#00a884]" />
+                    <span className="text-[11px] mt-1">Renovar</span>
+                  </Button>
+                </div>
+                <div className="rounded-lg bg-[#202c33] p-3 space-y-2 text-xs">
+                  <div className="flex justify-between"><span className="text-[#8696a0]">Mensagens</span><span className="font-medium">{thread.length}</span></div>
+                  <div className="flex justify-between"><span className="text-[#8696a0]">Fixadas</span><span className="font-medium">{pinnedMessages.length}</span></div>
+                  <div className="flex justify-between"><span className="text-[#8696a0]">Instância</span><span className="font-medium truncate max-w-[180px]">{currentInstance || '—'}</span></div>
+                  {thread[0] && (
+                    <div className="flex justify-between"><span className="text-[#8696a0]">Primeira msg</span><span className="font-medium">{new Date(thread[0].created_at).toLocaleDateString('pt-BR')}</span></div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
       {/* Preview do avatar do contato */}
       <Dialog open={!!avatarPreview} onOpenChange={(open) => !open && setAvatarPreview(null)}>
         <DialogContent className="max-w-md p-2 bg-background/95 border-border">
