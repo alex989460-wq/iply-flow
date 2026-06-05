@@ -285,8 +285,13 @@ Deno.serve(async (req) => {
       const go = await fetchJson(`${baseUrl}/instance/connect`, {
         method: 'POST',
         headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId),
-        body: JSON.stringify({ webhookUrl, subscribe: ['MESSAGE', 'SEND_MESSAGE', 'CONNECTION'], immediate: true }),
+        body: JSON.stringify({ webhookUrl, subscribe: ['MESSAGE', 'SEND_MESSAGE', 'CONNECTION', 'QRCODE'], immediate: true }),
       }).catch((error) => ({ ok: false, status: 0, data: { error: String(error?.message || error) } }));
+      await fetchJson(`${baseUrl}/instance/${encodeURIComponent(instAuth.instanceId)}/advanced-settings`, {
+        method: 'PUT',
+        headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId),
+        body: JSON.stringify({ ignoreStatus: false, readStatus: false }),
+      }, 8000).catch(() => null);
       return jsonResponse({ ok: go.ok, status: go.status, mode: 'evolution-go', webhookUrl, data: go.data, instance: targetInstance });
     }
 
@@ -314,10 +319,14 @@ Deno.serve(async (req) => {
         if (!ok) {
           const go = await fetchJson(`${baseUrl}/instance/connect`, {
             method: 'POST', headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId),
-            body: JSON.stringify({ webhookUrl, subscribe: ['MESSAGE', 'SEND_MESSAGE', 'CONNECTION'], immediate: true }),
+            body: JSON.stringify({ webhookUrl, subscribe: ['MESSAGE', 'SEND_MESSAGE', 'CONNECTION', 'QRCODE'], immediate: true }),
           }).catch(() => ({ ok: false, status: 0 }));
           ok = !!go.ok;
         }
+        await fetchJson(`${baseUrl}/instance/${encodeURIComponent(instAuth.instanceId)}/advanced-settings`, {
+          method: 'PUT', headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId),
+          body: JSON.stringify({ ignoreStatus: false, readStatus: false }),
+        }, 8000).catch(() => null);
         results.push({ instance: nm, ok });
       }
       return jsonResponse({ ok: results.every(r => r.ok), results, webhookUrl });
@@ -420,8 +429,10 @@ Deno.serve(async (req) => {
         statusJidList: [],
       };
       const goBody: Record<string, unknown> = { text, content: text, type: 'text', backgroundColor: '#075E54', font: 1, allContacts: true, statusJidList: [] };
+      const goTextBody: Record<string, unknown> = { text, backgroundColor: '#075E54', font: 1, allContacts: true, statusJidList: [] };
 
       const attempts: Array<{ url: string; headers: Record<string, string>; body: any; mode: string }> = [
+        { url: `${baseUrl}/send/status/text`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: goTextBody, mode: 'evolution-go-status-text' },
         { url: `${baseUrl}/message/sendStatus/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: classicBody, mode: 'evolution-api-status' },
         { url: `${baseUrl}/message/sendStatus`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: goBody, mode: 'evolution-go-status' },
         { url: `${baseUrl}/send/status`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: goBody, mode: 'evolution-go-send-status' },
@@ -451,7 +462,7 @@ Deno.serve(async (req) => {
         user_id: user.id,
         instance_name: instance,
         remote_jid: 'status@broadcast',
-        phone: 'status',
+            phone: 'status:me',
         direction: 'out',
         content: text,
         status: 'sent',
