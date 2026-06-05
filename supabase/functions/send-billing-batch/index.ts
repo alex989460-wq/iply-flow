@@ -664,11 +664,6 @@ Deno.serve(async (req) => {
         const logMessage = `[${normalizedPhone}] Template: ${outboundLabel} via ${effectiveApiType}`;
         await supabase
           .from('billing_logs')
-        
-        // Log to database with effective API type
-        const logMessage = `[${normalizedPhone}] Template: ${templateName} via ${effectiveApiType}`;
-        await supabase
-          .from('billing_logs')
           .insert({
             customer_id: customer.id,
             billing_type: billingType,
