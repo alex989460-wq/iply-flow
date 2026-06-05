@@ -598,10 +598,12 @@ export default function EvolutionChat() {
               <Input placeholder="Novo número (DDD + nº)" value={newPhone} onChange={(e) => setNewPhone(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && startConversation()} className="h-8 text-xs" />
               <Button size="icon" className="h-8 w-8 shrink-0" onClick={startConversation}><Plus className="w-4 h-4" /></Button>
             </div>
-            <div className="flex gap-1">
+            <div className="flex gap-1 flex-wrap">
               {([
                 { id: 'all', label: 'Todas' },
                 { id: 'unread', label: 'Não lidas' },
+                { id: 'contacts', label: 'Contatos' },
+                { id: 'groups', label: 'Grupos' },
                 { id: 'media', label: 'Mídia' },
               ] as const).map((t) => (
                 <button
