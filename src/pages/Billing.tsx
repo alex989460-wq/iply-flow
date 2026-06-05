@@ -68,6 +68,7 @@ import type { Database } from '@/integrations/supabase/types';
 import { SendProgressModal } from '@/components/billing/SendProgressModal';
 import { BillingReportsTab } from '@/components/billing/BillingReportsTab';
 import { BillingScheduleCard } from '@/components/billing/BillingScheduleCard';
+import { EvolutionBillingScheduleCard } from '@/components/billing/EvolutionBillingScheduleCard';
 
 type BillingType = Database['public']['Enums']['billing_type'];
 
@@ -1106,8 +1107,10 @@ export default function Billing() {
 
           {/* Tab: Configuração */}
           <TabsContent value="config" className="space-y-4">
-            {/* Billing Schedule Card */}
+            {/* Billing Schedule Cards */}
             <BillingScheduleCard />
+            <EvolutionBillingScheduleCard />
+            
             
             {/* Meta Cloud API Configuration */}
             {isMetaCloudApi ? (
