@@ -364,7 +364,10 @@ export default function EvolutionChat() {
     );
   }, [instanceMessages, search, contacts, selectedPhone, filter, instancePhones, pinnedContacts]);
 
-  const thread = useMemo(() => instanceMessages.filter((m) => m.phone === selectedPhone), [instanceMessages, selectedPhone]);
+  const thread = useMemo(
+    () => instanceMessages.filter((m) => m.phone === selectedPhone && !hiddenIds.has(m.id)),
+    [instanceMessages, selectedPhone, hiddenIds],
+  );
   const selectedContact = useMemo(() => contacts[selectedPhone || ''] || null, [contacts, selectedPhone]);
   const selectedName = selectedContact?.name || conversations.find(c => c.phone === selectedPhone)?.name || null;
 
