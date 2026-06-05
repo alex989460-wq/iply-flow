@@ -64,6 +64,26 @@ import { triggerWelcomeBot } from '@/hooks/useBotTriggers';
 
 type CustomerStatus = Database['public']['Enums']['customer_status'];
 
+function formatBrazilPhoneInput(value: string) {
+  const digits = value.replace(/\D/g, '').slice(0, 13);
+  if (!digits) return '';
+  if (digits.startsWith('55')) {
+    const ddd = digits.slice(2, 4);
+    const number = digits.slice(4);
+    if (!ddd) return '+55';
+    if (!number) return `+55 (${ddd}`;
+    const prefix = number.length > 4 ? number.slice(0, -4) : number;
+    const suffix = number.length > 4 ? number.slice(-4) : '';
+    return `+55 (${ddd}) ${prefix}${suffix ? `-${suffix}` : ''}`;
+  }
+  const ddd = digits.slice(0, 2);
+  const number = digits.slice(2);
+  if (!number) return ddd;
+  const prefix = number.length > 4 ? number.slice(0, -4) : number;
+  const suffix = number.length > 4 ? number.slice(-4) : '';
+  return `(${ddd}) ${prefix}${suffix ? `-${suffix}` : ''}`;
+}
+
 export default function Customers() {
   const [isOpen, setIsOpen] = useState(false);
   const [isRenewOpen, setIsRenewOpen] = useState(false);
@@ -818,8 +838,8 @@ export default function Customers() {
     setEditingCustomer(customer);
     setFormData({
       name: customer.name,
-      phone: customer.phone,
-      extra_phone: customer.extra_phone || '',
+      phone: formatBrazilPhoneInput(customer.phone || ''),
+      extra_phone: formatBrazilPhoneInput(customer.extra_phone || ''),
       server_id: customer.server_id || '',
       plan_id: customer.plan_id || '',
       status: customer.status,
@@ -1107,8 +1127,12 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
       return;
     }
     
+    const phoneDigits = formData.phone.replace(/\D/g, '');
+    const extraPhoneDigits = formData.extra_phone.replace(/\D/g, '');
     const submitData = {
       ...formData,
+      phone: phoneDigits,
+      extra_phone: extraPhoneDigits || null,
       server_id: formData.server_id || null,
       plan_id: formData.plan_id || null,
       custom_price: formData.custom_price ? parseFloat(formData.custom_price) : null,
@@ -2034,8 +2058,8 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
                       <Label>Telefone (WhatsApp)</Label>
                       <Input
                         value={formData.phone}
-                        onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                        placeholder="5511999999999"
+                        onChange={(e) => setFormData({ ...formData, phone: formatBrazilPhoneInput(e.target.value) })}
+                        placeholder="+55 (21) 98309-7135"
                         required
                         className="bg-secondary/50"
                       />
@@ -2044,8 +2068,8 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
                       <Label>Telefone Extra (opcional)</Label>
                       <Input
                         value={formData.extra_phone}
-                        onChange={(e) => setFormData({ ...formData, extra_phone: e.target.value })}
-                        placeholder="Ex: telefone do(a) esposo(a)"
+                        onChange={(e) => setFormData({ ...formData, extra_phone: formatBrazilPhoneInput(e.target.value) })}
+                        placeholder="+55 (21) 98309-7135"
                         className="bg-secondary/50"
                       />
                     </div>

@@ -122,33 +122,35 @@ function rawBase64From(raw: unknown) {
 }
 
 function extractQuotedFromRaw(raw: unknown): { id: string | null; text: string; fromMe: boolean } | null {
-  const r = raw as any;
-  const msg = r?.data?.Message || r?.Message || r?.message || {};
-  const ctx = msg?.extendedTextMessage?.contextInfo
-    || msg?.imageMessage?.contextInfo
-    || msg?.videoMessage?.contextInfo
-    || msg?.audioMessage?.contextInfo
-    || msg?.documentMessage?.contextInfo
-    || msg?.stickerMessage?.contextInfo
-    || msg?.contextInfo;
+  const localQuoted = (getNestedValue(raw, ['__quoted']) || getNestedValue(raw, ['data', '__quoted'])) as Record<string, unknown> | undefined;
+  if (localQuoted?.id || localQuoted?.text) {
+    return {
+      id: String(localQuoted.id || localQuoted.messageId || '') || null,
+      text: String(localQuoted.text || ''),
+      fromMe: !!localQuoted.fromMe,
+    };
+  }
+  const msg = (getNestedValue(raw, ['data', 'Message']) || getNestedValue(raw, ['Message']) || getNestedValue(raw, ['message']) || {}) as Record<string, unknown>;
+  const ctx = (getNestedValue(msg, ['extendedTextMessage', 'contextInfo'])
+    || getNestedValue(msg, ['imageMessage', 'contextInfo'])
+    || getNestedValue(msg, ['videoMessage', 'contextInfo'])
+    || getNestedValue(msg, ['audioMessage', 'contextInfo'])
+    || getNestedValue(msg, ['documentMessage', 'contextInfo'])
+    || getNestedValue(msg, ['stickerMessage', 'contextInfo'])
+    || getNestedValue(msg, ['contextInfo'])) as Record<string, unknown> | undefined;
   if (!ctx) return null;
-  const stanzaId = ctx?.stanzaId || ctx?.StanzaID || ctx?.stanzaID || null;
-  const qm = ctx?.quotedMessage || ctx?.QuotedMessage || null;
+  const stanzaId = String(ctx?.stanzaId || ctx?.StanzaID || ctx?.stanzaID || '') || null;
+  const qm = (ctx?.quotedMessage || ctx?.QuotedMessage || null) as Record<string, unknown> | null;
   if (!stanzaId && !qm) return null;
   const text =
-    qm?.conversation
-    || qm?.extendedTextMessage?.text
-    || qm?.imageMessage?.caption
-    || qm?.videoMessage?.caption
-    || qm?.documentMessage?.caption
+    String(qm?.conversation || getNestedValue(qm, ['extendedTextMessage', 'text']) || getNestedValue(qm, ['imageMessage', 'caption']) || getNestedValue(qm, ['videoMessage', 'caption']) || getNestedValue(qm, ['documentMessage', 'caption']) || '')
     || (qm?.audioMessage ? '🎤 Áudio' : '')
     || (qm?.imageMessage ? '📷 Imagem' : '')
     || (qm?.stickerMessage ? '🌟 Sticker' : '')
     || (qm?.documentMessage ? '📎 Documento' : '')
     || '';
-  const participant = ctx?.participant || ctx?.Participant || '';
-  // If participant is empty AND fromMe context flag absent, default fromMe=false
-  const fromMe = !!ctx?.fromMe || !participant;
+  const participant = String(ctx?.participant || ctx?.Participant || '');
+  const fromMe = !!ctx?.fromMe || /@s\.whatsapp\.net/.test(participant) === false;
   return { id: stanzaId, text, fromMe };
 }
 
@@ -549,15 +551,13 @@ export default function EvolutionChat() {
 
   // Extract reactionMessage from raw payload (Evolution Go + classic)
   const extractReaction = (raw: unknown): { targetId: string; emoji: string } | null => {
-    const r = raw as any;
-    const rm =
-      r?.data?.Message?.reactionMessage ||
-      r?.Message?.reactionMessage ||
-      r?.message?.reactionMessage ||
-      r?.reactionMessage;
+    const rm = (getNestedValue(raw, ['data', 'Message', 'reactionMessage']) ||
+      getNestedValue(raw, ['Message', 'reactionMessage']) ||
+      getNestedValue(raw, ['message', 'reactionMessage']) ||
+      getNestedValue(raw, ['reactionMessage'])) as Record<string, unknown> | undefined;
     if (!rm) return null;
-    const targetId = rm?.key?.id || rm?.key?.ID || rm?.Key?.ID || rm?.Key?.id || '';
-    const emoji = rm?.text || rm?.Text || '';
+    const targetId = String(getNestedValue(rm, ['key', 'id']) || getNestedValue(rm, ['key', 'ID']) || getNestedValue(rm, ['Key', 'ID']) || getNestedValue(rm, ['Key', 'id']) || '');
+    const emoji = String(rm?.text || rm?.Text || '');
     if (!targetId) return null;
     return { targetId, emoji };
   };
@@ -578,9 +578,10 @@ export default function EvolutionChat() {
       body: { action: 'send-reaction', phone: m.phone, messageId: m.external_id, fromMe: m.direction === 'out', emoji },
     });
     if (error || data?.error) {
-      // Rollback
-      setLocalReactions(prev => { const n = { ...prev }; delete n[m.external_id!]; return n; });
-      toast({ title: 'Erro ao reagir', description: error?.message || data?.error, variant: 'destructive' });
+      toast({
+        title: 'Reação salva aqui',
+        description: 'Seu painel Evolution não aceitou sincronizar essa reação no WhatsApp, mas ela ficou visível no chat.',
+      });
       return;
     }
   };
@@ -608,10 +609,11 @@ export default function EvolutionChat() {
       fromMe: replyTo.direction === 'out',
       text: replyTo.content || '',
     } : null;
+    const quotedRaw = quoted ? { __quoted: { id: quoted.messageId, text: quoted.text, fromMe: quoted.fromMe } } : undefined;
     const optimistic: EvoMessage = {
       id: tempId, phone: selectedPhone, contact_name: null, direction: 'out',
       content: text, message_type: 'text', media_url: null, media_mime: null,
-      created_at: new Date().toISOString(), instance_name: currentInstance || null, _pending: true,
+      created_at: new Date().toISOString(), instance_name: currentInstance || null, raw: quotedRaw, _pending: true,
     };
     setMessages(prev => [...prev, optimistic]);
     setDraft('');
@@ -625,7 +627,7 @@ export default function EvolutionChat() {
         toast({ title: 'Erro ao enviar', description: error?.message || data?.error || 'Falha', variant: 'destructive' });
         return;
       }
-      setMessages(prev => prev.map(m => m.id === tempId ? { ...m, _pending: false } : m));
+      setMessages(prev => prev.map(m => m.id === tempId ? { ...m, _pending: false, raw: quotedRaw ? { ...(data || {}), ...quotedRaw } : data } : m));
     });
   };
 
