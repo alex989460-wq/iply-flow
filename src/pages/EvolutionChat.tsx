@@ -12,6 +12,7 @@ import {
   Loader2, Send, Zap, Plus, RefreshCw, Search, MessageSquare,
   Phone, X, Smile, Mic, Paperclip, Trash2, Image as ImageIcon, FileText, Sticker, QrCode,
   Pin, PinOff, Info, Copy, ExternalLink, MoreVertical, ChevronDown,
+  Reply, Forward, Star, StarOff, Trash,
 } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from '@/components/ui/context-menu';
@@ -168,6 +169,13 @@ export default function EvolutionChat() {
     catch { return new Set(); }
   });
   const [reactionPickerFor, setReactionPickerFor] = useState<EvoMessage | null>(null);
+  const [replyTo, setReplyTo] = useState<EvoMessage | null>(null);
+  const [hiddenIds, setHiddenIds] = useState<Set<string>>(new Set());
+  const [favorites, setFavorites] = useState<EvoMessage[]>(() => {
+    try { return JSON.parse(localStorage.getItem('evo_favorites') || '[]'); } catch { return []; }
+  });
+  const [showFavorites, setShowFavorites] = useState(false);
+  const composerRef = useRef<HTMLTextAreaElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const stickerInputRef = useRef<HTMLInputElement>(null);
@@ -356,7 +364,10 @@ export default function EvolutionChat() {
     );
   }, [instanceMessages, search, contacts, selectedPhone, filter, instancePhones, pinnedContacts]);
 
-  const thread = useMemo(() => instanceMessages.filter((m) => m.phone === selectedPhone), [instanceMessages, selectedPhone]);
+  const thread = useMemo(
+    () => instanceMessages.filter((m) => m.phone === selectedPhone && !hiddenIds.has(m.id)),
+    [instanceMessages, selectedPhone, hiddenIds],
+  );
   const selectedContact = useMemo(() => contacts[selectedPhone || ''] || null, [contacts, selectedPhone]);
   const selectedName = selectedContact?.name || conversations.find(c => c.phone === selectedPhone)?.name || null;
 
@@ -381,6 +392,51 @@ export default function EvolutionChat() {
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
   }, [thread.length, selectedPhone]);
+
+  // Load per-conversation hidden ids ("Apagar para mim")
+  useEffect(() => {
+    if (!selectedPhone) { setHiddenIds(new Set()); return; }
+    try {
+      const raw = localStorage.getItem(`evo_hidden_${selectedPhone}`);
+      setHiddenIds(new Set(raw ? JSON.parse(raw) : []));
+    } catch { setHiddenIds(new Set()); }
+  }, [selectedPhone]);
+
+  const handleReply = (m: EvoMessage) => {
+    setReplyTo(m);
+    setTimeout(() => composerRef.current?.focus(), 50);
+  };
+
+  const handleForward = (m: EvoMessage) => {
+    const text = m.content || (m.media_url ? m.media_url : '');
+    if (!text) { toast({ title: 'Nada para encaminhar' }); return; }
+    navigator.clipboard?.writeText(text).then(
+      () => toast({ title: 'Mensagem copiada', description: 'Abra outra conversa e cole para encaminhar.' }),
+      () => toast({ title: 'Falha ao copiar', variant: 'destructive' }),
+    );
+  };
+
+  const toggleFavorite = (m: EvoMessage) => {
+    setFavorites(prev => {
+      const exists = prev.some(f => f.id === m.id);
+      const next = exists ? prev.filter(f => f.id !== m.id) : [...prev, m].slice(-200);
+      try { localStorage.setItem('evo_favorites', JSON.stringify(next)); } catch { /* noop */ }
+      toast({ title: exists ? 'Removido dos favoritos' : '⭐ Favoritado' });
+      return next;
+    });
+  };
+
+  const deleteLocal = (id: string) => {
+    if (!selectedPhone) return;
+    setHiddenIds(prev => {
+      const next = new Set(prev); next.add(id);
+      try { localStorage.setItem(`evo_hidden_${selectedPhone}`, JSON.stringify([...next])); } catch { /* noop */ }
+      return next;
+    });
+    toast({ title: 'Mensagem apagada (somente aqui)' });
+  };
+
+  const isFavorited = useCallback((id: string) => favorites.some(f => f.id === id), [favorites]);
 
   // Load pinned message ids for the selected conversation from localStorage
   useEffect(() => {
@@ -478,6 +534,11 @@ export default function EvolutionChat() {
     if (!selectedPhone || !draft.trim()) return;
     const text = draft.trim();
     const tempId = `tmp-${Date.now()}`;
+    const quoted = replyTo && replyTo.external_id ? {
+      messageId: replyTo.external_id,
+      fromMe: replyTo.direction === 'out',
+      text: replyTo.content || '',
+    } : null;
     const optimistic: EvoMessage = {
       id: tempId, phone: selectedPhone, contact_name: null, direction: 'out',
       content: text, message_type: 'text', media_url: null, media_mime: null,
@@ -485,16 +546,16 @@ export default function EvolutionChat() {
     };
     setMessages(prev => [...prev, optimistic]);
     setDraft('');
+    setReplyTo(null);
 
     supabase.functions.invoke('evolution-send', {
-      body: { action: 'send', phone: selectedPhone, text },
+      body: { action: 'send', phone: selectedPhone, text, quoted },
     }).then(({ data, error }) => {
       if (error || data?.error) {
         setMessages(prev => prev.map(m => m.id === tempId ? { ...m, _pending: false, _failed: true } : m));
         toast({ title: 'Erro ao enviar', description: error?.message || data?.error || 'Falha', variant: 'destructive' });
         return;
       }
-      // Mark as sent immediately; realtime insert may replace it
       setMessages(prev => prev.map(m => m.id === tempId ? { ...m, _pending: false } : m));
     });
   };
@@ -922,6 +983,14 @@ export default function EvolutionChat() {
                               {isPinned && (
                                 <Pin className="absolute -top-1.5 -left-1.5 w-3 h-3 text-[#00a884] bg-[#0b141a] rounded-full p-0.5" />
                               )}
+                              <button
+                                onClick={(e) => { e.stopPropagation(); handleReply(m); }}
+                                className="absolute top-1 right-7 opacity-0 group-hover:opacity-100 transition-opacity bg-black/30 hover:bg-black/50 rounded-full p-0.5"
+                                title="Responder"
+                                aria-label="Responder"
+                              >
+                                <Reply className="w-3 h-3 text-white" />
+                              </button>
                               <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
                                   <button
@@ -931,7 +1000,7 @@ export default function EvolutionChat() {
                                     <ChevronDown className="w-3 h-3 text-white" />
                                   </button>
                                 </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end" className="w-52">
+                                <DropdownMenuContent align="end" className="w-56">
                                   <div className="px-1 py-1.5 flex gap-1 justify-around">
                                     {['👍','❤️','😂','😮','😢','🙏'].map(em => (
                                       <button key={em} onClick={() => sendReaction(m, em)}
@@ -941,14 +1010,27 @@ export default function EvolutionChat() {
                                     ))}
                                   </div>
                                   <DropdownMenuSeparator />
-                                  <DropdownMenuItem onClick={() => togglePin(m.id)}>
-                                    {isPinned ? <><PinOff className="w-4 h-4 mr-2" /> Desafixar</> : <><Pin className="w-4 h-4 mr-2" /> Fixar mensagem</>}
+                                  <DropdownMenuItem onClick={() => handleReply(m)}>
+                                    <Reply className="w-4 h-4 mr-2" /> Responder
                                   </DropdownMenuItem>
                                   {m.content && (
                                     <DropdownMenuItem onClick={() => copyText(m.content)}>
                                       <Copy className="w-4 h-4 mr-2" /> Copiar texto
                                     </DropdownMenuItem>
                                   )}
+                                  <DropdownMenuItem onClick={() => handleForward(m)}>
+                                    <Forward className="w-4 h-4 mr-2" /> Encaminhar
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem onClick={() => togglePin(m.id)}>
+                                    {isPinned ? <><PinOff className="w-4 h-4 mr-2" /> Desafixar</> : <><Pin className="w-4 h-4 mr-2" /> Fixar mensagem</>}
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem onClick={() => toggleFavorite(m)}>
+                                    {isFavorited(m.id) ? <><StarOff className="w-4 h-4 mr-2" /> Desfavoritar</> : <><Star className="w-4 h-4 mr-2" /> Favoritar</>}
+                                  </DropdownMenuItem>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem onClick={() => deleteLocal(m.id)} className="text-destructive focus:text-destructive">
+                                    <Trash className="w-4 h-4 mr-2" /> Apagar (somente aqui)
+                                  </DropdownMenuItem>
                                 </DropdownMenuContent>
                               </DropdownMenu>
                               <div className="px-1.5 pt-0.5">
@@ -973,7 +1055,7 @@ export default function EvolutionChat() {
                               )}
                             </div>
                           </ContextMenuTrigger>
-                          <ContextMenuContent className="w-52">
+                          <ContextMenuContent className="w-56">
                             <div className="px-1 py-1.5 flex gap-1 justify-around">
                               {['👍','❤️','😂','😮','😢','🙏'].map(em => (
                                 <button key={em} onClick={() => sendReaction(m, em)}
@@ -982,16 +1064,28 @@ export default function EvolutionChat() {
                                 </button>
                               ))}
                             </div>
-                            <ContextMenuItem onClick={() => togglePin(m.id)}>
-                              {isPinned ? <><PinOff className="w-4 h-4 mr-2" /> Desafixar</> : <><Pin className="w-4 h-4 mr-2" /> Fixar mensagem</>}
+                            <ContextMenuItem onClick={() => handleReply(m)}>
+                              <Reply className="w-4 h-4 mr-2" /> Responder
                             </ContextMenuItem>
                             {m.content && (
                               <ContextMenuItem onClick={() => copyText(m.content)}>
                                 <Copy className="w-4 h-4 mr-2" /> Copiar texto
                               </ContextMenuItem>
                             )}
+                            <ContextMenuItem onClick={() => handleForward(m)}>
+                              <Forward className="w-4 h-4 mr-2" /> Encaminhar
+                            </ContextMenuItem>
+                            <ContextMenuItem onClick={() => togglePin(m.id)}>
+                              {isPinned ? <><PinOff className="w-4 h-4 mr-2" /> Desafixar</> : <><Pin className="w-4 h-4 mr-2" /> Fixar mensagem</>}
+                            </ContextMenuItem>
+                            <ContextMenuItem onClick={() => toggleFavorite(m)}>
+                              {isFavorited(m.id) ? <><StarOff className="w-4 h-4 mr-2" /> Desfavoritar</> : <><Star className="w-4 h-4 mr-2" /> Favoritar</>}
+                            </ContextMenuItem>
                             <ContextMenuItem onClick={() => scrollToMessage(m.id)}>
                               <Info className="w-4 h-4 mr-2" /> Centralizar
+                            </ContextMenuItem>
+                            <ContextMenuItem onClick={() => deleteLocal(m.id)} className="text-destructive focus:text-destructive">
+                              <Trash className="w-4 h-4 mr-2" /> Apagar (somente aqui)
                             </ContextMenuItem>
                           </ContextMenuContent>
                         </ContextMenu>
@@ -1010,6 +1104,24 @@ export default function EvolutionChat() {
                   ))}
                 </div>
               )}
+
+              {replyTo && (
+                <div className="px-2 py-2 border-t border-[#0b1115] bg-[#1d282f] flex items-start gap-2 animate-in slide-in-from-bottom-1">
+                  <div className="w-1 self-stretch rounded bg-[#00a884]" />
+                  <div className="flex-1 min-w-0">
+                    <div className="text-[11px] font-semibold text-[#00a884]">
+                      {replyTo.direction === 'out' ? 'Você' : (selectedName || formatPhone(replyTo.phone))}
+                    </div>
+                    <div className="text-[12px] text-[#aebac1] truncate">
+                      {replyTo.content || (replyTo.message_type === 'image' ? '📷 Imagem' : replyTo.message_type === 'audio' ? '🎤 Áudio' : replyTo.message_type === 'sticker' ? '🌟 Sticker' : '📎 Anexo')}
+                    </div>
+                  </div>
+                  <Button size="icon" variant="ghost" className="h-7 w-7 text-[#aebac1] hover:bg-white/5" onClick={() => setReplyTo(null)} title="Cancelar resposta">
+                    <X className="w-4 h-4" />
+                  </Button>
+                </div>
+              )}
+
 
               {/* Composer */}
               <div className="px-2 py-2 border-t border-[#0b1115] bg-[#202c33] flex items-end gap-1.5">
@@ -1066,6 +1178,7 @@ export default function EvolutionChat() {
                       <Paperclip className="w-5 h-5" />
                     </Button>
                     <textarea
+                      ref={composerRef}
                       placeholder="Digite uma mensagem..."
                       value={draft}
                       onChange={(e) => setDraft(e.target.value)}
