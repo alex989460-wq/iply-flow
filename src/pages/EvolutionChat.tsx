@@ -163,6 +163,11 @@ export default function EvolutionChat() {
   const [switchingInstance, setSwitchingInstance] = useState(false);
   const [showContactInfo, setShowContactInfo] = useState(false);
   const [pinnedIds, setPinnedIds] = useState<Set<string>>(new Set());
+  const [pinnedContacts, setPinnedContacts] = useState<Set<string>>(() => {
+    try { return new Set(JSON.parse(localStorage.getItem('evo_pinned_contacts') || '[]')); }
+    catch { return new Set(); }
+  });
+  const [reactionPickerFor, setReactionPickerFor] = useState<EvoMessage | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const stickerInputRef = useRef<HTMLInputElement>(null);
