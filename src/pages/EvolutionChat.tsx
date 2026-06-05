@@ -1178,6 +1178,7 @@ export default function EvolutionChat() {
                       <Paperclip className="w-5 h-5" />
                     </Button>
                     <textarea
+                      ref={composerRef}
                       placeholder="Digite uma mensagem..."
                       value={draft}
                       onChange={(e) => setDraft(e.target.value)}
