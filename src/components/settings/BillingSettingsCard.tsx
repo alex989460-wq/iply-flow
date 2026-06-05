@@ -120,6 +120,28 @@ export default function BillingSettingsCard() {
     notification_phone: '',
     renewal_message_template: '',
     renewal_image_url: '',
+    use_evolution_billing: false,
+    evolution_instance: '',
+    evolution_msg_d_minus_1: '',
+    evolution_msg_d0: '',
+    evolution_msg_d_plus_1: '',
+  });
+
+  // Load Evolution instances for the picker
+  const { data: evoInstances = [] } = useQuery({
+    queryKey: ['evo-instances-billing', user?.id],
+    queryFn: async () => {
+      try {
+        const { data } = await supabase.functions.invoke('evolution-send', {
+          body: { action: 'list-instances' },
+        });
+        return (data?.instances || []) as Array<{ name: string; phone?: string; state?: string }>;
+      } catch {
+        return [];
+      }
+    },
+    enabled: !!user?.id,
+    staleTime: 60_000,
   });
 
   const { data: settings, isLoading } = useQuery({
