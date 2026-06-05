@@ -397,15 +397,41 @@ Deno.serve(async (req) => {
       console.log('[Billing Batch] Using fallback admin settings');
     }
 
-    // Detect API type - Meta Cloud or Zap Responder
-    // Meta Cloud is active when api_type is 'meta_cloud' AND meta_connected_at is set
-    const apiType = zapSettings?.api_type || 'zap_responder';
-    const isMetaCloud = apiType === 'meta_cloud' && !!zapSettings?.meta_connected_at;
-    
-    console.log(`[Billing Batch] API detection: apiType=${apiType}, isMetaCloud=${isMetaCloud}, meta_connected_at=${zapSettings?.meta_connected_at}`);
+    // Load billing_settings to check whether Evolution should be the channel
+    const { data: billSettings } = await supabase
+      .from('billing_settings')
+      .select('use_evolution_billing, evolution_instance, evolution_msg_d_minus_1, evolution_msg_d0, evolution_msg_d_plus_1, pix_key')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    const useEvolution = !!(billSettings as any)?.use_evolution_billing;
+    let evoSettings: any = null;
+    if (useEvolution) {
+      const { data: evo } = await supabase
+        .from('evolution_settings')
+        .select('base_url, api_key, instance_name')
+        .eq('user_id', userId)
+        .maybeSingle();
+      evoSettings = evo;
+    }
+
+    // Detect API type - Evolution > Meta Cloud > Zap Responder
+    const apiType = useEvolution ? 'evolution' : (zapSettings?.api_type || 'zap_responder');
+    const isMetaCloud = !useEvolution && apiType === 'meta_cloud' && !!zapSettings?.meta_connected_at;
+    const isEvolution = useEvolution;
+
+    console.log(`[Billing Batch] API detection: apiType=${apiType}, isEvolution=${isEvolution}, isMetaCloud=${isMetaCloud}`);
 
     // Validate configuration based on API type
-    if (isMetaCloud) {
+    if (isEvolution) {
+      if (!evoSettings?.base_url || !evoSettings?.api_key) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Evolution não configurada. Configure URL e API Key em Conexões WhatsApp.' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      console.log(`[Billing Batch] Evolution configured: instance=${(billSettings as any)?.evolution_instance || evoSettings.instance_name}`);
+    } else if (isMetaCloud) {
       if (!zapSettings?.meta_access_token) {
         console.error('[Billing Batch] Meta Cloud: Missing access token');
         return new Response(
