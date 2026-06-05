@@ -563,6 +563,10 @@ Deno.serve(async (req) => {
         result = r; mode = att.mode;
       }
       console.log('[evolution-send] send-reaction', { instance, phone, messageId, emoji, fromMe, ok: result.ok, attempts: log });
+      if (!result.ok) {
+        const summary = log.map((l) => `${l.mode}:${l.status}${l.data?.message ? ` (${typeof l.data.message === 'string' ? l.data.message : JSON.stringify(l.data.message).slice(0, 120)})` : ''}`).join(' | ');
+        return jsonResponse({ ok: false, error: `A Evolution não entregou a reação (${summary}).`, attempts: log, lastResponse: result.data }, 200);
+      }
       await insertOutgoingMessage(admin, {
         user_id: user.id,
         instance_name: instance,
@@ -571,14 +575,10 @@ Deno.serve(async (req) => {
         direction: 'out',
         content: '[reaction]',
         message_type: 'reaction',
-        status: result.ok ? 'sent' : 'sent_local',
-        external_id: `reaction-${messageId}-${Date.now()}`,
-        raw: { message: { reactionMessage: { key, text: emoji } }, __reactionLocal: !result.ok, attempts: log },
+        status: 'sent',
+        external_id: result.data?.key?.id || result.data?.messageId || result.data?.data?.Info?.ID || `reaction-${messageId}-${Date.now()}`,
+        raw: { message: { reactionMessage: { key, text: emoji } }, attempts: log },
       });
-      if (!result.ok) {
-        const summary = log.map((l) => `${l.mode}:${l.status}${l.data?.message ? ` (${typeof l.data.message === 'string' ? l.data.message : JSON.stringify(l.data.message).slice(0, 120)})` : ''}`).join(' | ');
-        return jsonResponse({ ok: true, localOnly: true, warning: `Reação não foi entregue: ${summary}`, attempts: log, lastResponse: result.data }, 200);
-      }
       return jsonResponse({ ok: true, mode, data: result.data });
     }
 
@@ -863,7 +863,7 @@ Deno.serve(async (req) => {
         msgRejectCall: '',
         readMessages: false,
         ignoreGroups: false,
-        ignoreStatus: true,
+          ignoreStatus: false,
       };
       const defaultEvents = ['MESSAGE', 'SEND_MESSAGE', 'CONNECTION', 'QRCODE'];
       const payloads = [
