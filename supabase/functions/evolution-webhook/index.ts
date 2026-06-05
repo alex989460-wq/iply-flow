@@ -284,20 +284,7 @@ Deno.serve(async (req) => {
       const remoteJid = key.remoteJid || m?.remoteJid || '';
       const isStatus = remoteJid === 'status@broadcast' || remoteJid.startsWith('status@');
       if (!remoteJid || (remoteJid.includes('@g.us') && !isStatus)) continue;
-      const phone = isStatus ? 'status' : jidToPhone(remoteJid);
-      if (!phone) continue;
       const fromMe = !!key.fromMe;
-      const msg = m?.message || {};
-      const content = messageText(msg);
-      const type = messageType(msg);
-      const mediaMime = mediaMimeFrom(msg);
-      const mediaUrl = await storeIncomingMedia(admin, settings.user_id, key.id || null, type, mediaMime, mediaBase64From(m) || mediaBase64From(msg), mediaUrlFrom(msg));
-
-      await insertMessageOnce(admin, {
-        user_id: settings.user_id,
-        instance_name: instanceName,
-        remote_jid: remoteJid,
-        phone,
       const participantJid = key?.participant || m?.participant || '';
       const participantPhone = participantJid ? jidToPhone(participantJid) : '';
       const phone = isStatus
