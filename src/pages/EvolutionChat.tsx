@@ -163,6 +163,11 @@ export default function EvolutionChat() {
   const [switchingInstance, setSwitchingInstance] = useState(false);
   const [showContactInfo, setShowContactInfo] = useState(false);
   const [pinnedIds, setPinnedIds] = useState<Set<string>>(new Set());
+  const [pinnedContacts, setPinnedContacts] = useState<Set<string>>(() => {
+    try { return new Set(JSON.parse(localStorage.getItem('evo_pinned_contacts') || '[]')); }
+    catch { return new Set(); }
+  });
+  const [reactionPickerFor, setReactionPickerFor] = useState<EvoMessage | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const stickerInputRef = useRef<HTMLInputElement>(null);
@@ -331,9 +336,12 @@ export default function EvolutionChat() {
         cur.lastAt = cur.last?.created_at || cur.lastAt;
       }
     }
-    const arr = Array.from(map.values()).sort((a, b) =>
-      new Date(b.lastAt || 0).getTime() - new Date(a.lastAt || 0).getTime()
-    );
+    const arr = Array.from(map.values()).sort((a, b) => {
+      const pa = pinnedContacts.has(a.phone) ? 1 : 0;
+      const pb = pinnedContacts.has(b.phone) ? 1 : 0;
+      if (pa !== pb) return pb - pa;
+      return new Date(b.lastAt || 0).getTime() - new Date(a.lastAt || 0).getTime();
+    });
     let filtered = arr;
     if (filter === 'unread') filtered = arr.filter(c => c.unread > 0 && c.last?.direction === 'in');
     else if (filter === 'media') filtered = arr.filter(c => c.last && ['image', 'audio', 'document', 'sticker'].includes(c.last.message_type));
@@ -346,7 +354,7 @@ export default function EvolutionChat() {
       (c.name || contacts[c.phone]?.name || '').toLowerCase().includes(q) ||
       (c.last?.content || '').toLowerCase().includes(q)
     );
-  }, [instanceMessages, search, contacts, selectedPhone, filter, instancePhones]);
+  }, [instanceMessages, search, contacts, selectedPhone, filter, instancePhones, pinnedContacts]);
 
   const thread = useMemo(() => instanceMessages.filter((m) => m.phone === selectedPhone), [instanceMessages, selectedPhone]);
   const selectedContact = useMemo(() => contacts[selectedPhone || ''] || null, [contacts, selectedPhone]);
@@ -412,6 +420,47 @@ export default function EvolutionChat() {
     () => thread.filter(m => pinnedIds.has(m.id)),
     [thread, pinnedIds],
   );
+
+  const togglePinnedContact = (phone: string) => {
+    setPinnedContacts(prev => {
+      const next = new Set(prev);
+      if (next.has(phone)) next.delete(phone); else next.add(phone);
+      try { localStorage.setItem('evo_pinned_contacts', JSON.stringify([...next])); } catch { /* noop */ }
+      return next;
+    });
+  };
+
+  // Extract reactionMessage from raw payload (Evolution Go + classic)
+  const extractReaction = (raw: unknown): { targetId: string; emoji: string } | null => {
+    const r = raw as any;
+    const rm =
+      r?.data?.Message?.reactionMessage ||
+      r?.Message?.reactionMessage ||
+      r?.message?.reactionMessage ||
+      r?.reactionMessage;
+    if (!rm) return null;
+    const targetId = rm?.key?.id || rm?.key?.ID || rm?.Key?.ID || rm?.Key?.id || '';
+    const emoji = rm?.text || rm?.Text || '';
+    if (!targetId) return null;
+    return { targetId, emoji };
+  };
+
+  const sendReaction = async (m: EvoMessage, emoji: string) => {
+    if (!m.external_id) {
+      toast({ title: 'Não é possível reagir', description: 'Mensagem sem ID externo.', variant: 'destructive' });
+      return;
+    }
+    const { data, error } = await supabase.functions.invoke('evolution-send', {
+      body: { action: 'send-reaction', phone: m.phone, messageId: m.external_id, fromMe: m.direction === 'out', emoji },
+    });
+    if (error || data?.error) {
+      toast({ title: 'Erro ao reagir', description: error?.message || data?.error, variant: 'destructive' });
+      return;
+    }
+    toast({ title: emoji ? `Reagiu ${emoji}` : 'Reação removida' });
+  };
+
+
 
 
   const startConversation = async () => {
@@ -544,16 +593,34 @@ export default function EvolutionChat() {
   };
 
   // Group thread by day
+  // Build reaction map and filter reaction rows out of the visible thread
+  const { visibleThread, reactionsByExternalId } = useMemo(() => {
+    const reactions: Record<string, { emoji: string; from: 'in' | 'out' }> = {};
+    const visible: EvoMessage[] = [];
+    for (const m of thread) {
+      const r = extractReaction(m.raw);
+      const looksLikeReaction = !!r || m.message_type === 'reaction' || (m.content === '[reaction]');
+      if (r) {
+        if (r.emoji) reactions[r.targetId] = { emoji: r.emoji, from: m.direction };
+        else delete reactions[r.targetId];
+        continue; // hide reaction "messages"
+      }
+      if (looksLikeReaction) continue;
+      visible.push(m);
+    }
+    return { visibleThread: visible, reactionsByExternalId: reactions };
+  }, [thread]);
+
   const groupedThread = useMemo(() => {
     const groups: Array<{ date: string; items: EvoMessage[] }> = [];
-    for (const m of thread) {
+    for (const m of visibleThread) {
       const d = new Date(m.created_at).toLocaleDateString('pt-BR');
       const last = groups[groups.length - 1];
       if (last && last.date === d) last.items.push(m);
       else groups.push({ date: d, items: [m] });
     }
     return groups;
-  }, [thread]);
+  }, [visibleThread]);
 
   const renderMessageBody = (m: EvoMessage) => {
     const src = mediaSource(m);
@@ -681,37 +748,55 @@ export default function EvolutionChat() {
                 const isOut = c.last?.direction === 'out';
                 const cc = contacts[c.phone];
                 const displayName = cc?.name || c.name || formatPhone(c.phone);
+                const isPinnedContact = pinnedContacts.has(c.phone);
                 return (
-                  <button
-                    key={c.phone}
-                    onClick={() => setSelectedPhone(c.phone)}
-                    className={cn(
-                      'w-full text-left px-3 py-2.5 border-b border-border/40 hover:bg-accent/50 transition-colors flex gap-2.5 items-start',
-                      active && 'bg-accent'
-                    )}
-                  >
-                    <Avatar className="h-9 w-9 shrink-0">
-                      {cc?.profile_pic_url && <AvatarImage src={cc.profile_pic_url} alt={displayName} />}
-                      <AvatarFallback className="text-[11px] bg-gradient-to-br from-primary/20 to-primary/5 text-primary">
-                        {initials(displayName, c.phone)}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="text-sm font-medium truncate">{displayName}</div>
-                        <div className="text-[10px] text-muted-foreground shrink-0">{c.last ? relativeTime(c.last.created_at) : 'novo'}</div>
-                      </div>
-                      <div className="flex items-center justify-between gap-2 mt-0.5">
-                        <div className="text-[11px] text-muted-foreground truncate">
-                          {isOut && <span className="text-primary mr-1">✓</span>}
-                          {c.last?.content || 'Nova conversa'}
-                        </div>
-                        {!active && c.unread > 0 && c.last?.direction === 'in' && (
-                          <Badge className="h-4 min-w-4 px-1 text-[9px] bg-primary">{c.unread > 99 ? '99+' : c.unread}</Badge>
+                  <ContextMenu key={c.phone}>
+                    <ContextMenuTrigger asChild>
+                      <button
+                        onClick={() => setSelectedPhone(c.phone)}
+                        className={cn(
+                          'w-full text-left px-3 py-2.5 border-b border-border/40 hover:bg-accent/50 transition-colors flex gap-2.5 items-start',
+                          active && 'bg-accent',
+                          isPinnedContact && 'bg-gradient-to-r from-emerald-500/5 to-transparent',
                         )}
-                      </div>
-                    </div>
-                  </button>
+                      >
+                        <Avatar className="h-9 w-9 shrink-0">
+                          {cc?.profile_pic_url && <AvatarImage src={cc.profile_pic_url} alt={displayName} />}
+                          <AvatarFallback className="text-[11px] bg-gradient-to-br from-primary/20 to-primary/5 text-primary">
+                            {initials(displayName, c.phone)}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="text-sm font-medium truncate flex items-center gap-1">
+                              {isPinnedContact && <Pin className="w-3 h-3 text-emerald-500 shrink-0" />}
+                              {displayName}
+                            </div>
+                            <div className="text-[10px] text-muted-foreground shrink-0">{c.last ? relativeTime(c.last.created_at) : 'novo'}</div>
+                          </div>
+                          <div className="flex items-center justify-between gap-2 mt-0.5">
+                            <div className="text-[11px] text-muted-foreground truncate">
+                              {isOut && <span className="text-primary mr-1">✓</span>}
+                              {c.last?.content || 'Nova conversa'}
+                            </div>
+                            {!active && c.unread > 0 && c.last?.direction === 'in' && (
+                              <Badge className="h-4 min-w-4 px-1 text-[9px] bg-primary">{c.unread > 99 ? '99+' : c.unread}</Badge>
+                            )}
+                          </div>
+                        </div>
+                      </button>
+                    </ContextMenuTrigger>
+                    <ContextMenuContent className="w-44">
+                      <ContextMenuItem onClick={() => togglePinnedContact(c.phone)}>
+                        {isPinnedContact
+                          ? <><PinOff className="w-4 h-4 mr-2" /> Desafixar contato</>
+                          : <><Pin className="w-4 h-4 mr-2" /> Fixar contato</>}
+                      </ContextMenuItem>
+                      <ContextMenuItem onClick={() => copyText(formatPhone(c.phone))}>
+                        <Copy className="w-4 h-4 mr-2" /> Copiar número
+                      </ContextMenuItem>
+                    </ContextMenuContent>
+                  </ContextMenu>
                 );
               })
             )}
@@ -846,7 +931,16 @@ export default function EvolutionChat() {
                                     <ChevronDown className="w-3 h-3 text-white" />
                                   </button>
                                 </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end" className="w-44">
+                                <DropdownMenuContent align="end" className="w-52">
+                                  <div className="px-1 py-1.5 flex gap-1 justify-around">
+                                    {['👍','❤️','😂','😮','😢','🙏'].map(em => (
+                                      <button key={em} onClick={() => sendReaction(m, em)}
+                                        className="text-lg hover:scale-125 transition-transform" title={`Reagir ${em}`}>
+                                        {em}
+                                      </button>
+                                    ))}
+                                  </div>
+                                  <DropdownMenuSeparator />
                                   <DropdownMenuItem onClick={() => togglePin(m.id)}>
                                     {isPinned ? <><PinOff className="w-4 h-4 mr-2" /> Desafixar</> : <><Pin className="w-4 h-4 mr-2" /> Fixar mensagem</>}
                                   </DropdownMenuItem>
@@ -869,9 +963,25 @@ export default function EvolutionChat() {
                                   : <span className="text-[#53bdeb] font-bold leading-none">✓✓</span>
                                 )}
                               </div>
+                              {m.external_id && reactionsByExternalId[m.external_id] && (
+                                <div className={cn(
+                                  'absolute -bottom-2.5 text-xs px-1.5 py-0.5 rounded-full bg-[#2a3942] border border-[#0b141a] shadow',
+                                  m.direction === 'out' ? 'right-2' : 'left-2',
+                                )}>
+                                  {reactionsByExternalId[m.external_id].emoji}
+                                </div>
+                              )}
                             </div>
                           </ContextMenuTrigger>
-                          <ContextMenuContent className="w-48">
+                          <ContextMenuContent className="w-52">
+                            <div className="px-1 py-1.5 flex gap-1 justify-around">
+                              {['👍','❤️','😂','😮','😢','🙏'].map(em => (
+                                <button key={em} onClick={() => sendReaction(m, em)}
+                                  className="text-lg hover:scale-125 transition-transform" title={`Reagir ${em}`}>
+                                  {em}
+                                </button>
+                              ))}
+                            </div>
                             <ContextMenuItem onClick={() => togglePin(m.id)}>
                               {isPinned ? <><PinOff className="w-4 h-4 mr-2" /> Desafixar</> : <><Pin className="w-4 h-4 mr-2" /> Fixar mensagem</>}
                             </ContextMenuItem>

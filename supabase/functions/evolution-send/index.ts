@@ -435,6 +435,41 @@ Deno.serve(async (req) => {
       return jsonResponse({ ok: r.ok, count: payload.length, status: r.status });
     }
 
+    // SEND REACTION — body: { phone, messageId, fromMe, emoji }
+    if (action === 'send-reaction') {
+      if (!instance) return jsonResponse({ error: 'Escolha uma instância em Conexões WhatsApp.' }, 200);
+      const phone = normalizePhone(body.phone);
+      const messageId = String(body.messageId || '').trim();
+      const emoji = String(body.emoji || '');
+      const fromMe = !!body.fromMe;
+      if (!phone || !messageId) return jsonResponse({ error: 'phone e messageId obrigatórios' }, 400);
+      const instAuth = await resolveInstanceAuth(baseUrl, apiKey, instance);
+      const jid = `${phone}@s.whatsapp.net`;
+      const key = { remoteJid: jid, fromMe, id: messageId };
+
+      const attempts: Array<{ url: string; headers: Record<string, string>; body: any; mode: string }> = [
+        // Evolution Go
+        { url: `${baseUrl}/send/reaction`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { key, reaction: emoji }, mode: 'evolution-go-reaction' },
+        { url: `${baseUrl}/message/sendReaction`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { reactionMessage: { key, text: emoji } }, mode: 'evolution-go-reaction-v2' },
+        // Classic
+        { url: `${baseUrl}/message/sendReaction/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { reactionMessage: { key, text: emoji } }, mode: 'evolution-api-reaction' },
+        { url: `${baseUrl}/message/sendReaction/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { key, reaction: emoji }, mode: 'evolution-api-reaction-v2' },
+      ];
+      let result: any = { ok: false, status: 0, data: {} };
+      const log: any[] = [];
+      for (const att of attempts) {
+        const r = await fetchJson(att.url, { method: 'POST', headers: att.headers, body: JSON.stringify(att.body) })
+          .catch((error) => ({ ok: false, status: 0, data: { error: String(error?.message || error) } }));
+        log.push({ mode: att.mode, status: r.status });
+        if (r.ok) { result = r; break; }
+        result = r;
+      }
+      if (!result.ok) {
+        return jsonResponse({ error: `Falha ao reagir (${log.map(l => `${l.mode}:${l.status}`).join(' | ')})`, attempts: log }, 200);
+      }
+      return jsonResponse({ ok: true, data: result.data });
+    }
+
     // SEND MEDIA (audio / image / file) — body: { phone, mediaBase64, mimetype, filename, mediaType: 'audio'|'image'|'document', caption? }
     if (action === 'send-media') {
       if (!instance) return jsonResponse({ error: 'Escolha uma instância em Conexões WhatsApp antes de enviar arquivos.' }, 200);
