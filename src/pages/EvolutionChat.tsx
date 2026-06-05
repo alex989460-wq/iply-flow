@@ -11,7 +11,9 @@ import EmojiPicker, { EmojiStyle, Theme } from 'emoji-picker-react';
 import {
   Loader2, Send, Zap, Plus, RefreshCw, Search, MessageSquare,
   Phone, X, Smile, Mic, Paperclip, Trash2, Image as ImageIcon, FileText, Sticker, QrCode,
+  Pin, PinOff, Info, Copy, ExternalLink, MoreVertical, ChevronDown,
 } from 'lucide-react';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -158,6 +160,8 @@ export default function EvolutionChat() {
   const [instances, setInstances] = useState<Array<{ id: string; name: string; phone: string | null; state: string; profile_name: string | null }>>([]);
   const [currentInstance, setCurrentInstance] = useState<string>('');
   const [switchingInstance, setSwitchingInstance] = useState(false);
+  const [showContactInfo, setShowContactInfo] = useState(false);
+  const [pinnedIds, setPinnedIds] = useState<Set<string>>(new Set());
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const stickerInputRef = useRef<HTMLInputElement>(null);
@@ -368,6 +372,46 @@ export default function EvolutionChat() {
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
   }, [thread.length, selectedPhone]);
+
+  // Load pinned message ids for the selected conversation from localStorage
+  useEffect(() => {
+    if (!selectedPhone) { setPinnedIds(new Set()); return; }
+    try {
+      const raw = localStorage.getItem(`evo_pinned_${selectedPhone}`);
+      setPinnedIds(new Set(raw ? JSON.parse(raw) : []));
+    } catch { setPinnedIds(new Set()); }
+  }, [selectedPhone]);
+
+  const togglePin = (id: string) => {
+    if (!selectedPhone) return;
+    setPinnedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      try { localStorage.setItem(`evo_pinned_${selectedPhone}`, JSON.stringify([...next])); } catch { /* noop */ }
+      return next;
+    });
+  };
+
+  const scrollToMessage = (id: string) => {
+    const el = document.getElementById(`evo-msg-${id}`);
+    if (!el) return;
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    el.classList.add('ring-2', 'ring-[#00a884]');
+    setTimeout(() => el.classList.remove('ring-2', 'ring-[#00a884]'), 1500);
+  };
+
+  const copyText = (text: string) => {
+    navigator.clipboard?.writeText(text).then(
+      () => toast({ title: 'Copiado!' }),
+      () => toast({ title: 'Não foi possível copiar', variant: 'destructive' }),
+    );
+  };
+
+  const pinnedMessages = useMemo(
+    () => thread.filter(m => pinnedIds.has(m.id)),
+    [thread, pinnedIds],
+  );
+
 
   const startConversation = async () => {
     const digits = newPhone.replace(/\D/g, '');
@@ -685,7 +729,7 @@ export default function EvolutionChat() {
             </div>
           ) : (
             <>
-              <div className="px-3 py-2 border-b border-[#0b1115] bg-[#202c33] flex items-center gap-3 shadow-sm">
+              <div className="px-3 py-2 border-b border-[#0b1115] bg-gradient-to-r from-[#202c33] via-[#1f2a30] to-[#202c33] flex items-center gap-3 shadow-sm">
                 {isMobile && (
                   <Button size="icon" variant="ghost" className="h-8 w-8 text-[#aebac1] hover:bg-white/5" onClick={() => setSelectedPhone(null)}>
                     <X className="w-4 h-4" />
@@ -693,30 +737,79 @@ export default function EvolutionChat() {
                 )}
                 <button
                   type="button"
-                  onClick={() => selectedContact?.profile_pic_url && setAvatarPreview(selectedContact.profile_pic_url)}
-                  className="rounded-full focus:outline-none focus:ring-2 focus:ring-[#00a884]"
-                  aria-label="Ver avatar"
+                  onClick={() => setShowContactInfo(true)}
+                  className="flex items-center gap-3 flex-1 min-w-0 rounded-md px-1 -mx-1 py-1 hover:bg-white/5 transition-colors focus:outline-none focus:ring-2 focus:ring-[#00a884]/40"
+                  aria-label="Ver informações do contato"
                 >
-                  <Avatar className="h-10 w-10 hover:opacity-80 transition-opacity ring-1 ring-white/10">
+                  <Avatar className="h-10 w-10 ring-2 ring-[#00a884]/30 transition-transform hover:scale-105">
                     {selectedContact?.profile_pic_url && <AvatarImage src={selectedContact.profile_pic_url} />}
                     <AvatarFallback className="text-xs bg-[#00a884]/20 text-[#00a884]">
                       {initials(selectedName, selectedPhone)}
                     </AvatarFallback>
                   </Avatar>
-                </button>
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm font-semibold truncate text-[#e9edef]">{selectedName || formatPhone(selectedPhone)}</div>
-                  <div className="text-[11px] text-[#8696a0] flex items-center gap-1">
-                    <Phone className="w-2.5 h-2.5" /> {formatPhone(selectedPhone)}
+                  <div className="flex-1 min-w-0 text-left">
+                    <div className="text-sm font-semibold truncate text-[#e9edef]">{selectedName || formatPhone(selectedPhone)}</div>
+                    <div className="text-[11px] text-[#8696a0] flex items-center gap-1">
+                      <Phone className="w-2.5 h-2.5" /> {formatPhone(selectedPhone)}
+                      <span className="mx-1 opacity-50">•</span>
+                      <span className="text-[#00a884]">toque para ver detalhes</span>
+                    </div>
                   </div>
-                </div>
+                </button>
                 {isMobile && (
                   <Button size="sm" variant={showRenewalPanel ? 'default' : 'outline'} className="h-7 text-[11px] px-2"
                     onClick={() => setShowRenewalPanel(v => !v)}>
                     <RefreshCw className="w-3 h-3 mr-1" /> Renovar
                   </Button>
                 )}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button size="icon" variant="ghost" className="h-8 w-8 text-[#aebac1] hover:bg-white/5">
+                      <MoreVertical className="w-4 h-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-52">
+                    <DropdownMenuItem onClick={() => setShowContactInfo(true)}>
+                      <Info className="w-4 h-4 mr-2" /> Informações do contato
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => copyText(formatPhone(selectedPhone))}>
+                      <Copy className="w-4 h-4 mr-2" /> Copiar número
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => window.open(`https://wa.me/${selectedPhone}`, '_blank')}>
+                      <ExternalLink className="w-4 h-4 mr-2" /> Abrir no WhatsApp
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={load}>
+                      <RefreshCw className="w-4 h-4 mr-2" /> Recarregar mensagens
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
+
+              {/* Pinned messages bar */}
+              {pinnedMessages.length > 0 && (
+                <div className="px-3 py-1.5 border-b border-[#0b1115] bg-[#1d282f]/80 backdrop-blur flex items-center gap-2 overflow-x-auto">
+                  <Pin className="w-3.5 h-3.5 text-[#00a884] shrink-0" />
+                  <div className="flex gap-1.5 overflow-x-auto">
+                    {pinnedMessages.slice(-5).map(m => (
+                      <button
+                        key={m.id}
+                        onClick={() => scrollToMessage(m.id)}
+                        className="group shrink-0 flex items-center gap-1.5 max-w-[200px] text-[11px] px-2 py-1 rounded-md bg-[#2a3942] text-[#e9edef] hover:bg-[#374248] transition-colors"
+                        title="Clique para ir até a mensagem"
+                      >
+                        <span className="truncate">{m.content || (m.message_type === 'image' ? '📷 Imagem' : m.message_type === 'audio' ? '🎤 Áudio' : '📎 Anexo')}</span>
+                        <PinOff
+                          className="w-3 h-3 opacity-60 hover:opacity-100 hover:text-destructive"
+                          onClick={(e) => { e.stopPropagation(); togglePin(m.id); }}
+                        />
+                      </button>
+                    ))}
+                  </div>
+                  <span className="ml-auto text-[10px] text-[#8696a0] shrink-0">{pinnedMessages.length} fixada{pinnedMessages.length > 1 ? 's' : ''}</span>
+                </div>
+              )}
+
 
               <div ref={scrollRef} className="flex-1 overflow-auto px-3 py-3 space-y-2 bg-[#0b141a]"
                 style={{ backgroundImage: 'radial-gradient(circle at 1px 1px, rgba(255,255,255,0.025) 1px, transparent 0)', backgroundSize: '22px 22px' }}>
@@ -728,17 +821,44 @@ export default function EvolutionChat() {
                     <div className="flex justify-center my-2">
                       <span className="text-[11px] px-3 py-1 rounded-md bg-[#1d282f] text-[#aebac1] shadow-sm">{g.date}</span>
                     </div>
-                    {g.items.map((m) => (
-                      <div key={m.id} className={cn('flex', m.direction === 'out' ? 'justify-end' : 'justify-start')}>
+                    {g.items.map((m) => {
+                      const isPinned = pinnedIds.has(m.id);
+                      return (
+                      <div key={m.id} id={`evo-msg-${m.id}`} className={cn('group flex transition-all rounded-lg', m.direction === 'out' ? 'justify-end' : 'justify-start')}>
                         <div className={cn(
-                          'max-w-[78%] md:max-w-[65%] rounded-lg px-2 py-1 text-sm shadow-sm relative text-[#e9edef]',
+                          'max-w-[78%] md:max-w-[65%] rounded-lg px-2 py-1 text-sm shadow-sm relative text-[#e9edef] transition-transform hover:-translate-y-0.5',
                           m.direction === 'out' ? 'bg-[#005c4b] rounded-tr-sm' : 'bg-[#202c33] rounded-tl-sm',
                           m._failed && 'ring-1 ring-destructive',
+                          isPinned && 'ring-1 ring-[#00a884]/60',
                         )}>
+                          {isPinned && (
+                            <Pin className="absolute -top-1.5 -left-1.5 w-3 h-3 text-[#00a884] bg-[#0b141a] rounded-full p-0.5" />
+                          )}
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <button
+                                className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity bg-black/30 hover:bg-black/50 rounded-full p-0.5"
+                                aria-label="Opções da mensagem"
+                              >
+                                <ChevronDown className="w-3 h-3 text-white" />
+                              </button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-44">
+                              <DropdownMenuItem onClick={() => togglePin(m.id)}>
+                                {isPinned ? <><PinOff className="w-4 h-4 mr-2" /> Desafixar</> : <><Pin className="w-4 h-4 mr-2" /> Fixar mensagem</>}
+                              </DropdownMenuItem>
+                              {m.content && (
+                                <DropdownMenuItem onClick={() => copyText(m.content)}>
+                                  <Copy className="w-4 h-4 mr-2" /> Copiar texto
+                                </DropdownMenuItem>
+                              )}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                           <div className="px-1.5 pt-0.5">
                             {renderMessageBody(m)}
                           </div>
                           <div className="flex items-center justify-end gap-1 px-1.5 pb-0.5 mt-0.5 text-[10px] text-[#aebac1]">
+                            {isPinned && <Pin className="w-2.5 h-2.5 text-[#00a884]" />}
                             <span>{new Date(m.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
                             {m.direction === 'out' && (
                               m._failed ? <span className="text-destructive">⚠️</span>
@@ -748,7 +868,7 @@ export default function EvolutionChat() {
                           </div>
                         </div>
                       </div>
-                    ))}
+                    );})}
                   </div>
                 ))}
               </div>
@@ -870,6 +990,54 @@ export default function EvolutionChat() {
         <DialogContent className="max-w-5xl p-2 bg-background/95 border-border">
           {previewImage && (
             <img src={previewImage.url} alt={previewImage.caption || 'Imagem ampliada'} className="max-h-[85vh] w-full object-contain rounded-md" />
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Contact info side panel */}
+      <Dialog open={showContactInfo} onOpenChange={setShowContactInfo}>
+        <DialogContent className="max-w-md p-0 overflow-hidden bg-[#111b21] border-[#0b1115] text-[#e9edef]">
+          {selectedPhone && (
+            <div className="flex flex-col">
+              <div className="bg-gradient-to-br from-[#00a884]/30 via-[#1f2a30] to-[#202c33] px-6 pt-8 pb-5 flex flex-col items-center text-center">
+                <button onClick={() => selectedContact?.profile_pic_url && setAvatarPreview(selectedContact.profile_pic_url)}>
+                  <Avatar className="h-28 w-28 ring-4 ring-[#00a884]/40 shadow-xl hover:scale-105 transition-transform">
+                    {selectedContact?.profile_pic_url && <AvatarImage src={selectedContact.profile_pic_url} />}
+                    <AvatarFallback className="text-3xl bg-[#00a884]/20 text-[#00a884]">
+                      {initials(selectedName, selectedPhone)}
+                    </AvatarFallback>
+                  </Avatar>
+                </button>
+                <div className="mt-3 text-lg font-semibold">{selectedName || formatPhone(selectedPhone)}</div>
+                <div className="text-xs text-[#8696a0] flex items-center gap-1 mt-0.5">
+                  <Phone className="w-3 h-3" /> {formatPhone(selectedPhone)}
+                </div>
+              </div>
+              <div className="p-4 space-y-3">
+                <div className="grid grid-cols-3 gap-2">
+                  <Button variant="ghost" className="flex-col h-auto py-3 hover:bg-white/5 text-[#aebac1]" onClick={() => copyText(formatPhone(selectedPhone))}>
+                    <Copy className="w-5 h-5 text-[#00a884]" />
+                    <span className="text-[11px] mt-1">Copiar</span>
+                  </Button>
+                  <Button variant="ghost" className="flex-col h-auto py-3 hover:bg-white/5 text-[#aebac1]" onClick={() => window.open(`https://wa.me/${selectedPhone}`, '_blank')}>
+                    <ExternalLink className="w-5 h-5 text-[#00a884]" />
+                    <span className="text-[11px] mt-1">WhatsApp</span>
+                  </Button>
+                  <Button variant="ghost" className="flex-col h-auto py-3 hover:bg-white/5 text-[#aebac1]" onClick={() => { setShowContactInfo(false); setShowRenewalPanel(true); }}>
+                    <RefreshCw className="w-5 h-5 text-[#00a884]" />
+                    <span className="text-[11px] mt-1">Renovar</span>
+                  </Button>
+                </div>
+                <div className="rounded-lg bg-[#202c33] p-3 space-y-2 text-xs">
+                  <div className="flex justify-between"><span className="text-[#8696a0]">Mensagens</span><span className="font-medium">{thread.length}</span></div>
+                  <div className="flex justify-between"><span className="text-[#8696a0]">Fixadas</span><span className="font-medium">{pinnedMessages.length}</span></div>
+                  <div className="flex justify-between"><span className="text-[#8696a0]">Instância</span><span className="font-medium truncate max-w-[180px]">{currentInstance || '—'}</span></div>
+                  {thread[0] && (
+                    <div className="flex justify-between"><span className="text-[#8696a0]">Primeira msg</span><span className="font-medium">{new Date(thread[0].created_at).toLocaleDateString('pt-BR')}</span></div>
+                  )}
+                </div>
+              </div>
+            </div>
           )}
         </DialogContent>
       </Dialog>
