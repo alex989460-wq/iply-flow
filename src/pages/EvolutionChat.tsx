@@ -992,7 +992,7 @@ export default function EvolutionChat() {
                                     <ChevronDown className="w-3 h-3 text-white" />
                                   </button>
                                 </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end" className="w-52">
+                                <DropdownMenuContent align="end" className="w-56">
                                   <div className="px-1 py-1.5 flex gap-1 justify-around">
                                     {['👍','❤️','😂','😮','😢','🙏'].map(em => (
                                       <button key={em} onClick={() => sendReaction(m, em)}
@@ -1002,14 +1002,27 @@ export default function EvolutionChat() {
                                     ))}
                                   </div>
                                   <DropdownMenuSeparator />
-                                  <DropdownMenuItem onClick={() => togglePin(m.id)}>
-                                    {isPinned ? <><PinOff className="w-4 h-4 mr-2" /> Desafixar</> : <><Pin className="w-4 h-4 mr-2" /> Fixar mensagem</>}
+                                  <DropdownMenuItem onClick={() => handleReply(m)}>
+                                    <Reply className="w-4 h-4 mr-2" /> Responder
                                   </DropdownMenuItem>
                                   {m.content && (
                                     <DropdownMenuItem onClick={() => copyText(m.content)}>
                                       <Copy className="w-4 h-4 mr-2" /> Copiar texto
                                     </DropdownMenuItem>
                                   )}
+                                  <DropdownMenuItem onClick={() => handleForward(m)}>
+                                    <Forward className="w-4 h-4 mr-2" /> Encaminhar
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem onClick={() => togglePin(m.id)}>
+                                    {isPinned ? <><PinOff className="w-4 h-4 mr-2" /> Desafixar</> : <><Pin className="w-4 h-4 mr-2" /> Fixar mensagem</>}
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem onClick={() => toggleFavorite(m)}>
+                                    {isFavorited(m.id) ? <><StarOff className="w-4 h-4 mr-2" /> Desfavoritar</> : <><Star className="w-4 h-4 mr-2" /> Favoritar</>}
+                                  </DropdownMenuItem>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem onClick={() => deleteLocal(m.id)} className="text-destructive focus:text-destructive">
+                                    <Trash className="w-4 h-4 mr-2" /> Apagar (somente aqui)
+                                  </DropdownMenuItem>
                                 </DropdownMenuContent>
                               </DropdownMenu>
                               <div className="px-1.5 pt-0.5">
