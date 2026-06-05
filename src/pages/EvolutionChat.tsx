@@ -864,10 +864,14 @@ export default function EvolutionChat() {
                 { id: 'contacts', label: 'Contatos' },
                 { id: 'groups', label: 'Grupos' },
                 { id: 'media', label: 'Mídia' },
+                { id: 'status', label: '📢 Status' },
               ] as const).map((t) => (
                 <button
                   key={t.id}
-                  onClick={() => setFilter(t.id)}
+                  onClick={() => {
+                    setFilter(t.id);
+                    if (t.id === 'status') setSelectedPhone('status');
+                  }}
                   className={cn(
                     'flex-1 text-[11px] px-2 py-1 rounded-md border transition-colors',
                     filter === t.id
