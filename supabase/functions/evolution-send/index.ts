@@ -686,12 +686,29 @@ Deno.serve(async (req) => {
     if (action === 'create-instance') {
       const name = String(body.name || '').trim();
       if (!name) return jsonResponse({ error: 'name obrigatório' }, 400);
+
+      // Enforce per-reseller limit (admins are unlimited)
+      if (!isAdminUser) {
+        const { data: owned } = await admin
+          .from('user_evolution_instances')
+          .select('id')
+          .eq('user_id', user.id);
+        const used = (owned || []).length;
+        const { data: access } = await admin
+          .from('reseller_access')
+          .select('max_evolution_instances')
+          .eq('user_id', user.id)
+          .maybeSingle();
+        const max = Number(access?.max_evolution_instances ?? 1);
+        if (used >= max) {
+          return jsonResponse({ ok: false, error: `Limite de ${max} instância(s) atingido. Peça ao administrador para aumentar.` }, 200);
+        }
+      }
+
       const webhookUrl = `${supabaseUrl}/functions/v1/evolution-webhook?token=${settings.webhook_token}`;
       const instToken = (crypto as any).randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
       const payloads = [
-        // Evolution Go style (requires token)
         { url: `${baseUrl}/instance/create`, body: { name, token: instToken, webhookUrl, subscribe: ['MESSAGE','SEND_MESSAGE','CONNECTION'], immediate: true } },
-        // Evolution API classic
         { url: `${baseUrl}/instance/create`, body: { instanceName: name, token: instToken, qrcode: true, integration: 'WHATSAPP-BAILEYS', webhook: { url: webhookUrl, events: ['MESSAGES_UPSERT'] } } },
       ];
       let last: any = { ok: false, status: 0, data: {} };
@@ -702,7 +719,15 @@ Deno.serve(async (req) => {
           body: JSON.stringify(p.body),
         }, 12000).catch((error) => ({ ok: false, status: 0, data: { error: String(error?.message || error) } }));
         last = r;
-        if (r.ok) return jsonResponse({ ok: true, data: r.data, name });
+        if (r.ok) {
+          // Register ownership
+          const instId = r.data?.id || r.data?.instance?.instanceId || r.data?.data?.id || null;
+          await admin.from('user_evolution_instances').upsert(
+            { user_id: user.id, instance_name: name, instance_id: instId },
+            { onConflict: 'instance_name' }
+          );
+          return jsonResponse({ ok: true, data: r.data, name });
+        }
       }
       return jsonResponse({ ok: false, status: last.status, error: last.data?.message || last.data?.error || 'Falha ao criar instância.', data: last.data }, 200);
     }
@@ -713,12 +738,10 @@ Deno.serve(async (req) => {
       if (!targetInstance) return jsonResponse({ ok: false, error: 'instance obrigatória' }, 400);
       const instAuth = await resolveInstanceAuth(baseUrl, apiKey, targetInstance);
       const tries = [
-        // Evolution Go (instance-scoped, no path id)
         { url: `${baseUrl}/instance/logout`, method: 'DELETE', headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId) },
         { url: `${baseUrl}/instance/logout`, method: 'POST', headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId) },
         { url: `${baseUrl}/instance/disconnect`, method: 'POST', headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId) },
         { url: `${baseUrl}/instance/${encodeURIComponent(instAuth.instanceId)}/logout`, method: 'DELETE', headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId) },
-        // Evolution API classic
         { url: `${baseUrl}/instance/logout/${encodeURIComponent(targetInstance)}`, method: 'DELETE', headers: evolutionHeaders(apiKey, true) },
         { url: `${baseUrl}/instance/logout/${encodeURIComponent(targetInstance)}`, method: 'POST', headers: evolutionHeaders(apiKey, true) },
         { url: `${baseUrl}/instance/disconnect/${encodeURIComponent(targetInstance)}`, method: 'POST', headers: evolutionHeaders(apiKey, true) },
@@ -732,6 +755,62 @@ Deno.serve(async (req) => {
       }
       return jsonResponse({ ok: false, error: 'Falha ao desconectar instância.', attempts }, 200);
     }
+
+    // DELETE INSTANCE (remove from Evolution + ownership table)
+    if (action === 'delete-instance') {
+      const targetInstance = String(body.instance || '').trim();
+      if (!targetInstance) return jsonResponse({ ok: false, error: 'instance obrigatória' }, 400);
+
+      // Ownership check (admins bypass)
+      if (!isAdminUser) {
+        const { data: own } = await admin
+          .from('user_evolution_instances')
+          .select('user_id')
+          .eq('instance_name', targetInstance)
+          .maybeSingle();
+        if (own && own.user_id !== user.id) {
+          return jsonResponse({ ok: false, error: 'Você não é dono desta instância.' }, 403);
+        }
+      }
+
+      const instAuth = await resolveInstanceAuth(baseUrl, apiKey, targetInstance);
+      // Try logout first (some panels require it before delete)
+      await fetchJson(`${baseUrl}/instance/logout`, {
+        method: 'DELETE', headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId),
+      }, 5000).catch(() => null);
+
+      const tries = [
+        // Evolution Go
+        { url: `${baseUrl}/instance/${encodeURIComponent(instAuth.instanceId)}`, method: 'DELETE', headers: evolutionHeaders(apiKey, true) },
+        { url: `${baseUrl}/instance/delete`, method: 'DELETE', headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId) },
+        // Classic Evolution API
+        { url: `${baseUrl}/instance/delete/${encodeURIComponent(targetInstance)}`, method: 'DELETE', headers: evolutionHeaders(apiKey, true) },
+        { url: `${baseUrl}/instance/delete/${encodeURIComponent(targetInstance)}`, method: 'POST', headers: evolutionHeaders(apiKey, true) },
+      ];
+      const attempts: Array<{ url: string; method: string; status: number }> = [];
+      let ok = false;
+      for (const t of tries) {
+        const r = await fetchJson(t.url, { method: t.method, headers: t.headers, body: t.method === 'POST' ? '{}' : undefined }, 8000)
+          .catch(() => ({ ok: false, status: 0, data: {} as any }));
+        attempts.push({ url: t.url, method: t.method, status: r.status });
+        if (r.ok) { ok = true; break; }
+      }
+
+      // Remove ownership record regardless of remote outcome (so user isn't locked out of slot)
+      await admin.from('user_evolution_instances')
+        .delete()
+        .eq('instance_name', targetInstance)
+        .eq('user_id', isAdminUser ? (await admin.from('user_evolution_instances').select('user_id').eq('instance_name', targetInstance).maybeSingle()).data?.user_id || user.id : user.id);
+
+      // Clear active instance if it was the deleted one
+      if (settings.instance_name === targetInstance) {
+        await admin.from('evolution_settings').update({ instance_name: '' }).eq('user_id', user.id);
+      }
+
+      if (!ok) return jsonResponse({ ok: false, error: 'Falha ao excluir no painel Evolution (registro local removido).', attempts }, 200);
+      return jsonResponse({ ok: true, attempts });
+    }
+
 
     // SET ACTIVE INSTANCE (saves to evolution_settings.instance_name)
     if (action === 'set-active-instance') {
