@@ -1521,6 +1521,35 @@ export default function EvolutionChat() {
           )}
         </DialogContent>
       </Dialog>
+
+      <Dialog open={showStatusComposer} onOpenChange={setShowStatusComposer}>
+        <DialogContent className="max-w-md">
+          <div className="space-y-3">
+            <div className="text-base font-semibold">📢 Postar Status no WhatsApp</div>
+            <div className="text-xs text-muted-foreground">
+              O texto será publicado como Status (broadcast) visível para seus contatos por 24h.
+            </div>
+            <textarea
+              value={statusDraft}
+              onChange={(e) => setStatusDraft(e.target.value)}
+              placeholder="Escreva seu status..."
+              rows={4}
+              maxLength={700}
+              className="w-full rounded-md border border-border bg-background p-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+            />
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[11px] text-muted-foreground">{statusDraft.length}/700</span>
+              <div className="flex gap-2">
+                <Button size="sm" variant="outline" onClick={() => setShowStatusComposer(false)}>Cancelar</Button>
+                <Button size="sm" disabled={postingStatus || !statusDraft.trim()} onClick={postStatus}>
+                  {postingStatus ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <Send className="w-3.5 h-3.5 mr-1" />}
+                  Publicar
+                </Button>
+              </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   );
 }
