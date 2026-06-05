@@ -640,6 +640,33 @@ export default function EvolutionChat() {
   };
 
   // OPTIMISTIC TEXT SEND — message appears instantly, request goes in background
+  const sendTextPayload = (phone: string, text: string, tempId: string, quoted: any, quotedRaw: any) => {
+    supabase.functions.invoke('evolution-send', {
+      body: { action: 'send', phone, text, quoted },
+    }).then(({ data, error }) => {
+      if (error || data?.error) {
+        setMessages(prev => prev.map(m => m.id === tempId ? { ...m, _pending: false, _failed: true } : m));
+        toast({ title: 'Erro ao enviar', description: error?.message || data?.error || 'Falha', variant: 'destructive' });
+        return;
+      }
+      setMessages(prev => prev.map(m => m.id === tempId ? { ...m, _pending: false, _failed: false, raw: quotedRaw ? { ...(data || {}), ...quotedRaw } : data } : m));
+    });
+  };
+
+  const resendMessage = (m: EvoMessage) => {
+    if (m.message_type && m.message_type !== 'text') {
+      toast({ title: 'Reenvio indisponível', description: 'Reenvie a mídia manualmente.', variant: 'destructive' });
+      return;
+    }
+    const text = (m.content || '').trim();
+    if (!text || !m.phone) return;
+    setMessages(prev => prev.map(x => x.id === m.id ? { ...x, _pending: true, _failed: false } : x));
+    const q = (m.raw as any)?.__quoted;
+    const quoted = q?.id ? { messageId: q.id, fromMe: !!q.fromMe, text: q.text || '' } : null;
+    const quotedRaw = q ? { __quoted: q } : undefined;
+    sendTextPayload(m.phone, text, m.id, quoted, quotedRaw);
+  };
+
   const send = () => {
     if (!selectedPhone || !draft.trim()) return;
     const text = draft.trim();
@@ -658,18 +685,9 @@ export default function EvolutionChat() {
     setMessages(prev => [...prev, optimistic]);
     setDraft('');
     setReplyTo(null);
-
-    supabase.functions.invoke('evolution-send', {
-      body: { action: 'send', phone: selectedPhone, text, quoted },
-    }).then(({ data, error }) => {
-      if (error || data?.error) {
-        setMessages(prev => prev.map(m => m.id === tempId ? { ...m, _pending: false, _failed: true } : m));
-        toast({ title: 'Erro ao enviar', description: error?.message || data?.error || 'Falha', variant: 'destructive' });
-        return;
-      }
-      setMessages(prev => prev.map(m => m.id === tempId ? { ...m, _pending: false, raw: quotedRaw ? { ...(data || {}), ...quotedRaw } : data } : m));
-    });
+    sendTextPayload(selectedPhone, text, tempId, quoted, quotedRaw);
   };
+
 
   const sendMedia = async (file: File, mediaType: 'image' | 'audio' | 'document' | 'sticker', caption = '') => {
     if (!selectedPhone) return;
