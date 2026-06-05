@@ -16,16 +16,45 @@ function messageText(message: any) {
     message?.imageMessage?.caption ||
     message?.videoMessage?.caption ||
     message?.documentMessage?.caption ||
+    (message?.audioMessage ? '🎤 Áudio' : '') ||
     '';
 }
 
 function messageType(message: any, fallback = '') {
+  if (message?.reactionMessage) return 'reaction';
   return message?.imageMessage ? 'image'
     : message?.videoMessage ? 'video'
     : message?.audioMessage ? 'audio'
     : message?.documentMessage ? 'document'
     : message?.stickerMessage ? 'sticker'
     : fallback || 'text';
+}
+
+function extractQuoted(message: any) {
+  const ctx = message?.extendedTextMessage?.contextInfo
+    || message?.imageMessage?.contextInfo
+    || message?.videoMessage?.contextInfo
+    || message?.audioMessage?.contextInfo
+    || message?.documentMessage?.contextInfo
+    || message?.stickerMessage?.contextInfo
+    || message?.contextInfo;
+  if (!ctx?.stanzaId && !ctx?.quotedMessage) return null;
+  const qm = ctx?.quotedMessage || {};
+  const text = qm?.conversation
+    || qm?.extendedTextMessage?.text
+    || qm?.imageMessage?.caption
+    || qm?.videoMessage?.caption
+    || qm?.documentMessage?.caption
+    || (qm?.audioMessage ? '🎤 Áudio' : '')
+    || (qm?.imageMessage ? '📷 Imagem' : '')
+    || (qm?.stickerMessage ? '🌟 Sticker' : '')
+    || (qm?.documentMessage ? '📎 Documento' : '')
+    || '';
+  return {
+    id: ctx?.stanzaId || ctx?.StanzaID || null,
+    participant: ctx?.participant || null,
+    text,
+  };
 }
 
 function mediaUrlFrom(message: any) {

@@ -121,6 +121,37 @@ function rawBase64From(raw: unknown) {
   return null;
 }
 
+function extractQuotedFromRaw(raw: unknown): { id: string | null; text: string; fromMe: boolean } | null {
+  const r = raw as any;
+  const msg = r?.data?.Message || r?.Message || r?.message || {};
+  const ctx = msg?.extendedTextMessage?.contextInfo
+    || msg?.imageMessage?.contextInfo
+    || msg?.videoMessage?.contextInfo
+    || msg?.audioMessage?.contextInfo
+    || msg?.documentMessage?.contextInfo
+    || msg?.stickerMessage?.contextInfo
+    || msg?.contextInfo;
+  if (!ctx) return null;
+  const stanzaId = ctx?.stanzaId || ctx?.StanzaID || ctx?.stanzaID || null;
+  const qm = ctx?.quotedMessage || ctx?.QuotedMessage || null;
+  if (!stanzaId && !qm) return null;
+  const text =
+    qm?.conversation
+    || qm?.extendedTextMessage?.text
+    || qm?.imageMessage?.caption
+    || qm?.videoMessage?.caption
+    || qm?.documentMessage?.caption
+    || (qm?.audioMessage ? '🎤 Áudio' : '')
+    || (qm?.imageMessage ? '📷 Imagem' : '')
+    || (qm?.stickerMessage ? '🌟 Sticker' : '')
+    || (qm?.documentMessage ? '📎 Documento' : '')
+    || '';
+  const participant = ctx?.participant || ctx?.Participant || '';
+  // If participant is empty AND fromMe context flag absent, default fromMe=false
+  const fromMe = !!ctx?.fromMe || !participant;
+  return { id: stanzaId, text, fromMe };
+}
+
 function mediaSource(m: EvoMessage) {
   if (m.media_url) return m.media_url;
   const base64 = rawBase64From(m.raw);
@@ -175,6 +206,10 @@ export default function EvolutionChat() {
     try { return JSON.parse(localStorage.getItem('evo_favorites') || '[]'); } catch { return []; }
   });
   const [showFavorites, setShowFavorites] = useState(false);
+  const [lastReadByPhone, setLastReadByPhone] = useState<Record<string, string>>(() => {
+    try { return JSON.parse(localStorage.getItem('evo_last_read') || '{}'); } catch { return {}; }
+  });
+  const [localReactions, setLocalReactions] = useState<Record<string, { emoji: string; from: 'in' | 'out' }>>({});
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -328,21 +363,37 @@ export default function EvolutionChat() {
   }, [messages, currentInstance, messageBelongsToCurrentInstance]);
 
   const conversations = useMemo(() => {
-    const map = new Map<string, { phone: string; name: string | null; last: EvoMessage | null; unread: number; lastAt: string }>();
+    const map = new Map<string, { phone: string; name: string | null; last: EvoMessage | null; unread: number; lastAt: string; lastOutAt: string }>();
     Object.values(contacts).forEach((c) => {
       if (instancePhones && !instancePhones.has(c.phone) && c.phone !== selectedPhone) return;
-      map.set(c.phone, { phone: c.phone, name: c.name, last: null, unread: 0, lastAt: c.phone === selectedPhone ? new Date().toISOString() : '' });
+      map.set(c.phone, { phone: c.phone, name: c.name, last: null, unread: 0, lastAt: c.phone === selectedPhone ? new Date().toISOString() : '', lastOutAt: '' });
     });
     for (const m of instanceMessages) {
       const cur = map.get(m.phone);
       if (!cur) {
-        map.set(m.phone, { phone: m.phone, name: m.contact_name, last: m, unread: m.direction === 'in' ? 1 : 0, lastAt: m.created_at });
+        map.set(m.phone, { phone: m.phone, name: m.contact_name, last: m, unread: 0, lastAt: m.created_at, lastOutAt: m.direction === 'out' ? m.created_at : '' });
       } else {
         if (!cur.last || new Date(m.created_at) > new Date(cur.last.created_at)) cur.last = m;
         if (m.contact_name && !cur.name) cur.name = m.contact_name;
-        if (m.direction === 'in') cur.unread += 1;
+        if (m.direction === 'out' && (!cur.lastOutAt || new Date(m.created_at) > new Date(cur.lastOutAt))) {
+          cur.lastOutAt = m.created_at;
+        }
         cur.lastAt = cur.last?.created_at || cur.lastAt;
       }
+    }
+    // Compute unread: incoming messages newer than max(lastReadByPhone, lastOutAt).
+    // This auto-clears when you reply from another device or when you open here.
+    for (const conv of map.values()) {
+      const lastRead = lastReadByPhone[conv.phone] || '';
+      const cutoffStr = [lastRead, conv.lastOutAt].filter(Boolean).sort().pop() || '';
+      const cutoff = cutoffStr ? new Date(cutoffStr).getTime() : 0;
+      let count = 0;
+      for (const m of instanceMessages) {
+        if (m.phone !== conv.phone) continue;
+        if (m.direction !== 'in') continue;
+        if (new Date(m.created_at).getTime() > cutoff) count++;
+      }
+      conv.unread = count;
     }
     const arr = Array.from(map.values()).sort((a, b) => {
       const pa = pinnedContacts.has(a.phone) ? 1 : 0;
@@ -362,7 +413,17 @@ export default function EvolutionChat() {
       (c.name || contacts[c.phone]?.name || '').toLowerCase().includes(q) ||
       (c.last?.content || '').toLowerCase().includes(q)
     );
-  }, [instanceMessages, search, contacts, selectedPhone, filter, instancePhones, pinnedContacts]);
+  }, [instanceMessages, search, contacts, selectedPhone, filter, instancePhones, pinnedContacts, lastReadByPhone]);
+
+  // Mark conversation as read when opened (or new message arrives in opened chat)
+  useEffect(() => {
+    if (!selectedPhone) return;
+    setLastReadByPhone(prev => {
+      const next = { ...prev, [selectedPhone]: new Date().toISOString() };
+      try { localStorage.setItem('evo_last_read', JSON.stringify(next)); } catch { /* noop */ }
+      return next;
+    });
+  }, [selectedPhone, instanceMessages.length]);
 
   const thread = useMemo(
     () => instanceMessages.filter((m) => m.phone === selectedPhone && !hiddenIds.has(m.id)),
@@ -506,14 +567,22 @@ export default function EvolutionChat() {
       toast({ title: 'Não é possível reagir', description: 'Mensagem sem ID externo.', variant: 'destructive' });
       return;
     }
+    // Optimistic: show reaction immediately on the bubble
+    setLocalReactions(prev => {
+      const next = { ...prev };
+      if (emoji) next[m.external_id!] = { emoji, from: 'out' };
+      else delete next[m.external_id!];
+      return next;
+    });
     const { data, error } = await supabase.functions.invoke('evolution-send', {
       body: { action: 'send-reaction', phone: m.phone, messageId: m.external_id, fromMe: m.direction === 'out', emoji },
     });
     if (error || data?.error) {
+      // Rollback
+      setLocalReactions(prev => { const n = { ...prev }; delete n[m.external_id!]; return n; });
       toast({ title: 'Erro ao reagir', description: error?.message || data?.error, variant: 'destructive' });
       return;
     }
-    toast({ title: emoji ? `Reagiu ${emoji}` : 'Reação removida' });
   };
 
 
@@ -664,13 +733,17 @@ export default function EvolutionChat() {
       if (r) {
         if (r.emoji) reactions[r.targetId] = { emoji: r.emoji, from: m.direction };
         else delete reactions[r.targetId];
-        continue; // hide reaction "messages"
+        continue;
       }
       if (looksLikeReaction) continue;
       visible.push(m);
     }
+    // Overlay optimistic local reactions (so they show before the webhook echoes back)
+    for (const [id, val] of Object.entries(localReactions)) {
+      reactions[id] = val;
+    }
     return { visibleThread: visible, reactionsByExternalId: reactions };
-  }, [thread]);
+  }, [thread, localReactions]);
 
   const groupedThread = useMemo(() => {
     const groups: Array<{ date: string; items: EvoMessage[] }> = [];
@@ -1033,6 +1106,28 @@ export default function EvolutionChat() {
                                   </DropdownMenuItem>
                                 </DropdownMenuContent>
                               </DropdownMenu>
+                              {(() => {
+                                const q = extractQuotedFromRaw(m.raw);
+                                if (!q) return null;
+                                return (
+                                  <button
+                                    type="button"
+                                    onClick={() => q.id && scrollToMessage(thread.find(x => x.external_id === q.id)?.id || '')}
+                                    className={cn(
+                                      'mx-1 mt-1 mb-0.5 flex w-[calc(100%-0.5rem)] items-stretch gap-2 rounded-md overflow-hidden text-left',
+                                      m.direction === 'out' ? 'bg-black/20' : 'bg-black/30',
+                                    )}
+                                  >
+                                    <div className="w-1 bg-[#00a884] shrink-0" />
+                                    <div className="py-1 pr-2 min-w-0">
+                                      <div className="text-[11px] font-semibold text-[#00a884]">
+                                        {q.fromMe ? 'Você' : (selectedName || formatPhone(m.phone))}
+                                      </div>
+                                      <div className="text-[12px] text-[#aebac1] truncate">{q.text || 'Mensagem'}</div>
+                                    </div>
+                                  </button>
+                                );
+                              })()}
                               <div className="px-1.5 pt-0.5">
                                 {renderMessageBody(m)}
                               </div>
