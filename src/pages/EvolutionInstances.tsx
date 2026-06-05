@@ -63,6 +63,7 @@ export default function EvolutionInstances() {
     ignoreStatus: false,
     readStatus: false,
     syncFullHistory: false,
+    groupsOnly: false,
   });
   const [webhookEvents, setWebhookEvents] = useState<string[]>(['MESSAGE','SEND_MESSAGE','CONNECTION']);
 
