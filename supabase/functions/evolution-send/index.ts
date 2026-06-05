@@ -24,10 +24,33 @@ function isUuid(value: string) {
 }
 
 function evolutionHeaders(apiKey: string, contentType = false, instanceId = '') {
-  const headers: Record<string, string> = { apikey: apiKey };
+  const headers: Record<string, string> = { apikey: apiKey, Authorization: `Bearer ${apiKey}` };
   if (contentType) headers['Content-Type'] = 'application/json';
   if (instanceId) headers.instanceId = instanceId;
   return headers;
+}
+
+function jidPhone(value: unknown) {
+  if (typeof value !== 'string') return '';
+  const digits = value.split('@')[0].split(':')[0].replace(/\D/g, '');
+  return digits.length >= 10 ? digits : '';
+}
+
+async function resolveSendPhone(admin: any, userId: string, phone: string) {
+  if (phone.startsWith('55') && phone.length >= 12) return phone;
+  const { data } = await admin
+    .from('evolution_messages')
+    .select('raw')
+    .eq('user_id', userId)
+    .eq('phone', phone)
+    .order('created_at', { ascending: false })
+    .limit(20);
+  for (const row of data || []) {
+    const info = row?.raw?.data?.Info || row?.raw?.Info || {};
+    const candidate = jidPhone(info.RecipientAlt) || jidPhone(info.SenderAlt) || jidPhone(info.Sender);
+    if (candidate?.startsWith('55')) return candidate;
+  }
+  return phone;
 }
 
 function phoneFromJid(value: unknown) {
