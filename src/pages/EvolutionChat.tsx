@@ -1106,6 +1106,28 @@ export default function EvolutionChat() {
                                   </DropdownMenuItem>
                                 </DropdownMenuContent>
                               </DropdownMenu>
+                              {(() => {
+                                const q = extractQuotedFromRaw(m.raw);
+                                if (!q) return null;
+                                return (
+                                  <button
+                                    type="button"
+                                    onClick={() => q.id && scrollToMessage(thread.find(x => x.external_id === q.id)?.id || '')}
+                                    className={cn(
+                                      'mx-1 mt-1 mb-0.5 flex w-[calc(100%-0.5rem)] items-stretch gap-2 rounded-md overflow-hidden text-left',
+                                      m.direction === 'out' ? 'bg-black/20' : 'bg-black/30',
+                                    )}
+                                  >
+                                    <div className="w-1 bg-[#00a884] shrink-0" />
+                                    <div className="py-1 pr-2 min-w-0">
+                                      <div className="text-[11px] font-semibold text-[#00a884]">
+                                        {q.fromMe ? 'Você' : (selectedName || formatPhone(m.phone))}
+                                      </div>
+                                      <div className="text-[12px] text-[#aebac1] truncate">{q.text || 'Mensagem'}</div>
+                                    </div>
+                                  </button>
+                                );
+                              })()}
                               <div className="px-1.5 pt-0.5">
                                 {renderMessageBody(m)}
                               </div>
