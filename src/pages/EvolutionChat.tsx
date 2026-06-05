@@ -206,6 +206,10 @@ export default function EvolutionChat() {
     try { return JSON.parse(localStorage.getItem('evo_favorites') || '[]'); } catch { return []; }
   });
   const [showFavorites, setShowFavorites] = useState(false);
+  const [lastReadByPhone, setLastReadByPhone] = useState<Record<string, string>>(() => {
+    try { return JSON.parse(localStorage.getItem('evo_last_read') || '{}'); } catch { return {}; }
+  });
+  const [localReactions, setLocalReactions] = useState<Record<string, { emoji: string; from: 'in' | 'out' }>>({});
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
