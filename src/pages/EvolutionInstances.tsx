@@ -373,10 +373,13 @@ export default function EvolutionInstances() {
                         <SettingsIcon className="w-3.5 h-3.5" /> Configurar
                       </Button>
                       {connected && (
-                        <Button size="sm" variant="ghost" onClick={() => logout(inst.name)} className="gap-1.5 text-rose-400 hover:text-rose-300 hover:bg-rose-500/10">
+                        <Button size="sm" variant="ghost" onClick={() => logout(inst.name)} className="gap-1.5 text-amber-400 hover:text-amber-300 hover:bg-amber-500/10">
                           <LogOut className="w-3.5 h-3.5" /> Desconectar
                         </Button>
                       )}
+                      <Button size="sm" variant="ghost" onClick={() => deleteInstance(inst.name)} className="gap-1.5 text-rose-400 hover:text-rose-300 hover:bg-rose-500/10">
+                        <Trash2 className="w-3.5 h-3.5" /> Excluir
+                      </Button>
                     </div>
                   </CardContent>
                 </Card>
