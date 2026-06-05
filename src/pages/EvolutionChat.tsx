@@ -891,7 +891,7 @@ export default function EvolutionChat() {
                   key={t.id}
                   onClick={() => {
                     setFilter(t.id);
-                    if (t.id === 'status') setSelectedPhone('status');
+                    if (t.id === 'status') setSelectedPhone('status:me');
                   }}
                   className={cn(
                     'flex-1 text-[11px] px-2 py-1 rounded-md border transition-colors',
