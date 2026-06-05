@@ -534,6 +534,11 @@ export default function EvolutionChat() {
     if (!selectedPhone || !draft.trim()) return;
     const text = draft.trim();
     const tempId = `tmp-${Date.now()}`;
+    const quoted = replyTo && replyTo.external_id ? {
+      messageId: replyTo.external_id,
+      fromMe: replyTo.direction === 'out',
+      text: replyTo.content || '',
+    } : null;
     const optimistic: EvoMessage = {
       id: tempId, phone: selectedPhone, contact_name: null, direction: 'out',
       content: text, message_type: 'text', media_url: null, media_mime: null,
@@ -541,16 +546,16 @@ export default function EvolutionChat() {
     };
     setMessages(prev => [...prev, optimistic]);
     setDraft('');
+    setReplyTo(null);
 
     supabase.functions.invoke('evolution-send', {
-      body: { action: 'send', phone: selectedPhone, text },
+      body: { action: 'send', phone: selectedPhone, text, quoted },
     }).then(({ data, error }) => {
       if (error || data?.error) {
         setMessages(prev => prev.map(m => m.id === tempId ? { ...m, _pending: false, _failed: true } : m));
         toast({ title: 'Erro ao enviar', description: error?.message || data?.error || 'Falha', variant: 'destructive' });
         return;
       }
-      // Mark as sent immediately; realtime insert may replace it
       setMessages(prev => prev.map(m => m.id === tempId ? { ...m, _pending: false } : m));
     });
   };
