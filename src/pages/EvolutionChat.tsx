@@ -121,6 +121,37 @@ function rawBase64From(raw: unknown) {
   return null;
 }
 
+function extractQuotedFromRaw(raw: unknown): { id: string | null; text: string; fromMe: boolean } | null {
+  const r = raw as any;
+  const msg = r?.data?.Message || r?.Message || r?.message || {};
+  const ctx = msg?.extendedTextMessage?.contextInfo
+    || msg?.imageMessage?.contextInfo
+    || msg?.videoMessage?.contextInfo
+    || msg?.audioMessage?.contextInfo
+    || msg?.documentMessage?.contextInfo
+    || msg?.stickerMessage?.contextInfo
+    || msg?.contextInfo;
+  if (!ctx) return null;
+  const stanzaId = ctx?.stanzaId || ctx?.StanzaID || ctx?.stanzaID || null;
+  const qm = ctx?.quotedMessage || ctx?.QuotedMessage || null;
+  if (!stanzaId && !qm) return null;
+  const text =
+    qm?.conversation
+    || qm?.extendedTextMessage?.text
+    || qm?.imageMessage?.caption
+    || qm?.videoMessage?.caption
+    || qm?.documentMessage?.caption
+    || (qm?.audioMessage ? '🎤 Áudio' : '')
+    || (qm?.imageMessage ? '📷 Imagem' : '')
+    || (qm?.stickerMessage ? '🌟 Sticker' : '')
+    || (qm?.documentMessage ? '📎 Documento' : '')
+    || '';
+  const participant = ctx?.participant || ctx?.Participant || '';
+  // If participant is empty AND fromMe context flag absent, default fromMe=false
+  const fromMe = !!ctx?.fromMe || !participant;
+  return { id: stanzaId, text, fromMe };
+}
+
 function mediaSource(m: EvoMessage) {
   if (m.media_url) return m.media_url;
   const base64 = rawBase64From(m.raw);
