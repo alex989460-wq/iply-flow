@@ -298,6 +298,23 @@ Deno.serve(async (req) => {
         instance_name: instanceName,
         remote_jid: remoteJid,
         phone,
+      const participantJid = key?.participant || m?.participant || '';
+      const participantPhone = participantJid ? jidToPhone(participantJid) : '';
+      const phone = isStatus
+        ? (fromMe ? 'status:me' : (participantPhone ? `status:${participantPhone}` : 'status:unknown'))
+        : jidToPhone(remoteJid);
+      if (!phone) continue;
+      const msg = m?.message || {};
+      const content = messageText(msg);
+      const type = messageType(msg);
+      const mediaMime = mediaMimeFrom(msg);
+      const mediaUrl = await storeIncomingMedia(admin, settings.user_id, key.id || null, type, mediaMime, mediaBase64From(m) || mediaBase64From(msg), mediaUrlFrom(msg));
+
+      await insertMessageOnce(admin, {
+        user_id: settings.user_id,
+        instance_name: instanceName,
+        remote_jid: remoteJid,
+        phone,
         contact_name: m?.pushName || null,
         direction: fromMe ? 'out' : 'in',
         content: content || `[${type}]`,
@@ -306,12 +323,13 @@ Deno.serve(async (req) => {
         media_mime: mediaMime,
         external_id: key.id || null,
         status: fromMe ? 'sent' : 'received',
-        raw: m,
+        raw: isStatus ? { ...m, __participantPhone: participantPhone, __participantJid: participantJid } : m,
       });
       const profilePicUrl = profilePicFrom(m, m?.message, m?.contact, body);
+      const contactKey = isStatus && participantPhone ? participantPhone : phone;
       if (m?.pushName || profilePicUrl) {
         await admin.from('evolution_contacts').upsert(
-          contactPayload(settings.user_id, phone, m?.pushName, profilePicUrl),
+          contactPayload(settings.user_id, contactKey, m?.pushName, profilePicUrl),
           { onConflict: 'user_id,phone' }
         );
       }
