@@ -567,14 +567,22 @@ export default function EvolutionChat() {
       toast({ title: 'Não é possível reagir', description: 'Mensagem sem ID externo.', variant: 'destructive' });
       return;
     }
+    // Optimistic: show reaction immediately on the bubble
+    setLocalReactions(prev => {
+      const next = { ...prev };
+      if (emoji) next[m.external_id!] = { emoji, from: 'out' };
+      else delete next[m.external_id!];
+      return next;
+    });
     const { data, error } = await supabase.functions.invoke('evolution-send', {
       body: { action: 'send-reaction', phone: m.phone, messageId: m.external_id, fromMe: m.direction === 'out', emoji },
     });
     if (error || data?.error) {
+      // Rollback
+      setLocalReactions(prev => { const n = { ...prev }; delete n[m.external_id!]; return n; });
       toast({ title: 'Erro ao reagir', description: error?.message || data?.error, variant: 'destructive' });
       return;
     }
-    toast({ title: emoji ? `Reagiu ${emoji}` : 'Reação removida' });
   };
 
 
