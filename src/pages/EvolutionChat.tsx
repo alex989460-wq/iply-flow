@@ -363,21 +363,37 @@ export default function EvolutionChat() {
   }, [messages, currentInstance, messageBelongsToCurrentInstance]);
 
   const conversations = useMemo(() => {
-    const map = new Map<string, { phone: string; name: string | null; last: EvoMessage | null; unread: number; lastAt: string }>();
+    const map = new Map<string, { phone: string; name: string | null; last: EvoMessage | null; unread: number; lastAt: string; lastOutAt: string }>();
     Object.values(contacts).forEach((c) => {
       if (instancePhones && !instancePhones.has(c.phone) && c.phone !== selectedPhone) return;
-      map.set(c.phone, { phone: c.phone, name: c.name, last: null, unread: 0, lastAt: c.phone === selectedPhone ? new Date().toISOString() : '' });
+      map.set(c.phone, { phone: c.phone, name: c.name, last: null, unread: 0, lastAt: c.phone === selectedPhone ? new Date().toISOString() : '', lastOutAt: '' });
     });
     for (const m of instanceMessages) {
       const cur = map.get(m.phone);
       if (!cur) {
-        map.set(m.phone, { phone: m.phone, name: m.contact_name, last: m, unread: m.direction === 'in' ? 1 : 0, lastAt: m.created_at });
+        map.set(m.phone, { phone: m.phone, name: m.contact_name, last: m, unread: 0, lastAt: m.created_at, lastOutAt: m.direction === 'out' ? m.created_at : '' });
       } else {
         if (!cur.last || new Date(m.created_at) > new Date(cur.last.created_at)) cur.last = m;
         if (m.contact_name && !cur.name) cur.name = m.contact_name;
-        if (m.direction === 'in') cur.unread += 1;
+        if (m.direction === 'out' && (!cur.lastOutAt || new Date(m.created_at) > new Date(cur.lastOutAt))) {
+          cur.lastOutAt = m.created_at;
+        }
         cur.lastAt = cur.last?.created_at || cur.lastAt;
       }
+    }
+    // Compute unread: incoming messages newer than max(lastReadByPhone, lastOutAt).
+    // This auto-clears when you reply from another device or when you open here.
+    for (const conv of map.values()) {
+      const lastRead = lastReadByPhone[conv.phone] || '';
+      const cutoffStr = [lastRead, conv.lastOutAt].filter(Boolean).sort().pop() || '';
+      const cutoff = cutoffStr ? new Date(cutoffStr).getTime() : 0;
+      let count = 0;
+      for (const m of instanceMessages) {
+        if (m.phone !== conv.phone) continue;
+        if (m.direction !== 'in') continue;
+        if (new Date(m.created_at).getTime() > cutoff) count++;
+      }
+      conv.unread = count;
     }
     const arr = Array.from(map.values()).sort((a, b) => {
       const pa = pinnedContacts.has(a.phone) ? 1 : 0;
@@ -397,7 +413,17 @@ export default function EvolutionChat() {
       (c.name || contacts[c.phone]?.name || '').toLowerCase().includes(q) ||
       (c.last?.content || '').toLowerCase().includes(q)
     );
-  }, [instanceMessages, search, contacts, selectedPhone, filter, instancePhones, pinnedContacts]);
+  }, [instanceMessages, search, contacts, selectedPhone, filter, instancePhones, pinnedContacts, lastReadByPhone]);
+
+  // Mark conversation as read when opened (or new message arrives in opened chat)
+  useEffect(() => {
+    if (!selectedPhone) return;
+    setLastReadByPhone(prev => {
+      const next = { ...prev, [selectedPhone]: new Date().toISOString() };
+      try { localStorage.setItem('evo_last_read', JSON.stringify(next)); } catch { /* noop */ }
+      return next;
+    });
+  }, [selectedPhone, instanceMessages.length]);
 
   const thread = useMemo(
     () => instanceMessages.filter((m) => m.phone === selectedPhone && !hiddenIds.has(m.id)),
