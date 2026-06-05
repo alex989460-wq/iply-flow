@@ -393,6 +393,51 @@ export default function EvolutionChat() {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
   }, [thread.length, selectedPhone]);
 
+  // Load per-conversation hidden ids ("Apagar para mim")
+  useEffect(() => {
+    if (!selectedPhone) { setHiddenIds(new Set()); return; }
+    try {
+      const raw = localStorage.getItem(`evo_hidden_${selectedPhone}`);
+      setHiddenIds(new Set(raw ? JSON.parse(raw) : []));
+    } catch { setHiddenIds(new Set()); }
+  }, [selectedPhone]);
+
+  const handleReply = (m: EvoMessage) => {
+    setReplyTo(m);
+    setTimeout(() => composerRef.current?.focus(), 50);
+  };
+
+  const handleForward = (m: EvoMessage) => {
+    const text = m.content || (m.media_url ? m.media_url : '');
+    if (!text) { toast({ title: 'Nada para encaminhar' }); return; }
+    navigator.clipboard?.writeText(text).then(
+      () => toast({ title: 'Mensagem copiada', description: 'Abra outra conversa e cole para encaminhar.' }),
+      () => toast({ title: 'Falha ao copiar', variant: 'destructive' }),
+    );
+  };
+
+  const toggleFavorite = (m: EvoMessage) => {
+    setFavorites(prev => {
+      const exists = prev.some(f => f.id === m.id);
+      const next = exists ? prev.filter(f => f.id !== m.id) : [...prev, m].slice(-200);
+      try { localStorage.setItem('evo_favorites', JSON.stringify(next)); } catch { /* noop */ }
+      toast({ title: exists ? 'Removido dos favoritos' : '⭐ Favoritado' });
+      return next;
+    });
+  };
+
+  const deleteLocal = (id: string) => {
+    if (!selectedPhone) return;
+    setHiddenIds(prev => {
+      const next = new Set(prev); next.add(id);
+      try { localStorage.setItem(`evo_hidden_${selectedPhone}`, JSON.stringify([...next])); } catch { /* noop */ }
+      return next;
+    });
+    toast({ title: 'Mensagem apagada (somente aqui)' });
+  };
+
+  const isFavorited = useCallback((id: string) => favorites.some(f => f.id === id), [favorites]);
+
   // Load pinned message ids for the selected conversation from localStorage
   useEffect(() => {
     if (!selectedPhone) { setPinnedIds(new Set()); return; }
