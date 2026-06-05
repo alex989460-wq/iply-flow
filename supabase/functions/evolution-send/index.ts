@@ -382,7 +382,7 @@ Deno.serve(async (req) => {
           method: 'POST',
           headers: att.headers,
           body: JSON.stringify(att.body),
-        }).catch((error) => ({ ok: false, status: 0, data: { error: String(error?.message || error) } }));
+        }, 20000).catch((error) => ({ ok: false, status: 0, data: { error: String(error?.message || error) } }));
         log.push({ url: att.url, mode: att.mode, status: r.status });
         if (r.ok) { result = r; mode = att.mode; break; }
         // Continue on routing-style failures AND timeouts/network errors (status 0)
