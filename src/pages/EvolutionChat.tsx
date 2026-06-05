@@ -330,7 +330,7 @@ export default function EvolutionChat() {
 
   // Fetch profile pic when opening a conversation without one
   useEffect(() => {
-    if (!selectedPhone || selectedPhone === 'status') return;
+    if (!selectedPhone || selectedPhone.startsWith('status:')) return;
     const c = contacts[selectedPhone];
     if (c?.profile_pic_url) return;
     if (avatarFetchRef.current.has(selectedPhone)) return;
