@@ -1015,11 +1015,15 @@ export default function EvolutionChat() {
                   </Avatar>
                   <div className="flex-1 min-w-0 text-left">
                     <div className="text-sm font-semibold truncate text-[#e9edef]">
-                      {selectedPhone === 'status' ? '📢 Status (WhatsApp)' : (selectedName || formatPhone(selectedPhone))}
+                      {selectedPhone === 'status:me'
+                        ? '📢 Meu status'
+                        : selectedPhone?.startsWith('status:')
+                          ? (contacts[selectedPhone.slice(7)]?.name || formatPhone(selectedPhone.slice(7)))
+                          : (selectedName || formatPhone(selectedPhone))}
                     </div>
                     <div className="text-[11px] text-[#8696a0] flex items-center gap-1">
-                      {selectedPhone === 'status' ? (
-                        <span>Atualizações recebidas dos seus contatos</span>
+                      {selectedPhone?.startsWith('status:') ? (
+                        <span>{selectedPhone === 'status:me' ? 'Suas publicações de status' : 'Status recente do contato'}</span>
                       ) : (
                         <>
                           <Phone className="w-2.5 h-2.5" /> {formatPhone(selectedPhone)}
@@ -1030,13 +1034,13 @@ export default function EvolutionChat() {
                     </div>
                   </div>
                 </button>
-                {selectedPhone === 'status' && (
+                {selectedPhone === 'status:me' && (
                   <Button size="sm" className="h-7 text-[11px] px-2 bg-[#00a884] hover:bg-[#02906f] text-white"
                     onClick={() => setShowStatusComposer(true)}>
                     <Plus className="w-3 h-3 mr-1" /> Postar status
                   </Button>
                 )}
-                {isMobile && selectedPhone !== 'status' && (
+                {isMobile && !selectedPhone?.startsWith('status:') && (
                   <Button size="sm" variant={showRenewalPanel ? 'default' : 'outline'} className="h-7 text-[11px] px-2"
                     onClick={() => setShowRenewalPanel(v => !v)}>
                     <RefreshCw className="w-3 h-3 mr-1" /> Renovar
