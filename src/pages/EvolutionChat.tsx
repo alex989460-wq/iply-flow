@@ -729,7 +729,7 @@ export default function EvolutionChat() {
             </div>
           ) : (
             <>
-              <div className="px-3 py-2 border-b border-[#0b1115] bg-[#202c33] flex items-center gap-3 shadow-sm">
+              <div className="px-3 py-2 border-b border-[#0b1115] bg-gradient-to-r from-[#202c33] via-[#1f2a30] to-[#202c33] flex items-center gap-3 shadow-sm">
                 {isMobile && (
                   <Button size="icon" variant="ghost" className="h-8 w-8 text-[#aebac1] hover:bg-white/5" onClick={() => setSelectedPhone(null)}>
                     <X className="w-4 h-4" />
@@ -737,30 +737,79 @@ export default function EvolutionChat() {
                 )}
                 <button
                   type="button"
-                  onClick={() => selectedContact?.profile_pic_url && setAvatarPreview(selectedContact.profile_pic_url)}
-                  className="rounded-full focus:outline-none focus:ring-2 focus:ring-[#00a884]"
-                  aria-label="Ver avatar"
+                  onClick={() => setShowContactInfo(true)}
+                  className="flex items-center gap-3 flex-1 min-w-0 rounded-md px-1 -mx-1 py-1 hover:bg-white/5 transition-colors focus:outline-none focus:ring-2 focus:ring-[#00a884]/40"
+                  aria-label="Ver informações do contato"
                 >
-                  <Avatar className="h-10 w-10 hover:opacity-80 transition-opacity ring-1 ring-white/10">
+                  <Avatar className="h-10 w-10 ring-2 ring-[#00a884]/30 transition-transform hover:scale-105">
                     {selectedContact?.profile_pic_url && <AvatarImage src={selectedContact.profile_pic_url} />}
                     <AvatarFallback className="text-xs bg-[#00a884]/20 text-[#00a884]">
                       {initials(selectedName, selectedPhone)}
                     </AvatarFallback>
                   </Avatar>
-                </button>
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm font-semibold truncate text-[#e9edef]">{selectedName || formatPhone(selectedPhone)}</div>
-                  <div className="text-[11px] text-[#8696a0] flex items-center gap-1">
-                    <Phone className="w-2.5 h-2.5" /> {formatPhone(selectedPhone)}
+                  <div className="flex-1 min-w-0 text-left">
+                    <div className="text-sm font-semibold truncate text-[#e9edef]">{selectedName || formatPhone(selectedPhone)}</div>
+                    <div className="text-[11px] text-[#8696a0] flex items-center gap-1">
+                      <Phone className="w-2.5 h-2.5" /> {formatPhone(selectedPhone)}
+                      <span className="mx-1 opacity-50">•</span>
+                      <span className="text-[#00a884]">toque para ver detalhes</span>
+                    </div>
                   </div>
-                </div>
+                </button>
                 {isMobile && (
                   <Button size="sm" variant={showRenewalPanel ? 'default' : 'outline'} className="h-7 text-[11px] px-2"
                     onClick={() => setShowRenewalPanel(v => !v)}>
                     <RefreshCw className="w-3 h-3 mr-1" /> Renovar
                   </Button>
                 )}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button size="icon" variant="ghost" className="h-8 w-8 text-[#aebac1] hover:bg-white/5">
+                      <MoreVertical className="w-4 h-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-52">
+                    <DropdownMenuItem onClick={() => setShowContactInfo(true)}>
+                      <Info className="w-4 h-4 mr-2" /> Informações do contato
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => copyText(formatPhone(selectedPhone))}>
+                      <Copy className="w-4 h-4 mr-2" /> Copiar número
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => window.open(`https://wa.me/${selectedPhone}`, '_blank')}>
+                      <ExternalLink className="w-4 h-4 mr-2" /> Abrir no WhatsApp
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={load}>
+                      <RefreshCw className="w-4 h-4 mr-2" /> Recarregar mensagens
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
+
+              {/* Pinned messages bar */}
+              {pinnedMessages.length > 0 && (
+                <div className="px-3 py-1.5 border-b border-[#0b1115] bg-[#1d282f]/80 backdrop-blur flex items-center gap-2 overflow-x-auto">
+                  <Pin className="w-3.5 h-3.5 text-[#00a884] shrink-0" />
+                  <div className="flex gap-1.5 overflow-x-auto">
+                    {pinnedMessages.slice(-5).map(m => (
+                      <button
+                        key={m.id}
+                        onClick={() => scrollToMessage(m.id)}
+                        className="group shrink-0 flex items-center gap-1.5 max-w-[200px] text-[11px] px-2 py-1 rounded-md bg-[#2a3942] text-[#e9edef] hover:bg-[#374248] transition-colors"
+                        title="Clique para ir até a mensagem"
+                      >
+                        <span className="truncate">{m.content || (m.message_type === 'image' ? '📷 Imagem' : m.message_type === 'audio' ? '🎤 Áudio' : '📎 Anexo')}</span>
+                        <PinOff
+                          className="w-3 h-3 opacity-60 hover:opacity-100 hover:text-destructive"
+                          onClick={(e) => { e.stopPropagation(); togglePin(m.id); }}
+                        />
+                      </button>
+                    ))}
+                  </div>
+                  <span className="ml-auto text-[10px] text-[#8696a0] shrink-0">{pinnedMessages.length} fixada{pinnedMessages.length > 1 ? 's' : ''}</span>
+                </div>
+              )}
+
 
               <div ref={scrollRef} className="flex-1 overflow-auto px-3 py-3 space-y-2 bg-[#0b141a]"
                 style={{ backgroundImage: 'radial-gradient(circle at 1px 1px, rgba(255,255,255,0.025) 1px, transparent 0)', backgroundSize: '22px 22px' }}>
