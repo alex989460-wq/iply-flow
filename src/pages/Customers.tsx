@@ -2058,8 +2058,8 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
                       <Label>Telefone (WhatsApp)</Label>
                       <Input
                         value={formData.phone}
-                        onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                        placeholder="5511999999999"
+                        onChange={(e) => setFormData({ ...formData, phone: formatBrazilPhoneInput(e.target.value) })}
+                        placeholder="+55 (21) 98309-7135"
                         required
                         className="bg-secondary/50"
                       />
@@ -2068,8 +2068,8 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
                       <Label>Telefone Extra (opcional)</Label>
                       <Input
                         value={formData.extra_phone}
-                        onChange={(e) => setFormData({ ...formData, extra_phone: e.target.value })}
-                        placeholder="Ex: telefone do(a) esposo(a)"
+                        onChange={(e) => setFormData({ ...formData, extra_phone: formatBrazilPhoneInput(e.target.value) })}
+                        placeholder="+55 (21) 98309-7135"
                         className="bg-secondary/50"
                       />
                     </div>
