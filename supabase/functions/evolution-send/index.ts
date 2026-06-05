@@ -261,38 +261,57 @@ Deno.serve(async (req) => {
 
     // SET WEBHOOK
     if (action === 'set-webhook') {
-      if (!instance) return jsonResponse({ error: 'Escolha uma instância em Conexões WhatsApp antes de configurar o webhook.' }, 200);
+      const targetInstance = String(body.instance || instance || '').trim();
+      if (!targetInstance) return jsonResponse({ error: 'Escolha uma instância em Conexões WhatsApp antes de configurar o webhook.' }, 200);
       const webhookUrl = `${supabaseUrl}/functions/v1/evolution-webhook?token=${settings.webhook_token}`;
-      const classic = await fetchJson(`${baseUrl}/webhook/set/${encodeURIComponent(instance)}`, {
+      const instAuth = await resolveInstanceAuth(baseUrl, apiKey, targetInstance);
+
+      const classic = await fetchJson(`${baseUrl}/webhook/set/${encodeURIComponent(targetInstance)}`, {
         method: 'POST',
         headers: evolutionHeaders(apiKey, true),
         body: JSON.stringify({
-          webhook: {
-            enabled: true,
-            url: webhookUrl,
-            events: ['MESSAGES_UPSERT'],
-            byEvents: false,
-            base64: false,
-          },
+          webhook: { enabled: true, url: webhookUrl, events: ['MESSAGES_UPSERT'], byEvents: false, base64: false },
         }),
       }).catch((error) => ({ ok: false, status: 0, data: { error: String(error?.message || error) } }));
 
-      if (classic.ok || classic.status !== 404) {
-        return jsonResponse({ ok: classic.ok, status: classic.status, mode: 'evolution-api', webhookUrl, data: classic.data });
+      if (classic.ok) {
+        return jsonResponse({ ok: true, status: classic.status, mode: 'evolution-api', webhookUrl, data: classic.data, instance: targetInstance });
       }
-
-      const instanceId = await resolveGoInstanceId(baseUrl, apiKey, instance);
 
       const go = await fetchJson(`${baseUrl}/instance/connect`, {
         method: 'POST',
-        headers: evolutionHeaders(apiKey, true, instanceId),
-        body: JSON.stringify({
-          webhookUrl,
-          subscribe: ['MESSAGE', 'SEND_MESSAGE', 'CONNECTION'],
-          immediate: true,
-        }),
+        headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId),
+        body: JSON.stringify({ webhookUrl, subscribe: ['MESSAGE', 'SEND_MESSAGE', 'CONNECTION'], immediate: true }),
       }).catch((error) => ({ ok: false, status: 0, data: { error: String(error?.message || error) } }));
-      return jsonResponse({ ok: go.ok, status: go.status, mode: 'evolution-go', webhookUrl, data: go.data });
+      return jsonResponse({ ok: go.ok, status: go.status, mode: 'evolution-go', webhookUrl, data: go.data, instance: targetInstance });
+    }
+
+    // SET WEBHOOK ON ALL INSTANCES
+    if (action === 'set-webhook-all') {
+      const list = await fetchJson(`${baseUrl}/instances`, { method: 'GET', headers: evolutionHeaders(apiKey, false) }, 10000)
+        .catch(() => ({ ok: false, status: 0, data: [] as any }));
+      const arr: any[] = Array.isArray(list.data) ? list.data : Array.isArray(list.data?.instances) ? list.data.instances : [];
+      const webhookUrl = `${supabaseUrl}/functions/v1/evolution-webhook?token=${settings.webhook_token}`;
+      const results: any[] = [];
+      for (const inst of arr) {
+        const nm = String(inst?.name || inst?.instanceName || inst?.instance?.instanceName || '').trim();
+        if (!nm) continue;
+        const instAuth = await resolveInstanceAuth(baseUrl, apiKey, nm);
+        const classic = await fetchJson(`${baseUrl}/webhook/set/${encodeURIComponent(nm)}`, {
+          method: 'POST', headers: evolutionHeaders(apiKey, true),
+          body: JSON.stringify({ webhook: { enabled: true, url: webhookUrl, events: ['MESSAGES_UPSERT'], byEvents: false, base64: false } }),
+        }).catch(() => ({ ok: false, status: 0 }));
+        let ok = !!classic.ok;
+        if (!ok) {
+          const go = await fetchJson(`${baseUrl}/instance/connect`, {
+            method: 'POST', headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId),
+            body: JSON.stringify({ webhookUrl, subscribe: ['MESSAGE', 'SEND_MESSAGE', 'CONNECTION'], immediate: true }),
+          }).catch(() => ({ ok: false, status: 0 }));
+          ok = !!go.ok;
+        }
+        results.push({ instance: nm, ok });
+      }
+      return jsonResponse({ ok: results.every(r => r.ok), results, webhookUrl });
     }
 
     // SEND
