@@ -409,15 +409,19 @@ export default function EvolutionChat() {
     let filtered = arr;
     if (filter === 'unread') filtered = arr.filter(c => c.unread > 0 && c.last?.direction === 'in');
     else if (filter === 'media') filtered = arr.filter(c => c.last && ['image', 'audio', 'document', 'sticker'].includes(c.last.message_type));
-    else if (filter === 'groups') filtered = arr.filter(c => c.phone && c.phone.length > 15 && c.phone !== 'status');
-    else if (filter === 'contacts') filtered = arr.filter(c => c.phone && c.phone.length <= 15 && c.phone !== 'status');
+    else if (filter === 'groups') filtered = arr.filter(c => c.phone && c.phone.length > 15 && !c.phone.startsWith('status'));
+    else if (filter === 'contacts') filtered = arr.filter(c => c.phone && c.phone.length <= 15 && !c.phone.startsWith('status'));
     else if (filter === 'status') {
-      const statusConv = arr.find(c => c.phone === 'status')
-        || { phone: 'status', name: 'Status (WhatsApp)', last: null, unread: 0, lastAt: '', lastOutAt: '' };
-      filtered = [statusConv];
+      // WhatsApp-Web style: "Meu status" + RECENTE list of contacts that posted
+      const meEntry = arr.find(c => c.phone === 'status:me')
+        || { phone: 'status:me', name: 'Meu status', last: null, unread: 0, lastAt: '', lastOutAt: '' };
+      const others = arr.filter(c => c.phone.startsWith('status:') && c.phone !== 'status:me' && c.phone !== 'status:unknown');
+      // Sort recent first
+      others.sort((a, b) => new Date(b.lastAt || 0).getTime() - new Date(a.lastAt || 0).getTime());
+      filtered = [meEntry, ...others];
     } else {
-      // 'all' — hide synthetic status entry from the main list
-      filtered = arr.filter(c => c.phone !== 'status');
+      // 'all' — hide synthetic status entries from the main list
+      filtered = arr.filter(c => !c.phone.startsWith('status'));
     }
     if (!search.trim()) return filtered;
     const q = search.toLowerCase();
