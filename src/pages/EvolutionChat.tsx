@@ -11,7 +11,9 @@ import EmojiPicker, { EmojiStyle, Theme } from 'emoji-picker-react';
 import {
   Loader2, Send, Zap, Plus, RefreshCw, Search, MessageSquare,
   Phone, X, Smile, Mic, Paperclip, Trash2, Image as ImageIcon, FileText, Sticker, QrCode,
+  Pin, PinOff, Info, Copy, ExternalLink, MoreVertical, ChevronDown,
 } from 'lucide-react';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
