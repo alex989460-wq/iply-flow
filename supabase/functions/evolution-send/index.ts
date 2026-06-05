@@ -784,16 +784,17 @@ Deno.serve(async (req) => {
       }
 
       const tries = [
-        // Evolution Go (instance-scoped auth)
-        { url: `${baseUrl}/instance/${encodeURIComponent(instAuth.instanceId)}`, method: 'DELETE', headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId) },
-        { url: `${baseUrl}/instance/${encodeURIComponent(instAuth.instanceId)}`, method: 'DELETE', headers: evolutionHeaders(apiKey, true) },
-        { url: `${baseUrl}/instance/delete`, method: 'DELETE', headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId) },
-        // Classic Evolution API (global key)
+        // Evolution Go — DELETE /instance/delete/{instanceId} (global apikey)
+        { url: `${baseUrl}/instance/delete/${encodeURIComponent(instAuth.instanceId)}`, method: 'DELETE', headers: evolutionHeaders(apiKey, true) },
+        { url: `${baseUrl}/instance/delete/${encodeURIComponent(instAuth.instanceId)}`, method: 'DELETE', headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId) },
+        // Same endpoint but using the instance name (some panels treat name as id)
         { url: `${baseUrl}/instance/delete/${encodeURIComponent(targetInstance)}`, method: 'DELETE', headers: evolutionHeaders(apiKey, true) },
+        // Classic Evolution API fallbacks
         { url: `${baseUrl}/instance/delete/${encodeURIComponent(targetInstance)}`, method: 'POST', headers: evolutionHeaders(apiKey, true) },
-        { url: `${baseUrl}/instance/${encodeURIComponent(targetInstance)}`, method: 'DELETE', headers: evolutionHeaders(apiKey, true) },
+        { url: `${baseUrl}/instance/${encodeURIComponent(instAuth.instanceId)}`, method: 'DELETE', headers: evolutionHeaders(apiKey, true) },
         { url: `${baseUrl}/manager/instance/delete/${encodeURIComponent(targetInstance)}`, method: 'DELETE', headers: evolutionHeaders(apiKey, true) },
       ];
+
       const attempts: Array<{ url: string; method: string; status: number; body?: any }> = [];
       let ok = false;
       for (const t of tries) {
