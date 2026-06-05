@@ -148,6 +148,12 @@ async function fetchJson(url: string, init: RequestInit = {}, timeoutMs = 8000) 
   return { ok: r.ok, status: r.status, data };
 }
 
+function runInBackground(task: Promise<unknown>) {
+  const runtime = (globalThis as any).EdgeRuntime;
+  if (runtime?.waitUntil) runtime.waitUntil(task.catch((error) => console.error('[evolution-send] background send failed', error)));
+  else task.catch((error) => console.error('[evolution-send] background send failed', error));
+}
+
 async function resolveGoInstanceId(baseUrl: string, apiKey: string, instance: string) {
   if (isUuid(instance)) return instance;
   const r = await fetchJson(`${baseUrl}/instance/all`, {
