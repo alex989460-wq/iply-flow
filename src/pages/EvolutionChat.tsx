@@ -1047,7 +1047,7 @@ export default function EvolutionChat() {
                               )}
                             </div>
                           </ContextMenuTrigger>
-                          <ContextMenuContent className="w-52">
+                          <ContextMenuContent className="w-56">
                             <div className="px-1 py-1.5 flex gap-1 justify-around">
                               {['👍','❤️','😂','😮','😢','🙏'].map(em => (
                                 <button key={em} onClick={() => sendReaction(m, em)}
@@ -1056,16 +1056,28 @@ export default function EvolutionChat() {
                                 </button>
                               ))}
                             </div>
-                            <ContextMenuItem onClick={() => togglePin(m.id)}>
-                              {isPinned ? <><PinOff className="w-4 h-4 mr-2" /> Desafixar</> : <><Pin className="w-4 h-4 mr-2" /> Fixar mensagem</>}
+                            <ContextMenuItem onClick={() => handleReply(m)}>
+                              <Reply className="w-4 h-4 mr-2" /> Responder
                             </ContextMenuItem>
                             {m.content && (
                               <ContextMenuItem onClick={() => copyText(m.content)}>
                                 <Copy className="w-4 h-4 mr-2" /> Copiar texto
                               </ContextMenuItem>
                             )}
+                            <ContextMenuItem onClick={() => handleForward(m)}>
+                              <Forward className="w-4 h-4 mr-2" /> Encaminhar
+                            </ContextMenuItem>
+                            <ContextMenuItem onClick={() => togglePin(m.id)}>
+                              {isPinned ? <><PinOff className="w-4 h-4 mr-2" /> Desafixar</> : <><Pin className="w-4 h-4 mr-2" /> Fixar mensagem</>}
+                            </ContextMenuItem>
+                            <ContextMenuItem onClick={() => toggleFavorite(m)}>
+                              {isFavorited(m.id) ? <><StarOff className="w-4 h-4 mr-2" /> Desfavoritar</> : <><Star className="w-4 h-4 mr-2" /> Favoritar</>}
+                            </ContextMenuItem>
                             <ContextMenuItem onClick={() => scrollToMessage(m.id)}>
                               <Info className="w-4 h-4 mr-2" /> Centralizar
+                            </ContextMenuItem>
+                            <ContextMenuItem onClick={() => deleteLocal(m.id)} className="text-destructive focus:text-destructive">
+                              <Trash className="w-4 h-4 mr-2" /> Apagar (somente aqui)
                             </ContextMenuItem>
                           </ContextMenuContent>
                         </ContextMenu>
