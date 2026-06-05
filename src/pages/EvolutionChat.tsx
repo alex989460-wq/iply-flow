@@ -1105,6 +1105,24 @@ export default function EvolutionChat() {
                 </div>
               )}
 
+              {replyTo && (
+                <div className="px-2 py-2 border-t border-[#0b1115] bg-[#1d282f] flex items-start gap-2 animate-in slide-in-from-bottom-1">
+                  <div className="w-1 self-stretch rounded bg-[#00a884]" />
+                  <div className="flex-1 min-w-0">
+                    <div className="text-[11px] font-semibold text-[#00a884]">
+                      {replyTo.direction === 'out' ? 'Você' : (selectedName || formatPhone(replyTo.phone))}
+                    </div>
+                    <div className="text-[12px] text-[#aebac1] truncate">
+                      {replyTo.content || (replyTo.message_type === 'image' ? '📷 Imagem' : replyTo.message_type === 'audio' ? '🎤 Áudio' : replyTo.message_type === 'sticker' ? '🌟 Sticker' : '📎 Anexo')}
+                    </div>
+                  </div>
+                  <Button size="icon" variant="ghost" className="h-7 w-7 text-[#aebac1] hover:bg-white/5" onClick={() => setReplyTo(null)} title="Cancelar resposta">
+                    <X className="w-4 h-4" />
+                  </Button>
+                </div>
+              )}
+
+
               {/* Composer */}
               <div className="px-2 py-2 border-t border-[#0b1115] bg-[#202c33] flex items-end gap-1.5">
                 <input ref={imgInputRef} type="file" accept="image/*" hidden onChange={onPickFile('image')} />
