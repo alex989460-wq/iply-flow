@@ -841,13 +841,19 @@ Deno.serve(async (req) => {
           readMessages: !!advanced.readMessages,
           ignoreGroups: !!advanced.ignoreGroups,
           ignoreStatus: !!advanced.ignoreStatus,
+          readStatus: !!advanced.readStatus,
+          syncFullHistory: !!advanced.syncFullHistory,
+          groupsOnly: !!advanced.groupsOnly,
+        };
+        const classicBody = {
+          ...advBody,
+          msgCall: advanced.msgCall || '',
+          groupsIgnore: !!advanced.ignoreGroups,
         };
         const tries = [
-          // Evolution Go (confirmed via swagger)
           { url: `${baseUrl}/instance/${encodeURIComponent(instAuth.instanceId)}/advanced-settings`, method: 'PUT', headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: advBody },
           { url: `${baseUrl}/instance/${encodeURIComponent(instAuth.instanceId)}/advanced-settings`, method: 'PUT', headers: evolutionHeaders(apiKey, true), body: advBody },
-          // Classic Evolution API fallback
-          { url: `${baseUrl}/settings/set/${encodeURIComponent(targetInstance)}`, method: 'POST', headers: evolutionHeaders(apiKey, true), body: { ...advBody, msgCall: advanced.msgCall || '', groupsIgnore: !!advanced.ignoreGroups, readStatus: false, syncFullHistory: false } },
+          { url: `${baseUrl}/settings/set/${encodeURIComponent(targetInstance)}`, method: 'POST', headers: evolutionHeaders(apiKey, true), body: classicBody },
         ];
         for (const t of tries) {
           const r = await fetchJson(t.url, { method: t.method, headers: t.headers, body: JSON.stringify(t.body) }, 8000)
