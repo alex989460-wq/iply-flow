@@ -2842,48 +2842,94 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
                 <p className="text-sm"><strong>Telefone:</strong> {sendingBillingCustomer?.phone}</p>
                 <p className="text-sm"><strong>Vencimento:</strong> {sendingBillingCustomer?.due_date ? format(new Date(sendingBillingCustomer.due_date + 'T12:00:00'), 'dd/MM/yyyy', { locale: ptBR }) : 'Não definido'}</p>
               </div>
-              
-              <div className="space-y-2">
-                <Label>Selecione o Template</Label>
-                {isLoadingTemplates ? (
-                  <div className="flex items-center justify-center py-4">
-                    <Loader2 className="w-5 h-5 animate-spin" />
-                    <span className="ml-2 text-sm text-muted-foreground">Carregando templates...</span>
-                  </div>
-                ) : templates.length === 0 ? (
-                  <div className="text-center py-4">
-                    <p className="text-sm text-muted-foreground">Nenhum template disponível.</p>
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      className="mt-2"
-                      onClick={fetchTemplates}
-                    >
-                      <RefreshCw className="w-3 h-3 mr-1" />
-                      Recarregar
-                    </Button>
-                  </div>
-                ) : (
-                  <Select value={selectedTemplate} onValueChange={setSelectedTemplate}>
+
+              <div className="flex items-center justify-between p-3 rounded-lg bg-emerald-500/5 border border-emerald-500/20">
+                <div>
+                  <Label className="text-sm font-semibold">Enviar pela Evolution</Label>
+                  <p className="text-[11px] text-muted-foreground">
+                    {useEvolutionForBilling
+                      ? `Instância: ${billingSettings?.evolution_instance || 'não configurada'}`
+                      : 'Usando API oficial / Zap Responder'}
+                  </p>
+                </div>
+                <Switch
+                  checked={useEvolutionForBilling}
+                  onCheckedChange={async (v) => {
+                    setUseEvolutionForBilling(v);
+                    if (!v && templates.length === 0 && zapSettings?.selected_department_id) {
+                      await fetchTemplates();
+                    }
+                  }}
+                />
+              </div>
+
+              {useEvolutionForBilling ? (
+                <div className="space-y-2">
+                  <Label>Tipo de mensagem</Label>
+                  <Select value={selectedEvoTemplateKey} onValueChange={(v: any) => setSelectedEvoTemplateKey(v)}>
                     <SelectTrigger className="bg-secondary/50">
-                      <SelectValue placeholder="Selecione um template" />
+                      <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {templates.map((template) => (
-                        <SelectItem key={template.id || template.name} value={template.name}>
-                          {template.name}
-                          {template.status && ` (${template.status})`}
-                        </SelectItem>
-                      ))}
+                      <SelectItem value="D-1">Vence amanhã (D-1)</SelectItem>
+                      <SelectItem value="D0">Vence hoje (D0)</SelectItem>
+                      <SelectItem value="D+1">Vencido (D+1)</SelectItem>
                     </SelectContent>
                   </Select>
-                )}
-              </div>
-              
-              <Button 
-                className="w-full" 
+                  {!billingSettings?.evolution_instance && (
+                    <p className="text-[11px] text-destructive">
+                      Configure a instância em Configurações → Cobrança → "Enviar Cobrança pela Evolution".
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <Label>Selecione o Template</Label>
+                  {isLoadingTemplates ? (
+                    <div className="flex items-center justify-center py-4">
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      <span className="ml-2 text-sm text-muted-foreground">Carregando templates...</span>
+                    </div>
+                  ) : templates.length === 0 ? (
+                    <div className="text-center py-4">
+                      <p className="text-sm text-muted-foreground">Nenhum template disponível.</p>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="mt-2"
+                        onClick={fetchTemplates}
+                      >
+                        <RefreshCw className="w-3 h-3 mr-1" />
+                        Recarregar
+                      </Button>
+                    </div>
+                  ) : (
+                    <Select value={selectedTemplate} onValueChange={setSelectedTemplate}>
+                      <SelectTrigger className="bg-secondary/50">
+                        <SelectValue placeholder="Selecione um template" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {templates.map((template) => (
+                          <SelectItem key={template.id || template.name} value={template.name}>
+                            {template.name}
+                            {template.status && ` (${template.status})`}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                </div>
+              )}
+
+              <Button
+                className="w-full"
                 onClick={sendIndividualBilling}
-                disabled={!selectedTemplate || isSendingBilling}
+                disabled={
+                  isSendingBilling ||
+                  (useEvolutionForBilling
+                    ? !billingSettings?.evolution_instance
+                    : !selectedTemplate)
+                }
               >
                 {isSendingBilling ? (
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
