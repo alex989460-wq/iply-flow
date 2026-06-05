@@ -733,13 +733,17 @@ export default function EvolutionChat() {
       if (r) {
         if (r.emoji) reactions[r.targetId] = { emoji: r.emoji, from: m.direction };
         else delete reactions[r.targetId];
-        continue; // hide reaction "messages"
+        continue;
       }
       if (looksLikeReaction) continue;
       visible.push(m);
     }
+    // Overlay optimistic local reactions (so they show before the webhook echoes back)
+    for (const [id, val] of Object.entries(localReactions)) {
+      reactions[id] = val;
+    }
     return { visibleThread: visible, reactionsByExternalId: reactions };
-  }, [thread]);
+  }, [thread, localReactions]);
 
   const groupedThread = useMemo(() => {
     const groups: Array<{ date: string; items: EvoMessage[] }> = [];
