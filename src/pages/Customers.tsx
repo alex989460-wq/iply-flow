@@ -2725,7 +2725,7 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
                             className="h-8 w-8 hover:bg-primary/10"
                             title="Enviar cobrança"
                             onClick={() => openSendBillingDialog(customer)}
-                            disabled={!zapSettings?.selected_department_id}
+                            disabled={!zapSettings?.selected_department_id && !billingSettings?.use_evolution_billing}
                           >
                             <Send className="w-4 h-4 text-primary" />
                           </Button>
