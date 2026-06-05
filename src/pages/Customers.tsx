@@ -55,6 +55,7 @@ import {
 import { Progress } from '@/components/ui/progress';
 import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/utils';
+import { Switch } from '@/components/ui/switch';
 import { ScrollToTop } from '@/components/ui/scroll-to-top';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -145,6 +146,8 @@ export default function Customers() {
   const [templates, setTemplates] = useState<Array<{ id?: string; name: string; language?: string; status?: string; parameter_format?: string; components?: Array<{ type?: string; text?: string; format?: string; buttons?: Array<{ url?: string }> }> }>>([]);
   const [isLoadingTemplates, setIsLoadingTemplates] = useState(false);
   const [isSendingBilling, setIsSendingBilling] = useState(false);
+  const [useEvolutionForBilling, setUseEvolutionForBilling] = useState(false);
+  const [selectedEvoTemplateKey, setSelectedEvoTemplateKey] = useState<'D-1' | 'D0' | 'D+1'>('D0');
 
   // Server migration state
   const [isServerMigrationOpen, setIsServerMigrationOpen] = useState(false);
@@ -334,6 +337,21 @@ export default function Customers() {
         .maybeSingle();
       if (error) throw error;
       return data;
+    },
+  });
+
+  const { data: billingSettings } = useQuery({
+    queryKey: ['billing-settings-customers'],
+    queryFn: async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return null;
+      const { data, error } = await (supabase
+        .from('billing_settings' as any)
+        .select('use_evolution_billing, evolution_instance, evolution_msg_d_minus_1, evolution_msg_d0, evolution_msg_d_plus_1, pix_key')
+        .eq('user_id', user.id)
+        .maybeSingle() as any);
+      if (error) throw error;
+      return data as any;
     },
   });
 
@@ -1231,14 +1249,75 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
   const openSendBillingDialog = async (customer: any) => {
     setSendingBillingCustomer(customer);
     setSelectedTemplate('');
+    const evoDefault = !!billingSettings?.use_evolution_billing;
+    setUseEvolutionForBilling(evoDefault);
+    setSelectedEvoTemplateKey('D0');
     setIsSendBillingOpen(true);
-    if (templates.length === 0) {
+    if (!evoDefault && templates.length === 0 && zapSettings?.selected_department_id) {
       await fetchTemplates();
     }
   };
 
+  const renderEvolutionTemplate = (tpl: string, c: any): string => {
+    const dueDate = c?.due_date
+      ? new Date(c.due_date + 'T12:00:00').toLocaleDateString('pt-BR')
+      : '';
+    const map: Record<string, string> = {
+      nome: c?.name || '',
+      vencimento: dueDate,
+      usuario: c?.username || '',
+      plano: c?.plans?.plan_name || '',
+      valor: c?.custom_price ? `R$ ${Number(c.custom_price).toFixed(2)}` : '',
+      servidor: c?.servers?.server_name || '',
+      pix: billingSettings?.pix_key || '',
+      telefone: c?.phone || '',
+    };
+    return tpl.replace(/\{\{\s*(\w+)\s*\}\}/g, (_m, k) => map[k] ?? '');
+  };
+
   const sendIndividualBilling = async () => {
-    if (!sendingBillingCustomer || !selectedTemplate || !zapSettings?.selected_department_id) return;
+    if (!sendingBillingCustomer) return;
+
+    // Evolution branch
+    if (useEvolutionForBilling) {
+      const instance = billingSettings?.evolution_instance;
+      if (!instance) {
+        toast({ title: 'Instância não configurada', description: 'Configure uma instância Evolution em Configurações → Cobrança.', variant: 'destructive' });
+        return;
+      }
+      const tplMap: Record<string, string> = {
+        'D-1': billingSettings?.evolution_msg_d_minus_1 || 'Olá {{nome}}, seu plano vence amanhã ({{vencimento}}). PIX: {{pix}}',
+        'D0': billingSettings?.evolution_msg_d0 || 'Olá {{nome}}, seu plano vence hoje ({{vencimento}}). PIX: {{pix}}',
+        'D+1': billingSettings?.evolution_msg_d_plus_1 || 'Olá {{nome}}, seu plano venceu em {{vencimento}}. PIX: {{pix}}',
+      };
+      const text = renderEvolutionTemplate(tplMap[selectedEvoTemplateKey], sendingBillingCustomer);
+      const phone = sendingBillingCustomer.phone.replace(/\D/g, '');
+      const phoneWithCode = phone.startsWith('55') ? phone : `55${phone}`;
+      setIsSendingBilling(true);
+      try {
+        const { data, error } = await supabase.functions.invoke('evolution-send', {
+          body: { action: 'send', instance, phone: phoneWithCode, text },
+        });
+        if (error) throw error;
+        if (data?.error) throw new Error(data.error);
+        await supabase.from('billing_logs').insert({
+          customer_id: sendingBillingCustomer.id,
+          billing_type: selectedEvoTemplateKey === 'D-1' ? 'D-1' : selectedEvoTemplateKey === 'D+1' ? 'D+1' : 'D0',
+          message: `Evolution (${instance}) - ${selectedEvoTemplateKey}`,
+          whatsapp_status: 'sent',
+        });
+        toast({ title: 'Cobrança enviada!', description: `Mensagem enviada pela Evolution para ${sendingBillingCustomer.name}.` });
+        setIsSendBillingOpen(false);
+        setSendingBillingCustomer(null);
+      } catch (err: any) {
+        toast({ title: 'Erro ao enviar pela Evolution', description: err.message, variant: 'destructive' });
+      } finally {
+        setIsSendingBilling(false);
+      }
+      return;
+    }
+
+    if (!selectedTemplate || !zapSettings?.selected_department_id) return;
     
     setIsSendingBilling(true);
     try {
@@ -2646,7 +2725,7 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
                             className="h-8 w-8 hover:bg-primary/10"
                             title="Enviar cobrança"
                             onClick={() => openSendBillingDialog(customer)}
-                            disabled={!zapSettings?.selected_department_id}
+                            disabled={!zapSettings?.selected_department_id && !billingSettings?.use_evolution_billing}
                           >
                             <Send className="w-4 h-4 text-primary" />
                           </Button>
@@ -2763,48 +2842,94 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
                 <p className="text-sm"><strong>Telefone:</strong> {sendingBillingCustomer?.phone}</p>
                 <p className="text-sm"><strong>Vencimento:</strong> {sendingBillingCustomer?.due_date ? format(new Date(sendingBillingCustomer.due_date + 'T12:00:00'), 'dd/MM/yyyy', { locale: ptBR }) : 'Não definido'}</p>
               </div>
-              
-              <div className="space-y-2">
-                <Label>Selecione o Template</Label>
-                {isLoadingTemplates ? (
-                  <div className="flex items-center justify-center py-4">
-                    <Loader2 className="w-5 h-5 animate-spin" />
-                    <span className="ml-2 text-sm text-muted-foreground">Carregando templates...</span>
-                  </div>
-                ) : templates.length === 0 ? (
-                  <div className="text-center py-4">
-                    <p className="text-sm text-muted-foreground">Nenhum template disponível.</p>
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      className="mt-2"
-                      onClick={fetchTemplates}
-                    >
-                      <RefreshCw className="w-3 h-3 mr-1" />
-                      Recarregar
-                    </Button>
-                  </div>
-                ) : (
-                  <Select value={selectedTemplate} onValueChange={setSelectedTemplate}>
+
+              <div className="flex items-center justify-between p-3 rounded-lg bg-emerald-500/5 border border-emerald-500/20">
+                <div>
+                  <Label className="text-sm font-semibold">Enviar pela Evolution</Label>
+                  <p className="text-[11px] text-muted-foreground">
+                    {useEvolutionForBilling
+                      ? `Instância: ${billingSettings?.evolution_instance || 'não configurada'}`
+                      : 'Usando API oficial / Zap Responder'}
+                  </p>
+                </div>
+                <Switch
+                  checked={useEvolutionForBilling}
+                  onCheckedChange={async (v) => {
+                    setUseEvolutionForBilling(v);
+                    if (!v && templates.length === 0 && zapSettings?.selected_department_id) {
+                      await fetchTemplates();
+                    }
+                  }}
+                />
+              </div>
+
+              {useEvolutionForBilling ? (
+                <div className="space-y-2">
+                  <Label>Tipo de mensagem</Label>
+                  <Select value={selectedEvoTemplateKey} onValueChange={(v: any) => setSelectedEvoTemplateKey(v)}>
                     <SelectTrigger className="bg-secondary/50">
-                      <SelectValue placeholder="Selecione um template" />
+                      <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {templates.map((template) => (
-                        <SelectItem key={template.id || template.name} value={template.name}>
-                          {template.name}
-                          {template.status && ` (${template.status})`}
-                        </SelectItem>
-                      ))}
+                      <SelectItem value="D-1">Vence amanhã (D-1)</SelectItem>
+                      <SelectItem value="D0">Vence hoje (D0)</SelectItem>
+                      <SelectItem value="D+1">Vencido (D+1)</SelectItem>
                     </SelectContent>
                   </Select>
-                )}
-              </div>
-              
-              <Button 
-                className="w-full" 
+                  {!billingSettings?.evolution_instance && (
+                    <p className="text-[11px] text-destructive">
+                      Configure a instância em Configurações → Cobrança → "Enviar Cobrança pela Evolution".
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <Label>Selecione o Template</Label>
+                  {isLoadingTemplates ? (
+                    <div className="flex items-center justify-center py-4">
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      <span className="ml-2 text-sm text-muted-foreground">Carregando templates...</span>
+                    </div>
+                  ) : templates.length === 0 ? (
+                    <div className="text-center py-4">
+                      <p className="text-sm text-muted-foreground">Nenhum template disponível.</p>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="mt-2"
+                        onClick={fetchTemplates}
+                      >
+                        <RefreshCw className="w-3 h-3 mr-1" />
+                        Recarregar
+                      </Button>
+                    </div>
+                  ) : (
+                    <Select value={selectedTemplate} onValueChange={setSelectedTemplate}>
+                      <SelectTrigger className="bg-secondary/50">
+                        <SelectValue placeholder="Selecione um template" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {templates.map((template) => (
+                          <SelectItem key={template.id || template.name} value={template.name}>
+                            {template.name}
+                            {template.status && ` (${template.status})`}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                </div>
+              )}
+
+              <Button
+                className="w-full"
                 onClick={sendIndividualBilling}
-                disabled={!selectedTemplate || isSendingBilling}
+                disabled={
+                  isSendingBilling ||
+                  (useEvolutionForBilling
+                    ? !billingSettings?.evolution_instance
+                    : !selectedTemplate)
+                }
               >
                 {isSendingBilling ? (
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
