@@ -340,6 +340,21 @@ export default function Customers() {
     },
   });
 
+  const { data: billingSettings } = useQuery({
+    queryKey: ['billing-settings-customers'],
+    queryFn: async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return null;
+      const { data, error } = await (supabase
+        .from('billing_settings' as any)
+        .select('use_evolution_billing, evolution_instance, evolution_msg_d_minus_1, evolution_msg_d0, evolution_msg_d_plus_1, pix_key')
+        .eq('user_id', user.id)
+        .maybeSingle() as any);
+      if (error) throw error;
+      return data as any;
+    },
+  });
+
   const createMutation = useMutation({
     mutationFn: async (data: any) => {
       let dueDate: string;
