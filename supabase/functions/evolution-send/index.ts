@@ -588,8 +588,28 @@ Deno.serve(async (req) => {
       return jsonResponse({ ok: false, error: 'Não foi possível obter o QR Code. A instância pode já estar conectada — clique em Atualizar.' }, 200);
     }
 
+    // Helper: check if current user is admin
+    const { data: roleRow } = await admin
+      .from('user_roles')
+      .select('role')
+      .eq('user_id', user.id)
+      .eq('role', 'admin')
+      .maybeSingle();
+    const isAdminUser = !!roleRow;
+
+    // Helper: list of instance names this user owns (admins => null = all)
+    const getOwnedNames = async (): Promise<Set<string> | null> => {
+      if (isAdminUser) return null;
+      const { data } = await admin
+        .from('user_evolution_instances')
+        .select('instance_name')
+        .eq('user_id', user.id);
+      return new Set((data || []).map((r: any) => String(r.instance_name).toLowerCase()));
+    };
+
     // LIST INSTANCES
     if (action === 'list-instances') {
+      const owned = await getOwnedNames();
       // Try admin-key endpoints first (Evolution API classic / Go with global key)
       const tries = [
         `${baseUrl}/instance/fetchInstances`,
@@ -602,7 +622,13 @@ Deno.serve(async (req) => {
         if (!r.ok) continue;
         const rows = Array.isArray(r.data?.data) ? r.data.data : Array.isArray(r.data) ? r.data : [];
         if (rows.length === 0) continue;
-        const list = await Promise.all(rows.map(async (item: any) => {
+        const filteredRows = owned
+          ? rows.filter((item: any) => {
+              const nm = String(item?.name || item?.instanceName || item?.instance?.instanceName || item?.id || '').toLowerCase();
+              return owned.has(nm);
+            })
+          : rows;
+        const list = await Promise.all(filteredRows.map(async (item: any) => {
           const id = item?.id || item?.instanceId || item?.name || '';
           const token = item?.token || item?.hash || null;
           const statusData = token ? await getGoInstanceStatus(baseUrl, token, id) : {};
@@ -616,11 +642,10 @@ Deno.serve(async (req) => {
             token,
           };
         }));
-        return jsonResponse({ ok: true, instances: list, current: instance, adminMode: true });
+        return jsonResponse({ ok: true, instances: list, current: instance, adminMode: isAdminUser });
       }
 
       // Fallback: build a single entry from the instance-scoped /instance/status endpoint
-      // (the API key the user provided is an instance token, not the global admin key)
       const status = await fetchJson(`${baseUrl}/instance/status`, {
         headers: evolutionHeaders(apiKey),
       }, 6000).catch(() => ({ ok: false, status: 0, data: {} as any }));
@@ -628,7 +653,6 @@ Deno.serve(async (req) => {
       if (status.ok) {
         const sd = status.data?.data || status.data || {};
         let phone: string | null = null;
-        // try /instance/connect to capture jid even when disconnected
         const conn = await fetchJson(`${baseUrl}/instance/connect`, {
           method: 'POST', headers: evolutionHeaders(apiKey, true), body: JSON.stringify({}),
         }, 5000).catch(() => ({ ok: false, status: 0, data: {} as any }));
