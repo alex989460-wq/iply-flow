@@ -983,6 +983,14 @@ export default function EvolutionChat() {
                               {isPinned && (
                                 <Pin className="absolute -top-1.5 -left-1.5 w-3 h-3 text-[#00a884] bg-[#0b141a] rounded-full p-0.5" />
                               )}
+                              <button
+                                onClick={(e) => { e.stopPropagation(); handleReply(m); }}
+                                className="absolute top-1 right-7 opacity-0 group-hover:opacity-100 transition-opacity bg-black/30 hover:bg-black/50 rounded-full p-0.5"
+                                title="Responder"
+                                aria-label="Responder"
+                              >
+                                <Reply className="w-3 h-3 text-white" />
+                              </button>
                               <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
                                   <button
