@@ -160,6 +160,8 @@ export default function EvolutionChat() {
   const [instances, setInstances] = useState<Array<{ id: string; name: string; phone: string | null; state: string; profile_name: string | null }>>([]);
   const [currentInstance, setCurrentInstance] = useState<string>('');
   const [switchingInstance, setSwitchingInstance] = useState(false);
+  const [showContactInfo, setShowContactInfo] = useState(false);
+  const [pinnedIds, setPinnedIds] = useState<Set<string>>(new Set());
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const stickerInputRef = useRef<HTMLInputElement>(null);
