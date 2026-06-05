@@ -55,6 +55,7 @@ import {
 import { Progress } from '@/components/ui/progress';
 import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/utils';
+import { Switch } from '@/components/ui/switch';
 import { ScrollToTop } from '@/components/ui/scroll-to-top';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
