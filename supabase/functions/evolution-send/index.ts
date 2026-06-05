@@ -494,8 +494,20 @@ Deno.serve(async (req) => {
         if (r.ok) { result = r; break; }
         result = r;
       }
+      await insertOutgoingMessage(admin, {
+        user_id: user.id,
+        instance_name: instance,
+        remote_jid: jid,
+        phone,
+        direction: 'out',
+        content: '[reaction]',
+        message_type: 'reaction',
+        status: result.ok ? 'sent' : 'sent_local',
+        external_id: `reaction-${messageId}-${Date.now()}`,
+        raw: { message: { reactionMessage: { key, text: emoji } }, __reactionLocal: !result.ok, attempts: log },
+      });
       if (!result.ok) {
-        return jsonResponse({ error: `Falha ao reagir (${log.map(l => `${l.mode}:${l.status}`).join(' | ')})`, attempts: log }, 200);
+        return jsonResponse({ ok: true, localOnly: true, warning: `Reação salva apenas no chat (${log.map(l => `${l.mode}:${l.status}`).join(' | ')})`, attempts: log }, 200);
       }
       return jsonResponse({ ok: true, data: result.data });
     }
