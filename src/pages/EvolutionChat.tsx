@@ -931,7 +931,16 @@ export default function EvolutionChat() {
                                     <ChevronDown className="w-3 h-3 text-white" />
                                   </button>
                                 </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end" className="w-44">
+                                <DropdownMenuContent align="end" className="w-52">
+                                  <div className="px-1 py-1.5 flex gap-1 justify-around">
+                                    {['👍','❤️','😂','😮','😢','🙏'].map(em => (
+                                      <button key={em} onClick={() => sendReaction(m, em)}
+                                        className="text-lg hover:scale-125 transition-transform" title={`Reagir ${em}`}>
+                                        {em}
+                                      </button>
+                                    ))}
+                                  </div>
+                                  <DropdownMenuSeparator />
                                   <DropdownMenuItem onClick={() => togglePin(m.id)}>
                                     {isPinned ? <><PinOff className="w-4 h-4 mr-2" /> Desafixar</> : <><Pin className="w-4 h-4 mr-2" /> Fixar mensagem</>}
                                   </DropdownMenuItem>
@@ -954,9 +963,25 @@ export default function EvolutionChat() {
                                   : <span className="text-[#53bdeb] font-bold leading-none">✓✓</span>
                                 )}
                               </div>
+                              {m.external_id && reactionsByExternalId[m.external_id] && (
+                                <div className={cn(
+                                  'absolute -bottom-2.5 text-xs px-1.5 py-0.5 rounded-full bg-[#2a3942] border border-[#0b141a] shadow',
+                                  m.direction === 'out' ? 'right-2' : 'left-2',
+                                )}>
+                                  {reactionsByExternalId[m.external_id].emoji}
+                                </div>
+                              )}
                             </div>
                           </ContextMenuTrigger>
-                          <ContextMenuContent className="w-48">
+                          <ContextMenuContent className="w-52">
+                            <div className="px-1 py-1.5 flex gap-1 justify-around">
+                              {['👍','❤️','😂','😮','😢','🙏'].map(em => (
+                                <button key={em} onClick={() => sendReaction(m, em)}
+                                  className="text-lg hover:scale-125 transition-transform" title={`Reagir ${em}`}>
+                                  {em}
+                                </button>
+                              ))}
+                            </div>
                             <ContextMenuItem onClick={() => togglePin(m.id)}>
                               {isPinned ? <><PinOff className="w-4 h-4 mr-2" /> Desafixar</> : <><Pin className="w-4 h-4 mr-2" /> Fixar mensagem</>}
                             </ContextMenuItem>
