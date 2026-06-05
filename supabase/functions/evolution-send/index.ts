@@ -329,15 +329,32 @@ Deno.serve(async (req) => {
       }
       const instAuth = await resolveInstanceAuth(baseUrl, apiKey, instance);
 
-      // Try a list of known endpoint variants for both Evolution API (classic) and Evolution Go
+      // Build optional "quoted" payload (reply-to) compatible with both API flavors
+      const quotedRaw = body.quoted as { messageId?: string; fromMe?: boolean; text?: string } | null | undefined;
+      const quoted = quotedRaw && quotedRaw.messageId ? {
+        key: {
+          remoteJid: `${phone}@s.whatsapp.net`,
+          fromMe: !!quotedRaw.fromMe,
+          id: String(quotedRaw.messageId),
+        },
+        message: { conversation: String(quotedRaw.text || '') },
+      } : null;
+
+      const goBody: Record<string, unknown> = { number: phone, text };
+      const goBodyMsg: Record<string, unknown> = { number: phone, message: text };
+      const classicBody: Record<string, unknown> = { number: phone, text };
+      const classicBodyV1: Record<string, unknown> = { number: phone, textMessage: { text } };
+      if (quoted) {
+        goBody.quoted = quoted; goBodyMsg.quoted = quoted;
+        classicBody.quoted = quoted; classicBodyV1.quoted = quoted;
+      }
+
       const attempts: Array<{ url: string; headers: Record<string, string>; body: any; mode: string }> = [
-        // Evolution Go (instance token endpoint) — fastest path for this project
-        { url: `${baseUrl}/send/text`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: phone, text }, mode: 'evolution-go-send' },
-        { url: `${baseUrl}/message/sendText`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: phone, text }, mode: 'evolution-go' },
-        { url: `${baseUrl}/message/sendText`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: phone, message: text }, mode: 'evolution-go-msg' },
-        // Classic Evolution API (Node)
-        { url: `${baseUrl}/message/sendText/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: phone, text }, mode: 'evolution-api' },
-        { url: `${baseUrl}/message/sendText/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: phone, textMessage: { text } }, mode: 'evolution-api-v1' },
+        { url: `${baseUrl}/send/text`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: goBody, mode: 'evolution-go-send' },
+        { url: `${baseUrl}/message/sendText`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: goBody, mode: 'evolution-go' },
+        { url: `${baseUrl}/message/sendText`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: goBodyMsg, mode: 'evolution-go-msg' },
+        { url: `${baseUrl}/message/sendText/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: classicBody, mode: 'evolution-api' },
+        { url: `${baseUrl}/message/sendText/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: classicBodyV1, mode: 'evolution-api-v1' },
       ];
 
       let result: any = { ok: false, status: 0, data: {} };
