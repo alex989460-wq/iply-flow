@@ -1283,15 +1283,19 @@ export default function EvolutionChat() {
 
 
               {/* Composer */}
-              {selectedPhone === 'status' ? (
+              {selectedPhone?.startsWith('status:') ? (
                 <div className="px-4 py-3 border-t border-[#0b1115] bg-[#202c33] flex items-center justify-between gap-3">
                   <div className="text-[12px] text-[#8696a0]">
-                    Visualizando Status. Use o botão <span className="text-[#00a884] font-medium">Postar status</span> acima para publicar.
+                    {selectedPhone === 'status:me'
+                      ? <>Suas publicações de status. Use <span className="text-[#00a884] font-medium">Postar status</span> para publicar.</>
+                      : 'Visualizando status do contato.'}
                   </div>
-                  <Button size="sm" className="h-8 bg-[#00a884] hover:bg-[#02906f] text-white"
-                    onClick={() => setShowStatusComposer(true)}>
-                    <Plus className="w-3.5 h-3.5 mr-1" /> Postar
-                  </Button>
+                  {selectedPhone === 'status:me' && (
+                    <Button size="sm" className="h-8 bg-[#00a884] hover:bg-[#02906f] text-white"
+                      onClick={() => setShowStatusComposer(true)}>
+                      <Plus className="w-3.5 h-3.5 mr-1" /> Postar
+                    </Button>
+                  )}
                 </div>
               ) : (
               <div className="px-2 py-2 border-t border-[#0b1115] bg-[#202c33] flex items-end gap-1.5">
