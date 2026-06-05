@@ -14,7 +14,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { format, addDays, isPast, differenceInDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Users, RefreshCw, Search, Calendar, Ban, CheckCircle, Clock, Pencil, Eye, EyeOff, UserPlus, Coins, Plus } from "lucide-react";
+import { Users, RefreshCw, Search, Calendar, Ban, CheckCircle, Clock, Pencil, Eye, EyeOff, UserPlus, Coins, Plus, Smartphone } from "lucide-react";
 import { Navigate } from "react-router-dom";
 import { z } from "zod";
 
