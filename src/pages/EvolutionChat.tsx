@@ -590,16 +590,34 @@ export default function EvolutionChat() {
   };
 
   // Group thread by day
+  // Build reaction map and filter reaction rows out of the visible thread
+  const { visibleThread, reactionsByExternalId } = useMemo(() => {
+    const reactions: Record<string, { emoji: string; from: 'in' | 'out' }> = {};
+    const visible: EvoMessage[] = [];
+    for (const m of thread) {
+      const r = extractReaction(m.raw);
+      const looksLikeReaction = !!r || m.message_type === 'reaction' || (m.content === '[reaction]');
+      if (r) {
+        if (r.emoji) reactions[r.targetId] = { emoji: r.emoji, from: m.direction };
+        else delete reactions[r.targetId];
+        continue; // hide reaction "messages"
+      }
+      if (looksLikeReaction) continue;
+      visible.push(m);
+    }
+    return { visibleThread: visible, reactionsByExternalId: reactions };
+  }, [thread]);
+
   const groupedThread = useMemo(() => {
     const groups: Array<{ date: string; items: EvoMessage[] }> = [];
-    for (const m of thread) {
+    for (const m of visibleThread) {
       const d = new Date(m.created_at).toLocaleDateString('pt-BR');
       const last = groups[groups.length - 1];
       if (last && last.date === d) last.items.push(m);
       else groups.push({ date: d, items: [m] });
     }
     return groups;
-  }, [thread]);
+  }, [visibleThread]);
 
   const renderMessageBody = (m: EvoMessage) => {
     const src = mediaSource(m);
