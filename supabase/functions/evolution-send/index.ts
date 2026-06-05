@@ -544,10 +544,13 @@ Deno.serve(async (req) => {
         return jsonResponse({ ok: true, alreadyConnected: true, instance: targetInstance, phone: extractInstancePhone(foundInstance, sd) });
       }
 
-      // Trigger reconnect for Evolution Go so a QR is generated, then fetch /instance/qr
-      await fetchJson(`${baseUrl}/instance/reconnect`, {
-        method: 'POST', headers: evolutionHeaders(scopedApiKey, true, scopedInstanceId), body: '{}',
-      }, 5000).catch(() => null);
+      // Trigger reconnect for Evolution Go (re-binding webhook on every QR request)
+      const webhookUrlForConnect = `${supabaseUrl}/functions/v1/evolution-webhook?token=${settings.webhook_token}`;
+      await fetchJson(`${baseUrl}/instance/connect`, {
+        method: 'POST', headers: evolutionHeaders(scopedApiKey, true, scopedInstanceId),
+        body: JSON.stringify({ webhookUrl: webhookUrlForConnect, subscribe: ['MESSAGE','SEND_MESSAGE','CONNECTION','QRCODE'], immediate: true }),
+      }, 8000).catch(() => null);
+
 
       const tries = [
         { url: `${baseUrl}/instance/${encodeURIComponent(targetInstance)}/qrcode`, method: 'GET', headers: evolutionHeaders(apiKey) },
@@ -707,8 +710,19 @@ Deno.serve(async (req) => {
 
       const webhookUrl = `${supabaseUrl}/functions/v1/evolution-webhook?token=${settings.webhook_token}`;
       const instToken = (crypto as any).randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      const defaultAdvanced = {
+        alwaysOnline: false,
+        rejectCall: false,
+        msgRejectCall: '',
+        readMessages: false,
+        ignoreGroups: false,
+        ignoreStatus: true,
+      };
+      const defaultEvents = ['MESSAGE', 'SEND_MESSAGE', 'CONNECTION', 'QRCODE'];
       const payloads = [
-        { url: `${baseUrl}/instance/create`, body: { name, token: instToken, webhookUrl, subscribe: ['MESSAGE','SEND_MESSAGE','CONNECTION'], immediate: true } },
+        // Evolution GO format
+        { url: `${baseUrl}/instance/create`, body: { name, token: instToken, advancedSettings: defaultAdvanced } },
+        // Classic Evolution API fallback (also accepts inline webhook)
         { url: `${baseUrl}/instance/create`, body: { instanceName: name, token: instToken, qrcode: true, integration: 'WHATSAPP-BAILEYS', webhook: { url: webhookUrl, events: ['MESSAGES_UPSERT'] } } },
       ];
       let last: any = { ok: false, status: 0, data: {} };
@@ -722,15 +736,49 @@ Deno.serve(async (req) => {
         if (r.ok) {
           // Register ownership
           const instId = r.data?.id || r.data?.instance?.instanceId || r.data?.data?.id || null;
+          const issuedToken = r.data?.token || r.data?.hash || r.data?.instance?.token || instToken;
           await admin.from('user_evolution_instances').upsert(
             { user_id: user.id, instance_name: name, instance_id: instId },
             { onConflict: 'instance_name' }
           );
-          return jsonResponse({ ok: true, data: r.data, name });
+
+          // Configure webhook + advanced settings on the freshly created instance (Evolution GO)
+          const postSetup: any[] = [];
+          const scopedHeaders = evolutionHeaders(issuedToken, true, instId || name);
+          // Bind webhook via /instance/connect (Evolution GO has no separate /webhook endpoint)
+          postSetup.push(
+            fetchJson(`${baseUrl}/instance/connect`, {
+              method: 'POST',
+              headers: scopedHeaders,
+              body: JSON.stringify({ webhookUrl, subscribe: defaultEvents, immediate: false }),
+            }, 8000).catch(() => null),
+          );
+          // Apply advanced settings explicitly
+          if (instId) {
+            postSetup.push(
+              fetchJson(`${baseUrl}/instance/${encodeURIComponent(instId)}/advanced-settings`, {
+                method: 'PUT',
+                headers: scopedHeaders,
+                body: JSON.stringify(defaultAdvanced),
+              }, 8000).catch(() => null),
+            );
+          }
+          // Classic Evolution API webhook fallback
+          postSetup.push(
+            fetchJson(`${baseUrl}/webhook/set/${encodeURIComponent(name)}`, {
+              method: 'POST',
+              headers: evolutionHeaders(apiKey, true),
+              body: JSON.stringify({ webhook: { enabled: true, url: webhookUrl, events: ['MESSAGES_UPSERT'], byEvents: false, base64: false } }),
+            }, 8000).catch(() => null),
+          );
+          await Promise.all(postSetup);
+
+          return jsonResponse({ ok: true, data: r.data, name, token: issuedToken, webhookUrl });
         }
       }
       return jsonResponse({ ok: false, status: last.status, error: last.data?.message || last.data?.error || 'Falha ao criar instância.', data: last.data }, 200);
     }
+
 
     // DISCONNECT / LOGOUT INSTANCE
     if (action === 'logout-instance') {
