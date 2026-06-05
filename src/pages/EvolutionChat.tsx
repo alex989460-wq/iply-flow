@@ -1225,7 +1225,7 @@ export default function EvolutionChat() {
                                 {isPinned && <Pin className="w-2.5 h-2.5 text-[#00a884]" />}
                                 <span>{new Date(m.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
                                 {m.direction === 'out' && (
-                                  m._failed ? <span className="text-destructive">⚠️</span>
+                                  m._failed ? <button onClick={(e) => { e.stopPropagation(); resendMessage(m); }} title="Reenviar" className="text-destructive hover:scale-125 transition-transform">⚠️</button>
                                   : m._pending ? <span>⏳</span>
                                   : <span className="text-[#53bdeb] font-bold leading-none">✓✓</span>
                                 )}
