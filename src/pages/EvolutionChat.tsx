@@ -76,6 +76,35 @@ function getNestedValue(source: unknown, path: string[]): unknown {
   return path.reduce<unknown>((acc, key) => (acc && typeof acc === 'object' ? (acc as Record<string, unknown>)[key] : undefined), source);
 }
 
+function rawString(source: unknown, paths: string[][]) {
+  for (const path of paths) {
+    const value = getNestedValue(source, path);
+    if (typeof value === 'string' && value.trim()) return value.trim();
+  }
+  return '';
+}
+
+function sameInstanceName(a?: string | null, b?: string | null) {
+  return String(a || '').trim().toLowerCase() === String(b || '').trim().toLowerCase();
+}
+
+function ownerPhoneFromRaw(raw: unknown) {
+  const sender = rawString(raw, [['data', 'Info', 'Sender'], ['Info', 'Sender']]);
+  return sender.split('@')[0].split(':')[0].replace(/\D/g, '');
+}
+
+function rawInstanceName(raw: unknown) {
+  return rawString(raw, [
+    ['data', 'Info', 'Instance'],
+    ['instanceName'],
+    ['instance'],
+    ['data', 'instanceName'],
+    ['data', 'instance'],
+    ['instanceId'],
+    ['data', 'instanceId'],
+  ]);
+}
+
 function rawBase64From(raw: unknown) {
   const paths = [
     ['data', 'Message', 'base64'], ['Message', 'base64'], ['base64'],
@@ -157,6 +186,9 @@ export default function EvolutionChat() {
       return;
     }
     setCurrentInstance(name);
+    setSelectedPhone(null);
+    setSearch('');
+    setFilter('all');
     toast({ title: 'Instância ativa', description: `Agora enviando por: ${name}` });
   };
 
@@ -183,7 +215,7 @@ export default function EvolutionChat() {
     return [...prev, incoming];
   }, []);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     if (!user) return;
     setLoading(true);
     const [msgRes, contRes] = await Promise.all([
@@ -199,9 +231,26 @@ export default function EvolutionChat() {
     const cmap: Record<string, EvoContact> = {};
     for (const c of ((contRes.data || []) as EvoContact[])) cmap[c.phone] = c;
     setContacts(cmap);
-  };
+  }, [user, toast, mergeMessage]);
 
-  useEffect(() => { load(); loadInstances(); }, [user, loadInstances]);
+  const selectedInstance = useMemo(() => {
+    if (!currentInstance) return null;
+    return instances.find((inst) => sameInstanceName(inst.name, currentInstance)) || null;
+  }, [instances, currentInstance]);
+
+  const messageBelongsToCurrentInstance = useCallback((m: EvoMessage) => {
+    if (!currentInstance) return true;
+    if (sameInstanceName(m.instance_name, currentInstance)) return true;
+    if (selectedInstance?.id && sameInstanceName(m.instance_name, selectedInstance.id)) return true;
+    const rawInst = rawInstanceName(m.raw);
+    if (sameInstanceName(rawInst, currentInstance)) return true;
+    if (selectedInstance?.id && sameInstanceName(rawInst, selectedInstance.id)) return true;
+    const ownerPhone = ownerPhoneFromRaw(m.raw);
+    if (ownerPhone && selectedInstance?.phone && ownerPhone === selectedInstance.phone.replace(/\D/g, '')) return true;
+    return false;
+  }, [currentInstance, selectedInstance]);
+
+  useEffect(() => { load(); loadInstances(); }, [load, loadInstances]);
 
   useEffect(() => {
     if (!user) return;
@@ -244,21 +293,21 @@ export default function EvolutionChat() {
     supabase.functions.invoke('evolution-send', { body: { action: 'sync-contacts' } }).catch(() => undefined);
   }, [user]);
 
-  // Filter messages by current instance. Legacy messages (instance_name = null) are shown for all.
+  // Filter messages by the selected instance. Legacy rows are only kept when raw payload identifies the same instance.
   const instanceMessages = useMemo(() => {
     if (!currentInstance) return messages;
-    return messages.filter(m => !m.instance_name || m.instance_name === currentInstance);
-  }, [messages, currentInstance]);
+    return messages.filter(messageBelongsToCurrentInstance);
+  }, [messages, currentInstance, messageBelongsToCurrentInstance]);
 
   // Phones that have at least one message on this instance (used to filter the conversations sidebar)
   const instancePhones = useMemo(() => {
     if (!currentInstance) return null;
     const set = new Set<string>();
     for (const m of messages) {
-      if (m.instance_name === currentInstance) set.add(m.phone);
+      if (messageBelongsToCurrentInstance(m)) set.add(m.phone);
     }
     return set;
-  }, [messages, currentInstance]);
+  }, [messages, currentInstance, messageBelongsToCurrentInstance]);
 
   const conversations = useMemo(() => {
     const map = new Map<string, { phone: string; name: string | null; last: EvoMessage | null; unread: number; lastAt: string }>();

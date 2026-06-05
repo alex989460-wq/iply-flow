@@ -127,6 +127,7 @@ async function insertMessageOnce(admin: any, row: Record<string, unknown>) {
         .maybeSingle();
       if (pendingOut?.id) {
         await admin.from('evolution_messages').update({
+          instance_name: row.instance_name || undefined,
           external_id: row.external_id,
           status: row.status,
           raw: row.raw,
@@ -169,8 +170,8 @@ Deno.serve(async (req) => {
     // Resolve which instance this event belongs to (Evolution Go + classic variants)
     const instanceName: string | null =
       data?.Info?.Instance || data?.instance || data?.instanceName ||
-      body?.instance || body?.instanceName || body?.instanceId ||
-      data?.instanceId || settings.instance_name || null;
+      body?.instance || body?.instanceName ||
+      data?.instanceId || body?.instanceId || settings.instance_name || null;
 
     // Evolution Go "Message" event format
     if (event === 'Message' && data?.Info) {

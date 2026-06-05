@@ -365,6 +365,7 @@ Deno.serve(async (req) => {
       }
       await insertOutgoingMessage(admin, {
         user_id: user.id,
+        instance_name: instance,
         remote_jid: `${phone}@s.whatsapp.net`,
         phone,
         direction: 'out',
@@ -513,6 +514,7 @@ Deno.serve(async (req) => {
 
       await insertOutgoingMessage(admin, {
         user_id: user.id,
+        instance_name: instance,
         remote_jid: `${phone}@s.whatsapp.net`,
         phone,
         direction: 'out',
@@ -684,20 +686,27 @@ Deno.serve(async (req) => {
     // DISCONNECT / LOGOUT INSTANCE
     if (action === 'logout-instance') {
       const targetInstance = String(body.instance || instance).trim();
+      if (!targetInstance) return jsonResponse({ ok: false, error: 'instance obrigatória' }, 400);
+      const instAuth = await resolveInstanceAuth(baseUrl, apiKey, targetInstance);
       const tries = [
         // Evolution Go (instance-scoped, no path id)
-        { url: `${baseUrl}/instance/logout`, method: 'DELETE' },
-        { url: `${baseUrl}/instance/disconnect`, method: 'POST' },
+        { url: `${baseUrl}/instance/logout`, method: 'DELETE', headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId) },
+        { url: `${baseUrl}/instance/logout`, method: 'POST', headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId) },
+        { url: `${baseUrl}/instance/disconnect`, method: 'POST', headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId) },
+        { url: `${baseUrl}/instance/${encodeURIComponent(instAuth.instanceId)}/logout`, method: 'DELETE', headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId) },
         // Evolution API classic
-        { url: `${baseUrl}/instance/logout/${encodeURIComponent(targetInstance)}`, method: 'DELETE' },
-        { url: `${baseUrl}/instance/logout/${encodeURIComponent(targetInstance)}`, method: 'POST' },
+        { url: `${baseUrl}/instance/logout/${encodeURIComponent(targetInstance)}`, method: 'DELETE', headers: evolutionHeaders(apiKey, true) },
+        { url: `${baseUrl}/instance/logout/${encodeURIComponent(targetInstance)}`, method: 'POST', headers: evolutionHeaders(apiKey, true) },
+        { url: `${baseUrl}/instance/disconnect/${encodeURIComponent(targetInstance)}`, method: 'POST', headers: evolutionHeaders(apiKey, true) },
       ];
+      const attempts: Array<{ url: string; method: string; status: number }> = [];
       for (const t of tries) {
-        const r = await fetchJson(t.url, { method: t.method, headers: evolutionHeaders(apiKey, true, targetInstance) }, 8000)
+        const r = await fetchJson(t.url, { method: t.method, headers: t.headers, body: t.method === 'POST' ? '{}' : undefined }, 8000)
           .catch(() => ({ ok: false, status: 0, data: {} as any }));
+        attempts.push({ url: t.url, method: t.method, status: r.status });
         if (r.ok) return jsonResponse({ ok: true, data: r.data });
       }
-      return jsonResponse({ ok: false, error: 'Falha ao desconectar instância.' }, 200);
+      return jsonResponse({ ok: false, error: 'Falha ao desconectar instância.', attempts }, 200);
     }
 
     // SET ACTIVE INSTANCE (saves to evolution_settings.instance_name)
