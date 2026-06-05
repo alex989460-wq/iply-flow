@@ -222,7 +222,12 @@ Deno.serve(async (req) => {
       const remoteJid = info.Chat || '';
       const isStatus = remoteJid === 'status@broadcast' || remoteJid.startsWith('status@');
       if (remoteJid && (!remoteJid.includes('@g.us') || isStatus)) {
-        const phone = isStatus ? 'status' : jidToPhone(remoteJid);
+        // For status events: use the participant's phone so we can group per-contact
+        const participantJid = info.Sender || info.Participant || info.SenderJID || info.SenderJid || '';
+        const participantPhone = participantJid ? jidToPhone(participantJid) : '';
+        const phone = isStatus
+          ? (info.IsFromMe ? 'status:me' : (participantPhone ? `status:${participantPhone}` : 'status:unknown'))
+          : jidToPhone(remoteJid);
         const msg = data.Message || {};
         const type = messageType(msg, String(info.MediaType || info.Type || '').toLowerCase());
         const mediaMime = mediaMimeFrom(msg);
@@ -241,14 +246,25 @@ Deno.serve(async (req) => {
             media_mime: mediaMime,
             external_id: info.ID || null,
             status: info.IsFromMe ? 'sent' : 'received',
-            raw: body,
+            raw: isStatus ? { ...body, __participantPhone: participantPhone, __participantJid: participantJid } : body,
           });
-          const profilePicUrl = profilePicFrom(info, data, body);
-          if (info.PushName || profilePicUrl) {
-            await admin.from('evolution_contacts').upsert(
-              contactPayload(settings.user_id, phone, info.PushName, profilePicUrl),
-              { onConflict: 'user_id,phone' }
-            );
+          // Also upsert contact entry for the participant so avatar/name shows
+          if (isStatus && participantPhone) {
+            const profilePicUrl = profilePicFrom(info, data, body);
+            if (info.PushName || profilePicUrl) {
+              await admin.from('evolution_contacts').upsert(
+                contactPayload(settings.user_id, participantPhone, info.PushName, profilePicUrl),
+                { onConflict: 'user_id,phone' }
+              );
+            }
+          } else {
+            const profilePicUrl = profilePicFrom(info, data, body);
+            if (info.PushName || profilePicUrl) {
+              await admin.from('evolution_contacts').upsert(
+                contactPayload(settings.user_id, phone, info.PushName, profilePicUrl),
+                { onConflict: 'user_id,phone' }
+              );
+            }
           }
         }
       }
