@@ -544,10 +544,13 @@ Deno.serve(async (req) => {
         return jsonResponse({ ok: true, alreadyConnected: true, instance: targetInstance, phone: extractInstancePhone(foundInstance, sd) });
       }
 
-      // Trigger reconnect for Evolution Go so a QR is generated, then fetch /instance/qr
-      await fetchJson(`${baseUrl}/instance/reconnect`, {
-        method: 'POST', headers: evolutionHeaders(scopedApiKey, true, scopedInstanceId), body: '{}',
-      }, 5000).catch(() => null);
+      // Trigger reconnect for Evolution Go (re-binding webhook on every QR request)
+      const webhookUrlForConnect = `${supabaseUrl}/functions/v1/evolution-webhook?token=${settings.webhook_token}`;
+      await fetchJson(`${baseUrl}/instance/connect`, {
+        method: 'POST', headers: evolutionHeaders(scopedApiKey, true, scopedInstanceId),
+        body: JSON.stringify({ webhookUrl: webhookUrlForConnect, subscribe: ['MESSAGE','SEND_MESSAGE','CONNECTION','QRCODE'], immediate: true }),
+      }, 8000).catch(() => null);
+
 
       const tries = [
         { url: `${baseUrl}/instance/${encodeURIComponent(targetInstance)}/qrcode`, method: 'GET', headers: evolutionHeaders(apiKey) },
