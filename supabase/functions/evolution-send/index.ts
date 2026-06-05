@@ -364,12 +364,13 @@ Deno.serve(async (req) => {
         return jsonResponse({ error: 'phone e text obrigatórios' }, 400);
       }
       const instAuth = await resolveInstanceAuth(baseUrl, apiKey, instance);
+      const sendPhone = await resolveSendPhone(admin, user.id, phone);
 
       // Build optional "quoted" payload (reply-to) compatible with both API flavors
       const quotedRaw = body.quoted as { messageId?: string; fromMe?: boolean; text?: string } | null | undefined;
       const quotedClassic = quotedRaw && quotedRaw.messageId ? {
         key: {
-          remoteJid: `${phone}@s.whatsapp.net`,
+          remoteJid: `${sendPhone}@s.whatsapp.net`,
           fromMe: !!quotedRaw.fromMe,
           id: String(quotedRaw.messageId),
         },
@@ -377,24 +378,24 @@ Deno.serve(async (req) => {
       } : null;
       const quotedGo = quotedRaw && quotedRaw.messageId ? {
         messageId: String(quotedRaw.messageId),
-        participant: `${phone}@s.whatsapp.net`,
+          participant: `${sendPhone}@s.whatsapp.net`,
       } : null;
 
-      const goBody: Record<string, unknown> = { number: phone, text };
-      const goBodyMsg: Record<string, unknown> = { number: phone, message: text };
-      const classicBody: Record<string, unknown> = { number: phone, text };
-      const classicBodyV1: Record<string, unknown> = { number: phone, textMessage: { text } };
+      const goBody: Record<string, unknown> = { number: sendPhone, text };
+      const goBodyMsg: Record<string, unknown> = { number: sendPhone, message: text };
+      const classicBody: Record<string, unknown> = { number: sendPhone, text };
+      const classicBodyV1: Record<string, unknown> = { number: sendPhone, textMessage: { text } };
       if (quotedGo && quotedClassic) {
         goBody.quoted = quotedGo; goBodyMsg.quoted = quotedGo;
         classicBody.quoted = quotedClassic; classicBodyV1.quoted = quotedClassic;
       }
 
       const attempts: Array<{ url: string; headers: Record<string, string>; body: any; mode: string }> = [
+        { url: `${baseUrl}/message/sendText/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: classicBody, mode: 'evolution-api' },
+        { url: `${baseUrl}/message/sendText/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: classicBodyV1, mode: 'evolution-api-v1' },
         { url: `${baseUrl}/send/text`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: goBody, mode: 'evolution-go-send' },
         { url: `${baseUrl}/message/sendText`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: goBody, mode: 'evolution-go' },
         { url: `${baseUrl}/message/sendText`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: goBodyMsg, mode: 'evolution-go-msg' },
-        { url: `${baseUrl}/message/sendText/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: classicBody, mode: 'evolution-api' },
-        { url: `${baseUrl}/message/sendText/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: classicBodyV1, mode: 'evolution-api-v1' },
       ];
 
       let result: any = { ok: false, status: 0, data: {} };
@@ -405,7 +406,7 @@ Deno.serve(async (req) => {
           method: 'POST',
           headers: att.headers,
           body: JSON.stringify(att.body),
-        }, 20000).catch((error) => ({ ok: false, status: 0, data: { error: String(error?.message || error) } }));
+        }, 8000).catch((error) => ({ ok: false, status: 0, data: { error: String(error?.message || error) } }));
         log.push({ url: att.url, mode: att.mode, status: r.status });
         if (r.ok) { result = r; mode = att.mode; break; }
         // Continue on routing-style failures AND timeouts/network errors (status 0)
@@ -423,7 +424,7 @@ Deno.serve(async (req) => {
       await insertOutgoingMessage(admin, {
         user_id: user.id,
         instance_name: instance,
-        remote_jid: `${phone}@s.whatsapp.net`,
+        remote_jid: `${sendPhone}@s.whatsapp.net`,
         phone,
         direction: 'out',
         content: text,
