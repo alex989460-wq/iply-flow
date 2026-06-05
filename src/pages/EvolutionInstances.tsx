@@ -437,11 +437,14 @@ export default function EvolutionInstances() {
             <div className="space-y-3">
               <h3 className="text-sm font-semibold">Configurações Avançadas</h3>
               {[
-                { key: 'alwaysOnline', label: 'Always Online', desc: 'Manter sempre online no WhatsApp' },
-                { key: 'rejectCall', label: 'Reject Call', desc: 'Rejeitar chamadas automaticamente' },
-                { key: 'readMessages', label: 'Read Messages', desc: 'Marcar mensagens como lidas' },
-                { key: 'ignoreGroups', label: 'Ignore Groups', desc: 'Ignorar mensagens de grupos' },
-                { key: 'ignoreStatus', label: 'Ignore Status', desc: 'Ignorar atualizações de status' },
+                { key: 'alwaysOnline', label: 'Sempre Online', desc: 'Manter status sempre online no WhatsApp' },
+                { key: 'rejectCall', label: 'Rejeitar Chamadas', desc: 'Rejeitar todas as chamadas automaticamente' },
+                { key: 'readMessages', label: 'Marcar como Lida', desc: 'Marcar mensagens recebidas como lidas' },
+                { key: 'readStatus', label: 'Ver Status (Stories)', desc: 'Visualizar status/stories dos contatos' },
+                { key: 'ignoreGroups', label: 'Ignorar Grupos', desc: 'Não receber mensagens de grupos' },
+                { key: 'groupsOnly', label: 'Apenas Grupos', desc: 'Receber somente mensagens de grupos (ignora contatos)' },
+                { key: 'ignoreStatus', label: 'Ignorar Status', desc: 'Ignorar atualizações de status dos contatos' },
+                { key: 'syncFullHistory', label: 'Sincronizar Histórico', desc: 'Sincronizar todo o histórico de mensagens ao conectar' },
               ].map((opt) => (
                 <div key={opt.key} className="flex items-start justify-between gap-3 p-3 rounded-lg border border-border/60">
                   <div className="flex-1">
