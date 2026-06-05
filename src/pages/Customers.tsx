@@ -146,6 +146,8 @@ export default function Customers() {
   const [templates, setTemplates] = useState<Array<{ id?: string; name: string; language?: string; status?: string; parameter_format?: string; components?: Array<{ type?: string; text?: string; format?: string; buttons?: Array<{ url?: string }> }> }>>([]);
   const [isLoadingTemplates, setIsLoadingTemplates] = useState(false);
   const [isSendingBilling, setIsSendingBilling] = useState(false);
+  const [useEvolutionForBilling, setUseEvolutionForBilling] = useState(false);
+  const [selectedEvoTemplateKey, setSelectedEvoTemplateKey] = useState<'D-1' | 'D0' | 'D+1'>('D0');
 
   // Server migration state
   const [isServerMigrationOpen, setIsServerMigrationOpen] = useState(false);
