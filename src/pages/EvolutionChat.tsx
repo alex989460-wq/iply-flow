@@ -915,7 +915,8 @@ export default function EvolutionChat() {
                 const active = selectedPhone === c.phone;
                 const isOut = c.last?.direction === 'out';
                 const cc = contacts[c.phone];
-                const displayName = cc?.name || c.name || formatPhone(c.phone);
+                const isStatusEntry = c.phone === 'status';
+                const displayName = isStatusEntry ? '📢 Status (WhatsApp)' : (cc?.name || c.name || formatPhone(c.phone));
                 const isPinnedContact = pinnedContacts.has(c.phone);
                 return (
                   <ContextMenu key={c.phone}>
