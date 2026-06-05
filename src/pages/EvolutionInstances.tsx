@@ -10,7 +10,7 @@ import { Switch } from '@/components/ui/switch';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
   Loader2, QrCode, Plus, RefreshCw, LogOut, CheckCircle2, Smartphone,
-  Wifi, WifiOff, Zap, ShieldCheck, Sparkles, Settings as SettingsIcon, Save,
+  Wifi, WifiOff, Zap, ShieldCheck, Sparkles, Settings as SettingsIcon, Save, Trash2,
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -63,6 +63,7 @@ export default function EvolutionInstances() {
     ignoreStatus: false,
     readStatus: false,
     syncFullHistory: false,
+    groupsOnly: false,
   });
   const [webhookEvents, setWebhookEvents] = useState<string[]>(['MESSAGE','SEND_MESSAGE','CONNECTION']);
 
@@ -226,6 +227,19 @@ export default function EvolutionInstances() {
     }
   };
 
+  const deleteInstance = async (name: string) => {
+    if (!confirm(`Excluir definitivamente a instância "${name}"? Isso libera seu slot e remove do painel Evolution.`)) return;
+    const { data, error } = await supabase.functions.invoke('evolution-send', {
+      body: { action: 'delete-instance', instance: name },
+    });
+    if (error || (!data?.ok && !data?.attempts)) {
+      toast({ title: 'Falha', description: data?.error || error?.message || 'Erro ao excluir', variant: 'destructive' });
+      return;
+    }
+    toast({ title: 'Instância excluída', description: name });
+    fetchInstances();
+  };
+
   return (
     <DashboardLayout>
       <div className="space-y-6 max-w-6xl mx-auto p-4 md:p-6">
@@ -359,10 +373,13 @@ export default function EvolutionInstances() {
                         <SettingsIcon className="w-3.5 h-3.5" /> Configurar
                       </Button>
                       {connected && (
-                        <Button size="sm" variant="ghost" onClick={() => logout(inst.name)} className="gap-1.5 text-rose-400 hover:text-rose-300 hover:bg-rose-500/10">
+                        <Button size="sm" variant="ghost" onClick={() => logout(inst.name)} className="gap-1.5 text-amber-400 hover:text-amber-300 hover:bg-amber-500/10">
                           <LogOut className="w-3.5 h-3.5" /> Desconectar
                         </Button>
                       )}
+                      <Button size="sm" variant="ghost" onClick={() => deleteInstance(inst.name)} className="gap-1.5 text-rose-400 hover:text-rose-300 hover:bg-rose-500/10">
+                        <Trash2 className="w-3.5 h-3.5" /> Excluir
+                      </Button>
                     </div>
                   </CardContent>
                 </Card>
@@ -420,11 +437,14 @@ export default function EvolutionInstances() {
             <div className="space-y-3">
               <h3 className="text-sm font-semibold">Configurações Avançadas</h3>
               {[
-                { key: 'alwaysOnline', label: 'Always Online', desc: 'Manter sempre online no WhatsApp' },
-                { key: 'rejectCall', label: 'Reject Call', desc: 'Rejeitar chamadas automaticamente' },
-                { key: 'readMessages', label: 'Read Messages', desc: 'Marcar mensagens como lidas' },
-                { key: 'ignoreGroups', label: 'Ignore Groups', desc: 'Ignorar mensagens de grupos' },
-                { key: 'ignoreStatus', label: 'Ignore Status', desc: 'Ignorar atualizações de status' },
+                { key: 'alwaysOnline', label: 'Sempre Online', desc: 'Manter status sempre online no WhatsApp' },
+                { key: 'rejectCall', label: 'Rejeitar Chamadas', desc: 'Rejeitar todas as chamadas automaticamente' },
+                { key: 'readMessages', label: 'Marcar como Lida', desc: 'Marcar mensagens recebidas como lidas' },
+                { key: 'readStatus', label: 'Ver Status (Stories)', desc: 'Visualizar status/stories dos contatos' },
+                { key: 'ignoreGroups', label: 'Ignorar Grupos', desc: 'Não receber mensagens de grupos' },
+                { key: 'groupsOnly', label: 'Apenas Grupos', desc: 'Receber somente mensagens de grupos (ignora contatos)' },
+                { key: 'ignoreStatus', label: 'Ignorar Status', desc: 'Ignorar atualizações de status dos contatos' },
+                { key: 'syncFullHistory', label: 'Sincronizar Histórico', desc: 'Sincronizar todo o histórico de mensagens ao conectar' },
               ].map((opt) => (
                 <div key={opt.key} className="flex items-start justify-between gap-3 p-3 rounded-lg border border-border/60">
                   <div className="flex-1">

@@ -154,7 +154,7 @@ export default function EvolutionChat() {
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [imageToSend, setImageToSend] = useState<{ file: File; url: string; caption: string } | null>(null);
   const [docToSend, setDocToSend] = useState<{ file: File; caption: string } | null>(null);
-  const [filter, setFilter] = useState<'all' | 'unread' | 'media'>('all');
+  const [filter, setFilter] = useState<'all' | 'unread' | 'media' | 'groups' | 'contacts'>('all');
   const [instances, setInstances] = useState<Array<{ id: string; name: string; phone: string | null; state: string; profile_name: string | null }>>([]);
   const [currentInstance, setCurrentInstance] = useState<string>('');
   const [switchingInstance, setSwitchingInstance] = useState(false);
@@ -332,6 +332,8 @@ export default function EvolutionChat() {
     let filtered = arr;
     if (filter === 'unread') filtered = arr.filter(c => c.unread > 0 && c.last?.direction === 'in');
     else if (filter === 'media') filtered = arr.filter(c => c.last && ['image', 'audio', 'document', 'sticker'].includes(c.last.message_type));
+    else if (filter === 'groups') filtered = arr.filter(c => c.phone && c.phone.length > 15);
+    else if (filter === 'contacts') filtered = arr.filter(c => c.phone && c.phone.length <= 15);
     if (!search.trim()) return filtered;
     const q = search.toLowerCase();
     return filtered.filter(c =>
@@ -596,10 +598,12 @@ export default function EvolutionChat() {
               <Input placeholder="Novo número (DDD + nº)" value={newPhone} onChange={(e) => setNewPhone(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && startConversation()} className="h-8 text-xs" />
               <Button size="icon" className="h-8 w-8 shrink-0" onClick={startConversation}><Plus className="w-4 h-4" /></Button>
             </div>
-            <div className="flex gap-1">
+            <div className="flex gap-1 flex-wrap">
               {([
                 { id: 'all', label: 'Todas' },
                 { id: 'unread', label: 'Não lidas' },
+                { id: 'contacts', label: 'Contatos' },
+                { id: 'groups', label: 'Grupos' },
                 { id: 'media', label: 'Mídia' },
               ] as const).map((t) => (
                 <button

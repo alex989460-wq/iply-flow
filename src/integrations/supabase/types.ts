@@ -1205,6 +1205,7 @@ export type Database = {
           full_name: string | null
           id: string
           is_active: boolean
+          max_evolution_instances: number
           parent_reseller_id: string | null
           updated_at: string
           user_id: string
@@ -1217,6 +1218,7 @@ export type Database = {
           full_name?: string | null
           id?: string
           is_active?: boolean
+          max_evolution_instances?: number
           parent_reseller_id?: string | null
           updated_at?: string
           user_id: string
@@ -1229,6 +1231,7 @@ export type Database = {
           full_name?: string | null
           id?: string
           is_active?: boolean
+          max_evolution_instances?: number
           parent_reseller_id?: string | null
           updated_at?: string
           user_id?: string
@@ -1349,6 +1352,30 @@ export type Database = {
             referencedColumns: ["user_id"]
           },
         ]
+      }
+      user_evolution_instances: {
+        Row: {
+          created_at: string
+          id: string
+          instance_id: string | null
+          instance_name: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          instance_id?: string | null
+          instance_name: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          instance_id?: string | null
+          instance_name?: string
+          user_id?: string
+        }
+        Relationships: []
       }
       user_roles: {
         Row: {
