@@ -527,6 +527,76 @@ export default function BillingSettingsCard() {
         </CardContent>
       </Card>
 
+      {/* Evolution as billing channel */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Zap className="w-5 h-5 text-primary" />
+                Enviar Cobrança pela Evolution
+              </CardTitle>
+              <CardDescription>
+                Quando ativo, as cobranças (D-1, D0, D+1) são enviadas como mensagem de texto pela instância Evolution selecionada — sem alterar sua API oficial (Meta/Zap Responder), que continua salva.
+              </CardDescription>
+            </div>
+            <Switch
+              checked={!!formData.use_evolution_billing}
+              onCheckedChange={(v) => setFormData({ ...formData, use_evolution_billing: v })}
+            />
+          </div>
+        </CardHeader>
+        {formData.use_evolution_billing && (
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label className="text-sm">Instância da Evolution</Label>
+              <Select
+                value={formData.evolution_instance || ''}
+                onValueChange={(v) => setFormData({ ...formData, evolution_instance: v })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione a instância" />
+                </SelectTrigger>
+                <SelectContent>
+                  {evoInstances.map((i: any) => (
+                    <SelectItem key={i.name} value={i.name}>
+                      <span className="flex items-center gap-2">
+                        <span className={`inline-block w-2 h-2 rounded-full ${i.state === 'open' ? 'bg-green-500' : 'bg-gray-400'}`} />
+                        {i.name} {i.phone ? `• ${i.phone}` : ''}
+                      </span>
+                    </SelectItem>
+                  ))}
+                  {evoInstances.length === 0 && (
+                    <SelectItem value="" disabled>Nenhuma instância encontrada</SelectItem>
+                  )}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">Deixe vazio para usar a instância ativa padrão.</p>
+            </div>
+
+            {[
+              { key: 'evolution_msg_d_minus_1', label: 'Mensagem D-1 (vence amanhã)', ph: 'Olá {{nome}}, seu plano vence amanhã ({{vencimento}}). PIX: {{pix}}' },
+              { key: 'evolution_msg_d0', label: 'Mensagem D0 (vence hoje)', ph: 'Olá {{nome}}, seu plano vence hoje ({{vencimento}}). PIX: {{pix}}' },
+              { key: 'evolution_msg_d_plus_1', label: 'Mensagem D+1 (vencido)', ph: 'Olá {{nome}}, seu plano venceu em {{vencimento}}. PIX: {{pix}}' },
+            ].map(({ key, label, ph }) => (
+              <div key={key} className="space-y-2">
+                <Label className="text-sm">{label}</Label>
+                <Textarea
+                  placeholder={ph}
+                  value={(formData as any)[key] || ''}
+                  onChange={(e) => setFormData({ ...formData, [key]: e.target.value })}
+                  className="min-h-[90px] font-mono text-sm"
+                />
+              </div>
+            ))}
+            <p className="text-xs text-muted-foreground">
+              Variáveis: {'{{nome}}'}, {'{{vencimento}}'}, {'{{usuario}}'}, {'{{plano}}'}, {'{{valor}}'}, {'{{servidor}}'}, {'{{pix}}'}, {'{{telefone}}'}.
+            </p>
+          </CardContent>
+        )}
+      </Card>
+
+
       <Button
         className="w-full"
         size="lg"
