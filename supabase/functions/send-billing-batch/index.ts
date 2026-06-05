@@ -235,6 +235,60 @@ async function sendWhatsAppTemplateZap(
   }
 }
 
+// Send free text via Evolution API
+async function sendEvolutionText(
+  baseUrl: string,
+  apiKey: string,
+  instance: string,
+  phone: string,
+  text: string,
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    let formattedPhone = phone.replace(/\D/g, '');
+    if (!formattedPhone.startsWith('55') && formattedPhone.length <= 11) {
+      formattedPhone = '55' + formattedPhone;
+    }
+    const cleanBase = baseUrl.replace(/\/$/, '');
+    const attempts = [
+      { url: `${cleanBase}/send/text`, body: { number: formattedPhone, text } },
+      { url: `${cleanBase}/message/sendText/${encodeURIComponent(instance)}`, body: { number: formattedPhone, text } },
+      { url: `${cleanBase}/message/sendText/${encodeURIComponent(instance)}`, body: { number: formattedPhone, textMessage: { text } } },
+    ];
+    let lastErr = '';
+    for (const a of attempts) {
+      try {
+        const r = await fetch(a.url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', apikey: apiKey, Authorization: `Bearer ${apiKey}` },
+          body: JSON.stringify(a.body),
+        });
+        if (r.ok) return { success: true };
+        lastErr = `HTTP ${r.status}`;
+        if (r.status !== 404 && r.status !== 405 && r.status !== 400) break;
+      } catch (e: any) {
+        lastErr = String(e?.message || e);
+      }
+    }
+    return { success: false, error: `Evolution: ${lastErr || 'falhou'}` };
+  } catch (e: any) {
+    return { success: false, error: String(e?.message || e) };
+  }
+}
+
+function renderEvolutionTemplate(tpl: string, c: Customer & Record<string, any>, extras: Record<string, any>): string {
+  const map: Record<string, string> = {
+    nome: c.name || '',
+    vencimento: c.due_date || '',
+    usuario: extras.usuario || (c as any).username || '',
+    plano: extras.plano || '',
+    valor: extras.valor || '',
+    servidor: extras.servidor || '',
+    pix: extras.pix || '',
+    telefone: c.phone || '',
+  };
+  return tpl.replace(/\{\{\s*(\w+)\s*\}\}/g, (_m, k) => map[k] ?? '');
+}
+
 // Get dates relative to São Paulo timezone
 function getRelativeDateSaoPaulo(daysOffset: number): string {
   const now = new Date();
@@ -343,15 +397,41 @@ Deno.serve(async (req) => {
       console.log('[Billing Batch] Using fallback admin settings');
     }
 
-    // Detect API type - Meta Cloud or Zap Responder
-    // Meta Cloud is active when api_type is 'meta_cloud' AND meta_connected_at is set
-    const apiType = zapSettings?.api_type || 'zap_responder';
-    const isMetaCloud = apiType === 'meta_cloud' && !!zapSettings?.meta_connected_at;
-    
-    console.log(`[Billing Batch] API detection: apiType=${apiType}, isMetaCloud=${isMetaCloud}, meta_connected_at=${zapSettings?.meta_connected_at}`);
+    // Load billing_settings to check whether Evolution should be the channel
+    const { data: billSettings } = await supabase
+      .from('billing_settings')
+      .select('use_evolution_billing, evolution_instance, evolution_msg_d_minus_1, evolution_msg_d0, evolution_msg_d_plus_1, pix_key')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    const useEvolution = !!(billSettings as any)?.use_evolution_billing;
+    let evoSettings: any = null;
+    if (useEvolution) {
+      const { data: evo } = await supabase
+        .from('evolution_settings')
+        .select('base_url, api_key, instance_name')
+        .eq('user_id', userId)
+        .maybeSingle();
+      evoSettings = evo;
+    }
+
+    // Detect API type - Evolution > Meta Cloud > Zap Responder
+    const apiType = useEvolution ? 'evolution' : (zapSettings?.api_type || 'zap_responder');
+    const isMetaCloud = !useEvolution && apiType === 'meta_cloud' && !!zapSettings?.meta_connected_at;
+    const isEvolution = useEvolution;
+
+    console.log(`[Billing Batch] API detection: apiType=${apiType}, isEvolution=${isEvolution}, isMetaCloud=${isMetaCloud}`);
 
     // Validate configuration based on API type
-    if (isMetaCloud) {
+    if (isEvolution) {
+      if (!evoSettings?.base_url || !evoSettings?.api_key) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Evolution não configurada. Configure URL e API Key em Conexões WhatsApp.' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      console.log(`[Billing Batch] Evolution configured: instance=${(billSettings as any)?.evolution_instance || evoSettings.instance_name}`);
+    } else if (isMetaCloud) {
       if (!zapSettings?.meta_access_token) {
         console.error('[Billing Batch] Meta Cloud: Missing access token');
         return new Response(
@@ -505,39 +585,51 @@ Deno.serve(async (req) => {
     // ACTION: BATCH - Process a batch of customers
     if (action === 'batch') {
       const batch: Customer[] = body?.batch || [];
-      const effectiveApiType = isMetaCloud ? 'meta_cloud' : 'zap_responder';
-      console.log(`[Billing Batch] Processing batch of ${batch.length} customers via ${effectiveApiType} (isMetaCloud=${isMetaCloud})`);
+      const effectiveApiType = isEvolution ? 'evolution' : (isMetaCloud ? 'meta_cloud' : 'zap_responder');
+      console.log(`[Billing Batch] Processing batch of ${batch.length} customers via ${effectiveApiType}`);
 
       const results: any[] = [];
+
+      const evoInstance = (billSettings as any)?.evolution_instance || evoSettings?.instance_name || '';
+      const evoMsgMap: Record<string, string> = {
+        'D-1': (billSettings as any)?.evolution_msg_d_minus_1 || 'Olá {{nome}}, seu plano vence amanhã ({{vencimento}}). PIX: {{pix}}',
+        'D0': (billSettings as any)?.evolution_msg_d0 || 'Olá {{nome}}, seu plano vence hoje ({{vencimento}}). PIX: {{pix}}',
+        'D+1': (billSettings as any)?.evolution_msg_d_plus_1 || 'Olá {{nome}}, seu plano venceu em {{vencimento}}. PIX: {{pix}}',
+      };
 
       for (const customer of batch) {
         const billingType = customer.billingType as 'D-1' | 'D0' | 'D+1';
         const templateName = TEMPLATE_MAPPING[billingType];
         const normalizedPhone = customer.normalizedPhone || normalizePhone(customer.phone);
-        
+
         let sendResult: { success: boolean; error?: string };
-        
-        if (isMetaCloud) {
-          // Send via Meta Cloud API
+        let outboundLabel = templateName;
+
+        if (isEvolution) {
+          const tpl = evoMsgMap[billingType];
+          const text = renderEvolutionTemplate(tpl, customer, { pix: (billSettings as any)?.pix_key || '' });
+          outboundLabel = `evo:${billingType}`;
+          console.log(`[Evolution] Sending ${billingType} to ${normalizedPhone} via instance ${evoInstance}`);
+          sendResult = await sendEvolutionText(evoSettings.base_url, evoSettings.api_key, evoInstance, customer.phone, text);
+        } else if (isMetaCloud) {
           console.log(`[Meta Cloud] Sending ${templateName} to ${normalizedPhone} via phone ${zapSettings.meta_phone_number_id}`);
           sendResult = await sendWhatsAppTemplateMeta(
-            customer.phone, 
-            templateName, 
+            customer.phone,
+            templateName,
             zapSettings.meta_access_token,
             zapSettings.meta_phone_number_id
           );
         } else {
-          // Send via Zap Responder
           const zapToken = zapSettings?.zap_api_token || Deno.env.get('ZAP_RESPONDER_TOKEN');
           const apiBaseUrl = zapSettings?.api_base_url || 'https://api.zapresponder.com.br/api';
           const departmentId = zapSettings?.selected_department_id;
-          
+
           console.log(`[Zap Responder] Sending ${templateName} to ${normalizedPhone} via dept ${departmentId}`);
           sendResult = await sendWhatsAppTemplateZap(
-            customer.phone, 
-            templateName, 
-            zapToken!, 
-            apiBaseUrl, 
+            customer.phone,
+            templateName,
+            zapToken!,
+            apiBaseUrl,
             departmentId!
           );
         }
@@ -545,7 +637,11 @@ Deno.serve(async (req) => {
         // Also send to extra_phone if configured
         if (customer.extra_phone && String(customer.extra_phone).replace(/\D/g, '').length >= 10) {
           try {
-            if (isMetaCloud) {
+            if (isEvolution) {
+              const tpl = evoMsgMap[billingType];
+              const text = renderEvolutionTemplate(tpl, customer, { pix: (billSettings as any)?.pix_key || '' });
+              await sendEvolutionText(evoSettings.base_url, evoSettings.api_key, evoInstance, customer.extra_phone, text);
+            } else if (isMetaCloud) {
               await sendWhatsAppTemplateMeta(
                 customer.extra_phone,
                 templateName,
@@ -563,9 +659,9 @@ Deno.serve(async (req) => {
             console.error(`[Billing Batch] Extra phone send failed for ${customer.name}:`, e);
           }
         }
-        
+
         // Log to database with effective API type
-        const logMessage = `[${normalizedPhone}] Template: ${templateName} via ${effectiveApiType}`;
+        const logMessage = `[${normalizedPhone}] Template: ${outboundLabel} via ${effectiveApiType}`;
         await supabase
           .from('billing_logs')
           .insert({

@@ -231,6 +231,10 @@ export type Database = {
           annual_price: number | null
           created_at: string
           custom_message: string | null
+          evolution_instance: string | null
+          evolution_msg_d_minus_1: string | null
+          evolution_msg_d_plus_1: string | null
+          evolution_msg_d0: string | null
           id: string
           meta_template_name: string | null
           monthly_price: number | null
@@ -242,6 +246,7 @@ export type Database = {
           renewal_message_template: string | null
           semiannual_price: number | null
           updated_at: string
+          use_evolution_billing: boolean
           user_id: string
           vplay_integration_url: string | null
           vplay_key_message: string | null
@@ -250,6 +255,10 @@ export type Database = {
           annual_price?: number | null
           created_at?: string
           custom_message?: string | null
+          evolution_instance?: string | null
+          evolution_msg_d_minus_1?: string | null
+          evolution_msg_d_plus_1?: string | null
+          evolution_msg_d0?: string | null
           id?: string
           meta_template_name?: string | null
           monthly_price?: number | null
@@ -261,6 +270,7 @@ export type Database = {
           renewal_message_template?: string | null
           semiannual_price?: number | null
           updated_at?: string
+          use_evolution_billing?: boolean
           user_id: string
           vplay_integration_url?: string | null
           vplay_key_message?: string | null
@@ -269,6 +279,10 @@ export type Database = {
           annual_price?: number | null
           created_at?: string
           custom_message?: string | null
+          evolution_instance?: string | null
+          evolution_msg_d_minus_1?: string | null
+          evolution_msg_d_plus_1?: string | null
+          evolution_msg_d0?: string | null
           id?: string
           meta_template_name?: string | null
           monthly_price?: number | null
@@ -280,6 +294,7 @@ export type Database = {
           renewal_message_template?: string | null
           semiannual_price?: number | null
           updated_at?: string
+          use_evolution_billing?: boolean
           user_id?: string
           vplay_integration_url?: string | null
           vplay_key_message?: string | null

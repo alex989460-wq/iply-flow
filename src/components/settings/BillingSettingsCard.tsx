@@ -15,7 +15,8 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { Save, Loader2, Upload, Trash2, ImageIcon, RefreshCw } from 'lucide-react';
+import { Save, Loader2, Upload, Trash2, ImageIcon, RefreshCw, Zap } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
 
 interface BillingSettings {
   id?: string;
@@ -33,6 +34,11 @@ interface BillingSettings {
   notification_phone: string | null;
   renewal_message_template: string | null;
   renewal_image_url: string | null;
+  use_evolution_billing?: boolean;
+  evolution_instance?: string | null;
+  evolution_msg_d_minus_1?: string | null;
+  evolution_msg_d0?: string | null;
+  evolution_msg_d_plus_1?: string | null;
 }
 
 const DEFAULT_RENEWAL_TEMPLATE = `✅ Olá, *{{nome}}*. Obrigado por confirmar seu pagamento. Segue abaixo os dados da sua assinatura:
@@ -114,6 +120,28 @@ export default function BillingSettingsCard() {
     notification_phone: '',
     renewal_message_template: '',
     renewal_image_url: '',
+    use_evolution_billing: false,
+    evolution_instance: '',
+    evolution_msg_d_minus_1: '',
+    evolution_msg_d0: '',
+    evolution_msg_d_plus_1: '',
+  });
+
+  // Load Evolution instances for the picker
+  const { data: evoInstances = [] } = useQuery({
+    queryKey: ['evo-instances-billing', user?.id],
+    queryFn: async () => {
+      try {
+        const { data } = await supabase.functions.invoke('evolution-send', {
+          body: { action: 'list-instances' },
+        });
+        return (data?.instances || []) as Array<{ name: string; phone?: string; state?: string }>;
+      } catch {
+        return [];
+      }
+    },
+    enabled: !!user?.id,
+    staleTime: 60_000,
   });
 
   const { data: settings, isLoading } = useQuery({
@@ -147,6 +175,11 @@ export default function BillingSettingsCard() {
         notification_phone: (settings as any).notification_phone || '',
         renewal_message_template: (settings as any).renewal_message_template || '',
         renewal_image_url: (settings as any).renewal_image_url || '',
+        use_evolution_billing: !!(settings as any).use_evolution_billing,
+        evolution_instance: (settings as any).evolution_instance || '',
+        evolution_msg_d_minus_1: (settings as any).evolution_msg_d_minus_1 || '',
+        evolution_msg_d0: (settings as any).evolution_msg_d0 || '',
+        evolution_msg_d_plus_1: (settings as any).evolution_msg_d_plus_1 || '',
       });
     }
   }, [settings]);
@@ -214,6 +247,11 @@ export default function BillingSettingsCard() {
         notification_phone: data.notification_phone || '',
         renewal_message_template: data.renewal_message_template || null,
         renewal_image_url: data.renewal_image_url || '',
+        use_evolution_billing: !!data.use_evolution_billing,
+        evolution_instance: data.evolution_instance || null,
+        evolution_msg_d_minus_1: data.evolution_msg_d_minus_1 || null,
+        evolution_msg_d0: data.evolution_msg_d0 || null,
+        evolution_msg_d_plus_1: data.evolution_msg_d_plus_1 || null,
       };
 
       if (settings?.id) {
@@ -488,6 +526,76 @@ export default function BillingSettingsCard() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Evolution as billing channel */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Zap className="w-5 h-5 text-primary" />
+                Enviar Cobrança pela Evolution
+              </CardTitle>
+              <CardDescription>
+                Quando ativo, as cobranças (D-1, D0, D+1) são enviadas como mensagem de texto pela instância Evolution selecionada — sem alterar sua API oficial (Meta/Zap Responder), que continua salva.
+              </CardDescription>
+            </div>
+            <Switch
+              checked={!!formData.use_evolution_billing}
+              onCheckedChange={(v) => setFormData({ ...formData, use_evolution_billing: v })}
+            />
+          </div>
+        </CardHeader>
+        {formData.use_evolution_billing && (
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label className="text-sm">Instância da Evolution</Label>
+              <Select
+                value={formData.evolution_instance || ''}
+                onValueChange={(v) => setFormData({ ...formData, evolution_instance: v })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione a instância" />
+                </SelectTrigger>
+                <SelectContent>
+                  {evoInstances.map((i: any) => (
+                    <SelectItem key={i.name} value={i.name}>
+                      <span className="flex items-center gap-2">
+                        <span className={`inline-block w-2 h-2 rounded-full ${i.state === 'open' ? 'bg-green-500' : 'bg-gray-400'}`} />
+                        {i.name} {i.phone ? `• ${i.phone}` : ''}
+                      </span>
+                    </SelectItem>
+                  ))}
+                  {evoInstances.length === 0 && (
+                    <SelectItem value="" disabled>Nenhuma instância encontrada</SelectItem>
+                  )}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">Deixe vazio para usar a instância ativa padrão.</p>
+            </div>
+
+            {[
+              { key: 'evolution_msg_d_minus_1', label: 'Mensagem D-1 (vence amanhã)', ph: 'Olá {{nome}}, seu plano vence amanhã ({{vencimento}}). PIX: {{pix}}' },
+              { key: 'evolution_msg_d0', label: 'Mensagem D0 (vence hoje)', ph: 'Olá {{nome}}, seu plano vence hoje ({{vencimento}}). PIX: {{pix}}' },
+              { key: 'evolution_msg_d_plus_1', label: 'Mensagem D+1 (vencido)', ph: 'Olá {{nome}}, seu plano venceu em {{vencimento}}. PIX: {{pix}}' },
+            ].map(({ key, label, ph }) => (
+              <div key={key} className="space-y-2">
+                <Label className="text-sm">{label}</Label>
+                <Textarea
+                  placeholder={ph}
+                  value={(formData as any)[key] || ''}
+                  onChange={(e) => setFormData({ ...formData, [key]: e.target.value })}
+                  className="min-h-[90px] font-mono text-sm"
+                />
+              </div>
+            ))}
+            <p className="text-xs text-muted-foreground">
+              Variáveis: {'{{nome}}'}, {'{{vencimento}}'}, {'{{usuario}}'}, {'{{plano}}'}, {'{{valor}}'}, {'{{servidor}}'}, {'{{pix}}'}, {'{{telefone}}'}.
+            </p>
+          </CardContent>
+        )}
+      </Card>
+
 
       <Button
         className="w-full"
