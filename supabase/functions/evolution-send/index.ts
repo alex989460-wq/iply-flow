@@ -12,6 +12,13 @@ function normalizePhone(p: string) {
   return digits.startsWith('55') ? digits : `55${digits}`;
 }
 
+function normalizeChatPhone(p: string) {
+  const digits = String(p || '').replace(/\D/g, '');
+  if (!digits) return '';
+  if (digits.startsWith('55') || digits.length <= 11) return normalizePhone(digits);
+  return digits;
+}
+
 function jsonResponse(payload: unknown, status = 200) {
   return new Response(JSON.stringify(payload), {
     status,
@@ -358,7 +365,7 @@ Deno.serve(async (req) => {
     // SEND
     if (action === 'send') {
       if (!instance) return jsonResponse({ error: 'Escolha uma instância em Conexões WhatsApp antes de enviar mensagens.' }, 200);
-      const phone = normalizePhone(body.phone);
+      const phone = normalizeChatPhone(body.phone);
       const text = String(body.text || '').trim();
       if (!phone || !text) {
         return jsonResponse({ error: 'phone e text obrigatórios' }, 400);
