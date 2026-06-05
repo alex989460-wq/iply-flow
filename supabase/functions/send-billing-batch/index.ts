@@ -585,39 +585,51 @@ Deno.serve(async (req) => {
     // ACTION: BATCH - Process a batch of customers
     if (action === 'batch') {
       const batch: Customer[] = body?.batch || [];
-      const effectiveApiType = isMetaCloud ? 'meta_cloud' : 'zap_responder';
-      console.log(`[Billing Batch] Processing batch of ${batch.length} customers via ${effectiveApiType} (isMetaCloud=${isMetaCloud})`);
+      const effectiveApiType = isEvolution ? 'evolution' : (isMetaCloud ? 'meta_cloud' : 'zap_responder');
+      console.log(`[Billing Batch] Processing batch of ${batch.length} customers via ${effectiveApiType}`);
 
       const results: any[] = [];
+
+      const evoInstance = (billSettings as any)?.evolution_instance || evoSettings?.instance_name || '';
+      const evoMsgMap: Record<string, string> = {
+        'D-1': (billSettings as any)?.evolution_msg_d_minus_1 || 'Olá {{nome}}, seu plano vence amanhã ({{vencimento}}). PIX: {{pix}}',
+        'D0': (billSettings as any)?.evolution_msg_d0 || 'Olá {{nome}}, seu plano vence hoje ({{vencimento}}). PIX: {{pix}}',
+        'D+1': (billSettings as any)?.evolution_msg_d_plus_1 || 'Olá {{nome}}, seu plano venceu em {{vencimento}}. PIX: {{pix}}',
+      };
 
       for (const customer of batch) {
         const billingType = customer.billingType as 'D-1' | 'D0' | 'D+1';
         const templateName = TEMPLATE_MAPPING[billingType];
         const normalizedPhone = customer.normalizedPhone || normalizePhone(customer.phone);
-        
+
         let sendResult: { success: boolean; error?: string };
-        
-        if (isMetaCloud) {
-          // Send via Meta Cloud API
+        let outboundLabel = templateName;
+
+        if (isEvolution) {
+          const tpl = evoMsgMap[billingType];
+          const text = renderEvolutionTemplate(tpl, customer, { pix: (billSettings as any)?.pix_key || '' });
+          outboundLabel = `evo:${billingType}`;
+          console.log(`[Evolution] Sending ${billingType} to ${normalizedPhone} via instance ${evoInstance}`);
+          sendResult = await sendEvolutionText(evoSettings.base_url, evoSettings.api_key, evoInstance, customer.phone, text);
+        } else if (isMetaCloud) {
           console.log(`[Meta Cloud] Sending ${templateName} to ${normalizedPhone} via phone ${zapSettings.meta_phone_number_id}`);
           sendResult = await sendWhatsAppTemplateMeta(
-            customer.phone, 
-            templateName, 
+            customer.phone,
+            templateName,
             zapSettings.meta_access_token,
             zapSettings.meta_phone_number_id
           );
         } else {
-          // Send via Zap Responder
           const zapToken = zapSettings?.zap_api_token || Deno.env.get('ZAP_RESPONDER_TOKEN');
           const apiBaseUrl = zapSettings?.api_base_url || 'https://api.zapresponder.com.br/api';
           const departmentId = zapSettings?.selected_department_id;
-          
+
           console.log(`[Zap Responder] Sending ${templateName} to ${normalizedPhone} via dept ${departmentId}`);
           sendResult = await sendWhatsAppTemplateZap(
-            customer.phone, 
-            templateName, 
-            zapToken!, 
-            apiBaseUrl, 
+            customer.phone,
+            templateName,
+            zapToken!,
+            apiBaseUrl,
             departmentId!
           );
         }
@@ -625,7 +637,11 @@ Deno.serve(async (req) => {
         // Also send to extra_phone if configured
         if (customer.extra_phone && String(customer.extra_phone).replace(/\D/g, '').length >= 10) {
           try {
-            if (isMetaCloud) {
+            if (isEvolution) {
+              const tpl = evoMsgMap[billingType];
+              const text = renderEvolutionTemplate(tpl, customer, { pix: (billSettings as any)?.pix_key || '' });
+              await sendEvolutionText(evoSettings.base_url, evoSettings.api_key, evoInstance, customer.extra_phone, text);
+            } else if (isMetaCloud) {
               await sendWhatsAppTemplateMeta(
                 customer.extra_phone,
                 templateName,
@@ -643,6 +659,11 @@ Deno.serve(async (req) => {
             console.error(`[Billing Batch] Extra phone send failed for ${customer.name}:`, e);
           }
         }
+
+        // Log to database with effective API type
+        const logMessage = `[${normalizedPhone}] Template: ${outboundLabel} via ${effectiveApiType}`;
+        await supabase
+          .from('billing_logs')
         
         // Log to database with effective API type
         const logMessage = `[${normalizedPhone}] Template: ${templateName} via ${effectiveApiType}`;
