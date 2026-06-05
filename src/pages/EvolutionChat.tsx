@@ -582,20 +582,28 @@ export default function EvolutionChat() {
       toast({ title: 'Não é possível reagir', description: 'Mensagem sem ID externo.', variant: 'destructive' });
       return;
     }
-    // Optimistic: show reaction immediately on the bubble
+    const targetId = m.external_id;
+    const previousReaction = localReactions[targetId] || null;
     setLocalReactions(prev => {
       const next = { ...prev };
-      if (emoji) next[m.external_id!] = { emoji, from: 'out' };
-      else delete next[m.external_id!];
+      if (emoji) next[targetId] = { emoji, from: 'out' };
+      else delete next[targetId];
       return next;
     });
     const { data, error } = await supabase.functions.invoke('evolution-send', {
-      body: { action: 'send-reaction', phone: m.phone, messageId: m.external_id, fromMe: m.direction === 'out', emoji },
+      body: { action: 'send-reaction', phone: m.phone, messageId: targetId, fromMe: m.direction === 'out', emoji },
     });
-    if (error || data?.error) {
+    if (error || data?.error || data?.ok === false) {
+      setLocalReactions(prev => {
+        const next = { ...prev };
+        if (previousReaction) next[targetId] = previousReaction;
+        else delete next[targetId];
+        return next;
+      });
       toast({
-        title: 'Reação salva aqui',
-        description: 'Seu painel Evolution não aceitou sincronizar essa reação no WhatsApp, mas ela ficou visível no chat.',
+        title: 'Reação não enviada',
+        description: data?.error || error?.message || 'A Evolution não confirmou a reação no WhatsApp.',
+        variant: 'destructive',
       });
       return;
     }
