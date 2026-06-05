@@ -227,6 +227,19 @@ export default function EvolutionInstances() {
     }
   };
 
+  const deleteInstance = async (name: string) => {
+    if (!confirm(`Excluir definitivamente a instância "${name}"? Isso libera seu slot e remove do painel Evolution.`)) return;
+    const { data, error } = await supabase.functions.invoke('evolution-send', {
+      body: { action: 'delete-instance', instance: name },
+    });
+    if (error || (!data?.ok && !data?.attempts)) {
+      toast({ title: 'Falha', description: data?.error || error?.message || 'Erro ao excluir', variant: 'destructive' });
+      return;
+    }
+    toast({ title: 'Instância excluída', description: name });
+    fetchInstances();
+  };
+
   return (
     <DashboardLayout>
       <div className="space-y-6 max-w-6xl mx-auto p-4 md:p-6">
