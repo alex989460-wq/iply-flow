@@ -373,6 +373,46 @@ export default function EvolutionChat() {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
   }, [thread.length, selectedPhone]);
 
+  // Load pinned message ids for the selected conversation from localStorage
+  useEffect(() => {
+    if (!selectedPhone) { setPinnedIds(new Set()); return; }
+    try {
+      const raw = localStorage.getItem(`evo_pinned_${selectedPhone}`);
+      setPinnedIds(new Set(raw ? JSON.parse(raw) : []));
+    } catch { setPinnedIds(new Set()); }
+  }, [selectedPhone]);
+
+  const togglePin = (id: string) => {
+    if (!selectedPhone) return;
+    setPinnedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      try { localStorage.setItem(`evo_pinned_${selectedPhone}`, JSON.stringify([...next])); } catch { /* noop */ }
+      return next;
+    });
+  };
+
+  const scrollToMessage = (id: string) => {
+    const el = document.getElementById(`evo-msg-${id}`);
+    if (!el) return;
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    el.classList.add('ring-2', 'ring-[#00a884]');
+    setTimeout(() => el.classList.remove('ring-2', 'ring-[#00a884]'), 1500);
+  };
+
+  const copyText = (text: string) => {
+    navigator.clipboard?.writeText(text).then(
+      () => toast({ title: 'Copiado!' }),
+      () => toast({ title: 'Não foi possível copiar', variant: 'destructive' }),
+    );
+  };
+
+  const pinnedMessages = useMemo(
+    () => thread.filter(m => pinnedIds.has(m.id)),
+    [thread, pinnedIds],
+  );
+
+
   const startConversation = async () => {
     const digits = newPhone.replace(/\D/g, '');
     if (!digits || !user) return;
