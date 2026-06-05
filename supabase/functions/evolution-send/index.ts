@@ -465,12 +465,19 @@ Deno.serve(async (req) => {
       const key = { remoteJid: jid, fromMe, id: messageId };
 
       const attempts: Array<{ url: string; headers: Record<string, string>; body: any; mode: string }> = [
-        // Evolution Go
-        { url: `${baseUrl}/send/reaction`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { key, reaction: emoji }, mode: 'evolution-go-reaction' },
-        { url: `${baseUrl}/message/sendReaction`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { reactionMessage: { key, text: emoji } }, mode: 'evolution-go-reaction-v2' },
-        // Classic
-        { url: `${baseUrl}/message/sendReaction/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { reactionMessage: { key, text: emoji } }, mode: 'evolution-api-reaction' },
-        { url: `${baseUrl}/message/sendReaction/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { key, reaction: emoji }, mode: 'evolution-api-reaction-v2' },
+        // Evolution API v2 (Node) — canonical
+        { url: `${baseUrl}/message/sendReaction/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { key, reaction: emoji }, mode: 'evo-api-v2' },
+        { url: `${baseUrl}/message/sendReaction/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { reactionMessage: { key, text: emoji } }, mode: 'evo-api-v2-rm' },
+        // Some forks expose it under /chat
+        { url: `${baseUrl}/chat/sendReaction/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { key, reaction: emoji }, mode: 'evo-api-chat' },
+        { url: `${baseUrl}/chat/sendReaction/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { reactionMessage: { key, text: emoji } }, mode: 'evo-api-chat-rm' },
+        // Evolution Go (instance token)
+        { url: `${baseUrl}/send/reaction`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { key, reaction: emoji }, mode: 'evo-go-send' },
+        { url: `${baseUrl}/send/reaction`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: phone, messageId, reaction: emoji, fromMe }, mode: 'evo-go-send-flat' },
+        { url: `${baseUrl}/message/sendReaction`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { key, reaction: emoji }, mode: 'evo-go-msg' },
+        { url: `${baseUrl}/message/sendReaction`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { reactionMessage: { key, text: emoji } }, mode: 'evo-go-msg-rm' },
+        { url: `${baseUrl}/chat/sendReaction`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { key, reaction: emoji }, mode: 'evo-go-chat' },
+        { url: `${baseUrl}/chat/reaction`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { key, reaction: emoji }, mode: 'evo-go-chat2' },
       ];
       let result: any = { ok: false, status: 0, data: {} };
       const log: any[] = [];
