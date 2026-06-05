@@ -418,6 +418,47 @@ export default function EvolutionChat() {
     [thread, pinnedIds],
   );
 
+  const togglePinnedContact = (phone: string) => {
+    setPinnedContacts(prev => {
+      const next = new Set(prev);
+      if (next.has(phone)) next.delete(phone); else next.add(phone);
+      try { localStorage.setItem('evo_pinned_contacts', JSON.stringify([...next])); } catch { /* noop */ }
+      return next;
+    });
+  };
+
+  // Extract reactionMessage from raw payload (Evolution Go + classic)
+  const extractReaction = (raw: unknown): { targetId: string; emoji: string } | null => {
+    const r = raw as any;
+    const rm =
+      r?.data?.Message?.reactionMessage ||
+      r?.Message?.reactionMessage ||
+      r?.message?.reactionMessage ||
+      r?.reactionMessage;
+    if (!rm) return null;
+    const targetId = rm?.key?.id || rm?.key?.ID || rm?.Key?.ID || rm?.Key?.id || '';
+    const emoji = rm?.text || rm?.Text || '';
+    if (!targetId) return null;
+    return { targetId, emoji };
+  };
+
+  const sendReaction = async (m: EvoMessage, emoji: string) => {
+    if (!m.external_id) {
+      toast({ title: 'Não é possível reagir', description: 'Mensagem sem ID externo.', variant: 'destructive' });
+      return;
+    }
+    const { data, error } = await supabase.functions.invoke('evolution-send', {
+      body: { action: 'send-reaction', phone: m.phone, messageId: m.external_id, fromMe: m.direction === 'out', emoji },
+    });
+    if (error || data?.error) {
+      toast({ title: 'Erro ao reagir', description: error?.message || data?.error, variant: 'destructive' });
+      return;
+    }
+    toast({ title: emoji ? `Reagiu ${emoji}` : 'Reação removida' });
+  };
+
+
+
 
   const startConversation = async () => {
     const digits = newPhone.replace(/\D/g, '');
