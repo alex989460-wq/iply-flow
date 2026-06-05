@@ -838,8 +838,8 @@ export default function Customers() {
     setEditingCustomer(customer);
     setFormData({
       name: customer.name,
-      phone: customer.phone,
-      extra_phone: customer.extra_phone || '',
+      phone: formatBrazilPhoneInput(customer.phone || ''),
+      extra_phone: formatBrazilPhoneInput(customer.extra_phone || ''),
       server_id: customer.server_id || '',
       plan_id: customer.plan_id || '',
       status: customer.status,
@@ -1127,8 +1127,12 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
       return;
     }
     
+    const phoneDigits = formData.phone.replace(/\D/g, '');
+    const extraPhoneDigits = formData.extra_phone.replace(/\D/g, '');
     const submitData = {
       ...formData,
+      phone: phoneDigits,
+      extra_phone: extraPhoneDigits || null,
       server_id: formData.server_id || null,
       plan_id: formData.plan_id || null,
       custom_price: formData.custom_price ? parseFloat(formData.custom_price) : null,
