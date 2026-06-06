@@ -1094,7 +1094,15 @@ Deno.serve(async (req) => {
           const instId = r.data?.id || r.data?.instance?.instanceId || r.data?.data?.id || null;
           const issuedToken = r.data?.token || r.data?.hash || r.data?.instance?.token || instToken;
           await admin.from('user_evolution_instances').upsert(
-            { user_id: user.id, instance_name: name, instance_id: instId },
+            {
+              user_id: user.id,
+              instance_name: name,
+              instance_id: instId,
+              advanced_settings: defaultAdvanced,
+              webhook_events: defaultEvents,
+              webhook_enabled: true,
+              settings_updated_at: new Date().toISOString(),
+            },
             { onConflict: 'instance_name' }
           );
 
@@ -1236,6 +1244,26 @@ Deno.serve(async (req) => {
       return jsonResponse({ ok: true });
     }
 
+    // GET SAVED INSTANCE SETTINGS
+    if (action === 'get-instance-settings') {
+      const targetInstance = String(body.instance || instance).trim();
+      if (!targetInstance) return jsonResponse({ error: 'instance obrigatório' }, 400);
+      const { data: saved } = await admin
+        .from('user_evolution_instances')
+        .select('advanced_settings,webhook_events,webhook_enabled,settings_updated_at')
+        .eq('instance_name', targetInstance)
+        .maybeSingle();
+      return jsonResponse({
+        ok: true,
+        advanced: saved?.advanced_settings || {},
+        webhook: {
+          events: normalizeWebhookEvents(saved?.webhook_events),
+          enabled: saved?.webhook_enabled !== false,
+          updatedAt: saved?.settings_updated_at || null,
+        },
+      });
+    }
+
     // UPDATE INSTANCE SETTINGS (Advanced + Webhook) — Evolution Go
     if (action === 'update-instance-settings') {
       const targetInstance = String(body.instance || instance).trim();
@@ -1296,8 +1324,31 @@ Deno.serve(async (req) => {
         }
       }
 
-      const ok = (!advanced || results.advanced?.ok) && (!webhook || results.webhook?.ok);
-      return jsonResponse({ ok, results });
+      const savedAdvanced = advanced && typeof advanced === 'object' ? {
+        alwaysOnline: !!advanced.alwaysOnline,
+        rejectCall: !!advanced.rejectCall,
+        msgCall: String(advanced.msgCall || ''),
+        readMessages: !!advanced.readMessages,
+        ignoreGroups: !!advanced.ignoreGroups,
+        ignoreStatus: !!advanced.ignoreStatus,
+        readStatus: !!advanced.readStatus,
+        syncFullHistory: !!advanced.syncFullHistory,
+        groupsOnly: !!advanced.groupsOnly,
+      } : {};
+      const savedEvents = normalizeWebhookEvents(webhook?.events);
+      const { error: saveError } = await admin.from('user_evolution_instances').upsert({
+        user_id: user.id,
+        instance_name: targetInstance,
+        instance_id: instAuth.instanceId,
+        advanced_settings: savedAdvanced,
+        webhook_events: savedEvents,
+        webhook_enabled: webhook?.enabled !== false,
+        settings_updated_at: new Date().toISOString(),
+      }, { onConflict: 'instance_name' });
+
+      const remoteOk = (!advanced || results.advanced?.ok) && (!webhook || results.webhook?.ok);
+      if (saveError) return jsonResponse({ ok: false, error: saveError.message, results }, 200);
+      return jsonResponse({ ok: true, saved: true, remoteOk, results });
     }
 
     // SEND PRESENCE (digitando…) — body: { phone, presence: 'composing'|'paused'|'available' }
