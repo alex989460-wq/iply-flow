@@ -236,6 +236,10 @@ function classicWebhookEvents(events: string[]) {
   return events.includes('ALL') ? ['MESSAGES_UPSERT'] : events;
 }
 
+function evolutionSubscribeEvents(events: string[]) {
+  return events.includes('ALL') ? DEFAULT_WEBHOOK_EVENTS : events;
+}
+
 async function resolveGoInstanceId(baseUrl: string, apiKey: string, instance: string) {
   if (isUuid(instance)) return instance;
   const r = await fetchJson(`${baseUrl}/instance/all`, {
@@ -1309,7 +1313,7 @@ Deno.serve(async (req) => {
         const events = normalizeWebhookEvents(webhook.events);
         const enabled = webhook.enabled !== false;
         // Evolution Go does NOT have a separate /webhook endpoint — webhook is set via /instance/connect with subscribe[]
-        const goBody = { webhookUrl, subscribe: events, enabled, immediate: false };
+        const goBody = { webhookUrl, subscribe: evolutionSubscribeEvents(events), enabled, immediate: false };
         const classicBody = { webhook: { enabled, url: webhookUrl, events: classicWebhookEvents(events), byEvents: false, base64: true } };
         const tries = [
           { url: `${baseUrl}/instance/connect`, method: 'POST', headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: goBody },
