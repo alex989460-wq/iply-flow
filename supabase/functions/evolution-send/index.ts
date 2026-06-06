@@ -148,6 +148,44 @@ async function fetchJson(url: string, init: RequestInit = {}, timeoutMs = 8000) 
   return { ok: r.ok, status: r.status, data };
 }
 
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function humanDelayMs(text = '') {
+  const typingTime = Math.min(9000, Math.max(2600, text.length * 38));
+  const jitter = 1200 + Math.floor(Math.random() * 2800);
+  return typingTime + jitter;
+}
+
+async function guardHumanSendPace(admin: any, userId: string, instanceName: string) {
+  const now = Date.now();
+  const sinceMinute = new Date(now - 60_000).toISOString();
+  const sinceFiveMinutes = new Date(now - 5 * 60_000).toISOString();
+
+  const { data: recent } = await admin
+    .from('evolution_messages')
+    .select('created_at')
+    .eq('user_id', userId)
+    .eq('instance_name', instanceName)
+    .eq('direction', 'out')
+    .gte('created_at', sinceFiveMinutes)
+    .order('created_at', { ascending: false })
+    .limit(25);
+
+  const rows = recent || [];
+  const lastAt = rows[0]?.created_at ? new Date(rows[0].created_at).getTime() : 0;
+  const sentLastMinute = rows.filter((r: any) => String(r.created_at) >= sinceMinute).length;
+
+  if (sentLastMinute >= 8 || rows.length >= 22) {
+    return { ok: false, error: 'Pausa anti-banimento: aguarde alguns minutos antes de enviar mais mensagens por este número.' };
+  }
+
+  const minGap = 6500 + Math.floor(Math.random() * 4500);
+  const waitMs = lastAt ? Math.max(0, minGap - (now - lastAt)) : 0;
+  return { ok: true, waitMs };
+}
+
 function runInBackground(task: Promise<unknown>) {
   const runtime = (globalThis as any).EdgeRuntime;
   if (runtime?.waitUntil) runtime.waitUntil(task.catch((error) => console.error('[evolution-send] background send failed', error)));
@@ -376,6 +414,8 @@ Deno.serve(async (req) => {
       if (!phone || !text) {
         return jsonResponse({ error: 'phone e text obrigatórios' }, 400);
       }
+      const pace = await guardHumanSendPace(admin, user.id, instance);
+      if (!pace.ok) return jsonResponse({ ok: false, error: pace.error }, 200);
       const instAuth = await resolveInstanceAuth(baseUrl, apiKey, instance);
       const sendPhone = await resolveSendPhone(admin, user.id, phone);
 
@@ -419,28 +459,26 @@ Deno.serve(async (req) => {
       const attempts: Array<{ url: string; headers: Record<string, string>; body: any; mode: string }> = [
         { url: `${baseUrl}/message/sendText/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: classicBody, mode: 'evolution-api' },
         { url: `${baseUrl}/message/sendText/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: classicBodyV1, mode: 'evolution-api-v1' },
-        { url: `${baseUrl}/send/text`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: goBody, mode: 'evolution-go-send' },
-        { url: `${baseUrl}/message/sendText`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: goBody, mode: 'evolution-go' },
-        { url: `${baseUrl}/message/sendText`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: goBodyMsg, mode: 'evolution-go-msg' },
+        { url: `${baseUrl}/message/sendText`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: goBody, mode: 'evolution-go-safe' },
       ];
 
       runInBackground((async () => {
         let result: any = { ok: false, status: 0, data: {} };
         let mode = 'evolution-api';
         const log: any[] = [];
+        await sleep((pace.waitMs || 0) + humanDelayMs(text));
         for (const att of attempts) {
-          const timeout = att.mode === 'evolution-go-send' ? 30000 : 8000;
           const r = await fetchJson(att.url, {
             method: 'POST',
             headers: att.headers,
             body: JSON.stringify(att.body),
-          }, timeout).catch((error) => ({ ok: false, status: 0, data: { error: String(error?.message || error) } }));
+          }, 9000).catch((error) => ({ ok: false, status: 0, data: { error: String(error?.message || error) } }));
           log.push({ url: att.url, mode: att.mode, status: r.status });
-          if (r.ok || (att.mode === 'evolution-go-send' && r.status === 0)) { result = r; mode = att.mode; break; }
+          if (r.ok) { result = r; mode = att.mode; break; }
           if (r.status !== 404 && r.status !== 405 && r.status !== 400) { result = r; mode = att.mode; break; }
           result = r; mode = att.mode;
         }
-        if (!result.ok && !(mode === 'evolution-go-send' && result.status === 0)) {
+        if (!result.ok) {
           console.error('[evolution-send] all attempts failed', log, result);
           await admin.from('evolution_messages').update({ status: 'failed', raw: { __failed: true, attempts: log, result } }).eq('external_id', pendingExternalId).eq('user_id', user.id);
           return;
