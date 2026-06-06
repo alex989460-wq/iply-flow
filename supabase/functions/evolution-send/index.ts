@@ -883,6 +883,42 @@ Deno.serve(async (req) => {
         });
       }
 
+      // Final fallback: return the locally-owned instances so the UI can still
+      // show them (and allow Excluir) even when the Evolution panel is offline
+      // or the API key is wrong.
+      let localOwned: any[] = [];
+      if (isAdminUser) {
+        const { data } = await admin
+          .from('user_evolution_instances')
+          .select('instance_name, instance_id');
+        localOwned = data || [];
+      } else {
+        const { data } = await admin
+          .from('user_evolution_instances')
+          .select('instance_name, instance_id')
+          .eq('user_id', user.id);
+        localOwned = data || [];
+      }
+      const localList = localOwned
+        .filter((r: any) => r?.instance_name)
+        .map((r: any) => ({
+          id: r.instance_id || r.instance_name,
+          name: r.instance_name,
+          state: 'unknown',
+          phone: null,
+          profile_name: null,
+          profile_pic: null,
+          token: null,
+        }));
+      if (localList.length > 0) {
+        return jsonResponse({
+          ok: true,
+          instances: localList,
+          current: instance,
+          adminMode: isAdminUser,
+          warning: 'Painel Evolution não respondeu — exibindo registro local. Algumas ações podem falhar.',
+        });
+      }
       return jsonResponse({
         ok: false,
         error: 'Não foi possível listar instâncias. Verifique URL/API Key em Configurações.',
