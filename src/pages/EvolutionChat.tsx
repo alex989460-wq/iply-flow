@@ -672,7 +672,7 @@ export default function EvolutionChat() {
             _pending: !!data?.queued,
             _failed: false,
             status: data?.queued ? 'pending' : 'sent',
-            raw: quotedRaw ? { ...(m.raw as object || {}), ...quotedRaw } : m.raw,
+            raw: quotedRaw ? { ...((m.raw as Record<string, unknown>) || {}), ...quotedRaw } : m.raw,
           } : m);
         return prev.map(m => m.id === tempId ? {
           ...m,
