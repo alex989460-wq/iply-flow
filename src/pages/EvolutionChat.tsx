@@ -227,6 +227,8 @@ export default function EvolutionChat() {
   });
   const [localReactions, setLocalReactions] = useState<Record<string, { emoji: string; from: 'in' | 'out' }>>({});
   const [typingByPhone, setTypingByPhone] = useState<Record<string, { presence: string; at: number }>>({});
+  const [lastSeenByPhone, setLastSeenByPhone] = useState<Record<string, string>>({});
+  const [syncingHistory, setSyncingHistory] = useState(false);
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
