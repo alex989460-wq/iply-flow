@@ -532,14 +532,33 @@ export default function EvolutionChat() {
     });
   };
 
-  const deleteLocal = (id: string) => {
-    if (!selectedPhone) return;
-    setHiddenIds(prev => {
-      const next = new Set(prev); next.add(id);
-      try { localStorage.setItem(`evo_hidden_${selectedPhone}`, JSON.stringify([...next])); } catch { /* noop */ }
-      return next;
-    });
-    toast({ title: 'Mensagem apagada (somente aqui)' });
+  const deleteMessage = async (m: EvoMessage) => {
+    // Optimistic remove
+    setMessages(prev => prev.filter(x => x.id !== m.id));
+    // If it's a temp/local message, nothing to remove from DB
+    if (m.id.startsWith('tmp-')) return;
+    const { error } = await supabase.from('evolution_messages').delete().eq('id', m.id);
+    if (error) {
+      toast({ title: 'Não foi possível excluir', description: error.message, variant: 'destructive' });
+      setMessages(prev => [...prev, m].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()));
+      return;
+    }
+    toast({ title: 'Mensagem excluída' });
+  };
+
+  const clearConversation = async () => {
+    if (!selectedPhone || !user) return;
+    if (!confirm('Apagar TODAS as mensagens desta conversa? Esta ação não pode ser desfeita.')) return;
+    const phone = selectedPhone;
+    const removed = messages.filter(m => m.phone === phone);
+    setMessages(prev => prev.filter(m => m.phone !== phone));
+    const { error } = await supabase.from('evolution_messages').delete().eq('user_id', user.id).eq('phone', phone);
+    if (error) {
+      toast({ title: 'Falha ao limpar conversa', description: error.message, variant: 'destructive' });
+      setMessages(prev => [...prev, ...removed]);
+      return;
+    }
+    toast({ title: 'Conversa apagada', description: `${removed.length} mensagens removidas` });
   };
 
   const isFavorited = useCallback((id: string) => favorites.some(f => f.id === id), [favorites]);
