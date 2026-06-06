@@ -233,6 +233,39 @@ Deno.serve(async (req) => {
       body?.instance || body?.instanceName ||
       data?.instanceId || body?.instanceId || settings.instance_name || null;
 
+    // Presence (digitando…) — Evolution Go: 'PresenceUpdate' / classic: 'presence.update'
+    {
+      const lower = String(event).toLowerCase();
+      if (lower.includes('presence')) {
+        const presData = (data?.presences || data?.Presences || {}) as Record<string, any>;
+        let chatJid: string = String(data?.id || data?.Chat || data?.chat || data?.From || data?.JID || '');
+        let presence: string = String(data?.Presence || data?.presence || data?.lastKnownPresence || '');
+        if (!presence && presData && typeof presData === 'object') {
+          for (const k of Object.keys(presData)) {
+            const v = presData[k] || {};
+            const p = v?.lastKnownPresence || v?.presence;
+            if (p) { presence = String(p); if (!chatJid) chatJid = k; break; }
+          }
+        }
+        const phone = jidToPhone(chatJid);
+        if (phone && presence) {
+          const normalized = /compos|typing/i.test(presence) ? 'composing'
+            : /record|audio/i.test(presence) ? 'recording'
+            : /paus|avail|unavail/i.test(presence) ? 'paused'
+            : presence.toLowerCase();
+          await admin.from('evolution_presence').upsert({
+            user_id: settings.user_id,
+            phone,
+            presence: normalized,
+            updated_at: new Date().toISOString(),
+          }, { onConflict: 'user_id,phone' });
+        }
+        return new Response(JSON.stringify({ ok: true }), {
+          status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+    }
+
     // Evolution Go "Message" event format
     if (event === 'Message' && data?.Info) {
       const info = data.Info;
