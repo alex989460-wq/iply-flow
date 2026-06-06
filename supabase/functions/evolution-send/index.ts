@@ -154,6 +154,18 @@ function runInBackground(task: Promise<unknown>) {
   else task.catch((error) => console.error('[evolution-send] background send failed', error));
 }
 
+function getEvolutionErrorText(data: any) {
+  const parts = [data?.error, data?.message, data?.response?.message, data?.data?.error, data?.data?.message]
+    .flat()
+    .filter(Boolean)
+    .map((v) => typeof v === 'string' ? v : JSON.stringify(v));
+  return parts.join(' | ');
+}
+
+function isEvolutionReachoutLock(data: any) {
+  return /(^|\D)463(\D|$)|NackCallerReachoutTimelocked|reach[- ]?out|time[- ]?lock/i.test(getEvolutionErrorText(data));
+}
+
 async function resolveGoInstanceId(baseUrl: string, apiKey: string, instance: string) {
   if (isUuid(instance)) return instance;
   const r = await fetchJson(`${baseUrl}/instance/all`, {
@@ -403,56 +415,59 @@ Deno.serve(async (req) => {
         classicBody.quoted = quotedClassic; classicBodyV1.quoted = quotedClassic;
       }
 
-      const pendingExternalId = `pending-${crypto.randomUUID()}`;
-      await insertOutgoingMessage(admin, {
-        user_id: user.id,
-        instance_name: instance,
-        remote_jid: `${sendPhone}@s.whatsapp.net`,
-        phone,
-        direction: 'out',
-        content: text,
-        status: 'sent',
-        external_id: pendingExternalId,
-        raw: quotedRaw?.messageId ? { __queued: true, __quoted: { id: quotedRaw.messageId, text: quotedRaw.text || '', fromMe: !!quotedRaw.fromMe } } : { __queued: true },
-      });
-
       const attempts: Array<{ url: string; headers: Record<string, string>; body: any; mode: string }> = [
-        { url: `${baseUrl}/message/sendText/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: classicBody, mode: 'evolution-api' },
         { url: `${baseUrl}/message/sendText/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: classicBodyV1, mode: 'evolution-api-v1' },
+        { url: `${baseUrl}/message/sendText/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: classicBody, mode: 'evolution-api' },
         { url: `${baseUrl}/send/text`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: goBody, mode: 'evolution-go-send' },
         { url: `${baseUrl}/message/sendText`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: goBody, mode: 'evolution-go' },
         { url: `${baseUrl}/message/sendText`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: goBodyMsg, mode: 'evolution-go-msg' },
       ];
 
-      runInBackground((async () => {
-        let result: any = { ok: false, status: 0, data: {} };
-        let mode = 'evolution-api';
-        const log: any[] = [];
-        for (const att of attempts) {
-          const timeout = att.mode === 'evolution-go-send' ? 30000 : 8000;
-          const r = await fetchJson(att.url, {
-            method: 'POST',
-            headers: att.headers,
-            body: JSON.stringify(att.body),
-          }, timeout).catch((error) => ({ ok: false, status: 0, data: { error: String(error?.message || error) } }));
-          log.push({ url: att.url, mode: att.mode, status: r.status });
-          if (r.ok || (att.mode === 'evolution-go-send' && r.status === 0)) { result = r; mode = att.mode; break; }
-          if (r.status !== 404 && r.status !== 405 && r.status !== 400) { result = r; mode = att.mode; break; }
-          result = r; mode = att.mode;
-        }
-        if (!result.ok && !(mode === 'evolution-go-send' && result.status === 0)) {
-          console.error('[evolution-send] all attempts failed', log, result);
-          await admin.from('evolution_messages').update({ status: 'failed', raw: { __failed: true, attempts: log, result } }).eq('external_id', pendingExternalId).eq('user_id', user.id);
-          return;
-        }
-        const realExternalId = result.data?.key?.id || result.data?.messageId || result.data?.data?.Info?.ID || result.data?.Info?.ID;
-        await admin.from('evolution_messages').update({
-          external_id: realExternalId || pendingExternalId,
-          raw: quotedRaw?.messageId ? { ...result.data, __mode: mode, __attempts: log, __quoted: { id: quotedRaw.messageId, text: quotedRaw.text || '', fromMe: !!quotedRaw.fromMe } } : { ...result.data, __mode: mode, __attempts: log },
-        }).eq('external_id', pendingExternalId).eq('user_id', user.id);
-      })());
+      let result: any = { ok: false, status: 0, data: {} };
+      let mode = 'evolution-api-v1';
+      const log: any[] = [];
+      for (const att of attempts) {
+        const timeout = att.mode === 'evolution-go-send' ? 30000 : 8000;
+        const r = await fetchJson(att.url, {
+          method: 'POST',
+          headers: att.headers,
+          body: JSON.stringify(att.body),
+        }, timeout).catch((error) => ({ ok: false, status: 0, data: { error: String(error?.message || error) } }));
+        log.push({ url: att.url, mode: att.mode, status: r.status, error: getEvolutionErrorText(r.data).slice(0, 180) });
+        result = r; mode = att.mode;
+        if (r.ok) break;
+        if (isEvolutionReachoutLock(r.data)) break;
+        if (r.status !== 404 && r.status !== 405 && r.status !== 400 && r.status !== 0) break;
+      }
 
-      return jsonResponse({ ok: true, queued: true, mode: 'background', data: { pendingExternalId } });
+      if (!result.ok) {
+        console.error('[evolution-send] all attempts failed', log, result);
+        const summary = log.map((a) => `${a.mode}:${a.status}${a.error ? ` (${a.error})` : ''}`).join(' | ');
+        const locked = isEvolutionReachoutLock(result.data);
+        return jsonResponse({
+          ok: false,
+          error: locked
+            ? `A Evolution recusou o envio com erro 463/LID. Essa instância precisa atualizar/reconectar no painel Evolution para corrigir o envio por LID. Tentativas: ${summary}`
+            : `Falha ao enviar pela Evolution: ${summary}`,
+          attempts: log,
+          lastResponse: result.data,
+        }, 200);
+      }
+
+      const realExternalId = result.data?.key?.id || result.data?.messageId || result.data?.data?.Info?.ID || result.data?.Info?.ID;
+      await insertOutgoingMessage(admin, {
+        user_id: user.id,
+        instance_name: instance,
+        remote_jid: result.data?.data?.Info?.Chat || result.data?.Info?.Chat || `${sendPhone}@s.whatsapp.net`,
+        phone,
+        direction: 'out',
+        content: text,
+        status: 'sent',
+        external_id: realExternalId || `sent-${crypto.randomUUID()}`,
+        raw: quotedRaw?.messageId ? { ...result.data, __mode: mode, __attempts: log, __quoted: { id: quotedRaw.messageId, text: quotedRaw.text || '', fromMe: !!quotedRaw.fromMe } } : { ...result.data, __mode: mode, __attempts: log },
+      });
+
+      return jsonResponse({ ok: true, mode, data: result.data, externalId: realExternalId });
     }
 
     // SEND STATUS (broadcast to status@broadcast - text status)

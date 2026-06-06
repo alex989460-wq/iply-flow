@@ -30,6 +30,7 @@ interface EvoMessage {
   contact_name: string | null;
   direction: 'in' | 'out';
   content: string;
+  status?: string | null;
   message_type: string;
   media_url: string | null;
   media_mime: string | null;
@@ -45,6 +46,16 @@ interface EvoContact {
   phone: string;
   name: string | null;
   profile_pic_url: string | null;
+}
+
+interface QuotedPayload {
+  messageId: string;
+  fromMe: boolean;
+  text: string;
+}
+
+interface QuotedRawPayload {
+  __quoted?: { id?: string; messageId?: string; fromMe?: boolean; text?: string };
 }
 
 const QUICK_REPLIES = [
@@ -640,16 +651,16 @@ export default function EvolutionChat() {
   };
 
   // OPTIMISTIC TEXT SEND — message appears instantly, request goes in background
-  const sendTextPayload = (phone: string, text: string, tempId: string, quoted: any, quotedRaw: any) => {
+  const sendTextPayload = (phone: string, text: string, tempId: string, quoted: QuotedPayload | null, quotedRaw?: QuotedRawPayload) => {
     supabase.functions.invoke('evolution-send', {
       body: { action: 'send', phone, text, quoted },
     }).then(({ data, error }) => {
-      if (error || data?.error) {
+      if (error || data?.error || data?.ok === false) {
         setMessages(prev => prev.map(m => m.id === tempId ? { ...m, _pending: false, _failed: true } : m));
-        toast({ title: 'Erro ao enviar', description: error?.message || data?.error || 'Falha', variant: 'destructive' });
+        toast({ title: 'Erro ao enviar', description: error?.message || data?.error || 'A Evolution não confirmou o envio.', variant: 'destructive' });
         return;
       }
-      setMessages(prev => prev.map(m => m.id === tempId ? { ...m, _pending: false, _failed: false, raw: quotedRaw ? { ...(data || {}), ...quotedRaw } : data } : m));
+      setMessages(prev => prev.map(m => m.id === tempId ? { ...m, _pending: false, _failed: false, status: 'sent', external_id: data?.externalId || m.external_id, raw: quotedRaw ? { ...(data || {}), ...quotedRaw } : data } : m));
     });
   };
 
@@ -661,7 +672,7 @@ export default function EvolutionChat() {
     const text = (m.content || '').trim();
     if (!text || !m.phone) return;
     setMessages(prev => prev.map(x => x.id === m.id ? { ...x, _pending: true, _failed: false } : x));
-    const q = (m.raw as any)?.__quoted;
+    const q = (m.raw && typeof m.raw === 'object' ? (m.raw as QuotedRawPayload).__quoted : undefined);
     const quoted = q?.id ? { messageId: q.id, fromMe: !!q.fromMe, text: q.text || '' } : null;
     const quotedRaw = q ? { __quoted: q } : undefined;
     sendTextPayload(m.phone, text, m.id, quoted, quotedRaw);
@@ -1225,9 +1236,11 @@ export default function EvolutionChat() {
                                 {isPinned && <Pin className="w-2.5 h-2.5 text-[#00a884]" />}
                                 <span>{new Date(m.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
                                 {m.direction === 'out' && (
-                                  m._failed ? <button onClick={(e) => { e.stopPropagation(); resendMessage(m); }} title="Reenviar" className="text-destructive hover:scale-125 transition-transform">⚠️</button>
-                                  : m._pending ? <span>⏳</span>
-                                  : <span className="text-[#53bdeb] font-bold leading-none">✓✓</span>
+                                  m._failed || m.status === 'failed'
+                                    ? <button onClick={(e) => { e.stopPropagation(); resendMessage(m); }} title="Reenviar" className="text-destructive hover:scale-125 transition-transform">⚠️</button>
+                                    : m._pending
+                                      ? <span>⏳</span>
+                                      : <span className="text-[#aebac1] font-bold leading-none" title="Confirmado pelo painel Evolution">✓</span>
                                 )}
                               </div>
                               {m.external_id && reactionsByExternalId[m.external_id] && (
