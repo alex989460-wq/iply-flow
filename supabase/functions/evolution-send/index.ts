@@ -517,18 +517,13 @@ Deno.serve(async (req) => {
         raw: quotedRaw?.messageId ? { __queued: true, __quoted: { id: quotedRaw.messageId, text: quotedRaw.text || '', fromMe: !!quotedRaw.fromMe } } : { __queued: true },
       });
 
-      const attempts: Array<{ url: string; headers: Record<string, string>; body: any; mode: string }> = isLikelyLid(sendPhone)
-        ? [
-            { url: `${baseUrl}/send/text`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: goBody, mode: 'evolution-go-send-text-lid' },
-            { url: `${baseUrl}/message/sendText`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: goBody, mode: 'evolution-go-safe-lid' },
-          ]
-        : [
-            { url: `${baseUrl}/send/text`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: goBody, mode: 'evolution-go-send-text' },
-            { url: `${baseUrl}/send/text`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: goBodyMsg, mode: 'evolution-go-send-message' },
-            { url: `${baseUrl}/message/sendText/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: classicBody, mode: 'evolution-api' },
-            { url: `${baseUrl}/message/sendText/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: classicBodyV1, mode: 'evolution-api-v1' },
-            { url: `${baseUrl}/message/sendText`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: goBody, mode: 'evolution-go-safe' },
-          ];
+      const attempts: Array<{ url: string; headers: Record<string, string>; body: any; mode: string }> = [
+        { url: `${baseUrl}/send/text`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: goBody, mode: 'evolution-go-send-text' },
+        { url: `${baseUrl}/send/text`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: goBodyMsg, mode: 'evolution-go-send-message' },
+        { url: `${baseUrl}/message/sendText/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: classicBody, mode: 'evolution-api' },
+        { url: `${baseUrl}/message/sendText/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: classicBodyV1, mode: 'evolution-api-v1' },
+        { url: `${baseUrl}/message/sendText`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: goBody, mode: 'evolution-go-safe' },
+      ];
 
       runInBackground((async () => {
         let result: any = { ok: false, status: 0, data: {} };
@@ -546,7 +541,7 @@ Deno.serve(async (req) => {
           }, 9000).catch((error) => ({ ok: false, status: 0, data: { error: String(error?.message || error) } }));
           log.push({ url: att.url, mode: att.mode, status: r.status });
           if (r.ok) { result = r; mode = att.mode; break; }
-          if (r.status !== 404 && r.status !== 405 && r.status !== 400) { result = r; mode = att.mode; break; }
+          if (r.status !== 404 && r.status !== 405 && r.status !== 400 && r.status !== 500) { result = r; mode = att.mode; break; }
           result = r; mode = att.mode;
         }
         if (!result.ok) {
