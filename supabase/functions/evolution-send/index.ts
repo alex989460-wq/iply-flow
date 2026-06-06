@@ -43,6 +43,22 @@ function jidPhone(value: unknown) {
   return digits.length >= 10 ? digits : '';
 }
 
+function jidTarget(value: unknown) {
+  if (typeof value !== 'string') return '';
+  const clean = value.trim();
+  const digits = clean.split('@')[0].split(':')[0].replace(/\D/g, '');
+  if (/@lid\b/i.test(clean) && digits.length >= 10) return `${digits}@lid`;
+  if (/@s\.whatsapp\.net\b/i.test(clean) && digits.length >= 10) return digits;
+  return digits.length >= 10 ? digits : '';
+}
+
+function pushUniqueTarget(targets: Array<{ value: string; kind: 'lid' | 'phone' }>, raw: unknown) {
+  const target = jidTarget(raw);
+  if (!target) return;
+  const kind = target.includes('@lid') ? 'lid' : 'phone';
+  if (!targets.some((t) => t.value === target)) targets.push({ value: target, kind });
+}
+
 async function resolveSendPhone(admin: any, userId: string, phone: string) {
   if (phone.startsWith('55') && phone.length >= 12) return phone;
   const { data } = await admin
@@ -58,6 +74,38 @@ async function resolveSendPhone(admin: any, userId: string, phone: string) {
     if (candidate?.startsWith('55')) return candidate;
   }
   return phone;
+}
+
+async function resolveSendTargets(admin: any, userId: string, phone: string) {
+  const targets: Array<{ value: string; kind: 'lid' | 'phone' }> = [];
+  const phoneDigits = String(phone || '').replace(/\D/g, '');
+  const normalizedPhone = normalizeChatPhone(phoneDigits);
+
+  const { data } = await admin
+    .from('evolution_messages')
+    .select('phone, raw')
+    .eq('user_id', userId)
+    .or(`phone.eq.${phoneDigits},phone.eq.${normalizedPhone}`)
+    .order('created_at', { ascending: false })
+    .limit(30);
+
+  for (const row of data || []) {
+    const info = row?.raw?.data?.Info || row?.raw?.Info || {};
+    pushUniqueTarget(targets, info.Chat);
+    pushUniqueTarget(targets, info.RecipientAlt);
+    pushUniqueTarget(targets, info.SenderAlt);
+    pushUniqueTarget(targets, info.Sender);
+    pushUniqueTarget(targets, info.TargetJID || info.TargetID);
+    pushUniqueTarget(targets, info.DeviceSentMeta?.DestinationJID);
+  }
+
+  pushUniqueTarget(targets, phoneDigits.includes('@') ? phone : phoneDigits);
+  if (normalizedPhone) pushUniqueTarget(targets, normalizedPhone);
+
+  const lids = targets.filter((t) => t.kind === 'lid');
+  const phones = targets.filter((t) => t.kind === 'phone' && t.value.startsWith('55'));
+  const otherPhones = targets.filter((t) => t.kind === 'phone' && !t.value.startsWith('55'));
+  return [...lids, ...phones, ...otherPhones].filter((target, index, arr) => arr.findIndex((t) => t.value === target.value) === index);
 }
 
 function phoneFromJid(value: unknown) {
