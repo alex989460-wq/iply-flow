@@ -467,6 +467,11 @@ export default function EvolutionInstances() {
           </DialogHeader>
 
           <div className="space-y-6 py-2">
+            {loadingSettings && (
+              <div className="flex items-center gap-2 rounded-lg border border-border/60 bg-muted/40 p-3 text-xs text-muted-foreground">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" /> Carregando configurações salvas...
+              </div>
+            )}
             <div className="space-y-3">
               <h3 className="text-sm font-semibold">Configurações Avançadas</h3>
               {[
@@ -521,7 +526,7 @@ export default function EvolutionInstances() {
 
           <DialogFooter>
             <Button variant="ghost" onClick={() => setSettingsOpen(false)}>Cancelar</Button>
-            <Button onClick={saveSettings} disabled={savingSettings} className="gap-2">
+            <Button onClick={saveSettings} disabled={savingSettings || loadingSettings} className="gap-2">
               {savingSettings ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
               Salvar configurações
             </Button>
