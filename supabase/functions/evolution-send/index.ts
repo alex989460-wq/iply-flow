@@ -111,7 +111,10 @@ async function resolveSendTargets(admin: any, userId: string, phone: string) {
   const jids = targets.filter((t) => t.kind === 'jid' && t.value.startsWith('55'));
   const phones = targets.filter((t) => t.kind === 'phone' && t.value.startsWith('55'));
   const otherPhones = targets.filter((t) => t.kind === 'phone' && !t.value.startsWith('55'));
-  return [...phones, ...jids, ...lids, ...otherPhones].filter((target, index, arr) => arr.findIndex((t) => t.value === target.value) === index);
+  // Evolution Go may return "success" for the phone JID while WhatsApp only
+  // actually delivers through the mapped LID for that contact. Try LID first
+  // when we have it, then fall back to normal phone/JID targets on 463 errors.
+  return [...lids, ...phones, ...jids, ...otherPhones].filter((target, index, arr) => arr.findIndex((t) => t.value === target.value) === index);
 }
 
 function phoneFromJid(value: unknown) {
@@ -489,7 +492,7 @@ Deno.serve(async (req) => {
           goBody.quoted = quotedGo; goBodyMsg.quoted = quotedGo;
           classicBody.quoted = quotedClassic; classicBodyV1.quoted = quotedClassic;
         }
-        attempts.push(
+        const sendTextAttempts = [
           { url: `${baseUrl}/send/text`, headers: evolutionHeaders(apiKey, true, instAuth.instanceId), body: { ...goBody, formatJid: target.kind !== 'jid' }, mode: `evolution-go-send-global-${target.kind}` },
           { url: `${baseUrl}/send/text`, headers: evolutionHeaders(apiKey, true, instAuth.instanceId), body: { ...goBody, formatJid: false }, mode: `evolution-go-send-global-raw-${target.kind}` },
           { url: `${baseUrl}/send/text`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { ...goBody, formatJid: target.kind !== 'jid' }, mode: `evolution-go-send-${target.kind}` },
@@ -498,7 +501,10 @@ Deno.serve(async (req) => {
           { url: `${baseUrl}/message/sendText`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: goBodyMsg, mode: `evolution-go-msg-${target.kind}` },
           { url: `${baseUrl}/message/sendText/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: classicBodyV1, mode: `evolution-api-v1-${target.kind}` },
           { url: `${baseUrl}/message/sendText/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: classicBody, mode: `evolution-api-${target.kind}` },
-        );
+        ];
+        attempts.push(...(target.kind === 'lid'
+          ? [sendTextAttempts[1], sendTextAttempts[3], sendTextAttempts[0], sendTextAttempts[2], ...sendTextAttempts.slice(4)]
+          : sendTextAttempts));
       }
 
       let result: any = { ok: false, status: 0, data: {} };
