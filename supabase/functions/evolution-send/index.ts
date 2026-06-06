@@ -491,6 +491,7 @@ Deno.serve(async (req) => {
         log.push({ url: att.url, mode: att.mode, status: r.status, error: getEvolutionErrorText(r.data).slice(0, 180) });
         result = r; mode = att.mode;
         if (r.ok) break;
+        if (isEvolutionReachoutLock(r.data)) continue;
         if (r.status !== 404 && r.status !== 405 && r.status !== 400 && r.status !== 0) break;
       }
 
