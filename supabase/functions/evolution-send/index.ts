@@ -696,13 +696,14 @@ Deno.serve(async (req) => {
     // SEND REACTION — body: { phone, messageId, fromMe, emoji }
     if (action === 'send-reaction') {
       if (!instance) return jsonResponse({ error: 'Escolha uma instância em Conexões WhatsApp.' }, 200);
-      const phone = normalizePhone(body.phone);
+      const phone = normalizeChatPhone(body.phone);
       const messageId = String(body.messageId || '').trim();
       const emoji = String(body.emoji || '');
       const fromMe = !!body.fromMe;
       if (!phone || !messageId) return jsonResponse({ error: 'phone e messageId obrigatórios' }, 400);
       const instAuth = await resolveInstanceAuth(baseUrl, apiKey, instance);
-      const jid = `${phone}@s.whatsapp.net`;
+      const sendPhone = await resolveSendPhone(admin, user.id, phone);
+      const jid = recipientJid(sendPhone);
       const key = { remoteJid: jid, fromMe, id: messageId };
 
       const attempts: Array<{ url: string; headers: Record<string, string>; body: any; mode: string }> = [
@@ -742,7 +743,7 @@ Deno.serve(async (req) => {
     // SEND MEDIA (audio / image / file) — body: { phone, mediaBase64, mimetype, filename, mediaType: 'audio'|'image'|'document', caption? }
     if (action === 'send-media') {
       if (!instance) return jsonResponse({ error: 'Escolha uma instância em Conexões WhatsApp antes de enviar arquivos.' }, 200);
-      const phone = normalizePhone(body.phone);
+      const phone = normalizeChatPhone(body.phone);
       const mediaType = String(body.mediaType || 'document');
       const mimetype = String(body.mimetype || 'application/octet-stream');
       const filename = String(body.filename || `media-${Date.now()}`);
@@ -767,6 +768,7 @@ Deno.serve(async (req) => {
       const mediaForEvolution = publicMediaFromSignedUrl(mediaUrl) || `data:${mimetype};base64,${mediaBase64}`;
       const cleanMime = mimetype.split(';')[0] || mimetype;
       const instAuth = await resolveInstanceAuth(baseUrl, apiKey, instance);
+      const sendPhone = await resolveSendPhone(admin, user.id, phone);
 
       let attempts: Array<{ url: string; headers: Record<string, string>; body: any; mode: string }> = [];
       if (mediaType === 'audio') {
@@ -778,18 +780,18 @@ Deno.serve(async (req) => {
         ];
       } else if (mediaType === 'sticker') {
         attempts = [
-          { url: `${baseUrl}/message/sendSticker/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: phone, sticker: mediaForEvolution }, mode: 'evolution-api-sticker-url' },
-          { url: `${baseUrl}/message/sendSticker/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: phone, sticker: mediaBase64 }, mode: 'evolution-api-sticker-base64' },
-          { url: `${baseUrl}/message/sendMedia/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: phone, mediatype: 'sticker', mimetype: cleanMime, fileName: filename, media: mediaForEvolution }, mode: 'evolution-api-media-sticker' },
-          { url: `${baseUrl}/message/sendMedia`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: phone, type: 'sticker', url: mediaForEvolution, filename }, mode: 'evolution-go-sticker-safe' },
+          { url: `${baseUrl}/message/sendSticker/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: sendPhone, sticker: mediaForEvolution }, mode: 'evolution-api-sticker-url' },
+          { url: `${baseUrl}/message/sendSticker/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: sendPhone, sticker: mediaBase64 }, mode: 'evolution-api-sticker-base64' },
+          { url: `${baseUrl}/message/sendMedia/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: sendPhone, mediatype: 'sticker', mimetype: cleanMime, fileName: filename, media: mediaForEvolution }, mode: 'evolution-api-media-sticker' },
+          { url: `${baseUrl}/message/sendMedia`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: sendPhone, type: 'sticker', url: mediaForEvolution, filename }, mode: 'evolution-go-sticker-safe' },
         ];
       } else {
         const isImg = mediaType === 'image';
         const goType = isImg ? 'image' : 'document';
         attempts = [
-          { url: `${baseUrl}/message/sendMedia/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: phone, mediatype: goType, mimetype: cleanMime, fileName: filename, caption, media: mediaForEvolution }, mode: 'evolution-api-url' },
-          { url: `${baseUrl}/message/sendMedia/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: phone, mediatype: goType, mimetype: cleanMime, fileName: filename, caption, media: mediaBase64 }, mode: 'evolution-api-base64' },
-          { url: `${baseUrl}/message/sendMedia`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: phone, type: goType, url: mediaForEvolution, filename, caption }, mode: 'evolution-go-media-safe' },
+          { url: `${baseUrl}/message/sendMedia/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: sendPhone, mediatype: goType, mimetype: cleanMime, fileName: filename, caption, media: mediaForEvolution }, mode: 'evolution-api-url' },
+          { url: `${baseUrl}/message/sendMedia/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: sendPhone, mediatype: goType, mimetype: cleanMime, fileName: filename, caption, media: mediaBase64 }, mode: 'evolution-api-base64' },
+          { url: `${baseUrl}/message/sendMedia`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: sendPhone, type: goType, url: mediaForEvolution, filename, caption }, mode: 'evolution-go-media-safe' },
         ];
       }
 
