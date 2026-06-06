@@ -365,21 +365,19 @@ export default function EvolutionChat() {
     if (c?.profile_pic_url) return;
     if (avatarFetchRef.current.has(selectedPhone)) return;
     avatarFetchRef.current.add(selectedPhone);
-    supabase.functions.invoke('evolution-send', {
-      body: { action: 'fetch-profile-pic', phone: selectedPhone },
-    }).then(({ data }) => {
+    invokeEvolution({ action: 'fetch-profile-pic', phone: selectedPhone }).then(({ data }) => {
       if (data?.url) setContacts(prev => ({
         ...prev,
         [selectedPhone]: { phone: selectedPhone, name: prev[selectedPhone]?.name || null, profile_pic_url: data.url },
       }));
     }).catch(() => {});
-  }, [selectedPhone, contacts]);
+  }, [selectedPhone, contacts, invokeEvolution]);
 
   useEffect(() => {
     if (!user || contactSyncRef.current) return;
     contactSyncRef.current = true;
-    supabase.functions.invoke('evolution-send', { body: { action: 'sync-contacts' } }).catch(() => undefined);
-  }, [user]);
+    invokeEvolution({ action: 'sync-contacts' }).catch(() => undefined);
+  }, [user, invokeEvolution]);
 
   // Filter messages by the selected instance. Legacy rows are only kept when raw payload identifies the same instance.
   const instanceMessages = useMemo(() => {
@@ -486,7 +484,7 @@ export default function EvolutionChat() {
       .slice(0, 8);
     pending.forEach((phone) => {
       avatarFetchRef.current.add(phone);
-      supabase.functions.invoke('evolution-send', { body: { action: 'fetch-profile-pic', phone } })
+      invokeEvolution({ action: 'fetch-profile-pic', phone })
         .then(({ data }) => {
           if (data?.url) setContacts(prev => ({
             ...prev,
@@ -495,7 +493,7 @@ export default function EvolutionChat() {
         })
         .catch(() => undefined);
     });
-  }, [conversations, contacts]);
+  }, [conversations, contacts, invokeEvolution]);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
