@@ -542,6 +542,7 @@ export type Database = {
         Row: {
           created_at: string
           id: string
+          image_url: string | null
           is_enabled: boolean
           last_run_at: string | null
           last_run_status: string | null
@@ -550,6 +551,9 @@ export type Database = {
           message_d_plus_1: string | null
           message_d0: string | null
           min_delay_seconds: number
+          renew_button_enabled: boolean
+          renew_button_label: string | null
+          renew_button_url: string | null
           send_d_minus_1: boolean
           send_d_plus_1: boolean
           send_d0: boolean
@@ -560,6 +564,7 @@ export type Database = {
         Insert: {
           created_at?: string
           id?: string
+          image_url?: string | null
           is_enabled?: boolean
           last_run_at?: string | null
           last_run_status?: string | null
@@ -568,6 +573,9 @@ export type Database = {
           message_d_plus_1?: string | null
           message_d0?: string | null
           min_delay_seconds?: number
+          renew_button_enabled?: boolean
+          renew_button_label?: string | null
+          renew_button_url?: string | null
           send_d_minus_1?: boolean
           send_d_plus_1?: boolean
           send_d0?: boolean
@@ -578,6 +586,7 @@ export type Database = {
         Update: {
           created_at?: string
           id?: string
+          image_url?: string | null
           is_enabled?: boolean
           last_run_at?: string | null
           last_run_status?: string | null
@@ -586,6 +595,9 @@ export type Database = {
           message_d_plus_1?: string | null
           message_d0?: string | null
           min_delay_seconds?: number
+          renew_button_enabled?: boolean
+          renew_button_label?: string | null
+          renew_button_url?: string | null
           send_d_minus_1?: boolean
           send_d_plus_1?: boolean
           send_d0?: boolean

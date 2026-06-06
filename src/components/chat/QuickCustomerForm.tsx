@@ -301,7 +301,7 @@ export default function QuickCustomerForm({ onSuccess, onCancel, initialPhone = 
             id="phone"
             value={formData.phone}
             onChange={(e) => setFormData(prev => ({ ...prev, phone: formatBrazilPhoneInput(e.target.value) }))}
-            placeholder="+55 (21) 98309-7135"
+            placeholder=""
             className="h-8 text-sm"
           />
         </div>

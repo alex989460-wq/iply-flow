@@ -379,12 +379,15 @@ export default function QuickRenewalPanel({ isMobile = false, onClose }: QuickRe
       };
 
       // Calculate new due date based on plan duration (prefer month-based when duration is multiple of 30)
+      // If user manually changed editedDueDate (different from current customer.due_date), use it as override.
       const currentDueDate = startOfDay(parseDateOnly(customer.due_date));
       const today = startOfDay(new Date());
       const baseDate = currentDueDate > today ? currentDueDate : today;
 
       const months = durationDays % 30 === 0 ? durationDays / 30 : 0;
-      const newDueDate = months > 0 ? addMonths(baseDate, months) : addDays(baseDate, durationDays);
+      const autoDueDate = months > 0 ? addMonths(baseDate, months) : addDays(baseDate, durationDays);
+      const manualOverride = editedDueDate && editedDueDate !== customer.due_date;
+      const newDueDate = manualOverride ? parseDateOnly(editedDueDate) : autoDueDate;
       const newDueDateStr = format(newDueDate, 'yyyy-MM-dd');
 
       // Register payment
