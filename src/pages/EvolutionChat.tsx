@@ -427,9 +427,11 @@ export default function EvolutionChat() {
     return t.presence;
   }, [typingByPhone, selectedPhone]);
 
-  // Fetch profile pic when opening a conversation without one
+  // Fetch profile pic + subscribe to presence when opening a conversation
   useEffect(() => {
     if (!selectedPhone || selectedPhone.startsWith('status:')) return;
+    // Subscribe to presence so we receive "online", "digitando…", "visto por último…"
+    invokeEvolution({ action: 'subscribe-presence', phone: selectedPhone }).catch(() => undefined);
     const c = contacts[selectedPhone];
     if (c?.profile_pic_url) return;
     if (avatarFetchRef.current.has(selectedPhone)) return;
@@ -441,6 +443,53 @@ export default function EvolutionChat() {
       }));
     }).catch(() => {});
   }, [selectedPhone, contacts, invokeEvolution]);
+
+  // Format "online" / "visto por último ..." for current contact
+  const contactOnlineStatus = useMemo(() => {
+    if (!selectedPhone || selectedPhone.startsWith('status:')) return null;
+    const t = typingByPhone[selectedPhone];
+    if (t && (Date.now() - t.at) < 30000 && t.presence === 'available') return 'online';
+    const ls = lastSeenByPhone[selectedPhone];
+    if (!ls) return null;
+    try {
+      const d = new Date(ls);
+      const diffMin = (Date.now() - d.getTime()) / 60000;
+      if (diffMin < 1) return 'visto por último agora';
+      if (diffMin < 60) return `visto por último há ${Math.floor(diffMin)} min`;
+      if (diffMin < 1440) return `visto por último às ${d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`;
+      return `visto por último em ${d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}`;
+    } catch { return null; }
+  }, [selectedPhone, typingByPhone, lastSeenByPhone]);
+
+  const syncHistory = useCallback(async (phoneOnly?: string) => {
+    setSyncingHistory(true);
+    const { data, error } = await invokeEvolution({
+      action: 'sync-history',
+      phone: phoneOnly || undefined,
+      limit: phoneOnly ? 200 : 500,
+    });
+    setSyncingHistory(false);
+    if (error || data?.error) {
+      toast({ title: 'Sincronização limitada', description: error?.message || data?.error || 'Servidor não retornou histórico.', variant: 'destructive' });
+      return;
+    }
+    toast({ title: `${data?.imported || 0} mensagens importadas`, description: 'Recarregando...' });
+    load();
+  }, [invokeEvolution, toast, load]);
+
+  const clearAllConversations = useCallback(async () => {
+    if (!user) return;
+    if (!confirm('Apagar TODAS as conversas e mensagens (de todos os contatos)? Esta ação não pode ser desfeita.')) return;
+    const { data, error } = await invokeEvolution({ action: 'delete-messages', all: true });
+    if (error || data?.error) {
+      toast({ title: 'Falha ao limpar tudo', description: error?.message || data?.error, variant: 'destructive' });
+      return;
+    }
+    setMessages([]);
+    setSelectedPhone(null);
+    toast({ title: `${data?.deleted || 0} mensagens removidas` });
+  }, [user, invokeEvolution, toast]);
+
 
   useEffect(() => {
     if (!user || contactSyncRef.current) return;
