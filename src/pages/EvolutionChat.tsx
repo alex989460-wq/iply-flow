@@ -1414,7 +1414,19 @@ export default function EvolutionChat() {
                       ref={composerRef}
                       placeholder="Digite uma mensagem..."
                       value={draft}
-                      onChange={(e) => setDraft(e.target.value)}
+                      onChange={(e) => {
+                        setDraft(e.target.value);
+                        if (selectedPhone && !selectedPhone.startsWith('status:') && e.target.value.trim().length > 0) {
+                          const now = Date.now();
+                          const last = (window as any).__evoPresenceAt || 0;
+                          if (now - last > 5000) {
+                            (window as any).__evoPresenceAt = now;
+                            supabase.functions.invoke('evolution-send', {
+                              body: { action: 'presence', phone: selectedPhone, state: 'composing', durationMs: 8000 },
+                            }).catch(() => null);
+                          }
+                        }
+                      }}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter' && (e.ctrlKey || e.shiftKey)) {
                           e.preventDefault();
