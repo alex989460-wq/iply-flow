@@ -215,7 +215,7 @@ async function guardHumanSendPace(admin: any, userId: string, instanceName: stri
 }
 
 async function sendTypingPresence(baseUrl: string, apiKey: string, instance: string, sendPhone: string, durationMs: number, instAuth: { apiKey: string; instanceId: string }) {
-  const phoneJid = `${sendPhone}@s.whatsapp.net`;
+  const phoneJid = recipientJid(sendPhone);
   const attempts = [
     { url: `${baseUrl}/chat/sendPresence/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: sendPhone, presence: 'composing', delay: Math.min(durationMs, 8000) } },
     { url: `${baseUrl}/chat/presence`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { phone: sendPhone, presence: 'composing' } },
@@ -637,10 +637,11 @@ Deno.serve(async (req) => {
     // FETCH PROFILE PICTURE
     if (action === 'fetch-profile-pic') {
       if (!instance) return jsonResponse({ error: 'Escolha uma instância em Conexões WhatsApp.' }, 200);
-      const phone = normalizePhone(body.phone);
+      const phone = normalizeChatPhone(body.phone);
       if (!phone) return jsonResponse({ error: 'phone obrigatório' }, 400);
       const number = `${phone}@s.whatsapp.net`;
       const instAuth = await resolveInstanceAuth(baseUrl, apiKey, instance);
+      const sendPhone = await resolveSendPhone(admin, user.id, phone);
       const tries = [
         { url: `${baseUrl}/user/avatar`, method: 'POST', headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: phone, preview: false } },
         { url: `${baseUrl}/user/avatar`, method: 'POST', headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number, preview: false } },
@@ -770,10 +771,10 @@ Deno.serve(async (req) => {
       let attempts: Array<{ url: string; headers: Record<string, string>; body: any; mode: string }> = [];
       if (mediaType === 'audio') {
         attempts = [
-          { url: `${baseUrl}/message/sendWhatsAppAudio/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: phone, audio: mediaForEvolution }, mode: 'evolution-api-audio-url' },
-          { url: `${baseUrl}/message/sendWhatsAppAudio/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: phone, audio: mediaBase64 }, mode: 'evolution-api-audio-base64' },
-          { url: `${baseUrl}/message/sendMedia/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: phone, mediatype: 'audio', mimetype: cleanMime, fileName: filename, caption, media: mediaForEvolution }, mode: 'evolution-api-media-audio' },
-          { url: `${baseUrl}/message/sendMedia`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: phone, type: 'audio', url: mediaForEvolution, filename, caption }, mode: 'evolution-go-media-safe' },
+          { url: `${baseUrl}/message/sendWhatsAppAudio/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: sendPhone, audio: mediaForEvolution }, mode: 'evolution-api-audio-url' },
+          { url: `${baseUrl}/message/sendWhatsAppAudio/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: sendPhone, audio: mediaBase64 }, mode: 'evolution-api-audio-base64' },
+          { url: `${baseUrl}/message/sendMedia/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: sendPhone, mediatype: 'audio', mimetype: cleanMime, fileName: filename, caption, media: mediaForEvolution }, mode: 'evolution-api-media-audio' },
+          { url: `${baseUrl}/message/sendMedia`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: sendPhone, type: 'audio', url: mediaForEvolution, filename, caption }, mode: 'evolution-go-media-safe' },
         ];
       } else if (mediaType === 'sticker') {
         attempts = [
@@ -798,7 +799,7 @@ Deno.serve(async (req) => {
       const pace = await guardHumanSendPace(admin, user.id, instance);
       if (!pace.ok) return jsonResponse({ ok: false, error: pace.error }, 200);
       const totalMediaDelay = (pace.waitMs || 0) + humanDelayMs(caption || filename);
-      await sendTypingPresence(baseUrl, apiKey, instance, String(phone), totalMediaDelay, instAuth).catch(() => null);
+      await sendTypingPresence(baseUrl, apiKey, instance, String(sendPhone), totalMediaDelay, instAuth).catch(() => null);
       await sleep(totalMediaDelay);
       for (const att of attempts) {
         const r = await fetchJson(att.url, { method: 'POST', headers: att.headers, body: JSON.stringify(att.body) }, 12000)
@@ -817,7 +818,7 @@ Deno.serve(async (req) => {
       await insertOutgoingMessage(admin, {
         user_id: user.id,
         instance_name: instance,
-        remote_jid: `${phone}@s.whatsapp.net`,
+        remote_jid: recipientJid(sendPhone),
         phone,
         direction: 'out',
         content: caption || (mediaType === 'audio' ? '🎤 Áudio' : mediaType === 'image' ? '📷 Imagem' : mediaType === 'sticker' ? '🌟 Sticker' : `📎 ${filename}`),
