@@ -1138,6 +1138,9 @@ export default function EvolutionChat() {
                     <DropdownMenuItem onClick={load}>
                       <RefreshCw className="w-4 h-4 mr-2" /> Recarregar mensagens
                     </DropdownMenuItem>
+                    <DropdownMenuItem onClick={clearConversation} className="text-destructive focus:text-destructive">
+                      <Trash2 className="w-4 h-4 mr-2" /> Limpar conversa
+                    </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
               </div>
