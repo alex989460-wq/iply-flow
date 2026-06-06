@@ -112,6 +112,9 @@ export default function EvolutionInstances() {
       setInstances(data.instances || []);
       setCurrent(data.current || '');
       setAdminMode(!!data.adminMode);
+      if (data.warning) {
+        toast({ title: 'Atenção', description: data.warning });
+      }
     } else if (data?.error) {
       toast({ title: 'Atenção', description: data.error });
     }
