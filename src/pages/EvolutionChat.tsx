@@ -1265,9 +1265,13 @@ export default function EvolutionChat() {
                     <DropdownMenuItem onClick={load}>
                       <RefreshCw className="w-4 h-4 mr-2" /> Recarregar mensagens
                     </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => syncHistory(selectedPhone || undefined)} disabled={syncingHistory || !selectedPhone || selectedPhone.startsWith('status:')}>
+                      <RefreshCw className={cn('w-4 h-4 mr-2', syncingHistory && 'animate-spin')} /> Sincronizar histórico desta conversa
+                    </DropdownMenuItem>
                     <DropdownMenuItem onClick={clearConversation} className="text-destructive focus:text-destructive">
                       <Trash2 className="w-4 h-4 mr-2" /> Limpar conversa
                     </DropdownMenuItem>
+
                   </DropdownMenuContent>
                 </DropdownMenu>
               </div>
