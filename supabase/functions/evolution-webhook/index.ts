@@ -233,38 +233,101 @@ Deno.serve(async (req) => {
       body?.instance || body?.instanceName ||
       data?.instanceId || body?.instanceId || settings.instance_name || null;
 
-    // Presence (digitando…) — Evolution Go: 'PresenceUpdate' / classic: 'presence.update'
+    // Presence (digitando…, online, visto por último) — Evolution Go: 'PresenceUpdate' / classic: 'presence.update'
     {
       const lower = String(event).toLowerCase();
       if (lower.includes('presence')) {
         const presData = (data?.presences || data?.Presences || {}) as Record<string, any>;
         let chatJid: string = String(data?.id || data?.Chat || data?.chat || data?.From || data?.JID || '');
         let presence: string = String(data?.Presence || data?.presence || data?.lastKnownPresence || '');
+        let lastSeenRaw: any = data?.LastSeen || data?.lastSeen || data?.last_seen || null;
         if (!presence && presData && typeof presData === 'object') {
           for (const k of Object.keys(presData)) {
             const v = presData[k] || {};
             const p = v?.lastKnownPresence || v?.presence;
-            if (p) { presence = String(p); if (!chatJid) chatJid = k; break; }
+            if (p) { presence = String(p); if (!chatJid) chatJid = k; if (!lastSeenRaw) lastSeenRaw = v?.lastSeen || v?.LastSeen; break; }
           }
         }
         const phone = jidToPhone(chatJid);
         if (phone && presence) {
-          const normalized = /compos|typing/i.test(presence) ? 'composing'
-            : /record|audio/i.test(presence) ? 'recording'
-            : /paus|avail|unavail/i.test(presence) ? 'paused'
-            : presence.toLowerCase();
-          await admin.from('evolution_presence').upsert({
+          const lower2 = presence.toLowerCase();
+          const normalized = /compos|typing/.test(lower2) ? 'composing'
+            : /record|audio/.test(lower2) ? 'recording'
+            : /paus/.test(lower2) ? 'paused'
+            : /unavail|offline/.test(lower2) ? 'unavailable'
+            : /avail|online/.test(lower2) ? 'available'
+            : lower2;
+          let lastSeenAt: string | null = null;
+          if (lastSeenRaw) {
+            const n = Number(lastSeenRaw);
+            if (Number.isFinite(n) && n > 0) lastSeenAt = new Date(n < 1e12 ? n * 1000 : n).toISOString();
+            else if (typeof lastSeenRaw === 'string') lastSeenAt = lastSeenRaw;
+          }
+          if (normalized === 'available') lastSeenAt = new Date().toISOString();
+          const row: Record<string, unknown> = {
             user_id: settings.user_id,
             phone,
             presence: normalized,
             updated_at: new Date().toISOString(),
-          }, { onConflict: 'user_id,phone' });
+          };
+          if (lastSeenAt) row.last_seen_at = lastSeenAt;
+          await admin.from('evolution_presence').upsert(row, { onConflict: 'user_id,phone' });
         }
         return new Response(JSON.stringify({ ok: true }), {
           status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
+
+      // Message receipts (✓✓ blue) — Evolution Go: 'MessageReceipt'/'Receipt' / classic: 'messages.update'
+      if (lower.includes('receipt') || lower === 'messages.update' || lower === 'message.update' || lower === 'messages.update'.toLowerCase()) {
+        // Possible shapes:
+        // Go: { Type: 'read'|'delivered', MessageIDs: [...], Sender, Chat }
+        // Classic: [{ key:{id}, update:{ status:'READ'|'DELIVERED'|3|4 } }]
+        const receiptType = String(data?.Type || data?.type || data?.receiptType || '').toLowerCase();
+        const ids: string[] = [];
+        if (Array.isArray(data?.MessageIDs)) ids.push(...data.MessageIDs.map(String));
+        if (Array.isArray(data?.messageIds)) ids.push(...data.messageIds.map(String));
+        if (Array.isArray(data?.ids)) ids.push(...data.ids.map(String));
+        if (data?.MessageID) ids.push(String(data.MessageID));
+        if (data?.id) ids.push(String(data.id));
+        const updates: Array<{ id: string; status: string }> = [];
+        const items = Array.isArray(data) ? data : Array.isArray(data?.messages) ? data.messages : Array.isArray(data?.updates) ? data.updates : [];
+        for (const it of items) {
+          const id = it?.key?.id || it?.id || it?.messageId;
+          const st = String(it?.update?.status ?? it?.status ?? '').toLowerCase();
+          if (!id) continue;
+          let mapped = '';
+          if (st === 'read' || st === '4' || st === 'played' || st === '5') mapped = 'read';
+          else if (st === 'delivered' || st === '3') mapped = 'delivered';
+          else if (st === 'sent' || st === '2') mapped = 'sent';
+          if (mapped) updates.push({ id: String(id), status: mapped });
+        }
+        if (ids.length) {
+          const mapped = /read|played/.test(receiptType) ? 'read'
+            : /deliver/.test(receiptType) ? 'delivered'
+            : '';
+          if (mapped) for (const id of ids) updates.push({ id, status: mapped });
+        }
+        // Apply: only upgrade status (don't downgrade)
+        const rank: Record<string, number> = { sent: 1, delivered: 2, read: 3 };
+        for (const u of updates) {
+          const { data: existing } = await admin
+            .from('evolution_messages')
+            .select('id,status')
+            .eq('user_id', settings.user_id)
+            .eq('external_id', u.id)
+            .maybeSingle();
+          if (!existing) continue;
+          if ((rank[u.status] || 0) > (rank[existing.status as string] || 0)) {
+            await admin.from('evolution_messages').update({ status: u.status }).eq('id', existing.id);
+          }
+        }
+        return new Response(JSON.stringify({ ok: true, updates: updates.length }), {
+          status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
     }
+
 
     // Evolution Go "Message" event format
     if (event === 'Message' && data?.Info) {
