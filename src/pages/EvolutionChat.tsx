@@ -726,16 +726,14 @@ export default function EvolutionChat() {
     setMessages(prev => [...prev, optimistic]);
     try {
       const base64 = await fileToBase64(file);
-      const { data, error } = await supabase.functions.invoke('evolution-send', {
-        body: {
-          action: 'send-media',
-          phone: selectedPhone,
-          mediaType,
-          mimetype: file.type || (mediaType === 'audio' ? 'audio/ogg' : 'application/octet-stream'),
-          filename: file.name || `media-${Date.now()}`,
-          mediaBase64: base64,
-          caption,
-        },
+      const { data, error } = await invokeEvolution({
+        action: 'send-media',
+        phone: selectedPhone,
+        mediaType,
+        mimetype: file.type || (mediaType === 'audio' ? 'audio/ogg' : 'application/octet-stream'),
+        filename: file.name || `media-${Date.now()}`,
+        mediaBase64: base64,
+        caption,
       });
       if (error || data?.error) {
         setMessages(prev => prev.map(m => m.id === tempId ? { ...m, _pending: false, _failed: true } : m));
