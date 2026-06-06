@@ -154,6 +154,18 @@ function runInBackground(task: Promise<unknown>) {
   else task.catch((error) => console.error('[evolution-send] background send failed', error));
 }
 
+function getEvolutionErrorText(data: any) {
+  const parts = [data?.error, data?.message, data?.response?.message, data?.data?.error, data?.data?.message]
+    .flat()
+    .filter(Boolean)
+    .map((v) => typeof v === 'string' ? v : JSON.stringify(v));
+  return parts.join(' | ');
+}
+
+function isEvolutionReachoutLock(data: any) {
+  return /(^|\D)463(\D|$)|NackCallerReachoutTimelocked|reach[- ]?out|time[- ]?lock/i.test(getEvolutionErrorText(data));
+}
+
 async function resolveGoInstanceId(baseUrl: string, apiKey: string, instance: string) {
   if (isUuid(instance)) return instance;
   const r = await fetchJson(`${baseUrl}/instance/all`, {
