@@ -437,13 +437,14 @@ Deno.serve(async (req) => {
         return jsonResponse({ error: 'phone e text obrigatórios' }, 400);
       }
       const instAuth = await resolveInstanceAuth(baseUrl, apiKey, instance);
-      const sendPhone = await resolveSendPhone(admin, user.id, phone);
+      const sendTargets = await resolveSendTargets(admin, user.id, phone);
+      const primaryTarget = sendTargets[0]?.value || await resolveSendPhone(admin, user.id, phone);
 
       // Build optional "quoted" payload (reply-to) compatible with both API flavors
       const quotedRaw = body.quoted as { messageId?: string; fromMe?: boolean; text?: string } | null | undefined;
       const quotedClassic = quotedRaw && quotedRaw.messageId ? {
         key: {
-          remoteJid: `${sendPhone}@s.whatsapp.net`,
+          remoteJid: primaryTarget.includes('@') ? primaryTarget : `${primaryTarget}@s.whatsapp.net`,
           fromMe: !!quotedRaw.fromMe,
           id: String(quotedRaw.messageId),
         },
@@ -451,25 +452,27 @@ Deno.serve(async (req) => {
       } : null;
       const quotedGo = quotedRaw && quotedRaw.messageId ? {
         messageId: String(quotedRaw.messageId),
-          participant: `${sendPhone}@s.whatsapp.net`,
+        participant: primaryTarget.includes('@') ? primaryTarget : `${primaryTarget}@s.whatsapp.net`,
       } : null;
 
-      const goBody: Record<string, unknown> = { number: sendPhone, text };
-      const goBodyMsg: Record<string, unknown> = { number: sendPhone, message: text };
-      const classicBody: Record<string, unknown> = { number: sendPhone, text };
-      const classicBodyV1: Record<string, unknown> = { number: sendPhone, textMessage: { text } };
-      if (quotedGo && quotedClassic) {
-        goBody.quoted = quotedGo; goBodyMsg.quoted = quotedGo;
-        classicBody.quoted = quotedClassic; classicBodyV1.quoted = quotedClassic;
+      const attempts: Array<{ url: string; headers: Record<string, string>; body: any; mode: string }> = [];
+      for (const target of sendTargets) {
+        const goBody: Record<string, unknown> = { number: target.value, text };
+        const goBodyMsg: Record<string, unknown> = { number: target.value, message: text };
+        const classicBody: Record<string, unknown> = { number: target.value, text };
+        const classicBodyV1: Record<string, unknown> = { number: target.value, textMessage: { text } };
+        if (quotedGo && quotedClassic) {
+          goBody.quoted = quotedGo; goBodyMsg.quoted = quotedGo;
+          classicBody.quoted = quotedClassic; classicBodyV1.quoted = quotedClassic;
+        }
+        attempts.push(
+          { url: `${baseUrl}/send/text`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: goBody, mode: `evolution-go-send-${target.kind}` },
+          { url: `${baseUrl}/message/sendText`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: goBody, mode: `evolution-go-${target.kind}` },
+          { url: `${baseUrl}/message/sendText`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: goBodyMsg, mode: `evolution-go-msg-${target.kind}` },
+          { url: `${baseUrl}/message/sendText/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: classicBodyV1, mode: `evolution-api-v1-${target.kind}` },
+          { url: `${baseUrl}/message/sendText/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: classicBody, mode: `evolution-api-${target.kind}` },
+        );
       }
-
-      const attempts: Array<{ url: string; headers: Record<string, string>; body: any; mode: string }> = [
-        { url: `${baseUrl}/message/sendText/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: classicBodyV1, mode: 'evolution-api-v1' },
-        { url: `${baseUrl}/message/sendText/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: classicBody, mode: 'evolution-api' },
-        { url: `${baseUrl}/send/text`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: goBody, mode: 'evolution-go-send' },
-        { url: `${baseUrl}/message/sendText`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: goBody, mode: 'evolution-go' },
-        { url: `${baseUrl}/message/sendText`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: goBodyMsg, mode: 'evolution-go-msg' },
-      ];
 
       let result: any = { ok: false, status: 0, data: {} };
       let mode = 'evolution-api-v1';
@@ -506,7 +509,7 @@ Deno.serve(async (req) => {
       await insertOutgoingMessage(admin, {
         user_id: user.id,
         instance_name: instance,
-        remote_jid: result.data?.data?.Info?.Chat || result.data?.Info?.Chat || `${sendPhone}@s.whatsapp.net`,
+        remote_jid: result.data?.data?.Info?.Chat || result.data?.Info?.Chat || (primaryTarget.includes('@') ? primaryTarget : `${primaryTarget}@s.whatsapp.net`),
         phone,
         direction: 'out',
         content: text,
