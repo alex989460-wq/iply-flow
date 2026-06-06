@@ -1317,8 +1317,8 @@ export default function EvolutionChat() {
                             <ContextMenuItem onClick={() => scrollToMessage(m.id)}>
                               <Info className="w-4 h-4 mr-2" /> Centralizar
                             </ContextMenuItem>
-                            <ContextMenuItem onClick={() => deleteLocal(m.id)} className="text-destructive focus:text-destructive">
-                              <Trash className="w-4 h-4 mr-2" /> Apagar (somente aqui)
+                            <ContextMenuItem onClick={() => deleteMessage(m)} className="text-destructive focus:text-destructive">
+                              <Trash className="w-4 h-4 mr-2" /> Excluir mensagem
                             </ContextMenuItem>
                           </ContextMenuContent>
                         </ContextMenu>
