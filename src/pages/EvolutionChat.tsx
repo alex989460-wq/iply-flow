@@ -33,6 +33,7 @@ interface EvoMessage {
   message_type: string;
   media_url: string | null;
   media_mime: string | null;
+  status?: 'pending' | 'sent' | 'failed' | string | null;
   external_id?: string | null;
   raw?: unknown;
   created_at: string;
@@ -319,6 +320,14 @@ export default function EvolutionChat() {
         setMessages((prev) => {
           return mergeMessage(prev, m);
         });
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'evolution_messages', filter: `user_id=eq.${user.id}` }, (payload) => {
+        const m = payload.new as EvoMessage;
+        setMessages((prev) => prev.map((item) => (
+          item.id === m.id || (item.external_id && item.external_id === m.external_id)
+            ? { ...m, _pending: m.status === 'pending', _failed: m.status === 'failed' }
+            : item
+        )));
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'evolution_contacts', filter: `user_id=eq.${user.id}` }, (payload) => {
         const c = payload.new as EvoContact;
@@ -649,7 +658,14 @@ export default function EvolutionChat() {
         toast({ title: 'Erro ao enviar', description: error?.message || data?.error || 'Falha', variant: 'destructive' });
         return;
       }
-      setMessages(prev => prev.map(m => m.id === tempId ? { ...m, _pending: false, _failed: false, raw: quotedRaw ? { ...(data || {}), ...quotedRaw } : data } : m));
+      setMessages(prev => prev.map(m => m.id === tempId ? {
+        ...m,
+        _pending: !!data?.queued,
+        _failed: false,
+        status: data?.queued ? 'pending' : 'sent',
+        external_id: data?.data?.pendingExternalId || m.external_id,
+        raw: quotedRaw ? { ...(data || {}), ...quotedRaw } : data,
+      } : m));
     });
   };
 
