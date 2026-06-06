@@ -1218,14 +1218,19 @@ export default function EvolutionChat() {
                         <span className="text-[#00a884] font-medium animate-pulse">
                           {contactTypingPresence === 'recording' ? 'gravando áudio...' : 'digitando...'}
                         </span>
+                      ) : contactOnlineStatus === 'online' ? (
+                        <span className="text-[#00a884] font-medium flex items-center gap-1">
+                          <span className="inline-block w-1.5 h-1.5 rounded-full bg-[#00a884] animate-pulse" /> online
+                        </span>
+                      ) : contactOnlineStatus ? (
+                        <span>{contactOnlineStatus}</span>
                       ) : (
                         <>
                           <Phone className="w-2.5 h-2.5" /> {formatPhone(selectedPhone)}
-                          <span className="mx-1 opacity-50">•</span>
-                          <span className="text-[#00a884]">toque para ver detalhes</span>
                         </>
                       )}
                     </div>
+
                   </div>
                 </button>
                 {selectedPhone === 'status:me' && (
