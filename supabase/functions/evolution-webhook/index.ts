@@ -146,9 +146,19 @@ function contactPayload(userId: string, phone: string, name?: string | null, pro
 }
 
 function bestConversationPhone(info: any, remoteJid: string) {
-  const alt = info?.IsFromMe ? (info?.RecipientAlt || info?.TargetJID || info?.TargetID) : (info?.SenderAlt || info?.Sender);
-  const altPhone = jidToPhone(String(alt || ''));
-  if (altPhone && altPhone.length >= 10) return altPhone;
+  const candidates = info?.IsFromMe
+    ? [info?.RecipientAlt, info?.TargetJID, info?.TargetID, info?.Chat]
+    : [info?.Sender, info?.Chat, info?.SenderAlt];
+  for (const candidate of candidates) {
+    const raw = String(candidate || '');
+    if (/@lid\b/i.test(raw)) continue;
+    const phone = jidToPhone(raw);
+    if (phone && phone.length >= 10) return phone;
+  }
+  for (const candidate of candidates) {
+    const phone = jidToPhone(String(candidate || ''));
+    if (phone && phone.length >= 10) return phone;
+  }
   return jidToPhone(remoteJid);
 }
 
