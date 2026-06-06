@@ -356,6 +356,11 @@ export default function EvolutionChat() {
           return mergeMessage(prev, m);
         });
       })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'evolution_messages', filter: `user_id=eq.${user.id}` }, (payload) => {
+        const m = payload.new as EvoMessage;
+        if (!m?.id) return;
+        setMessages(prev => prev.map(x => x.id === m.id ? { ...x, ...m } : x));
+      })
       .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'evolution_messages', filter: `user_id=eq.${user.id}` }, (payload) => {
         const oldRow = payload.old as { id?: string } | null;
         if (oldRow?.id) setMessages(prev => prev.filter(m => m.id !== oldRow.id));
@@ -365,9 +370,10 @@ export default function EvolutionChat() {
         if (c?.phone) setContacts(prev => ({ ...prev, [c.phone]: c }));
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'evolution_presence', filter: `user_id=eq.${user.id}` }, (payload) => {
-        const row = payload.new as { phone?: string; presence?: string } | null;
+        const row = payload.new as { phone?: string; presence?: string; last_seen_at?: string | null } | null;
         if (!row?.phone) return;
         setTypingByPhone(prev => ({ ...prev, [row.phone!]: { presence: row.presence || 'available', at: Date.now() } }));
+        if (row.last_seen_at) setLastSeenByPhone(prev => ({ ...prev, [row.phone!]: row.last_seen_at! }));
       })
       .subscribe();
     return () => { supabase.removeChannel(ch); };
