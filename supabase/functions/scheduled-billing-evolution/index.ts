@@ -36,6 +36,68 @@ function renderTemplate(tpl: string, vars: Record<string, string>): string {
   return tpl.replace(/\{\{(\w+)\}\}/g, (_, k) => vars[k] ?? '');
 }
 
+function evoHeaders(apiKey: string, json = false, instanceId = '') {
+  const h: Record<string, string> = { apikey: apiKey, Authorization: `Bearer ${apiKey}` };
+  if (json) h['Content-Type'] = 'application/json';
+  if (instanceId) h.instanceId = instanceId;
+  return h;
+}
+
+async function fetchJson(url: string, init: RequestInit = {}, ms = 15000) {
+  try {
+    const r = await fetch(url, { ...init, signal: AbortSignal.timeout(ms) });
+    const data = await r.json().catch(() => ({}));
+    return { ok: r.ok, status: r.status, data };
+  } catch (e) {
+    return { ok: false, status: 0, data: { error: String((e as Error).message || e) } };
+  }
+}
+
+async function resolveInstanceAuth(baseUrl: string, apiKey: string, instance: string) {
+  const r = await fetchJson(`${baseUrl}/instance/all`, { headers: evoHeaders(apiKey) }, 8000);
+  const rows = Array.isArray(r.data?.data) ? r.data.data : Array.isArray(r.data) ? r.data : [];
+  const wanted = instance.toLowerCase();
+  const found = rows.find((it: any) =>
+    String(it?.id || '').toLowerCase() === wanted ||
+    String(it?.name || it?.instanceName || '').toLowerCase() === wanted
+  ) || rows.find((it: any) => String(it?.token || it?.hash || '') === apiKey);
+  return {
+    apiKey: found?.token || found?.hash || apiKey,
+    instanceId: found?.id || found?.instanceId || instance,
+  };
+}
+
+async function sendEvoText(baseUrl: string, apiKey: string, instance: string, instAuth: any, phone: string, text: string) {
+  const attempts = [
+    { url: `${baseUrl}/message/sendText/${encodeURIComponent(instance)}`, headers: evoHeaders(apiKey, true), body: { number: phone, text } },
+    { url: `${baseUrl}/message/sendText/${encodeURIComponent(instance)}`, headers: evoHeaders(apiKey, true), body: { number: phone, textMessage: { text } } },
+    { url: `${baseUrl}/send/text`, headers: evoHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: phone, text } },
+    { url: `${baseUrl}/message/sendText`, headers: evoHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: phone, text } },
+  ];
+  for (const a of attempts) {
+    const r = await fetchJson(a.url, { method: 'POST', headers: a.headers, body: JSON.stringify(a.body) }, 20000);
+    if (r.ok) return { ok: true, data: r.data };
+    if (r.status !== 404 && r.status !== 405 && r.status !== 400 && r.status !== 0) return { ok: false, status: r.status, data: r.data };
+  }
+  return { ok: false, status: 0, data: { error: 'all endpoints failed' } };
+}
+
+async function sendEvoImage(baseUrl: string, apiKey: string, instance: string, instAuth: any, phone: string, imageUrl: string, caption: string) {
+  const body = { number: phone, mediatype: 'image', mimetype: 'image/jpeg', fileName: 'image.jpg', caption, media: imageUrl };
+  const goBody = { number: phone, type: 'image', url: imageUrl, filename: 'image.jpg', caption };
+  const attempts = [
+    { url: `${baseUrl}/send/media`, headers: evoHeaders(instAuth.apiKey, true, instAuth.instanceId), body: goBody },
+    { url: `${baseUrl}/message/sendMedia/${encodeURIComponent(instance)}`, headers: evoHeaders(apiKey, true), body },
+    { url: `${baseUrl}/message/sendMedia`, headers: evoHeaders(instAuth.apiKey, true, instAuth.instanceId), body: goBody },
+  ];
+  for (const a of attempts) {
+    const r = await fetchJson(a.url, { method: 'POST', headers: a.headers, body: JSON.stringify(a.body) }, 30000);
+    if (r.ok) return { ok: true, data: r.data };
+    if (r.status !== 404 && r.status !== 405 && r.status !== 400 && r.status !== 0) return { ok: false, status: r.status, data: r.data };
+  }
+  return { ok: false, status: 0, data: { error: 'all media endpoints failed' } };
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
 
@@ -45,17 +107,24 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
     );
 
+    const body = await req.json().catch(() => ({}));
+    const force = !!body.force;
+    const filterUserId: string | undefined = body.userId;
+
     const { hour, minute } = getCurrentTimeSaoPaulo();
     const currentTime = `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
 
-    const { data: schedules } = await supabase
+    let query = supabase
       .from('evolution_billing_schedule')
       .select('*')
       .eq('is_enabled', true);
+    if (filterUserId) query = query.eq('user_id', filterUserId);
 
-    const toRun = (schedules || []).filter((s: any) => s.send_time.substring(0, 5) === currentTime);
+    const { data: schedules } = await query;
+
+    const toRun = (schedules || []).filter((s: any) => force || s.send_time.substring(0, 5) === currentTime);
     if (toRun.length === 0) {
-      return new Response(JSON.stringify({ success: true, processed: 0 }), {
+      return new Response(JSON.stringify({ success: true, processed: 0, results: [] }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
@@ -63,6 +132,21 @@ Deno.serve(async (req) => {
     const results: any[] = [];
 
     for (const sched of toRun) {
+      // Evolution credentials for this user
+      const { data: evo } = await supabase
+        .from('evolution_settings')
+        .select('base_url, api_key, instance_name')
+        .eq('user_id', sched.user_id)
+        .maybeSingle();
+      if (!evo?.base_url || !evo?.api_key || !evo?.instance_name) {
+        results.push({ user_id: sched.user_id, sent: 0, errors: 0, skipped: 'evolution_not_configured' });
+        continue;
+      }
+      const baseUrl = String(evo.base_url).replace(/\/$/, '');
+      const apiKey = String(evo.api_key);
+      const instance = String(evo.instance_name);
+      const instAuth = await resolveInstanceAuth(baseUrl, apiKey, instance);
+
       const today = getRelativeDateSaoPaulo(0);
       const yesterday = getRelativeDateSaoPaulo(-1);
       const tomorrow = getRelativeDateSaoPaulo(1);
@@ -74,7 +158,12 @@ Deno.serve(async (req) => {
 
       const { data: customers } = await supabase
         .from('customers')
-        .select('id, name, phone, extra_phone, due_date, status, plan_id')
+        .select(`
+          id, name, phone, extra_phone, due_date, status, screens, custom_price,
+          plan:plans(id, plan_name, price, duration_days),
+          server:servers(id, server_name),
+          username
+        `)
         .in('status', ['ativa', 'inativa'])
         .eq('created_by', sched.user_id)
         .in('due_date', [yesterday, today, tomorrow]);
@@ -103,29 +192,41 @@ Deno.serve(async (req) => {
       for (let i = 0; i < list.length; i++) {
         const c = list[i];
         const tpl = tplMap[c.billingType as string];
-        const vencDate = new Date(c.due_date + 'T00:00:00');
-        const vars = {
+        const vencDate = new Date(c.due_date + 'T12:00:00');
+        const price = c.custom_price ?? c.plan?.price ?? 0;
+        const vars: Record<string, string> = {
           nome: c.name || '',
           vencimento: vencDate.toLocaleDateString('pt-BR'),
           telefone: c.phone || '',
+          valor: `R$ ${Number(price).toFixed(2)}`,
+          usuario: c.username || '-',
+          plano: c.plan?.plan_name || '-',
+          status: c.status || '-',
+          telas: String(c.screens || 1),
+          servidor: c.server?.server_name || '-',
+          link: sched.renew_button_url || '',
         };
-        const text = renderTemplate(tpl, vars);
+        let text = renderTemplate(tpl, vars);
 
+        if (sched.renew_button_enabled && sched.renew_button_url) {
+          const label = sched.renew_button_label || 'Renovar agora';
+          text += `\n\n👉 *${label}:* ${sched.renew_button_url}`;
+        }
+
+        const phone = normalizePhone(c.phone);
+        let result: any;
         try {
-          const { data, error } = await supabase.functions.invoke('evolution-send', {
-            body: {
-              action: 'send',
-              phone: normalizePhone(c.phone),
-              text,
-              userId: sched.user_id,
-            },
-          });
-          if (error || data?.error) {
-            errors++;
-            console.error(`[evo-billing] send failed for ${c.name}:`, error || data?.error);
+          if (sched.image_url) {
+            result = await sendEvoImage(baseUrl, apiKey, instance, instAuth, phone, sched.image_url, text);
+            if (!result.ok) {
+              // fallback to text only
+              result = await sendEvoText(baseUrl, apiKey, instance, instAuth, phone, text);
+            }
           } else {
-            sent++;
+            result = await sendEvoText(baseUrl, apiKey, instance, instAuth, phone, text);
           }
+          if (result?.ok) sent++;
+          else { errors++; console.error(`[evo-billing] ${c.name}:`, result); }
         } catch (e) {
           errors++;
           console.error(`[evo-billing] exception for ${c.name}:`, e);
@@ -134,13 +235,12 @@ Deno.serve(async (req) => {
         await supabase.from('billing_logs').insert({
           customer_id: c.id,
           billing_type: c.billingType,
-          message: `[Evolution] [${normalizePhone(c.phone)}] ${text.substring(0, 100)}`,
-          whatsapp_status: errors > sent ? 'error' : 'sent',
+          message: `[Evolution] [${phone}] ${text.substring(0, 120)}`,
+          whatsapp_status: result?.ok ? 'sent' : 'error',
         });
 
         if (i < list.length - 1) {
           const delay = Math.floor(Math.random() * (maxDelay - minDelay + 1)) + minDelay;
-          console.log(`[evo-billing] waiting ${(delay / 1000).toFixed(1)}s`);
           await new Promise(r => setTimeout(r, delay));
         }
       }
@@ -149,11 +249,11 @@ Deno.serve(async (req) => {
         .from('evolution_billing_schedule')
         .update({
           last_run_at: new Date().toISOString(),
-          last_run_status: `success: ${sent} enviadas, ${errors} erros`,
+          last_run_status: `${force ? 'manual' : 'auto'}: ${sent} enviadas, ${errors} erros (${list.length} clientes)`,
         })
         .eq('id', sched.id);
 
-      results.push({ user_id: sched.user_id, sent, errors });
+      results.push({ user_id: sched.user_id, sent, errors, total: list.length });
     }
 
     return new Response(JSON.stringify({ success: true, results }), {
