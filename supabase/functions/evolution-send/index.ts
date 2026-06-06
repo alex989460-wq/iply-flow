@@ -626,12 +626,7 @@ Deno.serve(async (req) => {
       const key = { remoteJid: jid, fromMe, id: messageId };
 
       const attempts: Array<{ url: string; headers: Record<string, string>; body: any; mode: string }> = [
-        // Evolution API v2 (canonical, per docs)
         { url: `${baseUrl}/message/sendReaction/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { key, reaction: emoji }, mode: 'evo-api-v2' },
-        // Evolution Go variants
-        { url: `${baseUrl}/message/sendReaction`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { key, reaction: emoji }, mode: 'evo-go-msg' },
-        { url: `${baseUrl}/message/react`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { id: messageId, number: phone, reaction: emoji }, mode: 'evo-go-react' },
-        { url: `${baseUrl}/send/reaction`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { key, reaction: emoji }, mode: 'evo-go-send' },
         { url: `${baseUrl}/chat/sendReaction/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { key, reaction: emoji }, mode: 'evo-api-chat' },
       ];
       let result: any = { ok: false, status: 0, data: {} };
