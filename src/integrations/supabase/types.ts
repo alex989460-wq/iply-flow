@@ -1448,25 +1448,37 @@ export type Database = {
       }
       user_evolution_instances: {
         Row: {
+          advanced_settings: Json
           created_at: string
           id: string
           instance_id: string | null
           instance_name: string
+          settings_updated_at: string | null
           user_id: string
+          webhook_enabled: boolean
+          webhook_events: string[]
         }
         Insert: {
+          advanced_settings?: Json
           created_at?: string
           id?: string
           instance_id?: string | null
           instance_name: string
+          settings_updated_at?: string | null
           user_id: string
+          webhook_enabled?: boolean
+          webhook_events?: string[]
         }
         Update: {
+          advanced_settings?: Json
           created_at?: string
           id?: string
           instance_id?: string | null
           instance_name?: string
+          settings_updated_at?: string | null
           user_id?: string
+          webhook_enabled?: boolean
+          webhook_events?: string[]
         }
         Relationships: []
       }
