@@ -450,21 +450,22 @@ Deno.serve(async (req) => {
       const durationMs = Math.min(Math.max(Number(body.durationMs) || 6000, 1500), 12000);
       const instAuth = await resolveInstanceAuth(baseUrl, apiKey, instance);
       const sendPhone = await resolveSendPhone(admin, user.id, phone);
-      runInBackground((async () => {
-        const cleanPhone = normalizeChatPhone(sendPhone);
-        const phoneJid = `${cleanPhone}@s.whatsapp.net`;
-        const attempts = [
-          { url: `${baseUrl}/chat/presence`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: cleanPhone, phone: cleanPhone, jid: phoneJid, presence, delay: durationMs } },
-          { url: `${baseUrl}/presence`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: cleanPhone, phone: cleanPhone, jid: phoneJid, presence, delay: durationMs } },
-          { url: `${baseUrl}/chat/sendPresence/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: cleanPhone, presence, delay: durationMs } },
-          { url: `${baseUrl}/chat/presence/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: cleanPhone, presence, delay: durationMs } },
-        ];
-        for (const att of attempts) {
-          const r = await fetchJson(att.url, { method: 'POST', headers: att.headers, body: JSON.stringify(att.body) }, 4000).catch(() => null);
-          if (r?.ok) break;
-        }
-      })());
-      return jsonResponse({ ok: true, queued: true });
+      const cleanPhone = normalizeChatPhone(sendPhone);
+      const phoneJid = `${cleanPhone}@s.whatsapp.net`;
+      const attempts = [
+        { url: `${baseUrl}/chat/presence`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: cleanPhone, phone: cleanPhone, jid: phoneJid, presence, delay: durationMs }, mode: 'go-chat-presence' },
+        { url: `${baseUrl}/presence`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: cleanPhone, phone: cleanPhone, jid: phoneJid, presence, delay: durationMs }, mode: 'go-presence' },
+        { url: `${baseUrl}/chat/sendPresence/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: cleanPhone, presence, delay: durationMs }, mode: 'classic-send-presence' },
+        { url: `${baseUrl}/chat/presence/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: cleanPhone, presence, delay: durationMs }, mode: 'classic-presence' },
+      ];
+      const log: any[] = [];
+      for (const att of attempts) {
+        const r = await fetchJson(att.url, { method: 'POST', headers: att.headers, body: JSON.stringify(att.body) }, 4000)
+          .catch((error) => ({ ok: false, status: 0, data: { error: String(error?.message || error) } }));
+        log.push({ mode: att.mode, status: r.status });
+        if (r.ok) return jsonResponse({ ok: true, mode: att.mode, attempts: log });
+      }
+      return jsonResponse({ ok: false, attempts: log }, 200);
     }
 
     // SEND
