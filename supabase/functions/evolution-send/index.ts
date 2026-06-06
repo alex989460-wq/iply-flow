@@ -43,6 +43,22 @@ function jidPhone(value: unknown) {
   return digits.length >= 10 ? digits : '';
 }
 
+function jidTarget(value: unknown) {
+  if (typeof value !== 'string') return '';
+  const clean = value.trim();
+  const digits = clean.split('@')[0].split(':')[0].replace(/\D/g, '');
+  if (/@lid\b/i.test(clean) && digits.length >= 10) return `${digits}@lid`;
+  if (/@s\.whatsapp\.net\b/i.test(clean) && digits.length >= 10) return `${digits}@s.whatsapp.net`;
+  return digits.length >= 10 ? digits : '';
+}
+
+function pushUniqueTarget(targets: Array<{ value: string; kind: 'lid' | 'jid' | 'phone' }>, raw: unknown) {
+  const target = jidTarget(raw);
+  if (!target) return;
+  const kind = target.includes('@lid') ? 'lid' : target.includes('@s.whatsapp.net') ? 'jid' : 'phone';
+  if (!targets.some((t) => t.value === target)) targets.push({ value: target, kind });
+}
+
 async function resolveSendPhone(admin: any, userId: string, phone: string) {
   if (phone.startsWith('55') && phone.length >= 12) return phone;
   const { data } = await admin
@@ -58,6 +74,44 @@ async function resolveSendPhone(admin: any, userId: string, phone: string) {
     if (candidate?.startsWith('55')) return candidate;
   }
   return phone;
+}
+
+async function resolveSendTargets(admin: any, userId: string, phone: string) {
+  const targets: Array<{ value: string; kind: 'lid' | 'jid' | 'phone' }> = [];
+  const phoneDigits = String(phone || '').replace(/\D/g, '');
+  const normalizedPhone = normalizeChatPhone(phoneDigits);
+
+  const { data } = await admin
+    .from('evolution_messages')
+    .select('phone, raw')
+    .eq('user_id', userId)
+    .or(`phone.eq.${phoneDigits},phone.eq.${normalizedPhone}`)
+    .order('created_at', { ascending: false })
+    .limit(30);
+
+  for (const row of data || []) {
+    const info = row?.raw?.data?.Info || row?.raw?.Info || {};
+    if (info?.IsFromMe === true) {
+      pushUniqueTarget(targets, info.Chat);
+      pushUniqueTarget(targets, info.RecipientAlt);
+      pushUniqueTarget(targets, info.TargetJID || info.TargetID);
+      pushUniqueTarget(targets, info.DeviceSentMeta?.DestinationJID);
+    } else {
+      pushUniqueTarget(targets, info.SenderAlt);
+      pushUniqueTarget(targets, info.Sender);
+      pushUniqueTarget(targets, info.Chat);
+    }
+  }
+
+  pushUniqueTarget(targets, phoneDigits.includes('@') ? phone : phoneDigits);
+  if (normalizedPhone) pushUniqueTarget(targets, normalizedPhone);
+  if (normalizedPhone) pushUniqueTarget(targets, `${normalizedPhone}@s.whatsapp.net`);
+
+  const lids = targets.filter((t) => t.kind === 'lid');
+  const jids = targets.filter((t) => t.kind === 'jid' && t.value.startsWith('55'));
+  const phones = targets.filter((t) => t.kind === 'phone' && t.value.startsWith('55'));
+  const otherPhones = targets.filter((t) => t.kind === 'phone' && !t.value.startsWith('55'));
+  return [...lids, ...phones, ...jids, ...otherPhones].filter((target, index, arr) => arr.findIndex((t) => t.value === target.value) === index);
 }
 
 function phoneFromJid(value: unknown) {
@@ -200,6 +254,22 @@ async function resolveInstanceAuth(baseUrl: string, apiKey: string, instance: st
     name: found?.name || found?.instanceName || found?.instance?.instanceName || instance,
     row: found,
   };
+}
+
+async function primeEvolutionContact(baseUrl: string, apiKey: string, instanceId: string, phone: string) {
+  const digits = String(phone || '').replace(/\D/g, '');
+  if (!digits) return;
+  const jid = `${digits}@s.whatsapp.net`;
+  const headers = evolutionHeaders(apiKey, true, instanceId);
+  const probes = [
+    { url: `${baseUrl}/user/info`, body: { number: [digits] } },
+    { url: `${baseUrl}/user/info`, body: { number: [jid] } },
+    { url: `${baseUrl}/user/avatar`, body: { number: digits, preview: false } },
+    { url: `${baseUrl}/user/avatar`, body: { number: jid, preview: false } },
+  ];
+  await Promise.all(probes.map((probe) =>
+    fetchJson(probe.url, { method: 'POST', headers, body: JSON.stringify(probe.body) }, 3000).catch(() => null)
+  ));
 }
 
 Deno.serve(async (req) => {
@@ -389,13 +459,15 @@ Deno.serve(async (req) => {
         return jsonResponse({ error: 'phone e text obrigatórios' }, 400);
       }
       const instAuth = await resolveInstanceAuth(baseUrl, apiKey, instance);
-      const sendPhone = await resolveSendPhone(admin, user.id, phone);
+      const sendTargets = await resolveSendTargets(admin, user.id, phone);
+      const primaryTarget = sendTargets[0]?.value || await resolveSendPhone(admin, user.id, phone);
+      await primeEvolutionContact(baseUrl, instAuth.apiKey, instAuth.instanceId, phone);
 
       // Build optional "quoted" payload (reply-to) compatible with both API flavors
       const quotedRaw = body.quoted as { messageId?: string; fromMe?: boolean; text?: string } | null | undefined;
       const quotedClassic = quotedRaw && quotedRaw.messageId ? {
         key: {
-          remoteJid: `${sendPhone}@s.whatsapp.net`,
+          remoteJid: primaryTarget.includes('@') ? primaryTarget : `${primaryTarget}@s.whatsapp.net`,
           fromMe: !!quotedRaw.fromMe,
           id: String(quotedRaw.messageId),
         },
@@ -403,31 +475,34 @@ Deno.serve(async (req) => {
       } : null;
       const quotedGo = quotedRaw && quotedRaw.messageId ? {
         messageId: String(quotedRaw.messageId),
-          participant: `${sendPhone}@s.whatsapp.net`,
+        participant: primaryTarget.includes('@') ? primaryTarget : `${primaryTarget}@s.whatsapp.net`,
       } : null;
 
-      const goBody: Record<string, unknown> = { number: sendPhone, text };
-      const goBodyMsg: Record<string, unknown> = { number: sendPhone, message: text };
-      const classicBody: Record<string, unknown> = { number: sendPhone, text };
-      const classicBodyV1: Record<string, unknown> = { number: sendPhone, textMessage: { text } };
-      if (quotedGo && quotedClassic) {
-        goBody.quoted = quotedGo; goBodyMsg.quoted = quotedGo;
-        classicBody.quoted = quotedClassic; classicBodyV1.quoted = quotedClassic;
+      const attempts: Array<{ url: string; headers: Record<string, string>; body: any; mode: string }> = [];
+      for (const target of sendTargets) {
+        const messageId = crypto.randomUUID().replace(/-/g, '').slice(0, 20).toUpperCase();
+        const goBody: Record<string, unknown> = { number: target.value, text, delay: 0, id: messageId };
+        const goBodyMsg: Record<string, unknown> = { number: target.value, message: text, delay: 0, id: messageId };
+        const classicBody: Record<string, unknown> = { number: target.value, text };
+        const classicBodyV1: Record<string, unknown> = { number: target.value, textMessage: { text } };
+        if (quotedGo && quotedClassic) {
+          goBody.quoted = quotedGo; goBodyMsg.quoted = quotedGo;
+          classicBody.quoted = quotedClassic; classicBodyV1.quoted = quotedClassic;
+        }
+        attempts.push(
+          { url: `${baseUrl}/send/text`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: goBody, mode: `evolution-go-send-${target.kind}` },
+          { url: `${baseUrl}/message/sendText`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: goBody, mode: `evolution-go-${target.kind}` },
+          { url: `${baseUrl}/message/sendText`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: goBodyMsg, mode: `evolution-go-msg-${target.kind}` },
+          { url: `${baseUrl}/message/sendText/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: classicBodyV1, mode: `evolution-api-v1-${target.kind}` },
+          { url: `${baseUrl}/message/sendText/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: classicBody, mode: `evolution-api-${target.kind}` },
+        );
       }
-
-      const attempts: Array<{ url: string; headers: Record<string, string>; body: any; mode: string }> = [
-        { url: `${baseUrl}/message/sendText/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: classicBodyV1, mode: 'evolution-api-v1' },
-        { url: `${baseUrl}/message/sendText/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: classicBody, mode: 'evolution-api' },
-        { url: `${baseUrl}/send/text`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: goBody, mode: 'evolution-go-send' },
-        { url: `${baseUrl}/message/sendText`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: goBody, mode: 'evolution-go' },
-        { url: `${baseUrl}/message/sendText`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: goBodyMsg, mode: 'evolution-go-msg' },
-      ];
 
       let result: any = { ok: false, status: 0, data: {} };
       let mode = 'evolution-api-v1';
       const log: any[] = [];
       for (const att of attempts) {
-        const timeout = att.mode === 'evolution-go-send' ? 30000 : 8000;
+        const timeout = att.mode.startsWith('evolution-go-send') ? 30000 : 8000;
         const r = await fetchJson(att.url, {
           method: 'POST',
           headers: att.headers,
@@ -436,7 +511,7 @@ Deno.serve(async (req) => {
         log.push({ url: att.url, mode: att.mode, status: r.status, error: getEvolutionErrorText(r.data).slice(0, 180) });
         result = r; mode = att.mode;
         if (r.ok) break;
-        if (isEvolutionReachoutLock(r.data)) break;
+        if (isEvolutionReachoutLock(r.data)) continue;
         if (r.status !== 404 && r.status !== 405 && r.status !== 400 && r.status !== 0) break;
       }
 
@@ -458,7 +533,7 @@ Deno.serve(async (req) => {
       await insertOutgoingMessage(admin, {
         user_id: user.id,
         instance_name: instance,
-        remote_jid: result.data?.data?.Info?.Chat || result.data?.Info?.Chat || `${sendPhone}@s.whatsapp.net`,
+        remote_jid: result.data?.data?.Info?.Chat || result.data?.Info?.Chat || (primaryTarget.includes('@') ? primaryTarget : `${primaryTarget}@s.whatsapp.net`),
         phone,
         direction: 'out',
         content: text,
