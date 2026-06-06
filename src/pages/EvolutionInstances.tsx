@@ -51,10 +51,8 @@ export default function EvolutionInstances() {
   const pollRef = useRef<number | null>(null);
 
   const WEBHOOK_EVENTS = ['ALL','MESSAGE','SEND_MESSAGE','READ_RECEIPT','PRESENCE','HISTORY_SYNC','CHAT_PRESENCE','CALL','CONNECTION','QRCODE','CONTACTS','CHATS','GROUPS'];
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  const [settingsInstance, setSettingsInstance] = useState<string | null>(null);
-  const [savingSettings, setSavingSettings] = useState(false);
-  const [advanced, setAdvanced] = useState({
+  const DEFAULT_WEBHOOK_EVENTS = ['MESSAGE','SEND_MESSAGE','CONNECTION','PRESENCE','CHAT_PRESENCE'];
+  const DEFAULT_ADVANCED = {
     alwaysOnline: false,
     rejectCall: false,
     msgCall: '',
@@ -64,12 +62,30 @@ export default function EvolutionInstances() {
     readStatus: false,
     syncFullHistory: false,
     groupsOnly: false,
-  });
-  const [webhookEvents, setWebhookEvents] = useState<string[]>(['MESSAGE','SEND_MESSAGE','CONNECTION','PRESENCE','CHAT_PRESENCE']);
+  };
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsInstance, setSettingsInstance] = useState<string | null>(null);
+  const [savingSettings, setSavingSettings] = useState(false);
+  const [loadingSettings, setLoadingSettings] = useState(false);
+  const [advanced, setAdvanced] = useState(DEFAULT_ADVANCED);
+  const [webhookEvents, setWebhookEvents] = useState<string[]>(DEFAULT_WEBHOOK_EVENTS);
 
-  const openSettings = (name: string) => {
+  const openSettings = async (name: string) => {
     setSettingsInstance(name);
     setSettingsOpen(true);
+    setLoadingSettings(true);
+    const { data } = await supabase.functions.invoke('evolution-send', {
+      body: { action: 'get-instance-settings', instance: name },
+    });
+    if (data?.ok) {
+      setAdvanced({ ...DEFAULT_ADVANCED, ...(data.advanced || {}) });
+      const savedEvents = Array.isArray(data.webhook?.events) ? data.webhook.events : DEFAULT_WEBHOOK_EVENTS;
+      setWebhookEvents(savedEvents.length ? savedEvents : DEFAULT_WEBHOOK_EVENTS);
+    } else {
+      setAdvanced(DEFAULT_ADVANCED);
+      setWebhookEvents(DEFAULT_WEBHOOK_EVENTS);
+    }
+    setLoadingSettings(false);
   };
 
   const toggleEvent = (ev: string) => {
@@ -96,7 +112,12 @@ export default function EvolutionInstances() {
       toast({ title: 'Falha', description: error?.message || 'Não foi possível aplicar todas as configurações.', variant: 'destructive' });
       return;
     }
-    toast({ title: 'Salvo', description: `Configurações de "${settingsInstance}" aplicadas.` });
+    toast({
+      title: 'Salvo',
+      description: data.remoteOk === false
+        ? `Configurações de "${settingsInstance}" foram guardadas; o painel Evolution recusou aplicar uma parte agora.`
+        : `Configurações de "${settingsInstance}" aplicadas.`,
+    });
     setSettingsOpen(false);
   };
 
