@@ -208,10 +208,10 @@ async function sendTypingPresence(baseUrl: string, apiKey: string, instance: str
   const phoneJid = `${cleanPhone}@s.whatsapp.net`;
   const delay = Math.min(Math.max(Number(durationMs) || 6000, 1500), 12000);
   const attempts = [
+    { url: `${baseUrl}/message/presence`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: cleanPhone, state: 'composing', isAudio: false } },
+    { url: `${baseUrl}/chat/sendPresence/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: cleanPhone, options: { delay, presence: 'composing', number: cleanPhone } } },
     { url: `${baseUrl}/chat/presence`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: cleanPhone, phone: cleanPhone, jid: phoneJid, presence: 'composing', delay } },
     { url: `${baseUrl}/presence`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: cleanPhone, phone: cleanPhone, jid: phoneJid, presence: 'composing', delay } },
-    { url: `${baseUrl}/chat/sendPresence/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: cleanPhone, presence: 'composing', delay } },
-    { url: `${baseUrl}/chat/presence/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: cleanPhone, presence: 'composing', delay } },
   ];
   for (const att of attempts) {
     const r = await fetchJson(att.url, { method: 'POST', headers: att.headers, body: JSON.stringify(att.body) }, 4000).catch(() => null);
