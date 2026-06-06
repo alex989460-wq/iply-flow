@@ -496,7 +496,10 @@ Deno.serve(async (req) => {
         let result: any = { ok: false, status: 0, data: {} };
         let mode = 'evolution-api';
         const log: any[] = [];
-        await sleep((pace.waitMs || 0) + humanDelayMs(text));
+        const totalDelay = (pace.waitMs || 0) + humanDelayMs(text);
+        // Send typing presence first to look human, then wait the human delay
+        await sendTypingPresence(baseUrl, apiKey, instance, sendPhone, totalDelay, instAuth).catch(() => null);
+        await sleep(totalDelay);
         for (const att of attempts) {
           const r = await fetchJson(att.url, {
             method: 'POST',
