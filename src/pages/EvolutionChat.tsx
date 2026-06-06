@@ -1491,7 +1491,7 @@ export default function EvolutionChat() {
                       ref={composerRef}
                       placeholder="Digite uma mensagem..."
                       value={draft}
-                      onChange={(e) => setDraft(e.target.value)}
+                      onChange={(e) => { setDraft(e.target.value); if (e.target.value.trim()) notifyTyping(); }}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter' && (e.ctrlKey || e.shiftKey)) {
                           e.preventDefault();
