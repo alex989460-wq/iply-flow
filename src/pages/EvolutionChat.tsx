@@ -226,6 +226,7 @@ export default function EvolutionChat() {
     try { return JSON.parse(localStorage.getItem('evo_last_read') || '{}'); } catch { return {}; }
   });
   const [localReactions, setLocalReactions] = useState<Record<string, { emoji: string; from: 'in' | 'out' }>>({});
+  const [typingByPhone, setTypingByPhone] = useState<Record<string, { presence: string; at: number }>>({});
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -236,6 +237,9 @@ export default function EvolutionChat() {
   const recordTimerRef = useRef<number | null>(null);
   const avatarFetchRef = useRef<Set<string>>(new Set());
   const contactSyncRef = useRef(false);
+  const presenceSentAtRef = useRef<number>(0);
+  const presencePausedTimerRef = useRef<number | null>(null);
+  const presenceTickRef = useRef<number>(0);
 
   const getAuthHeaders = useCallback(async () => {
     let token = session?.access_token || '';
