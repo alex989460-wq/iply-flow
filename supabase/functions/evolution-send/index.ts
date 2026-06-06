@@ -223,7 +223,7 @@ function isEvolutionReachoutLock(data: any) {
   return /(^|\D)463(\D|$)|NackCallerReachoutTimelocked|reach[- ]?out|time[- ]?lock/i.test(getEvolutionErrorText(data));
 }
 
-const DEFAULT_WEBHOOK_EVENTS = ['MESSAGE', 'SEND_MESSAGE', 'CONNECTION', 'QRCODE', 'PRESENCE', 'CHAT_PRESENCE'];
+const DEFAULT_WEBHOOK_EVENTS = ['MESSAGE', 'SEND_MESSAGE', 'CONNECTION', 'QRCODE', 'PRESENCE', 'CHAT_PRESENCE', 'MESSAGE_RECEIPT', 'MESSAGES_UPDATE', 'RECEIPT'];
 
 function normalizeWebhookEvents(value: unknown) {
   const raw = Array.isArray(value) ? value : DEFAULT_WEBHOOK_EVENTS;
