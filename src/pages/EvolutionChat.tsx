@@ -183,7 +183,7 @@ async function fileToBase64(file: Blob): Promise<string> {
 }
 
 export default function EvolutionChat() {
-  const { user } = useAuth();
+  const { user, session } = useAuth();
   const { toast } = useToast();
   const isMobile = useIsMobile();
   const [loading, setLoading] = useState(true);
@@ -237,18 +237,37 @@ export default function EvolutionChat() {
   const avatarFetchRef = useRef<Set<string>>(new Set());
   const contactSyncRef = useRef(false);
 
+  const getAuthHeaders = useCallback(async () => {
+    let token = session?.access_token || '';
+    if (!token) {
+      const { data } = await supabase.auth.getSession();
+      token = data.session?.access_token || '';
+    }
+    if (!token) {
+      const { data } = await supabase.auth.refreshSession();
+      token = data.session?.access_token || '';
+    }
+    if (!token) throw new Error('Sessão expirada. Faça login novamente para enviar mensagens.');
+    return { Authorization: `Bearer ${token}` };
+  }, [session?.access_token]);
+
+  const invokeEvolution = useCallback(async (body: Record<string, unknown>) => {
+    return supabase.functions.invoke('evolution-send', {
+      body,
+      headers: await getAuthHeaders(),
+    });
+  }, [getAuthHeaders]);
+
   const loadInstances = useCallback(async () => {
-    const { data } = await supabase.functions.invoke('evolution-send', { body: { action: 'list-instances' } });
+    const { data } = await invokeEvolution({ action: 'list-instances' });
     if (data?.instances) setInstances(data.instances);
     if (data?.current) setCurrentInstance(data.current);
-  }, []);
+  }, [invokeEvolution]);
 
   const switchInstance = async (name: string) => {
     if (!name || name === currentInstance) return;
     setSwitchingInstance(true);
-    const { data, error } = await supabase.functions.invoke('evolution-send', {
-      body: { action: 'set-active-instance', name },
-    });
+    const { data, error } = await invokeEvolution({ action: 'set-active-instance', name });
     setSwitchingInstance(false);
     if (error || data?.error) {
       toast({ title: 'Erro', description: error?.message || data?.error, variant: 'destructive' });
@@ -346,21 +365,19 @@ export default function EvolutionChat() {
     if (c?.profile_pic_url) return;
     if (avatarFetchRef.current.has(selectedPhone)) return;
     avatarFetchRef.current.add(selectedPhone);
-    supabase.functions.invoke('evolution-send', {
-      body: { action: 'fetch-profile-pic', phone: selectedPhone },
-    }).then(({ data }) => {
+    invokeEvolution({ action: 'fetch-profile-pic', phone: selectedPhone }).then(({ data }) => {
       if (data?.url) setContacts(prev => ({
         ...prev,
         [selectedPhone]: { phone: selectedPhone, name: prev[selectedPhone]?.name || null, profile_pic_url: data.url },
       }));
     }).catch(() => {});
-  }, [selectedPhone, contacts]);
+  }, [selectedPhone, contacts, invokeEvolution]);
 
   useEffect(() => {
     if (!user || contactSyncRef.current) return;
     contactSyncRef.current = true;
-    supabase.functions.invoke('evolution-send', { body: { action: 'sync-contacts' } }).catch(() => undefined);
-  }, [user]);
+    invokeEvolution({ action: 'sync-contacts' }).catch(() => undefined);
+  }, [user, invokeEvolution]);
 
   // Filter messages by the selected instance. Legacy rows are only kept when raw payload identifies the same instance.
   const instanceMessages = useMemo(() => {
@@ -467,7 +484,7 @@ export default function EvolutionChat() {
       .slice(0, 8);
     pending.forEach((phone) => {
       avatarFetchRef.current.add(phone);
-      supabase.functions.invoke('evolution-send', { body: { action: 'fetch-profile-pic', phone } })
+      invokeEvolution({ action: 'fetch-profile-pic', phone })
         .then(({ data }) => {
           if (data?.url) setContacts(prev => ({
             ...prev,
@@ -476,7 +493,7 @@ export default function EvolutionChat() {
         })
         .catch(() => undefined);
     });
-  }, [conversations, contacts]);
+  }, [conversations, contacts, invokeEvolution]);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
@@ -601,9 +618,7 @@ export default function EvolutionChat() {
       else delete next[targetId];
       return next;
     });
-    const { data, error } = await supabase.functions.invoke('evolution-send', {
-      body: { action: 'send-reaction', phone: m.phone, messageId: targetId, fromMe: m.direction === 'out', emoji },
-    });
+    const { data, error } = await invokeEvolution({ action: 'send-reaction', phone: m.phone, messageId: targetId, fromMe: m.direction === 'out', emoji });
     if (error || data?.error || data?.ok === false) {
       setLocalReactions(prev => {
         const next = { ...prev };
@@ -624,9 +639,7 @@ export default function EvolutionChat() {
     const text = statusDraft.trim();
     if (!text) return;
     setPostingStatus(true);
-    const { data, error } = await supabase.functions.invoke('evolution-send', {
-      body: { action: 'send-status', text },
-    });
+    const { data, error } = await invokeEvolution({ action: 'send-status', text });
     setPostingStatus(false);
     if (error || data?.error) {
       toast({ title: 'Falha ao postar status', description: error?.message || data?.error || 'O painel Evolution rejeitou o envio.', variant: 'destructive' });
@@ -647,20 +660,25 @@ export default function EvolutionChat() {
     setContacts(prev => ({ ...prev, [phone]: prev[phone] || { phone, name: null, profile_pic_url: null } }));
     setSelectedPhone(phone);
     setNewPhone('');
-    await supabase.from('evolution_contacts').upsert({ user_id: user.id, phone }, { onConflict: 'user_id,phone' });
+    await invokeEvolution({ action: 'save-contact', phone });
   };
 
   // OPTIMISTIC TEXT SEND — message appears instantly, request goes in background
   const sendTextPayload = (phone: string, text: string, tempId: string, quoted: QuotedPayload | null, quotedRaw?: QuotedRawPayload) => {
-    supabase.functions.invoke('evolution-send', {
-      body: { action: 'send', phone, text, quoted },
-    }).then(({ data, error }) => {
+    invokeEvolution({ action: 'send', phone, text, quoted }).then(({ data, error }) => {
       if (error || data?.error || data?.ok === false) {
         setMessages(prev => prev.map(m => m.id === tempId ? { ...m, _pending: false, _failed: true } : m));
         toast({ title: 'Erro ao enviar', description: error?.message || data?.error || 'A Evolution não confirmou o envio.', variant: 'destructive' });
         return;
       }
       setMessages(prev => prev.map(m => m.id === tempId ? { ...m, _pending: false, _failed: false, status: 'sent', external_id: data?.externalId || m.external_id, raw: quotedRaw ? { ...(data || {}), ...quotedRaw } : data } : m));
+    }).catch((error) => {
+      setMessages(prev => prev.map(m => m.id === tempId ? { ...m, _pending: false, _failed: true } : m));
+      toast({
+        title: 'Erro ao enviar',
+        description: error instanceof Error ? error.message : 'Não foi possível confirmar sua sessão para enviar.',
+        variant: 'destructive',
+      });
     });
   };
 
@@ -715,16 +733,14 @@ export default function EvolutionChat() {
     setMessages(prev => [...prev, optimistic]);
     try {
       const base64 = await fileToBase64(file);
-      const { data, error } = await supabase.functions.invoke('evolution-send', {
-        body: {
-          action: 'send-media',
-          phone: selectedPhone,
-          mediaType,
-          mimetype: file.type || (mediaType === 'audio' ? 'audio/ogg' : 'application/octet-stream'),
-          filename: file.name || `media-${Date.now()}`,
-          mediaBase64: base64,
-          caption,
-        },
+      const { data, error } = await invokeEvolution({
+        action: 'send-media',
+        phone: selectedPhone,
+        mediaType,
+        mimetype: file.type || (mediaType === 'audio' ? 'audio/ogg' : 'application/octet-stream'),
+        filename: file.name || `media-${Date.now()}`,
+        mediaBase64: base64,
+        caption,
       });
       if (error || data?.error) {
         setMessages(prev => prev.map(m => m.id === tempId ? { ...m, _pending: false, _failed: true } : m));
