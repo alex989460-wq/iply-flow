@@ -51,10 +51,8 @@ export default function EvolutionInstances() {
   const pollRef = useRef<number | null>(null);
 
   const WEBHOOK_EVENTS = ['ALL','MESSAGE','SEND_MESSAGE','READ_RECEIPT','PRESENCE','HISTORY_SYNC','CHAT_PRESENCE','CALL','CONNECTION','QRCODE','CONTACTS','CHATS','GROUPS'];
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  const [settingsInstance, setSettingsInstance] = useState<string | null>(null);
-  const [savingSettings, setSavingSettings] = useState(false);
-  const [advanced, setAdvanced] = useState({
+  const DEFAULT_WEBHOOK_EVENTS = ['MESSAGE','SEND_MESSAGE','CONNECTION','PRESENCE','CHAT_PRESENCE'];
+  const DEFAULT_ADVANCED = {
     alwaysOnline: false,
     rejectCall: false,
     msgCall: '',
@@ -64,12 +62,30 @@ export default function EvolutionInstances() {
     readStatus: false,
     syncFullHistory: false,
     groupsOnly: false,
-  });
-  const [webhookEvents, setWebhookEvents] = useState<string[]>(['MESSAGE','SEND_MESSAGE','CONNECTION','PRESENCE','CHAT_PRESENCE']);
+  };
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsInstance, setSettingsInstance] = useState<string | null>(null);
+  const [savingSettings, setSavingSettings] = useState(false);
+  const [loadingSettings, setLoadingSettings] = useState(false);
+  const [advanced, setAdvanced] = useState(DEFAULT_ADVANCED);
+  const [webhookEvents, setWebhookEvents] = useState<string[]>(DEFAULT_WEBHOOK_EVENTS);
 
-  const openSettings = (name: string) => {
+  const openSettings = async (name: string) => {
     setSettingsInstance(name);
     setSettingsOpen(true);
+    setLoadingSettings(true);
+    const { data } = await supabase.functions.invoke('evolution-send', {
+      body: { action: 'get-instance-settings', instance: name },
+    });
+    if (data?.ok) {
+      setAdvanced({ ...DEFAULT_ADVANCED, ...(data.advanced || {}) });
+      const savedEvents = Array.isArray(data.webhook?.events) ? data.webhook.events : DEFAULT_WEBHOOK_EVENTS;
+      setWebhookEvents(savedEvents.length ? savedEvents : DEFAULT_WEBHOOK_EVENTS);
+    } else {
+      setAdvanced(DEFAULT_ADVANCED);
+      setWebhookEvents(DEFAULT_WEBHOOK_EVENTS);
+    }
+    setLoadingSettings(false);
   };
 
   const toggleEvent = (ev: string) => {
@@ -96,7 +112,12 @@ export default function EvolutionInstances() {
       toast({ title: 'Falha', description: error?.message || 'Não foi possível aplicar todas as configurações.', variant: 'destructive' });
       return;
     }
-    toast({ title: 'Salvo', description: `Configurações de "${settingsInstance}" aplicadas.` });
+    toast({
+      title: 'Salvo',
+      description: data.remoteOk === false
+        ? `Configurações de "${settingsInstance}" foram guardadas; o painel Evolution recusou aplicar uma parte agora.`
+        : `Configurações de "${settingsInstance}" aplicadas.`,
+    });
     setSettingsOpen(false);
   };
 
@@ -446,6 +467,11 @@ export default function EvolutionInstances() {
           </DialogHeader>
 
           <div className="space-y-6 py-2">
+            {loadingSettings && (
+              <div className="flex items-center gap-2 rounded-lg border border-border/60 bg-muted/40 p-3 text-xs text-muted-foreground">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" /> Carregando configurações salvas...
+              </div>
+            )}
             <div className="space-y-3">
               <h3 className="text-sm font-semibold">Configurações Avançadas</h3>
               {[
@@ -500,7 +526,7 @@ export default function EvolutionInstances() {
 
           <DialogFooter>
             <Button variant="ghost" onClick={() => setSettingsOpen(false)}>Cancelar</Button>
-            <Button onClick={saveSettings} disabled={savingSettings} className="gap-2">
+            <Button onClick={saveSettings} disabled={savingSettings || loadingSettings} className="gap-2">
               {savingSettings ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
               Salvar configurações
             </Button>

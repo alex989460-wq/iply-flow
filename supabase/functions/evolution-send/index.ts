@@ -223,6 +223,23 @@ function isEvolutionReachoutLock(data: any) {
   return /(^|\D)463(\D|$)|NackCallerReachoutTimelocked|reach[- ]?out|time[- ]?lock/i.test(getEvolutionErrorText(data));
 }
 
+const DEFAULT_WEBHOOK_EVENTS = ['MESSAGE', 'SEND_MESSAGE', 'CONNECTION', 'QRCODE', 'PRESENCE', 'CHAT_PRESENCE'];
+
+function normalizeWebhookEvents(value: unknown) {
+  const raw = Array.isArray(value) ? value : DEFAULT_WEBHOOK_EVENTS;
+  const events = raw.map((event) => String(event || '').trim().toUpperCase()).filter(Boolean);
+  if (events.includes('ALL')) return ['ALL'];
+  return Array.from(new Set(events.length ? events : DEFAULT_WEBHOOK_EVENTS));
+}
+
+function classicWebhookEvents(events: string[]) {
+  return events.includes('ALL') ? ['MESSAGES_UPSERT'] : events;
+}
+
+function evolutionSubscribeEvents(events: string[]) {
+  return events.includes('ALL') ? DEFAULT_WEBHOOK_EVENTS : events;
+}
+
 async function resolveGoInstanceId(baseUrl: string, apiKey: string, instance: string) {
   if (isUuid(instance)) return instance;
   const r = await fetchJson(`${baseUrl}/instance/all`, {
@@ -406,7 +423,7 @@ Deno.serve(async (req) => {
       const go = await fetchJson(`${baseUrl}/instance/connect`, {
         method: 'POST',
         headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId),
-        body: JSON.stringify({ webhookUrl, subscribe: ['MESSAGE', 'SEND_MESSAGE', 'CONNECTION', 'QRCODE'], immediate: true }),
+        body: JSON.stringify({ webhookUrl, subscribe: DEFAULT_WEBHOOK_EVENTS, immediate: true }),
       }).catch((error) => ({ ok: false, status: 0, data: { error: String(error?.message || error) } }));
       await fetchJson(`${baseUrl}/instance/${encodeURIComponent(instAuth.instanceId)}/advanced-settings`, {
         method: 'PUT',
@@ -440,7 +457,7 @@ Deno.serve(async (req) => {
         if (!ok) {
           const go = await fetchJson(`${baseUrl}/instance/connect`, {
             method: 'POST', headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId),
-            body: JSON.stringify({ webhookUrl, subscribe: ['MESSAGE', 'SEND_MESSAGE', 'CONNECTION', 'QRCODE'], immediate: true }),
+            body: JSON.stringify({ webhookUrl, subscribe: DEFAULT_WEBHOOK_EVENTS, immediate: true }),
           }).catch(() => ({ ok: false, status: 0 }));
           ok = !!go.ok;
         }
@@ -855,7 +872,7 @@ Deno.serve(async (req) => {
       const webhookUrlForConnect = `${supabaseUrl}/functions/v1/evolution-webhook?token=${settings.webhook_token}`;
       await fetchJson(`${baseUrl}/instance/connect`, {
         method: 'POST', headers: evolutionHeaders(scopedApiKey, true, scopedInstanceId),
-        body: JSON.stringify({ webhookUrl: webhookUrlForConnect, subscribe: ['MESSAGE','SEND_MESSAGE','CONNECTION','QRCODE'], immediate: true }),
+        body: JSON.stringify({ webhookUrl: webhookUrlForConnect, subscribe: DEFAULT_WEBHOOK_EVENTS, immediate: true }),
       }, 8000).catch(() => null);
 
 
@@ -1061,7 +1078,7 @@ Deno.serve(async (req) => {
         ignoreGroups: false,
           ignoreStatus: false,
       };
-      const defaultEvents = ['MESSAGE', 'SEND_MESSAGE', 'CONNECTION', 'QRCODE'];
+      const defaultEvents = DEFAULT_WEBHOOK_EVENTS;
       const payloads = [
         // Evolution GO format
         { url: `${baseUrl}/instance/create`, body: { name, token: instToken, advancedSettings: defaultAdvanced } },
@@ -1081,7 +1098,15 @@ Deno.serve(async (req) => {
           const instId = r.data?.id || r.data?.instance?.instanceId || r.data?.data?.id || null;
           const issuedToken = r.data?.token || r.data?.hash || r.data?.instance?.token || instToken;
           await admin.from('user_evolution_instances').upsert(
-            { user_id: user.id, instance_name: name, instance_id: instId },
+            {
+              user_id: user.id,
+              instance_name: name,
+              instance_id: instId,
+              advanced_settings: defaultAdvanced,
+              webhook_events: defaultEvents,
+              webhook_enabled: true,
+              settings_updated_at: new Date().toISOString(),
+            },
             { onConflict: 'instance_name' }
           );
 
@@ -1223,6 +1248,26 @@ Deno.serve(async (req) => {
       return jsonResponse({ ok: true });
     }
 
+    // GET SAVED INSTANCE SETTINGS
+    if (action === 'get-instance-settings') {
+      const targetInstance = String(body.instance || instance).trim();
+      if (!targetInstance) return jsonResponse({ error: 'instance obrigatório' }, 400);
+      const { data: saved } = await admin
+        .from('user_evolution_instances')
+        .select('advanced_settings,webhook_events,webhook_enabled,settings_updated_at')
+        .eq('instance_name', targetInstance)
+        .maybeSingle();
+      return jsonResponse({
+        ok: true,
+        advanced: saved?.advanced_settings || {},
+        webhook: {
+          events: normalizeWebhookEvents(saved?.webhook_events),
+          enabled: saved?.webhook_enabled !== false,
+          updatedAt: saved?.settings_updated_at || null,
+        },
+      });
+    }
+
     // UPDATE INSTANCE SETTINGS (Advanced + Webhook) — Evolution Go
     if (action === 'update-instance-settings') {
       const targetInstance = String(body.instance || instance).trim();
@@ -1265,11 +1310,11 @@ Deno.serve(async (req) => {
 
       if (webhook && typeof webhook === 'object') {
         const webhookUrl = String(webhook.url || `${supabaseUrl}/functions/v1/evolution-webhook?token=${settings.webhook_token}`);
-        const events: string[] = Array.isArray(webhook.events) ? webhook.events : [];
+        const events = normalizeWebhookEvents(webhook.events);
         const enabled = webhook.enabled !== false;
         // Evolution Go does NOT have a separate /webhook endpoint — webhook is set via /instance/connect with subscribe[]
-        const goBody = { webhookUrl, subscribe: events, enabled, immediate: false };
-        const classicBody = { webhook: { enabled, url: webhookUrl, events, byEvents: false, base64: true } };
+        const goBody = { webhookUrl, subscribe: evolutionSubscribeEvents(events), enabled, immediate: false };
+        const classicBody = { webhook: { enabled, url: webhookUrl, events: classicWebhookEvents(events), byEvents: false, base64: true } };
         const tries = [
           { url: `${baseUrl}/instance/connect`, method: 'POST', headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: goBody },
           { url: `${baseUrl}/webhook/set/${encodeURIComponent(targetInstance)}`, method: 'POST', headers: evolutionHeaders(apiKey, true), body: classicBody },
@@ -1283,8 +1328,31 @@ Deno.serve(async (req) => {
         }
       }
 
-      const ok = (!advanced || results.advanced?.ok) && (!webhook || results.webhook?.ok);
-      return jsonResponse({ ok, results });
+      const savedAdvanced = advanced && typeof advanced === 'object' ? {
+        alwaysOnline: !!advanced.alwaysOnline,
+        rejectCall: !!advanced.rejectCall,
+        msgCall: String(advanced.msgCall || ''),
+        readMessages: !!advanced.readMessages,
+        ignoreGroups: !!advanced.ignoreGroups,
+        ignoreStatus: !!advanced.ignoreStatus,
+        readStatus: !!advanced.readStatus,
+        syncFullHistory: !!advanced.syncFullHistory,
+        groupsOnly: !!advanced.groupsOnly,
+      } : {};
+      const savedEvents = normalizeWebhookEvents(webhook?.events);
+      const { error: saveError } = await admin.from('user_evolution_instances').upsert({
+        user_id: user.id,
+        instance_name: targetInstance,
+        instance_id: instAuth.instanceId,
+        advanced_settings: savedAdvanced,
+        webhook_events: savedEvents,
+        webhook_enabled: webhook?.enabled !== false,
+        settings_updated_at: new Date().toISOString(),
+      }, { onConflict: 'instance_name' });
+
+      const remoteOk = (!advanced || results.advanced?.ok) && (!webhook || results.webhook?.ok);
+      if (saveError) return jsonResponse({ ok: false, error: saveError.message, results }, 200);
+      return jsonResponse({ ok: true, saved: true, remoteOk, results });
     }
 
     // SEND PRESENCE (digitando…) — body: { phone, presence: 'composing'|'paused'|'available' }
