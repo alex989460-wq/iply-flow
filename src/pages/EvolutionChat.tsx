@@ -226,6 +226,7 @@ export default function EvolutionChat() {
     try { return JSON.parse(localStorage.getItem('evo_last_read') || '{}'); } catch { return {}; }
   });
   const [localReactions, setLocalReactions] = useState<Record<string, { emoji: string; from: 'in' | 'out' }>>({});
+  const [typingByPhone, setTypingByPhone] = useState<Record<string, { presence: string; at: number }>>({});
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -236,6 +237,9 @@ export default function EvolutionChat() {
   const recordTimerRef = useRef<number | null>(null);
   const avatarFetchRef = useRef<Set<string>>(new Set());
   const contactSyncRef = useRef(false);
+  const presenceSentAtRef = useRef<number>(0);
+  const presencePausedTimerRef = useRef<number | null>(null);
+  const presenceTickRef = useRef<number>(0);
 
   const getAuthHeaders = useCallback(async () => {
     let token = session?.access_token || '';
@@ -350,13 +354,64 @@ export default function EvolutionChat() {
           return mergeMessage(prev, m);
         });
       })
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'evolution_messages', filter: `user_id=eq.${user.id}` }, (payload) => {
+        const oldRow = payload.old as { id?: string } | null;
+        if (oldRow?.id) setMessages(prev => prev.filter(m => m.id !== oldRow.id));
+      })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'evolution_contacts', filter: `user_id=eq.${user.id}` }, (payload) => {
         const c = payload.new as EvoContact;
         if (c?.phone) setContacts(prev => ({ ...prev, [c.phone]: c }));
       })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'evolution_presence', filter: `user_id=eq.${user.id}` }, (payload) => {
+        const row = payload.new as { phone?: string; presence?: string } | null;
+        if (!row?.phone) return;
+        setTypingByPhone(prev => ({ ...prev, [row.phone!]: { presence: row.presence || 'available', at: Date.now() } }));
+      })
       .subscribe();
     return () => { supabase.removeChannel(ch); };
   }, [user, mergeMessage]);
+
+  // Re-render every 2s so "digitando..." auto-expires after 8s of silence
+  useEffect(() => {
+    const t = window.setInterval(() => { presenceTickRef.current = Date.now(); setTypingByPhone(prev => ({ ...prev })); }, 2000);
+    return () => clearInterval(t);
+  }, []);
+
+  // Send typing presence to the contact (debounced; "paused" after 4s of silence)
+  const sendPresence = useCallback((presence: 'composing' | 'paused') => {
+    if (!selectedPhone || selectedPhone.startsWith('status:')) return;
+    invokeEvolution({ action: 'send-presence', phone: selectedPhone, presence }).catch(() => undefined);
+  }, [selectedPhone, invokeEvolution]);
+
+  const notifyTyping = useCallback(() => {
+    const now = Date.now();
+    if (now - presenceSentAtRef.current > 3500) {
+      presenceSentAtRef.current = now;
+      sendPresence('composing');
+    }
+    if (presencePausedTimerRef.current) window.clearTimeout(presencePausedTimerRef.current);
+    presencePausedTimerRef.current = window.setTimeout(() => {
+      presenceSentAtRef.current = 0;
+      sendPresence('paused');
+    }, 4000);
+  }, [sendPresence]);
+
+  // When switching conversation: cancel any pending paused timer
+  useEffect(() => {
+    return () => {
+      if (presencePausedTimerRef.current) window.clearTimeout(presencePausedTimerRef.current);
+      presenceSentAtRef.current = 0;
+    };
+  }, [selectedPhone]);
+
+  const contactTypingPresence = useMemo(() => {
+    if (!selectedPhone) return null;
+    const t = typingByPhone[selectedPhone];
+    if (!t) return null;
+    if (Date.now() - t.at > 8000) return null;
+    if (t.presence !== 'composing' && t.presence !== 'recording') return null;
+    return t.presence;
+  }, [typingByPhone, selectedPhone]);
 
   // Fetch profile pic when opening a conversation without one
   useEffect(() => {
@@ -532,14 +587,33 @@ export default function EvolutionChat() {
     });
   };
 
-  const deleteLocal = (id: string) => {
-    if (!selectedPhone) return;
-    setHiddenIds(prev => {
-      const next = new Set(prev); next.add(id);
-      try { localStorage.setItem(`evo_hidden_${selectedPhone}`, JSON.stringify([...next])); } catch { /* noop */ }
-      return next;
-    });
-    toast({ title: 'Mensagem apagada (somente aqui)' });
+  const deleteMessage = async (m: EvoMessage) => {
+    // Optimistic remove
+    setMessages(prev => prev.filter(x => x.id !== m.id));
+    // If it's a temp/local message, nothing to remove from DB
+    if (m.id.startsWith('tmp-')) return;
+    const { error } = await supabase.from('evolution_messages').delete().eq('id', m.id);
+    if (error) {
+      toast({ title: 'Não foi possível excluir', description: error.message, variant: 'destructive' });
+      setMessages(prev => [...prev, m].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()));
+      return;
+    }
+    toast({ title: 'Mensagem excluída' });
+  };
+
+  const clearConversation = async () => {
+    if (!selectedPhone || !user) return;
+    if (!confirm('Apagar TODAS as mensagens desta conversa? Esta ação não pode ser desfeita.')) return;
+    const phone = selectedPhone;
+    const removed = messages.filter(m => m.phone === phone);
+    setMessages(prev => prev.filter(m => m.phone !== phone));
+    const { error } = await supabase.from('evolution_messages').delete().eq('user_id', user.id).eq('phone', phone);
+    if (error) {
+      toast({ title: 'Falha ao limpar conversa', description: error.message, variant: 'destructive' });
+      setMessages(prev => [...prev, ...removed]);
+      return;
+    }
+    toast({ title: 'Conversa apagada', description: `${removed.length} mensagens removidas` });
   };
 
   const isFavorited = useCallback((id: string) => favorites.some(f => f.id === id), [favorites]);
@@ -1077,6 +1151,10 @@ export default function EvolutionChat() {
                     <div className="text-[11px] text-[#8696a0] flex items-center gap-1">
                       {selectedPhone?.startsWith('status:') ? (
                         <span>{selectedPhone === 'status:me' ? 'Suas publicações de status' : 'Status recente do contato'}</span>
+                      ) : contactTypingPresence ? (
+                        <span className="text-[#00a884] font-medium animate-pulse">
+                          {contactTypingPresence === 'recording' ? 'gravando áudio...' : 'digitando...'}
+                        </span>
                       ) : (
                         <>
                           <Phone className="w-2.5 h-2.5" /> {formatPhone(selectedPhone)}
@@ -1118,6 +1196,9 @@ export default function EvolutionChat() {
                     <DropdownMenuSeparator />
                     <DropdownMenuItem onClick={load}>
                       <RefreshCw className="w-4 h-4 mr-2" /> Recarregar mensagens
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={clearConversation} className="text-destructive focus:text-destructive">
+                      <Trash2 className="w-4 h-4 mr-2" /> Limpar conversa
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
@@ -1218,8 +1299,8 @@ export default function EvolutionChat() {
                                     {isFavorited(m.id) ? <><StarOff className="w-4 h-4 mr-2" /> Desfavoritar</> : <><Star className="w-4 h-4 mr-2" /> Favoritar</>}
                                   </DropdownMenuItem>
                                   <DropdownMenuSeparator />
-                                  <DropdownMenuItem onClick={() => deleteLocal(m.id)} className="text-destructive focus:text-destructive">
-                                    <Trash className="w-4 h-4 mr-2" /> Apagar (somente aqui)
+                                  <DropdownMenuItem onClick={() => deleteMessage(m)} className="text-destructive focus:text-destructive">
+                                    <Trash className="w-4 h-4 mr-2" /> Excluir mensagem
                                   </DropdownMenuItem>
                                 </DropdownMenuContent>
                               </DropdownMenu>
@@ -1298,8 +1379,8 @@ export default function EvolutionChat() {
                             <ContextMenuItem onClick={() => scrollToMessage(m.id)}>
                               <Info className="w-4 h-4 mr-2" /> Centralizar
                             </ContextMenuItem>
-                            <ContextMenuItem onClick={() => deleteLocal(m.id)} className="text-destructive focus:text-destructive">
-                              <Trash className="w-4 h-4 mr-2" /> Apagar (somente aqui)
+                            <ContextMenuItem onClick={() => deleteMessage(m)} className="text-destructive focus:text-destructive">
+                              <Trash className="w-4 h-4 mr-2" /> Excluir mensagem
                             </ContextMenuItem>
                           </ContextMenuContent>
                         </ContextMenu>
@@ -1410,7 +1491,7 @@ export default function EvolutionChat() {
                       ref={composerRef}
                       placeholder="Digite uma mensagem..."
                       value={draft}
-                      onChange={(e) => setDraft(e.target.value)}
+                      onChange={(e) => { setDraft(e.target.value); if (e.target.value.trim()) notifyTyping(); }}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter' && (e.ctrlKey || e.shiftKey)) {
                           e.preventDefault();

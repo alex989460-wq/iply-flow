@@ -1287,6 +1287,42 @@ Deno.serve(async (req) => {
       return jsonResponse({ ok, results });
     }
 
+    // SEND PRESENCE (digitando…) — body: { phone, presence: 'composing'|'paused'|'available' }
+    if (action === 'send-presence') {
+      if (!instance) return jsonResponse({ ok: false }, 200);
+      const phone = normalizePhone(body.phone);
+      const presence = String(body.presence || 'composing');
+      if (!phone) return jsonResponse({ ok: false }, 200);
+      const instAuth = await resolveInstanceAuth(baseUrl, apiKey, instance);
+      const jid = `${phone}@s.whatsapp.net`;
+      const tries = [
+        { url: `${baseUrl}/chat/sendPresence/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: phone, presence, delay: 1200 } },
+        { url: `${baseUrl}/chat/presence`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: phone, presence } },
+        { url: `${baseUrl}/chat/sendPresence`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: jid, presence } },
+      ];
+      for (const t of tries) {
+        const r = await fetchJson(t.url, { method: 'POST', headers: t.headers, body: JSON.stringify(t.body) }, 5000)
+          .catch(() => ({ ok: false, status: 0, data: {} }));
+        if (r.ok) return jsonResponse({ ok: true });
+      }
+      return jsonResponse({ ok: false }, 200);
+    }
+
+    // DELETE MESSAGES — body: { ids?: string[], id?: string, phone?: string (limpar conversa) }
+    if (action === 'delete-messages') {
+      const ids: string[] = Array.isArray(body.ids) ? body.ids : (body.id ? [String(body.id)] : []);
+      if (body.phone && !ids.length) {
+        const phone = normalizeChatPhone(body.phone);
+        const { error, count } = await admin.from('evolution_messages').delete({ count: 'exact' }).eq('user_id', user.id).eq('phone', phone);
+        if (error) return jsonResponse({ error: error.message }, 500);
+        return jsonResponse({ ok: true, deleted: count || 0 });
+      }
+      if (!ids.length) return jsonResponse({ error: 'id obrigatório' }, 400);
+      const { error, count } = await admin.from('evolution_messages').delete({ count: 'exact' }).eq('user_id', user.id).in('id', ids);
+      if (error) return jsonResponse({ error: error.message }, 500);
+      return jsonResponse({ ok: true, deleted: count || 0 });
+    }
+
     return jsonResponse({ error: 'action inválida' }, 400);
   } catch (e) {
     console.error('[evolution-send]', e);
