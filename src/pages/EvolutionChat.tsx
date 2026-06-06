@@ -663,14 +663,26 @@ export default function EvolutionChat() {
         return;
       }
       const pendingExternalId = data?.data?.pendingExternalId;
-      setMessages(prev => prev.map(m => (m.id === tempId || (pendingExternalId && m.external_id === pendingExternalId)) ? {
-        ...m,
-        _pending: !!data?.queued,
-        _failed: false,
-        status: data?.queued ? 'pending' : 'sent',
-        external_id: pendingExternalId || m.external_id,
-        raw: quotedRaw ? { ...(data || {}), ...quotedRaw } : data,
-      } : m));
+      setMessages(prev => {
+        const serverRow = pendingExternalId ? prev.find(m => m.external_id === pendingExternalId && m.id !== tempId) : null;
+        if (serverRow) return prev
+          .filter(m => m.id !== tempId)
+          .map(m => m.id === serverRow.id ? {
+            ...m,
+            _pending: !!data?.queued,
+            _failed: false,
+            status: data?.queued ? 'pending' : 'sent',
+            raw: quotedRaw ? { ...(m.raw as object || {}), ...quotedRaw } : m.raw,
+          } : m);
+        return prev.map(m => m.id === tempId ? {
+          ...m,
+          _pending: !!data?.queued,
+          _failed: false,
+          status: data?.queued ? 'pending' : 'sent',
+          external_id: pendingExternalId || m.external_id,
+          raw: quotedRaw ? { ...(data || {}), ...quotedRaw } : data,
+        } : m);
+      });
     });
   };
 
