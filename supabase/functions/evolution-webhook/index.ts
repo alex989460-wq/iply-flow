@@ -145,6 +145,13 @@ function contactPayload(userId: string, phone: string, name?: string | null, pro
   return row;
 }
 
+function bestConversationPhone(info: any, remoteJid: string) {
+  const alt = info?.IsFromMe ? (info?.RecipientAlt || info?.TargetJID || info?.TargetID) : (info?.SenderAlt || info?.Sender);
+  const altPhone = jidToPhone(String(alt || ''));
+  if (altPhone && altPhone.length >= 10) return altPhone;
+  return jidToPhone(remoteJid);
+}
+
 async function insertMessageOnce(admin: any, row: Record<string, unknown>) {
   if (row.external_id) {
     const { data: existing } = await admin
@@ -227,7 +234,7 @@ Deno.serve(async (req) => {
         const participantPhone = participantJid ? jidToPhone(participantJid) : '';
         const phone = isStatus
           ? (info.IsFromMe ? 'status:me' : (participantPhone ? `status:${participantPhone}` : 'status:unknown'))
-          : jidToPhone(remoteJid);
+          : bestConversationPhone(info, remoteJid);
         const msg = data.Message || {};
         const type = messageType(msg, String(info.MediaType || info.Type || '').toLowerCase());
         const mediaMime = mediaMimeFrom(msg);
