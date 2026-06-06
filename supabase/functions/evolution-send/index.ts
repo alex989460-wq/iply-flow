@@ -1177,6 +1177,13 @@ Deno.serve(async (req) => {
     if (action === 'set-active-instance') {
       const name = String(body.name || '').trim();
       if (!name) return jsonResponse({ error: 'name obrigatório' }, 400);
+      const webhookUrl = `${supabaseUrl}/functions/v1/evolution-webhook?token=${settings.webhook_token}`;
+      const instAuth = await resolveInstanceAuth(baseUrl, apiKey, name);
+      await fetchJson(`${baseUrl}/instance/connect`, {
+        method: 'POST',
+        headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId),
+        body: JSON.stringify({ webhookUrl, subscribe: ['MESSAGE', 'SEND_MESSAGE', 'CONNECTION', 'QRCODE'], immediate: true }),
+      }, 8000).catch(() => null);
       const { error } = await admin
         .from('evolution_settings')
         .update({ instance_name: name })
