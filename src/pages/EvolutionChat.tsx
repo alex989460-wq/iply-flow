@@ -1151,6 +1151,10 @@ export default function EvolutionChat() {
                     <div className="text-[11px] text-[#8696a0] flex items-center gap-1">
                       {selectedPhone?.startsWith('status:') ? (
                         <span>{selectedPhone === 'status:me' ? 'Suas publicações de status' : 'Status recente do contato'}</span>
+                      ) : contactTypingPresence ? (
+                        <span className="text-[#00a884] font-medium animate-pulse">
+                          {contactTypingPresence === 'recording' ? 'gravando áudio...' : 'digitando...'}
+                        </span>
                       ) : (
                         <>
                           <Phone className="w-2.5 h-2.5" /> {formatPhone(selectedPhone)}
