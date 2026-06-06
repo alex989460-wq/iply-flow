@@ -183,7 +183,7 @@ async function fileToBase64(file: Blob): Promise<string> {
 }
 
 export default function EvolutionChat() {
-  const { user } = useAuth();
+  const { user, session } = useAuth();
   const { toast } = useToast();
   const isMobile = useIsMobile();
   const [loading, setLoading] = useState(true);
@@ -237,18 +237,37 @@ export default function EvolutionChat() {
   const avatarFetchRef = useRef<Set<string>>(new Set());
   const contactSyncRef = useRef(false);
 
+  const getAuthHeaders = useCallback(async () => {
+    let token = session?.access_token || '';
+    if (!token) {
+      const { data } = await supabase.auth.getSession();
+      token = data.session?.access_token || '';
+    }
+    if (!token) {
+      const { data } = await supabase.auth.refreshSession();
+      token = data.session?.access_token || '';
+    }
+    if (!token) throw new Error('Sessão expirada. Faça login novamente para enviar mensagens.');
+    return { Authorization: `Bearer ${token}` };
+  }, [session?.access_token]);
+
+  const invokeEvolution = useCallback(async (body: Record<string, unknown>) => {
+    return supabase.functions.invoke('evolution-send', {
+      body,
+      headers: await getAuthHeaders(),
+    });
+  }, [getAuthHeaders]);
+
   const loadInstances = useCallback(async () => {
-    const { data } = await supabase.functions.invoke('evolution-send', { body: { action: 'list-instances' } });
+    const { data } = await invokeEvolution({ action: 'list-instances' });
     if (data?.instances) setInstances(data.instances);
     if (data?.current) setCurrentInstance(data.current);
-  }, []);
+  }, [invokeEvolution]);
 
   const switchInstance = async (name: string) => {
     if (!name || name === currentInstance) return;
     setSwitchingInstance(true);
-    const { data, error } = await supabase.functions.invoke('evolution-send', {
-      body: { action: 'set-active-instance', name },
-    });
+    const { data, error } = await invokeEvolution({ action: 'set-active-instance', name });
     setSwitchingInstance(false);
     if (error || data?.error) {
       toast({ title: 'Erro', description: error?.message || data?.error, variant: 'destructive' });
