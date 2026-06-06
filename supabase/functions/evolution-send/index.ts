@@ -419,7 +419,7 @@ Deno.serve(async (req) => {
       const go = await fetchJson(`${baseUrl}/instance/connect`, {
         method: 'POST',
         headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId),
-        body: JSON.stringify({ webhookUrl, subscribe: ['MESSAGE', 'SEND_MESSAGE', 'CONNECTION', 'QRCODE'], immediate: true }),
+        body: JSON.stringify({ webhookUrl, subscribe: DEFAULT_WEBHOOK_EVENTS, immediate: true }),
       }).catch((error) => ({ ok: false, status: 0, data: { error: String(error?.message || error) } }));
       await fetchJson(`${baseUrl}/instance/${encodeURIComponent(instAuth.instanceId)}/advanced-settings`, {
         method: 'PUT',
@@ -1074,7 +1074,7 @@ Deno.serve(async (req) => {
         ignoreGroups: false,
           ignoreStatus: false,
       };
-      const defaultEvents = ['MESSAGE', 'SEND_MESSAGE', 'CONNECTION', 'QRCODE'];
+      const defaultEvents = DEFAULT_WEBHOOK_EVENTS;
       const payloads = [
         // Evolution GO format
         { url: `${baseUrl}/instance/create`, body: { name, token: instToken, advancedSettings: defaultAdvanced } },
@@ -1278,11 +1278,11 @@ Deno.serve(async (req) => {
 
       if (webhook && typeof webhook === 'object') {
         const webhookUrl = String(webhook.url || `${supabaseUrl}/functions/v1/evolution-webhook?token=${settings.webhook_token}`);
-        const events: string[] = Array.isArray(webhook.events) ? webhook.events : [];
+        const events = normalizeWebhookEvents(webhook.events);
         const enabled = webhook.enabled !== false;
         // Evolution Go does NOT have a separate /webhook endpoint — webhook is set via /instance/connect with subscribe[]
         const goBody = { webhookUrl, subscribe: events, enabled, immediate: false };
-        const classicBody = { webhook: { enabled, url: webhookUrl, events, byEvents: false, base64: true } };
+        const classicBody = { webhook: { enabled, url: webhookUrl, events: classicWebhookEvents(events), byEvents: false, base64: true } };
         const tries = [
           { url: `${baseUrl}/instance/connect`, method: 'POST', headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: goBody },
           { url: `${baseUrl}/webhook/set/${encodeURIComponent(targetInstance)}`, method: 'POST', headers: evolutionHeaders(apiKey, true), body: classicBody },
