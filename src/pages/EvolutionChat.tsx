@@ -1035,6 +1035,23 @@ export default function EvolutionChat() {
             <Button size="icon" variant="ghost" className="h-8 w-8" onClick={load} title="Atualizar">
               <RefreshCw className={cn('w-3.5 h-3.5', loading && 'animate-spin')} />
             </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button size="icon" variant="ghost" className="h-8 w-8" title="Mais ações">
+                  <MoreVertical className="w-3.5 h-3.5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuItem onClick={() => syncHistory()} disabled={syncingHistory}>
+                  <RefreshCw className={cn('w-4 h-4 mr-2', syncingHistory && 'animate-spin')} /> Sincronizar todo o histórico
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={clearAllConversations} className="text-destructive focus:text-destructive">
+                  <Trash2 className="w-4 h-4 mr-2" /> Limpar TODO o histórico
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
           </div>
 
           <div className="p-2 space-y-2 border-b border-border">
