@@ -541,7 +541,7 @@ Deno.serve(async (req) => {
           }, 9000).catch((error) => ({ ok: false, status: 0, data: { error: String(error?.message || error) } }));
           log.push({ url: att.url, mode: att.mode, status: r.status });
           if (r.ok) { result = r; mode = att.mode; break; }
-          if (r.status !== 404 && r.status !== 405 && r.status !== 400 && r.status !== 500) { result = r; mode = att.mode; break; }
+          if (r.status !== 404 && r.status !== 405 && r.status !== 400) { result = r; mode = att.mode; break; }
           result = r; mode = att.mode;
         }
         if (!result.ok) {
