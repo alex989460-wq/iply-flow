@@ -618,9 +618,7 @@ export default function EvolutionChat() {
       else delete next[targetId];
       return next;
     });
-    const { data, error } = await supabase.functions.invoke('evolution-send', {
-      body: { action: 'send-reaction', phone: m.phone, messageId: targetId, fromMe: m.direction === 'out', emoji },
-    });
+    const { data, error } = await invokeEvolution({ action: 'send-reaction', phone: m.phone, messageId: targetId, fromMe: m.direction === 'out', emoji });
     if (error || data?.error || data?.ok === false) {
       setLocalReactions(prev => {
         const next = { ...prev };
@@ -641,9 +639,7 @@ export default function EvolutionChat() {
     const text = statusDraft.trim();
     if (!text) return;
     setPostingStatus(true);
-    const { data, error } = await supabase.functions.invoke('evolution-send', {
-      body: { action: 'send-status', text },
-    });
+    const { data, error } = await invokeEvolution({ action: 'send-status', text });
     setPostingStatus(false);
     if (error || data?.error) {
       toast({ title: 'Falha ao postar status', description: error?.message || data?.error || 'O painel Evolution rejeitou o envio.', variant: 'destructive' });
@@ -664,14 +660,12 @@ export default function EvolutionChat() {
     setContacts(prev => ({ ...prev, [phone]: prev[phone] || { phone, name: null, profile_pic_url: null } }));
     setSelectedPhone(phone);
     setNewPhone('');
-    await supabase.from('evolution_contacts').upsert({ user_id: user.id, phone }, { onConflict: 'user_id,phone' });
+    await invokeEvolution({ action: 'save-contact', phone });
   };
 
   // OPTIMISTIC TEXT SEND — message appears instantly, request goes in background
   const sendTextPayload = (phone: string, text: string, tempId: string, quoted: QuotedPayload | null, quotedRaw?: QuotedRawPayload) => {
-    supabase.functions.invoke('evolution-send', {
-      body: { action: 'send', phone, text, quoted },
-    }).then(({ data, error }) => {
+    invokeEvolution({ action: 'send', phone, text, quoted }).then(({ data, error }) => {
       if (error || data?.error || data?.ok === false) {
         setMessages(prev => prev.map(m => m.id === tempId ? { ...m, _pending: false, _failed: true } : m));
         toast({ title: 'Erro ao enviar', description: error?.message || data?.error || 'A Evolution não confirmou o envio.', variant: 'destructive' });
