@@ -55,20 +55,9 @@ function recipientJid(value: string) {
 
 async function resolveSendPhone(admin: any, userId: string, phone: string) {
   const normalized = normalizeChatPhone(phone);
-  const { data } = await admin
-    .from('evolution_messages')
-    .select('raw,direction,status')
-    .eq('user_id', userId)
-    .eq('phone', normalized || phone)
-    .order('created_at', { ascending: false })
-    .limit(20);
-  for (const row of data || []) {
-    const info = row?.raw?.data?.Info || row?.raw?.Info || {};
-    const lidCandidate = row?.direction === 'in'
-      ? jidPhone(info.SenderAlt) || jidPhone(info.Sender)
-      : jidPhone(info.Chat) || jidPhone(info.RecipientAlt) || jidPhone(info.SenderAlt);
-    if (isLikelyLid(lidCandidate)) return lidCandidate;
-  }
+  // Keep delivery on the public WhatsApp number. The panel may expose @lid in
+  // webhook metadata, but sending to that alternate id has been returning
+  // WhatsApp 463 on this Evolution Go instance.
   return normalized || phone;
 }
 
@@ -215,11 +204,14 @@ async function guardHumanSendPace(admin: any, userId: string, instanceName: stri
 }
 
 async function sendTypingPresence(baseUrl: string, apiKey: string, instance: string, sendPhone: string, durationMs: number, instAuth: { apiKey: string; instanceId: string }) {
-  const phoneJid = recipientJid(sendPhone);
+  const cleanPhone = normalizeChatPhone(sendPhone);
+  const phoneJid = `${cleanPhone}@s.whatsapp.net`;
+  const delay = Math.min(Math.max(Number(durationMs) || 6000, 1500), 12000);
   const attempts = [
-    { url: `${baseUrl}/chat/sendPresence/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: sendPhone, presence: 'composing', delay: Math.min(durationMs, 8000) } },
-    { url: `${baseUrl}/chat/presence`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { phone: sendPhone, presence: 'composing' } },
-    { url: `${baseUrl}/chat/presence/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: sendPhone, presence: 'composing' } },
+    { url: `${baseUrl}/chat/presence`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: cleanPhone, phone: cleanPhone, jid: phoneJid, presence: 'composing', delay } },
+    { url: `${baseUrl}/presence`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: cleanPhone, phone: cleanPhone, jid: phoneJid, presence: 'composing', delay } },
+    { url: `${baseUrl}/chat/sendPresence/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: cleanPhone, presence: 'composing', delay } },
+    { url: `${baseUrl}/chat/presence/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: cleanPhone, presence: 'composing', delay } },
   ];
   for (const att of attempts) {
     const r = await fetchJson(att.url, { method: 'POST', headers: att.headers, body: JSON.stringify(att.body) }, 4000).catch(() => null);
