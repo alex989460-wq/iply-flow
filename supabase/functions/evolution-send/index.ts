@@ -43,21 +43,33 @@ function jidPhone(value: unknown) {
   return digits.length >= 10 ? digits : '';
 }
 
+function isLikelyLid(value: string) {
+  const digits = String(value || '').replace(/\D/g, '');
+  return digits.length >= 13 && !digits.startsWith('55');
+}
+
+function recipientJid(value: string) {
+  const digits = String(value || '').replace(/\D/g, '');
+  return `${digits}@${isLikelyLid(digits) ? 'lid' : 's.whatsapp.net'}`;
+}
+
 async function resolveSendPhone(admin: any, userId: string, phone: string) {
-  if (phone.startsWith('55') && phone.length >= 12) return phone;
+  const normalized = normalizeChatPhone(phone);
   const { data } = await admin
     .from('evolution_messages')
-    .select('raw')
+    .select('raw,direction,status')
     .eq('user_id', userId)
-    .eq('phone', phone)
+    .eq('phone', normalized || phone)
     .order('created_at', { ascending: false })
     .limit(20);
   for (const row of data || []) {
     const info = row?.raw?.data?.Info || row?.raw?.Info || {};
-    const candidate = jidPhone(info.RecipientAlt) || jidPhone(info.SenderAlt) || jidPhone(info.Sender);
-    if (candidate?.startsWith('55')) return candidate;
+    const lidCandidate = row?.direction === 'in'
+      ? jidPhone(info.SenderAlt) || jidPhone(info.Sender)
+      : jidPhone(info.Chat) || jidPhone(info.RecipientAlt) || jidPhone(info.SenderAlt);
+    if (isLikelyLid(lidCandidate)) return lidCandidate;
   }
-  return phone;
+  return normalized || phone;
 }
 
 function phoneFromJid(value: unknown) {
