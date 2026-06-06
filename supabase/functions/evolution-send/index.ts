@@ -256,6 +256,22 @@ async function resolveInstanceAuth(baseUrl: string, apiKey: string, instance: st
   };
 }
 
+async function primeEvolutionContact(baseUrl: string, apiKey: string, instanceId: string, phone: string) {
+  const digits = String(phone || '').replace(/\D/g, '');
+  if (!digits) return;
+  const jid = `${digits}@s.whatsapp.net`;
+  const headers = evolutionHeaders(apiKey, true, instanceId);
+  const probes = [
+    { url: `${baseUrl}/user/info`, body: { number: [digits] } },
+    { url: `${baseUrl}/user/info`, body: { number: [jid] } },
+    { url: `${baseUrl}/user/avatar`, body: { number: digits, preview: false } },
+    { url: `${baseUrl}/user/avatar`, body: { number: jid, preview: false } },
+  ];
+  await Promise.all(probes.map((probe) =>
+    fetchJson(probe.url, { method: 'POST', headers, body: JSON.stringify(probe.body) }, 3000).catch(() => null)
+  ));
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
@@ -445,6 +461,7 @@ Deno.serve(async (req) => {
       const instAuth = await resolveInstanceAuth(baseUrl, apiKey, instance);
       const sendTargets = await resolveSendTargets(admin, user.id, phone);
       const primaryTarget = sendTargets[0]?.value || await resolveSendPhone(admin, user.id, phone);
+      await primeEvolutionContact(baseUrl, instAuth.apiKey, instAuth.instanceId, phone);
 
       // Build optional "quoted" payload (reply-to) compatible with both API flavors
       const quotedRaw = body.quoted as { messageId?: string; fromMe?: boolean; text?: string } | null | undefined;
