@@ -436,6 +436,32 @@ Deno.serve(async (req) => {
       return jsonResponse({ ok: results.every(r => r.ok), results, webhookUrl });
     }
 
+    // PRESENCE (typing/composing indicator while user types in chat)
+    if (action === 'presence') {
+      if (!instance) return jsonResponse({ ok: false, error: 'no-instance' }, 200);
+      const phone = normalizeChatPhone(body.phone);
+      if (!phone) return jsonResponse({ ok: false, error: 'phone obrigatório' }, 400);
+      const state = String(body.state || 'composing').toLowerCase();
+      const presence = (state === 'paused' || state === 'available' || state === 'recording') ? state : 'composing';
+      const durationMs = Math.min(Math.max(Number(body.durationMs) || 6000, 1500), 12000);
+      const instAuth = await resolveInstanceAuth(baseUrl, apiKey, instance);
+      const sendPhone = await resolveSendPhone(admin, user.id, phone);
+      runInBackground((async () => {
+        const phoneJid = `${sendPhone}@s.whatsapp.net`;
+        const attempts = [
+          { url: `${baseUrl}/chat/sendPresence/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: sendPhone, presence, delay: durationMs } },
+          { url: `${baseUrl}/chat/presence`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { phone: sendPhone, presence } },
+          { url: `${baseUrl}/chat/presence/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: sendPhone, presence } },
+          { url: `${baseUrl}/presence`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { phone: sendPhone, presence, jid: phoneJid } },
+        ];
+        for (const att of attempts) {
+          const r = await fetchJson(att.url, { method: 'POST', headers: att.headers, body: JSON.stringify(att.body) }, 4000).catch(() => null);
+          if (r?.ok) break;
+        }
+      })());
+      return jsonResponse({ ok: true, queued: true });
+    }
+
     // SEND
     if (action === 'send') {
       if (!instance) return jsonResponse({ error: 'Escolha uma instância em Conexões WhatsApp antes de enviar mensagens.' }, 200);
