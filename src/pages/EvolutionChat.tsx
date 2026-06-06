@@ -672,6 +672,13 @@ export default function EvolutionChat() {
         return;
       }
       setMessages(prev => prev.map(m => m.id === tempId ? { ...m, _pending: false, _failed: false, status: 'sent', external_id: data?.externalId || m.external_id, raw: quotedRaw ? { ...(data || {}), ...quotedRaw } : data } : m));
+    }).catch((error) => {
+      setMessages(prev => prev.map(m => m.id === tempId ? { ...m, _pending: false, _failed: true } : m));
+      toast({
+        title: 'Erro ao enviar',
+        description: error instanceof Error ? error.message : 'Não foi possível confirmar sua sessão para enviar.',
+        variant: 'destructive',
+      });
     });
   };
 
