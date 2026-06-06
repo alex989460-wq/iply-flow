@@ -91,12 +91,16 @@ async function resolveSendTargets(admin: any, userId: string, phone: string) {
 
   for (const row of data || []) {
     const info = row?.raw?.data?.Info || row?.raw?.Info || {};
-    pushUniqueTarget(targets, info.Chat);
-    pushUniqueTarget(targets, info.RecipientAlt);
-    pushUniqueTarget(targets, info.SenderAlt);
-    pushUniqueTarget(targets, info.Sender);
-    pushUniqueTarget(targets, info.TargetJID || info.TargetID);
-    pushUniqueTarget(targets, info.DeviceSentMeta?.DestinationJID);
+    if (info?.IsFromMe === true) {
+      pushUniqueTarget(targets, info.Chat);
+      pushUniqueTarget(targets, info.RecipientAlt);
+      pushUniqueTarget(targets, info.TargetJID || info.TargetID);
+      pushUniqueTarget(targets, info.DeviceSentMeta?.DestinationJID);
+    } else {
+      pushUniqueTarget(targets, info.SenderAlt);
+      pushUniqueTarget(targets, info.Sender);
+      pushUniqueTarget(targets, info.Chat);
+    }
   }
 
   pushUniqueTarget(targets, phoneDigits.includes('@') ? phone : phoneDigits);
