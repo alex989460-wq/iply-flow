@@ -1237,8 +1237,8 @@ export default function EvolutionChat() {
                                     {isFavorited(m.id) ? <><StarOff className="w-4 h-4 mr-2" /> Desfavoritar</> : <><Star className="w-4 h-4 mr-2" /> Favoritar</>}
                                   </DropdownMenuItem>
                                   <DropdownMenuSeparator />
-                                  <DropdownMenuItem onClick={() => deleteLocal(m.id)} className="text-destructive focus:text-destructive">
-                                    <Trash className="w-4 h-4 mr-2" /> Apagar (somente aqui)
+                                  <DropdownMenuItem onClick={() => deleteMessage(m)} className="text-destructive focus:text-destructive">
+                                    <Trash className="w-4 h-4 mr-2" /> Excluir mensagem
                                   </DropdownMenuItem>
                                 </DropdownMenuContent>
                               </DropdownMenu>
