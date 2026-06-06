@@ -483,9 +483,8 @@ Deno.serve(async (req) => {
 
       const attempts: Array<{ url: string; headers: Record<string, string>; body: any; mode: string }> = [];
       for (const target of sendTargets) {
-        const messageId = crypto.randomUUID().replace(/-/g, '').slice(0, 20).toUpperCase();
-        const goBody: Record<string, unknown> = { number: target.value, text, delay: 0, id: messageId };
-        const goBodyMsg: Record<string, unknown> = { number: target.value, message: text, delay: 0, id: messageId };
+        const goBody: Record<string, unknown> = { number: target.value, text };
+        const goBodyMsg: Record<string, unknown> = { number: target.value, message: text };
         const classicBody: Record<string, unknown> = { number: target.value, text };
         const classicBodyV1: Record<string, unknown> = { number: target.value, textMessage: { text } };
         if (quotedGo && quotedClassic) {
@@ -503,7 +502,7 @@ Deno.serve(async (req) => {
           { url: `${baseUrl}/message/sendText/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: classicBody, mode: `evolution-api-${target.kind}` },
         ];
         attempts.push(...(target.kind === 'lid'
-          ? [sendTextAttempts[1], sendTextAttempts[3], sendTextAttempts[0], sendTextAttempts[2], ...sendTextAttempts.slice(4)]
+          ? [sendTextAttempts[0], sendTextAttempts[2], sendTextAttempts[1], sendTextAttempts[3], ...sendTextAttempts.slice(4)]
           : sendTextAttempts));
       }
 
@@ -519,7 +518,11 @@ Deno.serve(async (req) => {
         }, timeout).catch((error) => ({ ok: false, status: 0, data: { error: String(error?.message || error) } }));
         log.push({ url: att.url, mode: att.mode, status: r.status, error: getEvolutionErrorText(r.data).slice(0, 180) });
         result = r; mode = att.mode;
-        if (r.ok) break;
+        const returnedChat = String(r.data?.data?.Info?.Chat || r.data?.Info?.Chat || '');
+        const hasMappedLid = sendTargets.some((target) => target.kind === 'lid');
+        const rawPhoneFalsePositive = r.ok && hasMappedLid && /raw-(phone|jid)$/.test(att.mode) && !/@lid\b/i.test(returnedChat);
+        if (r.ok && !rawPhoneFalsePositive) break;
+        if (rawPhoneFalsePositive) continue;
         if (isEvolutionReachoutLock(r.data)) continue;
         if (r.status === 401 && att.mode.includes('-global-')) continue;
         if (r.status !== 404 && r.status !== 405 && r.status !== 400 && r.status !== 0) break;
