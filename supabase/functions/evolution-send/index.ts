@@ -459,7 +459,7 @@ Deno.serve(async (req) => {
         user_id: user.id,
         instance_name: instance,
         remote_jid: result.data?.data?.Info?.Chat || result.data?.Info?.Chat || `${sendPhone}@s.whatsapp.net`,
-        phone: jidPhone(result.data?.data?.Info?.Chat || result.data?.Info?.Chat || '') || phone,
+        phone,
         direction: 'out',
         content: text,
         status: 'sent',
