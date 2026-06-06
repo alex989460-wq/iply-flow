@@ -48,6 +48,16 @@ interface EvoContact {
   profile_pic_url: string | null;
 }
 
+interface QuotedPayload {
+  messageId: string;
+  fromMe: boolean;
+  text: string;
+}
+
+interface QuotedRawPayload {
+  __quoted?: { id?: string; messageId?: string; fromMe?: boolean; text?: string };
+}
+
 const QUICK_REPLIES = [
   'Bom dia! 😊', 'Boa tarde!', 'Boa noite!',
   'Pix gerado, segue: ', 'Obrigado pela preferência! 🙏',
@@ -641,7 +651,7 @@ export default function EvolutionChat() {
   };
 
   // OPTIMISTIC TEXT SEND — message appears instantly, request goes in background
-  const sendTextPayload = (phone: string, text: string, tempId: string, quoted: any, quotedRaw: any) => {
+  const sendTextPayload = (phone: string, text: string, tempId: string, quoted: QuotedPayload | null, quotedRaw?: QuotedRawPayload) => {
     supabase.functions.invoke('evolution-send', {
       body: { action: 'send', phone, text, quoted },
     }).then(({ data, error }) => {
@@ -662,7 +672,7 @@ export default function EvolutionChat() {
     const text = (m.content || '').trim();
     if (!text || !m.phone) return;
     setMessages(prev => prev.map(x => x.id === m.id ? { ...x, _pending: true, _failed: false } : x));
-    const q = (m.raw as any)?.__quoted;
+    const q = (m.raw && typeof m.raw === 'object' ? (m.raw as QuotedRawPayload).__quoted : undefined);
     const quoted = q?.id ? { messageId: q.id, fromMe: !!q.fromMe, text: q.text || '' } : null;
     const quotedRaw = q ? { __quoted: q } : undefined;
     sendTextPayload(m.phone, text, m.id, quoted, quotedRaw);
