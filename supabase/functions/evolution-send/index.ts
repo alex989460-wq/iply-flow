@@ -55,20 +55,9 @@ function recipientJid(value: string) {
 
 async function resolveSendPhone(admin: any, userId: string, phone: string) {
   const normalized = normalizeChatPhone(phone);
-  const { data } = await admin
-    .from('evolution_messages')
-    .select('raw,direction,status')
-    .eq('user_id', userId)
-    .eq('phone', normalized || phone)
-    .order('created_at', { ascending: false })
-    .limit(20);
-  for (const row of data || []) {
-    const info = row?.raw?.data?.Info || row?.raw?.Info || {};
-    const lidCandidate = row?.direction === 'in'
-      ? jidPhone(info.SenderAlt) || jidPhone(info.Sender)
-      : jidPhone(info.Chat) || jidPhone(info.RecipientAlt) || jidPhone(info.SenderAlt);
-    if (isLikelyLid(lidCandidate)) return lidCandidate;
-  }
+  // Keep delivery on the public WhatsApp number. The panel may expose @lid in
+  // webhook metadata, but sending to that alternate id has been returning
+  // WhatsApp 463 on this Evolution Go instance.
   return normalized || phone;
 }
 
@@ -215,11 +204,14 @@ async function guardHumanSendPace(admin: any, userId: string, instanceName: stri
 }
 
 async function sendTypingPresence(baseUrl: string, apiKey: string, instance: string, sendPhone: string, durationMs: number, instAuth: { apiKey: string; instanceId: string }) {
-  const phoneJid = recipientJid(sendPhone);
+  const cleanPhone = normalizeChatPhone(sendPhone);
+  const phoneJid = `${cleanPhone}@s.whatsapp.net`;
+  const delay = Math.min(Math.max(Number(durationMs) || 6000, 1500), 12000);
   const attempts = [
-    { url: `${baseUrl}/chat/sendPresence/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: sendPhone, presence: 'composing', delay: Math.min(durationMs, 8000) } },
-    { url: `${baseUrl}/chat/presence`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { phone: sendPhone, presence: 'composing' } },
-    { url: `${baseUrl}/chat/presence/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: sendPhone, presence: 'composing' } },
+    { url: `${baseUrl}/message/presence`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: cleanPhone, state: 'composing', isAudio: false } },
+    { url: `${baseUrl}/chat/sendPresence/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: cleanPhone, options: { delay, presence: 'composing', number: cleanPhone } } },
+    { url: `${baseUrl}/chat/presence`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: cleanPhone, phone: cleanPhone, jid: phoneJid, presence: 'composing', delay } },
+    { url: `${baseUrl}/presence`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: cleanPhone, phone: cleanPhone, jid: phoneJid, presence: 'composing', delay } },
   ];
   for (const att of attempts) {
     const r = await fetchJson(att.url, { method: 'POST', headers: att.headers, body: JSON.stringify(att.body) }, 4000).catch(() => null);
@@ -458,20 +450,22 @@ Deno.serve(async (req) => {
       const durationMs = Math.min(Math.max(Number(body.durationMs) || 6000, 1500), 12000);
       const instAuth = await resolveInstanceAuth(baseUrl, apiKey, instance);
       const sendPhone = await resolveSendPhone(admin, user.id, phone);
-      runInBackground((async () => {
-        const phoneJid = recipientJid(sendPhone);
-        const attempts = [
-          { url: `${baseUrl}/chat/sendPresence/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: sendPhone, presence, delay: durationMs } },
-          { url: `${baseUrl}/chat/presence`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { phone: sendPhone, presence } },
-          { url: `${baseUrl}/chat/presence/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: sendPhone, presence } },
-          { url: `${baseUrl}/presence`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { phone: sendPhone, presence, jid: phoneJid } },
-        ];
-        for (const att of attempts) {
-          const r = await fetchJson(att.url, { method: 'POST', headers: att.headers, body: JSON.stringify(att.body) }, 4000).catch(() => null);
-          if (r?.ok) break;
-        }
-      })());
-      return jsonResponse({ ok: true, queued: true });
+      const cleanPhone = normalizeChatPhone(sendPhone);
+      const phoneJid = `${cleanPhone}@s.whatsapp.net`;
+      const attempts = [
+        { url: `${baseUrl}/message/presence`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: cleanPhone, state: presence === 'recording' ? 'composing' : presence, isAudio: presence === 'recording' }, mode: 'go-message-presence' },
+        { url: `${baseUrl}/chat/sendPresence/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: cleanPhone, options: { delay: durationMs, presence, number: cleanPhone } }, mode: 'classic-send-presence' },
+        { url: `${baseUrl}/chat/presence`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: cleanPhone, phone: cleanPhone, jid: phoneJid, presence, delay: durationMs }, mode: 'go-chat-presence' },
+        { url: `${baseUrl}/presence`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: cleanPhone, phone: cleanPhone, jid: phoneJid, presence, delay: durationMs }, mode: 'go-presence' },
+      ];
+      const log: any[] = [];
+      for (const att of attempts) {
+        const r = await fetchJson(att.url, { method: 'POST', headers: att.headers, body: JSON.stringify(att.body) }, 4000)
+          .catch((error) => ({ ok: false, status: 0, data: { error: String(error?.message || error) } }));
+        log.push({ mode: att.mode, status: r.status });
+        if (r.ok) return jsonResponse({ ok: true, mode: att.mode, attempts: log });
+      }
+      return jsonResponse({ ok: false, attempts: log }, 200);
     }
 
     // SEND
@@ -524,18 +518,13 @@ Deno.serve(async (req) => {
         raw: quotedRaw?.messageId ? { __queued: true, __quoted: { id: quotedRaw.messageId, text: quotedRaw.text || '', fromMe: !!quotedRaw.fromMe } } : { __queued: true },
       });
 
-      const attempts: Array<{ url: string; headers: Record<string, string>; body: any; mode: string }> = isLikelyLid(sendPhone)
-        ? [
-            { url: `${baseUrl}/send/text`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: goBody, mode: 'evolution-go-send-text-lid' },
-            { url: `${baseUrl}/message/sendText`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: goBody, mode: 'evolution-go-safe-lid' },
-          ]
-        : [
-            { url: `${baseUrl}/send/text`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: goBody, mode: 'evolution-go-send-text' },
-            { url: `${baseUrl}/send/text`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: goBodyMsg, mode: 'evolution-go-send-message' },
-            { url: `${baseUrl}/message/sendText/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: classicBody, mode: 'evolution-api' },
-            { url: `${baseUrl}/message/sendText/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: classicBodyV1, mode: 'evolution-api-v1' },
-            { url: `${baseUrl}/message/sendText`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: goBody, mode: 'evolution-go-safe' },
-          ];
+      const attempts: Array<{ url: string; headers: Record<string, string>; body: any; mode: string }> = [
+        { url: `${baseUrl}/send/text`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: goBody, mode: 'evolution-go-send-text' },
+        { url: `${baseUrl}/send/text`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: goBodyMsg, mode: 'evolution-go-send-message' },
+        { url: `${baseUrl}/message/sendText/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: classicBody, mode: 'evolution-api' },
+        { url: `${baseUrl}/message/sendText/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: classicBodyV1, mode: 'evolution-api-v1' },
+        { url: `${baseUrl}/message/sendText`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: goBody, mode: 'evolution-go-safe' },
+      ];
 
       runInBackground((async () => {
         let result: any = { ok: false, status: 0, data: {} };
