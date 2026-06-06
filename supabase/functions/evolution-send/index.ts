@@ -223,7 +223,7 @@ function isEvolutionReachoutLock(data: any) {
   return /(^|\D)463(\D|$)|NackCallerReachoutTimelocked|reach[- ]?out|time[- ]?lock/i.test(getEvolutionErrorText(data));
 }
 
-const DEFAULT_WEBHOOK_EVENTS = ['MESSAGE', 'SEND_MESSAGE', 'CONNECTION', 'QRCODE', 'PRESENCE', 'CHAT_PRESENCE'];
+const DEFAULT_WEBHOOK_EVENTS = ['MESSAGE', 'SEND_MESSAGE', 'CONNECTION', 'QRCODE', 'PRESENCE', 'CHAT_PRESENCE', 'MESSAGE_RECEIPT', 'MESSAGES_UPDATE', 'RECEIPT'];
 
 function normalizeWebhookEvents(value: unknown) {
   const raw = Array.isArray(value) ? value : DEFAULT_WEBHOOK_EVENTS;
@@ -1376,8 +1376,121 @@ Deno.serve(async (req) => {
       return jsonResponse({ ok: false }, 200);
     }
 
-    // DELETE MESSAGES — body: { ids?: string[], id?: string, phone?: string (limpar conversa) }
+    // SUBSCRIBE PRESENCE — body: { phone } — asks Evolution to push presence updates for that chat
+    if (action === 'subscribe-presence') {
+      if (!instance) return jsonResponse({ ok: false }, 200);
+      const phone = normalizePhone(body.phone);
+      if (!phone) return jsonResponse({ ok: false }, 200);
+      const instAuth = await resolveInstanceAuth(baseUrl, apiKey, instance);
+      const jid = `${phone}@s.whatsapp.net`;
+      const tries = [
+        { url: `${baseUrl}/chat/presenceSubscribe`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: phone } },
+        { url: `${baseUrl}/chat/presenceSubscribe`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: jid } },
+        { url: `${baseUrl}/chat/presenceSubscribe/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: phone } },
+        { url: `${baseUrl}/chat/subscribePresence`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: phone } },
+      ];
+      for (const t of tries) {
+        const r = await fetchJson(t.url, { method: 'POST', headers: t.headers, body: JSON.stringify(t.body) }, 5000)
+          .catch(() => ({ ok: false, status: 0, data: {} }));
+        if (r.ok) return jsonResponse({ ok: true });
+      }
+      return jsonResponse({ ok: false }, 200);
+    }
+
+    // SYNC HISTORY — body: { phone?, limit? } — fetch historical messages from Evolution Go and import into evolution_messages
+    if (action === 'sync-history') {
+      if (!instance) return jsonResponse({ error: 'Escolha uma instância em Conexões WhatsApp.' }, 200);
+      const phone = body.phone ? normalizePhone(body.phone) : '';
+      const limit = Math.min(Number(body.limit) || 200, 500);
+      const instAuth = await resolveInstanceAuth(baseUrl, apiKey, instance);
+      const jid = phone ? `${phone}@s.whatsapp.net` : '';
+
+      const where: Record<string, unknown> = phone ? { key: { remoteJid: jid } } : {};
+      const tries = [
+        { url: `${baseUrl}/chat/findMessages/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { where, limit, page: 1 } },
+        { url: `${baseUrl}/chat/findMessages`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { where, limit, page: 1 } },
+        { url: `${baseUrl}/chat/messages`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: phone ? { number: phone, limit } : { limit } },
+        { url: `${baseUrl}/chat/getMessages`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: phone ? { number: phone, count: limit } : { count: limit } },
+      ];
+
+      let rows: any[] = [];
+      const log: any[] = [];
+      for (const t of tries) {
+        const r = await fetchJson(t.url, { method: 'POST', headers: t.headers, body: JSON.stringify(t.body) }, 20000)
+          .catch((error) => ({ ok: false, status: 0, data: { error: String(error?.message || error) } }));
+        log.push({ url: t.url, status: r.status });
+        if (r.ok) {
+          const d = r.data;
+          const candidates = [d?.messages?.records, d?.data?.messages?.records, d?.records, d?.data, d?.messages, d];
+          for (const c of candidates) {
+            if (Array.isArray(c) && c.length) { rows = c; break; }
+          }
+          if (rows.length) break;
+        }
+      }
+
+      if (!rows.length) {
+        return jsonResponse({ ok: false, imported: 0, attempts: log, error: 'Esta versão do servidor Evolution não retornou histórico. Só novas mensagens aparecerão via webhook.' }, 200);
+      }
+
+      let imported = 0;
+      for (const m of rows) {
+        try {
+          const key = m?.key || m?.Key || {};
+          const remoteJid = String(key?.remoteJid || key?.RemoteJID || m?.remoteJid || '');
+          if (!remoteJid || (remoteJid.includes('@g.us') && !remoteJid.startsWith('status'))) continue;
+          const fromMe = !!(key?.fromMe ?? key?.FromMe);
+          const phoneN = String(remoteJid).split('@')[0].replace(/\D/g, '');
+          if (!phoneN) continue;
+          const msg = m?.message || m?.Message || {};
+          const content = msg?.conversation || msg?.extendedTextMessage?.text || msg?.imageMessage?.caption || msg?.videoMessage?.caption || msg?.documentMessage?.caption || (msg?.audioMessage ? '🎤 Áudio' : '') || '';
+          const type = msg?.imageMessage ? 'image' : msg?.videoMessage ? 'video' : msg?.audioMessage ? 'audio' : msg?.documentMessage ? 'document' : msg?.stickerMessage ? 'sticker' : msg?.reactionMessage ? 'reaction' : 'text';
+          const externalId = String(key?.id || key?.ID || m?.id || '');
+          const createdAt = m?.messageTimestamp || m?.MessageTimestamp || m?.timestamp || null;
+          let createdIso: string | null = null;
+          if (createdAt) {
+            const n = Number(createdAt);
+            if (Number.isFinite(n) && n > 0) createdIso = new Date(n < 1e12 ? n * 1000 : n).toISOString();
+          }
+          if (externalId) {
+            const { data: exists } = await admin
+              .from('evolution_messages')
+              .select('id')
+              .eq('user_id', user.id)
+              .eq('external_id', externalId)
+              .maybeSingle();
+            if (exists?.id) continue;
+          }
+          const row: Record<string, unknown> = {
+            user_id: user.id,
+            instance_name: instance,
+            remote_jid: remoteJid,
+            phone: phoneN,
+            contact_name: m?.pushName || null,
+            direction: fromMe ? 'out' : 'in',
+            content: content || `[${type}]`,
+            message_type: type,
+            external_id: externalId || null,
+            status: fromMe ? (Number(m?.status) >= 4 ? 'read' : Number(m?.status) >= 3 ? 'delivered' : 'sent') : 'received',
+            raw: m,
+          };
+          if (createdIso) row.created_at = createdIso;
+          const { error } = await admin.from('evolution_messages').insert(row);
+          if (!error) imported++;
+        } catch (e) {
+          console.error('[evolution-send] sync-history row failed', e);
+        }
+      }
+      return jsonResponse({ ok: true, imported, total: rows.length });
+    }
+
+    // DELETE MESSAGES — body: { ids?: string[], id?: string, phone?: string (limpar conversa), all?: boolean (limpar tudo) }
     if (action === 'delete-messages') {
+      if (body.all === true) {
+        const { error, count } = await admin.from('evolution_messages').delete({ count: 'exact' }).eq('user_id', user.id);
+        if (error) return jsonResponse({ error: error.message }, 500);
+        return jsonResponse({ ok: true, deleted: count || 0 });
+      }
       const ids: string[] = Array.isArray(body.ids) ? body.ids : (body.id ? [String(body.id)] : []);
       if (body.phone && !ids.length) {
         const phone = normalizeChatPhone(body.phone);
@@ -1390,6 +1503,7 @@ Deno.serve(async (req) => {
       if (error) return jsonResponse({ error: error.message }, 500);
       return jsonResponse({ ok: true, deleted: count || 0 });
     }
+
 
     return jsonResponse({ error: 'action inválida' }, 400);
   } catch (e) {

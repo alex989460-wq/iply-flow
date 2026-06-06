@@ -697,6 +697,7 @@ export type Database = {
       evolution_presence: {
         Row: {
           id: string
+          last_seen_at: string | null
           phone: string
           presence: string
           updated_at: string
@@ -704,6 +705,7 @@ export type Database = {
         }
         Insert: {
           id?: string
+          last_seen_at?: string | null
           phone: string
           presence?: string
           updated_at?: string
@@ -711,6 +713,7 @@ export type Database = {
         }
         Update: {
           id?: string
+          last_seen_at?: string | null
           phone?: string
           presence?: string
           updated_at?: string

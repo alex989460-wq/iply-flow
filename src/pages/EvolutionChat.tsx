@@ -227,6 +227,8 @@ export default function EvolutionChat() {
   });
   const [localReactions, setLocalReactions] = useState<Record<string, { emoji: string; from: 'in' | 'out' }>>({});
   const [typingByPhone, setTypingByPhone] = useState<Record<string, { presence: string; at: number }>>({});
+  const [lastSeenByPhone, setLastSeenByPhone] = useState<Record<string, string>>({});
+  const [syncingHistory, setSyncingHistory] = useState(false);
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -310,9 +312,10 @@ export default function EvolutionChat() {
   const load = useCallback(async () => {
     if (!user) return;
     setLoading(true);
-    const [msgRes, contRes] = await Promise.all([
+    const [msgRes, contRes, presRes] = await Promise.all([
       supabase.from('evolution_messages').select('*').eq('user_id', user.id).order('created_at', { ascending: true }).limit(3000),
       supabase.from('evolution_contacts').select('phone, name, profile_pic_url').eq('user_id', user.id),
+      supabase.from('evolution_presence').select('phone, presence, last_seen_at, updated_at').eq('user_id', user.id),
     ]);
     setLoading(false);
     if (msgRes.error) {
@@ -323,6 +326,11 @@ export default function EvolutionChat() {
     const cmap: Record<string, EvoContact> = {};
     for (const c of ((contRes.data || []) as EvoContact[])) cmap[c.phone] = c;
     setContacts(cmap);
+    const lmap: Record<string, string> = {};
+    for (const p of ((presRes.data || []) as Array<{ phone: string; last_seen_at: string | null; updated_at: string }>)) {
+      if (p.last_seen_at) lmap[p.phone] = p.last_seen_at;
+    }
+    setLastSeenByPhone(lmap);
   }, [user, toast, mergeMessage]);
 
   const selectedInstance = useMemo(() => {
@@ -354,6 +362,11 @@ export default function EvolutionChat() {
           return mergeMessage(prev, m);
         });
       })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'evolution_messages', filter: `user_id=eq.${user.id}` }, (payload) => {
+        const m = payload.new as EvoMessage;
+        if (!m?.id) return;
+        setMessages(prev => prev.map(x => x.id === m.id ? { ...x, ...m } : x));
+      })
       .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'evolution_messages', filter: `user_id=eq.${user.id}` }, (payload) => {
         const oldRow = payload.old as { id?: string } | null;
         if (oldRow?.id) setMessages(prev => prev.filter(m => m.id !== oldRow.id));
@@ -363,9 +376,10 @@ export default function EvolutionChat() {
         if (c?.phone) setContacts(prev => ({ ...prev, [c.phone]: c }));
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'evolution_presence', filter: `user_id=eq.${user.id}` }, (payload) => {
-        const row = payload.new as { phone?: string; presence?: string } | null;
+        const row = payload.new as { phone?: string; presence?: string; last_seen_at?: string | null } | null;
         if (!row?.phone) return;
         setTypingByPhone(prev => ({ ...prev, [row.phone!]: { presence: row.presence || 'available', at: Date.now() } }));
+        if (row.last_seen_at) setLastSeenByPhone(prev => ({ ...prev, [row.phone!]: row.last_seen_at! }));
       })
       .subscribe();
     return () => { supabase.removeChannel(ch); };
@@ -413,9 +427,11 @@ export default function EvolutionChat() {
     return t.presence;
   }, [typingByPhone, selectedPhone]);
 
-  // Fetch profile pic when opening a conversation without one
+  // Fetch profile pic + subscribe to presence when opening a conversation
   useEffect(() => {
     if (!selectedPhone || selectedPhone.startsWith('status:')) return;
+    // Subscribe to presence so we receive "online", "digitando…", "visto por último…"
+    invokeEvolution({ action: 'subscribe-presence', phone: selectedPhone }).catch(() => undefined);
     const c = contacts[selectedPhone];
     if (c?.profile_pic_url) return;
     if (avatarFetchRef.current.has(selectedPhone)) return;
@@ -427,6 +443,53 @@ export default function EvolutionChat() {
       }));
     }).catch(() => {});
   }, [selectedPhone, contacts, invokeEvolution]);
+
+  // Format "online" / "visto por último ..." for current contact
+  const contactOnlineStatus = useMemo(() => {
+    if (!selectedPhone || selectedPhone.startsWith('status:')) return null;
+    const t = typingByPhone[selectedPhone];
+    if (t && (Date.now() - t.at) < 30000 && t.presence === 'available') return 'online';
+    const ls = lastSeenByPhone[selectedPhone];
+    if (!ls) return null;
+    try {
+      const d = new Date(ls);
+      const diffMin = (Date.now() - d.getTime()) / 60000;
+      if (diffMin < 1) return 'visto por último agora';
+      if (diffMin < 60) return `visto por último há ${Math.floor(diffMin)} min`;
+      if (diffMin < 1440) return `visto por último às ${d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`;
+      return `visto por último em ${d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}`;
+    } catch { return null; }
+  }, [selectedPhone, typingByPhone, lastSeenByPhone]);
+
+  const syncHistory = useCallback(async (phoneOnly?: string) => {
+    setSyncingHistory(true);
+    const { data, error } = await invokeEvolution({
+      action: 'sync-history',
+      phone: phoneOnly || undefined,
+      limit: phoneOnly ? 200 : 500,
+    });
+    setSyncingHistory(false);
+    if (error || data?.error) {
+      toast({ title: 'Sincronização limitada', description: error?.message || data?.error || 'Servidor não retornou histórico.', variant: 'destructive' });
+      return;
+    }
+    toast({ title: `${data?.imported || 0} mensagens importadas`, description: 'Recarregando...' });
+    load();
+  }, [invokeEvolution, toast, load]);
+
+  const clearAllConversations = useCallback(async () => {
+    if (!user) return;
+    if (!confirm('Apagar TODAS as conversas e mensagens (de todos os contatos)? Esta ação não pode ser desfeita.')) return;
+    const { data, error } = await invokeEvolution({ action: 'delete-messages', all: true });
+    if (error || data?.error) {
+      toast({ title: 'Falha ao limpar tudo', description: error?.message || data?.error, variant: 'destructive' });
+      return;
+    }
+    setMessages([]);
+    setSelectedPhone(null);
+    toast({ title: `${data?.deleted || 0} mensagens removidas` });
+  }, [user, invokeEvolution, toast]);
+
 
   useEffect(() => {
     if (!user || contactSyncRef.current) return;
@@ -972,6 +1035,23 @@ export default function EvolutionChat() {
             <Button size="icon" variant="ghost" className="h-8 w-8" onClick={load} title="Atualizar">
               <RefreshCw className={cn('w-3.5 h-3.5', loading && 'animate-spin')} />
             </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button size="icon" variant="ghost" className="h-8 w-8" title="Mais ações">
+                  <MoreVertical className="w-3.5 h-3.5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuItem onClick={() => syncHistory()} disabled={syncingHistory}>
+                  <RefreshCw className={cn('w-4 h-4 mr-2', syncingHistory && 'animate-spin')} /> Sincronizar todo o histórico
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={clearAllConversations} className="text-destructive focus:text-destructive">
+                  <Trash2 className="w-4 h-4 mr-2" /> Limpar TODO o histórico
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
           </div>
 
           <div className="p-2 space-y-2 border-b border-border">
@@ -1155,14 +1235,19 @@ export default function EvolutionChat() {
                         <span className="text-[#00a884] font-medium animate-pulse">
                           {contactTypingPresence === 'recording' ? 'gravando áudio...' : 'digitando...'}
                         </span>
+                      ) : contactOnlineStatus === 'online' ? (
+                        <span className="text-[#00a884] font-medium flex items-center gap-1">
+                          <span className="inline-block w-1.5 h-1.5 rounded-full bg-[#00a884] animate-pulse" /> online
+                        </span>
+                      ) : contactOnlineStatus ? (
+                        <span>{contactOnlineStatus}</span>
                       ) : (
                         <>
                           <Phone className="w-2.5 h-2.5" /> {formatPhone(selectedPhone)}
-                          <span className="mx-1 opacity-50">•</span>
-                          <span className="text-[#00a884]">toque para ver detalhes</span>
                         </>
                       )}
                     </div>
+
                   </div>
                 </button>
                 {selectedPhone === 'status:me' && (
@@ -1197,9 +1282,13 @@ export default function EvolutionChat() {
                     <DropdownMenuItem onClick={load}>
                       <RefreshCw className="w-4 h-4 mr-2" /> Recarregar mensagens
                     </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => syncHistory(selectedPhone || undefined)} disabled={syncingHistory || !selectedPhone || selectedPhone.startsWith('status:')}>
+                      <RefreshCw className={cn('w-4 h-4 mr-2', syncingHistory && 'animate-spin')} /> Sincronizar histórico desta conversa
+                    </DropdownMenuItem>
                     <DropdownMenuItem onClick={clearConversation} className="text-destructive focus:text-destructive">
                       <Trash2 className="w-4 h-4 mr-2" /> Limpar conversa
                     </DropdownMenuItem>
+
                   </DropdownMenuContent>
                 </DropdownMenu>
               </div>
@@ -1336,10 +1425,15 @@ export default function EvolutionChat() {
                                   m._failed || m.status === 'failed'
                                     ? <button onClick={(e) => { e.stopPropagation(); resendMessage(m); }} title="Reenviar" className="text-destructive hover:scale-125 transition-transform">⚠️</button>
                                     : m._pending
-                                      ? <span>⏳</span>
-                                      : <span className="text-[#aebac1] font-bold leading-none" title="Confirmado pelo painel Evolution">✓</span>
+                                      ? <span title="Enviando...">⏳</span>
+                                      : m.status === 'read'
+                                        ? <span className="text-[#53bdeb] font-bold leading-none tracking-[-2px]" title="Lida">✓✓</span>
+                                        : m.status === 'delivered'
+                                          ? <span className="text-[#aebac1] font-bold leading-none tracking-[-2px]" title="Entregue">✓✓</span>
+                                          : <span className="text-[#aebac1] font-bold leading-none" title="Enviada">✓</span>
                                 )}
                               </div>
+
                               {m.external_id && reactionsByExternalId[m.external_id] && (
                                 <div className={cn(
                                   'absolute -bottom-2.5 text-xs px-1.5 py-0.5 rounded-full bg-[#2a3942] border border-[#0b141a] shadow',
