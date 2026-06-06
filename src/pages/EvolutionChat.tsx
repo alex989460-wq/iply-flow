@@ -312,9 +312,10 @@ export default function EvolutionChat() {
   const load = useCallback(async () => {
     if (!user) return;
     setLoading(true);
-    const [msgRes, contRes] = await Promise.all([
+    const [msgRes, contRes, presRes] = await Promise.all([
       supabase.from('evolution_messages').select('*').eq('user_id', user.id).order('created_at', { ascending: true }).limit(3000),
       supabase.from('evolution_contacts').select('phone, name, profile_pic_url').eq('user_id', user.id),
+      supabase.from('evolution_presence').select('phone, presence, last_seen_at, updated_at').eq('user_id', user.id),
     ]);
     setLoading(false);
     if (msgRes.error) {
@@ -325,6 +326,11 @@ export default function EvolutionChat() {
     const cmap: Record<string, EvoContact> = {};
     for (const c of ((contRes.data || []) as EvoContact[])) cmap[c.phone] = c;
     setContacts(cmap);
+    const lmap: Record<string, string> = {};
+    for (const p of ((presRes.data || []) as Array<{ phone: string; last_seen_at: string | null; updated_at: string }>)) {
+      if (p.last_seen_at) lmap[p.phone] = p.last_seen_at;
+    }
+    setLastSeenByPhone(lmap);
   }, [user, toast, mergeMessage]);
 
   const selectedInstance = useMemo(() => {
