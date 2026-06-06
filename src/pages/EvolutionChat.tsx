@@ -1425,10 +1425,15 @@ export default function EvolutionChat() {
                                   m._failed || m.status === 'failed'
                                     ? <button onClick={(e) => { e.stopPropagation(); resendMessage(m); }} title="Reenviar" className="text-destructive hover:scale-125 transition-transform">⚠️</button>
                                     : m._pending
-                                      ? <span>⏳</span>
-                                      : <span className="text-[#aebac1] font-bold leading-none" title="Confirmado pelo painel Evolution">✓</span>
+                                      ? <span title="Enviando...">⏳</span>
+                                      : m.status === 'read'
+                                        ? <span className="text-[#53bdeb] font-bold leading-none tracking-[-2px]" title="Lida">✓✓</span>
+                                        : m.status === 'delivered'
+                                          ? <span className="text-[#aebac1] font-bold leading-none tracking-[-2px]" title="Entregue">✓✓</span>
+                                          : <span className="text-[#aebac1] font-bold leading-none" title="Enviada">✓</span>
                                 )}
                               </div>
+
                               {m.external_id && reactionsByExternalId[m.external_id] && (
                                 <div className={cn(
                                   'absolute -bottom-2.5 text-xs px-1.5 py-0.5 rounded-full bg-[#2a3942] border border-[#0b141a] shadow',
