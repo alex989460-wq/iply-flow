@@ -30,6 +30,7 @@ interface EvoMessage {
   contact_name: string | null;
   direction: 'in' | 'out';
   content: string;
+  status?: string | null;
   message_type: string;
   media_url: string | null;
   media_mime: string | null;
@@ -644,12 +645,12 @@ export default function EvolutionChat() {
     supabase.functions.invoke('evolution-send', {
       body: { action: 'send', phone, text, quoted },
     }).then(({ data, error }) => {
-      if (error || data?.error) {
+      if (error || data?.error || data?.ok === false) {
         setMessages(prev => prev.map(m => m.id === tempId ? { ...m, _pending: false, _failed: true } : m));
-        toast({ title: 'Erro ao enviar', description: error?.message || data?.error || 'Falha', variant: 'destructive' });
+        toast({ title: 'Erro ao enviar', description: error?.message || data?.error || 'A Evolution não confirmou o envio.', variant: 'destructive' });
         return;
       }
-      setMessages(prev => prev.map(m => m.id === tempId ? { ...m, _pending: false, _failed: false, raw: quotedRaw ? { ...(data || {}), ...quotedRaw } : data } : m));
+      setMessages(prev => prev.map(m => m.id === tempId ? { ...m, _pending: false, _failed: false, status: 'sent', external_id: data?.externalId || m.external_id, raw: quotedRaw ? { ...(data || {}), ...quotedRaw } : data } : m));
     });
   };
 
