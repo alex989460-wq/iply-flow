@@ -459,7 +459,7 @@ Deno.serve(async (req) => {
       const instAuth = await resolveInstanceAuth(baseUrl, apiKey, instance);
       const sendPhone = await resolveSendPhone(admin, user.id, phone);
       runInBackground((async () => {
-        const phoneJid = `${sendPhone}@s.whatsapp.net`;
+        const phoneJid = recipientJid(sendPhone);
         const attempts = [
           { url: `${baseUrl}/chat/sendPresence/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: sendPhone, presence, delay: durationMs } },
           { url: `${baseUrl}/chat/presence`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { phone: sendPhone, presence } },
@@ -643,11 +643,11 @@ Deno.serve(async (req) => {
       const instAuth = await resolveInstanceAuth(baseUrl, apiKey, instance);
       const sendPhone = await resolveSendPhone(admin, user.id, phone);
       const tries = [
-        { url: `${baseUrl}/user/avatar`, method: 'POST', headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: phone, preview: false } },
+        { url: `${baseUrl}/user/avatar`, method: 'POST', headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: sendPhone, preview: false } },
         { url: `${baseUrl}/user/avatar`, method: 'POST', headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number, preview: false } },
         { url: `${baseUrl}/user/info`, method: 'POST', headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: [phone] } },
         { url: `${baseUrl}/user/info`, method: 'POST', headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: [number] } },
-        { url: `${baseUrl}/chat/fetchProfilePictureUrl/${encodeURIComponent(instance)}`, method: 'POST', headers: evolutionHeaders(apiKey, true), body: { number: phone } },
+        { url: `${baseUrl}/chat/fetchProfilePictureUrl/${encodeURIComponent(instance)}`, method: 'POST', headers: evolutionHeaders(apiKey, true), body: { number: sendPhone } },
         { url: `${baseUrl}/chat/fetchProfilePictureUrl/${encodeURIComponent(instance)}`, method: 'POST', headers: evolutionHeaders(apiKey, true), body: { number } },
         { url: `${baseUrl}/chat/getProfilePicture`, method: 'POST', headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: phone } },
         { url: `${baseUrl}/chat/whatsappProfile/${encodeURIComponent(instance)}`, method: 'POST', headers: evolutionHeaders(apiKey, true), body: { number: phone } },
