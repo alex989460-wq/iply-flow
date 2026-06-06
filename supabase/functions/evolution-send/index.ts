@@ -463,8 +463,9 @@ Deno.serve(async (req) => {
 
       const attempts: Array<{ url: string; headers: Record<string, string>; body: any; mode: string }> = [];
       for (const target of sendTargets) {
-        const goBody: Record<string, unknown> = { number: target.value, text };
-        const goBodyMsg: Record<string, unknown> = { number: target.value, message: text };
+        const messageId = crypto.randomUUID().replace(/-/g, '').slice(0, 20).toUpperCase();
+        const goBody: Record<string, unknown> = { number: target.value, text, delay: 0, id: messageId };
+        const goBodyMsg: Record<string, unknown> = { number: target.value, message: text, delay: 0, id: messageId };
         const classicBody: Record<string, unknown> = { number: target.value, text };
         const classicBodyV1: Record<string, unknown> = { number: target.value, textMessage: { text } };
         if (quotedGo && quotedClassic) {
