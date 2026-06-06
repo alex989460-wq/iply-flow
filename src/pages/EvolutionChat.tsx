@@ -354,13 +354,64 @@ export default function EvolutionChat() {
           return mergeMessage(prev, m);
         });
       })
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'evolution_messages', filter: `user_id=eq.${user.id}` }, (payload) => {
+        const oldRow = payload.old as { id?: string } | null;
+        if (oldRow?.id) setMessages(prev => prev.filter(m => m.id !== oldRow.id));
+      })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'evolution_contacts', filter: `user_id=eq.${user.id}` }, (payload) => {
         const c = payload.new as EvoContact;
         if (c?.phone) setContacts(prev => ({ ...prev, [c.phone]: c }));
       })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'evolution_presence', filter: `user_id=eq.${user.id}` }, (payload) => {
+        const row = payload.new as { phone?: string; presence?: string } | null;
+        if (!row?.phone) return;
+        setTypingByPhone(prev => ({ ...prev, [row.phone!]: { presence: row.presence || 'available', at: Date.now() } }));
+      })
       .subscribe();
     return () => { supabase.removeChannel(ch); };
   }, [user, mergeMessage]);
+
+  // Re-render every 2s so "digitando..." auto-expires after 8s of silence
+  useEffect(() => {
+    const t = window.setInterval(() => { presenceTickRef.current = Date.now(); setTypingByPhone(prev => ({ ...prev })); }, 2000);
+    return () => clearInterval(t);
+  }, []);
+
+  // Send typing presence to the contact (debounced; "paused" after 4s of silence)
+  const sendPresence = useCallback((presence: 'composing' | 'paused') => {
+    if (!selectedPhone || selectedPhone.startsWith('status:')) return;
+    invokeEvolution({ action: 'send-presence', phone: selectedPhone, presence }).catch(() => undefined);
+  }, [selectedPhone, invokeEvolution]);
+
+  const notifyTyping = useCallback(() => {
+    const now = Date.now();
+    if (now - presenceSentAtRef.current > 3500) {
+      presenceSentAtRef.current = now;
+      sendPresence('composing');
+    }
+    if (presencePausedTimerRef.current) window.clearTimeout(presencePausedTimerRef.current);
+    presencePausedTimerRef.current = window.setTimeout(() => {
+      presenceSentAtRef.current = 0;
+      sendPresence('paused');
+    }, 4000);
+  }, [sendPresence]);
+
+  // When switching conversation: cancel any pending paused timer
+  useEffect(() => {
+    return () => {
+      if (presencePausedTimerRef.current) window.clearTimeout(presencePausedTimerRef.current);
+      presenceSentAtRef.current = 0;
+    };
+  }, [selectedPhone]);
+
+  const contactTypingPresence = useMemo(() => {
+    if (!selectedPhone) return null;
+    const t = typingByPhone[selectedPhone];
+    if (!t) return null;
+    if (Date.now() - t.at > 8000) return null;
+    if (t.presence !== 'composing' && t.presence !== 'recording') return null;
+    return t.presence;
+  }, [typingByPhone, selectedPhone]);
 
   // Fetch profile pic when opening a conversation without one
   useEffect(() => {
