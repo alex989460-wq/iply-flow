@@ -33,7 +33,6 @@ interface EvoMessage {
   message_type: string;
   media_url: string | null;
   media_mime: string | null;
-  status?: 'pending' | 'sent' | 'failed' | string | null;
   external_id?: string | null;
   raw?: unknown;
   created_at: string;
@@ -163,10 +162,6 @@ function mediaSource(m: EvoMessage) {
   return base64.startsWith('data:') ? base64 : `data:${mime};base64,${base64}`;
 }
 
-function withDeliveryFlags(m: EvoMessage): EvoMessage {
-  return { ...m, _pending: m.status === 'pending', _failed: m.status === 'failed' };
-}
-
 async function fileToBase64(file: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
     const r = new FileReader();
@@ -290,7 +285,7 @@ export default function EvolutionChat() {
       toast({ title: 'Erro', description: msgRes.error.message, variant: 'destructive' });
       return;
     }
-    setMessages((((msgRes.data || []) as unknown) as EvoMessage[]).map(withDeliveryFlags).reduce((acc, msg) => mergeMessage(acc, msg), [] as EvoMessage[]));
+    setMessages((((msgRes.data || []) as unknown) as EvoMessage[]).reduce((acc, msg) => mergeMessage(acc, msg), [] as EvoMessage[]));
     const cmap: Record<string, EvoContact> = {};
     for (const c of ((contRes.data || []) as EvoContact[])) cmap[c.phone] = c;
     setContacts(cmap);
@@ -320,18 +315,10 @@ export default function EvolutionChat() {
     const ch = supabase
       .channel('evolution_messages_rt')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'evolution_messages', filter: `user_id=eq.${user.id}` }, (payload) => {
-        const m = withDeliveryFlags(payload.new as EvoMessage);
+        const m = payload.new as EvoMessage;
         setMessages((prev) => {
           return mergeMessage(prev, m);
         });
-      })
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'evolution_messages', filter: `user_id=eq.${user.id}` }, (payload) => {
-        const m = withDeliveryFlags(payload.new as EvoMessage);
-        setMessages((prev) => prev.map((item) => (
-          item.id === m.id || (item.external_id && item.external_id === m.external_id)
-            ? m
-            : item
-        )));
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'evolution_contacts', filter: `user_id=eq.${user.id}` }, (payload) => {
         const c = payload.new as EvoContact;
@@ -662,27 +649,7 @@ export default function EvolutionChat() {
         toast({ title: 'Erro ao enviar', description: error?.message || data?.error || 'Falha', variant: 'destructive' });
         return;
       }
-      const pendingExternalId = data?.data?.pendingExternalId;
-      setMessages(prev => {
-        const serverRow = pendingExternalId ? prev.find(m => m.external_id === pendingExternalId && m.id !== tempId) : null;
-        if (serverRow) return prev
-          .filter(m => m.id !== tempId)
-          .map(m => m.id === serverRow.id ? {
-            ...m,
-            _pending: !!data?.queued,
-            _failed: false,
-            status: data?.queued ? 'pending' : 'sent',
-            raw: quotedRaw ? { ...((m.raw as Record<string, unknown>) || {}), ...quotedRaw } : m.raw,
-          } : m);
-        return prev.map(m => m.id === tempId ? {
-          ...m,
-          _pending: !!data?.queued,
-          _failed: false,
-          status: data?.queued ? 'pending' : 'sent',
-          external_id: pendingExternalId || m.external_id,
-          raw: quotedRaw ? { ...(data || {}), ...quotedRaw } : data,
-        } : m);
-      });
+      setMessages(prev => prev.map(m => m.id === tempId ? { ...m, _pending: false, _failed: false, raw: quotedRaw ? { ...(data || {}), ...quotedRaw } : data } : m));
     });
   };
 
@@ -1414,19 +1381,7 @@ export default function EvolutionChat() {
                       ref={composerRef}
                       placeholder="Digite uma mensagem..."
                       value={draft}
-                      onChange={(e) => {
-                        setDraft(e.target.value);
-                        if (selectedPhone && !selectedPhone.startsWith('status:') && e.target.value.trim().length > 0) {
-                          const now = Date.now();
-                          const last = (window as any).__evoPresenceAt || 0;
-                          if (now - last > 5000) {
-                            (window as any).__evoPresenceAt = now;
-                            supabase.functions.invoke('evolution-send', {
-                              body: { action: 'presence', phone: selectedPhone, state: 'composing', durationMs: 8000 },
-                            }).catch(() => null);
-                          }
-                        }
-                      }}
+                      onChange={(e) => setDraft(e.target.value)}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter' && (e.ctrlKey || e.shiftKey)) {
                           e.preventDefault();

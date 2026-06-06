@@ -404,15 +404,7 @@ Deno.serve(async (req) => {
       .eq('user_id', userId)
       .maybeSingle();
 
-    // Also respect the dedicated "Cobrança Automática via Evolution" card toggle.
-    // If that card is OFF, fall back to Zap Responder / Meta even when use_evolution_billing=true.
-    const { data: evoSchedule } = await supabase
-      .from('evolution_billing_schedule')
-      .select('is_enabled')
-      .eq('user_id', userId)
-      .maybeSingle();
-
-    const useEvolution = !!(billSettings as any)?.use_evolution_billing && !!(evoSchedule as any)?.is_enabled;
+    const useEvolution = !!(billSettings as any)?.use_evolution_billing;
     let evoSettings: any = null;
     if (useEvolution) {
       const { data: evo } = await supabase

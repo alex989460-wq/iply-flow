@@ -43,22 +43,21 @@ function jidPhone(value: unknown) {
   return digits.length >= 10 ? digits : '';
 }
 
-function isLikelyLid(value: string) {
-  const digits = String(value || '').replace(/\D/g, '');
-  return digits.length >= 13 && !digits.startsWith('55');
-}
-
-function recipientJid(value: string) {
-  const digits = String(value || '').replace(/\D/g, '');
-  return `${digits}@${isLikelyLid(digits) ? 'lid' : 's.whatsapp.net'}`;
-}
-
 async function resolveSendPhone(admin: any, userId: string, phone: string) {
-  const normalized = normalizeChatPhone(phone);
-  // Keep delivery on the public WhatsApp number. The panel may expose @lid in
-  // webhook metadata, but sending to that alternate id has been returning
-  // WhatsApp 463 on this Evolution Go instance.
-  return normalized || phone;
+  if (phone.startsWith('55') && phone.length >= 12) return phone;
+  const { data } = await admin
+    .from('evolution_messages')
+    .select('raw')
+    .eq('user_id', userId)
+    .eq('phone', phone)
+    .order('created_at', { ascending: false })
+    .limit(20);
+  for (const row of data || []) {
+    const info = row?.raw?.data?.Info || row?.raw?.Info || {};
+    const candidate = jidPhone(info.RecipientAlt) || jidPhone(info.SenderAlt) || jidPhone(info.Sender);
+    if (candidate?.startsWith('55')) return candidate;
+  }
+  return phone;
 }
 
 function phoneFromJid(value: unknown) {
@@ -147,77 +146,6 @@ async function fetchJson(url: string, init: RequestInit = {}, timeoutMs = 8000) 
   const r = await fetch(url, { ...init, signal: AbortSignal.timeout(timeoutMs) });
   const data = await r.json().catch(() => ({}));
   return { ok: r.ok, status: r.status, data };
-}
-
-function sleep(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-function humanDelayMs(text = '') {
-  const typingTime = Math.min(9000, Math.max(2600, text.length * 38));
-  const jitter = 1200 + Math.floor(Math.random() * 2800);
-  return typingTime + jitter;
-}
-
-async function guardHumanSendPace(admin: any, userId: string, instanceName: string) {
-  const now = Date.now();
-  const sinceMinute = new Date(now - 60_000).toISOString();
-  const sinceFiveMinutes = new Date(now - 5 * 60_000).toISOString();
-  const sinceHour = new Date(now - 60 * 60_000).toISOString();
-  const sinceDay = new Date(now - 24 * 60 * 60_000).toISOString();
-
-  const { data: recent } = await admin
-    .from('evolution_messages')
-    .select('created_at')
-    .eq('user_id', userId)
-    .eq('instance_name', instanceName)
-    .eq('direction', 'out')
-    .gte('created_at', sinceDay)
-    .order('created_at', { ascending: false })
-    .limit(500);
-
-  const rows = recent || [];
-  const lastAt = rows[0]?.created_at ? new Date(rows[0].created_at).getTime() : 0;
-  const sentLastMinute = rows.filter((r: any) => String(r.created_at) >= sinceMinute).length;
-  const sentLastFive = rows.filter((r: any) => String(r.created_at) >= sinceFiveMinutes).length;
-  const sentLastHour = rows.filter((r: any) => String(r.created_at) >= sinceHour).length;
-  const sentLastDay = rows.length;
-
-  if (sentLastMinute >= 6) {
-    return { ok: false, error: 'Pausa anti-banimento: muitas mensagens no último minuto. Aguarde ~1 min.' };
-  }
-  if (sentLastFive >= 18) {
-    return { ok: false, error: 'Pausa anti-banimento: ritmo alto nos últimos 5 min. Aguarde alguns minutos.' };
-  }
-  if (sentLastHour >= 120) {
-    return { ok: false, error: 'Pausa anti-banimento: limite de ~120 envios/hora atingido para este número.' };
-  }
-  if (sentLastDay >= 600) {
-    return { ok: false, error: 'Pausa anti-banimento: limite diário (~600 envios) atingido para este número.' };
-  }
-
-  // Slow-start: stricter gap during first 10 messages of the hour
-  const baseGap = sentLastHour < 10 ? 9000 : 7000;
-  const minGap = baseGap + Math.floor(Math.random() * 5000);
-  const waitMs = lastAt ? Math.max(0, minGap - (now - lastAt)) : 0;
-  return { ok: true, waitMs };
-}
-
-async function sendTypingPresence(baseUrl: string, apiKey: string, instance: string, sendPhone: string, durationMs: number, instAuth: { apiKey: string; instanceId: string }) {
-  const cleanPhone = normalizeChatPhone(sendPhone);
-  const phoneJid = `${cleanPhone}@s.whatsapp.net`;
-  const delay = Math.min(Math.max(Number(durationMs) || 6000, 1500), 12000);
-  const attempts = [
-    { url: `${baseUrl}/message/presence`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: cleanPhone, state: 'composing', isAudio: false } },
-    { url: `${baseUrl}/chat/sendPresence/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: cleanPhone, options: { delay, presence: 'composing', number: cleanPhone } } },
-    { url: `${baseUrl}/chat/presence`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: cleanPhone, phone: cleanPhone, jid: phoneJid, presence: 'composing', delay } },
-    { url: `${baseUrl}/presence`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: cleanPhone, phone: cleanPhone, jid: phoneJid, presence: 'composing', delay } },
-  ];
-  for (const att of attempts) {
-    const r = await fetchJson(att.url, { method: 'POST', headers: att.headers, body: JSON.stringify(att.body) }, 4000).catch(() => null);
-    if (r?.ok) return true;
-  }
-  return false;
 }
 
 function runInBackground(task: Promise<unknown>) {
@@ -440,34 +368,6 @@ Deno.serve(async (req) => {
       return jsonResponse({ ok: results.every(r => r.ok), results, webhookUrl });
     }
 
-    // PRESENCE (typing/composing indicator while user types in chat)
-    if (action === 'presence') {
-      if (!instance) return jsonResponse({ ok: false, error: 'no-instance' }, 200);
-      const phone = normalizeChatPhone(body.phone);
-      if (!phone) return jsonResponse({ ok: false, error: 'phone obrigatório' }, 400);
-      const state = String(body.state || 'composing').toLowerCase();
-      const presence = (state === 'paused' || state === 'available' || state === 'recording') ? state : 'composing';
-      const durationMs = Math.min(Math.max(Number(body.durationMs) || 6000, 1500), 12000);
-      const instAuth = await resolveInstanceAuth(baseUrl, apiKey, instance);
-      const sendPhone = await resolveSendPhone(admin, user.id, phone);
-      const cleanPhone = normalizeChatPhone(sendPhone);
-      const phoneJid = `${cleanPhone}@s.whatsapp.net`;
-      const attempts = [
-        { url: `${baseUrl}/message/presence`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: cleanPhone, state: presence === 'recording' ? 'composing' : presence, isAudio: presence === 'recording' }, mode: 'go-message-presence' },
-        { url: `${baseUrl}/chat/sendPresence/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: cleanPhone, options: { delay: durationMs, presence, number: cleanPhone } }, mode: 'classic-send-presence' },
-        { url: `${baseUrl}/chat/presence`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: cleanPhone, phone: cleanPhone, jid: phoneJid, presence, delay: durationMs }, mode: 'go-chat-presence' },
-        { url: `${baseUrl}/presence`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: cleanPhone, phone: cleanPhone, jid: phoneJid, presence, delay: durationMs }, mode: 'go-presence' },
-      ];
-      const log: any[] = [];
-      for (const att of attempts) {
-        const r = await fetchJson(att.url, { method: 'POST', headers: att.headers, body: JSON.stringify(att.body) }, 4000)
-          .catch((error) => ({ ok: false, status: 0, data: { error: String(error?.message || error) } }));
-        log.push({ mode: att.mode, status: r.status });
-        if (r.ok) return jsonResponse({ ok: true, mode: att.mode, attempts: log });
-      }
-      return jsonResponse({ ok: false, attempts: log }, 200);
-    }
-
     // SEND
     if (action === 'send') {
       if (!instance) return jsonResponse({ error: 'Escolha uma instância em Conexões WhatsApp antes de enviar mensagens.' }, 200);
@@ -476,8 +376,6 @@ Deno.serve(async (req) => {
       if (!phone || !text) {
         return jsonResponse({ error: 'phone e text obrigatórios' }, 400);
       }
-      const pace = await guardHumanSendPace(admin, user.id, instance);
-      if (!pace.ok) return jsonResponse({ ok: false, error: pace.error }, 200);
       const instAuth = await resolveInstanceAuth(baseUrl, apiKey, instance);
       const sendPhone = await resolveSendPhone(admin, user.id, phone);
 
@@ -485,7 +383,7 @@ Deno.serve(async (req) => {
       const quotedRaw = body.quoted as { messageId?: string; fromMe?: boolean; text?: string } | null | undefined;
       const quotedClassic = quotedRaw && quotedRaw.messageId ? {
         key: {
-          remoteJid: recipientJid(sendPhone),
+          remoteJid: `${sendPhone}@s.whatsapp.net`,
           fromMe: !!quotedRaw.fromMe,
           id: String(quotedRaw.messageId),
         },
@@ -493,7 +391,7 @@ Deno.serve(async (req) => {
       } : null;
       const quotedGo = quotedRaw && quotedRaw.messageId ? {
         messageId: String(quotedRaw.messageId),
-          participant: recipientJid(sendPhone),
+          participant: `${sendPhone}@s.whatsapp.net`,
       } : null;
 
       const goBody: Record<string, unknown> = { number: sendPhone, text };
@@ -509,50 +407,46 @@ Deno.serve(async (req) => {
       await insertOutgoingMessage(admin, {
         user_id: user.id,
         instance_name: instance,
-        remote_jid: recipientJid(sendPhone),
+        remote_jid: `${sendPhone}@s.whatsapp.net`,
         phone,
         direction: 'out',
         content: text,
-        status: 'pending',
+        status: 'sent',
         external_id: pendingExternalId,
         raw: quotedRaw?.messageId ? { __queued: true, __quoted: { id: quotedRaw.messageId, text: quotedRaw.text || '', fromMe: !!quotedRaw.fromMe } } : { __queued: true },
       });
 
       const attempts: Array<{ url: string; headers: Record<string, string>; body: any; mode: string }> = [
-        { url: `${baseUrl}/send/text`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: goBody, mode: 'evolution-go-send-text' },
-        { url: `${baseUrl}/send/text`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: goBodyMsg, mode: 'evolution-go-send-message' },
         { url: `${baseUrl}/message/sendText/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: classicBody, mode: 'evolution-api' },
         { url: `${baseUrl}/message/sendText/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: classicBodyV1, mode: 'evolution-api-v1' },
-        { url: `${baseUrl}/message/sendText`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: goBody, mode: 'evolution-go-safe' },
+        { url: `${baseUrl}/send/text`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: goBody, mode: 'evolution-go-send' },
+        { url: `${baseUrl}/message/sendText`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: goBody, mode: 'evolution-go' },
+        { url: `${baseUrl}/message/sendText`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: goBodyMsg, mode: 'evolution-go-msg' },
       ];
 
       runInBackground((async () => {
         let result: any = { ok: false, status: 0, data: {} };
         let mode = 'evolution-api';
         const log: any[] = [];
-        const totalDelay = (pace.waitMs || 0) + humanDelayMs(text);
-        // Send typing presence first to look human, then wait the human delay
-        await sendTypingPresence(baseUrl, apiKey, instance, sendPhone, totalDelay, instAuth).catch(() => null);
-        await sleep(totalDelay);
         for (const att of attempts) {
+          const timeout = att.mode === 'evolution-go-send' ? 30000 : 8000;
           const r = await fetchJson(att.url, {
             method: 'POST',
             headers: att.headers,
             body: JSON.stringify(att.body),
-          }, 9000).catch((error) => ({ ok: false, status: 0, data: { error: String(error?.message || error) } }));
+          }, timeout).catch((error) => ({ ok: false, status: 0, data: { error: String(error?.message || error) } }));
           log.push({ url: att.url, mode: att.mode, status: r.status });
-          if (r.ok) { result = r; mode = att.mode; break; }
+          if (r.ok || (att.mode === 'evolution-go-send' && r.status === 0)) { result = r; mode = att.mode; break; }
           if (r.status !== 404 && r.status !== 405 && r.status !== 400) { result = r; mode = att.mode; break; }
           result = r; mode = att.mode;
         }
-        if (!result.ok) {
+        if (!result.ok && !(mode === 'evolution-go-send' && result.status === 0)) {
           console.error('[evolution-send] all attempts failed', log, result);
           await admin.from('evolution_messages').update({ status: 'failed', raw: { __failed: true, attempts: log, result } }).eq('external_id', pendingExternalId).eq('user_id', user.id);
           return;
         }
         const realExternalId = result.data?.key?.id || result.data?.messageId || result.data?.data?.Info?.ID || result.data?.Info?.ID;
         await admin.from('evolution_messages').update({
-          status: 'sent',
           external_id: realExternalId || pendingExternalId,
           raw: quotedRaw?.messageId ? { ...result.data, __mode: mode, __attempts: log, __quoted: { id: quotedRaw.messageId, text: quotedRaw.text || '', fromMe: !!quotedRaw.fromMe } } : { ...result.data, __mode: mode, __attempts: log },
         }).eq('external_id', pendingExternalId).eq('user_id', user.id);
@@ -626,17 +520,16 @@ Deno.serve(async (req) => {
     // FETCH PROFILE PICTURE
     if (action === 'fetch-profile-pic') {
       if (!instance) return jsonResponse({ error: 'Escolha uma instância em Conexões WhatsApp.' }, 200);
-      const phone = normalizeChatPhone(body.phone);
+      const phone = normalizePhone(body.phone);
       if (!phone) return jsonResponse({ error: 'phone obrigatório' }, 400);
       const number = `${phone}@s.whatsapp.net`;
       const instAuth = await resolveInstanceAuth(baseUrl, apiKey, instance);
-      const sendPhone = await resolveSendPhone(admin, user.id, phone);
       const tries = [
-        { url: `${baseUrl}/user/avatar`, method: 'POST', headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: sendPhone, preview: false } },
+        { url: `${baseUrl}/user/avatar`, method: 'POST', headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: phone, preview: false } },
         { url: `${baseUrl}/user/avatar`, method: 'POST', headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number, preview: false } },
         { url: `${baseUrl}/user/info`, method: 'POST', headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: [phone] } },
         { url: `${baseUrl}/user/info`, method: 'POST', headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: [number] } },
-        { url: `${baseUrl}/chat/fetchProfilePictureUrl/${encodeURIComponent(instance)}`, method: 'POST', headers: evolutionHeaders(apiKey, true), body: { number: sendPhone } },
+        { url: `${baseUrl}/chat/fetchProfilePictureUrl/${encodeURIComponent(instance)}`, method: 'POST', headers: evolutionHeaders(apiKey, true), body: { number: phone } },
         { url: `${baseUrl}/chat/fetchProfilePictureUrl/${encodeURIComponent(instance)}`, method: 'POST', headers: evolutionHeaders(apiKey, true), body: { number } },
         { url: `${baseUrl}/chat/getProfilePicture`, method: 'POST', headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: phone } },
         { url: `${baseUrl}/chat/whatsappProfile/${encodeURIComponent(instance)}`, method: 'POST', headers: evolutionHeaders(apiKey, true), body: { number: phone } },
@@ -685,18 +578,22 @@ Deno.serve(async (req) => {
     // SEND REACTION — body: { phone, messageId, fromMe, emoji }
     if (action === 'send-reaction') {
       if (!instance) return jsonResponse({ error: 'Escolha uma instância em Conexões WhatsApp.' }, 200);
-      const phone = normalizeChatPhone(body.phone);
+      const phone = normalizePhone(body.phone);
       const messageId = String(body.messageId || '').trim();
       const emoji = String(body.emoji || '');
       const fromMe = !!body.fromMe;
       if (!phone || !messageId) return jsonResponse({ error: 'phone e messageId obrigatórios' }, 400);
       const instAuth = await resolveInstanceAuth(baseUrl, apiKey, instance);
-      const sendPhone = await resolveSendPhone(admin, user.id, phone);
-      const jid = recipientJid(sendPhone);
+      const jid = `${phone}@s.whatsapp.net`;
       const key = { remoteJid: jid, fromMe, id: messageId };
 
       const attempts: Array<{ url: string; headers: Record<string, string>; body: any; mode: string }> = [
+        // Evolution API v2 (canonical, per docs)
         { url: `${baseUrl}/message/sendReaction/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { key, reaction: emoji }, mode: 'evo-api-v2' },
+        // Evolution Go variants
+        { url: `${baseUrl}/message/sendReaction`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { key, reaction: emoji }, mode: 'evo-go-msg' },
+        { url: `${baseUrl}/message/react`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { id: messageId, number: phone, reaction: emoji }, mode: 'evo-go-react' },
+        { url: `${baseUrl}/send/reaction`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { key, reaction: emoji }, mode: 'evo-go-send' },
         { url: `${baseUrl}/chat/sendReaction/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { key, reaction: emoji }, mode: 'evo-api-chat' },
       ];
       let result: any = { ok: false, status: 0, data: {} };
@@ -732,7 +629,7 @@ Deno.serve(async (req) => {
     // SEND MEDIA (audio / image / file) — body: { phone, mediaBase64, mimetype, filename, mediaType: 'audio'|'image'|'document', caption? }
     if (action === 'send-media') {
       if (!instance) return jsonResponse({ error: 'Escolha uma instância em Conexões WhatsApp antes de enviar arquivos.' }, 200);
-      const phone = normalizeChatPhone(body.phone);
+      const phone = normalizePhone(body.phone);
       const mediaType = String(body.mediaType || 'document');
       const mimetype = String(body.mimetype || 'application/octet-stream');
       const filename = String(body.filename || `media-${Date.now()}`);
@@ -757,43 +654,43 @@ Deno.serve(async (req) => {
       const mediaForEvolution = publicMediaFromSignedUrl(mediaUrl) || `data:${mimetype};base64,${mediaBase64}`;
       const cleanMime = mimetype.split(';')[0] || mimetype;
       const instAuth = await resolveInstanceAuth(baseUrl, apiKey, instance);
-      const sendPhone = await resolveSendPhone(admin, user.id, phone);
 
       let attempts: Array<{ url: string; headers: Record<string, string>; body: any; mode: string }> = [];
       if (mediaType === 'audio') {
         attempts = [
-          { url: `${baseUrl}/message/sendWhatsAppAudio/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: sendPhone, audio: mediaForEvolution }, mode: 'evolution-api-audio-url' },
-          { url: `${baseUrl}/message/sendWhatsAppAudio/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: sendPhone, audio: mediaBase64 }, mode: 'evolution-api-audio-base64' },
-          { url: `${baseUrl}/message/sendMedia/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: sendPhone, mediatype: 'audio', mimetype: cleanMime, fileName: filename, caption, media: mediaForEvolution }, mode: 'evolution-api-media-audio' },
-          { url: `${baseUrl}/message/sendMedia`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: sendPhone, type: 'audio', url: mediaForEvolution, filename, caption }, mode: 'evolution-go-media-safe' },
+          { url: `${baseUrl}/send/media`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: phone, type: 'audio', url: mediaForEvolution, filename, caption }, mode: 'evolution-go-send-media-token' },
+          { url: `${baseUrl}/message/sendWhatsAppAudio/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: phone, audio: mediaForEvolution }, mode: 'evolution-api-audio-url' },
+          { url: `${baseUrl}/message/sendWhatsAppAudio/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: phone, audio: mediaBase64 }, mode: 'evolution-api-audio-base64' },
+          { url: `${baseUrl}/message/sendMedia/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: phone, mediatype: 'audio', mimetype: cleanMime, fileName: filename, caption, media: mediaForEvolution }, mode: 'evolution-api-media-audio' },
+          { url: `${baseUrl}/send/media`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: phone, type: 'audio', url: mediaForEvolution, filename, caption }, mode: 'evolution-go-send-media' },
+          { url: `${baseUrl}/message/sendMedia`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: phone, type: 'audio', url: mediaForEvolution, filename, caption }, mode: 'evolution-go-message-media' },
         ];
       } else if (mediaType === 'sticker') {
         attempts = [
-          { url: `${baseUrl}/message/sendSticker/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: sendPhone, sticker: mediaForEvolution }, mode: 'evolution-api-sticker-url' },
-          { url: `${baseUrl}/message/sendSticker/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: sendPhone, sticker: mediaBase64 }, mode: 'evolution-api-sticker-base64' },
-          { url: `${baseUrl}/message/sendMedia/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: sendPhone, mediatype: 'sticker', mimetype: cleanMime, fileName: filename, media: mediaForEvolution }, mode: 'evolution-api-media-sticker' },
-          { url: `${baseUrl}/message/sendMedia`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: sendPhone, type: 'sticker', url: mediaForEvolution, filename }, mode: 'evolution-go-sticker-safe' },
+          { url: `${baseUrl}/send/sticker`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: phone, sticker: mediaForEvolution }, mode: 'evolution-go-send-sticker-token' },
+          { url: `${baseUrl}/message/sendSticker/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: phone, sticker: mediaForEvolution }, mode: 'evolution-api-sticker-url' },
+          { url: `${baseUrl}/message/sendSticker/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: phone, sticker: mediaBase64 }, mode: 'evolution-api-sticker-base64' },
+          { url: `${baseUrl}/send/sticker`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: phone, sticker: mediaForEvolution }, mode: 'evolution-go-send-sticker' },
+          { url: `${baseUrl}/message/sendMedia/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: phone, mediatype: 'sticker', mimetype: cleanMime, fileName: filename, media: mediaForEvolution }, mode: 'evolution-api-media-sticker' },
         ];
       } else {
         const isImg = mediaType === 'image';
         const goType = isImg ? 'image' : 'document';
         attempts = [
-          { url: `${baseUrl}/message/sendMedia/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: sendPhone, mediatype: goType, mimetype: cleanMime, fileName: filename, caption, media: mediaForEvolution }, mode: 'evolution-api-url' },
-          { url: `${baseUrl}/message/sendMedia/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: sendPhone, mediatype: goType, mimetype: cleanMime, fileName: filename, caption, media: mediaBase64 }, mode: 'evolution-api-base64' },
-          { url: `${baseUrl}/message/sendMedia`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: sendPhone, type: goType, url: mediaForEvolution, filename, caption }, mode: 'evolution-go-media-safe' },
+          { url: `${baseUrl}/send/media`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: phone, type: goType, url: mediaForEvolution, filename, caption }, mode: 'evolution-go-send-media-token' },
+          { url: `${baseUrl}/message/sendMedia/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: phone, mediatype: goType, mimetype: cleanMime, fileName: filename, caption, media: mediaForEvolution }, mode: 'evolution-api-url' },
+          { url: `${baseUrl}/message/sendMedia/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: phone, mediatype: goType, mimetype: cleanMime, fileName: filename, caption, media: mediaBase64 }, mode: 'evolution-api-base64' },
+          { url: `${baseUrl}/send/media`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: phone, type: goType, url: mediaForEvolution, filename, caption }, mode: 'evolution-go-send-media' },
+          { url: `${baseUrl}/message/sendMedia`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: phone, type: goType, url: mediaForEvolution, filename, caption }, mode: 'evolution-go-message-media' },
+          { url: `${baseUrl}/message/sendMedia`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: phone, mediatype: goType, mimetype: cleanMime, fileName: filename, caption, media: mediaForEvolution }, mode: 'evolution-go-classic-body' },
         ];
       }
 
       let result: any = { ok: false, status: 0, data: {} };
       let mode = 'evolution-api';
       const log: any[] = [];
-      const pace = await guardHumanSendPace(admin, user.id, instance);
-      if (!pace.ok) return jsonResponse({ ok: false, error: pace.error }, 200);
-      const totalMediaDelay = (pace.waitMs || 0) + humanDelayMs(caption || filename);
-      await sendTypingPresence(baseUrl, apiKey, instance, String(sendPhone), totalMediaDelay, instAuth).catch(() => null);
-      await sleep(totalMediaDelay);
       for (const att of attempts) {
-        const r = await fetchJson(att.url, { method: 'POST', headers: att.headers, body: JSON.stringify(att.body) }, 12000)
+        const r = await fetchJson(att.url, { method: 'POST', headers: att.headers, body: JSON.stringify(att.body) })
           .catch((error) => ({ ok: false, status: 0, data: { error: String(error?.message || error) } }));
         log.push({ url: att.url, mode: att.mode, status: r.status });
         if (r.ok) { result = r; mode = att.mode; break; }
@@ -809,7 +706,7 @@ Deno.serve(async (req) => {
       await insertOutgoingMessage(admin, {
         user_id: user.id,
         instance_name: instance,
-        remote_jid: recipientJid(sendPhone),
+        remote_jid: `${phone}@s.whatsapp.net`,
         phone,
         direction: 'out',
         content: caption || (mediaType === 'audio' ? '🎤 Áudio' : mediaType === 'image' ? '📷 Imagem' : mediaType === 'sticker' ? '🌟 Sticker' : `📎 ${filename}`),
@@ -1166,13 +1063,6 @@ Deno.serve(async (req) => {
     if (action === 'set-active-instance') {
       const name = String(body.name || '').trim();
       if (!name) return jsonResponse({ error: 'name obrigatório' }, 400);
-      const webhookUrl = `${supabaseUrl}/functions/v1/evolution-webhook?token=${settings.webhook_token}`;
-      const instAuth = await resolveInstanceAuth(baseUrl, apiKey, name);
-      await fetchJson(`${baseUrl}/instance/connect`, {
-        method: 'POST',
-        headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId),
-        body: JSON.stringify({ webhookUrl, subscribe: ['MESSAGE', 'SEND_MESSAGE', 'CONNECTION', 'QRCODE'], immediate: true }),
-      }, 8000).catch(() => null);
       const { error } = await admin
         .from('evolution_settings')
         .update({ instance_name: name })

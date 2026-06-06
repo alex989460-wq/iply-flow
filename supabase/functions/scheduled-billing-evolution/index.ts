@@ -132,17 +132,6 @@ Deno.serve(async (req) => {
     const results: any[] = [];
 
     for (const sched of toRun) {
-      // Respect billing channel toggle: only run if user has Evolution selected as billing channel
-      const { data: billSettings } = await supabase
-        .from('billing_settings')
-        .select('use_evolution_billing')
-        .eq('user_id', sched.user_id)
-        .maybeSingle();
-      if (!force && !(billSettings as any)?.use_evolution_billing) {
-        results.push({ user_id: sched.user_id, sent: 0, errors: 0, skipped: 'evolution_billing_disabled' });
-        continue;
-      }
-
       // Evolution credentials for this user
       const { data: evo } = await supabase
         .from('evolution_settings')
