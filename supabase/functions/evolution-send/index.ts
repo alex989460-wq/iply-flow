@@ -48,14 +48,14 @@ function jidTarget(value: unknown) {
   const clean = value.trim();
   const digits = clean.split('@')[0].split(':')[0].replace(/\D/g, '');
   if (/@lid\b/i.test(clean) && digits.length >= 10) return `${digits}@lid`;
-  if (/@s\.whatsapp\.net\b/i.test(clean) && digits.length >= 10) return digits;
+  if (/@s\.whatsapp\.net\b/i.test(clean) && digits.length >= 10) return `${digits}@s.whatsapp.net`;
   return digits.length >= 10 ? digits : '';
 }
 
-function pushUniqueTarget(targets: Array<{ value: string; kind: 'lid' | 'phone' }>, raw: unknown) {
+function pushUniqueTarget(targets: Array<{ value: string; kind: 'lid' | 'jid' | 'phone' }>, raw: unknown) {
   const target = jidTarget(raw);
   if (!target) return;
-  const kind = target.includes('@lid') ? 'lid' : 'phone';
+  const kind = target.includes('@lid') ? 'lid' : target.includes('@s.whatsapp.net') ? 'jid' : 'phone';
   if (!targets.some((t) => t.value === target)) targets.push({ value: target, kind });
 }
 
@@ -77,7 +77,7 @@ async function resolveSendPhone(admin: any, userId: string, phone: string) {
 }
 
 async function resolveSendTargets(admin: any, userId: string, phone: string) {
-  const targets: Array<{ value: string; kind: 'lid' | 'phone' }> = [];
+  const targets: Array<{ value: string; kind: 'lid' | 'jid' | 'phone' }> = [];
   const phoneDigits = String(phone || '').replace(/\D/g, '');
   const normalizedPhone = normalizeChatPhone(phoneDigits);
 
@@ -105,11 +105,13 @@ async function resolveSendTargets(admin: any, userId: string, phone: string) {
 
   pushUniqueTarget(targets, phoneDigits.includes('@') ? phone : phoneDigits);
   if (normalizedPhone) pushUniqueTarget(targets, normalizedPhone);
+  if (normalizedPhone) pushUniqueTarget(targets, `${normalizedPhone}@s.whatsapp.net`);
 
   const lids = targets.filter((t) => t.kind === 'lid');
+  const jids = targets.filter((t) => t.kind === 'jid' && t.value.startsWith('55'));
   const phones = targets.filter((t) => t.kind === 'phone' && t.value.startsWith('55'));
   const otherPhones = targets.filter((t) => t.kind === 'phone' && !t.value.startsWith('55'));
-  return [...lids, ...phones, ...otherPhones].filter((target, index, arr) => arr.findIndex((t) => t.value === target.value) === index);
+  return [...lids, ...jids, ...phones, ...otherPhones].filter((target, index, arr) => arr.findIndex((t) => t.value === target.value) === index);
 }
 
 function phoneFromJid(value: unknown) {
