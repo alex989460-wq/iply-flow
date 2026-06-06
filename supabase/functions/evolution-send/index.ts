@@ -162,6 +162,8 @@ async function guardHumanSendPace(admin: any, userId: string, instanceName: stri
   const now = Date.now();
   const sinceMinute = new Date(now - 60_000).toISOString();
   const sinceFiveMinutes = new Date(now - 5 * 60_000).toISOString();
+  const sinceHour = new Date(now - 60 * 60_000).toISOString();
+  const sinceDay = new Date(now - 24 * 60 * 60_000).toISOString();
 
   const { data: recent } = await admin
     .from('evolution_messages')
@@ -169,21 +171,49 @@ async function guardHumanSendPace(admin: any, userId: string, instanceName: stri
     .eq('user_id', userId)
     .eq('instance_name', instanceName)
     .eq('direction', 'out')
-    .gte('created_at', sinceFiveMinutes)
+    .gte('created_at', sinceDay)
     .order('created_at', { ascending: false })
-    .limit(25);
+    .limit(500);
 
   const rows = recent || [];
   const lastAt = rows[0]?.created_at ? new Date(rows[0].created_at).getTime() : 0;
   const sentLastMinute = rows.filter((r: any) => String(r.created_at) >= sinceMinute).length;
+  const sentLastFive = rows.filter((r: any) => String(r.created_at) >= sinceFiveMinutes).length;
+  const sentLastHour = rows.filter((r: any) => String(r.created_at) >= sinceHour).length;
+  const sentLastDay = rows.length;
 
-  if (sentLastMinute >= 8 || rows.length >= 22) {
-    return { ok: false, error: 'Pausa anti-banimento: aguarde alguns minutos antes de enviar mais mensagens por este número.' };
+  if (sentLastMinute >= 6) {
+    return { ok: false, error: 'Pausa anti-banimento: muitas mensagens no último minuto. Aguarde ~1 min.' };
+  }
+  if (sentLastFive >= 18) {
+    return { ok: false, error: 'Pausa anti-banimento: ritmo alto nos últimos 5 min. Aguarde alguns minutos.' };
+  }
+  if (sentLastHour >= 120) {
+    return { ok: false, error: 'Pausa anti-banimento: limite de ~120 envios/hora atingido para este número.' };
+  }
+  if (sentLastDay >= 600) {
+    return { ok: false, error: 'Pausa anti-banimento: limite diário (~600 envios) atingido para este número.' };
   }
 
-  const minGap = 6500 + Math.floor(Math.random() * 4500);
+  // Slow-start: stricter gap during first 10 messages of the hour
+  const baseGap = sentLastHour < 10 ? 9000 : 7000;
+  const minGap = baseGap + Math.floor(Math.random() * 5000);
   const waitMs = lastAt ? Math.max(0, minGap - (now - lastAt)) : 0;
   return { ok: true, waitMs };
+}
+
+async function sendTypingPresence(baseUrl: string, apiKey: string, instance: string, sendPhone: string, durationMs: number, instAuth: { apiKey: string; instanceId: string }) {
+  const phoneJid = `${sendPhone}@s.whatsapp.net`;
+  const attempts = [
+    { url: `${baseUrl}/chat/sendPresence/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: sendPhone, presence: 'composing', delay: Math.min(durationMs, 8000) } },
+    { url: `${baseUrl}/chat/presence`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { phone: sendPhone, presence: 'composing' } },
+    { url: `${baseUrl}/chat/presence/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: sendPhone, presence: 'composing' } },
+  ];
+  for (const att of attempts) {
+    const r = await fetchJson(att.url, { method: 'POST', headers: att.headers, body: JSON.stringify(att.body) }, 4000).catch(() => null);
+    if (r?.ok) return true;
+  }
+  return false;
 }
 
 function runInBackground(task: Promise<unknown>) {
