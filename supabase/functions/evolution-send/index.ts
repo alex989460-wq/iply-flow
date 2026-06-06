@@ -223,6 +223,19 @@ function isEvolutionReachoutLock(data: any) {
   return /(^|\D)463(\D|$)|NackCallerReachoutTimelocked|reach[- ]?out|time[- ]?lock/i.test(getEvolutionErrorText(data));
 }
 
+const DEFAULT_WEBHOOK_EVENTS = ['MESSAGE', 'SEND_MESSAGE', 'CONNECTION', 'QRCODE', 'PRESENCE', 'CHAT_PRESENCE'];
+
+function normalizeWebhookEvents(value: unknown) {
+  const raw = Array.isArray(value) ? value : DEFAULT_WEBHOOK_EVENTS;
+  const events = raw.map((event) => String(event || '').trim().toUpperCase()).filter(Boolean);
+  if (events.includes('ALL')) return ['ALL'];
+  return Array.from(new Set(events.length ? events : DEFAULT_WEBHOOK_EVENTS));
+}
+
+function classicWebhookEvents(events: string[]) {
+  return events.includes('ALL') ? ['MESSAGES_UPSERT'] : events;
+}
+
 async function resolveGoInstanceId(baseUrl: string, apiKey: string, instance: string) {
   if (isUuid(instance)) return instance;
   const r = await fetchJson(`${baseUrl}/instance/all`, {
@@ -440,7 +453,7 @@ Deno.serve(async (req) => {
         if (!ok) {
           const go = await fetchJson(`${baseUrl}/instance/connect`, {
             method: 'POST', headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId),
-            body: JSON.stringify({ webhookUrl, subscribe: ['MESSAGE', 'SEND_MESSAGE', 'CONNECTION', 'QRCODE'], immediate: true }),
+            body: JSON.stringify({ webhookUrl, subscribe: DEFAULT_WEBHOOK_EVENTS, immediate: true }),
           }).catch(() => ({ ok: false, status: 0 }));
           ok = !!go.ok;
         }
@@ -855,7 +868,7 @@ Deno.serve(async (req) => {
       const webhookUrlForConnect = `${supabaseUrl}/functions/v1/evolution-webhook?token=${settings.webhook_token}`;
       await fetchJson(`${baseUrl}/instance/connect`, {
         method: 'POST', headers: evolutionHeaders(scopedApiKey, true, scopedInstanceId),
-        body: JSON.stringify({ webhookUrl: webhookUrlForConnect, subscribe: ['MESSAGE','SEND_MESSAGE','CONNECTION','QRCODE'], immediate: true }),
+        body: JSON.stringify({ webhookUrl: webhookUrlForConnect, subscribe: DEFAULT_WEBHOOK_EVENTS, immediate: true }),
       }, 8000).catch(() => null);
 
 
