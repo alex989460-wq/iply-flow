@@ -451,12 +451,13 @@ Deno.serve(async (req) => {
       const instAuth = await resolveInstanceAuth(baseUrl, apiKey, instance);
       const sendPhone = await resolveSendPhone(admin, user.id, phone);
       runInBackground((async () => {
-        const phoneJid = recipientJid(sendPhone);
+        const cleanPhone = normalizeChatPhone(sendPhone);
+        const phoneJid = `${cleanPhone}@s.whatsapp.net`;
         const attempts = [
-          { url: `${baseUrl}/chat/sendPresence/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: sendPhone, presence, delay: durationMs } },
-          { url: `${baseUrl}/chat/presence`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { phone: sendPhone, presence } },
-          { url: `${baseUrl}/chat/presence/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: sendPhone, presence } },
-          { url: `${baseUrl}/presence`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { phone: sendPhone, presence, jid: phoneJid } },
+          { url: `${baseUrl}/chat/presence`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: cleanPhone, phone: cleanPhone, jid: phoneJid, presence, delay: durationMs } },
+          { url: `${baseUrl}/presence`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: cleanPhone, phone: cleanPhone, jid: phoneJid, presence, delay: durationMs } },
+          { url: `${baseUrl}/chat/sendPresence/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: cleanPhone, presence, delay: durationMs } },
+          { url: `${baseUrl}/chat/presence/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: cleanPhone, presence, delay: durationMs } },
         ];
         for (const att of attempts) {
           const r = await fetchJson(att.url, { method: 'POST', headers: att.headers, body: JSON.stringify(att.body) }, 4000).catch(() => null);
