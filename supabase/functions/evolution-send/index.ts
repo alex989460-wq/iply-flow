@@ -642,6 +642,19 @@ Deno.serve(async (req) => {
       return jsonResponse({ ok: false, url: null });
     }
 
+    // SAVE CONTACT CREATED MANUALLY IN CHAT
+    if (action === 'save-contact') {
+      const phone = normalizeChatPhone(body.phone);
+      if (!phone) return jsonResponse({ error: 'phone obrigatório' }, 400);
+      const { error } = await admin.from('evolution_contacts').upsert({
+        user_id: user.id,
+        phone,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'user_id,phone' });
+      if (error) return jsonResponse({ error: error.message }, 200);
+      return jsonResponse({ ok: true, phone });
+    }
+
     // SYNC CONTACTS FROM EVOLUTION GO
     if (action === 'sync-contacts') {
       if (!instance) return jsonResponse({ error: 'Escolha uma instância em Conexões WhatsApp.' }, 200);
