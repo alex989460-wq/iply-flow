@@ -43,21 +43,33 @@ function jidPhone(value: unknown) {
   return digits.length >= 10 ? digits : '';
 }
 
+function isLikelyLid(value: string) {
+  const digits = String(value || '').replace(/\D/g, '');
+  return digits.length >= 13 && !digits.startsWith('55');
+}
+
+function recipientJid(value: string) {
+  const digits = String(value || '').replace(/\D/g, '');
+  return `${digits}@${isLikelyLid(digits) ? 'lid' : 's.whatsapp.net'}`;
+}
+
 async function resolveSendPhone(admin: any, userId: string, phone: string) {
-  if (phone.startsWith('55') && phone.length >= 12) return phone;
+  const normalized = normalizeChatPhone(phone);
   const { data } = await admin
     .from('evolution_messages')
-    .select('raw')
+    .select('raw,direction,status')
     .eq('user_id', userId)
-    .eq('phone', phone)
+    .eq('phone', normalized || phone)
     .order('created_at', { ascending: false })
     .limit(20);
   for (const row of data || []) {
     const info = row?.raw?.data?.Info || row?.raw?.Info || {};
-    const candidate = jidPhone(info.RecipientAlt) || jidPhone(info.SenderAlt) || jidPhone(info.Sender);
-    if (candidate?.startsWith('55')) return candidate;
+    const lidCandidate = row?.direction === 'in'
+      ? jidPhone(info.SenderAlt) || jidPhone(info.Sender)
+      : jidPhone(info.Chat) || jidPhone(info.RecipientAlt) || jidPhone(info.SenderAlt);
+    if (isLikelyLid(lidCandidate)) return lidCandidate;
   }
-  return phone;
+  return normalized || phone;
 }
 
 function phoneFromJid(value: unknown) {
@@ -203,7 +215,7 @@ async function guardHumanSendPace(admin: any, userId: string, instanceName: stri
 }
 
 async function sendTypingPresence(baseUrl: string, apiKey: string, instance: string, sendPhone: string, durationMs: number, instAuth: { apiKey: string; instanceId: string }) {
-  const phoneJid = `${sendPhone}@s.whatsapp.net`;
+  const phoneJid = recipientJid(sendPhone);
   const attempts = [
     { url: `${baseUrl}/chat/sendPresence/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: sendPhone, presence: 'composing', delay: Math.min(durationMs, 8000) } },
     { url: `${baseUrl}/chat/presence`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { phone: sendPhone, presence: 'composing' } },
@@ -447,7 +459,7 @@ Deno.serve(async (req) => {
       const instAuth = await resolveInstanceAuth(baseUrl, apiKey, instance);
       const sendPhone = await resolveSendPhone(admin, user.id, phone);
       runInBackground((async () => {
-        const phoneJid = `${sendPhone}@s.whatsapp.net`;
+        const phoneJid = recipientJid(sendPhone);
         const attempts = [
           { url: `${baseUrl}/chat/sendPresence/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: sendPhone, presence, delay: durationMs } },
           { url: `${baseUrl}/chat/presence`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { phone: sendPhone, presence } },
@@ -479,7 +491,7 @@ Deno.serve(async (req) => {
       const quotedRaw = body.quoted as { messageId?: string; fromMe?: boolean; text?: string } | null | undefined;
       const quotedClassic = quotedRaw && quotedRaw.messageId ? {
         key: {
-          remoteJid: `${sendPhone}@s.whatsapp.net`,
+          remoteJid: recipientJid(sendPhone),
           fromMe: !!quotedRaw.fromMe,
           id: String(quotedRaw.messageId),
         },
@@ -487,7 +499,7 @@ Deno.serve(async (req) => {
       } : null;
       const quotedGo = quotedRaw && quotedRaw.messageId ? {
         messageId: String(quotedRaw.messageId),
-          participant: `${sendPhone}@s.whatsapp.net`,
+          participant: recipientJid(sendPhone),
       } : null;
 
       const goBody: Record<string, unknown> = { number: sendPhone, text };
@@ -503,7 +515,7 @@ Deno.serve(async (req) => {
       await insertOutgoingMessage(admin, {
         user_id: user.id,
         instance_name: instance,
-        remote_jid: `${sendPhone}@s.whatsapp.net`,
+        remote_jid: recipientJid(sendPhone),
         phone,
         direction: 'out',
         content: text,
@@ -512,13 +524,18 @@ Deno.serve(async (req) => {
         raw: quotedRaw?.messageId ? { __queued: true, __quoted: { id: quotedRaw.messageId, text: quotedRaw.text || '', fromMe: !!quotedRaw.fromMe } } : { __queued: true },
       });
 
-      const attempts: Array<{ url: string; headers: Record<string, string>; body: any; mode: string }> = [
-        { url: `${baseUrl}/send/text`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: goBody, mode: 'evolution-go-send-text' },
-        { url: `${baseUrl}/send/text`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: goBodyMsg, mode: 'evolution-go-send-message' },
-        { url: `${baseUrl}/message/sendText/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: classicBody, mode: 'evolution-api' },
-        { url: `${baseUrl}/message/sendText/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: classicBodyV1, mode: 'evolution-api-v1' },
-        { url: `${baseUrl}/message/sendText`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: goBody, mode: 'evolution-go-safe' },
-      ];
+      const attempts: Array<{ url: string; headers: Record<string, string>; body: any; mode: string }> = isLikelyLid(sendPhone)
+        ? [
+            { url: `${baseUrl}/send/text`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: goBody, mode: 'evolution-go-send-text-lid' },
+            { url: `${baseUrl}/message/sendText`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: goBody, mode: 'evolution-go-safe-lid' },
+          ]
+        : [
+            { url: `${baseUrl}/send/text`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: goBody, mode: 'evolution-go-send-text' },
+            { url: `${baseUrl}/send/text`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: goBodyMsg, mode: 'evolution-go-send-message' },
+            { url: `${baseUrl}/message/sendText/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: classicBody, mode: 'evolution-api' },
+            { url: `${baseUrl}/message/sendText/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: classicBodyV1, mode: 'evolution-api-v1' },
+            { url: `${baseUrl}/message/sendText`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: goBody, mode: 'evolution-go-safe' },
+          ];
 
       runInBackground((async () => {
         let result: any = { ok: false, status: 0, data: {} };
@@ -620,16 +637,17 @@ Deno.serve(async (req) => {
     // FETCH PROFILE PICTURE
     if (action === 'fetch-profile-pic') {
       if (!instance) return jsonResponse({ error: 'Escolha uma instância em Conexões WhatsApp.' }, 200);
-      const phone = normalizePhone(body.phone);
+      const phone = normalizeChatPhone(body.phone);
       if (!phone) return jsonResponse({ error: 'phone obrigatório' }, 400);
       const number = `${phone}@s.whatsapp.net`;
       const instAuth = await resolveInstanceAuth(baseUrl, apiKey, instance);
+      const sendPhone = await resolveSendPhone(admin, user.id, phone);
       const tries = [
-        { url: `${baseUrl}/user/avatar`, method: 'POST', headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: phone, preview: false } },
+        { url: `${baseUrl}/user/avatar`, method: 'POST', headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: sendPhone, preview: false } },
         { url: `${baseUrl}/user/avatar`, method: 'POST', headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number, preview: false } },
         { url: `${baseUrl}/user/info`, method: 'POST', headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: [phone] } },
         { url: `${baseUrl}/user/info`, method: 'POST', headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: [number] } },
-        { url: `${baseUrl}/chat/fetchProfilePictureUrl/${encodeURIComponent(instance)}`, method: 'POST', headers: evolutionHeaders(apiKey, true), body: { number: phone } },
+        { url: `${baseUrl}/chat/fetchProfilePictureUrl/${encodeURIComponent(instance)}`, method: 'POST', headers: evolutionHeaders(apiKey, true), body: { number: sendPhone } },
         { url: `${baseUrl}/chat/fetchProfilePictureUrl/${encodeURIComponent(instance)}`, method: 'POST', headers: evolutionHeaders(apiKey, true), body: { number } },
         { url: `${baseUrl}/chat/getProfilePicture`, method: 'POST', headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: phone } },
         { url: `${baseUrl}/chat/whatsappProfile/${encodeURIComponent(instance)}`, method: 'POST', headers: evolutionHeaders(apiKey, true), body: { number: phone } },
@@ -678,13 +696,14 @@ Deno.serve(async (req) => {
     // SEND REACTION — body: { phone, messageId, fromMe, emoji }
     if (action === 'send-reaction') {
       if (!instance) return jsonResponse({ error: 'Escolha uma instância em Conexões WhatsApp.' }, 200);
-      const phone = normalizePhone(body.phone);
+      const phone = normalizeChatPhone(body.phone);
       const messageId = String(body.messageId || '').trim();
       const emoji = String(body.emoji || '');
       const fromMe = !!body.fromMe;
       if (!phone || !messageId) return jsonResponse({ error: 'phone e messageId obrigatórios' }, 400);
       const instAuth = await resolveInstanceAuth(baseUrl, apiKey, instance);
-      const jid = `${phone}@s.whatsapp.net`;
+      const sendPhone = await resolveSendPhone(admin, user.id, phone);
+      const jid = recipientJid(sendPhone);
       const key = { remoteJid: jid, fromMe, id: messageId };
 
       const attempts: Array<{ url: string; headers: Record<string, string>; body: any; mode: string }> = [
@@ -724,7 +743,7 @@ Deno.serve(async (req) => {
     // SEND MEDIA (audio / image / file) — body: { phone, mediaBase64, mimetype, filename, mediaType: 'audio'|'image'|'document', caption? }
     if (action === 'send-media') {
       if (!instance) return jsonResponse({ error: 'Escolha uma instância em Conexões WhatsApp antes de enviar arquivos.' }, 200);
-      const phone = normalizePhone(body.phone);
+      const phone = normalizeChatPhone(body.phone);
       const mediaType = String(body.mediaType || 'document');
       const mimetype = String(body.mimetype || 'application/octet-stream');
       const filename = String(body.filename || `media-${Date.now()}`);
@@ -749,29 +768,30 @@ Deno.serve(async (req) => {
       const mediaForEvolution = publicMediaFromSignedUrl(mediaUrl) || `data:${mimetype};base64,${mediaBase64}`;
       const cleanMime = mimetype.split(';')[0] || mimetype;
       const instAuth = await resolveInstanceAuth(baseUrl, apiKey, instance);
+      const sendPhone = await resolveSendPhone(admin, user.id, phone);
 
       let attempts: Array<{ url: string; headers: Record<string, string>; body: any; mode: string }> = [];
       if (mediaType === 'audio') {
         attempts = [
-          { url: `${baseUrl}/message/sendWhatsAppAudio/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: phone, audio: mediaForEvolution }, mode: 'evolution-api-audio-url' },
-          { url: `${baseUrl}/message/sendWhatsAppAudio/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: phone, audio: mediaBase64 }, mode: 'evolution-api-audio-base64' },
-          { url: `${baseUrl}/message/sendMedia/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: phone, mediatype: 'audio', mimetype: cleanMime, fileName: filename, caption, media: mediaForEvolution }, mode: 'evolution-api-media-audio' },
-          { url: `${baseUrl}/message/sendMedia`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: phone, type: 'audio', url: mediaForEvolution, filename, caption }, mode: 'evolution-go-media-safe' },
+          { url: `${baseUrl}/message/sendWhatsAppAudio/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: sendPhone, audio: mediaForEvolution }, mode: 'evolution-api-audio-url' },
+          { url: `${baseUrl}/message/sendWhatsAppAudio/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: sendPhone, audio: mediaBase64 }, mode: 'evolution-api-audio-base64' },
+          { url: `${baseUrl}/message/sendMedia/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: sendPhone, mediatype: 'audio', mimetype: cleanMime, fileName: filename, caption, media: mediaForEvolution }, mode: 'evolution-api-media-audio' },
+          { url: `${baseUrl}/message/sendMedia`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: sendPhone, type: 'audio', url: mediaForEvolution, filename, caption }, mode: 'evolution-go-media-safe' },
         ];
       } else if (mediaType === 'sticker') {
         attempts = [
-          { url: `${baseUrl}/message/sendSticker/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: phone, sticker: mediaForEvolution }, mode: 'evolution-api-sticker-url' },
-          { url: `${baseUrl}/message/sendSticker/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: phone, sticker: mediaBase64 }, mode: 'evolution-api-sticker-base64' },
-          { url: `${baseUrl}/message/sendMedia/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: phone, mediatype: 'sticker', mimetype: cleanMime, fileName: filename, media: mediaForEvolution }, mode: 'evolution-api-media-sticker' },
-          { url: `${baseUrl}/message/sendMedia`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: phone, type: 'sticker', url: mediaForEvolution, filename }, mode: 'evolution-go-sticker-safe' },
+          { url: `${baseUrl}/message/sendSticker/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: sendPhone, sticker: mediaForEvolution }, mode: 'evolution-api-sticker-url' },
+          { url: `${baseUrl}/message/sendSticker/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: sendPhone, sticker: mediaBase64 }, mode: 'evolution-api-sticker-base64' },
+          { url: `${baseUrl}/message/sendMedia/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: sendPhone, mediatype: 'sticker', mimetype: cleanMime, fileName: filename, media: mediaForEvolution }, mode: 'evolution-api-media-sticker' },
+          { url: `${baseUrl}/message/sendMedia`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: sendPhone, type: 'sticker', url: mediaForEvolution, filename }, mode: 'evolution-go-sticker-safe' },
         ];
       } else {
         const isImg = mediaType === 'image';
         const goType = isImg ? 'image' : 'document';
         attempts = [
-          { url: `${baseUrl}/message/sendMedia/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: phone, mediatype: goType, mimetype: cleanMime, fileName: filename, caption, media: mediaForEvolution }, mode: 'evolution-api-url' },
-          { url: `${baseUrl}/message/sendMedia/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: phone, mediatype: goType, mimetype: cleanMime, fileName: filename, caption, media: mediaBase64 }, mode: 'evolution-api-base64' },
-          { url: `${baseUrl}/message/sendMedia`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: phone, type: goType, url: mediaForEvolution, filename, caption }, mode: 'evolution-go-media-safe' },
+          { url: `${baseUrl}/message/sendMedia/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: sendPhone, mediatype: goType, mimetype: cleanMime, fileName: filename, caption, media: mediaForEvolution }, mode: 'evolution-api-url' },
+          { url: `${baseUrl}/message/sendMedia/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: sendPhone, mediatype: goType, mimetype: cleanMime, fileName: filename, caption, media: mediaBase64 }, mode: 'evolution-api-base64' },
+          { url: `${baseUrl}/message/sendMedia`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: sendPhone, type: goType, url: mediaForEvolution, filename, caption }, mode: 'evolution-go-media-safe' },
         ];
       }
 
@@ -781,7 +801,7 @@ Deno.serve(async (req) => {
       const pace = await guardHumanSendPace(admin, user.id, instance);
       if (!pace.ok) return jsonResponse({ ok: false, error: pace.error }, 200);
       const totalMediaDelay = (pace.waitMs || 0) + humanDelayMs(caption || filename);
-      await sendTypingPresence(baseUrl, apiKey, instance, String(phone), totalMediaDelay, instAuth).catch(() => null);
+      await sendTypingPresence(baseUrl, apiKey, instance, String(sendPhone), totalMediaDelay, instAuth).catch(() => null);
       await sleep(totalMediaDelay);
       for (const att of attempts) {
         const r = await fetchJson(att.url, { method: 'POST', headers: att.headers, body: JSON.stringify(att.body) }, 12000)
@@ -800,7 +820,7 @@ Deno.serve(async (req) => {
       await insertOutgoingMessage(admin, {
         user_id: user.id,
         instance_name: instance,
-        remote_jid: `${phone}@s.whatsapp.net`,
+        remote_jid: recipientJid(sendPhone),
         phone,
         direction: 'out',
         content: caption || (mediaType === 'audio' ? '🎤 Áudio' : mediaType === 'image' ? '📷 Imagem' : mediaType === 'sticker' ? '🌟 Sticker' : `📎 ${filename}`),
@@ -1157,6 +1177,13 @@ Deno.serve(async (req) => {
     if (action === 'set-active-instance') {
       const name = String(body.name || '').trim();
       if (!name) return jsonResponse({ error: 'name obrigatório' }, 400);
+      const webhookUrl = `${supabaseUrl}/functions/v1/evolution-webhook?token=${settings.webhook_token}`;
+      const instAuth = await resolveInstanceAuth(baseUrl, apiKey, name);
+      await fetchJson(`${baseUrl}/instance/connect`, {
+        method: 'POST',
+        headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId),
+        body: JSON.stringify({ webhookUrl, subscribe: ['MESSAGE', 'SEND_MESSAGE', 'CONNECTION', 'QRCODE'], immediate: true }),
+      }, 8000).catch(() => null);
       const { error } = await admin
         .from('evolution_settings')
         .update({ instance_name: name })
