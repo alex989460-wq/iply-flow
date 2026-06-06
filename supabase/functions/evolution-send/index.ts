@@ -111,7 +111,7 @@ async function resolveSendTargets(admin: any, userId: string, phone: string) {
   const jids = targets.filter((t) => t.kind === 'jid' && t.value.startsWith('55'));
   const phones = targets.filter((t) => t.kind === 'phone' && t.value.startsWith('55'));
   const otherPhones = targets.filter((t) => t.kind === 'phone' && !t.value.startsWith('55'));
-  return [...lids, ...jids, ...phones, ...otherPhones].filter((target, index, arr) => arr.findIndex((t) => t.value === target.value) === index);
+  return [...lids, ...phones, ...jids, ...otherPhones].filter((target, index, arr) => arr.findIndex((t) => t.value === target.value) === index);
 }
 
 function phoneFromJid(value: unknown) {
