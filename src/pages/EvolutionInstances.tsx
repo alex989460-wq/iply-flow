@@ -65,7 +65,7 @@ export default function EvolutionInstances() {
     syncFullHistory: false,
     groupsOnly: false,
   });
-  const [webhookEvents, setWebhookEvents] = useState<string[]>(['MESSAGE','SEND_MESSAGE','CONNECTION']);
+  const [webhookEvents, setWebhookEvents] = useState<string[]>(['MESSAGE','SEND_MESSAGE','CONNECTION','PRESENCE','CHAT_PRESENCE']);
 
   const openSettings = (name: string) => {
     setSettingsInstance(name);
