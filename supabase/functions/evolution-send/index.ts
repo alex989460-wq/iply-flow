@@ -751,7 +751,9 @@ Deno.serve(async (req) => {
       const log: any[] = [];
       const pace = await guardHumanSendPace(admin, user.id, instance);
       if (!pace.ok) return jsonResponse({ ok: false, error: pace.error }, 200);
-      await sleep((pace.waitMs || 0) + humanDelayMs(caption || filename));
+      const totalMediaDelay = (pace.waitMs || 0) + humanDelayMs(caption || filename);
+      await sendTypingPresence(baseUrl, apiKey, instance, String(phone), totalMediaDelay, instAuth).catch(() => null);
+      await sleep(totalMediaDelay);
       for (const att of attempts) {
         const r = await fetchJson(att.url, { method: 'POST', headers: att.headers, body: JSON.stringify(att.body) }, 12000)
           .catch((error) => ({ ok: false, status: 0, data: { error: String(error?.message || error) } }));
