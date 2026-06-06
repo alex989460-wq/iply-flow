@@ -694,6 +694,30 @@ export type Database = {
         }
         Relationships: []
       }
+      evolution_presence: {
+        Row: {
+          id: string
+          phone: string
+          presence: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          phone: string
+          presence?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          id?: string
+          phone?: string
+          presence?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       evolution_settings: {
         Row: {
           api_key: string
