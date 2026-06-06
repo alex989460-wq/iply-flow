@@ -453,10 +453,10 @@ Deno.serve(async (req) => {
       const cleanPhone = normalizeChatPhone(sendPhone);
       const phoneJid = `${cleanPhone}@s.whatsapp.net`;
       const attempts = [
+        { url: `${baseUrl}/message/presence`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: cleanPhone, state: presence === 'recording' ? 'composing' : presence, isAudio: presence === 'recording' }, mode: 'go-message-presence' },
+        { url: `${baseUrl}/chat/sendPresence/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: cleanPhone, options: { delay: durationMs, presence, number: cleanPhone } }, mode: 'classic-send-presence' },
         { url: `${baseUrl}/chat/presence`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: cleanPhone, phone: cleanPhone, jid: phoneJid, presence, delay: durationMs }, mode: 'go-chat-presence' },
         { url: `${baseUrl}/presence`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: cleanPhone, phone: cleanPhone, jid: phoneJid, presence, delay: durationMs }, mode: 'go-presence' },
-        { url: `${baseUrl}/chat/sendPresence/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: cleanPhone, presence, delay: durationMs }, mode: 'classic-send-presence' },
-        { url: `${baseUrl}/chat/presence/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: cleanPhone, presence, delay: durationMs }, mode: 'classic-presence' },
       ];
       const log: any[] = [];
       for (const att of attempts) {
