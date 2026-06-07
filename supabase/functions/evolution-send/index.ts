@@ -598,10 +598,23 @@ Deno.serve(async (req) => {
         console.error('[evolution-send] all attempts failed', log, result);
         const summary = log.map((a) => `${a.mode}:${a.status}${a.error ? ` (${a.error})` : ''}`).join(' | ');
         const locked = isEvolutionReachoutLock(result.data);
+        if (locked) {
+          await insertOutgoingMessage(admin, {
+            user_id: user.id,
+            instance_name: instance,
+            remote_jid: primaryTarget.includes('@') ? primaryTarget : `${primaryTarget}@s.whatsapp.net`,
+            phone,
+            direction: 'out',
+            content: text,
+            status: 'failed',
+            external_id: `failed-${crypto.randomUUID()}`,
+            raw: { __mode: 'failed-463', __attempts: log, __error: 'whatsapp_reachout_locked_463', __retry_on_inbound: true, lastResponse: result.data },
+          });
+        }
         return jsonResponse({
           ok: false,
           error: locked
-            ? `A Evolution recusou o envio com erro 463/LID. Essa instância precisa atualizar/reconectar no painel Evolution para corrigir o envio por LID. Tentativas: ${summary}`
+            ? `Número novo bloqueado pelo WhatsApp/Evolution (erro 463). Quando esse cliente mandar qualquer mensagem primeiro, clique no ⚠️ para reenviar pela conversa já aberta. Se continuar, a instância pc-2 precisa ser atualizada/reconectada no painel Evolution. Tentativas: ${summary}`
             : `Falha ao enviar pela Evolution: ${summary}`,
           attempts: log,
           lastResponse: result.data,
