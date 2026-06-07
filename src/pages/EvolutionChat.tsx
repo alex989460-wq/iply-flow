@@ -1010,35 +1010,99 @@ export default function EvolutionChat() {
 
   const renderMessageBody = (m: EvoMessage) => {
     const src = mediaSource(m);
+    // Imagem / sticker
     if ((m.message_type === 'image' || m.message_type === 'sticker') && src) {
-      const label = m.content.replace(/^📷\s*/, '').replace(/^\[sticker\]$/, 'Sticker');
+      const label = m.content.replace(/^📷\s*/, '').replace(/^\[sticker\]$/, '');
       return (
         <div className="space-y-1">
           <button type="button" onClick={() => setPreviewImage({ url: src, caption: label })} className="block focus:outline-none focus:ring-2 focus:ring-ring rounded-lg">
-            <img src={src} alt={label || 'Imagem da conversa'} className={cn('rounded-lg object-cover', m.message_type === 'sticker' ? 'max-w-32 max-h-32' : 'max-w-full max-h-64')} loading="lazy" />
+            <img src={src} alt={label || 'Imagem'} className={cn('rounded-lg object-cover', m.message_type === 'sticker' ? 'max-w-32 max-h-32' : 'max-w-[260px] max-h-72')} loading="lazy" />
           </button>
           {label && label !== 'Imagem' && <div className="text-sm">{label}</div>}
         </div>
       );
     }
-    if (m.message_type === 'image' && !m.media_url) {
-      return <div className="whitespace-pre-wrap break-words leading-snug">Imagem recebida</div>;
-    }
-    if (m.message_type === 'sticker' && !m.media_url) {
-      return <div className="whitespace-pre-wrap break-words leading-snug">Sticker recebido</div>;
-    }
-    if (m.message_type === 'audio' && m.media_url) {
-      return <audio controls src={m.media_url} className="max-w-[240px] h-9" />;
-    }
-    if (m.message_type === 'document' && m.media_url) {
+    // Imagem/sticker sem URL (criptografada)
+    if (m.message_type === 'image') {
       return (
-        <a href={m.media_url} target="_blank" rel="noreferrer" className="flex items-center gap-2 underline text-sm">
-          <FileText className="w-4 h-4" /> {m.content.replace(/^📎 /, '')}
-        </a>
+        <div className="flex items-center gap-2 px-2 py-2 rounded-md bg-black/20 text-xs">
+          <ImageIcon className="w-4 h-4 opacity-70" />
+          <span>Imagem (pré-visualização indisponível)</span>
+        </div>
       );
     }
+    if (m.message_type === 'sticker') return <div className="text-sm">🌟 Sticker</div>;
+
+    // Vídeo
+    if (m.message_type === 'video' && (m.media_url || src)) {
+      const v = m.media_url || src!;
+      return (
+        <div className="space-y-1">
+          <video src={v} controls preload="metadata" className="max-w-[280px] max-h-72 rounded-lg bg-black" />
+          {m.content && !m.content.startsWith('[') && <div className="text-sm">{m.content}</div>}
+        </div>
+      );
+    }
+
+    // Áudio (estilo WhatsApp: player completo, largura maior)
+    if (m.message_type === 'audio') {
+      if (m.media_url) {
+        return (
+          <div className="flex items-center gap-2 min-w-[220px]">
+            <div className="w-8 h-8 rounded-full bg-[#00a884]/20 flex items-center justify-center shrink-0">
+              <Mic className="w-4 h-4 text-[#00a884]" />
+            </div>
+            <audio controls src={m.media_url} className="h-9 flex-1" />
+          </div>
+        );
+      }
+      return (
+        <div className="flex items-center gap-2 px-2 py-1.5 text-xs">
+          <Mic className="w-4 h-4" /> Áudio recebido (mídia criptografada)
+        </div>
+      );
+    }
+
+    // Documento — card estilo WhatsApp (ícone + nome + mime + download)
+    if (m.message_type === 'document') {
+      const docInfo = (() => {
+        const doc = (getNestedValue(m.raw, ['data', 'Message', 'documentMessage'])
+          || getNestedValue(m.raw, ['Message', 'documentMessage'])
+          || getNestedValue(m.raw, ['message', 'documentMessage'])) as Record<string, unknown> | undefined;
+        const fileName = String(doc?.fileName || doc?.FileName || '').trim()
+          || m.content.replace(/^📎\s*/, '').trim()
+          || 'Documento';
+        const lenStr = String(doc?.fileLength || doc?.FileLength || '0');
+        const bytes = Number(lenStr) || 0;
+        const sizeLabel = bytes > 1048576 ? `${(bytes / 1048576).toFixed(1)} MB`
+          : bytes > 1024 ? `${Math.round(bytes / 1024)} KB`
+          : bytes > 0 ? `${bytes} B` : '';
+        const mime = m.media_mime || String(doc?.mimetype || '');
+        const ext = (fileName.split('.').pop() || mime.split('/').pop() || 'doc').toUpperCase().slice(0, 5);
+        return { fileName, sizeLabel, mime, ext };
+      })();
+      const card = (
+        <div className="flex items-center gap-3 min-w-[240px] max-w-[300px] px-2 py-2 rounded-md bg-black/20">
+          <div className="w-10 h-10 rounded-md bg-[#00a884]/15 flex items-center justify-center text-[10px] font-bold text-[#00a884] shrink-0">
+            {docInfo.ext}
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="text-sm font-medium truncate" title={docInfo.fileName}>{docInfo.fileName}</div>
+            <div className="text-[10px] text-[#aebac1] truncate">
+              {[docInfo.sizeLabel, docInfo.mime || 'documento'].filter(Boolean).join(' • ')}
+            </div>
+          </div>
+          {m.media_url && <FileText className="w-4 h-4 opacity-70 shrink-0" />}
+        </div>
+      );
+      return m.media_url
+        ? <a href={m.media_url} target="_blank" rel="noreferrer" className="block hover:opacity-90">{card}</a>
+        : card;
+    }
+
     return <div className="whitespace-pre-wrap break-words leading-snug">{m.content}</div>;
   };
+
 
   return (
     <DashboardLayout noPadding>
