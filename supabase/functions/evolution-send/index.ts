@@ -59,6 +59,35 @@ function pushUniqueTarget(targets: Array<{ value: string; kind: 'lid' | 'jid' | 
   if (!targets.some((t) => t.value === target)) targets.push({ value: target, kind });
 }
 
+function collectJidsDeep(value: unknown, out: string[] = []) {
+  if (typeof value === 'string') {
+    if (/@(lid|s\.whatsapp\.net)\b/i.test(value)) out.push(value);
+    return out;
+  }
+  if (!value || typeof value !== 'object') return out;
+  for (const child of Object.values(value as Record<string, unknown>)) collectJidsDeep(child, out);
+  return out;
+}
+
+async function resolveValidatedTargets(baseUrl: string, apiKey: string, instanceId: string, phone: string) {
+  const targets: Array<{ value: string; kind: 'lid' | 'jid' | 'phone' }> = [];
+  const digits = String(phone || '').replace(/\D/g, '');
+  if (!digits) return targets;
+  const jid = `${digits}@s.whatsapp.net`;
+  const headers = evolutionHeaders(apiKey, true, instanceId);
+  const probes = [
+    { url: `${baseUrl}/user/check`, body: { number: [digits], formatJid: true } },
+    { url: `${baseUrl}/user/check`, body: { number: [jid], formatJid: true } },
+    { url: `${baseUrl}/user/info`, body: { number: [digits], formatJid: true } },
+    { url: `${baseUrl}/user/info`, body: { number: [jid], formatJid: true } },
+  ];
+  for (const probe of probes) {
+    const r = await fetchJson(probe.url, { method: 'POST', headers, body: JSON.stringify(probe.body) }, 5000).catch(() => null);
+    for (const found of collectJidsDeep(r?.data)) pushUniqueTarget(targets, found);
+  }
+  return targets;
+}
+
 async function resolveSendPhone(admin: any, userId: string, phone: string) {
   if (phone.startsWith('55') && phone.length >= 12) return phone;
   const { data } = await admin
@@ -496,7 +525,10 @@ Deno.serve(async (req) => {
         return jsonResponse({ error: 'phone e text obrigatórios' }, 400);
       }
       const instAuth = await resolveInstanceAuth(baseUrl, apiKey, instance);
-      const sendTargets = await resolveSendTargets(admin, user.id, phone);
+      const validatedTargets = await resolveValidatedTargets(baseUrl, instAuth.apiKey, instAuth.instanceId, phone);
+      const historyTargets = await resolveSendTargets(admin, user.id, phone);
+      const sendTargets = [...validatedTargets, ...historyTargets]
+        .filter((target, index, arr) => arr.findIndex((t) => t.value === target.value) === index);
       const primaryTarget = sendTargets[0]?.value || await resolveSendPhone(admin, user.id, phone);
       await primeEvolutionContact(baseUrl, instAuth.apiKey, instAuth.instanceId, phone);
 
@@ -566,10 +598,23 @@ Deno.serve(async (req) => {
         console.error('[evolution-send] all attempts failed', log, result);
         const summary = log.map((a) => `${a.mode}:${a.status}${a.error ? ` (${a.error})` : ''}`).join(' | ');
         const locked = isEvolutionReachoutLock(result.data);
+        if (locked) {
+          await insertOutgoingMessage(admin, {
+            user_id: user.id,
+            instance_name: instance,
+            remote_jid: primaryTarget.includes('@') ? primaryTarget : `${primaryTarget}@s.whatsapp.net`,
+            phone,
+            direction: 'out',
+            content: text,
+            status: 'failed',
+            external_id: `failed-${crypto.randomUUID()}`,
+            raw: { __mode: 'failed-463', __attempts: log, __error: 'whatsapp_reachout_locked_463', __retry_on_inbound: true, lastResponse: result.data },
+          });
+        }
         return jsonResponse({
           ok: false,
           error: locked
-            ? `A Evolution recusou o envio com erro 463/LID. Essa instância precisa atualizar/reconectar no painel Evolution para corrigir o envio por LID. Tentativas: ${summary}`
+            ? `Número novo bloqueado pelo WhatsApp/Evolution (erro 463). Quando esse cliente mandar qualquer mensagem primeiro, clique no ⚠️ para reenviar pela conversa já aberta. Se continuar, a instância pc-2 precisa ser atualizada/reconectada no painel Evolution. Tentativas: ${summary}`
             : `Falha ao enviar pela Evolution: ${summary}`,
           attempts: log,
           lastResponse: result.data,

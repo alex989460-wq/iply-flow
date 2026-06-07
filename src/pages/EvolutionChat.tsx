@@ -311,18 +311,22 @@ export default function EvolutionChat() {
       const ctx = audioCtxRef.current || new Ctx();
       audioCtxRef.current = ctx;
       if (ctx.state === 'suspended') void ctx.resume();
-      const o = ctx.createOscillator();
-      const g = ctx.createGain();
-      o.connect(g); g.connect(ctx.destination);
-      o.type = 'triangle';
-      o.frequency.setValueAtTime(740, ctx.currentTime);
-      o.frequency.exponentialRampToValueAtTime(1180, ctx.currentTime + 0.09);
-      o.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.18);
-      g.gain.setValueAtTime(0.0001, ctx.currentTime);
-      g.gain.exponentialRampToValueAtTime(0.18, ctx.currentTime + 0.015);
-      g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.28);
-      o.start();
-      o.stop(ctx.currentTime + 0.3);
+      const makeTone = (delay: number, freq: number, peak: number, duration: number) => {
+        const o = ctx.createOscillator();
+        const g = ctx.createGain();
+        o.connect(g); g.connect(ctx.destination);
+        o.type = 'sine';
+        const t = ctx.currentTime + delay;
+        o.frequency.setValueAtTime(freq, t);
+        o.frequency.exponentialRampToValueAtTime(freq * 0.92, t + duration);
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.exponentialRampToValueAtTime(peak, t + 0.012);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + duration);
+        o.start(t);
+        o.stop(t + duration + 0.02);
+      };
+      makeTone(0, 1046, 0.09, 0.12);
+      makeTone(0.075, 1320, 0.075, 0.14);
     } catch { /* noop */ }
   }, []);
 
@@ -706,6 +710,7 @@ export default function EvolutionChat() {
       for (const m of instanceMessages) {
         if (m.phone !== conv.phone) continue;
         if (m.direction !== 'in') continue;
+        if (m.status === 'read' || m.status === 'played') continue;
         if (new Date(m.created_at).getTime() > cutoff) count++;
       }
       conv.unread = count;
