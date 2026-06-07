@@ -256,36 +256,63 @@ Deno.serve(async (req) => {
       const baseUrl = (settings.base_url || '').replace(/\/+$/, '');
       const evoKey = settings.api_key || '';
       const instance = settings.instance_name || '';
-      if (!baseUrl || !evoKey) return { sent: false, error: 'no_evolution_creds' };
+      if (!baseUrl || !evoKey || !instance) return { sent: false, error: 'no_evolution_creds' };
 
-      const target = `${phone}@s.whatsapp.net`;
-      const sendAttempts = [
-        { url: `${baseUrl}/send/text`, body: { number: target, text: replyText } },
-        { url: `${baseUrl}/send/text`, body: { number: phone, text: replyText } },
-        { url: `${baseUrl}/message/sendText/${encodeURIComponent(instance)}`, body: { number: phone, text: replyText } },
-      ];
-      let sendOk = false;
-      let sendData: any = null;
-      for (const att of sendAttempts) {
-        try {
-          const r = await fetch(att.url, {
-            method: 'POST',
-            headers: { apikey: evoKey, Authorization: `Bearer ${evoKey}`, 'Content-Type': 'application/json' },
-            body: JSON.stringify(att.body),
-          });
-          sendData = await r.json().catch(() => ({}));
-          if (r.ok) { sendOk = true; break; }
-        } catch (e) {
-          console.error('[autoreply] send attempt failed', e);
-        }
+      const instAuth = await resolveInstanceAuth(baseUrl, evoKey, instance);
+      const sendTargets = await resolveSendTargets(admin, user_id, phone);
+      const primaryTarget = sendTargets[0]?.value || normalizeChatPhone(phone);
+      await primeEvolutionContact(baseUrl, instAuth.apiKey, instAuth.instanceId, phone);
+
+      const attempts: Array<{ url: string; headers: Record<string, string>; body: any; mode: string }> = [];
+      for (const target of sendTargets) {
+        const goBody: Record<string, unknown> = { number: target.value, text: replyText };
+        const goBodyMsg: Record<string, unknown> = { number: target.value, message: replyText };
+        const classicBody: Record<string, unknown> = { number: target.value, text: replyText };
+        const classicBodyV1: Record<string, unknown> = { number: target.value, textMessage: { text: replyText } };
+        const sendTextAttempts = [
+          { url: `${baseUrl}/send/text`, headers: evolutionHeaders(evoKey, true, instAuth.instanceId), body: { ...goBody, formatJid: target.kind !== 'jid' }, mode: `evolution-go-send-global-${target.kind}` },
+          { url: `${baseUrl}/send/text`, headers: evolutionHeaders(evoKey, true, instAuth.instanceId), body: { ...goBody, formatJid: false }, mode: `evolution-go-send-global-raw-${target.kind}` },
+          { url: `${baseUrl}/send/text`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { ...goBody, formatJid: target.kind !== 'jid' }, mode: `evolution-go-send-${target.kind}` },
+          { url: `${baseUrl}/send/text`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { ...goBody, formatJid: false }, mode: `evolution-go-send-raw-${target.kind}` },
+          { url: `${baseUrl}/message/sendText`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: goBody, mode: `evolution-go-${target.kind}` },
+          { url: `${baseUrl}/message/sendText`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: goBodyMsg, mode: `evolution-go-msg-${target.kind}` },
+          { url: `${baseUrl}/message/sendText/${encodeURIComponent(instance)}`, headers: evolutionHeaders(evoKey, true), body: classicBodyV1, mode: `evolution-api-v1-${target.kind}` },
+          { url: `${baseUrl}/message/sendText/${encodeURIComponent(instance)}`, headers: evolutionHeaders(evoKey, true), body: classicBody, mode: `evolution-api-${target.kind}` },
+        ];
+        attempts.push(...(target.kind === 'lid'
+          ? [sendTextAttempts[0], sendTextAttempts[2], sendTextAttempts[1], sendTextAttempts[3], ...sendTextAttempts.slice(4)]
+          : sendTextAttempts));
       }
-      if (!sendOk) return { sent: false, error: 'send_failed', sendData };
 
-      const externalId = sendData?.key?.id || sendData?.messageId || sendData?.data?.Info?.ID || `auto-${crypto.randomUUID()}`;
+      let result: any = { ok: false, status: 0, data: {} };
+      let mode = 'evolution-api-v1';
+      const log: any[] = [];
+      for (const att of attempts) {
+        const timeout = att.mode.startsWith('evolution-go-send') ? 30000 : 8000;
+        const r = await fetchJson(att.url, { method: 'POST', headers: att.headers, body: JSON.stringify(att.body) }, timeout)
+          .catch((error) => ({ ok: false, status: 0, data: { error: String(error?.message || error) } }));
+        log.push({ mode: att.mode, status: r.status, error: getEvolutionErrorText(r.data).slice(0, 180) });
+        result = r; mode = att.mode;
+        const returnedChat = String(r.data?.data?.Info?.Chat || r.data?.Info?.Chat || '');
+        const hasMappedLid = sendTargets.some((target) => target.kind === 'lid');
+        const rawPhoneFalsePositive = r.ok && hasMappedLid && /raw-(phone|jid)$/.test(att.mode) && !/@lid\b/i.test(returnedChat);
+        if (r.ok && !rawPhoneFalsePositive) break;
+        if (rawPhoneFalsePositive) continue;
+        if (isEvolutionReachoutLock(r.data)) continue;
+        if (r.status === 401 && att.mode.includes('-global-')) continue;
+        if (r.status !== 404 && r.status !== 405 && r.status !== 400 && r.status !== 0) break;
+      }
+      if (!result.ok) {
+        console.error('[autoreply] all send attempts failed', log, result.data);
+        return { sent: false, error: 'send_failed', sendData: result.data, attempts: log };
+      }
+
+      const sendData = result.data;
+      const externalId = sendData?.key?.id || sendData?.messageId || sendData?.data?.Info?.ID || sendData?.Info?.ID || `auto-${crypto.randomUUID()}`;
       await admin.from('evolution_messages').insert({
-        user_id, instance_name: instance, remote_jid: target, phone,
+        user_id, instance_name: instance, remote_jid: sendData?.data?.Info?.Chat || sendData?.Info?.Chat || (primaryTarget.includes('@') ? primaryTarget : `${primaryTarget}@s.whatsapp.net`), phone,
         direction: 'out', content: replyText, message_type: 'text', status: 'sent',
-        external_id: externalId, raw: { ...sendData, __autoreply: true, __kb: kbId, __category: category },
+        external_id: externalId, raw: { ...sendData, __autoreply: true, __kb: kbId, __category: category, __mode: mode, __attempts: log },
       });
       // Mark contact category, but not needs_human (we answered it)
       await admin.from('evolution_contacts').upsert({
