@@ -476,8 +476,11 @@ export default function EvolutionChat() {
   // Fetch profile pic + subscribe to presence when opening a conversation
   useEffect(() => {
     if (!selectedPhone || selectedPhone.startsWith('status:')) return;
+    // Newsletters/canais e grupos não têm presence individual nem foto via getProfilePic — evita chamadas que retornam 404/erro
+    if (isNewsletterPhone(selectedPhone) || isGroupJidPhone(selectedPhone)) return;
     // Subscribe to presence so we receive "online", "digitando…", "visto por último…"
     invokeEvolution({ action: 'subscribe-presence', phone: selectedPhone }).catch(() => undefined);
+
     const c = contacts[selectedPhone];
     if (c?.profile_pic_url) return;
     if (avatarFetchRef.current.has(selectedPhone)) return;
