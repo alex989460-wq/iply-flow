@@ -12,9 +12,10 @@ import {
   Loader2, Send, Zap, Plus, RefreshCw, Search, MessageSquare,
   Phone, X, Smile, Mic, Paperclip, Trash2, Image as ImageIcon, FileText, Sticker, QrCode,
   Pin, PinOff, Info, Copy, ExternalLink, MoreVertical, ChevronDown,
-  Reply, Forward, Star, StarOff, Trash, Volume2, VolumeX,
+  Reply, Forward, Star, StarOff, Trash, Volume2, VolumeX, BookOpen, CheckCircle2,
 } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
+import KnowledgeBaseDialog from '@/components/chat/KnowledgeBaseDialog';
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from '@/components/ui/context-menu';
 import { Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
@@ -46,6 +47,8 @@ interface EvoContact {
   phone: string;
   name: string | null;
   profile_pic_url: string | null;
+  needs_human?: boolean;
+  ai_category?: string | null;
 }
 
 interface QuotedPayload {
@@ -227,7 +230,8 @@ export default function EvolutionChat() {
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [imageToSend, setImageToSend] = useState<{ file: File; url: string; caption: string } | null>(null);
   const [docToSend, setDocToSend] = useState<{ file: File; caption: string } | null>(null);
-  const [filter, setFilter] = useState<'all' | 'unread' | 'media' | 'groups' | 'channels' | 'contacts' | 'status'>('all');
+  const [filter, setFilter] = useState<'all' | 'unread' | 'media' | 'groups' | 'channels' | 'contacts' | 'status' | 'support'>('all');
+  const [showKbDialog, setShowKbDialog] = useState(false);
   const [soundEnabled, setSoundEnabled] = useState<boolean>(() => {
     try { return localStorage.getItem('evo_sound_enabled') !== '0'; } catch { return true; }
   });
@@ -397,7 +401,7 @@ export default function EvolutionChat() {
     const [msgRes, contRes, presRes] = await Promise.all([
       // Reduzido de 1500 → 800: abre muito mais rápido no celular e a UI mostra "Carregar mais antigas" se precisar.
       supabase.from('evolution_messages').select('*').eq('user_id', user.id).order('created_at', { ascending: false }).limit(800),
-      supabase.from('evolution_contacts').select('phone, name, profile_pic_url').eq('user_id', user.id),
+      (supabase.from('evolution_contacts') as any).select('phone, name, profile_pic_url, needs_human, ai_category').eq('user_id', user.id),
       supabase.from('evolution_presence').select('phone, presence, last_seen_at, updated_at').eq('user_id', user.id),
     ]);
     setLoading(false);
@@ -671,7 +675,8 @@ export default function EvolutionChat() {
       return new Date(b.lastAt || 0).getTime() - new Date(a.lastAt || 0).getTime();
     });
     let filtered = arr;
-    if (filter === 'unread') filtered = arr.filter(c => c.unread > 0 && c.last?.direction === 'in' && !isNewsletterPhone(c.phone));
+    if (filter === 'support') filtered = arr.filter(c => contacts[c.phone]?.needs_human === true && !isNewsletterPhone(c.phone));
+    else if (filter === 'unread') filtered = arr.filter(c => c.unread > 0 && c.last?.direction === 'in' && !isNewsletterPhone(c.phone));
     else if (filter === 'media') filtered = arr.filter(c => c.last && ['image', 'audio', 'document', 'sticker'].includes(c.last.message_type) && !isNewsletterPhone(c.phone));
     else if (filter === 'channels') filtered = arr.filter(c => isNewsletterPhone(c.phone));
     else if (filter === 'groups') filtered = arr.filter(c => c.phone && !c.phone.startsWith('status') && !isNewsletterPhone(c.phone) && isGroupJidPhone(c.phone));
@@ -1172,6 +1177,7 @@ export default function EvolutionChat() {
         const ext = (fileName.split('.').pop() || mime.split('/').pop() || 'doc').toUpperCase().slice(0, 5);
         return { fileName, sizeLabel, mime, ext };
       })();
+      const isPdf = (docInfo.mime.toLowerCase().includes('pdf')) || docInfo.fileName.toLowerCase().endsWith('.pdf');
       const card = (
         <div className="flex items-center gap-3 min-w-[240px] max-w-[300px] px-2 py-2 rounded-md bg-black/20">
           <div className="w-10 h-10 rounded-md bg-[#00a884]/15 flex items-center justify-center text-[10px] font-bold text-[#00a884] shrink-0">
@@ -1186,6 +1192,19 @@ export default function EvolutionChat() {
           {m.media_url && <FileText className="w-4 h-4 opacity-70 shrink-0" />}
         </div>
       );
+      // PDF — preview inline (igual imagem), com link de download.
+      if (isPdf && m.media_url) {
+        return (
+          <div className="space-y-1.5 max-w-[320px]">
+            <object data={m.media_url} type="application/pdf" className="w-full h-[400px] rounded-md bg-black/20 border border-white/5">
+              <iframe src={m.media_url} title={docInfo.fileName} className="w-full h-full rounded-md" />
+            </object>
+            <a href={m.media_url} target="_blank" rel="noreferrer" className="block hover:opacity-90">
+              {card}
+            </a>
+          </div>
+        );
+      }
       return m.media_url
         ? <a href={m.media_url} target="_blank" rel="noreferrer" className="block hover:opacity-90">{card}</a>
         : card;
@@ -1230,6 +1249,9 @@ export default function EvolutionChat() {
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => setShowAutoReplySettings(true)}>
                   <Zap className="w-4 h-4 mr-2" /> Robô de auto-atendimento (IA)
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setShowKbDialog(true)}>
+                  <BookOpen className="w-4 h-4 mr-2" /> Base de conhecimento da IA
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={clearAllConversations} className="text-destructive focus:text-destructive">
@@ -1296,12 +1318,17 @@ export default function EvolutionChat() {
               {([
                 { id: 'all', label: 'Todas' },
                 { id: 'unread', label: 'Não lidas' },
+                { id: 'support', label: '🛠 Suporte' },
                 { id: 'contacts', label: 'Contatos' },
                 { id: 'groups', label: 'Grupos' },
                 { id: 'channels', label: '📢 Canais' },
                 { id: 'media', label: 'Mídia' },
                 { id: 'status', label: 'Status' },
-              ] as const).map((t) => (
+              ] as const).map((t) => {
+                const supportCount = t.id === 'support'
+                  ? Object.values(contacts).filter(c => c?.needs_human).length
+                  : 0;
+                return (
                 <button
                   key={t.id}
                   onClick={() => {
@@ -1309,15 +1336,21 @@ export default function EvolutionChat() {
                     if (t.id === 'status') setSelectedPhone('status:me');
                   }}
                   className={cn(
-                    'flex-1 text-[11px] px-2 py-1 rounded-md border transition-colors',
+                    'flex-1 text-[11px] px-2 py-1 rounded-md border transition-colors relative',
                     filter === t.id
                       ? 'bg-primary text-primary-foreground border-primary'
                       : 'bg-background hover:bg-accent border-border text-muted-foreground'
                   )}
                 >
                   {t.label}
+                  {supportCount > 0 && t.id === 'support' && (
+                    <span className="ml-1 inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full text-[9px] font-bold bg-amber-500 text-black">
+                      {supportCount}
+                    </span>
+                  )}
                 </button>
-              ))}
+                );
+              })}
             </div>
           </div>
 
@@ -1477,6 +1510,20 @@ export default function EvolutionChat() {
                   <Button size="sm" className="h-7 text-[11px] px-2 bg-[#00a884] hover:bg-[#02906f] text-white"
                     onClick={() => setShowStatusComposer(true)}>
                     <Plus className="w-3 h-3 mr-1" /> Postar status
+                  </Button>
+                )}
+                {selectedPhone && !selectedPhone.startsWith('status:') && selectedContact?.needs_human && (
+                  <Button size="sm" variant="outline" className="h-7 text-[11px] px-2 border-amber-500/40 text-amber-600 hover:bg-amber-500/10"
+                    onClick={async () => {
+                      if (!user || !selectedPhone) return;
+                      const { error } = await (supabase
+                        .from('evolution_contacts') as any)
+                        .update({ needs_human: false })
+                        .eq('user_id', user.id).eq('phone', selectedPhone);
+                      if (error) toast({ title: 'Erro', description: error.message, variant: 'destructive' });
+                      else toast({ title: '✅ Atendimento marcado como resolvido' });
+                    }}>
+                    <CheckCircle2 className="w-3 h-3 mr-1" /> Resolver
                   </Button>
                 )}
                 {isMobile && !selectedPhone?.startsWith('status:') && (
@@ -1865,7 +1912,7 @@ export default function EvolutionChat() {
         {/* Quick Renewal Panel — sempre visível no desktop, modal no mobile */}
         {!isMobile && (
           <div className="hidden md:block border-l border-border">
-            <QuickRenewalPanel />
+            <QuickRenewalPanel initialPhone={selectedPhone && !selectedPhone.startsWith('status') ? selectedPhone : null} />
           </div>
         )}
         {isMobile && showRenewalPanel && (
@@ -1878,7 +1925,7 @@ export default function EvolutionChat() {
                 </Button>
               </div>
               <div className="flex-1 overflow-auto">
-                <QuickRenewalPanel isMobile onClose={() => setShowRenewalPanel(false)} />
+                <QuickRenewalPanel isMobile onClose={() => setShowRenewalPanel(false)} initialPhone={selectedPhone && !selectedPhone.startsWith('status') ? selectedPhone : null} />
               </div>
             </div>
           </div>
@@ -2215,6 +2262,8 @@ export default function EvolutionChat() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <KnowledgeBaseDialog open={showKbDialog} onOpenChange={setShowKbDialog} />
     </DashboardLayout>
   );
 }

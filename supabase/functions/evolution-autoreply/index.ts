@@ -1,6 +1,9 @@
-// Auto-attendance: receives an incoming message via internal call from
-// evolution-webhook, generates an AI reply using Lovable AI Gateway and
-// sends it back through the Evolution Go panel.
+// Auto-attendance with intent classification + knowledge base.
+// 1. Loads user's KB entries (categories: renovacao, instalar_app, pagamento, suporte, outros).
+// 2. Asks Lovable AI to classify the incoming message and pick a KB entry (or none).
+// 3. Replies using the matched KB response_template. If the matched entry has
+//    requires_human=true OR no good match was found, marks evolution_contacts.needs_human=true
+//    and DOES NOT send any reply (so the human sees it in the "Suporte" tab).
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.0';
 
@@ -31,8 +34,29 @@ function isWithinBusinessHours(start: string, end: string) {
   const s = parseHM(start);
   const e = parseHM(end);
   if (s <= e) return cur >= s && cur < e;
-  // crosses midnight
   return cur >= s || cur < e;
+}
+
+interface KbEntry {
+  id: string;
+  title: string;
+  category: string;
+  keywords: string[];
+  response_template: string;
+  requires_human: boolean;
+}
+
+// Cheap keyword-first pass — returns a matched KB entry without spending AI credits.
+function matchByKeywords(content: string, kb: KbEntry[]): KbEntry | null {
+  const text = content.toLowerCase();
+  for (const e of kb) {
+    if (!e.keywords?.length) continue;
+    for (const kw of e.keywords) {
+      const k = String(kw || '').trim().toLowerCase();
+      if (k && text.includes(k)) return e;
+    }
+  }
+  return null;
 }
 
 Deno.serve(async (req) => {
@@ -55,7 +79,6 @@ Deno.serve(async (req) => {
 
     const admin = createClient(Deno.env.get('SUPABASE_URL')!, serviceRole);
 
-    // 1. Load settings
     const { data: settings } = await admin
       .from('evolution_settings')
       .select('user_id, base_url, api_key, instance_name, autoreply_enabled, autoreply_system_prompt, autoreply_only_outside_hours, autoreply_business_start, autoreply_business_end, autoreply_disabled_phones, autoreply_model')
@@ -72,8 +95,7 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ ok: true, skipped: 'business_hours' }), { status: 200, headers: corsHeaders });
     }
 
-    // 2. Anti-loop: if last outgoing message to this phone was very recent (< 20s) skip,
-    // and if the human already replied after the incoming, skip.
+    // Anti-loop
     const { data: recent } = await admin
       .from('evolution_messages')
       .select('id, direction, content, created_at, message_type')
@@ -86,130 +108,178 @@ Deno.serve(async (req) => {
     if (lastOut && Date.now() - new Date(lastOut.created_at).getTime() < 20000) {
       return new Response(JSON.stringify({ ok: true, skipped: 'cooldown' }), { status: 200, headers: corsHeaders });
     }
-    // If a human reply (out) happened after the last incoming, don't auto-answer
     const lastIn = recent?.find((m) => m.direction === 'in');
     if (lastIn && lastOut && new Date(lastOut.created_at).getTime() > new Date(lastIn.created_at).getTime()) {
       return new Response(JSON.stringify({ ok: true, skipped: 'human_replied' }), { status: 200, headers: corsHeaders });
     }
 
-    // 3. Build chat history (oldest first)
-    const history = (recent || []).slice().reverse()
-      .filter((m) => m.message_type === 'text' || m.message_type === 'image' || m.message_type === 'audio' || m.message_type === 'document')
-      .slice(-12)
-      .map((m) => ({
-        role: m.direction === 'out' ? 'assistant' : 'user',
-        content: m.content || (m.message_type !== 'text' ? `[${m.message_type}]` : ''),
-      }));
+    // Load knowledge base
+    const { data: kbRows } = await admin
+      .from('ai_knowledge_entries')
+      .select('id, title, category, keywords, response_template, requires_human')
+      .eq('user_id', user_id)
+      .eq('is_enabled', true)
+      .order('sort_order', { ascending: true });
+    const kb: KbEntry[] = (kbRows || []) as KbEntry[];
 
-    // Ensure the just-arrived message is the last user turn
-    if (incomingContent && (history.length === 0 || history[history.length - 1]?.role !== 'user' || history[history.length - 1]?.content !== incomingContent)) {
+    const flagHuman = async (category: string | null) => {
+      await admin.from('evolution_contacts').upsert({
+        user_id, phone,
+        needs_human: true,
+        ai_category: category || 'suporte',
+        last_classified_at: new Date().toISOString(),
+      }, { onConflict: 'user_id,phone' as any });
+    };
+
+    const sendReply = async (replyText: string, category: string | null, kbId: string | null) => {
+      const baseUrl = (settings.base_url || '').replace(/\/+$/, '');
+      const evoKey = settings.api_key || '';
+      const instance = settings.instance_name || '';
+      if (!baseUrl || !evoKey) return { sent: false, error: 'no_evolution_creds' };
+
+      const target = `${phone}@s.whatsapp.net`;
+      const sendAttempts = [
+        { url: `${baseUrl}/send/text`, body: { number: target, text: replyText } },
+        { url: `${baseUrl}/send/text`, body: { number: phone, text: replyText } },
+        { url: `${baseUrl}/message/sendText/${encodeURIComponent(instance)}`, body: { number: phone, text: replyText } },
+      ];
+      let sendOk = false;
+      let sendData: any = null;
+      for (const att of sendAttempts) {
+        try {
+          const r = await fetch(att.url, {
+            method: 'POST',
+            headers: { apikey: evoKey, Authorization: `Bearer ${evoKey}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify(att.body),
+          });
+          sendData = await r.json().catch(() => ({}));
+          if (r.ok) { sendOk = true; break; }
+        } catch (e) {
+          console.error('[autoreply] send attempt failed', e);
+        }
+      }
+      if (!sendOk) return { sent: false, error: 'send_failed', sendData };
+
+      const externalId = sendData?.key?.id || sendData?.messageId || sendData?.data?.Info?.ID || `auto-${crypto.randomUUID()}`;
+      await admin.from('evolution_messages').insert({
+        user_id, instance_name: instance, remote_jid: target, phone,
+        direction: 'out', content: replyText, message_type: 'text', status: 'sent',
+        external_id: externalId, raw: { ...sendData, __autoreply: true, __kb: kbId, __category: category },
+      });
+      // Mark contact category, but not needs_human (we answered it)
+      await admin.from('evolution_contacts').upsert({
+        user_id, phone,
+        ai_category: category,
+        needs_human: false,
+        last_classified_at: new Date().toISOString(),
+      }, { onConflict: 'user_id,phone' as any });
+      return { sent: true };
+    };
+
+    // PASS 1 — keyword shortcut (free, fast)
+    const kwMatch = matchByKeywords(incomingContent, kb);
+    if (kwMatch) {
+      if (kwMatch.requires_human) {
+        await flagHuman(kwMatch.category);
+        return new Response(JSON.stringify({ ok: true, flagged_human: true, via: 'keyword', category: kwMatch.category }), { status: 200, headers: corsHeaders });
+      }
+      const r = await sendReply(kwMatch.response_template, kwMatch.category, kwMatch.id);
+      return new Response(JSON.stringify({ ok: true, replied: r.sent, via: 'keyword', category: kwMatch.category }), { status: 200, headers: corsHeaders });
+    }
+
+    // PASS 2 — AI classification (only if no keyword matched and there's KB to choose from)
+    const apiKey = Deno.env.get('LOVABLE_API_KEY');
+    if (!apiKey) {
+      console.error('[autoreply] missing LOVABLE_API_KEY');
+      await flagHuman(null);
+      return new Response(JSON.stringify({ ok: true, flagged_human: true, reason: 'no_api_key' }), { status: 200, headers: corsHeaders });
+    }
+
+    const history = (recent || []).slice().reverse()
+      .filter((m) => m.message_type === 'text')
+      .slice(-6)
+      .map((m) => ({ role: m.direction === 'out' ? 'assistant' : 'user', content: m.content || '' }));
+    if (incomingContent && (history.length === 0 || history[history.length - 1]?.content !== incomingContent)) {
       history.push({ role: 'user', content: incomingContent });
     }
 
-    // 4. Call Lovable AI
-    const apiKey = Deno.env.get('LOVABLE_API_KEY');
-    if (!apiKey) {
-      console.error('[evolution-autoreply] missing LOVABLE_API_KEY');
-      return new Response(JSON.stringify({ error: 'missing LOVABLE_API_KEY' }), { status: 500, headers: corsHeaders });
-    }
+    const kbForPrompt = kb.map((e) => ({
+      id: e.id, title: e.title, category: e.category,
+      keywords: e.keywords?.slice(0, 10) || [],
+      requires_human: e.requires_human,
+      preview: (e.response_template || '').slice(0, 200),
+    }));
+
+    const systemPrompt = `${settings.autoreply_system_prompt || ''}
+
+Você é um classificador de mensagens de clientes IPTV.
+Categorias possíveis: "renovacao", "instalar_app", "pagamento", "suporte", "outros".
+
+REGRAS:
+- Se a mensagem combinar com algum item da base de conhecimento abaixo, retorne o id desse item em "kb_id".
+- Se a pessoa pediu suporte humano (problema técnico, reclamação, dúvida que não está na base), retorne "needs_human": true e NÃO escolha nenhum kb_id.
+- Se não tem certeza, prefira marcar "needs_human": true.
+- Responda APENAS com JSON válido no formato:
+{"category": "<uma das categorias>", "kb_id": "<id ou null>", "needs_human": <true|false>, "reason": "<curto>"}
+
+BASE DE CONHECIMENTO DISPONÍVEL:
+${JSON.stringify(kbForPrompt, null, 2)}
+`;
 
     const aiResp = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`,
-      },
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
       body: JSON.stringify({
         model: settings.autoreply_model || 'google/gemini-3-flash-preview',
         messages: [
-          { role: 'system', content: settings.autoreply_system_prompt },
+          { role: 'system', content: systemPrompt },
           ...history,
         ],
+        response_format: { type: 'json_object' },
       }),
     });
 
-    if (aiResp.status === 429) {
-      console.error('[evolution-autoreply] rate limited');
-      return new Response(JSON.stringify({ error: 'rate_limit' }), { status: 200, headers: corsHeaders });
-    }
-    if (aiResp.status === 402) {
-      console.error('[evolution-autoreply] credits exhausted');
-      return new Response(JSON.stringify({ error: 'credits' }), { status: 200, headers: corsHeaders });
+    if (aiResp.status === 429 || aiResp.status === 402) {
+      console.error('[autoreply] AI gateway', aiResp.status);
+      await flagHuman(null);
+      return new Response(JSON.stringify({ ok: true, flagged_human: true, reason: 'ai_limit' }), { status: 200, headers: corsHeaders });
     }
     if (!aiResp.ok) {
-      const t = await aiResp.text();
-      console.error('[evolution-autoreply] AI failure', aiResp.status, t);
-      return new Response(JSON.stringify({ error: 'ai_failed', status: aiResp.status }), { status: 200, headers: corsHeaders });
+      console.error('[autoreply] AI failure', aiResp.status, await aiResp.text());
+      await flagHuman(null);
+      return new Response(JSON.stringify({ ok: true, flagged_human: true, reason: 'ai_error' }), { status: 200, headers: corsHeaders });
     }
 
     const aiJson = await aiResp.json();
-    const replyText = String(aiJson?.choices?.[0]?.message?.content || '').trim();
-    if (!replyText) {
-      return new Response(JSON.stringify({ ok: true, skipped: 'empty_ai_reply' }), { status: 200, headers: corsHeaders });
+    const rawContent = String(aiJson?.choices?.[0]?.message?.content || '').trim();
+    let parsed: { category?: string; kb_id?: string | null; needs_human?: boolean; reason?: string } = {};
+    try {
+      // strip code fences if present
+      const cleaned = rawContent.replace(/^```json\s*/i, '').replace(/```\s*$/i, '').trim();
+      parsed = JSON.parse(cleaned);
+    } catch {
+      console.error('[autoreply] parse failed', rawContent);
+      await flagHuman(null);
+      return new Response(JSON.stringify({ ok: true, flagged_human: true, reason: 'parse_failed' }), { status: 200, headers: corsHeaders });
     }
 
-    // 5. Send via Evolution
-    const baseUrl = (settings.base_url || '').replace(/\/+$/, '');
-    const evoKey = settings.api_key || '';
-    const instance = settings.instance_name || '';
-    if (!baseUrl || !evoKey) {
-      console.error('[evolution-autoreply] missing evolution credentials');
-      return new Response(JSON.stringify({ ok: true, skipped: 'no_evolution_creds' }), { status: 200, headers: corsHeaders });
+    const category = String(parsed.category || 'outros');
+    const matched = parsed.kb_id ? kb.find((e) => e.id === parsed.kb_id) : null;
+
+    if (parsed.needs_human || (!matched)) {
+      await flagHuman(category);
+      return new Response(JSON.stringify({ ok: true, flagged_human: true, via: 'ai', category, reason: parsed.reason }), { status: 200, headers: corsHeaders });
     }
 
-    const target = `${phone}@s.whatsapp.net`;
-    const sendAttempts = [
-      { url: `${baseUrl}/send/text`, body: { number: target, text: replyText } },
-      { url: `${baseUrl}/send/text`, body: { number: phone, text: replyText } },
-      { url: `${baseUrl}/message/sendText/${encodeURIComponent(instance)}`, body: { number: phone, text: replyText } },
-    ];
-    let sendOk = false;
-    let sendData: any = null;
-    for (const att of sendAttempts) {
-      try {
-        const r = await fetch(att.url, {
-          method: 'POST',
-          headers: {
-            apikey: evoKey,
-            Authorization: `Bearer ${evoKey}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(att.body),
-        });
-        sendData = await r.json().catch(() => ({}));
-        if (r.ok) { sendOk = true; break; }
-      } catch (e) {
-        console.error('[evolution-autoreply] send attempt failed', e);
-      }
+    if (matched.requires_human) {
+      await flagHuman(matched.category);
+      return new Response(JSON.stringify({ ok: true, flagged_human: true, via: 'ai_kb', category: matched.category }), { status: 200, headers: corsHeaders });
     }
 
-    if (!sendOk) {
-      console.error('[evolution-autoreply] all send attempts failed', sendData);
-      return new Response(JSON.stringify({ ok: false, error: 'send_failed' }), { status: 200, headers: corsHeaders });
-    }
-
-    // 6. Insert outgoing message so it shows up in the UI immediately
-    const externalId = sendData?.key?.id || sendData?.messageId || sendData?.data?.Info?.ID || `auto-${crypto.randomUUID()}`;
-    await admin.from('evolution_messages').insert({
-      user_id,
-      instance_name: instance,
-      remote_jid: target,
-      phone,
-      direction: 'out',
-      content: replyText,
-      message_type: 'text',
-      status: 'sent',
-      external_id: externalId,
-      raw: { ...sendData, __autoreply: true },
-    });
-
-    return new Response(JSON.stringify({ ok: true, replied: true }), {
-      status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    const r = await sendReply(matched.response_template, matched.category, matched.id);
+    return new Response(JSON.stringify({ ok: true, replied: r.sent, via: 'ai_kb', category: matched.category }), { status: 200, headers: corsHeaders });
   } catch (e) {
     console.error('[evolution-autoreply]', e);
-    return new Response(JSON.stringify({ error: String((e as Error).message || e) }), {
-      status: 200, headers: corsHeaders,
-    });
+    return new Response(JSON.stringify({ error: String((e as Error).message || e) }), { status: 200, headers: corsHeaders });
   }
 });

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -86,11 +86,22 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
 interface QuickRenewalPanelProps {
   isMobile?: boolean;
   onClose?: () => void;
+  initialPhone?: string | null;
 }
 
-export default function QuickRenewalPanel({ isMobile = false, onClose }: QuickRenewalPanelProps) {
+export default function QuickRenewalPanel({ isMobile = false, onClose, initialPhone }: QuickRenewalPanelProps) {
   const { user } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
+  const lastInitialPhoneRef = useRef<string | null>(null);
+
+  // Quando o usuário abre a aba de um contato no chat, prefilla a busca com o telefone
+  // pra trazer todos os usuários daquele cliente automaticamente.
+  useEffect(() => {
+    if (!initialPhone) return;
+    if (lastInitialPhoneRef.current === initialPhone) return;
+    lastInitialPhoneRef.current = initialPhone;
+    setSearchTerm(initialPhone.replace(/\D/g, ''));
+  }, [initialPhone]);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('pix');
   const [isLinksOpen, setIsLinksOpen] = useState(true);
