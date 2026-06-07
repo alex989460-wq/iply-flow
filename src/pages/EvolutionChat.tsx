@@ -1533,6 +1533,19 @@ export default function EvolutionChat() {
                       <ContextMenuItem onClick={() => copyText(formatPhone(c.phone))}>
                         <Copy className="w-4 h-4 mr-2" /> Copiar número
                       </ContextMenuItem>
+                      {c.unread > 0 ? (
+                        <ContextMenuItem onClick={() => markConversationRead(c.phone)}>
+                          <CheckCircle2 className="w-4 h-4 mr-2" /> Marcar como lida
+                        </ContextMenuItem>
+                      ) : (
+                        <ContextMenuItem onClick={() => markConversationUnread(c.phone)}>
+                          <MailOpen className="w-4 h-4 mr-2" /> Marcar como não lida
+                        </ContextMenuItem>
+                      )}
+                      <ContextMenuSeparator />
+                      <ContextMenuItem onClick={() => { setSelectedPhone(c.phone); setTimeout(() => clearConversation(), 0); }} className="text-destructive focus:text-destructive">
+                        <Trash2 className="w-4 h-4 mr-2" /> Excluir conversa
+                      </ContextMenuItem>
                     </ContextMenuContent>
                   </ContextMenu>
                 );
