@@ -1301,7 +1301,7 @@ export default function EvolutionChat() {
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => setShowAutoReplySettings(true)}>
                   <Zap className={cn('w-4 h-4 mr-2', autoReply.enabled ? 'text-emerald-500' : 'text-muted-foreground')} />
-                  Robô de auto-atendimento (IA)
+                  Robô de auto-atendimento
                   <span className={cn(
                     'ml-auto text-[9px] font-bold px-1.5 py-0.5 rounded',
                     autoReply.enabled ? 'bg-emerald-500/15 text-emerald-500' : 'bg-muted text-muted-foreground'
