@@ -576,7 +576,7 @@ Deno.serve(async (req) => {
       let mode = 'evolution-api-v1';
       const log: any[] = [];
       for (const att of attempts) {
-        const timeout = att.mode.startsWith('evolution-go-send') ? 30000 : 8000;
+        const timeout = 8000;
         const r = await fetchJson(att.url, {
           method: 'POST',
           headers: att.headers,
