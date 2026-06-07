@@ -12,7 +12,7 @@ import {
   Loader2, Send, Zap, Plus, RefreshCw, Search, MessageSquare,
   Phone, X, Smile, Mic, Paperclip, Trash2, Image as ImageIcon, FileText, Sticker, QrCode,
   Pin, PinOff, Info, Copy, ExternalLink, MoreVertical, ChevronDown,
-  Reply, Forward, Star, StarOff, Trash, Volume2, VolumeX, BookOpen, CheckCircle2,
+  Reply, Forward, Star, StarOff, Trash, Volume2, VolumeX, BookOpen, CheckCircle2, MailOpen,
 } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import KnowledgeBaseDialog from '@/components/chat/KnowledgeBaseDialog';
@@ -273,6 +273,9 @@ export default function EvolutionChat() {
   const [showFavorites, setShowFavorites] = useState(false);
   const [lastReadByPhone, setLastReadByPhone] = useState<Record<string, string>>(() => {
     try { return JSON.parse(localStorage.getItem('evo_last_read') || '{}'); } catch { return {}; }
+  });
+  const [manualUnreadPhones, setManualUnreadPhones] = useState<Set<string>>(() => {
+    try { return new Set(JSON.parse(localStorage.getItem('evo_manual_unread') || '[]')); } catch { return new Set(); }
   });
   const [localReactions, setLocalReactions] = useState<Record<string, { emoji: string; from: 'in' | 'out' }>>({});
   const [typingByPhone, setTypingByPhone] = useState<Record<string, { presence: string; at: number }>>({});
