@@ -616,11 +616,14 @@ export default function EvolutionChat() {
     });
     for (const m of instanceMessages) {
       const cur = map.get(m.phone);
+      // For newsletters, try to pull name from raw metadata as we scan
+      const newsletterName = isNewsletterPhone(m.phone) ? newsletterNameFromRaw(m.raw) : null;
       if (!cur) {
-        map.set(m.phone, { phone: m.phone, name: m.contact_name, last: m, unread: 0, lastAt: m.created_at, lastOutAt: m.direction === 'out' ? m.created_at : '' });
+        map.set(m.phone, { phone: m.phone, name: m.contact_name || newsletterName || null, last: m, unread: 0, lastAt: m.created_at, lastOutAt: m.direction === 'out' ? m.created_at : '' });
       } else {
         if (!cur.last || new Date(m.created_at) > new Date(cur.last.created_at)) cur.last = m;
         if (m.contact_name && !cur.name) cur.name = m.contact_name;
+        if (newsletterName && !cur.name) cur.name = newsletterName;
         if (m.direction === 'out' && (!cur.lastOutAt || new Date(m.created_at) > new Date(cur.lastOutAt))) {
           cur.lastOutAt = m.created_at;
         }
