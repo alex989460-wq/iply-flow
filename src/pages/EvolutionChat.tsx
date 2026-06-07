@@ -647,7 +647,7 @@ export default function EvolutionChat() {
   useEffect(() => {
     const pending = conversations
       .map((c) => c.phone.startsWith('status:') ? c.phone.slice('status:'.length) : c.phone)
-      .filter((phone) => phone && phone !== 'me' && phone !== 'unknown' && !contacts[phone]?.profile_pic_url && !avatarFetchRef.current.has(phone))
+      .filter((phone) => phone && phone !== 'me' && phone !== 'unknown' && !isNewsletterPhone(phone) && !isGroupJidPhone(phone) && !contacts[phone]?.profile_pic_url && !avatarFetchRef.current.has(phone))
       .slice(0, 3);
     pending.forEach((phone) => {
       avatarFetchRef.current.add(phone);
