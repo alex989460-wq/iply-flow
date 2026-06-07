@@ -268,7 +268,7 @@ Deno.serve(async (req) => {
 
     const { data: settings } = await admin
       .from('evolution_settings')
-      .select('user_id, instance_name')
+      .select('user_id, instance_name, autoreply_enabled')
       .eq('webhook_token', token)
       .maybeSingle();
 
@@ -441,7 +441,7 @@ Deno.serve(async (req) => {
             }
           }
           // Trigger AI auto-reply for direct, non-status, non-group, non-channel incoming TEXT
-          if (!info.IsFromMe && !isStatus && phone && phone.length <= 14 && type === 'text') {
+          if (settings.autoreply_enabled && !info.IsFromMe && !isStatus && phone && phone.length <= 14 && type === 'text') {
             const content = messageText(msg) || '';
             if (content) fireAutoReply(settings.user_id, phone, content);
           }
@@ -500,7 +500,7 @@ Deno.serve(async (req) => {
         );
       }
       // Trigger AI auto-reply for direct, non-status, non-group, non-channel incoming TEXT
-      if (!fromMe && !isStatus && phone && phone.length <= 14 && type === 'text' && content) {
+      if (settings.autoreply_enabled && !fromMe && !isStatus && phone && phone.length <= 14 && type === 'text' && content) {
         fireAutoReply(settings.user_id, phone, content);
       }
     }
