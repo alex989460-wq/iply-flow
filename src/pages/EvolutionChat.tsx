@@ -1251,8 +1251,9 @@ export default function EvolutionChat() {
                 { id: 'unread', label: 'Não lidas' },
                 { id: 'contacts', label: 'Contatos' },
                 { id: 'groups', label: 'Grupos' },
+                { id: 'channels', label: '📢 Canais' },
                 { id: 'media', label: 'Mídia' },
-                { id: 'status', label: '📢 Status' },
+                { id: 'status', label: 'Status' },
               ] as const).map((t) => (
                 <button
                   key={t.id}
