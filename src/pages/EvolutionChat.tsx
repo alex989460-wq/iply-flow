@@ -186,9 +186,16 @@ export default function EvolutionChat() {
   const { user, session } = useAuth();
   const { toast } = useToast();
   const isMobile = useIsMobile();
-  const [loading, setLoading] = useState(true);
-  const [messages, setMessages] = useState<EvoMessage[]>([]);
-  const [contacts, setContacts] = useState<Record<string, EvoContact>>({});
+  // Hydrate from sessionStorage so abrir o chat (especialmente no mobile) seja instantâneo
+  const cachedMessages = useMemo<EvoMessage[]>(() => {
+    try { return JSON.parse(sessionStorage.getItem('evo_cache_messages') || '[]'); } catch { return []; }
+  }, []);
+  const cachedContacts = useMemo<Record<string, EvoContact>>(() => {
+    try { return JSON.parse(sessionStorage.getItem('evo_cache_contacts') || '{}'); } catch { return {}; }
+  }, []);
+  const [loading, setLoading] = useState(cachedMessages.length === 0);
+  const [messages, setMessages] = useState<EvoMessage[]>(cachedMessages);
+  const [contacts, setContacts] = useState<Record<string, EvoContact>>(cachedContacts);
   const [selectedPhone, setSelectedPhone] = useState<string | null>(null);
   const [newPhone, setNewPhone] = useState('');
   const [draft, setDraft] = useState('');
