@@ -1236,6 +1236,9 @@ export default function EvolutionChat() {
                 <DropdownMenuItem onClick={() => setShowAutoReplySettings(true)}>
                   <Zap className="w-4 h-4 mr-2" /> Robô de auto-atendimento (IA)
                 </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setShowKbDialog(true)}>
+                  <BookOpen className="w-4 h-4 mr-2" /> Base de conhecimento da IA
+                </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={clearAllConversations} className="text-destructive focus:text-destructive">
                   <Trash2 className="w-4 h-4 mr-2" /> Limpar TODO o histórico
