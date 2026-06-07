@@ -441,6 +441,18 @@ export default function EvolutionChat() {
         setMessages((prev) => {
           return mergeMessage(prev, m);
         });
+        // Play notification when an incoming message arrives (skip channels/status, skip our own outgoing)
+        try {
+          if (
+            m?.direction === 'in' &&
+            m?.phone &&
+            !m.phone.startsWith('status') &&
+            !/^\d{15,}$/.test(m.phone) /* not newsletter */
+          ) {
+            const isOtherChatOrUnfocused = document.hidden || selectedPhoneRef.current !== m.phone;
+            if (isOtherChatOrUnfocused) playNotificationSound();
+          }
+        } catch { /* noop */ }
       })
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'evolution_messages', filter: `user_id=eq.${user.id}` }, (payload) => {
         const m = payload.new as EvoMessage;
