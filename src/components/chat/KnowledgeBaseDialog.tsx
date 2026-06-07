@@ -4,7 +4,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Loader2, Plus, Trash2, BookOpen, GripVertical } from 'lucide-react';
+import { Loader2, Plus, Trash2, BookOpen, GripVertical, Paperclip, X } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 interface KbEntry {
@@ -14,6 +14,10 @@ interface KbEntry {
   category: string;
   keywords: string[];
   response_template: string;
+  media_url?: string | null;
+  media_mime?: string | null;
+  media_type?: string | null;
+  media_filename?: string | null;
   requires_human: boolean;
   is_enabled: boolean;
   sort_order: number;
@@ -64,6 +68,7 @@ export default function KnowledgeBaseDialog({ open, onOpenChange }: Props) {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [uploadingId, setUploadingId] = useState<string | null>(null);
   const [entries, setEntries] = useState<KbEntry[]>([]);
 
   useEffect(() => {
@@ -145,6 +150,10 @@ export default function KnowledgeBaseDialog({ open, onOpenChange }: Props) {
           category: e.category,
           keywords: e.keywords.map(k => k.trim()).filter(Boolean),
           response_template: e.response_template,
+          media_url: e.media_url || null,
+          media_mime: e.media_mime || null,
+          media_type: e.media_type || null,
+          media_filename: e.media_filename || null,
           requires_human: e.requires_human,
           is_enabled: e.is_enabled,
           sort_order: i,
@@ -161,6 +170,35 @@ export default function KnowledgeBaseDialog({ open, onOpenChange }: Props) {
       toast({ title: 'Erro ao salvar', description: String((err as Error).message), variant: 'destructive' });
     } finally {
       setSaving(false);
+    }
+  };
+
+  const uploadMedia = async (entryId: string, file: File) => {
+    if (!user) return;
+    setUploadingId(entryId);
+    try {
+      const ext = file.name.split('.').pop() || 'bin';
+      const mediaType = file.type.startsWith('image/') ? 'image' : file.type.startsWith('video/') ? 'video' : 'document';
+      const path = `${user.id}/kb-${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+      const { error: upErr } = await supabase.storage
+        .from('evolution-media')
+        .upload(path, file, { contentType: file.type || 'application/octet-stream', upsert: true });
+      if (upErr) throw upErr;
+      const { data: signed } = await supabase.storage
+        .from('evolution-media')
+        .createSignedUrl(path, 60 * 60 * 24 * 365 * 5);
+      if (!signed?.signedUrl) throw new Error('Falha ao gerar link do anexo');
+      updateEntry(entryId, {
+        media_url: signed.signedUrl,
+        media_mime: file.type || 'application/octet-stream',
+        media_type: mediaType,
+        media_filename: file.name,
+      });
+      toast({ title: 'Anexo adicionado', description: 'Clique em Salvar tudo para gravar no robô.' });
+    } catch (err) {
+      toast({ title: 'Erro ao anexar mídia', description: String((err as Error).message), variant: 'destructive' });
+    } finally {
+      setUploadingId(null);
     }
   };
 
@@ -236,6 +274,36 @@ export default function KnowledgeBaseDialog({ open, onOpenChange }: Props) {
                     className="w-full rounded-md border border-border bg-background p-2 text-xs"
                     placeholder="Resposta automática que será enviada (ex: 'Para renovar acesse https://...')"
                   />
+                )}
+                {!e.requires_human && (
+                  <div className="flex items-center justify-between gap-2 rounded-md border border-border bg-background p-2">
+                    <div className="min-w-0 text-[11px] text-muted-foreground">
+                      {e.media_url ? (
+                        <div className="flex items-center gap-1">
+                          <Paperclip className="h-3 w-3 text-primary" />
+                          <span className="truncate">{e.media_filename || 'Anexo da resposta automática'}</span>
+                        </div>
+                      ) : (
+                        'Opcional: enviar uma imagem/documento junto com esta resposta.'
+                      )}
+                    </div>
+                    <div className="flex shrink-0 items-center gap-1">
+                      {e.media_url && (
+                        <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => updateEntry(e.id, { media_url: null, media_mime: null, media_type: null, media_filename: null })}>
+                          <X className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
+                      <label className="inline-flex h-7 cursor-pointer items-center rounded-md border border-border px-2 text-[11px] hover:bg-accent">
+                        {uploadingId === e.id ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Paperclip className="mr-1 h-3.5 w-3.5" />}
+                        Anexar
+                        <input type="file" className="hidden" accept="image/*,video/*,application/pdf" disabled={uploadingId === e.id} onChange={(ev) => {
+                          const file = ev.target.files?.[0];
+                          ev.currentTarget.value = '';
+                          if (file) uploadMedia(e.id, file);
+                        }} />
+                      </label>
+                    </div>
+                  </div>
                 )}
                 <label className="flex items-center gap-2 text-[11px] text-muted-foreground">
                   <input type="checkbox" checked={e.requires_human} onChange={(ev) => updateEntry(e.id, { requires_human: ev.target.checked })} className="h-3 w-3" />

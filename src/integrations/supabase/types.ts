@@ -111,6 +111,10 @@ export type Database = {
           id: string
           is_enabled: boolean
           keywords: string[]
+          media_filename: string | null
+          media_mime: string | null
+          media_type: string | null
+          media_url: string | null
           requires_human: boolean
           response_template: string
           sort_order: number
@@ -124,6 +128,10 @@ export type Database = {
           id?: string
           is_enabled?: boolean
           keywords?: string[]
+          media_filename?: string | null
+          media_mime?: string | null
+          media_type?: string | null
+          media_url?: string | null
           requires_human?: boolean
           response_template: string
           sort_order?: number
@@ -137,6 +145,10 @@ export type Database = {
           id?: string
           is_enabled?: boolean
           keywords?: string[]
+          media_filename?: string | null
+          media_mime?: string | null
+          media_type?: string | null
+          media_url?: string | null
           requires_human?: boolean
           response_template?: string
           sort_order?: number

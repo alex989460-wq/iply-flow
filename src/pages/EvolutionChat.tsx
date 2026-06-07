@@ -12,11 +12,11 @@ import {
   Loader2, Send, Zap, Plus, RefreshCw, Search, MessageSquare,
   Phone, X, Smile, Mic, Paperclip, Trash2, Image as ImageIcon, FileText, Sticker, QrCode,
   Pin, PinOff, Info, Copy, ExternalLink, MoreVertical, ChevronDown,
-  Reply, Forward, Star, StarOff, Trash, Volume2, VolumeX, BookOpen, CheckCircle2,
+  Reply, Forward, Star, StarOff, Trash, Volume2, VolumeX, BookOpen, CheckCircle2, MailOpen,
 } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import KnowledgeBaseDialog from '@/components/chat/KnowledgeBaseDialog';
-import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from '@/components/ui/context-menu';
+import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from '@/components/ui/context-menu';
 import { Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -273,6 +273,9 @@ export default function EvolutionChat() {
   const [showFavorites, setShowFavorites] = useState(false);
   const [lastReadByPhone, setLastReadByPhone] = useState<Record<string, string>>(() => {
     try { return JSON.parse(localStorage.getItem('evo_last_read') || '{}'); } catch { return {}; }
+  });
+  const [manualUnreadPhones, setManualUnreadPhones] = useState<Set<string>>(() => {
+    try { return new Set(JSON.parse(localStorage.getItem('evo_manual_unread') || '[]')); } catch { return new Set(); }
   });
   const [localReactions, setLocalReactions] = useState<Record<string, { emoji: string; from: 'in' | 'out' }>>({});
   const [typingByPhone, setTypingByPhone] = useState<Record<string, { presence: string; at: number }>>({});
@@ -713,6 +716,7 @@ export default function EvolutionChat() {
         if (m.status === 'read' || m.status === 'played') continue;
         if (new Date(m.created_at).getTime() > cutoff) count++;
       }
+      if (manualUnreadPhones.has(conv.phone) && count === 0) count = 1;
       conv.unread = count;
     }
     const arr = Array.from(map.values()).sort((a, b) => {
@@ -723,7 +727,7 @@ export default function EvolutionChat() {
     });
     let filtered = arr;
     if (filter === 'support') filtered = arr.filter(c => contacts[c.phone]?.needs_human === true && !isNewsletterPhone(c.phone));
-    else if (filter === 'unread') filtered = arr.filter(c => c.unread > 0 && c.last?.direction === 'in' && !isNewsletterPhone(c.phone));
+    else if (filter === 'unread') filtered = arr.filter(c => c.unread > 0 && !isNewsletterPhone(c.phone));
     else if (filter === 'media') filtered = arr.filter(c => c.last && ['image', 'audio', 'document', 'sticker'].includes(c.last.message_type) && !isNewsletterPhone(c.phone));
     else if (filter === 'channels') filtered = arr.filter(c => isNewsletterPhone(c.phone));
     else if (filter === 'groups') filtered = arr.filter(c => c.phone && !c.phone.startsWith('status') && !isNewsletterPhone(c.phone) && isGroupJidPhone(c.phone));
@@ -747,17 +751,18 @@ export default function EvolutionChat() {
       (c.name || contacts[c.phone]?.name || '').toLowerCase().includes(q) ||
       (c.last?.content || '').toLowerCase().includes(q)
     );
-  }, [instanceMessages, search, contacts, selectedPhone, filter, instancePhones, pinnedContacts, lastReadByPhone]);
+  }, [instanceMessages, search, contacts, selectedPhone, filter, instancePhones, pinnedContacts, lastReadByPhone, manualUnreadPhones]);
 
   // Mark conversation as read when opened (or new message arrives in opened chat)
   useEffect(() => {
     if (!selectedPhone) return;
+    if (manualUnreadPhones.has(selectedPhone)) return;
     setLastReadByPhone(prev => {
       const next = { ...prev, [selectedPhone]: new Date().toISOString() };
       try { localStorage.setItem('evo_last_read', JSON.stringify(next)); } catch { /* noop */ }
       return next;
     });
-  }, [selectedPhone, instanceMessages.length]);
+  }, [selectedPhone, instanceMessages.length, manualUnreadPhones]);
 
   const thread = useMemo(
     () => instanceMessages.filter((m) => m.phone === selectedPhone && !hiddenIds.has(m.id)),
@@ -826,28 +831,55 @@ export default function EvolutionChat() {
     setMessages(prev => prev.filter(x => x.id !== m.id));
     // If it's a temp/local message, nothing to remove from DB
     if (m.id.startsWith('tmp-')) return;
-    const { error } = await supabase.from('evolution_messages').delete().eq('id', m.id);
-    if (error) {
-      toast({ title: 'Não foi possível excluir', description: error.message, variant: 'destructive' });
+    const { data, error } = await invokeEvolution({ action: 'delete-messages', id: m.id });
+    if (error || data?.error) {
+      toast({ title: 'Não foi possível excluir', description: error?.message || data?.error, variant: 'destructive' });
       setMessages(prev => [...prev, m].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()));
       return;
     }
     toast({ title: 'Mensagem excluída' });
   };
 
-  const clearConversation = async () => {
-    if (!selectedPhone || !user) return;
+  const clearConversation = async (phoneOverride?: string) => {
+    const targetPhone = phoneOverride || selectedPhone;
+    if (!targetPhone || !user) return;
     if (!confirm('Apagar TODAS as mensagens desta conversa? Esta ação não pode ser desfeita.')) return;
-    const phone = selectedPhone;
+    const phone = targetPhone;
     const removed = messages.filter(m => m.phone === phone);
     setMessages(prev => prev.filter(m => m.phone !== phone));
-    const { error } = await supabase.from('evolution_messages').delete().eq('user_id', user.id).eq('phone', phone);
-    if (error) {
-      toast({ title: 'Falha ao limpar conversa', description: error.message, variant: 'destructive' });
+    const { data, error } = await invokeEvolution({ action: 'delete-messages', phone });
+    if (error || data?.error) {
+      toast({ title: 'Falha ao limpar conversa', description: error?.message || data?.error, variant: 'destructive' });
       setMessages(prev => [...prev, ...removed]);
       return;
     }
-    toast({ title: 'Conversa apagada', description: `${removed.length} mensagens removidas` });
+    setSelectedPhone(null);
+    toast({ title: 'Conversa apagada', description: `${data?.deleted ?? removed.length} mensagens removidas` });
+  };
+
+  const markConversationUnread = (phone: string) => {
+    setManualUnreadPhones(prev => {
+      const next = new Set(prev);
+      next.add(phone);
+      try { localStorage.setItem('evo_manual_unread', JSON.stringify([...next])); } catch { /* noop */ }
+      return next;
+    });
+    toast({ title: 'Marcada como não lida' });
+  };
+
+  const markConversationRead = (phone: string) => {
+    setManualUnreadPhones(prev => {
+      const next = new Set(prev);
+      next.delete(phone);
+      try { localStorage.setItem('evo_manual_unread', JSON.stringify([...next])); } catch { /* noop */ }
+      return next;
+    });
+    setLastReadByPhone(prev => {
+      const next = { ...prev, [phone]: new Date().toISOString() };
+      try { localStorage.setItem('evo_last_read', JSON.stringify(next)); } catch { /* noop */ }
+      return next;
+    });
+    toast({ title: 'Marcada como lida' });
   };
 
   const isFavorited = useCallback((id: string) => favorites.some(f => f.id === id), [favorites]);
@@ -1486,7 +1518,7 @@ export default function EvolutionChat() {
                               {isOut && <span className="text-primary mr-1">✓</span>}
                               {c.last?.content || 'Nova conversa'}
                             </div>
-                            {!active && c.unread > 0 && c.last?.direction === 'in' && (
+                            {!active && c.unread > 0 && (
                               <Badge className="h-4 min-w-4 px-1 text-[9px] bg-primary">{c.unread > 99 ? '99+' : c.unread}</Badge>
                             )}
                           </div>
@@ -1501,6 +1533,19 @@ export default function EvolutionChat() {
                       </ContextMenuItem>
                       <ContextMenuItem onClick={() => copyText(formatPhone(c.phone))}>
                         <Copy className="w-4 h-4 mr-2" /> Copiar número
+                      </ContextMenuItem>
+                      {c.unread > 0 ? (
+                        <ContextMenuItem onClick={() => markConversationRead(c.phone)}>
+                          <CheckCircle2 className="w-4 h-4 mr-2" /> Marcar como lida
+                        </ContextMenuItem>
+                      ) : (
+                        <ContextMenuItem onClick={() => markConversationUnread(c.phone)}>
+                          <MailOpen className="w-4 h-4 mr-2" /> Marcar como não lida
+                        </ContextMenuItem>
+                      )}
+                      <ContextMenuSeparator />
+                      <ContextMenuItem onClick={() => clearConversation(c.phone)} className="text-destructive focus:text-destructive">
+                        <Trash2 className="w-4 h-4 mr-2" /> Excluir conversa
                       </ContextMenuItem>
                     </ContextMenuContent>
                   </ContextMenu>
@@ -1619,7 +1664,16 @@ export default function EvolutionChat() {
                     <DropdownMenuItem onClick={() => syncHistory(selectedPhone || undefined)} disabled={syncingHistory || !selectedPhone || selectedPhone.startsWith('status:')}>
                       <RefreshCw className={cn('w-4 h-4 mr-2', syncingHistory && 'animate-spin')} /> Sincronizar histórico desta conversa
                     </DropdownMenuItem>
-                    <DropdownMenuItem onClick={clearConversation} className="text-destructive focus:text-destructive">
+                    {selectedPhone && !selectedPhone.startsWith('status:') && (manualUnreadPhones.has(selectedPhone) ? (
+                      <DropdownMenuItem onClick={() => markConversationRead(selectedPhone)}>
+                        <CheckCircle2 className="w-4 h-4 mr-2" /> Marcar como lida
+                      </DropdownMenuItem>
+                    ) : (
+                      <DropdownMenuItem onClick={() => markConversationUnread(selectedPhone)}>
+                        <MailOpen className="w-4 h-4 mr-2" /> Marcar como não lida
+                      </DropdownMenuItem>
+                    ))}
+                    <DropdownMenuItem onClick={() => clearConversation()} className="text-destructive focus:text-destructive">
                       <Trash2 className="w-4 h-4 mr-2" /> Limpar conversa
                     </DropdownMenuItem>
 
