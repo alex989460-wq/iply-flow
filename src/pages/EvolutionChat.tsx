@@ -1193,16 +1193,11 @@ export default function EvolutionChat() {
           {m.media_url && <FileText className="w-4 h-4 opacity-70 shrink-0" />}
         </div>
       );
-      // PDF — preview inline (igual imagem), com link de download.
+      // PDF — preview inline (igual WhatsApp), miniatura + clique abre fullscreen.
       if (isPdf && m.media_url) {
         return (
-          <div className="space-y-1.5 max-w-[320px]">
-            <object data={m.media_url} type="application/pdf" className="w-full h-[400px] rounded-md bg-black/20 border border-white/5">
-              <iframe src={m.media_url} title={docInfo.fileName} className="w-full h-full rounded-md" />
-            </object>
-            <a href={m.media_url} target="_blank" rel="noreferrer" className="block hover:opacity-90">
-              {card}
-            </a>
+          <div className="max-w-[300px]">
+            <PdfPreview url={m.media_url} fileName={docInfo.fileName} sizeLabel={docInfo.sizeLabel} />
           </div>
         );
       }
