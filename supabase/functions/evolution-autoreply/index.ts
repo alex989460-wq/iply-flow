@@ -225,7 +225,7 @@ Deno.serve(async (req) => {
     // Anti-loop
     const { data: recent } = await admin
       .from('evolution_messages')
-      .select('id, direction, content, created_at, message_type')
+      .select('id, external_id, direction, content, created_at, message_type')
       .eq('user_id', user_id)
       .eq('phone', phone)
       .order('created_at', { ascending: false })
@@ -268,6 +268,23 @@ Deno.serve(async (req) => {
       const sendTargets = await resolveSendTargets(admin, user_id, phone);
       const primaryTarget = sendTargets[0]?.value || normalizeChatPhone(phone);
       await primeEvolutionContact(baseUrl, instAuth.apiKey, instAuth.instanceId, phone);
+      const quotedRaw = lastIn?.external_id ? {
+        messageId: String(lastIn.external_id),
+        fromMe: false,
+        text: String(lastIn.content || incomingContent || ''),
+      } : null;
+      const quotedClassic = quotedRaw ? {
+        key: {
+          remoteJid: primaryTarget.includes('@') ? primaryTarget : `${primaryTarget}@s.whatsapp.net`,
+          fromMe: false,
+          id: quotedRaw.messageId,
+        },
+        message: { conversation: quotedRaw.text },
+      } : null;
+      const quotedGo = quotedRaw ? {
+        messageId: quotedRaw.messageId,
+        participant: primaryTarget.includes('@') ? primaryTarget : `${primaryTarget}@s.whatsapp.net`,
+      } : null;
 
       const attempts: Array<{ url: string; headers: Record<string, string>; body: any; mode: string }> = [];
       for (const target of sendTargets) {
@@ -275,6 +292,10 @@ Deno.serve(async (req) => {
         const goBodyMsg: Record<string, unknown> = { number: target.value, message: replyText };
         const classicBody: Record<string, unknown> = { number: target.value, text: replyText };
         const classicBodyV1: Record<string, unknown> = { number: target.value, textMessage: { text: replyText } };
+        if (quotedGo && quotedClassic) {
+          goBody.quoted = quotedGo; goBodyMsg.quoted = quotedGo;
+          classicBody.quoted = quotedClassic; classicBodyV1.quoted = quotedClassic;
+        }
         const sendTextAttempts = [
           { url: `${baseUrl}/send/text`, headers: evolutionHeaders(evoKey, true, instAuth.instanceId), body: { ...goBody, formatJid: target.kind !== 'jid' }, mode: `evolution-go-send-global-${target.kind}` },
           { url: `${baseUrl}/send/text`, headers: evolutionHeaders(evoKey, true, instAuth.instanceId), body: { ...goBody, formatJid: false }, mode: `evolution-go-send-global-raw-${target.kind}` },
@@ -338,6 +359,7 @@ Deno.serve(async (req) => {
         return new Response(JSON.stringify({ ok: true, flagged_human: true, via: 'knowledge_base', category: kwMatch.category }), { status: 200, headers: corsHeaders });
       }
       const r = await sendReply(kwMatch.response_template, kwMatch.category, kwMatch.id);
+      if (!r.sent) await flagHuman(kwMatch.category);
       return new Response(JSON.stringify({ ok: true, replied: r.sent, via: 'knowledge_base', category: kwMatch.category, error: r.error || null }), { status: 200, headers: corsHeaders });
     }
 
