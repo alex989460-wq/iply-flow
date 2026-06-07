@@ -1,10 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import * as pdfjsLib from 'pdfjs-dist';
-import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.js?url';
-import { ChevronLeft, ChevronRight, Download, FileText, Loader2, Minus, Plus, X } from 'lucide-react';
-
-// Initialize worker once
-(pdfjsLib as unknown as { GlobalWorkerOptions: { workerSrc: string } }).GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
+import { useState } from 'react';
+import { Download, ExternalLink, FileText, X } from 'lucide-react';
 
 interface PdfPreviewProps {
   url: string;
@@ -12,77 +7,8 @@ interface PdfPreviewProps {
   sizeLabel?: string;
 }
 
-/**
- * WhatsApp-style PDF preview: renders the first page as a thumbnail inside the
- * chat bubble. Clicking opens a fullscreen viewer (iframe) for navigation.
- */
 export default function PdfPreview({ url, fileName, sizeLabel }: PdfPreviewProps) {
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const viewerCanvasRef = useRef<HTMLCanvasElement | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(false);
-  const [pageCount, setPageCount] = useState(0);
   const [open, setOpen] = useState(false);
-  const [viewerLoading, setViewerLoading] = useState(false);
-  const [viewerError, setViewerError] = useState(false);
-  const [page, setPage] = useState(1);
-  const [zoom, setZoom] = useState(1);
-
-  const renderPdfPage = useCallback(async (targetCanvas: HTMLCanvasElement, pageNumber: number, targetWidth: number) => {
-    const task = (pdfjsLib as unknown as { getDocument: (o: { url: string; withCredentials?: boolean }) => { promise: Promise<{ numPages: number; getPage: (n: number) => Promise<{ getViewport: (o: { scale: number }) => { width: number; height: number }; render: (o: { canvasContext: CanvasRenderingContext2D; viewport: unknown }) => { promise: Promise<void> } }>; destroy: () => void }> } }).getDocument({ url, withCredentials: false });
-    const doc = await task.promise;
-    try {
-      setPageCount(doc.numPages);
-      const safePage = Math.min(Math.max(pageNumber, 1), doc.numPages || 1);
-      const pdfPage = await doc.getPage(safePage);
-      const viewport = pdfPage.getViewport({ scale: 1 });
-      const scale = Math.max(0.2, targetWidth / viewport.width);
-      const scaled = pdfPage.getViewport({ scale });
-      const ctx = targetCanvas.getContext('2d');
-      if (!ctx) throw new Error('Canvas indisponível');
-      targetCanvas.width = Math.floor(scaled.width);
-      targetCanvas.height = Math.floor(scaled.height);
-      ctx.clearRect(0, 0, targetCanvas.width, targetCanvas.height);
-      await pdfPage.render({ canvasContext: ctx, viewport: scaled }).promise;
-    } finally {
-      doc.destroy();
-    }
-  }, [url]);
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        setLoading(true);
-        setError(false);
-        const canvas = canvasRef.current;
-        if (!canvas) return;
-        await renderPdfPage(canvas, 1, 280);
-        if (!cancelled) setLoading(false);
-      } catch (e) {
-        console.error('[PdfPreview]', e);
-        if (!cancelled) { setError(true); setLoading(false); }
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [renderPdfPage]);
-
-  useEffect(() => {
-    if (!open) return;
-    let cancelled = false;
-    const canvas = viewerCanvasRef.current;
-    if (!canvas) return;
-    setViewerLoading(true);
-    setViewerError(false);
-    const width = Math.min(window.innerWidth - 32, 920) * zoom;
-    renderPdfPage(canvas, page, width)
-      .then(() => { if (!cancelled) setViewerLoading(false); })
-      .catch((e) => {
-        console.error('[PdfPreview viewer]', e);
-        if (!cancelled) { setViewerError(true); setViewerLoading(false); }
-      });
-    return () => { cancelled = true; };
-  }, [open, page, zoom, renderPdfPage]);
 
   return (
     <>
@@ -91,27 +17,13 @@ export default function PdfPreview({ url, fileName, sizeLabel }: PdfPreviewProps
         onClick={() => setOpen(true)}
         className="block w-full text-left group"
       >
-        <div className="relative rounded-md overflow-hidden bg-black/30 border border-white/5">
-          {loading && !error && (
-            <div className="flex items-center justify-center h-[360px] w-[280px]">
-              <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
-            </div>
-          )}
-          {error && (
-            <div className="flex flex-col items-center justify-center h-[180px] w-[280px] gap-2 text-xs text-muted-foreground p-3 text-center">
-              <FileText className="w-8 h-8" />
-              <span>Pré-visualização indisponível — toque para abrir.</span>
-            </div>
-          )}
-          <canvas
-            ref={canvasRef}
-            className={(loading || error) ? 'hidden' : 'block max-w-[280px] h-auto bg-white'}
-          />
-          {!loading && !error && pageCount > 0 && (
-            <div className="absolute top-1.5 right-1.5 bg-black/60 text-white text-[10px] px-1.5 py-0.5 rounded">
-              PDF • {pageCount} {pageCount === 1 ? 'página' : 'páginas'}
-            </div>
-          )}
+        <div className="relative flex h-[180px] w-[280px] flex-col items-center justify-center overflow-hidden rounded-md border border-white/5 bg-[#111b21]">
+          <div className="absolute inset-x-0 top-0 h-10 bg-[#202c33]" />
+          <div className="relative flex h-16 w-16 items-center justify-center rounded-md bg-[#f15c5c] text-white shadow-lg">
+            <FileText className="h-8 w-8" />
+          </div>
+          <div className="relative mt-3 max-w-[230px] truncate text-xs font-medium text-[#e9edef]">{fileName}</div>
+          <div className="relative mt-1 text-[10px] text-[#aebac1]">PDF</div>
         </div>
         <div className="mt-1 flex items-center gap-2 px-1">
           <div className="w-7 h-7 rounded bg-[#00a884]/15 flex items-center justify-center shrink-0">
@@ -128,17 +40,11 @@ export default function PdfPreview({ url, fileName, sizeLabel }: PdfPreviewProps
 
       {open && (
         <div
-          className="fixed inset-0 z-[100] bg-[#0b141a] flex flex-col"
+          className="fixed inset-0 z-[100] flex flex-col bg-[#0b141a]"
           onClick={() => setOpen(false)}
         >
           <div className="flex items-center justify-between gap-2 px-3 py-2 bg-[#202c33] border-b border-[#0b1115]" onClick={(e) => e.stopPropagation()}>
             <div className="text-sm text-[#e9edef] truncate flex-1">{fileName}</div>
-            <button type="button" className="p-2 text-[#aebac1] hover:text-[#e9edef]" onClick={() => setZoom((z) => Math.max(0.6, Number((z - 0.15).toFixed(2))))} title="Diminuir zoom">
-              <Minus className="w-4 h-4" />
-            </button>
-            <button type="button" className="p-2 text-[#aebac1] hover:text-[#e9edef]" onClick={() => setZoom((z) => Math.min(2.2, Number((z + 0.15).toFixed(2))))} title="Aumentar zoom">
-              <Plus className="w-4 h-4" />
-            </button>
             <a
               href={url}
               download={fileName}
@@ -146,6 +52,9 @@ export default function PdfPreview({ url, fileName, sizeLabel }: PdfPreviewProps
               title="Baixar PDF"
             >
               <Download className="w-4 h-4" />
+            </a>
+            <a href={url} target="_blank" rel="noreferrer" className="text-[#aebac1] hover:text-[#e9edef] p-2" title="Abrir PDF">
+              <ExternalLink className="w-4 h-4" />
             </a>
             <button
               type="button"
@@ -156,29 +65,23 @@ export default function PdfPreview({ url, fileName, sizeLabel }: PdfPreviewProps
               <X className="w-4 h-4" />
             </button>
           </div>
-          <div className="flex-1 overflow-auto p-3" onClick={(e) => e.stopPropagation()}>
-            <div className="mx-auto flex min-h-full max-w-5xl flex-col items-center justify-center gap-3">
-              {viewerLoading && <Loader2 className="w-6 h-6 animate-spin text-[#aebac1]" />}
-              {viewerError ? (
-                <div className="max-w-sm rounded-md bg-[#202c33] p-4 text-center text-sm text-[#e9edef]">
-                  Não consegui pré-visualizar este PDF no painel. Use o botão de download acima.
-                </div>
-              ) : (
-                <canvas ref={viewerCanvasRef} className={viewerLoading ? 'hidden' : 'block max-w-none rounded-sm bg-white shadow-2xl'} />
-              )}
+          <div className="flex flex-1 items-center justify-center p-4" onClick={(e) => e.stopPropagation()}>
+            <div className="flex w-full max-w-sm flex-col items-center rounded-lg bg-[#202c33] p-6 text-center shadow-2xl">
+              <div className="flex h-20 w-20 items-center justify-center rounded-md bg-[#f15c5c] text-white">
+                <FileText className="h-10 w-10" />
+              </div>
+              <div className="mt-4 max-w-full truncate text-sm font-semibold text-[#e9edef]">{fileName}</div>
+              <div className="mt-1 text-xs text-[#aebac1]">{[sizeLabel, 'PDF'].filter(Boolean).join(' • ')}</div>
+              <div className="mt-5 flex w-full gap-2">
+                <a href={url} download={fileName} className="flex-1 rounded-md bg-[#00a884] px-3 py-2 text-sm font-medium text-white hover:bg-[#06cf9c]">
+                  Baixar
+                </a>
+                <a href={url} target="_blank" rel="noreferrer" className="flex-1 rounded-md bg-[#2a3942] px-3 py-2 text-sm font-medium text-[#e9edef] hover:bg-[#374248]">
+                  Abrir
+                </a>
+              </div>
             </div>
           </div>
-          {pageCount > 1 && (
-            <div className="flex items-center justify-center gap-3 bg-[#202c33] px-3 py-2 border-t border-[#0b1115]" onClick={(e) => e.stopPropagation()}>
-              <button type="button" className="p-2 text-[#aebac1] hover:text-[#e9edef] disabled:opacity-40" disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>
-                <ChevronLeft className="w-5 h-5" />
-              </button>
-              <span className="text-xs text-[#e9edef]">Página {page} de {pageCount}</span>
-              <button type="button" className="p-2 text-[#aebac1] hover:text-[#e9edef] disabled:opacity-40" disabled={page >= pageCount} onClick={() => setPage((p) => Math.min(pageCount, p + 1))}>
-                <ChevronRight className="w-5 h-5" />
-              </button>
-            </div>
-          )}
         </div>
       )}
     </>
