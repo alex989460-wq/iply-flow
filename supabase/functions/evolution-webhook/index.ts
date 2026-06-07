@@ -394,7 +394,7 @@ Deno.serve(async (req) => {
           : bestConversationPhone(info, remoteJid);
         const msg = data.Message || {};
         const type = messageType(msg, String(info.MediaType || info.Type || '').toLowerCase());
-        const mediaMime = mediaMimeFrom(msg);
+        const mediaMime = mediaMimeFrom(msg) || (type === 'document' ? mimeFromFileName(docFileName(msg)) : null);
         const mediaUrl = await storeIncomingMedia(admin, settings.user_id, info.ID || null, type, mediaMime, mediaBase64From(data) || mediaBase64From(msg), mediaUrlFrom(msg));
         if (phone) {
           await insertMessageOnce(admin, {
