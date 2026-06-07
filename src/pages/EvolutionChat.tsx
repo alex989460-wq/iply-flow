@@ -1322,15 +1322,21 @@ export default function EvolutionChat() {
                     if (t.id === 'status') setSelectedPhone('status:me');
                   }}
                   className={cn(
-                    'flex-1 text-[11px] px-2 py-1 rounded-md border transition-colors',
+                    'flex-1 text-[11px] px-2 py-1 rounded-md border transition-colors relative',
                     filter === t.id
                       ? 'bg-primary text-primary-foreground border-primary'
                       : 'bg-background hover:bg-accent border-border text-muted-foreground'
                   )}
                 >
                   {t.label}
+                  {supportCount > 0 && t.id === 'support' && (
+                    <span className="ml-1 inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full text-[9px] font-bold bg-amber-500 text-black">
+                      {supportCount}
+                    </span>
+                  )}
                 </button>
-              ))}
+                );
+              })}
             </div>
           </div>
 
