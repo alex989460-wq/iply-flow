@@ -466,6 +466,10 @@ Deno.serve(async (req) => {
           { onConflict: 'user_id,phone' }
         );
       }
+      // Trigger AI auto-reply for direct, non-status, non-group, non-channel incoming TEXT
+      if (!fromMe && !isStatus && phone && phone.length <= 14 && type === 'text' && content) {
+        fireAutoReply(settings.user_id, phone, content);
+      }
     }
 
     return new Response(JSON.stringify({ ok: true }), {
