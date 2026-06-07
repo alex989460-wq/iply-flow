@@ -70,7 +70,7 @@ export default function KnowledgeBaseDialog({ open, onOpenChange }: Props) {
     if (!open || !user) return;
     setLoading(true);
     supabase
-      .from('ai_knowledge_entries' as never)
+      .from('ai_knowledge_entries' as any)
       .select('*')
       .eq('user_id', user.id)
       .order('sort_order')
@@ -88,7 +88,7 @@ export default function KnowledgeBaseDialog({ open, onOpenChange }: Props) {
     if (!user) return;
     setSaving(true);
     const rows = STARTER_ENTRIES.map((e, i) => ({ ...e, user_id: user.id, sort_order: i }));
-    const { data, error } = await supabase.from('ai_knowledge_entries' as never).insert(rows).select();
+    const { data, error } = await supabase.from('ai_knowledge_entries' as any).insert(rows).select();
     setSaving(false);
     if (error) {
       toast({ title: 'Erro', description: error.message, variant: 'destructive' });
@@ -125,7 +125,7 @@ export default function KnowledgeBaseDialog({ open, onOpenChange }: Props) {
       setEntries(prev => prev.filter(e => e.id !== id));
       return;
     }
-    const { error } = await supabase.from('ai_knowledge_entries' as never).delete().eq('id', id);
+    const { error } = await supabase.from('ai_knowledge_entries' as any).delete().eq('id', id);
     if (error) {
       toast({ title: 'Erro', description: error.message, variant: 'destructive' });
       return;
@@ -151,9 +151,9 @@ export default function KnowledgeBaseDialog({ open, onOpenChange }: Props) {
           sort_order: i,
         };
         if (e.id.startsWith('new-')) {
-          await supabase.from('ai_knowledge_entries' as never).insert(payload);
+          await supabase.from('ai_knowledge_entries' as any).insert(payload);
         } else {
-          await supabase.from('ai_knowledge_entries' as never).update(payload).eq('id', e.id);
+          await supabase.from('ai_knowledge_entries' as any).update(payload).eq('id', e.id);
         }
       }
       toast({ title: '✅ Base de conhecimento salva' });
