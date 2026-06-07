@@ -47,6 +47,8 @@ interface EvoContact {
   phone: string;
   name: string | null;
   profile_pic_url: string | null;
+  needs_human?: boolean;
+  ai_category?: string | null;
 }
 
 interface QuotedPayload {
