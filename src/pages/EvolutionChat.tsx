@@ -831,9 +831,9 @@ export default function EvolutionChat() {
     setMessages(prev => prev.filter(x => x.id !== m.id));
     // If it's a temp/local message, nothing to remove from DB
     if (m.id.startsWith('tmp-')) return;
-    const { error } = await supabase.from('evolution_messages').delete().eq('id', m.id);
-    if (error) {
-      toast({ title: 'Não foi possível excluir', description: error.message, variant: 'destructive' });
+    const { data, error } = await invokeEvolution({ action: 'delete-messages', id: m.id });
+    if (error || data?.error) {
+      toast({ title: 'Não foi possível excluir', description: error?.message || data?.error, variant: 'destructive' });
       setMessages(prev => [...prev, m].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()));
       return;
     }
@@ -846,13 +846,39 @@ export default function EvolutionChat() {
     const phone = selectedPhone;
     const removed = messages.filter(m => m.phone === phone);
     setMessages(prev => prev.filter(m => m.phone !== phone));
-    const { error } = await supabase.from('evolution_messages').delete().eq('user_id', user.id).eq('phone', phone);
-    if (error) {
-      toast({ title: 'Falha ao limpar conversa', description: error.message, variant: 'destructive' });
+    const { data, error } = await invokeEvolution({ action: 'delete-messages', phone });
+    if (error || data?.error) {
+      toast({ title: 'Falha ao limpar conversa', description: error?.message || data?.error, variant: 'destructive' });
       setMessages(prev => [...prev, ...removed]);
       return;
     }
-    toast({ title: 'Conversa apagada', description: `${removed.length} mensagens removidas` });
+    setSelectedPhone(null);
+    toast({ title: 'Conversa apagada', description: `${data?.deleted ?? removed.length} mensagens removidas` });
+  };
+
+  const markConversationUnread = (phone: string) => {
+    setManualUnreadPhones(prev => {
+      const next = new Set(prev);
+      next.add(phone);
+      try { localStorage.setItem('evo_manual_unread', JSON.stringify([...next])); } catch { /* noop */ }
+      return next;
+    });
+    toast({ title: 'Marcada como não lida' });
+  };
+
+  const markConversationRead = (phone: string) => {
+    setManualUnreadPhones(prev => {
+      const next = new Set(prev);
+      next.delete(phone);
+      try { localStorage.setItem('evo_manual_unread', JSON.stringify([...next])); } catch { /* noop */ }
+      return next;
+    });
+    setLastReadByPhone(prev => {
+      const next = { ...prev, [phone]: new Date().toISOString() };
+      try { localStorage.setItem('evo_last_read', JSON.stringify(next)); } catch { /* noop */ }
+      return next;
+    });
+    toast({ title: 'Marcada como lida' });
   };
 
   const isFavorited = useCallback((id: string) => favorites.some(f => f.id === id), [favorites]);
