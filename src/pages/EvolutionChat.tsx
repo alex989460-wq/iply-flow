@@ -475,7 +475,7 @@ export default function EvolutionChat() {
       })
       .subscribe();
     return () => { supabase.removeChannel(ch); };
-  }, [user, mergeMessage]);
+  }, [user, mergeMessage, playNotificationSound]);
 
   // Re-render every 2s so "digitando..." auto-expires after 8s of silence
   useEffect(() => {
