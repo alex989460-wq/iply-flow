@@ -466,7 +466,8 @@ export default function EvolutionChat() {
         setMessages((prev) => {
           return mergeMessage(prev, m);
         });
-        // Play notification when an incoming message arrives (skip channels/status, skip our own outgoing)
+        // Play notification when an incoming message arrives (skip channels/status, skip our own outgoing).
+        // Toca SEMPRE em mensagens recebidas (igual WhatsApp Web), exceto se o som estiver mutado.
         try {
           if (
             m?.direction === 'in' &&
@@ -474,8 +475,7 @@ export default function EvolutionChat() {
             !m.phone.startsWith('status') &&
             !/^\d{15,}$/.test(m.phone) /* not newsletter */
           ) {
-            const isOtherChatOrUnfocused = document.hidden || selectedPhoneRef.current !== m.phone;
-            if (isOtherChatOrUnfocused) playNotificationSound();
+            playNotificationSound();
           }
         } catch { /* noop */ }
       })
