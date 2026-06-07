@@ -270,6 +270,37 @@ export default function EvolutionChat() {
   const presenceSentAtRef = useRef<number>(0);
   const presencePausedTimerRef = useRef<number | null>(null);
   const presenceTickRef = useRef<number>(0);
+  const selectedPhoneRef = useRef<string | null>(selectedPhone);
+  useEffect(() => { selectedPhoneRef.current = selectedPhone; }, [selectedPhone]);
+  const soundEnabledRef = useRef<boolean>(soundEnabled);
+  useEffect(() => {
+    soundEnabledRef.current = soundEnabled;
+    try { localStorage.setItem('evo_sound_enabled', soundEnabled ? '1' : '0'); } catch { /* noop */ }
+  }, [soundEnabled]);
+  const lastSoundAtRef = useRef<number>(0);
+  const playNotificationSound = useCallback(() => {
+    if (!soundEnabledRef.current) return;
+    const now = Date.now();
+    if (now - lastSoundAtRef.current < 800) return; // throttle
+    lastSoundAtRef.current = now;
+    try {
+      const Ctx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      if (!Ctx) return;
+      const ctx = new Ctx();
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.connect(g); g.connect(ctx.destination);
+      o.type = 'sine';
+      o.frequency.setValueAtTime(880, ctx.currentTime);
+      o.frequency.setValueAtTime(1320, ctx.currentTime + 0.08);
+      g.gain.setValueAtTime(0.0001, ctx.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.25, ctx.currentTime + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.35);
+      o.start();
+      o.stop(ctx.currentTime + 0.35);
+      setTimeout(() => ctx.close().catch(() => undefined), 600);
+    } catch { /* noop */ }
+  }, []);
 
   const getAuthHeaders = useCallback(async () => {
     let token = session?.access_token || '';
