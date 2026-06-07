@@ -30,8 +30,8 @@ export default function PdfPreview({ url, fileName, sizeLabel }: PdfPreviewProps
       try {
         setLoading(true);
         setError(false);
-        // @ts-expect-error - getDocument exists at runtime
-        const task = pdfjsLib.getDocument({ url, withCredentials: false });
+        // pdfjs runtime API
+        const task = (pdfjsLib as unknown as { getDocument: (o: { url: string; withCredentials?: boolean }) => { promise: Promise<{ numPages: number; getPage: (n: number) => Promise<{ getViewport: (o: { scale: number }) => { width: number; height: number }; render: (o: { canvasContext: CanvasRenderingContext2D; viewport: unknown }) => { promise: Promise<void> } }>; destroy: () => void }> } }).getDocument({ url, withCredentials: false });
         const doc = await task.promise;
         if (cancelled) { doc.destroy(); return; }
         pdfDoc = doc;
