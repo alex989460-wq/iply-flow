@@ -1898,7 +1898,7 @@ export default function EvolutionChat() {
         {/* Quick Renewal Panel — sempre visível no desktop, modal no mobile */}
         {!isMobile && (
           <div className="hidden md:block border-l border-border">
-            <QuickRenewalPanel />
+            <QuickRenewalPanel initialPhone={selectedPhone && !selectedPhone.startsWith('status') ? selectedPhone : null} />
           </div>
         )}
         {isMobile && showRenewalPanel && (
