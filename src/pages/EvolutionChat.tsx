@@ -2262,6 +2262,8 @@ export default function EvolutionChat() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <KnowledgeBaseDialog open={showKbDialog} onOpenChange={setShowKbDialog} />
     </DashboardLayout>
   );
 }
