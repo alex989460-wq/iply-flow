@@ -249,11 +249,19 @@ async function sendEvolutionText(
       formattedPhone = '55' + formattedPhone;
     }
     const cleanBase = baseUrl.replace(/\/$/, '');
-    const attempts = [
-      { url: `${cleanBase}/send/text`, body: { number: formattedPhone, text } },
-      { url: `${cleanBase}/message/sendText/${encodeURIComponent(instance)}`, body: { number: formattedPhone, text } },
-      { url: `${cleanBase}/message/sendText/${encodeURIComponent(instance)}`, body: { number: formattedPhone, textMessage: { text } } },
-    ];
+    const numbers = new Set([formattedPhone]);
+    if (formattedPhone.startsWith('55') && formattedPhone.length >= 12) {
+      const ddd = formattedPhone.slice(2, 4);
+      const rest = formattedPhone.slice(4);
+      if (rest.length === 9 && rest.startsWith('9')) numbers.add(`55${ddd}${rest.slice(1)}`);
+      if (rest.length === 8) numbers.add(`55${ddd}9${rest}`);
+    }
+    const attempts = Array.from(numbers).flatMap((number) => [
+      { url: `${cleanBase}/send/text`, body: { number, text, formatJid: true } },
+      { url: `${cleanBase}/send/text`, body: { number, text, formatJid: false } },
+      { url: `${cleanBase}/message/sendText/${encodeURIComponent(instance)}`, body: { number, text } },
+      { url: `${cleanBase}/message/sendText/${encodeURIComponent(instance)}`, body: { number, textMessage: { text } } },
+    ]);
     let lastErr = '';
     for (const a of attempts) {
       try {
@@ -261,9 +269,12 @@ async function sendEvolutionText(
           method: 'POST',
           headers: { 'Content-Type': 'application/json', apikey: apiKey, Authorization: `Bearer ${apiKey}` },
           body: JSON.stringify(a.body),
+          signal: AbortSignal.timeout(8000),
         });
         if (r.ok) return { success: true };
-        lastErr = `HTTP ${r.status}`;
+        const body = await r.text().catch(() => '');
+        lastErr = `HTTP ${r.status}${body ? ` - ${body.slice(0, 180)}` : ''}`;
+        if (/(^|\D)463(\D|$)|NackCallerReachoutTimelocked|reach[- ]?out|time[- ]?lock/i.test(lastErr)) continue;
         if (r.status !== 404 && r.status !== 405 && r.status !== 400) break;
       } catch (e: any) {
         lastErr = String(e?.message || e);
