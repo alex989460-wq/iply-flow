@@ -434,7 +434,7 @@ export default function EvolutionChat() {
     const [msgRes, contRes, presRes] = await Promise.all([
       // Reduzido de 1500 → 800: abre muito mais rápido no celular e a UI mostra "Carregar mais antigas" se precisar.
       supabase.from('evolution_messages').select('*').eq('user_id', user.id).order('created_at', { ascending: false }).limit(800),
-      (supabase.from('evolution_contacts') as any).select('phone, name, profile_pic_url, needs_human, ai_category').eq('user_id', user.id),
+      supabase.from('evolution_contacts').select('phone, name, profile_pic_url, needs_human, ai_category').eq('user_id', user.id),
       supabase.from('evolution_presence').select('phone, presence, last_seen_at, updated_at').eq('user_id', user.id),
     ]);
     setLoading(false);
@@ -1579,8 +1579,8 @@ export default function EvolutionChat() {
                   <Button size="sm" variant="outline" className="h-7 text-[11px] px-2 border-amber-500/40 text-amber-600 hover:bg-amber-500/10"
                     onClick={async () => {
                       if (!user || !selectedPhone) return;
-                      const { error } = await (supabase
-                        .from('evolution_contacts') as any)
+                      const { error } = await supabase
+                        .from('evolution_contacts')
                         .update({ needs_human: false })
                         .eq('user_id', user.id).eq('phone', selectedPhone);
                       if (error) toast({ title: 'Erro', description: error.message, variant: 'destructive' });
