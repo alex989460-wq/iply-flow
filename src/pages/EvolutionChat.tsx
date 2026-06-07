@@ -399,7 +399,7 @@ export default function EvolutionChat() {
       return;
     }
     setCurrentInstance(name);
-    if (selectedPhone === phone) setSelectedPhone(null);
+    setSelectedPhone(null);
     setSearch('');
     setFilter('all');
     toast({ title: 'Instância ativa', description: `Agora enviando por: ${name}` });
@@ -654,7 +654,7 @@ export default function EvolutionChat() {
       return;
     }
     setMessages([]);
-    setSelectedPhone(null);
+    if (selectedPhone === phone) setSelectedPhone(null);
     toast({ title: `${data?.deleted || 0} mensagens removidas` });
   }, [user, invokeEvolution, toast]);
 
