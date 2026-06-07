@@ -710,6 +710,7 @@ export default function EvolutionChat() {
       for (const m of instanceMessages) {
         if (m.phone !== conv.phone) continue;
         if (m.direction !== 'in') continue;
+        if (m.status === 'read' || m.status === 'played') continue;
         if (new Date(m.created_at).getTime() > cutoff) count++;
       }
       conv.unread = count;
