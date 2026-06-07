@@ -1512,6 +1512,20 @@ export default function EvolutionChat() {
                     <Plus className="w-3 h-3 mr-1" /> Postar status
                   </Button>
                 )}
+                {selectedPhone && !selectedPhone.startsWith('status:') && selectedContact?.needs_human && (
+                  <Button size="sm" variant="outline" className="h-7 text-[11px] px-2 border-amber-500/40 text-amber-600 hover:bg-amber-500/10"
+                    onClick={async () => {
+                      if (!user || !selectedPhone) return;
+                      const { error } = await (supabase
+                        .from('evolution_contacts') as any)
+                        .update({ needs_human: false })
+                        .eq('user_id', user.id).eq('phone', selectedPhone);
+                      if (error) toast({ title: 'Erro', description: error.message, variant: 'destructive' });
+                      else toast({ title: '✅ Atendimento marcado como resolvido' });
+                    }}>
+                    <CheckCircle2 className="w-3 h-3 mr-1" /> Resolver
+                  </Button>
+                )}
                 {isMobile && !selectedPhone?.startsWith('status:') && (
                   <Button size="sm" variant={showRenewalPanel ? 'default' : 'outline'} className="h-7 text-[11px] px-2"
                     onClick={() => setShowRenewalPanel(v => !v)}>
