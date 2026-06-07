@@ -1265,7 +1265,22 @@ export default function EvolutionChat() {
               <Zap className="w-4 h-4 text-white" />
             </div>
             <div className="flex-1 min-w-0">
-              <h2 className="font-bold text-sm leading-tight">Evolution Chat</h2>
+              <h2 className="font-bold text-sm leading-tight flex items-center gap-1.5">
+                Evolution Chat
+                <button
+                  type="button"
+                  onClick={() => setShowAutoReplySettings(true)}
+                  className={cn(
+                    'text-[9px] font-bold px-1.5 py-0.5 rounded transition',
+                    autoReply.enabled
+                      ? 'bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30'
+                      : 'bg-muted/60 text-muted-foreground hover:bg-muted'
+                  )}
+                  title={autoReply.enabled ? 'Robô IA ATIVO — clique para configurar' : 'Robô IA desativado — clique para ativar'}
+                >
+                  🤖 {autoReply.enabled ? 'ON' : 'OFF'}
+                </button>
+              </h2>
               <p className="text-[10px] text-muted-foreground leading-tight">WhatsApp Multi-Sessão</p>
             </div>
             <Button asChild size="icon" variant="ghost" className="h-8 w-8 text-emerald-500 hover:text-emerald-400 hover:bg-emerald-500/10" title="Conectar / Gerenciar instâncias">
