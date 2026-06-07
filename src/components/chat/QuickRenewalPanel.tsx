@@ -86,11 +86,13 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
 interface QuickRenewalPanelProps {
   isMobile?: boolean;
   onClose?: () => void;
+  initialPhone?: string | null;
 }
 
-export default function QuickRenewalPanel({ isMobile = false, onClose }: QuickRenewalPanelProps) {
+export default function QuickRenewalPanel({ isMobile = false, onClose, initialPhone }: QuickRenewalPanelProps) {
   const { user } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
+  const lastInitialPhoneRef = useState<string | null>(null);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('pix');
   const [isLinksOpen, setIsLinksOpen] = useState(true);
