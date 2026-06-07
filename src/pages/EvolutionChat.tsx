@@ -24,6 +24,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { cn } from '@/lib/utils';
 import QuickRenewalPanel from '@/components/chat/QuickRenewalPanel';
+import PdfPreview from '@/components/chat/PdfPreview';
 
 interface EvoMessage {
   id: string;
@@ -326,6 +327,34 @@ export default function EvolutionChat() {
     } catch { /* noop */ }
   }, []);
 
+  // Desbloqueia áudio na primeira interação do usuário (autoplay policy do Chrome/iOS)
+  useEffect(() => {
+    const unlock = () => {
+      try {
+        const Ctx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+        if (!Ctx) return;
+        const ctx = new Ctx();
+        const buf = ctx.createBuffer(1, 1, 22050);
+        const src = ctx.createBufferSource();
+        src.buffer = buf;
+        src.connect(ctx.destination);
+        src.start(0);
+        setTimeout(() => ctx.close().catch(() => undefined), 200);
+      } catch { /* noop */ }
+      window.removeEventListener('click', unlock);
+      window.removeEventListener('keydown', unlock);
+      window.removeEventListener('touchstart', unlock);
+    };
+    window.addEventListener('click', unlock, { once: true });
+    window.addEventListener('keydown', unlock, { once: true });
+    window.addEventListener('touchstart', unlock, { once: true });
+    return () => {
+      window.removeEventListener('click', unlock);
+      window.removeEventListener('keydown', unlock);
+      window.removeEventListener('touchstart', unlock);
+    };
+  }, []);
+
   const getAuthHeaders = useCallback(async () => {
     let token = session?.access_token || '';
     if (!token) {
@@ -456,6 +485,19 @@ export default function EvolutionChat() {
 
   useEffect(() => { load(); loadInstances(); }, [load, loadInstances]);
 
+  // Carrega status do robô (somente o "enabled") para mostrar o badge no header.
+  useEffect(() => {
+    if (!user) return;
+    supabase
+      .from('evolution_settings')
+      .select('autoreply_enabled')
+      .eq('user_id', user.id)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data) setAutoReply((s) => ({ ...s, enabled: !!data.autoreply_enabled }));
+      });
+  }, [user]);
+
   useEffect(() => {
     if (!user) return;
     const ch = supabase
@@ -465,7 +507,8 @@ export default function EvolutionChat() {
         setMessages((prev) => {
           return mergeMessage(prev, m);
         });
-        // Play notification when an incoming message arrives (skip channels/status, skip our own outgoing)
+        // Play notification when an incoming message arrives (skip channels/status, skip our own outgoing).
+        // Toca SEMPRE em mensagens recebidas (igual WhatsApp Web), exceto se o som estiver mutado.
         try {
           if (
             m?.direction === 'in' &&
@@ -473,8 +516,7 @@ export default function EvolutionChat() {
             !m.phone.startsWith('status') &&
             !/^\d{15,}$/.test(m.phone) /* not newsletter */
           ) {
-            const isOtherChatOrUnfocused = document.hidden || selectedPhoneRef.current !== m.phone;
-            if (isOtherChatOrUnfocused) playNotificationSound();
+            playNotificationSound();
           }
         } catch { /* noop */ }
       })
@@ -1192,16 +1234,11 @@ export default function EvolutionChat() {
           {m.media_url && <FileText className="w-4 h-4 opacity-70 shrink-0" />}
         </div>
       );
-      // PDF — preview inline (igual imagem), com link de download.
+      // PDF — preview inline (igual WhatsApp), miniatura + clique abre fullscreen.
       if (isPdf && m.media_url) {
         return (
-          <div className="space-y-1.5 max-w-[320px]">
-            <object data={m.media_url} type="application/pdf" className="w-full h-[400px] rounded-md bg-black/20 border border-white/5">
-              <iframe src={m.media_url} title={docInfo.fileName} className="w-full h-full rounded-md" />
-            </object>
-            <a href={m.media_url} target="_blank" rel="noreferrer" className="block hover:opacity-90">
-              {card}
-            </a>
+          <div className="max-w-[300px]">
+            <PdfPreview url={m.media_url} fileName={docInfo.fileName} sizeLabel={docInfo.sizeLabel} />
           </div>
         );
       }
@@ -1228,7 +1265,22 @@ export default function EvolutionChat() {
               <Zap className="w-4 h-4 text-white" />
             </div>
             <div className="flex-1 min-w-0">
-              <h2 className="font-bold text-sm leading-tight">Evolution Chat</h2>
+              <h2 className="font-bold text-sm leading-tight flex items-center gap-1.5">
+                Evolution Chat
+                <button
+                  type="button"
+                  onClick={() => setShowAutoReplySettings(true)}
+                  className={cn(
+                    'text-[9px] font-bold px-1.5 py-0.5 rounded transition',
+                    autoReply.enabled
+                      ? 'bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30'
+                      : 'bg-muted/60 text-muted-foreground hover:bg-muted'
+                  )}
+                  title={autoReply.enabled ? 'Robô IA ATIVO — clique para configurar' : 'Robô IA desativado — clique para ativar'}
+                >
+                  🤖 {autoReply.enabled ? 'ON' : 'OFF'}
+                </button>
+              </h2>
               <p className="text-[10px] text-muted-foreground leading-tight">WhatsApp Multi-Sessão</p>
             </div>
             <Button asChild size="icon" variant="ghost" className="h-8 w-8 text-emerald-500 hover:text-emerald-400 hover:bg-emerald-500/10" title="Conectar / Gerenciar instâncias">
@@ -1248,7 +1300,14 @@ export default function EvolutionChat() {
                   <RefreshCw className={cn('w-4 h-4 mr-2', syncingHistory && 'animate-spin')} /> Sincronizar todo o histórico
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => setShowAutoReplySettings(true)}>
-                  <Zap className="w-4 h-4 mr-2" /> Robô de auto-atendimento (IA)
+                  <Zap className={cn('w-4 h-4 mr-2', autoReply.enabled ? 'text-emerald-500' : 'text-muted-foreground')} />
+                  Robô de auto-atendimento (IA)
+                  <span className={cn(
+                    'ml-auto text-[9px] font-bold px-1.5 py-0.5 rounded',
+                    autoReply.enabled ? 'bg-emerald-500/15 text-emerald-500' : 'bg-muted text-muted-foreground'
+                  )}>
+                    {autoReply.enabled ? 'ON' : 'OFF'}
+                  </span>
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => setShowKbDialog(true)}>
                   <BookOpen className="w-4 h-4 mr-2" /> Base de conhecimento da IA

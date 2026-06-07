@@ -89,6 +89,29 @@ function defaultMime(type: string) {
   return 'application/octet-stream';
 }
 
+function mimeFromFileName(name: string | null): string | null {
+  if (!name) return null;
+  const ext = String(name).toLowerCase().split('.').pop() || '';
+  const map: Record<string, string> = {
+    pdf: 'application/pdf',
+    doc: 'application/msword',
+    docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    xls: 'application/vnd.ms-excel',
+    xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    ppt: 'application/vnd.ms-powerpoint',
+    pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    txt: 'text/plain', csv: 'text/csv', zip: 'application/zip', rar: 'application/vnd.rar',
+    mp3: 'audio/mpeg', m4a: 'audio/mp4', ogg: 'audio/ogg', wav: 'audio/wav',
+    jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp', gif: 'image/gif',
+    mp4: 'video/mp4', mov: 'video/quicktime', webm: 'video/webm',
+  };
+  return map[ext] || null;
+}
+
+function docFileName(message: any): string | null {
+  return message?.documentMessage?.fileName || message?.documentMessage?.FileName || message?.documentMessage?.title || null;
+}
+
 function extensionFrom(mime: string, type: string) {
   if (mime.includes('jpeg') || mime.includes('jpg')) return 'jpg';
   if (mime.includes('png')) return 'png';
@@ -371,7 +394,7 @@ Deno.serve(async (req) => {
           : bestConversationPhone(info, remoteJid);
         const msg = data.Message || {};
         const type = messageType(msg, String(info.MediaType || info.Type || '').toLowerCase());
-        const mediaMime = mediaMimeFrom(msg);
+        const mediaMime = mediaMimeFrom(msg) || (type === 'document' ? mimeFromFileName(docFileName(msg)) : null);
         const mediaUrl = await storeIncomingMedia(admin, settings.user_id, info.ID || null, type, mediaMime, mediaBase64From(data) || mediaBase64From(msg), mediaUrlFrom(msg));
         if (phone) {
           await insertMessageOnce(admin, {
@@ -440,7 +463,7 @@ Deno.serve(async (req) => {
       const msg = m?.message || {};
       const content = messageText(msg);
       const type = messageType(msg);
-      const mediaMime = mediaMimeFrom(msg);
+      const mediaMime = mediaMimeFrom(msg) || (type === 'document' ? mimeFromFileName(docFileName(msg)) : null);
       const mediaUrl = await storeIncomingMedia(admin, settings.user_id, key.id || null, type, mediaMime, mediaBase64From(m) || mediaBase64From(msg), mediaUrlFrom(msg));
 
       await insertMessageOnce(admin, {
