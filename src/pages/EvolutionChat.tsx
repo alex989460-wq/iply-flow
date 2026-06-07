@@ -399,7 +399,7 @@ export default function EvolutionChat() {
       return;
     }
     setCurrentInstance(name);
-    setSelectedPhone(null);
+    if (selectedPhone === phone) setSelectedPhone(null);
     setSearch('');
     setFilter('all');
     toast({ title: 'Instância ativa', description: `Agora enviando por: ${name}` });
