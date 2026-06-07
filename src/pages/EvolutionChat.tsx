@@ -716,6 +716,7 @@ export default function EvolutionChat() {
         if (m.status === 'read' || m.status === 'played') continue;
         if (new Date(m.created_at).getTime() > cutoff) count++;
       }
+      if (manualUnreadPhones.has(conv.phone) && count === 0) count = 1;
       conv.unread = count;
     }
     const arr = Array.from(map.values()).sort((a, b) => {
@@ -750,17 +751,18 @@ export default function EvolutionChat() {
       (c.name || contacts[c.phone]?.name || '').toLowerCase().includes(q) ||
       (c.last?.content || '').toLowerCase().includes(q)
     );
-  }, [instanceMessages, search, contacts, selectedPhone, filter, instancePhones, pinnedContacts, lastReadByPhone]);
+  }, [instanceMessages, search, contacts, selectedPhone, filter, instancePhones, pinnedContacts, lastReadByPhone, manualUnreadPhones]);
 
   // Mark conversation as read when opened (or new message arrives in opened chat)
   useEffect(() => {
     if (!selectedPhone) return;
+    if (manualUnreadPhones.has(selectedPhone)) return;
     setLastReadByPhone(prev => {
       const next = { ...prev, [selectedPhone]: new Date().toISOString() };
       try { localStorage.setItem('evo_last_read', JSON.stringify(next)); } catch { /* noop */ }
       return next;
     });
-  }, [selectedPhone, instanceMessages.length]);
+  }, [selectedPhone, instanceMessages.length, manualUnreadPhones]);
 
   const thread = useMemo(
     () => instanceMessages.filter((m) => m.phone === selectedPhone && !hiddenIds.has(m.id)),
