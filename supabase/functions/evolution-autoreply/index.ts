@@ -1,9 +1,6 @@
-// Auto-attendance with intent classification + knowledge base.
-// 1. Loads user's KB entries (categories: renovacao, instalar_app, pagamento, suporte, outros).
-// 2. Asks Lovable AI to classify the incoming message and pick a KB entry (or none).
-// 3. Replies using the matched KB response_template. If the matched entry has
-//    requires_human=true OR no good match was found, marks evolution_contacts.needs_human=true
-//    and DOES NOT send any reply (so the human sees it in the "Suporte" tab).
+// Auto-attendance based ONLY on the user's knowledge base.
+// It never calls external AI models: incoming text must match an enabled KB keyword.
+// Entries marked requires_human=true are routed to the Support tab without auto-reply.
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.0';
 
@@ -46,14 +43,23 @@ interface KbEntry {
   requires_human: boolean;
 }
 
-// Cheap keyword-first pass — returns a matched KB entry without spending AI credits.
+function normalizeText(value: string) {
+  return String(value || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
+// Keyword-only matching — no AI/model calls, no credit usage.
 function matchByKeywords(content: string, kb: KbEntry[]): KbEntry | null {
-  const text = content.toLowerCase();
+  const text = ` ${normalizeText(content)} `;
   for (const e of kb) {
     if (!e.keywords?.length) continue;
     for (const kw of e.keywords) {
-      const k = String(kw || '').trim().toLowerCase();
-      if (k && text.includes(k)) return e;
+      const k = normalizeText(String(kw || ''));
+      if (k && text.includes(` ${k} `)) return e;
     }
   }
   return null;
@@ -202,7 +208,7 @@ Deno.serve(async (req) => {
 
     const { data: settings } = await admin
       .from('evolution_settings')
-      .select('user_id, base_url, api_key, instance_name, autoreply_enabled, autoreply_system_prompt, autoreply_only_outside_hours, autoreply_business_start, autoreply_business_end, autoreply_disabled_phones, autoreply_model')
+      .select('user_id, base_url, api_key, instance_name, autoreply_enabled, autoreply_only_outside_hours, autoreply_business_start, autoreply_business_end, autoreply_disabled_phones')
       .eq('user_id', user_id)
       .maybeSingle();
 
@@ -324,108 +330,18 @@ Deno.serve(async (req) => {
       return { sent: true };
     };
 
-    // PASS 1 — keyword shortcut (free, fast)
+    // Only pass — knowledge-base keyword match (free, predictable)
     const kwMatch = matchByKeywords(incomingContent, kb);
     if (kwMatch) {
       if (kwMatch.requires_human) {
         await flagHuman(kwMatch.category);
-        return new Response(JSON.stringify({ ok: true, flagged_human: true, via: 'keyword', category: kwMatch.category }), { status: 200, headers: corsHeaders });
+        return new Response(JSON.stringify({ ok: true, flagged_human: true, via: 'knowledge_base', category: kwMatch.category }), { status: 200, headers: corsHeaders });
       }
       const r = await sendReply(kwMatch.response_template, kwMatch.category, kwMatch.id);
-      return new Response(JSON.stringify({ ok: true, replied: r.sent, via: 'keyword', category: kwMatch.category }), { status: 200, headers: corsHeaders });
+      return new Response(JSON.stringify({ ok: true, replied: r.sent, via: 'knowledge_base', category: kwMatch.category, error: r.error || null }), { status: 200, headers: corsHeaders });
     }
 
-    // PASS 2 — AI classification (only if no keyword matched and there's KB to choose from)
-    const apiKey = Deno.env.get('LOVABLE_API_KEY');
-    if (!apiKey) {
-      console.error('[autoreply] missing LOVABLE_API_KEY');
-      await flagHuman(null);
-      return new Response(JSON.stringify({ ok: true, flagged_human: true, reason: 'no_api_key' }), { status: 200, headers: corsHeaders });
-    }
-
-    const history = (recent || []).slice().reverse()
-      .filter((m) => m.message_type === 'text')
-      .slice(-6)
-      .map((m) => ({ role: m.direction === 'out' ? 'assistant' : 'user', content: m.content || '' }));
-    if (incomingContent && (history.length === 0 || history[history.length - 1]?.content !== incomingContent)) {
-      history.push({ role: 'user', content: incomingContent });
-    }
-
-    const kbForPrompt = kb.map((e) => ({
-      id: e.id, title: e.title, category: e.category,
-      keywords: e.keywords?.slice(0, 10) || [],
-      requires_human: e.requires_human,
-      preview: (e.response_template || '').slice(0, 200),
-    }));
-
-    const systemPrompt = `${settings.autoreply_system_prompt || ''}
-
-Você é um classificador de mensagens de clientes IPTV.
-Categorias possíveis: "renovacao", "instalar_app", "pagamento", "suporte", "outros".
-
-REGRAS:
-- Se a mensagem combinar com algum item da base de conhecimento abaixo, retorne o id desse item em "kb_id".
-- Se a pessoa pediu suporte humano (problema técnico, reclamação, dúvida que não está na base), retorne "needs_human": true e NÃO escolha nenhum kb_id.
-- Se não tem certeza, prefira marcar "needs_human": true.
-- Responda APENAS com JSON válido no formato:
-{"category": "<uma das categorias>", "kb_id": "<id ou null>", "needs_human": <true|false>, "reason": "<curto>"}
-
-BASE DE CONHECIMENTO DISPONÍVEL:
-${JSON.stringify(kbForPrompt, null, 2)}
-`;
-
-    const aiResp = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-      body: JSON.stringify({
-        model: settings.autoreply_model || 'google/gemini-3-flash-preview',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          ...history,
-        ],
-        response_format: { type: 'json_object' },
-      }),
-    });
-
-    if (aiResp.status === 429 || aiResp.status === 402) {
-      console.error('[autoreply] AI gateway', aiResp.status);
-      await flagHuman(null);
-      return new Response(JSON.stringify({ ok: true, flagged_human: true, reason: 'ai_limit' }), { status: 200, headers: corsHeaders });
-    }
-    if (!aiResp.ok) {
-      console.error('[autoreply] AI failure', aiResp.status, await aiResp.text());
-      await flagHuman(null);
-      return new Response(JSON.stringify({ ok: true, flagged_human: true, reason: 'ai_error' }), { status: 200, headers: corsHeaders });
-    }
-
-    const aiJson = await aiResp.json();
-    const rawContent = String(aiJson?.choices?.[0]?.message?.content || '').trim();
-    let parsed: { category?: string; kb_id?: string | null; needs_human?: boolean; reason?: string } = {};
-    try {
-      // strip code fences if present
-      const cleaned = rawContent.replace(/^```json\s*/i, '').replace(/```\s*$/i, '').trim();
-      parsed = JSON.parse(cleaned);
-    } catch {
-      console.error('[autoreply] parse failed', rawContent);
-      await flagHuman(null);
-      return new Response(JSON.stringify({ ok: true, flagged_human: true, reason: 'parse_failed' }), { status: 200, headers: corsHeaders });
-    }
-
-    const category = String(parsed.category || 'outros');
-    const matched = parsed.kb_id ? kb.find((e) => e.id === parsed.kb_id) : null;
-
-    if (parsed.needs_human || (!matched)) {
-      await flagHuman(category);
-      return new Response(JSON.stringify({ ok: true, flagged_human: true, via: 'ai', category, reason: parsed.reason }), { status: 200, headers: corsHeaders });
-    }
-
-    if (matched.requires_human) {
-      await flagHuman(matched.category);
-      return new Response(JSON.stringify({ ok: true, flagged_human: true, via: 'ai_kb', category: matched.category }), { status: 200, headers: corsHeaders });
-    }
-
-    const r = await sendReply(matched.response_template, matched.category, matched.id);
-    return new Response(JSON.stringify({ ok: true, replied: r.sent, via: 'ai_kb', category: matched.category }), { status: 200, headers: corsHeaders });
+    return new Response(JSON.stringify({ ok: true, skipped: 'no_knowledge_base_keyword_match' }), { status: 200, headers: corsHeaders });
   } catch (e) {
     console.error('[evolution-autoreply]', e);
     return new Response(JSON.stringify({ error: String((e as Error).message || e) }), { status: 200, headers: corsHeaders });
