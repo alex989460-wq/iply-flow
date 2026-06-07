@@ -4,8 +4,7 @@ import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.js?url';
 import { FileText, ExternalLink, X, Loader2 } from 'lucide-react';
 
 // Initialize worker once
-// @ts-expect-error - GlobalWorkerOptions exists at runtime
-pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
+(pdfjsLib as unknown as { GlobalWorkerOptions: { workerSrc: string } }).GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
 interface PdfPreviewProps {
   url: string;
