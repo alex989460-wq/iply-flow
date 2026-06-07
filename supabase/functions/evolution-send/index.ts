@@ -844,38 +844,41 @@ Deno.serve(async (req) => {
       const mediaForEvolution = publicMediaFromSignedUrl(mediaUrl) || `data:${mimetype};base64,${mediaBase64}`;
       const cleanMime = mimetype.split(';')[0] || mimetype;
       const instAuth = await resolveInstanceAuth(baseUrl, apiKey, instance);
-      const validatedTargets = await resolveValidatedTargets(baseUrl, instAuth.apiKey, instAuth.instanceId, phone);
-      const historyTargets = await resolveSendTargets(admin, user.id, phone);
-      const sendTargets = [...validatedTargets, ...historyTargets]
-        .filter((target, index, arr) => arr.findIndex((t) => t.value === target.value) === index);
-      const primaryTarget = sendTargets[0]?.value || phone;
+      const phoneVariants = [phone];
+      if (phone.startsWith('55') && phone.length >= 12) {
+        const ddd = phone.slice(2, 4);
+        const rest = phone.slice(4);
+        if (rest.length === 9 && rest.startsWith('9')) phoneVariants.push(`55${ddd}${rest.slice(1)}`);
+        if (rest.length === 8) phoneVariants.push(`55${ddd}9${rest}`);
+      }
+      const targets = Array.from(new Set(phoneVariants));
 
       let attempts: Array<{ url: string; headers: Record<string, string>; body: any; mode: string }> = [];
-      for (const target of sendTargets) {
+      for (const target of targets) {
         if (mediaType === 'audio') {
           attempts.push(
-            { url: `${baseUrl}/send/media`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: target.value, type: 'audio', url: mediaForEvolution, filename, caption, formatJid: target.kind !== 'jid' }, mode: `evolution-go-send-media-token-${target.kind}` },
-            { url: `${baseUrl}/message/sendWhatsAppAudio/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: target.value, audio: mediaForEvolution }, mode: `evolution-api-audio-url-${target.kind}` },
-            { url: `${baseUrl}/message/sendWhatsAppAudio/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: target.value, audio: mediaBase64 }, mode: `evolution-api-audio-base64-${target.kind}` },
-            { url: `${baseUrl}/message/sendMedia/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: target.value, mediatype: 'audio', mimetype: cleanMime, fileName: filename, caption, media: mediaForEvolution }, mode: `evolution-api-media-audio-${target.kind}` },
-            { url: `${baseUrl}/message/sendMedia`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: target.value, type: 'audio', url: mediaForEvolution, filename, caption }, mode: `evolution-go-message-media-${target.kind}` },
+            { url: `${baseUrl}/message/sendWhatsAppAudio/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: target, audio: mediaForEvolution }, mode: 'evolution-api-audio-url' },
+            { url: `${baseUrl}/message/sendWhatsAppAudio/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: target, audio: mediaBase64 }, mode: 'evolution-api-audio-base64' },
+            { url: `${baseUrl}/message/sendMedia/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: target, mediatype: 'audio', mimetype: cleanMime, fileName: filename, caption, media: mediaForEvolution }, mode: 'evolution-api-media-audio' },
+            { url: `${baseUrl}/send/media`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: target, type: 'audio', url: mediaForEvolution, filename, caption, formatJid: true }, mode: 'evolution-go-send-media-token' },
+            { url: `${baseUrl}/message/sendMedia`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: target, type: 'audio', url: mediaForEvolution, filename, caption }, mode: 'evolution-go-message-media' },
           );
         } else if (mediaType === 'sticker') {
           attempts.push(
-            { url: `${baseUrl}/send/sticker`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: target.value, sticker: mediaForEvolution, formatJid: target.kind !== 'jid' }, mode: `evolution-go-send-sticker-token-${target.kind}` },
-            { url: `${baseUrl}/message/sendSticker/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: target.value, sticker: mediaForEvolution }, mode: `evolution-api-sticker-url-${target.kind}` },
-            { url: `${baseUrl}/message/sendSticker/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: target.value, sticker: mediaBase64 }, mode: `evolution-api-sticker-base64-${target.kind}` },
-            { url: `${baseUrl}/message/sendMedia/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: target.value, mediatype: 'sticker', mimetype: cleanMime, fileName: filename, media: mediaForEvolution }, mode: `evolution-api-media-sticker-${target.kind}` },
+            { url: `${baseUrl}/message/sendSticker/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: target, sticker: mediaForEvolution }, mode: 'evolution-api-sticker-url' },
+            { url: `${baseUrl}/message/sendSticker/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: target, sticker: mediaBase64 }, mode: 'evolution-api-sticker-base64' },
+            { url: `${baseUrl}/message/sendMedia/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: target, mediatype: 'sticker', mimetype: cleanMime, fileName: filename, media: mediaForEvolution }, mode: 'evolution-api-media-sticker' },
+            { url: `${baseUrl}/send/sticker`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: target, sticker: mediaForEvolution, formatJid: true }, mode: 'evolution-go-send-sticker-token' },
           );
         } else {
           const isImg = mediaType === 'image';
           const goType = isImg ? 'image' : 'document';
           attempts.push(
-            { url: `${baseUrl}/send/media`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: target.value, type: goType, url: mediaForEvolution, filename, caption, formatJid: target.kind !== 'jid' }, mode: `evolution-go-send-media-token-${target.kind}` },
-            { url: `${baseUrl}/message/sendMedia/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: target.value, mediatype: goType, mimetype: cleanMime, fileName: filename, caption, media: mediaForEvolution }, mode: `evolution-api-url-${target.kind}` },
-            { url: `${baseUrl}/message/sendMedia/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: target.value, mediatype: goType, mimetype: cleanMime, fileName: filename, caption, media: mediaBase64 }, mode: `evolution-api-base64-${target.kind}` },
-            { url: `${baseUrl}/message/sendMedia`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: target.value, type: goType, url: mediaForEvolution, filename, caption }, mode: `evolution-go-message-media-${target.kind}` },
-            { url: `${baseUrl}/message/sendMedia`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: target.value, mediatype: goType, mimetype: cleanMime, fileName: filename, caption, media: mediaForEvolution }, mode: `evolution-go-classic-body-${target.kind}` },
+            { url: `${baseUrl}/message/sendMedia/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: target, mediatype: goType, mimetype: cleanMime, fileName: filename, caption, media: mediaForEvolution }, mode: 'evolution-api-url' },
+            { url: `${baseUrl}/message/sendMedia/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: target, mediatype: goType, mimetype: cleanMime, fileName: filename, caption, media: mediaBase64 }, mode: 'evolution-api-base64' },
+            { url: `${baseUrl}/send/media`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: target, type: goType, url: mediaForEvolution, filename, caption, formatJid: true }, mode: 'evolution-go-send-media-token' },
+            { url: `${baseUrl}/message/sendMedia`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: target, type: goType, url: mediaForEvolution, filename, caption }, mode: 'evolution-go-message-media' },
+            { url: `${baseUrl}/message/sendMedia`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: target, mediatype: goType, mimetype: cleanMime, fileName: filename, caption, media: mediaForEvolution }, mode: 'evolution-go-classic-body' },
           );
         }
       }
