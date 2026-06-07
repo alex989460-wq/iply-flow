@@ -463,7 +463,7 @@ Deno.serve(async (req) => {
       const msg = m?.message || {};
       const content = messageText(msg);
       const type = messageType(msg);
-      const mediaMime = mediaMimeFrom(msg);
+      const mediaMime = mediaMimeFrom(msg) || (type === 'document' ? mimeFromFileName(docFileName(msg)) : null);
       const mediaUrl = await storeIncomingMedia(admin, settings.user_id, key.id || null, type, mediaMime, mediaBase64From(m) || mediaBase64From(msg), mediaUrlFrom(msg));
 
       await insertMessageOnce(admin, {
