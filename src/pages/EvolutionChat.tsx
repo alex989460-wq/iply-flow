@@ -1208,6 +1208,9 @@ export default function EvolutionChat() {
                 <DropdownMenuItem onClick={() => syncHistory()} disabled={syncingHistory}>
                   <RefreshCw className={cn('w-4 h-4 mr-2', syncingHistory && 'animate-spin')} /> Sincronizar todo o histórico
                 </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setShowAutoReplySettings(true)}>
+                  <Zap className="w-4 h-4 mr-2" /> Robô de auto-atendimento (IA)
+                </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={clearAllConversations} className="text-destructive focus:text-destructive">
                   <Trash2 className="w-4 h-4 mr-2" /> Limpar TODO o histórico
