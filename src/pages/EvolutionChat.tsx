@@ -1692,6 +1692,24 @@ export default function EvolutionChat() {
                           send();
                         }
                       }}
+                      onPaste={(e) => {
+                        // Colar print/imagem do clipboard → abre o dialog de envio com legenda
+                        const items = e.clipboardData?.items;
+                        if (!items) return;
+                        for (let i = 0; i < items.length; i++) {
+                          const it = items[i];
+                          if (it.kind === 'file' && it.type.startsWith('image/')) {
+                            const file = it.getAsFile();
+                            if (file) {
+                              e.preventDefault();
+                              const named = new File([file], file.name || `print-${Date.now()}.png`, { type: file.type });
+                              setImageToSend({ file: named, url: URL.createObjectURL(named), caption: '' });
+                              return;
+                            }
+                          }
+                        }
+                      }}
+
                       rows={1}
                       className="flex-1 resize-none rounded-lg border-0 bg-[#2a3942] text-[#e9edef] placeholder:text-[#8696a0] px-4 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#00a884] max-h-32"
                       style={{ minHeight: 40 }}
