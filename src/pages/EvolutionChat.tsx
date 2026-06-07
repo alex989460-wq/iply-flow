@@ -24,6 +24,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { cn } from '@/lib/utils';
 import QuickRenewalPanel from '@/components/chat/QuickRenewalPanel';
+import PdfPreview from '@/components/chat/PdfPreview';
 
 interface EvoMessage {
   id: string;
