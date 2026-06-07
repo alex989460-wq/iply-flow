@@ -296,15 +296,14 @@ Deno.serve(async (req) => {
       const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
       const { data } = await admin
         .from('evolution_messages')
-        .select('id')
+        .select('id, content, raw')
         .eq('user_id', user_id)
         .eq('phone', phone)
         .eq('direction', 'out')
         .neq('status', 'failed')
         .gte('created_at', since)
-        .or(`raw.cs.{"__autoreply":true,"__kb":"${kbId}"},content.eq.${replyText.replace(/[,()]/g, ' ')}`)
-        .limit(1);
-      return !!data?.length;
+        .limit(30);
+      return (data || []).some((row: any) => row?.raw?.__autoreply === true && row?.raw?.__kb === kbId || String(row?.content || '') === replyText);
     };
 
     const sendReply = async (entry: KbEntry) => {
@@ -443,7 +442,10 @@ Deno.serve(async (req) => {
         await flagHuman(kwMatch.category);
         return new Response(JSON.stringify({ ok: true, flagged_human: true, via: 'knowledge_base', category: kwMatch.category }), { status: 200, headers: corsHeaders });
       }
-      const r = await sendReply(kwMatch.response_template, kwMatch.category, kwMatch.id);
+      if (await alreadyRepliedIn24h(kwMatch.id, kwMatch.response_template || '')) {
+        return new Response(JSON.stringify({ ok: true, skipped: 'already_replied_24h', via: 'knowledge_base', category: kwMatch.category }), { status: 200, headers: corsHeaders });
+      }
+      const r = await sendReply(kwMatch);
       if (!r.sent) await flagHuman(kwMatch.category);
       return new Response(JSON.stringify({ ok: true, replied: r.sent, via: 'knowledge_base', category: kwMatch.category, error: r.error || null }), { status: 200, headers: corsHeaders });
     }
