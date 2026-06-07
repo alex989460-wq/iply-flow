@@ -275,6 +275,36 @@ export default function KnowledgeBaseDialog({ open, onOpenChange }: Props) {
                     placeholder="Resposta automática que será enviada (ex: 'Para renovar acesse https://...')"
                   />
                 )}
+                {!e.requires_human && (
+                  <div className="flex items-center justify-between gap-2 rounded-md border border-border bg-background p-2">
+                    <div className="min-w-0 text-[11px] text-muted-foreground">
+                      {e.media_url ? (
+                        <div className="flex items-center gap-1">
+                          <Paperclip className="h-3 w-3 text-primary" />
+                          <span className="truncate">{e.media_filename || 'Anexo da resposta automática'}</span>
+                        </div>
+                      ) : (
+                        'Opcional: enviar uma imagem/documento junto com esta resposta.'
+                      )}
+                    </div>
+                    <div className="flex shrink-0 items-center gap-1">
+                      {e.media_url && (
+                        <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => updateEntry(e.id, { media_url: null, media_mime: null, media_type: null, media_filename: null })}>
+                          <X className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
+                      <label className="inline-flex h-7 cursor-pointer items-center rounded-md border border-border px-2 text-[11px] hover:bg-accent">
+                        {uploadingId === e.id ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Paperclip className="mr-1 h-3.5 w-3.5" />}
+                        Anexar
+                        <input type="file" className="hidden" accept="image/*,video/*,application/pdf" disabled={uploadingId === e.id} onChange={(ev) => {
+                          const file = ev.target.files?.[0];
+                          ev.currentTarget.value = '';
+                          if (file) uploadMedia(e.id, file);
+                        }} />
+                      </label>
+                    </div>
+                  </div>
+                )}
                 <label className="flex items-center gap-2 text-[11px] text-muted-foreground">
                   <input type="checkbox" checked={e.requires_human} onChange={(ev) => updateEntry(e.id, { requires_human: ev.target.checked })} className="h-3 w-3" />
                   Esta entrada precisa de atendimento humano (vai pra aba Suporte)
