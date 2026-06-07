@@ -170,10 +170,10 @@ export default function KnowledgeBaseDialog({ open, onOpenChange }: Props) {
         <div className="flex items-start justify-between gap-2">
           <div>
             <h3 className="text-base font-semibold flex items-center gap-2">
-              <BookOpen className="w-4 h-4 text-primary" /> Base de Conhecimento da IA
+              <BookOpen className="w-4 h-4 text-primary" /> Base de Conhecimento
             </h3>
             <p className="text-[11px] text-muted-foreground mt-1">
-              A IA consulta essas entradas para responder seus clientes. Quando o cliente manda algo que combina com uma entrada, ela responde com o texto pronto.
+              O robô consulta essas entradas para responder seus clientes. Quando o cliente manda algo que combina com uma entrada, ele responde com o texto pronto.
               Marque "precisa de humano" para temas que devem ir pra aba <b>Suporte</b> sem auto-resposta.
             </p>
           </div>
