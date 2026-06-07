@@ -1304,12 +1304,17 @@ export default function EvolutionChat() {
               {([
                 { id: 'all', label: 'Todas' },
                 { id: 'unread', label: 'Não lidas' },
+                { id: 'support', label: '🛠 Suporte' },
                 { id: 'contacts', label: 'Contatos' },
                 { id: 'groups', label: 'Grupos' },
                 { id: 'channels', label: '📢 Canais' },
                 { id: 'media', label: 'Mídia' },
                 { id: 'status', label: 'Status' },
-              ] as const).map((t) => (
+              ] as const).map((t) => {
+                const supportCount = t.id === 'support'
+                  ? Object.values(contacts).filter(c => c?.needs_human).length
+                  : 0;
+                return (
                 <button
                   key={t.id}
                   onClick={() => {
