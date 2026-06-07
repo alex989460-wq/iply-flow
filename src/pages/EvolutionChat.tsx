@@ -654,7 +654,7 @@ export default function EvolutionChat() {
       return;
     }
     setMessages([]);
-    if (selectedPhone === phone) setSelectedPhone(null);
+    setSelectedPhone(null);
     toast({ title: `${data?.deleted || 0} mensagens removidas` });
   }, [user, invokeEvolution, toast]);
 
