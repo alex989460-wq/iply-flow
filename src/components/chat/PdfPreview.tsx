@@ -51,7 +51,6 @@ export default function PdfPreview({ url, fileName, sizeLabel }: PdfPreviewProps
 
   useEffect(() => {
     let cancelled = false;
-    let pdfDoc: { destroy: () => void } | null = null;
     (async () => {
       try {
         setLoading(true);
@@ -65,7 +64,7 @@ export default function PdfPreview({ url, fileName, sizeLabel }: PdfPreviewProps
         if (!cancelled) { setError(true); setLoading(false); }
       }
     })();
-    return () => { cancelled = true; if (pdfDoc) try { pdfDoc.destroy(); } catch { /* noop */ } };
+    return () => { cancelled = true; };
   }, [renderPdfPage]);
 
   useEffect(() => {
