@@ -321,22 +321,30 @@ export default function EvolutionChat() {
   const load = useCallback(async () => {
     if (!user) return;
     const hadCache = messagesRef.current.length > 0;
-    // Só mostra spinner se não há nada em cache (evita "recarregando" toda vez no mobile)
     if (!hadCache) setLoading(true);
     const [msgRes, contRes, presRes] = await Promise.all([
-      // Usa o índice (user_id, phone, created_at DESC) e limita a 1500 msgs recentes para evitar statement timeout
-      supabase.from('evolution_messages').select('*').eq('user_id', user.id).order('created_at', { ascending: false }).limit(1500),
+      // Reduzido de 1500 → 800: abre muito mais rápido no celular e a UI mostra "Carregar mais antigas" se precisar.
+      supabase.from('evolution_messages').select('*').eq('user_id', user.id).order('created_at', { ascending: false }).limit(800),
       supabase.from('evolution_contacts').select('phone, name, profile_pic_url').eq('user_id', user.id),
       supabase.from('evolution_presence').select('phone, presence, last_seen_at, updated_at').eq('user_id', user.id),
     ]);
     setLoading(false);
     if (msgRes.error) {
-      // Não derruba a UI: mantém o cache e só avisa quando não havia nada para mostrar
       if (!hadCache) toast({ title: 'Erro', description: msgRes.error.message, variant: 'destructive' });
       return;
     }
-    const raw = (((msgRes.data || []) as unknown) as EvoMessage[]).slice().reverse(); // volta a ordem ASC para o merge
-    const merged = raw.reduce((acc, msg) => mergeMessage(acc, msg), [] as EvoMessage[]);
+    // Dedup O(N) usando Map por id + external_id — antes era O(N²) com reduce/mergeMessage, travava no mobile
+    const byId = new Map<string, EvoMessage>();
+    const byExt = new Map<string, EvoMessage>();
+    const raw = (((msgRes.data || []) as unknown) as EvoMessage[]);
+    for (let i = raw.length - 1; i >= 0; i--) {
+      const m = raw[i];
+      if (byId.has(m.id)) continue;
+      if (m.external_id && byExt.has(m.external_id)) continue;
+      byId.set(m.id, m);
+      if (m.external_id) byExt.set(m.external_id, m);
+    }
+    const merged = Array.from(byId.values());
     setMessages(merged);
     const cmap: Record<string, EvoContact> = {};
     for (const c of ((contRes.data || []) as EvoContact[])) cmap[c.phone] = c;
@@ -346,12 +354,12 @@ export default function EvolutionChat() {
       if (p.last_seen_at) lmap[p.phone] = p.last_seen_at;
     }
     setLastSeenByPhone(lmap);
-    // Atualiza cache (trim para não estourar quota)
     try {
-      sessionStorage.setItem('evo_cache_messages', JSON.stringify(merged.slice(-1500)));
+      sessionStorage.setItem('evo_cache_messages', JSON.stringify(merged.slice(-800)));
       sessionStorage.setItem('evo_cache_contacts', JSON.stringify(cmap));
     } catch { /* quota cheia, ignora */ }
-  }, [user, toast, mergeMessage]);
+  }, [user, toast]);
+
 
   const selectedInstance = useMemo(() => {
     if (!currentInstance) return null;
