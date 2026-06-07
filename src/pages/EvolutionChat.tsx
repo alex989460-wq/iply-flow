@@ -231,6 +231,26 @@ export default function EvolutionChat() {
   const [soundEnabled, setSoundEnabled] = useState<boolean>(() => {
     try { return localStorage.getItem('evo_sound_enabled') !== '0'; } catch { return true; }
   });
+  const [showAutoReplySettings, setShowAutoReplySettings] = useState(false);
+  const [autoReply, setAutoReply] = useState<{
+    enabled: boolean;
+    system_prompt: string;
+    only_outside_hours: boolean;
+    business_start: string;
+    business_end: string;
+    disabled_phones: string[];
+    model: string;
+  }>({
+    enabled: false,
+    system_prompt: '',
+    only_outside_hours: false,
+    business_start: '08:00',
+    business_end: '18:00',
+    disabled_phones: [],
+    model: 'google/gemini-3-flash-preview',
+  });
+  const [autoReplyLoading, setAutoReplyLoading] = useState(false);
+  const [autoReplySaving, setAutoReplySaving] = useState(false);
   const [showStatusComposer, setShowStatusComposer] = useState(false);
   const [statusDraft, setStatusDraft] = useState('');
   const [postingStatus, setPostingStatus] = useState(false);
@@ -1208,6 +1228,9 @@ export default function EvolutionChat() {
                 <DropdownMenuItem onClick={() => syncHistory()} disabled={syncingHistory}>
                   <RefreshCw className={cn('w-4 h-4 mr-2', syncingHistory && 'animate-spin')} /> Sincronizar todo o histórico
                 </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setShowAutoReplySettings(true)}>
+                  <Zap className="w-4 h-4 mr-2" /> Robô de auto-atendimento (IA)
+                </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={clearAllConversations} className="text-destructive focus:text-destructive">
                   <Trash2 className="w-4 h-4 mr-2" /> Limpar TODO o histórico
@@ -2026,6 +2049,169 @@ export default function EvolutionChat() {
                 </Button>
               </div>
             </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Auto-reply (AI) settings */}
+      <Dialog open={showAutoReplySettings} onOpenChange={(open) => {
+        setShowAutoReplySettings(open);
+        if (open && user) {
+          setAutoReplyLoading(true);
+          supabase
+            .from('evolution_settings')
+            .select('autoreply_enabled, autoreply_system_prompt, autoreply_only_outside_hours, autoreply_business_start, autoreply_business_end, autoreply_disabled_phones, autoreply_model')
+            .eq('user_id', user.id)
+            .maybeSingle()
+            .then(({ data }) => {
+              if (data) {
+                setAutoReply({
+                  enabled: !!data.autoreply_enabled,
+                  system_prompt: data.autoreply_system_prompt || '',
+                  only_outside_hours: !!data.autoreply_only_outside_hours,
+                  business_start: data.autoreply_business_start || '08:00',
+                  business_end: data.autoreply_business_end || '18:00',
+                  disabled_phones: data.autoreply_disabled_phones || [],
+                  model: data.autoreply_model || 'google/gemini-3-flash-preview',
+                });
+              }
+              setAutoReplyLoading(false);
+            });
+        }
+      }}>
+        <DialogContent className="max-w-lg p-4 bg-background border-border">
+          <div className="space-y-3">
+            <div>
+              <h3 className="text-base font-semibold flex items-center gap-2">
+                <Zap className="w-4 h-4 text-primary" /> Robô de auto-atendimento (IA)
+              </h3>
+              <p className="text-[11px] text-muted-foreground mt-1">
+                Quando ativado, mensagens novas de clientes são respondidas automaticamente pela IA.
+                Se você responder manualmente, o robô para de responder essa conversa.
+                Funciona apenas em mensagens de texto de contatos individuais (não em grupos/canais/status).
+              </p>
+            </div>
+
+            {autoReplyLoading ? (
+              <div className="flex justify-center py-6"><Loader2 className="w-4 h-4 animate-spin text-muted-foreground" /></div>
+            ) : (
+              <>
+                <label className="flex items-center justify-between gap-2 rounded-md border border-border p-2">
+                  <div className="text-sm">Ligar auto-atendimento</div>
+                  <input
+                    type="checkbox"
+                    checked={autoReply.enabled}
+                    onChange={(e) => setAutoReply(s => ({ ...s, enabled: e.target.checked }))}
+                    className="h-4 w-4 accent-primary"
+                  />
+                </label>
+
+                <div>
+                  <div className="text-xs font-medium mb-1">Instruções para a IA (prompt)</div>
+                  <textarea
+                    value={autoReply.system_prompt}
+                    onChange={(e) => setAutoReply(s => ({ ...s, system_prompt: e.target.value }))}
+                    rows={6}
+                    className="w-full rounded-md border border-border bg-background p-2 text-xs focus:outline-none focus:ring-2 focus:ring-primary/40"
+                    placeholder="Você é um atendente cordial..."
+                  />
+                  <div className="text-[10px] text-muted-foreground mt-1">
+                    Dica: oriente a IA a chamar um humano quando o cliente pedir preço, status de pagamento, ativação ou suporte técnico complexo.
+                  </div>
+                </div>
+
+                <div>
+                  <div className="text-xs font-medium mb-1">Modelo de IA</div>
+                  <select
+                    value={autoReply.model}
+                    onChange={(e) => setAutoReply(s => ({ ...s, model: e.target.value }))}
+                    className="w-full rounded-md border border-border bg-background p-2 text-xs"
+                  >
+                    <option value="google/gemini-3-flash-preview">Gemini 3 Flash (rápido, recomendado)</option>
+                    <option value="google/gemini-2.5-flash">Gemini 2.5 Flash (estável)</option>
+                    <option value="google/gemini-2.5-pro">Gemini 2.5 Pro (mais inteligente)</option>
+                    <option value="openai/gpt-5-mini">GPT-5 Mini</option>
+                    <option value="openai/gpt-5">GPT-5 (mais caro)</option>
+                  </select>
+                </div>
+
+                <label className="flex items-center justify-between gap-2 rounded-md border border-border p-2">
+                  <div className="text-sm">Responder só FORA do horário comercial</div>
+                  <input
+                    type="checkbox"
+                    checked={autoReply.only_outside_hours}
+                    onChange={(e) => setAutoReply(s => ({ ...s, only_outside_hours: e.target.checked }))}
+                    className="h-4 w-4 accent-primary"
+                  />
+                </label>
+
+                {autoReply.only_outside_hours && (
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <div className="text-xs mb-1">Início (BRT)</div>
+                      <Input type="time" value={autoReply.business_start} onChange={(e) => setAutoReply(s => ({ ...s, business_start: e.target.value }))} className="h-8 text-xs" />
+                    </div>
+                    <div>
+                      <div className="text-xs mb-1">Fim (BRT)</div>
+                      <Input type="time" value={autoReply.business_end} onChange={(e) => setAutoReply(s => ({ ...s, business_end: e.target.value }))} className="h-8 text-xs" />
+                    </div>
+                  </div>
+                )}
+
+                {autoReply.disabled_phones.length > 0 && (
+                  <div>
+                    <div className="text-xs font-medium mb-1">Contatos com auto-atendimento DESATIVADO ({autoReply.disabled_phones.length})</div>
+                    <div className="max-h-24 overflow-auto rounded-md border border-border p-2 space-y-1">
+                      {autoReply.disabled_phones.map((p) => (
+                        <div key={p} className="flex items-center justify-between text-xs">
+                          <span>{formatPhone(p)}</span>
+                          <button
+                            className="text-[10px] text-primary hover:underline"
+                            onClick={() => setAutoReply(s => ({ ...s, disabled_phones: s.disabled_phones.filter(x => x !== p) }))}
+                          >
+                            Reativar
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex justify-end gap-2 pt-1">
+                  <Button size="sm" variant="outline" onClick={() => setShowAutoReplySettings(false)}>Cancelar</Button>
+                  <Button
+                    size="sm"
+                    disabled={autoReplySaving}
+                    onClick={async () => {
+                      if (!user) return;
+                      setAutoReplySaving(true);
+                      const { error } = await supabase
+                        .from('evolution_settings')
+                        .update({
+                          autoreply_enabled: autoReply.enabled,
+                          autoreply_system_prompt: autoReply.system_prompt,
+                          autoreply_only_outside_hours: autoReply.only_outside_hours,
+                          autoreply_business_start: autoReply.business_start,
+                          autoreply_business_end: autoReply.business_end,
+                          autoreply_disabled_phones: autoReply.disabled_phones,
+                          autoreply_model: autoReply.model,
+                        })
+                        .eq('user_id', user.id);
+                      setAutoReplySaving(false);
+                      if (error) {
+                        toast({ title: 'Erro ao salvar', description: error.message, variant: 'destructive' });
+                        return;
+                      }
+                      toast({ title: autoReply.enabled ? '🤖 Auto-atendimento ATIVO' : 'Auto-atendimento desativado' });
+                      setShowAutoReplySettings(false);
+                    }}
+                  >
+                    {autoReplySaving ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : null}
+                    Salvar
+                  </Button>
+                </div>
+              </>
+            )}
           </div>
         </DialogContent>
       </Dialog>

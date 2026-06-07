@@ -724,6 +724,13 @@ export type Database = {
       evolution_settings: {
         Row: {
           api_key: string
+          autoreply_business_end: string
+          autoreply_business_start: string
+          autoreply_disabled_phones: string[]
+          autoreply_enabled: boolean
+          autoreply_model: string
+          autoreply_only_outside_hours: boolean
+          autoreply_system_prompt: string
           base_url: string
           created_at: string
           id: string
@@ -735,6 +742,13 @@ export type Database = {
         }
         Insert: {
           api_key?: string
+          autoreply_business_end?: string
+          autoreply_business_start?: string
+          autoreply_disabled_phones?: string[]
+          autoreply_enabled?: boolean
+          autoreply_model?: string
+          autoreply_only_outside_hours?: boolean
+          autoreply_system_prompt?: string
           base_url?: string
           created_at?: string
           id?: string
@@ -746,6 +760,13 @@ export type Database = {
         }
         Update: {
           api_key?: string
+          autoreply_business_end?: string
+          autoreply_business_start?: string
+          autoreply_disabled_phones?: string[]
+          autoreply_enabled?: boolean
+          autoreply_model?: string
+          autoreply_only_outside_hours?: boolean
+          autoreply_system_prompt?: string
           base_url?: string
           created_at?: string
           id?: string

@@ -202,6 +202,34 @@ async function insertMessageOnce(admin: any, row: Record<string, unknown>) {
   if (error && error.code !== '23505') console.error('[evolution-webhook] insert failed', error);
 }
 
+// Fire the auto-reply edge function in the background (no await on caller side).
+function fireAutoReply(userId: string, phone: string, content: string) {
+  try {
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const serviceRole = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const p = fetch(`${supabaseUrl}/functions/v1/evolution-autoreply`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${serviceRole}`,
+        apikey: serviceRole,
+        'x-internal-token': serviceRole,
+      },
+      body: JSON.stringify({ user_id: userId, phone, content }),
+    }).then((r) => r.text()).catch((e) => {
+      console.error('[evolution-webhook] autoreply fetch failed', e);
+    });
+    // Keep the function alive until the autoreply completes
+    // @ts-ignore — EdgeRuntime is available in Supabase Edge runtime
+    if (typeof EdgeRuntime !== 'undefined' && EdgeRuntime?.waitUntil) {
+      // @ts-ignore
+      EdgeRuntime.waitUntil(p);
+    }
+  } catch (e) {
+    console.error('[evolution-webhook] fireAutoReply error', e);
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
@@ -379,6 +407,11 @@ Deno.serve(async (req) => {
               );
             }
           }
+          // Trigger AI auto-reply for direct, non-status, non-group, non-channel incoming TEXT
+          if (!info.IsFromMe && !isStatus && phone && phone.length <= 14 && type === 'text') {
+            const content = messageText(msg) || '';
+            if (content) fireAutoReply(settings.user_id, phone, content);
+          }
         }
       }
       return new Response(JSON.stringify({ ok: true }), {
@@ -432,6 +465,10 @@ Deno.serve(async (req) => {
           contactPayload(settings.user_id, contactKey, m?.pushName, profilePicUrl),
           { onConflict: 'user_id,phone' }
         );
+      }
+      // Trigger AI auto-reply for direct, non-status, non-group, non-channel incoming TEXT
+      if (!fromMe && !isStatus && phone && phone.length <= 14 && type === 'text' && content) {
+        fireAutoReply(settings.user_id, phone, content);
       }
     }
 
