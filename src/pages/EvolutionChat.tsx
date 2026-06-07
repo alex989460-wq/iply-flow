@@ -1276,7 +1276,7 @@ export default function EvolutionChat() {
                       ? 'bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30'
                       : 'bg-muted/60 text-muted-foreground hover:bg-muted'
                   )}
-                  title={autoReply.enabled ? 'Robô IA ATIVO — clique para configurar' : 'Robô IA desativado — clique para ativar'}
+                  title={autoReply.enabled ? 'Robô ATIVO — clique para configurar' : 'Robô desativado — clique para ativar'}
                 >
                   🤖 {autoReply.enabled ? 'ON' : 'OFF'}
                 </button>
@@ -1310,7 +1310,7 @@ export default function EvolutionChat() {
                   </span>
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => setShowKbDialog(true)}>
-                  <BookOpen className="w-4 h-4 mr-2" /> Base de conhecimento da IA
+                  <BookOpen className="w-4 h-4 mr-2" /> Base de conhecimento
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={clearAllConversations} className="text-destructive focus:text-destructive">
