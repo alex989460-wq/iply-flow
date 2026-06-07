@@ -59,6 +59,127 @@ function matchByKeywords(content: string, kb: KbEntry[]): KbEntry | null {
   return null;
 }
 
+function evolutionHeaders(apiKey: string, contentType = false, instanceId = '') {
+  const headers: Record<string, string> = { apikey: apiKey, Authorization: `Bearer ${apiKey}` };
+  if (contentType) headers['Content-Type'] = 'application/json';
+  if (instanceId) headers.instanceId = instanceId;
+  return headers;
+}
+
+async function fetchJson(url: string, init: RequestInit = {}, timeoutMs = 8000) {
+  const r = await fetch(url, { ...init, signal: AbortSignal.timeout(timeoutMs) });
+  const data = await r.json().catch(() => ({}));
+  return { ok: r.ok, status: r.status, data };
+}
+
+function normalizeChatPhone(value: unknown) {
+  const digits = String(value || '').replace(/\D/g, '');
+  if (!digits) return '';
+  if (digits.startsWith('55')) return digits;
+  return `55${digits}`;
+}
+
+function jidTarget(value: unknown) {
+  if (typeof value !== 'string') return '';
+  const clean = value.trim();
+  const digits = clean.split('@')[0].split(':')[0].replace(/\D/g, '');
+  if (/@lid\b/i.test(clean) && digits.length >= 10) return `${digits}@lid`;
+  if (/@s\.whatsapp\.net\b/i.test(clean) && digits.length >= 10) return `${digits}@s.whatsapp.net`;
+  return digits.length >= 10 ? digits : '';
+}
+
+function pushUniqueTarget(targets: Array<{ value: string; kind: 'lid' | 'jid' | 'phone' }>, raw: unknown) {
+  const target = jidTarget(raw);
+  if (!target) return;
+  const kind = target.includes('@lid') ? 'lid' : target.includes('@s.whatsapp.net') ? 'jid' : 'phone';
+  if (!targets.some((t) => t.value === target)) targets.push({ value: target, kind });
+}
+
+async function resolveSendTargets(admin: any, userId: string, phone: string) {
+  const targets: Array<{ value: string; kind: 'lid' | 'jid' | 'phone' }> = [];
+  const phoneDigits = String(phone || '').replace(/\D/g, '');
+  const normalizedPhone = normalizeChatPhone(phoneDigits);
+  const { data } = await admin
+    .from('evolution_messages')
+    .select('phone, raw')
+    .eq('user_id', userId)
+    .or(`phone.eq.${phoneDigits},phone.eq.${normalizedPhone}`)
+    .order('created_at', { ascending: false })
+    .limit(30);
+  for (const row of data || []) {
+    const info = row?.raw?.data?.Info || row?.raw?.Info || {};
+    if (info?.IsFromMe === true) {
+      pushUniqueTarget(targets, info.RecipientAlt);
+      pushUniqueTarget(targets, info.TargetJID || info.TargetID);
+      pushUniqueTarget(targets, info.DeviceSentMeta?.DestinationJID);
+      pushUniqueTarget(targets, info.Chat);
+    } else {
+      pushUniqueTarget(targets, info.Sender);
+      pushUniqueTarget(targets, info.Chat);
+      pushUniqueTarget(targets, info.SenderAlt);
+    }
+  }
+  pushUniqueTarget(targets, phoneDigits);
+  if (normalizedPhone) pushUniqueTarget(targets, normalizedPhone);
+  if (normalizedPhone) pushUniqueTarget(targets, `${normalizedPhone}@s.whatsapp.net`);
+  if (normalizedPhone.startsWith('55') && normalizedPhone.length >= 12) {
+    const ddd = normalizedPhone.slice(2, 4);
+    const rest = normalizedPhone.slice(4);
+    if (rest.length === 9 && rest.startsWith('9')) {
+      const without9 = `55${ddd}${rest.slice(1)}`;
+      pushUniqueTarget(targets, without9);
+      pushUniqueTarget(targets, `${without9}@s.whatsapp.net`);
+    } else if (rest.length === 8) {
+      const with9 = `55${ddd}9${rest}`;
+      pushUniqueTarget(targets, with9);
+      pushUniqueTarget(targets, `${with9}@s.whatsapp.net`);
+    }
+  }
+  const lids = targets.filter((t) => t.kind === 'lid');
+  const jids = targets.filter((t) => t.kind === 'jid' && t.value.startsWith('55'));
+  const phones = targets.filter((t) => t.kind === 'phone' && t.value.startsWith('55'));
+  const otherPhones = targets.filter((t) => t.kind === 'phone' && !t.value.startsWith('55'));
+  return [...lids, ...phones, ...jids, ...otherPhones].filter((target, index, arr) => arr.findIndex((t) => t.value === target.value) === index);
+}
+
+async function resolveGoInstance(baseUrl: string, apiKey: string, instance: string) {
+  const wanted = String(instance || '').toLowerCase();
+  const r = await fetchJson(`${baseUrl}/instance/all`, { headers: evolutionHeaders(apiKey) }).catch(() => null);
+  const rows = Array.isArray(r?.data?.data) ? r?.data?.data : Array.isArray(r?.data) ? r?.data : [];
+  return rows.find((item: any) =>
+    String(item?.id || item?.instanceId || '').toLowerCase() === wanted ||
+    String(item?.name || item?.instanceName || item?.instance?.instanceName || '').toLowerCase() === wanted
+  ) || rows.find((item: any) => String(item?.token || item?.hash || '') === apiKey) || null;
+}
+
+async function resolveInstanceAuth(baseUrl: string, apiKey: string, instance: string) {
+  const found = await resolveGoInstance(baseUrl, apiKey, instance);
+  return {
+    apiKey: found?.token || found?.hash || apiKey,
+    instanceId: found?.id || found?.instanceId || instance,
+  };
+}
+
+async function primeEvolutionContact(baseUrl: string, apiKey: string, instanceId: string, phone: string) {
+  const digits = String(phone || '').replace(/\D/g, '');
+  if (!digits) return;
+  const jid = `${digits}@s.whatsapp.net`;
+  const headers = evolutionHeaders(apiKey, true, instanceId);
+  await Promise.all([
+    fetchJson(`${baseUrl}/user/info`, { method: 'POST', headers, body: JSON.stringify({ number: [digits] }) }, 3000).catch(() => null),
+    fetchJson(`${baseUrl}/user/info`, { method: 'POST', headers, body: JSON.stringify({ number: [jid] }) }, 3000).catch(() => null),
+  ]);
+}
+
+function getEvolutionErrorText(data: any) {
+  return [data?.error, data?.message, data?.response?.message, data?.data?.error, data?.data?.message]
+    .flat().filter(Boolean).map((v) => typeof v === 'string' ? v : JSON.stringify(v)).join(' | ');
+}
+
+function isEvolutionReachoutLock(data: any) {
+  return /(^|\D)463(\D|$)|NackCallerReachoutTimelocked|reach[- ]?out|time[- ]?lock/i.test(getEvolutionErrorText(data));
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
