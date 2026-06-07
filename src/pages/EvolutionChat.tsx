@@ -1240,11 +1240,18 @@ export default function EvolutionChat() {
                 const statusContactPhone = isStatusEntry && !isMyStatus ? c.phone.slice('status:'.length) : '';
                 const statusCC = statusContactPhone ? contacts[statusContactPhone] : null;
                 const cc = isStatusEntry ? statusCC : contacts[c.phone];
+                const isNewsletter = !isStatusEntry && isNewsletterPhone(c.phone);
+                const isGroup = !isStatusEntry && !isNewsletter && isGroupJidPhone(c.phone);
+                const channelName = isNewsletter ? newsletterNameFromRaw(c.last?.raw) : null;
                 const displayName = isMyStatus
                   ? 'Meu status'
                   : isStatusEntry
                     ? (statusCC?.name || c.name || formatPhone(statusContactPhone))
-                    : (contacts[c.phone]?.name || c.name || formatPhone(c.phone));
+                    : isNewsletter
+                      ? (contacts[c.phone]?.name || channelName || c.name || 'Canal do WhatsApp')
+                      : isGroup
+                        ? (contacts[c.phone]?.name || c.name || 'Grupo')
+                        : (contacts[c.phone]?.name || c.name || formatPhone(c.phone));
                 const isPinnedContact = pinnedContacts.has(c.phone);
                 return (
                   <ContextMenu key={c.phone}>
@@ -1259,18 +1266,26 @@ export default function EvolutionChat() {
                       >
                         <Avatar className="h-9 w-9 shrink-0">
                           {cc?.profile_pic_url && <AvatarImage src={cc.profile_pic_url} alt={displayName} />}
-                          <AvatarFallback className="text-[11px] bg-gradient-to-br from-primary/20 to-primary/5 text-primary">
-                            {initials(displayName, c.phone)}
+                          <AvatarFallback className={cn(
+                            'text-[11px]',
+                            isNewsletter ? 'bg-gradient-to-br from-blue-500/30 to-blue-700/20 text-blue-400'
+                            : isGroup ? 'bg-gradient-to-br from-purple-500/30 to-purple-700/20 text-purple-400'
+                            : 'bg-gradient-to-br from-primary/20 to-primary/5 text-primary'
+                          )}>
+                            {isNewsletter ? '📢' : isGroup ? '👥' : initials(displayName, c.phone)}
                           </AvatarFallback>
                         </Avatar>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between gap-2">
                             <div className="text-sm font-medium truncate flex items-center gap-1">
                               {isPinnedContact && <Pin className="w-3 h-3 text-emerald-500 shrink-0" />}
+                              {isNewsletter && <span className="text-[9px] px-1 rounded bg-blue-500/20 text-blue-400 shrink-0">CANAL</span>}
+                              {isGroup && <span className="text-[9px] px-1 rounded bg-purple-500/20 text-purple-400 shrink-0">GRUPO</span>}
                               {displayName}
                             </div>
                             <div className="text-[10px] text-muted-foreground shrink-0">{c.last ? relativeTime(c.last.created_at) : 'novo'}</div>
                           </div>
+
                           <div className="flex items-center justify-between gap-2 mt-0.5">
                             <div className="text-[11px] text-muted-foreground truncate">
                               {isOut && <span className="text-primary mr-1">✓</span>}
