@@ -108,6 +108,24 @@ function ownerPhoneFromRaw(raw: unknown) {
   return sender.split('@')[0].split(':')[0].replace(/\D/g, '');
 }
 
+// Newsletter (canal/comunidade) JIDs do WhatsApp são números longos (~18 dígitos) e o chat termina em @newsletter
+function isNewsletterPhone(phone: string) {
+  return !!phone && /^\d{15,}$/.test(phone);
+}
+function isGroupJidPhone(phone: string) {
+  // group ids @g.us costumam ter formato 12345-67890 ou números muito longos
+  return !!phone && (phone.includes('-') || phone.length > 18);
+}
+function newsletterNameFromRaw(raw: unknown): string | null {
+  const meta = (getNestedValue(raw, ['data', 'NewsletterMeta'])
+    || getNestedValue(raw, ['NewsletterMeta'])
+    || getNestedValue(raw, ['data', 'Info', 'NewsletterMeta'])) as Record<string, unknown> | undefined;
+  if (!meta) return null;
+  const name = String(meta?.name || meta?.Name || meta?.title || meta?.Title || '').trim();
+  return name || null;
+}
+
+
 function rawInstanceName(raw: unknown) {
   return rawString(raw, [
     ['data', 'Info', 'Instance'],
