@@ -407,6 +407,11 @@ Deno.serve(async (req) => {
               );
             }
           }
+          // Trigger AI auto-reply for direct, non-status, non-group, non-channel incoming TEXT
+          if (!info.IsFromMe && !isStatus && phone && phone.length <= 14 && type === 'text') {
+            const content = messageText(msg) || '';
+            if (content) fireAutoReply(settings.user_id, phone, content);
+          }
         }
       }
       return new Response(JSON.stringify({ ok: true }), {
