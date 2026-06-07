@@ -104,6 +104,48 @@ export type Database = {
         }
         Relationships: []
       }
+      ai_knowledge_entries: {
+        Row: {
+          category: string
+          created_at: string
+          id: string
+          is_enabled: boolean
+          keywords: string[]
+          requires_human: boolean
+          response_template: string
+          sort_order: number
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          category?: string
+          created_at?: string
+          id?: string
+          is_enabled?: boolean
+          keywords?: string[]
+          requires_human?: boolean
+          response_template: string
+          sort_order?: number
+          title: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          id?: string
+          is_enabled?: boolean
+          keywords?: string[]
+          requires_human?: boolean
+          response_template?: string
+          sort_order?: number
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       auto_replies: {
         Row: {
           created_at: string
@@ -609,27 +651,36 @@ export type Database = {
       }
       evolution_contacts: {
         Row: {
+          ai_category: string | null
           created_at: string
           id: string
+          last_classified_at: string | null
           name: string | null
+          needs_human: boolean
           phone: string
           profile_pic_url: string | null
           updated_at: string
           user_id: string
         }
         Insert: {
+          ai_category?: string | null
           created_at?: string
           id?: string
+          last_classified_at?: string | null
           name?: string | null
+          needs_human?: boolean
           phone: string
           profile_pic_url?: string | null
           updated_at?: string
           user_id: string
         }
         Update: {
+          ai_category?: string | null
           created_at?: string
           id?: string
+          last_classified_at?: string | null
           name?: string | null
+          needs_human?: boolean
           phone?: string
           profile_pic_url?: string | null
           updated_at?: string
