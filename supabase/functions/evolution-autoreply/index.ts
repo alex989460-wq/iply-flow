@@ -294,7 +294,10 @@ Deno.serve(async (req) => {
       if (!baseUrl || !evoKey || !instance) return { sent: false, error: 'no_evolution_creds' };
 
       const instAuth = await resolveInstanceAuth(baseUrl, evoKey, instance);
-      const sendTargets = await resolveSendTargets(admin, user_id, phone);
+      const validatedTargets = await resolveValidatedTargets(baseUrl, instAuth.apiKey, instAuth.instanceId, phone);
+      const historyTargets = await resolveSendTargets(admin, user_id, phone);
+      const sendTargets = [...validatedTargets, ...historyTargets]
+        .filter((target, index, arr) => arr.findIndex((t) => t.value === target.value) === index);
       const primaryTarget = sendTargets[0]?.value || normalizeChatPhone(phone);
       await primeEvolutionContact(baseUrl, instAuth.apiKey, instAuth.instanceId, phone);
       const quotedRaw = lastIn?.external_id ? {
