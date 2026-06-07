@@ -1237,9 +1237,30 @@ export default function EvolutionChat() {
                 <RefreshCw className={cn('w-3 h-3', switchingInstance && 'animate-spin')} />
               </Button>
             </div>
-            <div className="relative">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
-              <Input placeholder="Pesquisar conversa..." value={search} onChange={(e) => setSearch(e.target.value)} className="h-8 text-xs pl-8" />
+            <div className="relative flex items-center gap-1">
+              <div className="relative flex-1">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+                <Input placeholder="Pesquisar conversa..." value={search} onChange={(e) => setSearch(e.target.value)} className="h-8 text-xs pl-8" />
+              </div>
+              <Button
+                size="icon"
+                variant="ghost"
+                className="h-8 w-8 shrink-0"
+                title={soundEnabled ? 'Som de notificação ativo' : 'Som de notificação desligado'}
+                onClick={() => {
+                  setSoundEnabled(v => {
+                    const next = !v;
+                    if (next) {
+                      // play once to confirm + unlock audio context on mobile
+                      lastSoundAtRef.current = 0;
+                      setTimeout(() => playNotificationSound(), 0);
+                    }
+                    return next;
+                  });
+                }}
+              >
+                {soundEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4 text-muted-foreground" />}
+              </Button>
             </div>
             <div className="flex gap-1">
               <Input placeholder="Novo número (DDD + nº)" value={newPhone} onChange={(e) => setNewPhone(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && startConversation()} className="h-8 text-xs" />
