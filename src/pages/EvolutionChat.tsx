@@ -239,20 +239,16 @@ export default function EvolutionChat() {
   const [showAutoReplySettings, setShowAutoReplySettings] = useState(false);
   const [autoReply, setAutoReply] = useState<{
     enabled: boolean;
-    system_prompt: string;
     only_outside_hours: boolean;
     business_start: string;
     business_end: string;
     disabled_phones: string[];
-    model: string;
   }>({
     enabled: false,
-    system_prompt: '',
     only_outside_hours: false,
     business_start: '08:00',
     business_end: '18:00',
     disabled_phones: [],
-    model: 'google/gemini-3-flash-preview',
   });
   const [autoReplyLoading, setAutoReplyLoading] = useState(false);
   const [autoReplySaving, setAutoReplySaving] = useState(false);
@@ -2170,19 +2166,17 @@ export default function EvolutionChat() {
           setAutoReplyLoading(true);
           supabase
             .from('evolution_settings')
-            .select('autoreply_enabled, autoreply_system_prompt, autoreply_only_outside_hours, autoreply_business_start, autoreply_business_end, autoreply_disabled_phones, autoreply_model')
+            .select('autoreply_enabled, autoreply_only_outside_hours, autoreply_business_start, autoreply_business_end, autoreply_disabled_phones')
             .eq('user_id', user.id)
             .maybeSingle()
             .then(({ data }) => {
               if (data) {
                 setAutoReply({
                   enabled: !!data.autoreply_enabled,
-                  system_prompt: data.autoreply_system_prompt || '',
                   only_outside_hours: !!data.autoreply_only_outside_hours,
                   business_start: data.autoreply_business_start || '08:00',
                   business_end: data.autoreply_business_end || '18:00',
                   disabled_phones: data.autoreply_disabled_phones || [],
-                  model: data.autoreply_model || 'google/gemini-3-flash-preview',
                 });
               }
               setAutoReplyLoading(false);
