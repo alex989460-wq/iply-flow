@@ -108,6 +108,24 @@ function ownerPhoneFromRaw(raw: unknown) {
   return sender.split('@')[0].split(':')[0].replace(/\D/g, '');
 }
 
+// Newsletter (canal/comunidade) JIDs do WhatsApp são números longos (~18 dígitos) e o chat termina em @newsletter
+function isNewsletterPhone(phone: string) {
+  return !!phone && /^\d{15,}$/.test(phone);
+}
+function isGroupJidPhone(phone: string) {
+  // group ids @g.us costumam ter formato 12345-67890 ou números muito longos
+  return !!phone && (phone.includes('-') || phone.length > 18);
+}
+function newsletterNameFromRaw(raw: unknown): string | null {
+  const meta = (getNestedValue(raw, ['data', 'NewsletterMeta'])
+    || getNestedValue(raw, ['NewsletterMeta'])
+    || getNestedValue(raw, ['data', 'Info', 'NewsletterMeta'])) as Record<string, unknown> | undefined;
+  if (!meta) return null;
+  const name = String(meta?.name || meta?.Name || meta?.title || meta?.Title || '').trim();
+  return name || null;
+}
+
+
 function rawInstanceName(raw: unknown) {
   return rawString(raw, [
     ['data', 'Info', 'Instance'],
@@ -321,22 +339,30 @@ export default function EvolutionChat() {
   const load = useCallback(async () => {
     if (!user) return;
     const hadCache = messagesRef.current.length > 0;
-    // Só mostra spinner se não há nada em cache (evita "recarregando" toda vez no mobile)
     if (!hadCache) setLoading(true);
     const [msgRes, contRes, presRes] = await Promise.all([
-      // Usa o índice (user_id, phone, created_at DESC) e limita a 1500 msgs recentes para evitar statement timeout
-      supabase.from('evolution_messages').select('*').eq('user_id', user.id).order('created_at', { ascending: false }).limit(1500),
+      // Reduzido de 1500 → 800: abre muito mais rápido no celular e a UI mostra "Carregar mais antigas" se precisar.
+      supabase.from('evolution_messages').select('*').eq('user_id', user.id).order('created_at', { ascending: false }).limit(800),
       supabase.from('evolution_contacts').select('phone, name, profile_pic_url').eq('user_id', user.id),
       supabase.from('evolution_presence').select('phone, presence, last_seen_at, updated_at').eq('user_id', user.id),
     ]);
     setLoading(false);
     if (msgRes.error) {
-      // Não derruba a UI: mantém o cache e só avisa quando não havia nada para mostrar
       if (!hadCache) toast({ title: 'Erro', description: msgRes.error.message, variant: 'destructive' });
       return;
     }
-    const raw = (((msgRes.data || []) as unknown) as EvoMessage[]).slice().reverse(); // volta a ordem ASC para o merge
-    const merged = raw.reduce((acc, msg) => mergeMessage(acc, msg), [] as EvoMessage[]);
+    // Dedup O(N) usando Map por id + external_id — antes era O(N²) com reduce/mergeMessage, travava no mobile
+    const byId = new Map<string, EvoMessage>();
+    const byExt = new Map<string, EvoMessage>();
+    const raw = (((msgRes.data || []) as unknown) as EvoMessage[]);
+    for (let i = raw.length - 1; i >= 0; i--) {
+      const m = raw[i];
+      if (byId.has(m.id)) continue;
+      if (m.external_id && byExt.has(m.external_id)) continue;
+      byId.set(m.id, m);
+      if (m.external_id) byExt.set(m.external_id, m);
+    }
+    const merged = Array.from(byId.values());
     setMessages(merged);
     const cmap: Record<string, EvoContact> = {};
     for (const c of ((contRes.data || []) as EvoContact[])) cmap[c.phone] = c;
@@ -346,12 +372,12 @@ export default function EvolutionChat() {
       if (p.last_seen_at) lmap[p.phone] = p.last_seen_at;
     }
     setLastSeenByPhone(lmap);
-    // Atualiza cache (trim para não estourar quota)
     try {
-      sessionStorage.setItem('evo_cache_messages', JSON.stringify(merged.slice(-1500)));
+      sessionStorage.setItem('evo_cache_messages', JSON.stringify(merged.slice(-800)));
       sessionStorage.setItem('evo_cache_contacts', JSON.stringify(cmap));
     } catch { /* quota cheia, ignora */ }
-  }, [user, toast, mergeMessage]);
+  }, [user, toast]);
+
 
   const selectedInstance = useMemo(() => {
     if (!currentInstance) return null;
@@ -450,8 +476,11 @@ export default function EvolutionChat() {
   // Fetch profile pic + subscribe to presence when opening a conversation
   useEffect(() => {
     if (!selectedPhone || selectedPhone.startsWith('status:')) return;
+    // Newsletters/canais e grupos não têm presence individual nem foto via getProfilePic — evita chamadas que retornam 404/erro
+    if (isNewsletterPhone(selectedPhone) || isGroupJidPhone(selectedPhone)) return;
     // Subscribe to presence so we receive "online", "digitando…", "visto por último…"
     invokeEvolution({ action: 'subscribe-presence', phone: selectedPhone }).catch(() => undefined);
+
     const c = contacts[selectedPhone];
     if (c?.profile_pic_url) return;
     if (avatarFetchRef.current.has(selectedPhone)) return;
@@ -618,8 +647,8 @@ export default function EvolutionChat() {
   useEffect(() => {
     const pending = conversations
       .map((c) => c.phone.startsWith('status:') ? c.phone.slice('status:'.length) : c.phone)
-      .filter((phone) => phone && phone !== 'me' && phone !== 'unknown' && !contacts[phone]?.profile_pic_url && !avatarFetchRef.current.has(phone))
-      .slice(0, 8);
+      .filter((phone) => phone && phone !== 'me' && phone !== 'unknown' && !isNewsletterPhone(phone) && !isGroupJidPhone(phone) && !contacts[phone]?.profile_pic_url && !avatarFetchRef.current.has(phone))
+      .slice(0, 3);
     pending.forEach((phone) => {
       avatarFetchRef.current.add(phone);
       invokeEvolution({ action: 'fetch-profile-pic', phone })
@@ -1002,35 +1031,99 @@ export default function EvolutionChat() {
 
   const renderMessageBody = (m: EvoMessage) => {
     const src = mediaSource(m);
+    // Imagem / sticker
     if ((m.message_type === 'image' || m.message_type === 'sticker') && src) {
-      const label = m.content.replace(/^📷\s*/, '').replace(/^\[sticker\]$/, 'Sticker');
+      const label = m.content.replace(/^📷\s*/, '').replace(/^\[sticker\]$/, '');
       return (
         <div className="space-y-1">
           <button type="button" onClick={() => setPreviewImage({ url: src, caption: label })} className="block focus:outline-none focus:ring-2 focus:ring-ring rounded-lg">
-            <img src={src} alt={label || 'Imagem da conversa'} className={cn('rounded-lg object-cover', m.message_type === 'sticker' ? 'max-w-32 max-h-32' : 'max-w-full max-h-64')} loading="lazy" />
+            <img src={src} alt={label || 'Imagem'} className={cn('rounded-lg object-cover', m.message_type === 'sticker' ? 'max-w-32 max-h-32' : 'max-w-[260px] max-h-72')} loading="lazy" />
           </button>
           {label && label !== 'Imagem' && <div className="text-sm">{label}</div>}
         </div>
       );
     }
-    if (m.message_type === 'image' && !m.media_url) {
-      return <div className="whitespace-pre-wrap break-words leading-snug">Imagem recebida</div>;
-    }
-    if (m.message_type === 'sticker' && !m.media_url) {
-      return <div className="whitespace-pre-wrap break-words leading-snug">Sticker recebido</div>;
-    }
-    if (m.message_type === 'audio' && m.media_url) {
-      return <audio controls src={m.media_url} className="max-w-[240px] h-9" />;
-    }
-    if (m.message_type === 'document' && m.media_url) {
+    // Imagem/sticker sem URL (criptografada)
+    if (m.message_type === 'image') {
       return (
-        <a href={m.media_url} target="_blank" rel="noreferrer" className="flex items-center gap-2 underline text-sm">
-          <FileText className="w-4 h-4" /> {m.content.replace(/^📎 /, '')}
-        </a>
+        <div className="flex items-center gap-2 px-2 py-2 rounded-md bg-black/20 text-xs">
+          <ImageIcon className="w-4 h-4 opacity-70" />
+          <span>Imagem (pré-visualização indisponível)</span>
+        </div>
       );
     }
+    if (m.message_type === 'sticker') return <div className="text-sm">🌟 Sticker</div>;
+
+    // Vídeo
+    if (m.message_type === 'video' && (m.media_url || src)) {
+      const v = m.media_url || src!;
+      return (
+        <div className="space-y-1">
+          <video src={v} controls preload="metadata" className="max-w-[280px] max-h-72 rounded-lg bg-black" />
+          {m.content && !m.content.startsWith('[') && <div className="text-sm">{m.content}</div>}
+        </div>
+      );
+    }
+
+    // Áudio (estilo WhatsApp: player completo, largura maior)
+    if (m.message_type === 'audio') {
+      if (m.media_url) {
+        return (
+          <div className="flex items-center gap-2 min-w-[220px]">
+            <div className="w-8 h-8 rounded-full bg-[#00a884]/20 flex items-center justify-center shrink-0">
+              <Mic className="w-4 h-4 text-[#00a884]" />
+            </div>
+            <audio controls src={m.media_url} className="h-9 flex-1" />
+          </div>
+        );
+      }
+      return (
+        <div className="flex items-center gap-2 px-2 py-1.5 text-xs">
+          <Mic className="w-4 h-4" /> Áudio recebido (mídia criptografada)
+        </div>
+      );
+    }
+
+    // Documento — card estilo WhatsApp (ícone + nome + mime + download)
+    if (m.message_type === 'document') {
+      const docInfo = (() => {
+        const doc = (getNestedValue(m.raw, ['data', 'Message', 'documentMessage'])
+          || getNestedValue(m.raw, ['Message', 'documentMessage'])
+          || getNestedValue(m.raw, ['message', 'documentMessage'])) as Record<string, unknown> | undefined;
+        const fileName = String(doc?.fileName || doc?.FileName || '').trim()
+          || m.content.replace(/^📎\s*/, '').trim()
+          || 'Documento';
+        const lenStr = String(doc?.fileLength || doc?.FileLength || '0');
+        const bytes = Number(lenStr) || 0;
+        const sizeLabel = bytes > 1048576 ? `${(bytes / 1048576).toFixed(1)} MB`
+          : bytes > 1024 ? `${Math.round(bytes / 1024)} KB`
+          : bytes > 0 ? `${bytes} B` : '';
+        const mime = m.media_mime || String(doc?.mimetype || '');
+        const ext = (fileName.split('.').pop() || mime.split('/').pop() || 'doc').toUpperCase().slice(0, 5);
+        return { fileName, sizeLabel, mime, ext };
+      })();
+      const card = (
+        <div className="flex items-center gap-3 min-w-[240px] max-w-[300px] px-2 py-2 rounded-md bg-black/20">
+          <div className="w-10 h-10 rounded-md bg-[#00a884]/15 flex items-center justify-center text-[10px] font-bold text-[#00a884] shrink-0">
+            {docInfo.ext}
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="text-sm font-medium truncate" title={docInfo.fileName}>{docInfo.fileName}</div>
+            <div className="text-[10px] text-[#aebac1] truncate">
+              {[docInfo.sizeLabel, docInfo.mime || 'documento'].filter(Boolean).join(' • ')}
+            </div>
+          </div>
+          {m.media_url && <FileText className="w-4 h-4 opacity-70 shrink-0" />}
+        </div>
+      );
+      return m.media_url
+        ? <a href={m.media_url} target="_blank" rel="noreferrer" className="block hover:opacity-90">{card}</a>
+        : card;
+    }
+
     return <div className="whitespace-pre-wrap break-words leading-snug">{m.content}</div>;
   };
+
 
   return (
     <DashboardLayout noPadding>
@@ -1150,11 +1243,18 @@ export default function EvolutionChat() {
                 const statusContactPhone = isStatusEntry && !isMyStatus ? c.phone.slice('status:'.length) : '';
                 const statusCC = statusContactPhone ? contacts[statusContactPhone] : null;
                 const cc = isStatusEntry ? statusCC : contacts[c.phone];
+                const isNewsletter = !isStatusEntry && isNewsletterPhone(c.phone);
+                const isGroup = !isStatusEntry && !isNewsletter && isGroupJidPhone(c.phone);
+                const channelName = isNewsletter ? newsletterNameFromRaw(c.last?.raw) : null;
                 const displayName = isMyStatus
                   ? 'Meu status'
                   : isStatusEntry
                     ? (statusCC?.name || c.name || formatPhone(statusContactPhone))
-                    : (contacts[c.phone]?.name || c.name || formatPhone(c.phone));
+                    : isNewsletter
+                      ? (contacts[c.phone]?.name || channelName || c.name || 'Canal do WhatsApp')
+                      : isGroup
+                        ? (contacts[c.phone]?.name || c.name || 'Grupo')
+                        : (contacts[c.phone]?.name || c.name || formatPhone(c.phone));
                 const isPinnedContact = pinnedContacts.has(c.phone);
                 return (
                   <ContextMenu key={c.phone}>
@@ -1169,18 +1269,26 @@ export default function EvolutionChat() {
                       >
                         <Avatar className="h-9 w-9 shrink-0">
                           {cc?.profile_pic_url && <AvatarImage src={cc.profile_pic_url} alt={displayName} />}
-                          <AvatarFallback className="text-[11px] bg-gradient-to-br from-primary/20 to-primary/5 text-primary">
-                            {initials(displayName, c.phone)}
+                          <AvatarFallback className={cn(
+                            'text-[11px]',
+                            isNewsletter ? 'bg-gradient-to-br from-blue-500/30 to-blue-700/20 text-blue-400'
+                            : isGroup ? 'bg-gradient-to-br from-purple-500/30 to-purple-700/20 text-purple-400'
+                            : 'bg-gradient-to-br from-primary/20 to-primary/5 text-primary'
+                          )}>
+                            {isNewsletter ? '📢' : isGroup ? '👥' : initials(displayName, c.phone)}
                           </AvatarFallback>
                         </Avatar>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between gap-2">
                             <div className="text-sm font-medium truncate flex items-center gap-1">
                               {isPinnedContact && <Pin className="w-3 h-3 text-emerald-500 shrink-0" />}
+                              {isNewsletter && <span className="text-[9px] px-1 rounded bg-blue-500/20 text-blue-400 shrink-0">CANAL</span>}
+                              {isGroup && <span className="text-[9px] px-1 rounded bg-purple-500/20 text-purple-400 shrink-0">GRUPO</span>}
                               {displayName}
                             </div>
                             <div className="text-[10px] text-muted-foreground shrink-0">{c.last ? relativeTime(c.last.created_at) : 'novo'}</div>
                           </div>
+
                           <div className="flex items-center justify-between gap-2 mt-0.5">
                             <div className="text-[11px] text-muted-foreground truncate">
                               {isOut && <span className="text-primary mr-1">✓</span>}
@@ -1620,6 +1728,24 @@ export default function EvolutionChat() {
                           send();
                         }
                       }}
+                      onPaste={(e) => {
+                        // Colar print/imagem do clipboard → abre o dialog de envio com legenda
+                        const items = e.clipboardData?.items;
+                        if (!items) return;
+                        for (let i = 0; i < items.length; i++) {
+                          const it = items[i];
+                          if (it.kind === 'file' && it.type.startsWith('image/')) {
+                            const file = it.getAsFile();
+                            if (file) {
+                              e.preventDefault();
+                              const named = new File([file], file.name || `print-${Date.now()}.png`, { type: file.type });
+                              setImageToSend({ file: named, url: URL.createObjectURL(named), caption: '' });
+                              return;
+                            }
+                          }
+                        }
+                      }}
+
                       rows={1}
                       className="flex-1 resize-none rounded-lg border-0 bg-[#2a3942] text-[#e9edef] placeholder:text-[#8696a0] px-4 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#00a884] max-h-32"
                       style={{ minHeight: 40 }}
