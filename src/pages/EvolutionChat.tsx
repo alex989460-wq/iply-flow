@@ -485,6 +485,19 @@ export default function EvolutionChat() {
 
   useEffect(() => { load(); loadInstances(); }, [load, loadInstances]);
 
+  // Carrega status do robô (somente o "enabled") para mostrar o badge no header.
+  useEffect(() => {
+    if (!user) return;
+    supabase
+      .from('evolution_settings')
+      .select('autoreply_enabled')
+      .eq('user_id', user.id)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data) setAutoReply((s) => ({ ...s, enabled: !!data.autoreply_enabled }));
+      });
+  }, [user]);
+
   useEffect(() => {
     if (!user) return;
     const ch = supabase
