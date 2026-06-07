@@ -12,9 +12,10 @@ import {
   Loader2, Send, Zap, Plus, RefreshCw, Search, MessageSquare,
   Phone, X, Smile, Mic, Paperclip, Trash2, Image as ImageIcon, FileText, Sticker, QrCode,
   Pin, PinOff, Info, Copy, ExternalLink, MoreVertical, ChevronDown,
-  Reply, Forward, Star, StarOff, Trash, Volume2, VolumeX,
+  Reply, Forward, Star, StarOff, Trash, Volume2, VolumeX, BookOpen, LifeBuoy, CheckCircle2,
 } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
+import KnowledgeBaseDialog from '@/components/chat/KnowledgeBaseDialog';
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from '@/components/ui/context-menu';
 import { Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
