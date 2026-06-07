@@ -69,8 +69,7 @@ export default function KnowledgeBaseDialog({ open, onOpenChange }: Props) {
   useEffect(() => {
     if (!open || !user) return;
     setLoading(true);
-    supabase
-      .from('ai_knowledge_entries' as any)
+    (supabase.from('ai_knowledge_entries' as any) as any)
       .select('*')
       .eq('user_id', user.id)
       .order('sort_order')
