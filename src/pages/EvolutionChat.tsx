@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import KnowledgeBaseDialog from '@/components/chat/KnowledgeBaseDialog';
-import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from '@/components/ui/context-menu';
+import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from '@/components/ui/context-menu';
 import { Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -840,10 +840,11 @@ export default function EvolutionChat() {
     toast({ title: 'Mensagem excluída' });
   };
 
-  const clearConversation = async () => {
-    if (!selectedPhone || !user) return;
+  const clearConversation = async (phoneOverride?: string) => {
+    const targetPhone = phoneOverride || selectedPhone;
+    if (!targetPhone || !user) return;
     if (!confirm('Apagar TODAS as mensagens desta conversa? Esta ação não pode ser desfeita.')) return;
-    const phone = selectedPhone;
+    const phone = targetPhone;
     const removed = messages.filter(m => m.phone === phone);
     setMessages(prev => prev.filter(m => m.phone !== phone));
     const { data, error } = await invokeEvolution({ action: 'delete-messages', phone });
@@ -1543,7 +1544,7 @@ export default function EvolutionChat() {
                         </ContextMenuItem>
                       )}
                       <ContextMenuSeparator />
-                      <ContextMenuItem onClick={() => { setSelectedPhone(c.phone); setTimeout(() => clearConversation(), 0); }} className="text-destructive focus:text-destructive">
+                      <ContextMenuItem onClick={() => clearConversation(c.phone)} className="text-destructive focus:text-destructive">
                         <Trash2 className="w-4 h-4 mr-2" /> Excluir conversa
                       </ContextMenuItem>
                     </ContextMenuContent>
