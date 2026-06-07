@@ -675,7 +675,8 @@ export default function EvolutionChat() {
       return new Date(b.lastAt || 0).getTime() - new Date(a.lastAt || 0).getTime();
     });
     let filtered = arr;
-    if (filter === 'unread') filtered = arr.filter(c => c.unread > 0 && c.last?.direction === 'in' && !isNewsletterPhone(c.phone));
+    if (filter === 'support') filtered = arr.filter(c => contacts[c.phone]?.needs_human === true && !isNewsletterPhone(c.phone));
+    else if (filter === 'unread') filtered = arr.filter(c => c.unread > 0 && c.last?.direction === 'in' && !isNewsletterPhone(c.phone));
     else if (filter === 'media') filtered = arr.filter(c => c.last && ['image', 'audio', 'document', 'sticker'].includes(c.last.message_type) && !isNewsletterPhone(c.phone));
     else if (filter === 'channels') filtered = arr.filter(c => isNewsletterPhone(c.phone));
     else if (filter === 'groups') filtered = arr.filter(c => c.phone && !c.phone.startsWith('status') && !isNewsletterPhone(c.phone) && isGroupJidPhone(c.phone));
