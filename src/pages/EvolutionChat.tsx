@@ -1177,6 +1177,7 @@ export default function EvolutionChat() {
         const ext = (fileName.split('.').pop() || mime.split('/').pop() || 'doc').toUpperCase().slice(0, 5);
         return { fileName, sizeLabel, mime, ext };
       })();
+      const isPdf = (docInfo.mime.toLowerCase().includes('pdf')) || docInfo.fileName.toLowerCase().endsWith('.pdf');
       const card = (
         <div className="flex items-center gap-3 min-w-[240px] max-w-[300px] px-2 py-2 rounded-md bg-black/20">
           <div className="w-10 h-10 rounded-md bg-[#00a884]/15 flex items-center justify-center text-[10px] font-bold text-[#00a884] shrink-0">
@@ -1191,6 +1192,19 @@ export default function EvolutionChat() {
           {m.media_url && <FileText className="w-4 h-4 opacity-70 shrink-0" />}
         </div>
       );
+      // PDF — preview inline (igual imagem), com link de download.
+      if (isPdf && m.media_url) {
+        return (
+          <div className="space-y-1.5 max-w-[320px]">
+            <object data={m.media_url} type="application/pdf" className="w-full h-[400px] rounded-md bg-black/20 border border-white/5">
+              <iframe src={m.media_url} title={docInfo.fileName} className="w-full h-full rounded-md" />
+            </object>
+            <a href={m.media_url} target="_blank" rel="noreferrer" className="block hover:opacity-90">
+              {card}
+            </a>
+          </div>
+        );
+      }
       return m.media_url
         ? <a href={m.media_url} target="_blank" rel="noreferrer" className="block hover:opacity-90">{card}</a>
         : card;
