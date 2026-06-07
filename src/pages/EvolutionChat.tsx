@@ -1911,7 +1911,7 @@ export default function EvolutionChat() {
                 </Button>
               </div>
               <div className="flex-1 overflow-auto">
-                <QuickRenewalPanel isMobile onClose={() => setShowRenewalPanel(false)} />
+                <QuickRenewalPanel isMobile onClose={() => setShowRenewalPanel(false)} initialPhone={selectedPhone && !selectedPhone.startsWith('status') ? selectedPhone : null} />
               </div>
             </div>
           </div>
