@@ -359,6 +359,7 @@ Deno.serve(async (req) => {
             : '';
           if (mapped) for (const id of ids) updates.push({ id, status: mapped });
         }
+        const receiptPhone = jidToPhone(String(data?.Chat || data?.chat || data?.Sender || data?.sender || data?.remoteJid || data?.key?.remoteJid || ''));
         // Apply: only upgrade status (don't downgrade)
         const rank: Record<string, number> = { sent: 1, delivered: 2, read: 3 };
         for (const u of updates) {
@@ -372,6 +373,15 @@ Deno.serve(async (req) => {
           if ((rank[u.status] || 0) > (rank[existing.status as string] || 0)) {
             await admin.from('evolution_messages').update({ status: u.status }).eq('id', existing.id);
           }
+        }
+        if (!updates.length && receiptPhone && /read|played/.test(receiptType)) {
+          await admin
+            .from('evolution_messages')
+            .update({ status: 'read' })
+            .eq('user_id', settings.user_id)
+            .eq('phone', receiptPhone)
+            .eq('direction', 'in')
+            .neq('status', 'read');
         }
         return new Response(JSON.stringify({ ok: true, updates: updates.length }), {
           status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
