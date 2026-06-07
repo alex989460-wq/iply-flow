@@ -40,6 +40,10 @@ interface KbEntry {
   category: string;
   keywords: string[];
   response_template: string;
+  media_url?: string | null;
+  media_mime?: string | null;
+  media_type?: string | null;
+  media_filename?: string | null;
   requires_human: boolean;
 }
 
@@ -244,7 +248,8 @@ Deno.serve(async (req) => {
     if (!settings?.autoreply_enabled) {
       return new Response(JSON.stringify({ ok: true, skipped: 'disabled' }), { status: 200, headers: corsHeaders });
     }
-    if ((settings.autoreply_disabled_phones || []).includes(phone)) {
+    const disabledPhones = new Set((settings.autoreply_disabled_phones || []).map((p: string) => normalizeChatPhone(p)));
+    if (disabledPhones.has(normalizeChatPhone(phone))) {
       return new Response(JSON.stringify({ ok: true, skipped: 'opted_out' }), { status: 200, headers: corsHeaders });
     }
     if (settings.autoreply_only_outside_hours && isWithinBusinessHours(settings.autoreply_business_start, settings.autoreply_business_end)) {
@@ -272,7 +277,7 @@ Deno.serve(async (req) => {
     // Load knowledge base
     const { data: kbRows } = await admin
       .from('ai_knowledge_entries')
-      .select('id, title, category, keywords, response_template, requires_human')
+      .select('id, title, category, keywords, response_template, media_url, media_mime, media_type, media_filename, requires_human')
       .eq('user_id', user_id)
       .eq('is_enabled', true)
       .order('sort_order', { ascending: true });
@@ -287,7 +292,25 @@ Deno.serve(async (req) => {
       }, { onConflict: 'user_id,phone' as any });
     };
 
-    const sendReply = async (replyText: string, category: string | null, kbId: string | null) => {
+    const alreadyRepliedIn24h = async (kbId: string, replyText: string) => {
+      const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+      const { data } = await admin
+        .from('evolution_messages')
+        .select('id')
+        .eq('user_id', user_id)
+        .eq('phone', phone)
+        .eq('direction', 'out')
+        .neq('status', 'failed')
+        .gte('created_at', since)
+        .or(`raw.cs.{"__autoreply":true,"__kb":"${kbId}"},content.eq.${replyText.replace(/[,()]/g, ' ')}`)
+        .limit(1);
+      return !!data?.length;
+    };
+
+    const sendReply = async (entry: KbEntry) => {
+      const replyText = String(entry.response_template || '').trim();
+      const category = entry.category || null;
+      const kbId = entry.id || null;
       const baseUrl = (settings.base_url || '').replace(/\/+$/, '');
       const evoKey = settings.api_key || '';
       const instance = settings.instance_name || '';
@@ -319,7 +342,21 @@ Deno.serve(async (req) => {
       } : null;
 
       const attempts: Array<{ url: string; headers: Record<string, string>; body: any; mode: string }> = [];
+      const mediaUrl = String(entry.media_url || '').trim();
+      const mediaType = String(entry.media_type || (entry.media_mime?.startsWith('image/') ? 'image' : 'document') || 'document');
+      const mime = String(entry.media_mime || (mediaType === 'image' ? 'image/jpeg' : 'application/octet-stream'));
+      const filename = String(entry.media_filename || `resposta-${Date.now()}`);
+
       for (const target of sendTargets) {
+        if (mediaUrl) {
+          const goType = mediaType === 'image' ? 'image' : mediaType === 'video' ? 'video' : 'document';
+          attempts.push(
+            { url: `${baseUrl}/send/media`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: target.value, type: goType, url: mediaUrl, filename, caption: replyText, formatJid: target.kind !== 'jid' }, mode: `evolution-go-media-${target.kind}` },
+            { url: `${baseUrl}/message/sendMedia`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: target.value, type: goType, url: mediaUrl, filename, caption: replyText }, mode: `evolution-go-message-media-${target.kind}` },
+            { url: `${baseUrl}/message/sendMedia/${encodeURIComponent(instance)}`, headers: evolutionHeaders(evoKey, true), body: { number: target.value, mediatype: goType, mimetype: mime, fileName: filename, caption: replyText, media: mediaUrl }, mode: `evolution-api-media-${target.kind}` },
+          );
+          continue;
+        }
         const goBody: Record<string, unknown> = { number: target.value, text: replyText };
         const goBodyMsg: Record<string, unknown> = { number: target.value, message: replyText };
         const classicBody: Record<string, unknown> = { number: target.value, text: replyText };
@@ -347,7 +384,7 @@ Deno.serve(async (req) => {
       let mode = 'evolution-api-v1';
       const log: any[] = [];
       for (const att of attempts) {
-        const timeout = att.mode.startsWith('evolution-go-send') ? 30000 : 8000;
+        const timeout = 8000;
         const r = await fetchJson(att.url, { method: 'POST', headers: att.headers, body: JSON.stringify(att.body) }, timeout)
           .catch((error) => ({ ok: false, status: 0, data: { error: String(error?.message || error) } }));
         log.push({ mode: att.mode, status: r.status, error: getEvolutionErrorText(r.data).slice(0, 180) });
@@ -366,7 +403,7 @@ Deno.serve(async (req) => {
         await admin.from('evolution_messages').insert({
           user_id, instance_name: instance,
           remote_jid: primaryTarget.includes('@') ? primaryTarget : `${primaryTarget}@s.whatsapp.net`,
-          phone, direction: 'out', content: replyText, message_type: 'text', status: 'failed',
+          phone, direction: 'out', content: replyText || (mediaUrl ? `📎 ${filename}` : ''), message_type: mediaUrl ? mediaType : 'text', status: 'failed', media_url: mediaUrl || null, media_mime: mediaUrl ? mime : null,
           external_id: `failed-auto-${crypto.randomUUID()}`,
           raw: {
             __autoreply: true,
@@ -386,7 +423,7 @@ Deno.serve(async (req) => {
       const externalId = sendData?.key?.id || sendData?.messageId || sendData?.data?.Info?.ID || sendData?.Info?.ID || `auto-${crypto.randomUUID()}`;
       await admin.from('evolution_messages').insert({
         user_id, instance_name: instance, remote_jid: sendData?.data?.Info?.Chat || sendData?.Info?.Chat || (primaryTarget.includes('@') ? primaryTarget : `${primaryTarget}@s.whatsapp.net`), phone,
-        direction: 'out', content: replyText, message_type: 'text', status: 'sent',
+        direction: 'out', content: replyText || (mediaUrl ? `📎 ${filename}` : ''), message_type: mediaUrl ? mediaType : 'text', media_url: mediaUrl || null, media_mime: mediaUrl ? mime : null, status: 'sent',
         external_id: externalId, raw: { ...sendData, __autoreply: true, __kb: kbId, __category: category, __mode: mode, __attempts: log },
       });
       // Mark contact category, but not needs_human (we answered it)
