@@ -107,6 +107,23 @@ async function resolveSendTargets(admin: any, userId: string, phone: string) {
   if (normalizedPhone) pushUniqueTarget(targets, normalizedPhone);
   if (normalizedPhone) pushUniqueTarget(targets, `${normalizedPhone}@s.whatsapp.net`);
 
+  // Brazilian 9th-digit fallback: when sending to a new contact (no history),
+  // also try the variant with/without the 9 after the DDD so numbers saved in
+  // either format reach WhatsApp.
+  if (normalizedPhone.startsWith('55') && normalizedPhone.length >= 12) {
+    const ddd = normalizedPhone.slice(2, 4);
+    const rest = normalizedPhone.slice(4);
+    if (rest.length === 9 && rest.startsWith('9')) {
+      const without9 = `55${ddd}${rest.slice(1)}`;
+      pushUniqueTarget(targets, without9);
+      pushUniqueTarget(targets, `${without9}@s.whatsapp.net`);
+    } else if (rest.length === 8) {
+      const with9 = `55${ddd}9${rest}`;
+      pushUniqueTarget(targets, with9);
+      pushUniqueTarget(targets, `${with9}@s.whatsapp.net`);
+    }
+  }
+
   const lids = targets.filter((t) => t.kind === 'lid');
   const jids = targets.filter((t) => t.kind === 'jid' && t.value.startsWith('55'));
   const phones = targets.filter((t) => t.kind === 'phone' && t.value.startsWith('55'));
