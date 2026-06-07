@@ -318,18 +318,23 @@ export default function EvolutionChat() {
 
   const load = useCallback(async () => {
     if (!user) return;
-    setLoading(true);
+    // Só mostra spinner se não há nada em cache (evita "recarregando" toda vez no mobile)
+    setLoading((prev) => prev && messages.length === 0);
     const [msgRes, contRes, presRes] = await Promise.all([
-      supabase.from('evolution_messages').select('*').eq('user_id', user.id).order('created_at', { ascending: true }).limit(3000),
+      // Usa o índice (user_id, phone, created_at DESC) e limita a 1500 msgs recentes para evitar statement timeout
+      supabase.from('evolution_messages').select('*').eq('user_id', user.id).order('created_at', { ascending: false }).limit(1500),
       supabase.from('evolution_contacts').select('phone, name, profile_pic_url').eq('user_id', user.id),
       supabase.from('evolution_presence').select('phone, presence, last_seen_at, updated_at').eq('user_id', user.id),
     ]);
     setLoading(false);
     if (msgRes.error) {
-      toast({ title: 'Erro', description: msgRes.error.message, variant: 'destructive' });
+      // Não derruba a UI: mantém o cache e só avisa
+      if (messages.length === 0) toast({ title: 'Erro', description: msgRes.error.message, variant: 'destructive' });
       return;
     }
-    setMessages((((msgRes.data || []) as unknown) as EvoMessage[]).reduce((acc, msg) => mergeMessage(acc, msg), [] as EvoMessage[]));
+    const raw = (((msgRes.data || []) as unknown) as EvoMessage[]).slice().reverse(); // volta a ordem ASC para o merge
+    const merged = raw.reduce((acc, msg) => mergeMessage(acc, msg), [] as EvoMessage[]);
+    setMessages(merged);
     const cmap: Record<string, EvoContact> = {};
     for (const c of ((contRes.data || []) as EvoContact[])) cmap[c.phone] = c;
     setContacts(cmap);
@@ -338,7 +343,12 @@ export default function EvolutionChat() {
       if (p.last_seen_at) lmap[p.phone] = p.last_seen_at;
     }
     setLastSeenByPhone(lmap);
-  }, [user, toast, mergeMessage]);
+    // Atualiza cache (trim para não estourar quota)
+    try {
+      sessionStorage.setItem('evo_cache_messages', JSON.stringify(merged.slice(-1500)));
+      sessionStorage.setItem('evo_cache_contacts', JSON.stringify(cmap));
+    } catch { /* quota cheia, ignora */ }
+  }, [user, toast, mergeMessage, messages.length]);
 
   const selectedInstance = useMemo(() => {
     if (!currentInstance) return null;
