@@ -2190,7 +2190,7 @@ export default function EvolutionChat() {
                 <Zap className="w-4 h-4 text-primary" /> Robô de auto-atendimento (IA)
               </h3>
               <p className="text-[11px] text-muted-foreground mt-1">
-                Quando ativado, mensagens novas de clientes são respondidas automaticamente pela IA.
+                Quando ativado, mensagens novas de clientes são respondidas automaticamente usando somente a Base de Conhecimento.
                 Se você responder manualmente, o robô para de responder essa conversa.
                 Funciona apenas em mensagens de texto de contatos individuais (não em grupos/canais/status).
               </p>
@@ -2210,33 +2210,8 @@ export default function EvolutionChat() {
                   />
                 </label>
 
-                <div>
-                  <div className="text-xs font-medium mb-1">Instruções para a IA (prompt)</div>
-                  <textarea
-                    value={autoReply.system_prompt}
-                    onChange={(e) => setAutoReply(s => ({ ...s, system_prompt: e.target.value }))}
-                    rows={6}
-                    className="w-full rounded-md border border-border bg-background p-2 text-xs focus:outline-none focus:ring-2 focus:ring-primary/40"
-                    placeholder="Você é um atendente cordial..."
-                  />
-                  <div className="text-[10px] text-muted-foreground mt-1">
-                    Dica: oriente a IA a chamar um humano quando o cliente pedir preço, status de pagamento, ativação ou suporte técnico complexo.
-                  </div>
-                </div>
-
-                <div>
-                  <div className="text-xs font-medium mb-1">Modelo de IA</div>
-                  <select
-                    value={autoReply.model}
-                    onChange={(e) => setAutoReply(s => ({ ...s, model: e.target.value }))}
-                    className="w-full rounded-md border border-border bg-background p-2 text-xs"
-                  >
-                    <option value="google/gemini-3-flash-preview">Gemini 3 Flash (rápido, recomendado)</option>
-                    <option value="google/gemini-2.5-flash">Gemini 2.5 Flash (estável)</option>
-                    <option value="google/gemini-2.5-pro">Gemini 2.5 Pro (mais inteligente)</option>
-                    <option value="openai/gpt-5-mini">GPT-5 Mini</option>
-                    <option value="openai/gpt-5">GPT-5 (mais caro)</option>
-                  </select>
+                <div className="rounded-md border border-border bg-card p-2 text-[11px] text-muted-foreground">
+                  O robô procura as palavras-chave cadastradas na Base de Conhecimento e envia exatamente a resposta salva lá.
                 </div>
 
                 <label className="flex items-center justify-between gap-2 rounded-md border border-border p-2">
@@ -2293,12 +2268,10 @@ export default function EvolutionChat() {
                         .from('evolution_settings')
                         .update({
                           autoreply_enabled: autoReply.enabled,
-                          autoreply_system_prompt: autoReply.system_prompt,
                           autoreply_only_outside_hours: autoReply.only_outside_hours,
                           autoreply_business_start: autoReply.business_start,
                           autoreply_business_end: autoReply.business_end,
                           autoreply_disabled_phones: autoReply.disabled_phones,
-                          autoreply_model: autoReply.model,
                         })
                         .eq('user_id', user.id);
                       setAutoReplySaving(false);
