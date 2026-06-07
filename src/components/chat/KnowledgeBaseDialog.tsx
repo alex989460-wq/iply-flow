@@ -4,7 +4,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Loader2, Plus, Trash2, BookOpen, GripVertical } from 'lucide-react';
+import { Loader2, Plus, Trash2, BookOpen, GripVertical, Paperclip, X } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 interface KbEntry {
@@ -14,6 +14,10 @@ interface KbEntry {
   category: string;
   keywords: string[];
   response_template: string;
+  media_url?: string | null;
+  media_mime?: string | null;
+  media_type?: string | null;
+  media_filename?: string | null;
   requires_human: boolean;
   is_enabled: boolean;
   sort_order: number;
@@ -64,6 +68,7 @@ export default function KnowledgeBaseDialog({ open, onOpenChange }: Props) {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [uploadingId, setUploadingId] = useState<string | null>(null);
   const [entries, setEntries] = useState<KbEntry[]>([]);
 
   useEffect(() => {
@@ -145,6 +150,10 @@ export default function KnowledgeBaseDialog({ open, onOpenChange }: Props) {
           category: e.category,
           keywords: e.keywords.map(k => k.trim()).filter(Boolean),
           response_template: e.response_template,
+          media_url: e.media_url || null,
+          media_mime: e.media_mime || null,
+          media_type: e.media_type || null,
+          media_filename: e.media_filename || null,
           requires_human: e.requires_human,
           is_enabled: e.is_enabled,
           sort_order: i,
@@ -161,6 +170,35 @@ export default function KnowledgeBaseDialog({ open, onOpenChange }: Props) {
       toast({ title: 'Erro ao salvar', description: String((err as Error).message), variant: 'destructive' });
     } finally {
       setSaving(false);
+    }
+  };
+
+  const uploadMedia = async (entryId: string, file: File) => {
+    if (!user) return;
+    setUploadingId(entryId);
+    try {
+      const ext = file.name.split('.').pop() || 'bin';
+      const mediaType = file.type.startsWith('image/') ? 'image' : file.type.startsWith('video/') ? 'video' : 'document';
+      const path = `${user.id}/kb-${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+      const { error: upErr } = await supabase.storage
+        .from('evolution-media')
+        .upload(path, file, { contentType: file.type || 'application/octet-stream', upsert: true });
+      if (upErr) throw upErr;
+      const { data: signed } = await supabase.storage
+        .from('evolution-media')
+        .createSignedUrl(path, 60 * 60 * 24 * 365 * 5);
+      if (!signed?.signedUrl) throw new Error('Falha ao gerar link do anexo');
+      updateEntry(entryId, {
+        media_url: signed.signedUrl,
+        media_mime: file.type || 'application/octet-stream',
+        media_type: mediaType,
+        media_filename: file.name,
+      });
+      toast({ title: 'Anexo adicionado', description: 'Clique em Salvar tudo para gravar no robô.' });
+    } catch (err) {
+      toast({ title: 'Erro ao anexar mídia', description: String((err as Error).message), variant: 'destructive' });
+    } finally {
+      setUploadingId(null);
     }
   };
 
