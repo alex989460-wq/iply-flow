@@ -316,10 +316,13 @@ export default function EvolutionChat() {
     return [...prev, incoming];
   }, []);
 
+  const messagesRef = useRef<EvoMessage[]>(messages);
+  useEffect(() => { messagesRef.current = messages; }, [messages]);
   const load = useCallback(async () => {
     if (!user) return;
+    const hadCache = messagesRef.current.length > 0;
     // Só mostra spinner se não há nada em cache (evita "recarregando" toda vez no mobile)
-    setLoading((prev) => prev && messages.length === 0);
+    if (!hadCache) setLoading(true);
     const [msgRes, contRes, presRes] = await Promise.all([
       // Usa o índice (user_id, phone, created_at DESC) e limita a 1500 msgs recentes para evitar statement timeout
       supabase.from('evolution_messages').select('*').eq('user_id', user.id).order('created_at', { ascending: false }).limit(1500),
@@ -328,8 +331,8 @@ export default function EvolutionChat() {
     ]);
     setLoading(false);
     if (msgRes.error) {
-      // Não derruba a UI: mantém o cache e só avisa
-      if (messages.length === 0) toast({ title: 'Erro', description: msgRes.error.message, variant: 'destructive' });
+      // Não derruba a UI: mantém o cache e só avisa quando não havia nada para mostrar
+      if (!hadCache) toast({ title: 'Erro', description: msgRes.error.message, variant: 'destructive' });
       return;
     }
     const raw = (((msgRes.data || []) as unknown) as EvoMessage[]).slice().reverse(); // volta a ordem ASC para o merge
@@ -348,7 +351,7 @@ export default function EvolutionChat() {
       sessionStorage.setItem('evo_cache_messages', JSON.stringify(merged.slice(-1500)));
       sessionStorage.setItem('evo_cache_contacts', JSON.stringify(cmap));
     } catch { /* quota cheia, ignora */ }
-  }, [user, toast, mergeMessage, messages.length]);
+  }, [user, toast, mergeMessage]);
 
   const selectedInstance = useMemo(() => {
     if (!currentInstance) return null;
