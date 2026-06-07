@@ -303,6 +303,7 @@ export default function EvolutionChat() {
     try { localStorage.setItem('evo_sound_enabled', soundEnabled ? '1' : '0'); } catch { /* noop */ }
   }, [soundEnabled]);
   const lastSoundAtRef = useRef<number>(0);
+  const audioCtxRef = useRef<AudioContext | null>(null);
   const playNotificationSound = useCallback(() => {
     if (!soundEnabledRef.current) return;
     const now = Date.now();
@@ -311,19 +312,21 @@ export default function EvolutionChat() {
     try {
       const Ctx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
       if (!Ctx) return;
-      const ctx = new Ctx();
+      const ctx = audioCtxRef.current || new Ctx();
+      audioCtxRef.current = ctx;
+      if (ctx.state === 'suspended') void ctx.resume();
       const o = ctx.createOscillator();
       const g = ctx.createGain();
       o.connect(g); g.connect(ctx.destination);
-      o.type = 'sine';
-      o.frequency.setValueAtTime(880, ctx.currentTime);
-      o.frequency.setValueAtTime(1320, ctx.currentTime + 0.08);
+      o.type = 'triangle';
+      o.frequency.setValueAtTime(740, ctx.currentTime);
+      o.frequency.exponentialRampToValueAtTime(1180, ctx.currentTime + 0.09);
+      o.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.18);
       g.gain.setValueAtTime(0.0001, ctx.currentTime);
-      g.gain.exponentialRampToValueAtTime(0.25, ctx.currentTime + 0.02);
-      g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.35);
+      g.gain.exponentialRampToValueAtTime(0.18, ctx.currentTime + 0.015);
+      g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.28);
       o.start();
-      o.stop(ctx.currentTime + 0.35);
-      setTimeout(() => ctx.close().catch(() => undefined), 600);
+      o.stop(ctx.currentTime + 0.3);
     } catch { /* noop */ }
   }, []);
 
@@ -333,13 +336,14 @@ export default function EvolutionChat() {
       try {
         const Ctx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
         if (!Ctx) return;
-        const ctx = new Ctx();
+        const ctx = audioCtxRef.current || new Ctx();
+        audioCtxRef.current = ctx;
+        if (ctx.state === 'suspended') void ctx.resume();
         const buf = ctx.createBuffer(1, 1, 22050);
         const src = ctx.createBufferSource();
         src.buffer = buf;
         src.connect(ctx.destination);
         src.start(0);
-        setTimeout(() => ctx.close().catch(() => undefined), 200);
       } catch { /* noop */ }
       window.removeEventListener('click', unlock);
       window.removeEventListener('keydown', unlock);
@@ -430,7 +434,7 @@ export default function EvolutionChat() {
     const [msgRes, contRes, presRes] = await Promise.all([
       // Reduzido de 1500 → 800: abre muito mais rápido no celular e a UI mostra "Carregar mais antigas" se precisar.
       supabase.from('evolution_messages').select('*').eq('user_id', user.id).order('created_at', { ascending: false }).limit(800),
-      (supabase.from('evolution_contacts') as any).select('phone, name, profile_pic_url, needs_human, ai_category').eq('user_id', user.id),
+      supabase.from('evolution_contacts').select('phone, name, profile_pic_url, needs_human, ai_category').eq('user_id', user.id),
       supabase.from('evolution_presence').select('phone, presence, last_seen_at, updated_at').eq('user_id', user.id),
     ]);
     setLoading(false);
@@ -1575,8 +1579,8 @@ export default function EvolutionChat() {
                   <Button size="sm" variant="outline" className="h-7 text-[11px] px-2 border-amber-500/40 text-amber-600 hover:bg-amber-500/10"
                     onClick={async () => {
                       if (!user || !selectedPhone) return;
-                      const { error } = await (supabase
-                        .from('evolution_contacts') as any)
+                      const { error } = await supabase
+                        .from('evolution_contacts')
                         .update({ needs_human: false })
                         .eq('user_id', user.id).eq('phone', selectedPhone);
                       if (error) toast({ title: 'Erro', description: error.message, variant: 'destructive' });
