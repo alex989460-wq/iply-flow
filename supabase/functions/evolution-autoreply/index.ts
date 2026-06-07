@@ -101,6 +101,35 @@ function pushUniqueTarget(targets: Array<{ value: string; kind: 'lid' | 'jid' | 
   if (!targets.some((t) => t.value === target)) targets.push({ value: target, kind });
 }
 
+function collectJidsDeep(value: unknown, out: string[] = []) {
+  if (typeof value === 'string') {
+    if (/@(lid|s\.whatsapp\.net)\b/i.test(value)) out.push(value);
+    return out;
+  }
+  if (!value || typeof value !== 'object') return out;
+  for (const child of Object.values(value as Record<string, unknown>)) collectJidsDeep(child, out);
+  return out;
+}
+
+async function resolveValidatedTargets(baseUrl: string, apiKey: string, instanceId: string, phone: string) {
+  const targets: Array<{ value: string; kind: 'lid' | 'jid' | 'phone' }> = [];
+  const digits = String(phone || '').replace(/\D/g, '');
+  if (!digits) return targets;
+  const jid = `${digits}@s.whatsapp.net`;
+  const headers = evolutionHeaders(apiKey, true, instanceId);
+  const probes = [
+    { url: `${baseUrl}/user/check`, body: { number: [digits], formatJid: true } },
+    { url: `${baseUrl}/user/check`, body: { number: [jid], formatJid: true } },
+    { url: `${baseUrl}/user/info`, body: { number: [digits], formatJid: true } },
+    { url: `${baseUrl}/user/info`, body: { number: [jid], formatJid: true } },
+  ];
+  for (const probe of probes) {
+    const r = await fetchJson(probe.url, { method: 'POST', headers, body: JSON.stringify(probe.body) }, 5000).catch(() => null);
+    for (const found of collectJidsDeep(r?.data)) pushUniqueTarget(targets, found);
+  }
+  return targets;
+}
+
 async function resolveSendTargets(admin: any, userId: string, phone: string) {
   const targets: Array<{ value: string; kind: 'lid' | 'jid' | 'phone' }> = [];
   const phoneDigits = String(phone || '').replace(/\D/g, '');
