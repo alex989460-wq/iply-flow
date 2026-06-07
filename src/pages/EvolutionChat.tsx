@@ -727,7 +727,7 @@ export default function EvolutionChat() {
     });
     let filtered = arr;
     if (filter === 'support') filtered = arr.filter(c => contacts[c.phone]?.needs_human === true && !isNewsletterPhone(c.phone));
-    else if (filter === 'unread') filtered = arr.filter(c => c.unread > 0 && c.last?.direction === 'in' && !isNewsletterPhone(c.phone));
+    else if (filter === 'unread') filtered = arr.filter(c => c.unread > 0 && !isNewsletterPhone(c.phone));
     else if (filter === 'media') filtered = arr.filter(c => c.last && ['image', 'audio', 'document', 'sticker'].includes(c.last.message_type) && !isNewsletterPhone(c.phone));
     else if (filter === 'channels') filtered = arr.filter(c => isNewsletterPhone(c.phone));
     else if (filter === 'groups') filtered = arr.filter(c => c.phone && !c.phone.startsWith('status') && !isNewsletterPhone(c.phone) && isGroupJidPhone(c.phone));
@@ -1518,7 +1518,7 @@ export default function EvolutionChat() {
                               {isOut && <span className="text-primary mr-1">✓</span>}
                               {c.last?.content || 'Nova conversa'}
                             </div>
-                            {!active && c.unread > 0 && c.last?.direction === 'in' && (
+                            {!active && c.unread > 0 && (
                               <Badge className="h-4 min-w-4 px-1 text-[9px] bg-primary">{c.unread > 99 ? '99+' : c.unread}</Badge>
                             )}
                           </div>
