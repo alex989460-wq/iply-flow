@@ -225,13 +225,13 @@ Deno.serve(async (req) => {
     // Anti-loop
     const { data: recent } = await admin
       .from('evolution_messages')
-      .select('id, external_id, direction, content, created_at, message_type')
+      .select('id, external_id, direction, content, created_at, message_type, status, raw')
       .eq('user_id', user_id)
       .eq('phone', phone)
       .order('created_at', { ascending: false })
       .limit(20);
 
-    const lastOut = recent?.find((m) => m.direction === 'out');
+    const lastOut = recent?.find((m) => m.direction === 'out' && m.status !== 'failed');
     if (lastOut && Date.now() - new Date(lastOut.created_at).getTime() < 20000) {
       return new Response(JSON.stringify({ ok: true, skipped: 'cooldown' }), { status: 200, headers: corsHeaders });
     }
@@ -331,6 +331,22 @@ Deno.serve(async (req) => {
       }
       if (!result.ok) {
         console.error('[autoreply] all send attempts failed', log, result.data);
+        await admin.from('evolution_messages').insert({
+          user_id, instance_name: instance,
+          remote_jid: primaryTarget.includes('@') ? primaryTarget : `${primaryTarget}@s.whatsapp.net`,
+          phone, direction: 'out', content: replyText, message_type: 'text', status: 'failed',
+          external_id: `failed-auto-${crypto.randomUUID()}`,
+          raw: {
+            __autoreply: true,
+            __autoreply_failed: true,
+            __kb: kbId,
+            __category: category,
+            __mode: 'failed',
+            __attempts: log,
+            __error: isEvolutionReachoutLock(result.data) ? 'whatsapp_reachout_locked_463' : 'send_failed',
+            __lastResponse: result.data,
+          },
+        });
         return { sent: false, error: 'send_failed', sendData: result.data, attempts: log };
       }
 
