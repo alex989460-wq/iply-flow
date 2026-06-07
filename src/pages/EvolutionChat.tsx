@@ -231,6 +231,26 @@ export default function EvolutionChat() {
   const [soundEnabled, setSoundEnabled] = useState<boolean>(() => {
     try { return localStorage.getItem('evo_sound_enabled') !== '0'; } catch { return true; }
   });
+  const [showAutoReplySettings, setShowAutoReplySettings] = useState(false);
+  const [autoReply, setAutoReply] = useState<{
+    enabled: boolean;
+    system_prompt: string;
+    only_outside_hours: boolean;
+    business_start: string;
+    business_end: string;
+    disabled_phones: string[];
+    model: string;
+  }>({
+    enabled: false,
+    system_prompt: '',
+    only_outside_hours: false,
+    business_start: '08:00',
+    business_end: '18:00',
+    disabled_phones: [],
+    model: 'google/gemini-3-flash-preview',
+  });
+  const [autoReplyLoading, setAutoReplyLoading] = useState(false);
+  const [autoReplySaving, setAutoReplySaving] = useState(false);
   const [showStatusComposer, setShowStatusComposer] = useState(false);
   const [statusDraft, setStatusDraft] = useState('');
   const [postingStatus, setPostingStatus] = useState(false);
