@@ -12,7 +12,7 @@ import {
   Loader2, Send, Zap, Plus, RefreshCw, Search, MessageSquare,
   Phone, X, Smile, Mic, Paperclip, Trash2, Image as ImageIcon, FileText, Sticker, QrCode,
   Pin, PinOff, Info, Copy, ExternalLink, MoreVertical, ChevronDown,
-  Reply, Forward, Star, StarOff, Trash,
+  Reply, Forward, Star, StarOff, Trash, Volume2, VolumeX,
 } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from '@/components/ui/context-menu';
@@ -227,7 +227,10 @@ export default function EvolutionChat() {
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [imageToSend, setImageToSend] = useState<{ file: File; url: string; caption: string } | null>(null);
   const [docToSend, setDocToSend] = useState<{ file: File; caption: string } | null>(null);
-  const [filter, setFilter] = useState<'all' | 'unread' | 'media' | 'groups' | 'contacts' | 'status'>('all');
+  const [filter, setFilter] = useState<'all' | 'unread' | 'media' | 'groups' | 'channels' | 'contacts' | 'status'>('all');
+  const [soundEnabled, setSoundEnabled] = useState<boolean>(() => {
+    try { return localStorage.getItem('evo_sound_enabled') !== '0'; } catch { return true; }
+  });
   const [showStatusComposer, setShowStatusComposer] = useState(false);
   const [statusDraft, setStatusDraft] = useState('');
   const [postingStatus, setPostingStatus] = useState(false);
@@ -267,6 +270,37 @@ export default function EvolutionChat() {
   const presenceSentAtRef = useRef<number>(0);
   const presencePausedTimerRef = useRef<number | null>(null);
   const presenceTickRef = useRef<number>(0);
+  const selectedPhoneRef = useRef<string | null>(selectedPhone);
+  useEffect(() => { selectedPhoneRef.current = selectedPhone; }, [selectedPhone]);
+  const soundEnabledRef = useRef<boolean>(soundEnabled);
+  useEffect(() => {
+    soundEnabledRef.current = soundEnabled;
+    try { localStorage.setItem('evo_sound_enabled', soundEnabled ? '1' : '0'); } catch { /* noop */ }
+  }, [soundEnabled]);
+  const lastSoundAtRef = useRef<number>(0);
+  const playNotificationSound = useCallback(() => {
+    if (!soundEnabledRef.current) return;
+    const now = Date.now();
+    if (now - lastSoundAtRef.current < 800) return; // throttle
+    lastSoundAtRef.current = now;
+    try {
+      const Ctx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      if (!Ctx) return;
+      const ctx = new Ctx();
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.connect(g); g.connect(ctx.destination);
+      o.type = 'sine';
+      o.frequency.setValueAtTime(880, ctx.currentTime);
+      o.frequency.setValueAtTime(1320, ctx.currentTime + 0.08);
+      g.gain.setValueAtTime(0.0001, ctx.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.25, ctx.currentTime + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.35);
+      o.start();
+      o.stop(ctx.currentTime + 0.35);
+      setTimeout(() => ctx.close().catch(() => undefined), 600);
+    } catch { /* noop */ }
+  }, []);
 
   const getAuthHeaders = useCallback(async () => {
     let token = session?.access_token || '';
@@ -407,6 +441,18 @@ export default function EvolutionChat() {
         setMessages((prev) => {
           return mergeMessage(prev, m);
         });
+        // Play notification when an incoming message arrives (skip channels/status, skip our own outgoing)
+        try {
+          if (
+            m?.direction === 'in' &&
+            m?.phone &&
+            !m.phone.startsWith('status') &&
+            !/^\d{15,}$/.test(m.phone) /* not newsletter */
+          ) {
+            const isOtherChatOrUnfocused = document.hidden || selectedPhoneRef.current !== m.phone;
+            if (isOtherChatOrUnfocused) playNotificationSound();
+          }
+        } catch { /* noop */ }
       })
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'evolution_messages', filter: `user_id=eq.${user.id}` }, (payload) => {
         const m = payload.new as EvoMessage;
@@ -429,7 +475,7 @@ export default function EvolutionChat() {
       })
       .subscribe();
     return () => { supabase.removeChannel(ch); };
-  }, [user, mergeMessage]);
+  }, [user, mergeMessage, playNotificationSound]);
 
   // Re-render every 2s so "digitando..." auto-expires after 8s of silence
   useEffect(() => {
@@ -570,11 +616,14 @@ export default function EvolutionChat() {
     });
     for (const m of instanceMessages) {
       const cur = map.get(m.phone);
+      // For newsletters, try to pull name from raw metadata as we scan
+      const newsletterName = isNewsletterPhone(m.phone) ? newsletterNameFromRaw(m.raw) : null;
       if (!cur) {
-        map.set(m.phone, { phone: m.phone, name: m.contact_name, last: m, unread: 0, lastAt: m.created_at, lastOutAt: m.direction === 'out' ? m.created_at : '' });
+        map.set(m.phone, { phone: m.phone, name: m.contact_name || newsletterName || null, last: m, unread: 0, lastAt: m.created_at, lastOutAt: m.direction === 'out' ? m.created_at : '' });
       } else {
         if (!cur.last || new Date(m.created_at) > new Date(cur.last.created_at)) cur.last = m;
         if (m.contact_name && !cur.name) cur.name = m.contact_name;
+        if (newsletterName && !cur.name) cur.name = newsletterName;
         if (m.direction === 'out' && (!cur.lastOutAt || new Date(m.created_at) > new Date(cur.lastOutAt))) {
           cur.lastOutAt = m.created_at;
         }
@@ -602,10 +651,11 @@ export default function EvolutionChat() {
       return new Date(b.lastAt || 0).getTime() - new Date(a.lastAt || 0).getTime();
     });
     let filtered = arr;
-    if (filter === 'unread') filtered = arr.filter(c => c.unread > 0 && c.last?.direction === 'in');
-    else if (filter === 'media') filtered = arr.filter(c => c.last && ['image', 'audio', 'document', 'sticker'].includes(c.last.message_type));
-    else if (filter === 'groups') filtered = arr.filter(c => c.phone && c.phone.length > 15 && !c.phone.startsWith('status'));
-    else if (filter === 'contacts') filtered = arr.filter(c => c.phone && c.phone.length <= 15 && !c.phone.startsWith('status'));
+    if (filter === 'unread') filtered = arr.filter(c => c.unread > 0 && c.last?.direction === 'in' && !isNewsletterPhone(c.phone));
+    else if (filter === 'media') filtered = arr.filter(c => c.last && ['image', 'audio', 'document', 'sticker'].includes(c.last.message_type) && !isNewsletterPhone(c.phone));
+    else if (filter === 'channels') filtered = arr.filter(c => isNewsletterPhone(c.phone));
+    else if (filter === 'groups') filtered = arr.filter(c => c.phone && !c.phone.startsWith('status') && !isNewsletterPhone(c.phone) && isGroupJidPhone(c.phone));
+    else if (filter === 'contacts') filtered = arr.filter(c => c.phone && c.phone.length <= 15 && !c.phone.startsWith('status') && !isNewsletterPhone(c.phone));
     else if (filter === 'status') {
       // WhatsApp-Web style: "Meu status" + RECENTE list of contacts that posted
       const meEntry = arr.find(c => c.phone === 'status:me')
@@ -615,8 +665,8 @@ export default function EvolutionChat() {
       others.sort((a, b) => new Date(b.lastAt || 0).getTime() - new Date(a.lastAt || 0).getTime());
       filtered = [meEntry, ...others];
     } else {
-      // 'all' — hide synthetic status entries from the main list
-      filtered = arr.filter(c => !c.phone.startsWith('status'));
+      // 'all' — hide synthetic status entries AND channels from the main list
+      filtered = arr.filter(c => !c.phone.startsWith('status') && !isNewsletterPhone(c.phone));
     }
     if (!search.trim()) return filtered;
     const q = search.toLowerCase();
@@ -1190,9 +1240,30 @@ export default function EvolutionChat() {
                 <RefreshCw className={cn('w-3 h-3', switchingInstance && 'animate-spin')} />
               </Button>
             </div>
-            <div className="relative">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
-              <Input placeholder="Pesquisar conversa..." value={search} onChange={(e) => setSearch(e.target.value)} className="h-8 text-xs pl-8" />
+            <div className="relative flex items-center gap-1">
+              <div className="relative flex-1">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+                <Input placeholder="Pesquisar conversa..." value={search} onChange={(e) => setSearch(e.target.value)} className="h-8 text-xs pl-8" />
+              </div>
+              <Button
+                size="icon"
+                variant="ghost"
+                className="h-8 w-8 shrink-0"
+                title={soundEnabled ? 'Som de notificação ativo' : 'Som de notificação desligado'}
+                onClick={() => {
+                  setSoundEnabled(v => {
+                    const next = !v;
+                    if (next) {
+                      // play once to confirm + unlock audio context on mobile
+                      lastSoundAtRef.current = 0;
+                      setTimeout(() => playNotificationSound(), 0);
+                    }
+                    return next;
+                  });
+                }}
+              >
+                {soundEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4 text-muted-foreground" />}
+              </Button>
             </div>
             <div className="flex gap-1">
               <Input placeholder="Novo número (DDD + nº)" value={newPhone} onChange={(e) => setNewPhone(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && startConversation()} className="h-8 text-xs" />
@@ -1204,8 +1275,9 @@ export default function EvolutionChat() {
                 { id: 'unread', label: 'Não lidas' },
                 { id: 'contacts', label: 'Contatos' },
                 { id: 'groups', label: 'Grupos' },
+                { id: 'channels', label: '📢 Canais' },
                 { id: 'media', label: 'Mídia' },
-                { id: 'status', label: '📢 Status' },
+                { id: 'status', label: 'Status' },
               ] as const).map((t) => (
                 <button
                   key={t.id}
