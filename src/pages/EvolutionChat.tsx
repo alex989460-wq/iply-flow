@@ -1349,6 +1349,79 @@ export default function EvolutionChat() {
         : card;
     }
 
+    // Contato compartilhado (vCard) — card estilo WhatsApp
+    if (m.message_type === 'contact') {
+      const blocks = (m.content || '').split(/\n\n+/).map(b => b.trim()).filter(Boolean);
+      const cards = blocks.length ? blocks : [m.content || '👤 Contato'];
+      return (
+        <div className="space-y-2 min-w-[220px] max-w-[300px]">
+          {cards.map((blk, i) => {
+            const lines = blk.split('\n').map(l => l.trim());
+            const name = (lines.find(l => l.startsWith('👤')) || '👤 Contato').replace(/^👤\s*/, '');
+            const phoneLine = (lines.find(l => l.startsWith('📞')) || '').replace(/^📞\s*/, '');
+            const phones = phoneLine.split(',').map(p => p.trim()).filter(Boolean);
+            const first = phones[0] || '';
+            const digits = first.replace(/\D/g, '');
+            return (
+              <div key={i} className="rounded-lg bg-black/20 overflow-hidden">
+                <div className="flex items-center gap-3 px-3 py-2">
+                  <div className="w-10 h-10 rounded-full bg-[#00a884]/20 flex items-center justify-center text-[#00a884] font-bold shrink-0">
+                    {name.charAt(0).toUpperCase() || '?'}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium truncate">{name}</div>
+                    {phones.length > 0 && (
+                      <div className="text-[11px] text-[#aebac1] truncate">{phones.join(', ')}</div>
+                    )}
+                  </div>
+                </div>
+                {digits && (
+                  <div className="flex border-t border-white/10">
+                    <a
+                      href={`https://wa.me/${digits}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="flex-1 text-center text-xs py-1.5 text-[#00a884] hover:bg-white/5"
+                    >
+                      Conversar
+                    </a>
+                    <button
+                      type="button"
+                      onClick={() => { navigator.clipboard.writeText(first); toast({ title: 'Copiado', description: first }); }}
+                      className="flex-1 text-center text-xs py-1.5 text-[#aebac1] hover:bg-white/5 border-l border-white/10"
+                    >
+                      Copiar
+                    </button>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      );
+    }
+
+    // Localização — card com link p/ Google Maps
+    if (m.message_type === 'location') {
+      const lines = (m.content || '').split('\n').map(l => l.trim());
+      const header = (lines.find(l => l.startsWith('📍')) || '📍 Localização').replace(/^📍\s*/, '');
+      const coordLine = lines.find(l => /-?\d+\.\d+\s*,\s*-?\d+\.\d+/.test(l)) || '';
+      const coordMatch = coordLine.match(/(-?\d+\.\d+)\s*,\s*(-?\d+\.\d+)/);
+      const mapUrl = coordMatch
+        ? `https://www.google.com/maps?q=${coordMatch[1]},${coordMatch[2]}`
+        : `https://www.google.com/maps/search/${encodeURIComponent(header)}`;
+      return (
+        <a href={mapUrl} target="_blank" rel="noreferrer" className="block min-w-[220px] max-w-[280px] rounded-lg overflow-hidden bg-black/20 hover:opacity-90">
+          <div className="h-24 bg-gradient-to-br from-emerald-700/40 to-cyan-700/40 flex items-center justify-center text-3xl">📍</div>
+          <div className="px-3 py-2">
+            <div className="text-sm font-medium truncate">{header}</div>
+            {coordLine && <div className="text-[11px] text-[#aebac1] truncate">{coordLine}</div>}
+            <div className="text-[11px] text-[#00a884] mt-1">Abrir no Google Maps</div>
+          </div>
+        </a>
+      );
+    }
+
     return <div className="whitespace-pre-wrap break-words leading-snug">{m.content === '[text]' ? 'Mensagem do WhatsApp sem conteúdo visível' : m.content}</div>;
   };
 
