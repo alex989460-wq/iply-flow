@@ -240,6 +240,7 @@ export default function EvolutionChat() {
   const [recording, setRecording] = useState(false);
   const [recordSeconds, setRecordSeconds] = useState(0);
   const [previewImage, setPreviewImage] = useState<{ url: string; caption: string } | null>(null);
+  const [vcardPreview, setVcardPreview] = useState<{ name: string; phones: string[]; emails: string[]; org?: string; raw: string } | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [imageToSend, setImageToSend] = useState<{ file: File; url: string; caption: string } | null>(null);
   const [docToSend, setDocToSend] = useState<{ file: File; caption: string } | null>(null);
@@ -1357,49 +1358,94 @@ export default function EvolutionChat() {
 
     // Contato compartilhado (vCard) — card estilo WhatsApp
     if (m.message_type === 'contact') {
-      const blocks = (m.content || '').split(/\n\n+/).map(b => b.trim()).filter(Boolean);
-      const cards = blocks.length ? blocks : [m.content || '👤 Contato'];
-      return (
-        <div className="space-y-2 min-w-[220px] max-w-[300px]">
-          {cards.map((blk, i) => {
+      // Tenta extrair vCard(s) crus do raw para parse rico
+      const rawMsg = (getNestedValue(m.raw, ['data', 'Message'])
+        || getNestedValue(m.raw, ['Message'])
+        || getNestedValue(m.raw, ['message'])
+        || {}) as Record<string, unknown>;
+      const contactMsg = rawMsg?.contactMessage as { vcard?: string; displayName?: string } | undefined;
+      const contactsArr = (rawMsg?.contactsArrayMessage as { contacts?: Array<{ vcard?: string; displayName?: string }> } | undefined)?.contacts;
+      const rawVcards: Array<{ vcard?: string; displayName?: string }> = [];
+      if (contactMsg) rawVcards.push(contactMsg);
+      if (Array.isArray(contactsArr)) rawVcards.push(...contactsArr);
+
+      const parseVcard = (vcard: string, fallbackName?: string) => {
+        const text = String(vcard || '');
+        const fn = text.match(/(?:^|\n)FN[^:]*:(.+)/i)?.[1]?.trim() || fallbackName || 'Contato';
+        const org = text.match(/(?:^|\n)ORG[^:]*:(.+)/i)?.[1]?.trim();
+        const phones: string[] = [];
+        const telRegex = /(?:^|\n)(?:item\d+\.)?TEL([^:]*):([^\r\n]+)/gi;
+        let tm: RegExpExecArray | null;
+        while ((tm = telRegex.exec(text)) !== null) {
+          const params = tm[1] || '';
+          const value = tm[2].trim();
+          // waid=12345 quando o número vier só como parâmetro
+          const waid = params.match(/waid=([\d]+)/i)?.[1];
+          const digits = (waid || value).replace(/[^\d+]/g, '');
+          if (digits && !phones.includes(digits)) phones.push(digits);
+        }
+        const emails: string[] = [];
+        const emRegex = /(?:^|\n)(?:item\d+\.)?EMAIL[^:]*:([^\r\n]+)/gi;
+        let em: RegExpExecArray | null;
+        while ((em = emRegex.exec(text)) !== null) {
+          const v = em[1].trim();
+          if (v && !emails.includes(v)) emails.push(v);
+        }
+        return { name: fn, org, phones, emails, raw: text };
+      };
+
+      // Se temos vCards crus, usa eles. Senão, faz fallback no content já formatado.
+      const parsed = rawVcards.length
+        ? rawVcards.map(v => parseVcard(v.vcard || '', v.displayName))
+        : (m.content || '').split(/\n\n+/).map(blk => {
             const lines = blk.split('\n').map(l => l.trim());
             const name = (lines.find(l => l.startsWith('👤')) || '👤 Contato').replace(/^👤\s*/, '');
             const phoneLine = (lines.find(l => l.startsWith('📞')) || '').replace(/^📞\s*/, '');
             const phones = phoneLine.split(',').map(p => p.trim()).filter(Boolean);
-            const first = phones[0] || '';
+            return { name, phones, emails: [], raw: blk } as { name: string; phones: string[]; emails: string[]; org?: string; raw: string };
+          });
+
+      return (
+        <div className="space-y-2 min-w-[220px] max-w-[300px]">
+          {parsed.map((c, i) => {
+            const first = c.phones[0] || '';
             const digits = first.replace(/\D/g, '');
             return (
               <div key={i} className="rounded-lg bg-black/20 overflow-hidden">
-                <div className="flex items-center gap-3 px-3 py-2">
+                <button
+                  type="button"
+                  onClick={() => setVcardPreview(c)}
+                  className="w-full flex items-center gap-3 px-3 py-2 hover:bg-white/5 text-left"
+                >
                   <div className="w-10 h-10 rounded-full bg-[#00a884]/20 flex items-center justify-center text-[#00a884] font-bold shrink-0">
-                    {name.charAt(0).toUpperCase() || '?'}
+                    {(c.name || '?').charAt(0).toUpperCase()}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="text-sm font-medium truncate">{name}</div>
-                    {phones.length > 0 && (
-                      <div className="text-[11px] text-[#aebac1] truncate">{phones.join(', ')}</div>
-                    )}
+                    <div className="text-sm font-medium truncate">{c.name}</div>
+                    <div className="text-[11px] text-[#aebac1] truncate">
+                      {c.phones.length ? c.phones.join(', ') : (c.org || 'Toque para ver dados')}
+                    </div>
                   </div>
-                </div>
-                {digits && (
-                  <div className="flex border-t border-white/10">
+                </button>
+                <div className="flex border-t border-white/10">
+                  <button
+                    type="button"
+                    onClick={() => setVcardPreview(c)}
+                    className="flex-1 text-center text-xs py-1.5 text-[#aebac1] hover:bg-white/5"
+                  >
+                    Ver dados
+                  </button>
+                  {digits && (
                     <a
                       href={`https://wa.me/${digits}`}
                       target="_blank"
                       rel="noreferrer"
-                      className="flex-1 text-center text-xs py-1.5 text-[#00a884] hover:bg-white/5"
+                      className="flex-1 text-center text-xs py-1.5 text-[#00a884] hover:bg-white/5 border-l border-white/10"
                     >
                       Conversar
                     </a>
-                    <button
-                      type="button"
-                      onClick={() => { navigator.clipboard.writeText(first); toast({ title: 'Copiado', description: first }); }}
-                      className="flex-1 text-center text-xs py-1.5 text-[#aebac1] hover:bg-white/5 border-l border-white/10"
-                    >
-                      Copiar
-                    </button>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
             );
           })}
@@ -2210,6 +2256,77 @@ export default function EvolutionChat() {
         <DialogContent className="max-w-5xl p-2 bg-background/95 border-border">
           {previewImage && (
             <img src={previewImage.url} alt={previewImage.caption || 'Imagem ampliada'} className="max-h-[85vh] w-full object-contain rounded-md" />
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog de dados do vCard recebido */}
+      <Dialog open={!!vcardPreview} onOpenChange={(open) => !open && setVcardPreview(null)}>
+        <DialogContent className="max-w-md bg-[#111b21] border-[#0b1115] text-[#e9edef]">
+          {vcardPreview && (
+            <div className="space-y-4">
+              <div className="flex items-center gap-3">
+                <div className="w-14 h-14 rounded-full bg-[#00a884]/20 flex items-center justify-center text-[#00a884] text-xl font-bold shrink-0">
+                  {(vcardPreview.name || '?').charAt(0).toUpperCase()}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-base font-semibold truncate">{vcardPreview.name}</div>
+                  {vcardPreview.org && <div className="text-xs text-[#aebac1] truncate">{vcardPreview.org}</div>}
+                </div>
+              </div>
+
+              {vcardPreview.phones.length > 0 && (
+                <div className="space-y-1">
+                  <div className="text-[11px] uppercase text-[#aebac1] tracking-wide">Telefone</div>
+                  {vcardPreview.phones.map((p, i) => {
+                    const digits = p.replace(/\D/g, '');
+                    return (
+                      <div key={i} className="flex items-center justify-between gap-2 px-2 py-1.5 rounded bg-black/30">
+                        <span className="text-sm truncate">{p}</span>
+                        <div className="flex gap-1">
+                          <button
+                            type="button"
+                            onClick={() => { navigator.clipboard.writeText(p); toast({ title: 'Copiado', description: p }); }}
+                            className="text-[11px] px-2 py-1 rounded bg-white/5 hover:bg-white/10"
+                          >Copiar</button>
+                          {digits && (
+                            <a
+                              href={`https://wa.me/${digits}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-[11px] px-2 py-1 rounded bg-[#00a884]/20 text-[#00a884] hover:bg-[#00a884]/30"
+                            >WhatsApp</a>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {vcardPreview.emails.length > 0 && (
+                <div className="space-y-1">
+                  <div className="text-[11px] uppercase text-[#aebac1] tracking-wide">E-mail</div>
+                  {vcardPreview.emails.map((e, i) => (
+                    <div key={i} className="flex items-center justify-between gap-2 px-2 py-1.5 rounded bg-black/30">
+                      <span className="text-sm truncate">{e}</span>
+                      <button
+                        type="button"
+                        onClick={() => { navigator.clipboard.writeText(e); toast({ title: 'Copiado', description: e }); }}
+                        className="text-[11px] px-2 py-1 rounded bg-white/5 hover:bg-white/10"
+                      >Copiar</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {vcardPreview.raw && (
+                <details className="text-xs">
+                  <summary className="cursor-pointer text-[#aebac1] hover:text-white">Ver vCard bruto</summary>
+                  <pre className="mt-2 max-h-60 overflow-auto bg-black/40 p-2 rounded whitespace-pre-wrap break-all">{vcardPreview.raw}</pre>
+                </details>
+              )}
+            </div>
           )}
         </DialogContent>
       </Dialog>
