@@ -1523,7 +1523,7 @@ export default function EvolutionChat() {
       );
     }
 
-    return <div className="whitespace-pre-wrap break-words leading-snug">{m.content === '[text]' ? 'Mensagem do WhatsApp sem conteúdo visível' : m.content}</div>;
+    return <div className="whitespace-pre-wrap break-words leading-snug">{m.content === '[text]' ? 'Mensagem do WhatsApp sem conteúdo visível' : formatWaText(m.content)}</div>;
   };
 
 
