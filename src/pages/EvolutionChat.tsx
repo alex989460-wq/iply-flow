@@ -1358,49 +1358,94 @@ export default function EvolutionChat() {
 
     // Contato compartilhado (vCard) — card estilo WhatsApp
     if (m.message_type === 'contact') {
-      const blocks = (m.content || '').split(/\n\n+/).map(b => b.trim()).filter(Boolean);
-      const cards = blocks.length ? blocks : [m.content || '👤 Contato'];
-      return (
-        <div className="space-y-2 min-w-[220px] max-w-[300px]">
-          {cards.map((blk, i) => {
+      // Tenta extrair vCard(s) crus do raw para parse rico
+      const rawMsg = (getNestedValue(m.raw, ['data', 'Message'])
+        || getNestedValue(m.raw, ['Message'])
+        || getNestedValue(m.raw, ['message'])
+        || {}) as Record<string, unknown>;
+      const contactMsg = rawMsg?.contactMessage as { vcard?: string; displayName?: string } | undefined;
+      const contactsArr = (rawMsg?.contactsArrayMessage as { contacts?: Array<{ vcard?: string; displayName?: string }> } | undefined)?.contacts;
+      const rawVcards: Array<{ vcard?: string; displayName?: string }> = [];
+      if (contactMsg) rawVcards.push(contactMsg);
+      if (Array.isArray(contactsArr)) rawVcards.push(...contactsArr);
+
+      const parseVcard = (vcard: string, fallbackName?: string) => {
+        const text = String(vcard || '');
+        const fn = text.match(/(?:^|\n)FN[^:]*:(.+)/i)?.[1]?.trim() || fallbackName || 'Contato';
+        const org = text.match(/(?:^|\n)ORG[^:]*:(.+)/i)?.[1]?.trim();
+        const phones: string[] = [];
+        const telRegex = /(?:^|\n)(?:item\d+\.)?TEL([^:]*):([^\r\n]+)/gi;
+        let tm: RegExpExecArray | null;
+        while ((tm = telRegex.exec(text)) !== null) {
+          const params = tm[1] || '';
+          const value = tm[2].trim();
+          // waid=12345 quando o número vier só como parâmetro
+          const waid = params.match(/waid=([\d]+)/i)?.[1];
+          const digits = (waid || value).replace(/[^\d+]/g, '');
+          if (digits && !phones.includes(digits)) phones.push(digits);
+        }
+        const emails: string[] = [];
+        const emRegex = /(?:^|\n)(?:item\d+\.)?EMAIL[^:]*:([^\r\n]+)/gi;
+        let em: RegExpExecArray | null;
+        while ((em = emRegex.exec(text)) !== null) {
+          const v = em[1].trim();
+          if (v && !emails.includes(v)) emails.push(v);
+        }
+        return { name: fn, org, phones, emails, raw: text };
+      };
+
+      // Se temos vCards crus, usa eles. Senão, faz fallback no content já formatado.
+      const parsed = rawVcards.length
+        ? rawVcards.map(v => parseVcard(v.vcard || '', v.displayName))
+        : (m.content || '').split(/\n\n+/).map(blk => {
             const lines = blk.split('\n').map(l => l.trim());
             const name = (lines.find(l => l.startsWith('👤')) || '👤 Contato').replace(/^👤\s*/, '');
             const phoneLine = (lines.find(l => l.startsWith('📞')) || '').replace(/^📞\s*/, '');
             const phones = phoneLine.split(',').map(p => p.trim()).filter(Boolean);
-            const first = phones[0] || '';
+            return { name, phones, emails: [], raw: blk } as { name: string; phones: string[]; emails: string[]; org?: string; raw: string };
+          });
+
+      return (
+        <div className="space-y-2 min-w-[220px] max-w-[300px]">
+          {parsed.map((c, i) => {
+            const first = c.phones[0] || '';
             const digits = first.replace(/\D/g, '');
             return (
               <div key={i} className="rounded-lg bg-black/20 overflow-hidden">
-                <div className="flex items-center gap-3 px-3 py-2">
+                <button
+                  type="button"
+                  onClick={() => setVcardPreview(c)}
+                  className="w-full flex items-center gap-3 px-3 py-2 hover:bg-white/5 text-left"
+                >
                   <div className="w-10 h-10 rounded-full bg-[#00a884]/20 flex items-center justify-center text-[#00a884] font-bold shrink-0">
-                    {name.charAt(0).toUpperCase() || '?'}
+                    {(c.name || '?').charAt(0).toUpperCase()}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="text-sm font-medium truncate">{name}</div>
-                    {phones.length > 0 && (
-                      <div className="text-[11px] text-[#aebac1] truncate">{phones.join(', ')}</div>
-                    )}
+                    <div className="text-sm font-medium truncate">{c.name}</div>
+                    <div className="text-[11px] text-[#aebac1] truncate">
+                      {c.phones.length ? c.phones.join(', ') : (c.org || 'Toque para ver dados')}
+                    </div>
                   </div>
-                </div>
-                {digits && (
-                  <div className="flex border-t border-white/10">
+                </button>
+                <div className="flex border-t border-white/10">
+                  <button
+                    type="button"
+                    onClick={() => setVcardPreview(c)}
+                    className="flex-1 text-center text-xs py-1.5 text-[#aebac1] hover:bg-white/5"
+                  >
+                    Ver dados
+                  </button>
+                  {digits && (
                     <a
                       href={`https://wa.me/${digits}`}
                       target="_blank"
                       rel="noreferrer"
-                      className="flex-1 text-center text-xs py-1.5 text-[#00a884] hover:bg-white/5"
+                      className="flex-1 text-center text-xs py-1.5 text-[#00a884] hover:bg-white/5 border-l border-white/10"
                     >
                       Conversar
                     </a>
-                    <button
-                      type="button"
-                      onClick={() => { navigator.clipboard.writeText(first); toast({ title: 'Copiado', description: first }); }}
-                      className="flex-1 text-center text-xs py-1.5 text-[#aebac1] hover:bg-white/5 border-l border-white/10"
-                    >
-                      Copiar
-                    </button>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
             );
           })}
