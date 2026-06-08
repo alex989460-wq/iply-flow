@@ -285,11 +285,23 @@ async function insertMessageOnce(admin: any, row: Record<string, unknown>) {
   if (row.external_id) {
     const { data: existing } = await admin
       .from('evolution_messages')
-      .select('id')
+      .select('id, media_url, media_mime, raw, content, message_type')
       .eq('user_id', row.user_id)
       .eq('external_id', row.external_id)
       .maybeSingle();
-    if (existing?.id) return;
+    if (existing?.id) {
+      const patch: Record<string, unknown> = {};
+      if (!existing.media_url && row.media_url) patch.media_url = row.media_url;
+      if (!existing.media_mime && row.media_mime) patch.media_mime = row.media_mime;
+      if ((!existing.raw || !existing.media_url) && row.raw) patch.raw = row.raw;
+      if ((!existing.content || /^\[[a-z]+\]$/i.test(String(existing.content))) && row.content) patch.content = row.content;
+      if (existing.message_type === 'text' && row.message_type && row.message_type !== 'text') patch.message_type = row.message_type;
+      if (Object.keys(patch).length > 0) {
+        const { error } = await admin.from('evolution_messages').update(patch).eq('id', existing.id);
+        if (error) console.error('[evolution-webhook] duplicate media update failed', error);
+      }
+      return;
+    }
     if (row.direction === 'out') {
       const since = new Date(Date.now() - 5 * 60 * 1000).toISOString();
       const { data: pendingOut } = await admin
