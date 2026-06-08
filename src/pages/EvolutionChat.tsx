@@ -485,15 +485,11 @@ export default function EvolutionChat() {
       if (row.last_read_at) readMap[row.phone] = row.last_read_at;
       if (row.manual_unread) unreadSet.add(row.phone);
     }
-    if (Object.keys(readMap).length || unreadSet.size) {
-      setLastReadByPhone(prev => {
-        const next = { ...prev, ...readMap };
-        try { localStorage.setItem('evo_last_read', JSON.stringify(next)); } catch { /* noop */ }
-        return next;
-      });
-      setManualUnreadPhones(unreadSet);
-      try { localStorage.setItem('evo_manual_unread', JSON.stringify([...unreadSet])); } catch { /* noop */ }
-    }
+    // Always replace from DB (source of truth), even when empty — so clearing read state in one browser propagates to others.
+    setLastReadByPhone(readMap);
+    try { localStorage.setItem('evo_last_read', JSON.stringify(readMap)); } catch { /* noop */ }
+    setManualUnreadPhones(unreadSet);
+    try { localStorage.setItem('evo_manual_unread', JSON.stringify([...unreadSet])); } catch { /* noop */ }
     try {
       sessionStorage.setItem('evo_cache_messages', JSON.stringify(merged.slice(-800)));
       sessionStorage.setItem('evo_cache_contacts', JSON.stringify(cmap));
