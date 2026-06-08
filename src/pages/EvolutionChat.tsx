@@ -12,7 +12,7 @@ import {
   Loader2, Send, Zap, Plus, RefreshCw, Search, MessageSquare,
   Phone, X, Smile, Mic, Paperclip, Trash2, Image as ImageIcon, FileText, Sticker, QrCode,
   Pin, PinOff, Info, Copy, ExternalLink, MoreVertical, ArrowLeft, ChevronDown,
-  Reply, Forward, Star, StarOff, Trash, Volume2, VolumeX, BookOpen, CheckCircle2, MailOpen,
+  Reply, Forward, Star, StarOff, Trash, Volume2, VolumeX, BookOpen, CheckCircle2, MailOpen, Maximize2,
 } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import KnowledgeBaseDialog from '@/components/chat/KnowledgeBaseDialog';
@@ -288,6 +288,7 @@ export default function EvolutionChat() {
   const [docToSend, setDocToSend] = useState<{ file: File; caption: string } | null>(null);
   const [filter, setFilter] = useState<'all' | 'unread' | 'media' | 'groups' | 'channels' | 'contacts' | 'status' | 'support'>('all');
   const [showKbDialog, setShowKbDialog] = useState(false);
+  const [expandedVideo, setExpandedVideo] = useState<string | null>(null);
   const [soundEnabled, setSoundEnabled] = useState<boolean>(() => {
     try { return localStorage.getItem('evo_sound_enabled') !== '0'; } catch { return true; }
   });
@@ -1345,7 +1346,17 @@ export default function EvolutionChat() {
       const caption = m.content && !/^\[video\]$/i.test(m.content) ? m.content : '';
       return (
         <div className="space-y-1">
-          <video src={v} controls preload="metadata" className="max-w-[280px] max-h-72 rounded-lg bg-black" />
+          <div className="relative group">
+            <video src={v} controls preload="metadata" className="max-w-[320px] max-h-80 rounded-lg bg-black" />
+            <button
+              type="button"
+              onClick={() => setExpandedVideo(v)}
+              title="Expandir vídeo"
+              className="absolute top-2 right-2 bg-black/60 hover:bg-black/80 text-white rounded-md p-1.5 opacity-0 group-hover:opacity-100 transition-opacity"
+            >
+              <Maximize2 className="w-4 h-4" />
+            </button>
+          </div>
           {caption && <div className="text-sm whitespace-pre-wrap break-words">{formatWaText(caption)}</div>}
         </div>
       );
@@ -2256,9 +2267,9 @@ export default function EvolutionChat() {
                         }
                       }}
 
-                      rows={1}
-                      className="flex-1 resize-none rounded-lg border-0 bg-[#2a3942] text-[#e9edef] placeholder:text-[#8696a0] px-4 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#00a884] max-h-32"
-                      style={{ minHeight: 40 }}
+                      rows={2}
+                      className="flex-1 resize-none rounded-lg border-0 bg-[#2a3942] text-[#e9edef] placeholder:text-[#8696a0] px-4 py-3 text-base focus:outline-none focus:ring-1 focus:ring-[#00a884] max-h-48"
+                      style={{ minHeight: 56 }}
                     />
                     {draft.trim() ? (
                       <Button onClick={send} size="icon" className="h-10 w-10 shrink-0 rounded-full bg-[#00a884] hover:bg-[#06cf9c] text-white">
@@ -2316,6 +2327,15 @@ export default function EvolutionChat() {
         <DialogContent className="max-w-5xl p-2 bg-background/95 border-border">
           {previewImage && (
             <img src={previewImage.url} alt={previewImage.caption || 'Imagem ampliada'} className="max-h-[85vh] w-full object-contain rounded-md" />
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Lightbox de vídeos */}
+      <Dialog open={!!expandedVideo} onOpenChange={(open) => !open && setExpandedVideo(null)}>
+        <DialogContent className="max-w-6xl p-2 bg-background/95 border-border">
+          {expandedVideo && (
+            <video src={expandedVideo} controls autoPlay className="max-h-[85vh] w-full object-contain rounded-md bg-black" />
           )}
         </DialogContent>
       </Dialog>
