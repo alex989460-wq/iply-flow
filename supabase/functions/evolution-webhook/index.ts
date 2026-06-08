@@ -92,6 +92,8 @@ function messageType(message: any, fallback = '') {
 
 function isProtocolOnlyMessage(message: any) {
   const msg = unwrapMessage(message) || {};
+  const hasMedia = !!(msg.imageMessage || msg.videoMessage || msg.audioMessage || msg.documentMessage || msg.stickerMessage || msg.contactMessage || msg.contactsArrayMessage || msg.locationMessage || msg.liveLocationMessage);
+  if (hasMedia) return false;
   return !messageText(msg) && !!(msg.protocolMessage || msg.messageContextInfo || msg.senderKeyDistributionMessage);
 }
 
