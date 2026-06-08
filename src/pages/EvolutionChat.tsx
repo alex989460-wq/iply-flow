@@ -2331,6 +2331,15 @@ export default function EvolutionChat() {
         </DialogContent>
       </Dialog>
 
+      {/* Lightbox de vídeos */}
+      <Dialog open={!!expandedVideo} onOpenChange={(open) => !open && setExpandedVideo(null)}>
+        <DialogContent className="max-w-6xl p-2 bg-background/95 border-border">
+          {expandedVideo && (
+            <video src={expandedVideo} controls autoPlay className="max-h-[85vh] w-full object-contain rounded-md bg-black" />
+          )}
+        </DialogContent>
+      </Dialog>
+
       {/* Dialog de dados do vCard recebido */}
       <Dialog open={!!vcardPreview} onOpenChange={(open) => !open && setVcardPreview(null)}>
         <DialogContent className="max-w-md bg-[#111b21] border-[#0b1115] text-[#e9edef]">
