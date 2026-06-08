@@ -199,7 +199,7 @@ function mediaSource(m: EvoMessage) {
   if (m.media_url) return m.media_url;
   const base64 = rawBase64From(m.raw);
   if (!base64) return null;
-  const mime = m.media_mime || (m.message_type === 'sticker' ? 'image/webp' : 'image/jpeg');
+  const mime = m.media_mime || (m.message_type === 'video' ? 'video/mp4' : m.message_type === 'audio' ? 'audio/ogg' : m.message_type === 'sticker' ? 'image/webp' : 'image/jpeg');
   return base64.startsWith('data:') ? base64 : `data:${mime};base64,${base64}`;
 }
 
@@ -1342,10 +1342,11 @@ export default function EvolutionChat() {
     // Vídeo
     if (m.message_type === 'video' && (m.media_url || src)) {
       const v = m.media_url || src!;
+      const caption = m.content && !/^\[video\]$/i.test(m.content) ? m.content : '';
       return (
         <div className="space-y-1">
           <video src={v} controls preload="metadata" className="max-w-[280px] max-h-72 rounded-lg bg-black" />
-          {m.content && <div className="text-sm whitespace-pre-wrap break-words">{formatWaText(m.content)}</div>}
+          {caption && <div className="text-sm whitespace-pre-wrap break-words">{formatWaText(caption)}</div>}
         </div>
       );
     }
