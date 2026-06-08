@@ -192,11 +192,42 @@ function isUsableMediaUrl(url: string | null) {
   return /^https?:\/\//i.test(url) || url.startsWith('data:');
 }
 
-async function storeIncomingMedia(admin: any, userId: string, externalId: string | null, type: string, mime: string | null, base64: string | null, fallbackUrl: string | null) {
+async function fetchEvolutionMediaBase64(baseUrl: string, apiKey: string, instance: string, keyObj: any): Promise<string | null> {
+  if (!baseUrl || !apiKey || !instance || !keyObj?.id) return null;
+  const url = `${baseUrl.replace(/\/$/, '')}/chat/getBase64FromMediaMessage/${encodeURIComponent(instance)}`;
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', apikey: apiKey, Authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify({ message: { key: keyObj }, convertToMp4: false }),
+    });
+    if (!res.ok) return null;
+    const json = await res.json().catch(() => null) as any;
+    return json?.base64 || json?.data?.base64 || json?.media || null;
+  } catch (e) {
+    console.error('[evolution-webhook] fetchEvolutionMediaBase64 failed', e);
+    return null;
+  }
+}
+
+async function storeIncomingMedia(
+  admin: any,
+  userId: string,
+  externalId: string | null,
+  type: string,
+  mime: string | null,
+  base64: string | null,
+  fallbackUrl: string | null,
+  fetchCtx?: { baseUrl: string; apiKey: string; instance: string; keyObj: any } | null,
+) {
   // Prefer uploading base64 to storage — WhatsApp's raw media URLs are encrypted and won't render
-  if (base64) {
+  let effectiveBase64 = base64;
+  if (!effectiveBase64 && fetchCtx) {
+    effectiveBase64 = await fetchEvolutionMediaBase64(fetchCtx.baseUrl, fetchCtx.apiKey, fetchCtx.instance, fetchCtx.keyObj);
+  }
+  if (effectiveBase64) {
     try {
-      const clean = base64.includes(',') ? base64.split(',').pop()! : base64;
+      const clean = effectiveBase64.includes(',') ? effectiveBase64.split(',').pop()! : effectiveBase64;
       const contentType = mime || defaultMime(type);
       const ext = extensionFrom(contentType, type);
       const path = `${userId}/incoming-${externalId || Date.now()}.${ext}`;
