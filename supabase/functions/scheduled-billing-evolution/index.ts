@@ -112,7 +112,8 @@ Deno.serve(async (req) => {
     const filterUserId: string | undefined = body.userId;
 
     const { hour, minute } = getCurrentTimeSaoPaulo();
-    const currentTime = `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+    const currentMinutes = hour * 60 + minute;
+    const todayStrSP = getRelativeDateSaoPaulo(0);
 
     let query = supabase
       .from('evolution_billing_schedule')
@@ -122,12 +123,30 @@ Deno.serve(async (req) => {
 
     const { data: schedules } = await query;
 
-    const toRun = (schedules || []).filter((s: any) => force || s.send_time.substring(0, 5) === currentTime);
+    // Run if past send_time, within 6h window, and not completed today.
+    // Cron resumes the same schedule across ticks until done.
+    const toRun = (schedules || []).filter((s: any) => {
+      if (force) return true;
+      const [sh, sm] = String(s.send_time).substring(0, 5).split(':').map(Number);
+      const sendMin = sh * 60 + sm;
+      if (currentMinutes < sendMin) return false;
+      if (currentMinutes > sendMin + 360) return false;
+      if (s.last_run_at && typeof s.last_run_status === 'string' && s.last_run_status.startsWith('completed:')) {
+        const last = new Date(s.last_run_at);
+        const lastSP = new Intl.DateTimeFormat('en-CA', {
+          timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit',
+        }).format(last);
+        if (lastSP === todayStrSP) return false;
+      }
+      return true;
+    });
     if (toRun.length === 0) {
       return new Response(JSON.stringify({ success: true, processed: 0, results: [] }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
+
+    const BATCH_SIZE = 4;
 
     const results: any[] = [];
 
