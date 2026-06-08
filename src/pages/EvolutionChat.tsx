@@ -2260,6 +2260,77 @@ export default function EvolutionChat() {
         </DialogContent>
       </Dialog>
 
+      {/* Dialog de dados do vCard recebido */}
+      <Dialog open={!!vcardPreview} onOpenChange={(open) => !open && setVcardPreview(null)}>
+        <DialogContent className="max-w-md bg-[#111b21] border-[#0b1115] text-[#e9edef]">
+          {vcardPreview && (
+            <div className="space-y-4">
+              <div className="flex items-center gap-3">
+                <div className="w-14 h-14 rounded-full bg-[#00a884]/20 flex items-center justify-center text-[#00a884] text-xl font-bold shrink-0">
+                  {(vcardPreview.name || '?').charAt(0).toUpperCase()}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-base font-semibold truncate">{vcardPreview.name}</div>
+                  {vcardPreview.org && <div className="text-xs text-[#aebac1] truncate">{vcardPreview.org}</div>}
+                </div>
+              </div>
+
+              {vcardPreview.phones.length > 0 && (
+                <div className="space-y-1">
+                  <div className="text-[11px] uppercase text-[#aebac1] tracking-wide">Telefone</div>
+                  {vcardPreview.phones.map((p, i) => {
+                    const digits = p.replace(/\D/g, '');
+                    return (
+                      <div key={i} className="flex items-center justify-between gap-2 px-2 py-1.5 rounded bg-black/30">
+                        <span className="text-sm truncate">{p}</span>
+                        <div className="flex gap-1">
+                          <button
+                            type="button"
+                            onClick={() => { navigator.clipboard.writeText(p); toast({ title: 'Copiado', description: p }); }}
+                            className="text-[11px] px-2 py-1 rounded bg-white/5 hover:bg-white/10"
+                          >Copiar</button>
+                          {digits && (
+                            <a
+                              href={`https://wa.me/${digits}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-[11px] px-2 py-1 rounded bg-[#00a884]/20 text-[#00a884] hover:bg-[#00a884]/30"
+                            >WhatsApp</a>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {vcardPreview.emails.length > 0 && (
+                <div className="space-y-1">
+                  <div className="text-[11px] uppercase text-[#aebac1] tracking-wide">E-mail</div>
+                  {vcardPreview.emails.map((e, i) => (
+                    <div key={i} className="flex items-center justify-between gap-2 px-2 py-1.5 rounded bg-black/30">
+                      <span className="text-sm truncate">{e}</span>
+                      <button
+                        type="button"
+                        onClick={() => { navigator.clipboard.writeText(e); toast({ title: 'Copiado', description: e }); }}
+                        className="text-[11px] px-2 py-1 rounded bg-white/5 hover:bg-white/10"
+                      >Copiar</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {vcardPreview.raw && (
+                <details className="text-xs">
+                  <summary className="cursor-pointer text-[#aebac1] hover:text-white">Ver vCard bruto</summary>
+                  <pre className="mt-2 max-h-60 overflow-auto bg-black/40 p-2 rounded whitespace-pre-wrap break-all">{vcardPreview.raw}</pre>
+                </details>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
       {/* Contact info side panel */}
       <Dialog open={showContactInfo} onOpenChange={setShowContactInfo}>
         <DialogContent className="max-w-md p-0 overflow-hidden bg-[#111b21] border-[#0b1115] text-[#e9edef]">
