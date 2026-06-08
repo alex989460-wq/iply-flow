@@ -1346,7 +1346,17 @@ export default function EvolutionChat() {
       const caption = m.content && !/^\[video\]$/i.test(m.content) ? m.content : '';
       return (
         <div className="space-y-1">
-          <video src={v} controls preload="metadata" className="max-w-[280px] max-h-72 rounded-lg bg-black" />
+          <div className="relative group">
+            <video src={v} controls preload="metadata" className="max-w-[320px] max-h-80 rounded-lg bg-black" />
+            <button
+              type="button"
+              onClick={() => setExpandedVideo(v)}
+              title="Expandir vídeo"
+              className="absolute top-2 right-2 bg-black/60 hover:bg-black/80 text-white rounded-md p-1.5 opacity-0 group-hover:opacity-100 transition-opacity"
+            >
+              <Maximize2 className="w-4 h-4" />
+            </button>
+          </div>
           {caption && <div className="text-sm whitespace-pre-wrap break-words">{formatWaText(caption)}</div>}
         </div>
       );
