@@ -346,11 +346,23 @@ Deno.serve(async (req) => {
         customersToProcess.push({ ...customer, billingType });
       }
 
-      console.log(`[Scheduled Billing] Customers to process: ${customersToProcess.length}`);
+      const totalPending = customersToProcess.length;
+      const batch = customersToProcess.slice(0, BATCH_SIZE);
+      console.log(`[Scheduled Billing] Customers pending today: ${totalPending}. Processing batch of ${batch.length}.`);
 
-      // Sequential send with 15-30s random delay (anti-ban)
-      const MIN_DELAY_MS = 15_000;
-      const MAX_DELAY_MS = 30_000;
+      // Mark in_progress immediately so manual UI shows progress and we don't double-trigger
+      await supabase
+        .from('billing_schedule')
+        .update({
+          last_run_at: new Date().toISOString(),
+          last_run_status: `in_progress: ${totalPending} pendentes`,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', schedule.id);
+
+      // Sequential send with anti-ban delay (shorter to fit more per invocation)
+      const MIN_DELAY_MS = 8_000;
+      const MAX_DELAY_MS = 15_000;
       
       // Build template mapping from schedule's saved templates
       const templateMapping: Record<string, string> = { ...DEFAULT_TEMPLATE_MAPPING };
@@ -358,12 +370,12 @@ Deno.serve(async (req) => {
       if (schedule.template_d0) templateMapping['D0'] = schedule.template_d0;
       if (schedule.template_d_plus_1) templateMapping['D+1'] = schedule.template_d_plus_1;
 
-      for (let i = 0; i < customersToProcess.length; i++) {
-        const customer = customersToProcess[i];
+      for (let i = 0; i < batch.length; i++) {
+        const customer = batch[i];
         const billingType = customer.billingType as 'D-1' | 'D0' | 'D+1';
         const templateName = templateMapping[billingType];
 
-        console.log(`[Scheduled] (${i + 1}/${customersToProcess.length}) Template "${templateName}" -> ${customer.name}`);
+        console.log(`[Scheduled] (${i + 1}/${batch.length}) Template "${templateName}" -> ${customer.name}`);
 
         const sendResult = await sendWhatsAppTemplate(
           customer.phone,
@@ -396,21 +408,23 @@ Deno.serve(async (req) => {
 
         if (sendResult.success) sent++; else errors++;
 
-        // Anti-ban random delay before next send
-        if (i < customersToProcess.length - 1) {
+        // Anti-ban random delay before next send within this batch
+        if (i < batch.length - 1) {
           const delay = Math.floor(Math.random() * (MAX_DELAY_MS - MIN_DELAY_MS + 1)) + MIN_DELAY_MS;
           console.log(`[Scheduled] Waiting ${(delay / 1000).toFixed(1)}s before next send...`);
           await new Promise((r) => setTimeout(r, delay));
         }
       }
 
-      // Update schedule with last run info
-      const statusMessage = `success: ${sent} sent, ${errors} errors, ${skipped} skipped`;
-      console.log(`[Scheduled Billing] Updating schedule ${schedule.id} with status: ${statusMessage}`);
-      
+      const remaining = totalPending - batch.length;
+      const statusMessage = remaining > 0
+        ? `in_progress: lote ${sent} enviados / ${remaining} restantes`
+        : `completed: ${sent} enviados, ${errors} erros nesta execução`;
+      console.log(`[Scheduled Billing] Updating schedule ${schedule.id}: ${statusMessage}`);
+
       const { error: updateError } = await supabase
         .from('billing_schedule')
-        .update({ 
+        .update({
           last_run_at: new Date().toISOString(),
           last_run_status: statusMessage,
           updated_at: new Date().toISOString(),
@@ -419,8 +433,6 @@ Deno.serve(async (req) => {
 
       if (updateError) {
         console.error(`[Scheduled Billing] Error updating schedule: ${JSON.stringify(updateError)}`);
-      } else {
-        console.log(`[Scheduled Billing] Schedule ${schedule.id} updated successfully`);
       }
 
       results.push({
@@ -428,9 +440,10 @@ Deno.serve(async (req) => {
         sent,
         errors,
         skipped,
+        remaining,
       });
 
-      console.log(`[Scheduled Billing] User ${schedule.user_id}: sent=${sent}, errors=${errors}, skipped=${skipped}`);
+      console.log(`[Scheduled Billing] User ${schedule.user_id}: sent=${sent}, errors=${errors}, remaining=${remaining}`);
     }
 
     return new Response(
