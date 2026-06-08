@@ -288,6 +288,7 @@ export default function EvolutionChat() {
   const [docToSend, setDocToSend] = useState<{ file: File; caption: string } | null>(null);
   const [filter, setFilter] = useState<'all' | 'unread' | 'media' | 'groups' | 'channels' | 'contacts' | 'status' | 'support'>('all');
   const [showKbDialog, setShowKbDialog] = useState(false);
+  const [expandedVideo, setExpandedVideo] = useState<string | null>(null);
   const [soundEnabled, setSoundEnabled] = useState<boolean>(() => {
     try { return localStorage.getItem('evo_sound_enabled') !== '0'; } catch { return true; }
   });
