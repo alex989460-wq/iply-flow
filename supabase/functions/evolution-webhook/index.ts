@@ -504,7 +504,10 @@ Deno.serve(async (req) => {
         }
         const type = messageType(msg, String(info.MediaType || info.Type || '').toLowerCase());
         const mediaMime = mediaMimeFrom(msg) || (type === 'document' ? mimeFromFileName(docFileName(msg)) : null);
-        const mediaUrl = await storeIncomingMedia(admin, settings.user_id, info.ID || null, type, mediaMime, mediaBase64From(data) || mediaBase64From(msg), mediaUrlFrom(msg));
+        const mediaFetchCtx = (type !== 'text' && settings.base_url && settings.api_key && instanceName)
+          ? { baseUrl: String(settings.base_url), apiKey: String(settings.api_key), instance: String(instanceName), keyObj: { id: info.ID, remoteJid, fromMe: !!info.IsFromMe } }
+          : null;
+        const mediaUrl = await storeIncomingMedia(admin, settings.user_id, info.ID || null, type, mediaMime, mediaBase64From(data) || mediaBase64From(msg), mediaUrlFrom(msg), mediaFetchCtx);
         if (phone) {
           await insertMessageOnce(admin, {
             user_id: settings.user_id,
