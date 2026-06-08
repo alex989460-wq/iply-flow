@@ -106,39 +106,55 @@ async function resolveSendPhone(admin: any, userId: string, phone: string) {
 }
 
 async function resolveSendTargets(admin: any, userId: string, phone: string) {
-  const targets: Array<{ value: string; kind: 'lid' | 'jid' | 'phone' }> = [];
+  const targets: Array<{ value: string; kind: 'lid' | 'jid' | 'phone'; fromInbound?: boolean }> = [];
   const phoneDigits = String(phone || '').replace(/\D/g, '');
   const normalizedPhone = normalizeChatPhone(phoneDigits);
 
+  const pushInbound = (raw: unknown) => {
+    const target = jidTarget(raw);
+    if (!target) return;
+    const kind = target.includes('@lid') ? 'lid' : target.includes('@s.whatsapp.net') ? 'jid' : 'phone';
+    const existing = targets.find((t) => t.value === target);
+    if (existing) { existing.fromInbound = true; return; }
+    targets.push({ value: target, kind, fromInbound: true });
+  };
+
   const { data } = await admin
     .from('evolution_messages')
-    .select('phone, raw')
+    .select('phone, raw, remote_jid, direction, created_at')
     .eq('user_id', userId)
     .or(`phone.eq.${phoneDigits},phone.eq.${normalizedPhone}`)
     .order('created_at', { ascending: false })
-    .limit(30);
+    .limit(50);
 
+  // First pass: prioritize JIDs from the most recent INBOUND messages — those
+  // chats are already "open" with WhatsApp so they bypass the 463 reachout lock.
   for (const row of data || []) {
     const info = row?.raw?.data?.Info || row?.raw?.Info || {};
-    if (info?.IsFromMe === true) {
-      pushUniqueTarget(targets, info.RecipientAlt);
-      pushUniqueTarget(targets, info.TargetJID || info.TargetID);
-      pushUniqueTarget(targets, info.DeviceSentMeta?.DestinationJID);
-      pushUniqueTarget(targets, info.Chat);
-    } else {
-      pushUniqueTarget(targets, info.Sender);
-      pushUniqueTarget(targets, info.Chat);
-      pushUniqueTarget(targets, info.SenderAlt);
-    }
+    const isInbound = row?.direction === 'in' || info?.IsFromMe === false;
+    if (!isInbound) continue;
+    pushInbound(row?.remote_jid);
+    pushInbound(info.Chat);
+    pushInbound(info.Sender);
+    pushInbound(info.SenderAlt);
+  }
+
+  // Second pass: outbound history (last known good targets we used before).
+  for (const row of data || []) {
+    const info = row?.raw?.data?.Info || row?.raw?.Info || {};
+    const isOutbound = row?.direction === 'out' || info?.IsFromMe === true;
+    if (!isOutbound) continue;
+    pushUniqueTarget(targets, row?.remote_jid);
+    pushUniqueTarget(targets, info.RecipientAlt);
+    pushUniqueTarget(targets, info.TargetJID || info.TargetID);
+    pushUniqueTarget(targets, info.DeviceSentMeta?.DestinationJID);
+    pushUniqueTarget(targets, info.Chat);
   }
 
   pushUniqueTarget(targets, phoneDigits.includes('@') ? phone : phoneDigits);
   if (normalizedPhone) pushUniqueTarget(targets, normalizedPhone);
   if (normalizedPhone) pushUniqueTarget(targets, `${normalizedPhone}@s.whatsapp.net`);
 
-  // Brazilian 9th-digit fallback: when sending to a new contact (no history),
-  // also try the variant with/without the 9 after the DDD so numbers saved in
-  // either format reach WhatsApp.
   if (normalizedPhone.startsWith('55') && normalizedPhone.length >= 12) {
     const ddd = normalizedPhone.slice(2, 4);
     const rest = normalizedPhone.slice(4);
@@ -153,14 +169,17 @@ async function resolveSendTargets(admin: any, userId: string, phone: string) {
     }
   }
 
-  const lids = targets.filter((t) => t.kind === 'lid');
-  const jids = targets.filter((t) => t.kind === 'jid' && t.value.startsWith('55'));
-  const phones = targets.filter((t) => t.kind === 'phone' && t.value.startsWith('55'));
+  // Inbound JIDs first — they bypass the WhatsApp 463 "reachout time lock"
+  // because the conversation is already established. Then inbound LIDs, then
+  // raw phone fallbacks.
+  const inboundJids = targets.filter((t) => t.fromInbound && t.kind === 'jid');
+  const inboundLids = targets.filter((t) => t.fromInbound && t.kind === 'lid');
+  const otherLids = targets.filter((t) => !t.fromInbound && t.kind === 'lid');
+  const brPhones = targets.filter((t) => t.kind === 'phone' && t.value.startsWith('55'));
+  const otherJids = targets.filter((t) => !t.fromInbound && t.kind === 'jid' && t.value.startsWith('55'));
   const otherPhones = targets.filter((t) => t.kind === 'phone' && !t.value.startsWith('55'));
-  // Evolution Go may return "success" for the phone JID while WhatsApp only
-  // actually delivers through the mapped LID for that contact. Try LID first
-  // when we have it, then fall back to normal phone/JID targets on 463 errors.
-  return [...lids, ...phones, ...jids, ...otherPhones].filter((target, index, arr) => arr.findIndex((t) => t.value === target.value) === index);
+  const ordered = [...inboundJids, ...inboundLids, ...otherLids, ...brPhones, ...otherJids, ...otherPhones];
+  return ordered.filter((target, index, arr) => arr.findIndex((t) => t.value === target.value) === index);
 }
 
 function phoneFromJid(value: unknown) {
