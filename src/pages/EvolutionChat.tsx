@@ -571,6 +571,16 @@ export default function EvolutionChat() {
         if (row.last_seen_at) setLastSeenByPhone(prev => ({ ...prev, [row.phone!]: row.last_seen_at! }));
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'evolution_conversation_state', filter: `user_id=eq.${user.id}` }, (payload) => {
+        if (payload.eventType === 'DELETE') {
+          const old = payload.old as { phone?: string } | null;
+          if (!old?.phone) return;
+          setManualUnreadPhones(prev => {
+            const next = new Set(prev); next.delete(old.phone!);
+            try { localStorage.setItem('evo_manual_unread', JSON.stringify([...next])); } catch { /* noop */ }
+            return next;
+          });
+          return;
+        }
         const row = payload.new as ConversationStateRow | null;
         if (!row?.phone) return;
         setManualUnreadPhones(prev => {
@@ -579,13 +589,13 @@ export default function EvolutionChat() {
           try { localStorage.setItem('evo_manual_unread', JSON.stringify([...next])); } catch { /* noop */ }
           return next;
         });
-        if (row.last_read_at) {
-          setLastReadByPhone(prev => {
-            const next = { ...prev, [row.phone]: row.last_read_at! };
-            try { localStorage.setItem('evo_last_read', JSON.stringify(next)); } catch { /* noop */ }
-            return next;
-          });
-        }
+        setLastReadByPhone(prev => {
+          const next = { ...prev };
+          if (row.last_read_at) next[row.phone] = row.last_read_at;
+          else delete next[row.phone];
+          try { localStorage.setItem('evo_last_read', JSON.stringify(next)); } catch { /* noop */ }
+          return next;
+        });
       })
       .subscribe();
     return () => { supabase.removeChannel(ch); };
