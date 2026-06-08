@@ -11,7 +11,7 @@ import EmojiPicker, { EmojiStyle, Theme } from 'emoji-picker-react';
 import {
   Loader2, Send, Zap, Plus, RefreshCw, Search, MessageSquare,
   Phone, X, Smile, Mic, Paperclip, Trash2, Image as ImageIcon, FileText, Sticker, QrCode,
-  Pin, PinOff, Info, Copy, ExternalLink, MoreVertical, ChevronDown,
+  Pin, PinOff, Info, Copy, ExternalLink, MoreVertical, ArrowLeft, ChevronDown,
   Reply, Forward, Star, StarOff, Trash, Volume2, VolumeX, BookOpen, CheckCircle2, MailOpen,
 } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
@@ -50,6 +50,12 @@ interface EvoContact {
   profile_pic_url: string | null;
   needs_human?: boolean;
   ai_category?: string | null;
+}
+
+interface ConversationStateRow {
+  phone: string;
+  last_read_at: string | null;
+  manual_unread: boolean;
 }
 
 interface QuotedPayload {
@@ -193,6 +199,12 @@ function mediaSource(m: EvoMessage) {
   if (!base64) return null;
   const mime = m.media_mime || (m.message_type === 'sticker' ? 'image/webp' : 'image/jpeg');
   return base64.startsWith('data:') ? base64 : `data:${mime};base64,${base64}`;
+}
+
+function isProtocolPlaceholder(m: EvoMessage) {
+  if (m.content !== '[text]' && m.content !== 'text') return false;
+  const msg = getNestedValue(m.raw, ['data', 'Message']) || getNestedValue(m.raw, ['Message']) || getNestedValue(m.raw, ['message']);
+  return !!getNestedValue(msg, ['protocolMessage']) || !!getNestedValue(msg, ['messageContextInfo']);
 }
 
 async function fileToBase64(file: Blob): Promise<string> {
@@ -434,11 +446,12 @@ export default function EvolutionChat() {
     if (!user) return;
     const hadCache = messagesRef.current.length > 0;
     if (!hadCache) setLoading(true);
-    const [msgRes, contRes, presRes] = await Promise.all([
+    const [msgRes, contRes, presRes, stateRes] = await Promise.all([
       // Reduzido de 1500 → 800: abre muito mais rápido no celular e a UI mostra "Carregar mais antigas" se precisar.
       supabase.from('evolution_messages').select('*').eq('user_id', user.id).order('created_at', { ascending: false }).limit(800),
       supabase.from('evolution_contacts').select('phone, name, profile_pic_url, needs_human, ai_category').eq('user_id', user.id),
       supabase.from('evolution_presence').select('phone, presence, last_seen_at, updated_at').eq('user_id', user.id),
+      (supabase.from('evolution_conversation_state' as any) as any).select('phone,last_read_at,manual_unread').eq('user_id', user.id),
     ]);
     setLoading(false);
     if (msgRes.error) {
@@ -466,6 +479,21 @@ export default function EvolutionChat() {
       if (p.last_seen_at) lmap[p.phone] = p.last_seen_at;
     }
     setLastSeenByPhone(lmap);
+    const readMap: Record<string, string> = {};
+    const unreadSet = new Set<string>();
+    for (const row of (((stateRes as any).data || []) as ConversationStateRow[])) {
+      if (row.last_read_at) readMap[row.phone] = row.last_read_at;
+      if (row.manual_unread) unreadSet.add(row.phone);
+    }
+    if (Object.keys(readMap).length || unreadSet.size) {
+      setLastReadByPhone(prev => {
+        const next = { ...prev, ...readMap };
+        try { localStorage.setItem('evo_last_read', JSON.stringify(next)); } catch { /* noop */ }
+        return next;
+      });
+      setManualUnreadPhones(unreadSet);
+      try { localStorage.setItem('evo_manual_unread', JSON.stringify([...unreadSet])); } catch { /* noop */ }
+    }
     try {
       sessionStorage.setItem('evo_cache_messages', JSON.stringify(merged.slice(-800)));
       sessionStorage.setItem('evo_cache_contacts', JSON.stringify(cmap));
@@ -545,6 +573,23 @@ export default function EvolutionChat() {
         if (!row?.phone) return;
         setTypingByPhone(prev => ({ ...prev, [row.phone!]: { presence: row.presence || 'available', at: Date.now() } }));
         if (row.last_seen_at) setLastSeenByPhone(prev => ({ ...prev, [row.phone!]: row.last_seen_at! }));
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'evolution_conversation_state', filter: `user_id=eq.${user.id}` }, (payload) => {
+        const row = payload.new as ConversationStateRow | null;
+        if (!row?.phone) return;
+        setManualUnreadPhones(prev => {
+          const next = new Set(prev);
+          if (row.manual_unread) next.add(row.phone); else next.delete(row.phone);
+          try { localStorage.setItem('evo_manual_unread', JSON.stringify([...next])); } catch { /* noop */ }
+          return next;
+        });
+        if (row.last_read_at) {
+          setLastReadByPhone(prev => {
+            const next = { ...prev, [row.phone]: row.last_read_at! };
+            try { localStorage.setItem('evo_last_read', JSON.stringify(next)); } catch { /* noop */ }
+            return next;
+          });
+        }
       })
       .subscribe();
     return () => { supabase.removeChannel(ch); };
@@ -705,15 +750,20 @@ export default function EvolutionChat() {
     }
     // Compute unread: incoming messages newer than max(lastReadByPhone, lastOutAt).
     // This auto-clears when you reply from another device or when you open here.
+    const msgByPhone = new Map<string, EvoMessage[]>();
+    for (const m of instanceMessages) {
+      if (!msgByPhone.has(m.phone)) msgByPhone.set(m.phone, []);
+      msgByPhone.get(m.phone)!.push(m);
+    }
     for (const conv of map.values()) {
-      const lastRead = lastReadByPhone[conv.phone] || '';
-      const cutoffStr = [lastRead, conv.lastOutAt].filter(Boolean).sort().pop() || '';
+      const lastRead = lastReadByPhone[conv.phone] || "";
+      const cutoffStr = [lastRead, conv.lastOutAt].filter(Boolean).sort().pop() || "";
       const cutoff = cutoffStr ? new Date(cutoffStr).getTime() : 0;
       let count = 0;
-      for (const m of instanceMessages) {
-        if (m.phone !== conv.phone) continue;
-        if (m.direction !== 'in') continue;
-        if (m.status === 'read' || m.status === 'played') continue;
+      const convMsgs = msgByPhone.get(conv.phone) || [];
+      for (const m of convMsgs) {
+        if (m.direction !== "in") continue;
+        if (m.status === "read" || m.status === "played") continue;
         if (new Date(m.created_at).getTime() > cutoff) count++;
       }
       if (manualUnreadPhones.has(conv.phone) && count === 0) count = 1;
@@ -757,11 +807,13 @@ export default function EvolutionChat() {
   useEffect(() => {
     if (!selectedPhone) return;
     if (manualUnreadPhones.has(selectedPhone)) return;
+    const openedAt = new Date().toISOString();
     setLastReadByPhone(prev => {
-      const next = { ...prev, [selectedPhone]: new Date().toISOString() };
+      const next = { ...prev, [selectedPhone]: openedAt };
       try { localStorage.setItem('evo_last_read', JSON.stringify(next)); } catch { /* noop */ }
       return next;
     });
+    invokeEvolution({ action: 'mark-read', phone: selectedPhone, readAt: openedAt }).catch(() => undefined);
   }, [selectedPhone, instanceMessages.length, manualUnreadPhones]);
 
   const thread = useMemo(
@@ -853,6 +905,15 @@ export default function EvolutionChat() {
       setMessages(prev => [...prev, ...removed]);
       return;
     }
+    if (user) {
+      await supabase.from('evolution_contacts').delete().eq('user_id', user.id).eq('phone', phone);
+      await (supabase.from('evolution_conversation_state' as any) as any).delete().eq('user_id', user.id).eq('phone', phone);
+    }
+    setContacts(prev => {
+      const next = { ...prev };
+      delete next[phone];
+      return next;
+    });
     setSelectedPhone(null);
     toast({ title: 'Conversa apagada', description: `${data?.deleted ?? removed.length} mensagens removidas` });
   };
@@ -864,22 +925,25 @@ export default function EvolutionChat() {
       try { localStorage.setItem('evo_manual_unread', JSON.stringify([...next])); } catch { /* noop */ }
       return next;
     });
+    invokeEvolution({ action: 'mark-unread', phone }).catch(() => undefined);
     toast({ title: 'Marcada como não lida' });
   };
 
-  const markConversationRead = (phone: string) => {
+  const markConversationRead = async (phone: string) => {
+    if (!phone) return;
     setManualUnreadPhones(prev => {
       const next = new Set(prev);
       next.delete(phone);
-      try { localStorage.setItem('evo_manual_unread', JSON.stringify([...next])); } catch { /* noop */ }
+      try { localStorage.setItem("evo_manual_unread", JSON.stringify([...next])); } catch { /* noop */ }
       return next;
     });
     setLastReadByPhone(prev => {
       const next = { ...prev, [phone]: new Date().toISOString() };
-      try { localStorage.setItem('evo_last_read', JSON.stringify(next)); } catch { /* noop */ }
+      try { localStorage.setItem("evo_last_read", JSON.stringify(next)); } catch { /* noop */ }
       return next;
     });
-    toast({ title: 'Marcada como lida' });
+    await invokeEvolution({ action: "mark-read", phone }).catch(() => undefined);
+    toast({ title: "Marcada como lida" });
   };
 
   const isFavorited = useCallback((id: string) => favorites.some(f => f.id === id), [favorites]);
@@ -1155,6 +1219,7 @@ export default function EvolutionChat() {
     const reactions: Record<string, { emoji: string; from: 'in' | 'out' }> = {};
     const visible: EvoMessage[] = [];
     for (const m of thread) {
+      if (isProtocolPlaceholder(m)) continue;
       const r = extractReaction(m.raw);
       const looksLikeReaction = !!r || m.message_type === 'reaction' || (m.content === '[reaction]');
       if (r) {
@@ -1214,7 +1279,7 @@ export default function EvolutionChat() {
       return (
         <div className="space-y-1">
           <video src={v} controls preload="metadata" className="max-w-[280px] max-h-72 rounded-lg bg-black" />
-          {m.content && !m.content.startsWith('[') && <div className="text-sm">{m.content}</div>}
+          {m.content && <div className="text-sm">{m.content}</div>}
         </div>
       );
     }
@@ -1284,13 +1349,13 @@ export default function EvolutionChat() {
         : card;
     }
 
-    return <div className="whitespace-pre-wrap break-words leading-snug">{m.content}</div>;
+    return <div className="whitespace-pre-wrap break-words leading-snug">{m.content === '[text]' ? 'Mensagem do WhatsApp sem conteúdo visível' : m.content}</div>;
   };
 
 
   return (
     <DashboardLayout noPadding>
-      <div className="flex flex-col md:flex-row h-[calc(100vh-56px)] animate-fade-in bg-background">
+      <div className="flex flex-col md:flex-row h-[calc(100dvh-56px)] animate-fade-in bg-background">
         {/* Conversations sidebar */}
         <div className={cn(
           'flex flex-col border-r border-border bg-card/30',
@@ -1567,10 +1632,10 @@ export default function EvolutionChat() {
             </div>
           ) : (
             <>
-              <div className="px-3 py-2 border-b border-[#0b1115] bg-gradient-to-r from-[#202c33] via-[#1f2a30] to-[#202c33] flex items-center gap-3 shadow-sm">
+              <div className="sticky top-0 z-10 px-3 py-2 border-b border-[#0b1115] bg-gradient-to-r from-[#202c33] via-[#1f2a30] to-[#202c33] flex items-center gap-3 shadow-sm">
                 {isMobile && (
                   <Button size="icon" variant="ghost" className="h-8 w-8 text-[#aebac1] hover:bg-white/5" onClick={() => setSelectedPhone(null)}>
-                    <X className="w-4 h-4" />
+                    <ArrowLeft className="w-4 h-4" />
                   </Button>
                 )}
                 <button
@@ -1894,7 +1959,7 @@ export default function EvolutionChat() {
                     </div>
                   </div>
                   <Button size="icon" variant="ghost" className="h-7 w-7 text-[#aebac1] hover:bg-white/5" onClick={() => setReplyTo(null)} title="Cancelar resposta">
-                    <X className="w-4 h-4" />
+                    <ArrowLeft className="w-4 h-4" />
                   </Button>
                 </div>
               )}
@@ -2023,6 +2088,17 @@ export default function EvolutionChat() {
                 )}
               </div>
               )}
+              {isMobile && (
+                <Button
+                  size="icon"
+                  variant="secondary"
+                  className="fixed left-3 bottom-20 z-40 h-10 w-10 rounded-full shadow-lg bg-[#202c33] text-[#e9edef] hover:bg-[#2a3942]"
+                  onClick={() => setSelectedPhone(null)}
+                  title="Voltar para conversas"
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                </Button>
+              )}
             </>
           )}
         </div>
@@ -2039,7 +2115,7 @@ export default function EvolutionChat() {
               <div className="flex items-center justify-between px-3 py-2 border-b border-border">
                 <h2 className="text-sm font-semibold">Renovação Rápida</h2>
                 <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setShowRenewalPanel(false)}>
-                  <X className="w-4 h-4" />
+                  <ArrowLeft className="w-4 h-4" />
                 </Button>
               </div>
               <div className="flex-1 overflow-auto">

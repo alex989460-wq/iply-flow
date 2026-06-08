@@ -543,8 +543,9 @@ Deno.serve(async (req) => {
       } : null;
 
       const attempts: Array<{ url: string; headers: Record<string, string>; body: any; mode: string }> = [];
-      const phoneVariants = [primaryTarget, phone]
-        .map((value) => String(value || '').replace(/\D/g, ''))
+      const dbTargets = await resolveSendTargets(admin, user.id, phone);
+      const phoneVariants = [...dbTargets.map((target) => target.value), primaryTarget, phone]
+        .map((value) => String(value || '').trim())
         .filter(Boolean);
       if (phone.startsWith('55') && phone.length >= 12) {
         const ddd = phone.slice(2, 4);
@@ -554,16 +555,21 @@ Deno.serve(async (req) => {
       }
       const targets = Array.from(new Set(phoneVariants));
       for (const target of targets) {
-        const goBody: Record<string, unknown> = { number: target, text };
-        const goBodyMsg: Record<string, unknown> = { number: target, message: text };
-        const classicBody: Record<string, unknown> = { number: target, text };
-        const classicBodyV1: Record<string, unknown> = { number: target, textMessage: { text } };
+        const isJid = /@(lid|s\.whatsapp\.net)\b/i.test(target);
+        const targetDigits = target.split('@')[0].replace(/\D/g, '');
+        if (!isJid && targetDigits.length < 10) continue;
+        const goNumber = isJid ? target : targetDigits;
+        const classicNumber = targetDigits || target;
+        const goBody: Record<string, unknown> = { number: goNumber, text };
+        const goBodyMsg: Record<string, unknown> = { number: goNumber, message: text };
+        const classicBody: Record<string, unknown> = { number: classicNumber, text };
+        const classicBodyV1: Record<string, unknown> = { number: classicNumber, textMessage: { text } };
         if (quotedGo && quotedClassic) {
           goBody.quoted = quotedGo; goBodyMsg.quoted = quotedGo;
           classicBody.quoted = quotedClassic; classicBodyV1.quoted = quotedClassic;
         }
         attempts.push(
-          { url: `${baseUrl}/send/text`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { ...goBody, formatJid: true }, mode: 'evolution-go-send' },
+          { url: `${baseUrl}/send/text`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { ...goBody, formatJid: !isJid }, mode: isJid ? 'evolution-go-send-jid' : 'evolution-go-send' },
           { url: `${baseUrl}/send/text`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { ...goBody, formatJid: false }, mode: 'evolution-go-send-raw' },
           { url: `${baseUrl}/message/sendText`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: goBody, mode: 'evolution-go' },
           { url: `${baseUrl}/message/sendText`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: goBodyMsg, mode: 'evolution-go-msg' },
@@ -575,6 +581,7 @@ Deno.serve(async (req) => {
       let result: any = { ok: false, status: 0, data: {} };
       let mode = 'evolution-api-v1';
       const log: any[] = [];
+      await primeEvolutionContact(baseUrl, instAuth.apiKey, instAuth.instanceId, phone).catch(() => undefined);
       for (const att of attempts) {
         const timeout = 8000;
         const r = await fetchJson(att.url, {
@@ -1460,6 +1467,45 @@ Deno.serve(async (req) => {
         if (r.ok) return jsonResponse({ ok: true });
       }
       return jsonResponse({ ok: false }, 200);
+    }
+
+    // MARK READ / UNREAD — shared across browsers/attendants
+    if (action === 'mark-read' || action === 'mark-unread') {
+      const phone = normalizeChatPhone(body.phone);
+      if (!phone) return jsonResponse({ error: 'phone obrigatório' }, 400);
+      const readAt = action === 'mark-read' ? String(body.readAt || new Date().toISOString()) : null;
+      await admin.from('evolution_conversation_state').upsert({
+        user_id: user.id,
+        phone,
+        last_read_at: readAt,
+        manual_unread: action === 'mark-unread',
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'user_id,phone' });
+
+      if (action === 'mark-read') {
+        await admin.from('evolution_messages')
+          .update({ status: 'read' })
+          .eq('user_id', user.id)
+          .eq('phone', phone)
+          .eq('direction', 'in')
+          .neq('status', 'read');
+
+        if (instance) {
+          const instAuth = await resolveInstanceAuth(baseUrl, apiKey, instance);
+          const jid = `${phone}@s.whatsapp.net`;
+          const tries = [
+            { url: `${baseUrl}/chat/markMessageAsRead/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { readMessages: [{ remoteJid: jid, fromMe: false }] } },
+            { url: `${baseUrl}/chat/markMessageAsRead`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: phone, read: true } },
+            { url: `${baseUrl}/chat/read`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: phone } },
+          ];
+          for (const t of tries) {
+            const r = await fetchJson(t.url, { method: 'POST', headers: t.headers, body: JSON.stringify(t.body) }, 4000)
+              .catch(() => ({ ok: false, status: 0, data: {} }));
+            if (r.ok) break;
+          }
+        }
+      }
+      return jsonResponse({ ok: true });
     }
 
     // SYNC HISTORY — body: { phone?, limit? } — fetch historical messages from Evolution Go and import into evolution_messages

@@ -700,6 +700,36 @@ export type Database = {
         }
         Relationships: []
       }
+      evolution_conversation_state: {
+        Row: {
+          created_at: string
+          id: string
+          last_read_at: string | null
+          manual_unread: boolean
+          phone: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          last_read_at?: string | null
+          manual_unread?: boolean
+          phone: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          last_read_at?: string | null
+          manual_unread?: boolean
+          phone?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       evolution_messages: {
         Row: {
           contact_name: string | null

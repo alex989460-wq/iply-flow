@@ -12,24 +12,43 @@ function jidToPhone(jid: string) {
   return raw.replace(/\D/g, '');
 }
 
+function unwrapMessage(message: any): any {
+  return message?.ephemeralMessage?.message
+    || message?.viewOnceMessage?.message
+    || message?.viewOnceMessageV2?.message
+    || message?.documentWithCaptionMessage?.message
+    || message?.editedMessage?.message
+    || message;
+}
+
 function messageText(message: any) {
-  return message?.conversation ||
-    message?.extendedTextMessage?.text ||
-    message?.imageMessage?.caption ||
-    message?.videoMessage?.caption ||
-    message?.documentMessage?.caption ||
-    (message?.audioMessage ? '🎤 Áudio' : '') ||
+  const msg = unwrapMessage(message);
+  return msg?.conversation ||
+    msg?.extendedTextMessage?.text ||
+    msg?.imageMessage?.caption ||
+    msg?.videoMessage?.caption ||
+    msg?.documentMessage?.caption ||
+    msg?.buttonsResponseMessage?.selectedDisplayText ||
+    msg?.listResponseMessage?.title ||
+    msg?.templateButtonReplyMessage?.selectedDisplayText ||
+    (msg?.audioMessage ? '🎤 Áudio' : '') ||
     '';
 }
 
 function messageType(message: any, fallback = '') {
-  if (message?.reactionMessage) return 'reaction';
-  return message?.imageMessage ? 'image'
-    : message?.videoMessage ? 'video'
-    : message?.audioMessage ? 'audio'
-    : message?.documentMessage ? 'document'
-    : message?.stickerMessage ? 'sticker'
+  const msg = unwrapMessage(message);
+  if (msg?.reactionMessage) return 'reaction';
+  return msg?.imageMessage ? 'image'
+    : msg?.videoMessage ? 'video'
+    : msg?.audioMessage ? 'audio'
+    : msg?.documentMessage ? 'document'
+    : msg?.stickerMessage ? 'sticker'
     : fallback || 'text';
+}
+
+function isProtocolOnlyMessage(message: any) {
+  const msg = unwrapMessage(message) || {};
+  return !messageText(msg) && !!(msg.protocolMessage || msg.messageContextInfo || msg.senderKeyDistributionMessage);
 }
 
 function extractQuoted(message: any) {
@@ -403,6 +422,11 @@ Deno.serve(async (req) => {
           ? (info.IsFromMe ? 'status:me' : (participantPhone ? `status:${participantPhone}` : 'status:unknown'))
           : bestConversationPhone(info, remoteJid);
         const msg = data.Message || {};
+        if (isProtocolOnlyMessage(msg)) {
+          return new Response(JSON.stringify({ ok: true, skipped: 'protocol-message' }), {
+            status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
         const type = messageType(msg, String(info.MediaType || info.Type || '').toLowerCase());
         const mediaMime = mediaMimeFrom(msg) || (type === 'document' ? mimeFromFileName(docFileName(msg)) : null);
         const mediaUrl = await storeIncomingMedia(admin, settings.user_id, info.ID || null, type, mediaMime, mediaBase64From(data) || mediaBase64From(msg), mediaUrlFrom(msg));
@@ -471,6 +495,7 @@ Deno.serve(async (req) => {
         : jidToPhone(remoteJid);
       if (!phone) continue;
       const msg = m?.message || {};
+      if (isProtocolOnlyMessage(msg)) continue;
       const content = messageText(msg);
       const type = messageType(msg);
       const mediaMime = mediaMimeFrom(msg) || (type === 'document' ? mimeFromFileName(docFileName(msg)) : null);

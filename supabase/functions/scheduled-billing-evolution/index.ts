@@ -151,6 +151,16 @@ Deno.serve(async (req) => {
     const results: any[] = [];
 
     for (const sched of toRun) {
+      const { data: billingSettings } = await supabase
+        .from('billing_settings')
+        .select('use_evolution_billing')
+        .eq('user_id', sched.user_id)
+        .maybeSingle();
+      if (!billingSettings?.use_evolution_billing) {
+        results.push({ user_id: sched.user_id, sent: 0, errors: 0, skipped: 'zap_responder_selected' });
+        continue;
+      }
+
       // Evolution credentials for this user
       const { data: evo } = await supabase
         .from('evolution_settings')

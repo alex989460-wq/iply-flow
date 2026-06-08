@@ -174,9 +174,11 @@ Deno.serve(async (req) => {
       if (currentMinutes > sendMinutes + 360) return false;
       const lastRunAt = (s as any).last_run_at as string | null;
       const lastStatus = (s as any).last_run_status as string | null;
-      if (lastRunAt && lastStatus?.startsWith('completed:')) {
+      if (lastRunAt && (lastStatus?.startsWith('completed:') || lastStatus?.startsWith('error:'))) {
         const lastDateSP = formatDateSaoPaulo(new Date(lastRunAt));
-        if (lastDateSP === todayStrSP) return false;
+        const updatedAt = (s as any).updated_at as string | null;
+        const changedAfterError = !!updatedAt && (new Date(updatedAt).getTime() - new Date(lastRunAt).getTime()) > 30_000;
+        if (lastDateSP === todayStrSP && !changedAfterError) return false;
       }
       return true;
     });
