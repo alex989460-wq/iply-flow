@@ -147,7 +147,7 @@ Deno.serve(async (req) => {
     
     console.log(`[Scheduled Billing] Current time in São Paulo: ${currentTime}`);
 
-    // Find all enabled schedules that should run now (within 1-minute window)
+    // Find all enabled schedules that should run now (resumable across cron ticks)
     const { data: schedules, error: schedulesError } = await supabase
       .from('billing_schedule')
       .select('*')
@@ -163,11 +163,22 @@ Deno.serve(async (req) => {
 
     console.log(`[Scheduled Billing] Found ${schedules?.length || 0} enabled schedules`);
 
-    // Filter schedules that match current time (within same minute)
+    // Run schedule if: current time >= send_time, within 6h window, and not completed today.
+    // This lets cron resume the same schedule across multiple minutes until all customers are sent.
+    const todayStrSP = getRelativeDateSaoPaulo(0);
+    const currentMinutes = hour * 60 + minute;
     const schedulesToRun = (schedules || []).filter((s: BillingSchedule) => {
-      const scheduleTime = s.send_time.substring(0, 5); // HH:MM
-      const currentTimeShort = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
-      return scheduleTime === currentTimeShort;
+      const [sh, sm] = s.send_time.substring(0, 5).split(':').map(Number);
+      const sendMinutes = sh * 60 + sm;
+      if (currentMinutes < sendMinutes) return false;
+      if (currentMinutes > sendMinutes + 360) return false;
+      const lastRunAt = (s as any).last_run_at as string | null;
+      const lastStatus = (s as any).last_run_status as string | null;
+      if (lastRunAt && lastStatus?.startsWith('completed:')) {
+        const lastDateSP = formatDateSaoPaulo(new Date(lastRunAt));
+        if (lastDateSP === todayStrSP) return false;
+      }
+      return true;
     });
 
     console.log(`[Scheduled Billing] Schedules to run now: ${schedulesToRun.length}`);
@@ -178,6 +189,9 @@ Deno.serve(async (req) => {
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+
+    // Process at most this many customers per invocation to stay under edge function limits
+    const BATCH_SIZE = 4;
 
     const results: any[] = [];
 
