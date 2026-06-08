@@ -112,7 +112,8 @@ Deno.serve(async (req) => {
     const filterUserId: string | undefined = body.userId;
 
     const { hour, minute } = getCurrentTimeSaoPaulo();
-    const currentTime = `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+    const currentMinutes = hour * 60 + minute;
+    const todayStrSP = getRelativeDateSaoPaulo(0);
 
     let query = supabase
       .from('evolution_billing_schedule')
@@ -122,12 +123,30 @@ Deno.serve(async (req) => {
 
     const { data: schedules } = await query;
 
-    const toRun = (schedules || []).filter((s: any) => force || s.send_time.substring(0, 5) === currentTime);
+    // Run if past send_time, within 6h window, and not completed today.
+    // Cron resumes the same schedule across ticks until done.
+    const toRun = (schedules || []).filter((s: any) => {
+      if (force) return true;
+      const [sh, sm] = String(s.send_time).substring(0, 5).split(':').map(Number);
+      const sendMin = sh * 60 + sm;
+      if (currentMinutes < sendMin) return false;
+      if (currentMinutes > sendMin + 360) return false;
+      if (s.last_run_at && typeof s.last_run_status === 'string' && s.last_run_status.startsWith('completed:')) {
+        const last = new Date(s.last_run_at);
+        const lastSP = new Intl.DateTimeFormat('en-CA', {
+          timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit',
+        }).format(last);
+        if (lastSP === todayStrSP) return false;
+      }
+      return true;
+    });
     if (toRun.length === 0) {
       return new Response(JSON.stringify({ success: true, processed: 0, results: [] }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
+
+    const BATCH_SIZE = 4;
 
     const results: any[] = [];
 
@@ -168,6 +187,14 @@ Deno.serve(async (req) => {
         .eq('created_by', sched.user_id)
         .in('due_date', [yesterday, today, tomorrow]);
 
+      // Pre-fetch today's billing_logs to skip customers already processed (resume across cron ticks)
+      const { data: existingLogs } = await supabase
+        .from('billing_logs')
+        .select('customer_id, billing_type')
+        .gte('sent_at', `${today}T00:00:00`)
+        .lte('sent_at', `${today}T23:59:59`);
+      const alreadyDone = new Set((existingLogs || []).map((l: any) => `${l.customer_id}|${l.billing_type}`));
+
       const list: any[] = [];
       for (const c of customers || []) {
         let bt: string | null = null;
@@ -175,11 +202,25 @@ Deno.serve(async (req) => {
         else if (c.due_date === today) bt = 'D0';
         else if (c.due_date === yesterday) bt = 'D+1';
         if (!bt || !types.includes(bt)) continue;
+        if (alreadyDone.has(`${c.id}|${bt}`)) continue;
         list.push({ ...c, billingType: bt });
       }
 
-      const minDelay = Math.max(5, sched.min_delay_seconds || 15) * 1000;
-      const maxDelay = Math.max(minDelay / 1000, sched.max_delay_seconds || 30) * 1000;
+      const totalPending = list.length;
+      const batch = list.slice(0, BATCH_SIZE);
+      console.log(`[evo-billing] user ${sched.user_id}: ${totalPending} pendentes, processando ${batch.length}`);
+
+      // Mark in_progress immediately so the panel reflects activity and we don't double-trigger
+      await supabase
+        .from('evolution_billing_schedule')
+        .update({
+          last_run_at: new Date().toISOString(),
+          last_run_status: `in_progress: ${totalPending} pendentes`,
+        })
+        .eq('id', sched.id);
+
+      const minDelay = Math.max(5, sched.min_delay_seconds || 8) * 1000;
+      const maxDelay = Math.max(minDelay / 1000, sched.max_delay_seconds || 15) * 1000;
 
       const tplMap: Record<string, string> = {
         'D-1': sched.message_d_minus_1 || 'Olá {{nome}}, vence amanhã ({{vencimento}}).',
@@ -189,8 +230,8 @@ Deno.serve(async (req) => {
 
       let sent = 0, errors = 0;
 
-      for (let i = 0; i < list.length; i++) {
-        const c = list[i];
+      for (let i = 0; i < batch.length; i++) {
+        const c = batch[i];
         const tpl = tplMap[c.billingType as string];
         const vencDate = new Date(c.due_date + 'T12:00:00');
         const price = c.custom_price ?? c.plan?.price ?? 0;
@@ -219,7 +260,6 @@ Deno.serve(async (req) => {
           if (sched.image_url) {
             result = await sendEvoImage(baseUrl, apiKey, instance, instAuth, phone, sched.image_url, text);
             if (!result.ok) {
-              // fallback to text only
               result = await sendEvoText(baseUrl, apiKey, instance, instAuth, phone, text);
             }
           } else {
@@ -239,21 +279,26 @@ Deno.serve(async (req) => {
           whatsapp_status: result?.ok ? 'sent' : 'error',
         });
 
-        if (i < list.length - 1) {
+        if (i < batch.length - 1) {
           const delay = Math.floor(Math.random() * (maxDelay - minDelay + 1)) + minDelay;
           await new Promise(r => setTimeout(r, delay));
         }
       }
 
+      const remaining = totalPending - batch.length;
+      const status = remaining > 0
+        ? `in_progress: lote ${sent} enviadas / ${remaining} restantes`
+        : `completed: ${sent} enviadas, ${errors} erros nesta execução`;
+
       await supabase
         .from('evolution_billing_schedule')
         .update({
           last_run_at: new Date().toISOString(),
-          last_run_status: `${force ? 'manual' : 'auto'}: ${sent} enviadas, ${errors} erros (${list.length} clientes)`,
+          last_run_status: status,
         })
         .eq('id', sched.id);
 
-      results.push({ user_id: sched.user_id, sent, errors, total: list.length });
+      results.push({ user_id: sched.user_id, sent, errors, total: batch.length, remaining });
     }
 
     return new Response(JSON.stringify({ success: true, results }), {
