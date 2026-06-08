@@ -152,6 +152,8 @@ function rawBase64From(raw: unknown) {
   const paths = [
     ['data', 'Message', 'base64'], ['Message', 'base64'], ['base64'],
     ['data', 'Message', 'imageMessage', 'base64'], ['data', 'Message', 'stickerMessage', 'base64'],
+    ['data', 'Message', 'videoMessage', 'base64'], ['data', 'Message', 'audioMessage', 'base64'], ['data', 'Message', 'documentMessage', 'base64'],
+    ['Message', 'videoMessage', 'base64'], ['Message', 'audioMessage', 'base64'], ['Message', 'documentMessage', 'base64'],
   ];
   for (const path of paths) {
     const value = getNestedValue(raw, path);
@@ -459,8 +461,16 @@ export default function EvolutionChat() {
   };
 
   const mergeMessage = useCallback((prev: EvoMessage[], incoming: EvoMessage) => {
-    if (prev.some((m) => m.id === incoming.id)) return prev;
-    if (incoming.external_id && prev.some((m) => m.external_id === incoming.external_id)) return prev;
+    const sameIndex = prev.findIndex((m) => m.id === incoming.id || (incoming.external_id && m.external_id === incoming.external_id));
+    if (sameIndex >= 0) {
+      const current = prev[sameIndex];
+      const hasNewMedia = !!incoming.media_url && incoming.media_url !== current.media_url;
+      const hasNewRaw = !current.raw && !!incoming.raw;
+      if (!hasNewMedia && !hasNewRaw) return prev;
+      const copy = [...prev];
+      copy[sameIndex] = { ...current, ...incoming, raw: incoming.raw || current.raw, media_url: incoming.media_url || current.media_url };
+      return copy;
+    }
 
     const tempIndex = [...prev].reverse().findIndex((m) =>
       m.id.startsWith('tmp-') &&
