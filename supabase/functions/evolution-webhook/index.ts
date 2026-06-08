@@ -21,8 +21,50 @@ function unwrapMessage(message: any): any {
     || message;
 }
 
+function parseVcardSummary(vcard: string): { name: string; phones: string[] } {
+  const text = String(vcard || '');
+  const fnMatch = text.match(/(?:^|\n)FN[^:]*:(.+)/i);
+  const name = fnMatch ? fnMatch[1].trim() : '';
+  const phones: string[] = [];
+  const telRegex = /(?:^|\n)TEL[^:]*:([^\r\n]+)/gi;
+  let m: RegExpExecArray | null;
+  while ((m = telRegex.exec(text)) !== null) {
+    const digits = m[1].replace(/[^\d+]/g, '');
+    if (digits) phones.push(digits);
+  }
+  return { name, phones };
+}
+
+function summarizeContacts(msg: any): string {
+  const list: Array<{ vcard?: string; displayName?: string }> = [];
+  if (msg?.contactMessage) list.push(msg.contactMessage);
+  if (Array.isArray(msg?.contactsArrayMessage?.contacts)) list.push(...msg.contactsArrayMessage.contacts);
+  if (!list.length) return '';
+  const parts = list.map(c => {
+    const v = parseVcardSummary(c?.vcard || '');
+    const name = v.name || c?.displayName || 'Contato';
+    const phones = v.phones.join(', ');
+    return `👤 ${name}${phones ? `\n📞 ${phones}` : ''}`;
+  });
+  return parts.join('\n\n');
+}
+
+function summarizeLocation(msg: any): string {
+  const loc = msg?.locationMessage || msg?.liveLocationMessage;
+  if (!loc) return '';
+  const lat = loc.degreesLatitude ?? loc.latitude;
+  const lng = loc.degreesLongitude ?? loc.longitude;
+  const name = loc.name || loc.address || '';
+  const coords = (lat != null && lng != null) ? `${lat}, ${lng}` : '';
+  return `📍 Localização${name ? `: ${name}` : ''}${coords ? `\n${coords}` : ''}`;
+}
+
 function messageText(message: any) {
   const msg = unwrapMessage(message);
+  const contacts = summarizeContacts(msg);
+  if (contacts) return contacts;
+  const location = summarizeLocation(msg);
+  if (location) return location;
   return msg?.conversation ||
     msg?.extendedTextMessage?.text ||
     msg?.imageMessage?.caption ||
@@ -38,6 +80,8 @@ function messageText(message: any) {
 function messageType(message: any, fallback = '') {
   const msg = unwrapMessage(message);
   if (msg?.reactionMessage) return 'reaction';
+  if (msg?.contactMessage || msg?.contactsArrayMessage) return 'contact';
+  if (msg?.locationMessage || msg?.liveLocationMessage) return 'location';
   return msg?.imageMessage ? 'image'
     : msg?.videoMessage ? 'video'
     : msg?.audioMessage ? 'audio'
