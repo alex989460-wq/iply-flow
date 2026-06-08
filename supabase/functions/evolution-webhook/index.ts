@@ -362,7 +362,7 @@ Deno.serve(async (req) => {
 
     const { data: settings } = await admin
       .from('evolution_settings')
-      .select('user_id, instance_name, autoreply_enabled')
+      .select('user_id, instance_name, autoreply_enabled, base_url, api_key')
       .eq('webhook_token', token)
       .maybeSingle();
 
