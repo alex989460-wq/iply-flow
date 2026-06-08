@@ -1260,12 +1260,21 @@ export default function EvolutionChat() {
     // Imagem / sticker
     if ((m.message_type === 'image' || m.message_type === 'sticker') && src) {
       const label = m.content.replace(/^📷\s*/, '').replace(/^\[sticker\]$/, '');
+      const isSticker = m.message_type === 'sticker';
       return (
         <div className="space-y-1">
           <button type="button" onClick={() => setPreviewImage({ url: src, caption: label })} className="block focus:outline-none focus:ring-2 focus:ring-ring rounded-lg">
-            <img src={src} alt={label || 'Imagem'} className={cn('rounded-lg object-cover', m.message_type === 'sticker' ? 'max-w-32 max-h-32' : 'max-w-[260px] max-h-72')} loading="lazy" />
+            <img
+              src={src}
+              alt={label || 'Imagem'}
+              loading="lazy"
+              className={cn(
+                'rounded-lg block h-auto w-auto object-contain',
+                isSticker ? 'max-w-32 max-h-32' : 'max-w-[320px] max-h-[420px]'
+              )}
+            />
           </button>
-          {label && label !== 'Imagem' && <div className="text-sm">{label}</div>}
+          {label && label !== 'Imagem' && <div className="text-sm whitespace-pre-wrap break-words">{label}</div>}
         </div>
       );
     }
