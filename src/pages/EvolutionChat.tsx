@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -200,6 +200,46 @@ function mediaSource(m: EvoMessage) {
   const mime = m.media_mime || (m.message_type === 'sticker' ? 'image/webp' : 'image/jpeg');
   return base64.startsWith('data:') ? base64 : `data:${mime};base64,${base64}`;
 }
+
+// Formata texto estilo WhatsApp: *negrito*, _itálico_, ~tachado~, ```mono```
+function formatWaText(text: string): React.ReactNode {
+  if (!text) return text;
+  // Quebra por linhas para preservar quebras
+  const lines = text.split('\n');
+  const tokenRegex = /(```[\s\S]+?```|\*[^*\n]+\*|_[^_\n]+_|~[^~\n]+~|https?:\/\/[^\s]+)/g;
+  return lines.map((line, li) => {
+    const parts: React.ReactNode[] = [];
+    let last = 0;
+    let m: RegExpExecArray | null;
+    tokenRegex.lastIndex = 0;
+    while ((m = tokenRegex.exec(line)) !== null) {
+      if (m.index > last) parts.push(line.slice(last, m.index));
+      const tok = m[0];
+      if (tok.startsWith('```') && tok.endsWith('```')) {
+        parts.push(<code key={`${li}-${m.index}`} className="px-1 py-0.5 rounded bg-black/30 font-mono text-[12px]">{tok.slice(3, -3)}</code>);
+      } else if (tok.startsWith('*') && tok.endsWith('*')) {
+        parts.push(<strong key={`${li}-${m.index}`} className="font-semibold">{tok.slice(1, -1)}</strong>);
+      } else if (tok.startsWith('_') && tok.endsWith('_')) {
+        parts.push(<em key={`${li}-${m.index}`}>{tok.slice(1, -1)}</em>);
+      } else if (tok.startsWith('~') && tok.endsWith('~')) {
+        parts.push(<span key={`${li}-${m.index}`} className="line-through">{tok.slice(1, -1)}</span>);
+      } else if (/^https?:\/\//.test(tok)) {
+        parts.push(<a key={`${li}-${m.index}`} href={tok} target="_blank" rel="noreferrer" className="underline text-[#53bdeb] break-all">{tok}</a>);
+      } else {
+        parts.push(tok);
+      }
+      last = m.index + tok.length;
+    }
+    if (last < line.length) parts.push(line.slice(last));
+    return (
+      <React.Fragment key={li}>
+        {parts}
+        {li < lines.length - 1 && '\n'}
+      </React.Fragment>
+    );
+  });
+}
+
 
 function isProtocolPlaceholder(m: EvoMessage) {
   if (m.content !== '[text]' && m.content !== 'text') return false;
@@ -1274,7 +1314,7 @@ export default function EvolutionChat() {
               )}
             />
           </button>
-          {label && label !== 'Imagem' && <div className="text-sm whitespace-pre-wrap break-words">{label}</div>}
+          {label && label !== 'Imagem' && <div className="text-sm whitespace-pre-wrap break-words">{formatWaText(label)}</div>}
         </div>
       );
     }
@@ -1295,7 +1335,7 @@ export default function EvolutionChat() {
       return (
         <div className="space-y-1">
           <video src={v} controls preload="metadata" className="max-w-[280px] max-h-72 rounded-lg bg-black" />
-          {m.content && <div className="text-sm">{m.content}</div>}
+          {m.content && <div className="text-sm whitespace-pre-wrap break-words">{formatWaText(m.content)}</div>}
         </div>
       );
     }
@@ -1483,7 +1523,7 @@ export default function EvolutionChat() {
       );
     }
 
-    return <div className="whitespace-pre-wrap break-words leading-snug">{m.content === '[text]' ? 'Mensagem do WhatsApp sem conteúdo visível' : m.content}</div>;
+    return <div className="whitespace-pre-wrap break-words leading-snug">{m.content === '[text]' ? 'Mensagem do WhatsApp sem conteúdo visível' : formatWaText(m.content)}</div>;
   };
 
 
