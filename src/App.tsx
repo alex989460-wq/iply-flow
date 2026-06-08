@@ -35,6 +35,7 @@ import MetaChat from "./pages/MetaChat";
 import EvolutionChat from "./pages/EvolutionChat";
 import EvolutionInstances from "./pages/EvolutionInstances";
 import PublicCheckout from "./pages/PublicCheckout";
+import BannerGenerator from "./pages/BannerGenerator";
 import { Loader2 } from "lucide-react";
 
 const queryClient = new QueryClient();
@@ -108,6 +109,7 @@ function AppRoutes() {
       <Route path="/meta-chat" element={<ProtectedRoute><MetaChat /></ProtectedRoute>} />
       <Route path="/chat-evolution" element={<ProtectedRoute><EvolutionChat /></ProtectedRoute>} />
       <Route path="/evolution-instances" element={<ProtectedRoute><EvolutionInstances /></ProtectedRoute>} />
+      <Route path="/banner-generator" element={<ProtectedRoute><BannerGenerator /></ProtectedRoute>} />
       <Route path="*" element={<NotFound />} />
     </Routes>
   );
