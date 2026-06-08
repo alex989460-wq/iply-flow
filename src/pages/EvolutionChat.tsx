@@ -1335,7 +1335,7 @@ export default function EvolutionChat() {
       return (
         <div className="space-y-1">
           <video src={v} controls preload="metadata" className="max-w-[280px] max-h-72 rounded-lg bg-black" />
-          {m.content && <div className="text-sm">{m.content}</div>}
+          {m.content && <div className="text-sm whitespace-pre-wrap break-words">{formatWaText(m.content)}</div>}
         </div>
       );
     }
