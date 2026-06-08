@@ -1314,7 +1314,7 @@ export default function EvolutionChat() {
               )}
             />
           </button>
-          {label && label !== 'Imagem' && <div className="text-sm whitespace-pre-wrap break-words">{label}</div>}
+          {label && label !== 'Imagem' && <div className="text-sm whitespace-pre-wrap break-words">{formatWaText(label)}</div>}
         </div>
       );
     }
