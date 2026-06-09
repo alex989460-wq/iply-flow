@@ -286,7 +286,7 @@ export default function EvolutionChat() {
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [imageToSend, setImageToSend] = useState<{ file: File; url: string; caption: string } | null>(null);
   const [docToSend, setDocToSend] = useState<{ file: File; caption: string } | null>(null);
-  const [filter, setFilter] = useState<'all' | 'unread' | 'media' | 'groups' | 'channels' | 'contacts' | 'status' | 'support'>('all');
+  const [filter, setFilter] = useState<'all' | 'unread' | 'media' | 'groups' | 'channels' | 'contacts' | 'support'>('all');
   const [showKbDialog, setShowKbDialog] = useState(false);
   const [expandedVideo, setExpandedVideo] = useState<string | null>(null);
   const [soundEnabled, setSoundEnabled] = useState<boolean>(() => {
@@ -875,19 +875,6 @@ export default function EvolutionChat() {
     invokeEvolution({ action: 'mark-read', phone: selectedPhone, readAt: openedAt }).catch(() => undefined);
   }, [selectedPhone, instanceMessages.length, manualUnreadPhones]);
 
-  // Auto-sync recent history (silent) when user opens the Status tab — Evolution
-  // does not always push status@broadcast via webhook, so we pull on demand.
-  const statusSyncRef = useRef(false);
-  useEffect(() => {
-    if (filter !== 'status') { statusSyncRef.current = false; return; }
-    if (statusSyncRef.current) return;
-    statusSyncRef.current = true;
-    invokeEvolution({ action: 'sync-history', limit: 300 })
-      .then(({ data }) => {
-        if (data?.imported && data.imported > 0) load();
-      })
-      .catch(() => undefined);
-  }, [filter, invokeEvolution, load]);
 
   const thread = useMemo(
     () => instanceMessages.filter((m) => m.phone === selectedPhone && !hiddenIds.has(m.id)),
@@ -1841,16 +1828,10 @@ export default function EvolutionChat() {
                   </Avatar>
                   <div className="flex-1 min-w-0 text-left">
                     <div className="text-sm font-semibold truncate text-[#e9edef]">
-                      {selectedPhone === 'status:me'
-                        ? '📢 Meu status'
-                        : selectedPhone?.startsWith('status:')
-                          ? (contacts[selectedPhone.slice(7)]?.name || formatPhone(selectedPhone.slice(7)))
-                          : (selectedName || formatPhone(selectedPhone))}
+                      {selectedName || formatPhone(selectedPhone)}
                     </div>
                     <div className="text-[11px] text-[#8696a0] flex items-center gap-1">
-                      {selectedPhone?.startsWith('status:') ? (
-                        <span>{selectedPhone === 'status:me' ? 'Suas publicações de status' : 'Status recente do contato'}</span>
-                      ) : contactTypingPresence ? (
+                      {contactTypingPresence ? (
                         <span className="text-[#00a884] font-medium animate-pulse">
                           {contactTypingPresence === 'recording' ? 'gravando áudio...' : 'digitando...'}
                         </span>
