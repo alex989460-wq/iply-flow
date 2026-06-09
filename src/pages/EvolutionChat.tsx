@@ -315,6 +315,9 @@ export default function EvolutionChat() {
   const [currentInstance, setCurrentInstance] = useState<string>('');
   const [switchingInstance, setSwitchingInstance] = useState(false);
   const [showContactInfo, setShowContactInfo] = useState(false);
+  const [editingContactName, setEditingContactName] = useState(false);
+  const [contactNameDraft, setContactNameDraft] = useState('');
+  const [savingContactName, setSavingContactName] = useState(false);
   const [pinnedIds, setPinnedIds] = useState<Set<string>>(new Set());
   const [pinnedContacts, setPinnedContacts] = useState<Set<string>>(() => {
     try { return new Set(JSON.parse(localStorage.getItem('evo_pinned_contacts') || '[]')); }
