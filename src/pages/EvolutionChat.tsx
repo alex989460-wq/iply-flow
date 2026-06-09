@@ -1109,6 +1109,10 @@ export default function EvolutionChat() {
         variant: 'destructive',
       });
       return;
+    }
+  };
+
+  const startConversation = async () => {
     const digits = newPhone.replace(/\D/g, '');
     if (!digits || !user) return;
     const phone = digits.startsWith('55') ? digits : `55${digits}`;
