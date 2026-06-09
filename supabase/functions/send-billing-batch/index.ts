@@ -496,9 +496,15 @@ Deno.serve(async (req) => {
         .in('status', ['ativa', 'inativa'])
         .in('due_date', [yesterday, today, tomorrow]);
       
-      if (!isAdminUser && userId) {
-        customerQuery = customerQuery.eq('created_by', userId);
+      // SEMPRE filtrar por created_by, mesmo para admin.
+      // Cada revenda (incluindo admin) só pode disparar cobranças dos clientes da PRÓPRIA base.
+      if (!userId) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Usuário não autenticado' }),
+          { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
       }
+      customerQuery = customerQuery.eq('created_by', userId);
       
       const { data: customers, error: customersError } = await customerQuery;
 
