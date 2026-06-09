@@ -2153,21 +2153,6 @@ export default function EvolutionChat() {
 
 
               {/* Composer */}
-              {selectedPhone?.startsWith('status:') ? (
-                <div className="px-4 py-3 border-t border-[#0b1115] bg-[#202c33] flex items-center justify-between gap-3">
-                  <div className="text-[12px] text-[#8696a0]">
-                    {selectedPhone === 'status:me'
-                      ? <>Suas publicações de status. Use <span className="text-[#00a884] font-medium">Postar status</span> para publicar.</>
-                      : 'Visualizando status do contato.'}
-                  </div>
-                  {selectedPhone === 'status:me' && (
-                    <Button size="sm" className="h-8 bg-[#00a884] hover:bg-[#02906f] text-white"
-                      onClick={() => setShowStatusComposer(true)}>
-                      <Plus className="w-3.5 h-3.5 mr-1" /> Postar
-                    </Button>
-                  )}
-                </div>
-              ) : (
               <div className="px-2 py-2 border-t border-[#0b1115] bg-[#202c33] flex items-end gap-1.5">
                 <input ref={imgInputRef} type="file" accept="image/*" hidden onChange={onPickFile('image')} />
                 <input ref={fileInputRef} type="file" hidden onChange={onPickFile('document')} />
@@ -2589,36 +2574,6 @@ export default function EvolutionChat() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={showStatusComposer} onOpenChange={setShowStatusComposer}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle className="text-base">📢 Postar Status no WhatsApp</DialogTitle>
-            <DialogDescription className="text-xs">
-              O texto será publicado como Status (broadcast) visível para seus contatos por 24h.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-3">
-            <textarea
-              value={statusDraft}
-              onChange={(e) => setStatusDraft(e.target.value)}
-              placeholder="Escreva seu status..."
-              rows={4}
-              maxLength={700}
-              className="w-full rounded-md border border-border bg-background p-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
-            />
-            <div className="flex items-center justify-between gap-2">
-              <span className="text-[11px] text-muted-foreground">{statusDraft.length}/700</span>
-              <div className="flex gap-2">
-                <Button size="sm" variant="outline" onClick={() => setShowStatusComposer(false)}>Cancelar</Button>
-                <Button size="sm" disabled={postingStatus || !statusDraft.trim()} onClick={postStatus}>
-                  {postingStatus ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <Send className="w-3.5 h-3.5 mr-1" />}
-                  Publicar
-                </Button>
-              </div>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
 
       {/* Auto-reply (AI) settings */}
       <Dialog open={showAutoReplySettings} onOpenChange={(open) => {
