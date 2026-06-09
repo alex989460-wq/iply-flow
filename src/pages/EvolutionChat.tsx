@@ -1109,28 +1109,6 @@ export default function EvolutionChat() {
         variant: 'destructive',
       });
       return;
-    }
-  };
-
-  const postStatus = async () => {
-    const text = statusDraft.trim();
-    if (!text) return;
-    setPostingStatus(true);
-    const { data, error } = await invokeEvolution({ action: 'send-status', text });
-    setPostingStatus(false);
-    if (error || data?.error) {
-      toast({ title: 'Falha ao postar status', description: error?.message || data?.error || 'O painel Evolution rejeitou o envio.', variant: 'destructive' });
-      return;
-    }
-    toast({ title: '📢 Status publicado' });
-    setStatusDraft('');
-    setShowStatusComposer(false);
-  };
-
-
-
-
-  const startConversation = async () => {
     const digits = newPhone.replace(/\D/g, '');
     if (!digits || !user) return;
     const phone = digits.startsWith('55') ? digits : `55${digits}`;
