@@ -1873,12 +1873,6 @@ export default function EvolutionChat() {
 
                   </div>
                 </button>
-                {selectedPhone === 'status:me' && (
-                  <Button size="sm" className="h-7 text-[11px] px-2 bg-[#00a884] hover:bg-[#02906f] text-white"
-                    onClick={() => setShowStatusComposer(true)}>
-                    <Plus className="w-3 h-3 mr-1" /> Postar status
-                  </Button>
-                )}
                 {selectedPhone && !selectedPhone.startsWith('status:') && selectedContact?.needs_human && (
                   <Button size="sm" variant="outline" className="h-7 text-[11px] px-2 border-amber-500/40 text-amber-600 hover:bg-amber-500/10"
                     onClick={async () => {
