@@ -2259,7 +2259,6 @@ export default function EvolutionChat() {
                   </>
                 )}
               </div>
-              )}
               {isMobile && (
                 <Button
                   size="icon"
