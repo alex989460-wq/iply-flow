@@ -2618,11 +2618,13 @@ export default function EvolutionChat() {
 
       <Dialog open={showStatusComposer} onOpenChange={setShowStatusComposer}>
         <DialogContent className="max-w-md">
-          <div className="space-y-3">
-            <div className="text-base font-semibold">📢 Postar Status no WhatsApp</div>
-            <div className="text-xs text-muted-foreground">
+          <DialogHeader>
+            <DialogTitle className="text-base">📢 Postar Status no WhatsApp</DialogTitle>
+            <DialogDescription className="text-xs">
               O texto será publicado como Status (broadcast) visível para seus contatos por 24h.
-            </div>
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
             <textarea
               value={statusDraft}
               onChange={(e) => setStatusDraft(e.target.value)}
