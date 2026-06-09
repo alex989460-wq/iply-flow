@@ -1677,7 +1677,6 @@ export default function EvolutionChat() {
                 { id: 'groups', label: 'Grupos' },
                 { id: 'channels', label: '📢 Canais' },
                 { id: 'media', label: 'Mídia' },
-                { id: 'status', label: 'Status' },
               ] as const).map((t) => {
                 const supportCount = t.id === 'support'
                   ? Object.values(contacts).filter(c => c?.needs_human).length
@@ -1685,10 +1684,7 @@ export default function EvolutionChat() {
                 return (
                 <button
                   key={t.id}
-                  onClick={() => {
-                    setFilter(t.id);
-                    if (t.id === 'status') setSelectedPhone('status:me');
-                  }}
+                  onClick={() => setFilter(t.id)}
                   className={cn(
                     'flex-1 text-[11px] px-2 py-1 rounded-md border transition-colors relative',
                     filter === t.id
