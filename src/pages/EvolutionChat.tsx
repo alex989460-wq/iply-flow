@@ -308,9 +308,6 @@ export default function EvolutionChat() {
   });
   const [autoReplyLoading, setAutoReplyLoading] = useState(false);
   const [autoReplySaving, setAutoReplySaving] = useState(false);
-  const [showStatusComposer, setShowStatusComposer] = useState(false);
-  const [statusDraft, setStatusDraft] = useState('');
-  const [postingStatus, setPostingStatus] = useState(false);
   const [instances, setInstances] = useState<Array<{ id: string; name: string; phone: string | null; state: string; profile_name: string | null }>>([]);
   const [currentInstance, setCurrentInstance] = useState<string>('');
   const [switchingInstance, setSwitchingInstance] = useState(false);
