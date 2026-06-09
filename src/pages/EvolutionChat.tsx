@@ -840,7 +840,7 @@ export default function EvolutionChat() {
     else if (filter === 'channels') filtered = arr.filter(c => isNewsletterPhone(c.phone));
     else if (filter === 'groups') filtered = arr.filter(c => c.phone && !c.phone.startsWith('status') && !isNewsletterPhone(c.phone) && isGroupJidPhone(c.phone));
     else if (filter === 'contacts') filtered = arr.filter(c => c.phone && c.phone.length <= 15 && !c.phone.startsWith('status') && !isNewsletterPhone(c.phone));
-    } else {
+    else {
       // 'all' — hide synthetic status entries AND channels from the main list
       filtered = arr.filter(c => !c.phone.startsWith('status') && !isNewsletterPhone(c.phone));
     }
