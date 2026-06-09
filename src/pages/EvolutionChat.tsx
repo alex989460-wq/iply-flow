@@ -12,7 +12,7 @@ import {
   Loader2, Send, Zap, Plus, RefreshCw, Search, MessageSquare,
   Phone, X, Smile, Mic, Paperclip, Trash2, Image as ImageIcon, FileText, Sticker, QrCode,
   Pin, PinOff, Info, Copy, ExternalLink, MoreVertical, ArrowLeft, ChevronDown,
-  Reply, Forward, Star, StarOff, Trash, Volume2, VolumeX, BookOpen, CheckCircle2, MailOpen, Maximize2,
+  Reply, Forward, Star, StarOff, Trash, Volume2, VolumeX, BookOpen, CheckCircle2, MailOpen, Maximize2, UserPlus, Pencil, Check,
 } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import KnowledgeBaseDialog from '@/components/chat/KnowledgeBaseDialog';
@@ -315,6 +315,9 @@ export default function EvolutionChat() {
   const [currentInstance, setCurrentInstance] = useState<string>('');
   const [switchingInstance, setSwitchingInstance] = useState(false);
   const [showContactInfo, setShowContactInfo] = useState(false);
+  const [editingContactName, setEditingContactName] = useState(false);
+  const [contactNameDraft, setContactNameDraft] = useState('');
+  const [savingContactName, setSavingContactName] = useState(false);
   const [pinnedIds, setPinnedIds] = useState<Set<string>>(new Set());
   const [pinnedContacts, setPinnedContacts] = useState<Set<string>>(() => {
     try { return new Set(JSON.parse(localStorage.getItem('evo_pinned_contacts') || '[]')); }
@@ -2412,7 +2415,7 @@ export default function EvolutionChat() {
       </Dialog>
 
       {/* Contact info side panel */}
-      <Dialog open={showContactInfo} onOpenChange={setShowContactInfo}>
+      <Dialog open={showContactInfo} onOpenChange={(open) => { setShowContactInfo(open); if (!open) setEditingContactName(false); }}>
         <DialogContent className="max-w-md p-0 overflow-hidden bg-[#111b21] border-[#0b1115] text-[#e9edef]">
           {selectedPhone && (
             <div className="flex flex-col">
@@ -2425,13 +2428,65 @@ export default function EvolutionChat() {
                     </AvatarFallback>
                   </Avatar>
                 </button>
-                <div className="mt-3 text-lg font-semibold">{selectedName || formatPhone(selectedPhone)}</div>
+                {editingContactName ? (
+                  <div className="mt-3 w-full flex items-center gap-2 max-w-xs">
+                    <Input
+                      autoFocus
+                      value={contactNameDraft}
+                      onChange={(e) => setContactNameDraft(e.target.value)}
+                      placeholder="Nome do contato"
+                      className="h-9 bg-[#202c33] border-[#2a3942] text-white placeholder:text-[#8696a0]"
+                      onKeyDown={(e) => { if (e.key === 'Enter') (document.getElementById('save-contact-name-btn') as HTMLButtonElement)?.click(); }}
+                    />
+                    <Button
+                      id="save-contact-name-btn"
+                      size="icon"
+                      className="h-9 w-9 bg-[#00a884] hover:bg-[#02906f]"
+                      disabled={savingContactName}
+                      onClick={async () => {
+                        if (!user || !selectedPhone) return;
+                        const newName = contactNameDraft.trim() || null;
+                        setSavingContactName(true);
+                        const { error } = await supabase
+                          .from('evolution_contacts')
+                          .upsert(
+                            { user_id: user.id, phone: selectedPhone, name: newName },
+                            { onConflict: 'user_id,phone' }
+                          );
+                        setSavingContactName(false);
+                        if (error) {
+                          toast({ title: 'Erro ao salvar', description: error.message, variant: 'destructive' });
+                          return;
+                        }
+                        setContacts(prev => ({
+                          ...prev,
+                          [selectedPhone]: { ...(prev[selectedPhone] || { phone: selectedPhone, profile_pic_url: null }), phone: selectedPhone, name: newName },
+                        }));
+                        setEditingContactName(false);
+                        toast({ title: '✅ Contato salvo' });
+                      }}
+                    >
+                      {savingContactName ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="mt-3 flex items-center gap-1.5">
+                    <div className="text-lg font-semibold">{selectedName || formatPhone(selectedPhone)}</div>
+                    <button
+                      title={selectedContact?.name ? 'Editar nome' : 'Adicionar aos contatos'}
+                      className="p-1 rounded hover:bg-white/10 text-[#8696a0] hover:text-white transition-colors"
+                      onClick={() => { setContactNameDraft(selectedContact?.name || ''); setEditingContactName(true); }}
+                    >
+                      <Pencil className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                )}
                 <div className="text-xs text-[#8696a0] flex items-center gap-1 mt-0.5">
                   <Phone className="w-3 h-3" /> {formatPhone(selectedPhone)}
                 </div>
               </div>
               <div className="p-4 space-y-3">
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-4 gap-2">
                   <Button variant="ghost" className="flex-col h-auto py-3 hover:bg-white/5 text-[#aebac1]" onClick={() => copyText(formatPhone(selectedPhone))}>
                     <Copy className="w-5 h-5 text-[#00a884]" />
                     <span className="text-[11px] mt-1">Copiar</span>
@@ -2439,6 +2494,10 @@ export default function EvolutionChat() {
                   <Button variant="ghost" className="flex-col h-auto py-3 hover:bg-white/5 text-[#aebac1]" onClick={() => window.open(`https://wa.me/${selectedPhone}`, '_blank')}>
                     <ExternalLink className="w-5 h-5 text-[#00a884]" />
                     <span className="text-[11px] mt-1">WhatsApp</span>
+                  </Button>
+                  <Button variant="ghost" className="flex-col h-auto py-3 hover:bg-white/5 text-[#aebac1]" onClick={() => { setContactNameDraft(selectedContact?.name || ''); setEditingContactName(true); }}>
+                    <UserPlus className="w-5 h-5 text-[#00a884]" />
+                    <span className="text-[11px] mt-1">{selectedContact?.name ? 'Editar' : 'Salvar'}</span>
                   </Button>
                   <Button variant="ghost" className="flex-col h-auto py-3 hover:bg-white/5 text-[#aebac1]" onClick={() => { setShowContactInfo(false); setShowRenewalPanel(true); }}>
                     <RefreshCw className="w-5 h-5 text-[#00a884]" />
@@ -2458,6 +2517,7 @@ export default function EvolutionChat() {
           )}
         </DialogContent>
       </Dialog>
+
 
       {/* Preview do avatar do contato */}
       <Dialog open={!!avatarPreview} onOpenChange={(open) => !open && setAvatarPreview(null)}>

@@ -1568,9 +1568,17 @@ Deno.serve(async (req) => {
         try {
           const key = m?.key || m?.Key || {};
           const remoteJid = String(key?.remoteJid || key?.RemoteJID || m?.remoteJid || '');
-          if (!remoteJid || (remoteJid.includes('@g.us') && !remoteJid.startsWith('status'))) continue;
+          const isStatus = remoteJid === 'status@broadcast' || remoteJid.startsWith('status@');
+          if (!remoteJid || (remoteJid.includes('@g.us') && !isStatus)) continue;
           const fromMe = !!(key?.fromMe ?? key?.FromMe);
-          const phoneN = String(remoteJid).split('@')[0].replace(/\D/g, '');
+          const participantJid = String(key?.participant || key?.Participant || m?.participant || '');
+          const participantPhone = participantJid ? participantJid.split('@')[0].replace(/\D/g, '') : '';
+          let phoneN: string;
+          if (isStatus) {
+            phoneN = fromMe ? 'status:me' : (participantPhone ? `status:${participantPhone}` : 'status:unknown');
+          } else {
+            phoneN = String(remoteJid).split('@')[0].replace(/\D/g, '');
+          }
           if (!phoneN) continue;
           const msg = m?.message || m?.Message || {};
           const content = msg?.conversation || msg?.extendedTextMessage?.text || msg?.imageMessage?.caption || msg?.videoMessage?.caption || msg?.documentMessage?.caption || (msg?.audioMessage ? '🎤 Áudio' : '') || '';
@@ -1602,7 +1610,7 @@ Deno.serve(async (req) => {
             message_type: type,
             external_id: externalId || null,
             status: fromMe ? (Number(m?.status) >= 4 ? 'read' : Number(m?.status) >= 3 ? 'delivered' : 'sent') : 'received',
-            raw: m,
+            raw: isStatus ? { ...m, __participantPhone: participantPhone, __participantJid: participantJid } : m,
           };
           if (createdIso) row.created_at = createdIso;
           const { error } = await admin.from('evolution_messages').insert(row);
