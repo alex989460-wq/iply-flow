@@ -867,6 +867,7 @@ export default function EvolutionChat() {
   // Mark conversation as read when opened (or new message arrives in opened chat)
   useEffect(() => {
     if (!selectedPhone) return;
+    if (selectedPhone.startsWith('status:')) return; // status broadcasts have no read marker
     if (manualUnreadPhones.has(selectedPhone)) return;
     const openedAt = new Date().toISOString();
     setLastReadByPhone(prev => {
@@ -876,6 +877,20 @@ export default function EvolutionChat() {
     });
     invokeEvolution({ action: 'mark-read', phone: selectedPhone, readAt: openedAt }).catch(() => undefined);
   }, [selectedPhone, instanceMessages.length, manualUnreadPhones]);
+
+  // Auto-sync recent history (silent) when user opens the Status tab — Evolution
+  // does not always push status@broadcast via webhook, so we pull on demand.
+  const statusSyncRef = useRef(false);
+  useEffect(() => {
+    if (filter !== 'status') { statusSyncRef.current = false; return; }
+    if (statusSyncRef.current) return;
+    statusSyncRef.current = true;
+    invokeEvolution({ action: 'sync-history', limit: 300 })
+      .then(({ data }) => {
+        if (data?.imported && data.imported > 0) load();
+      })
+      .catch(() => undefined);
+  }, [filter, invokeEvolution, load]);
 
   const thread = useMemo(
     () => instanceMessages.filter((m) => m.phone === selectedPhone && !hiddenIds.has(m.id)),
