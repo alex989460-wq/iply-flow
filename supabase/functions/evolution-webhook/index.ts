@@ -604,6 +604,8 @@ Deno.serve(async (req) => {
       if (!phone) continue;
       const msg = m?.message || {};
       if (isProtocolOnlyMessage(msg)) continue;
+      const msgTs = m?.messageTimestamp || m?.timestamp || m?.t;
+      if (isBeforeCutoff(msgTs)) continue;
       const content = messageText(msg);
       const type = messageType(msg);
       const mediaMime = mediaMimeFrom(msg) || (type === 'document' ? mimeFromFileName(docFileName(msg)) : null);
