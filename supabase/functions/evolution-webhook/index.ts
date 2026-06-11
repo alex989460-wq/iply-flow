@@ -376,11 +376,21 @@ Deno.serve(async (req) => {
 
     const { data: settings } = await admin
       .from('evolution_settings')
-      .select('user_id, instance_name, autoreply_enabled, base_url, api_key')
+      .select('user_id, instance_name, autoreply_enabled, base_url, api_key, history_cutoff_at')
       .eq('webhook_token', token)
       .maybeSingle();
 
     if (!settings) return new Response('invalid token', { status: 401, headers: corsHeaders });
+
+    const cutoffMs = settings.history_cutoff_at ? new Date(settings.history_cutoff_at as string).getTime() : 0;
+    const isBeforeCutoff = (ts: any): boolean => {
+      if (!cutoffMs) return false;
+      const n = Number(ts);
+      if (!Number.isFinite(n) || n <= 0) return false;
+      const ms = n < 1e12 ? n * 1000 : n;
+      // grace of 60s to allow slight clock skew
+      return ms < (cutoffMs - 60_000);
+    };
 
     const body = await req.json().catch(() => ({} as any));
     const event = body?.event || body?.type || '';
