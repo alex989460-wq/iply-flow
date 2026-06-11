@@ -376,11 +376,21 @@ Deno.serve(async (req) => {
 
     const { data: settings } = await admin
       .from('evolution_settings')
-      .select('user_id, instance_name, autoreply_enabled, base_url, api_key')
+      .select('user_id, instance_name, autoreply_enabled, base_url, api_key, history_cutoff_at')
       .eq('webhook_token', token)
       .maybeSingle();
 
     if (!settings) return new Response('invalid token', { status: 401, headers: corsHeaders });
+
+    const cutoffMs = settings.history_cutoff_at ? new Date(settings.history_cutoff_at as string).getTime() : 0;
+    const isBeforeCutoff = (ts: any): boolean => {
+      if (!cutoffMs) return false;
+      const n = Number(ts);
+      if (!Number.isFinite(n) || n <= 0) return false;
+      const ms = n < 1e12 ? n * 1000 : n;
+      // grace of 60s to allow slight clock skew
+      return ms < (cutoffMs - 60_000);
+    };
 
     const body = await req.json().catch(() => ({} as any));
     const event = body?.event || body?.type || '';
@@ -516,6 +526,12 @@ Deno.serve(async (req) => {
             status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           });
         }
+        const msgTs = info.Timestamp || info.timestamp || info.MessageTimestamp || data.messageTimestamp;
+        if (isBeforeCutoff(msgTs)) {
+          return new Response(JSON.stringify({ ok: true, skipped: 'before-cutoff' }), {
+            status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
         const type = messageType(msg, String(info.MediaType || info.Type || '').toLowerCase());
         const mediaMime = mediaMimeFrom(msg) || (type === 'document' ? mimeFromFileName(docFileName(msg)) : null);
         const mediaFetchCtx = (type !== 'text' && settings.base_url && settings.api_key && instanceName)
@@ -588,6 +604,8 @@ Deno.serve(async (req) => {
       if (!phone) continue;
       const msg = m?.message || {};
       if (isProtocolOnlyMessage(msg)) continue;
+      const msgTs = m?.messageTimestamp || m?.timestamp || m?.t;
+      if (isBeforeCutoff(msgTs)) continue;
       const content = messageText(msg);
       const type = messageType(msg);
       const mediaMime = mediaMimeFrom(msg) || (type === 'document' ? mimeFromFileName(docFileName(msg)) : null);

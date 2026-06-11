@@ -966,6 +966,10 @@ Deno.serve(async (req) => {
         body: JSON.stringify({ webhookUrl: webhookUrlForConnect, subscribe: DEFAULT_WEBHOOK_EVENTS, immediate: true }),
       }, 8000).catch(() => null);
 
+      // Mark history cutoff: ignore any message older than this on webhook (avoids importing
+      // the entire chat history after a fresh QR scan / session reset).
+      await admin.from('evolution_settings').update({ history_cutoff_at: new Date().toISOString() }).eq('user_id', user.id).catch(() => null);
+
 
       const tries = [
         { url: `${baseUrl}/instance/${encodeURIComponent(targetInstance)}/qrcode`, method: 'GET', headers: evolutionHeaders(apiKey) },
