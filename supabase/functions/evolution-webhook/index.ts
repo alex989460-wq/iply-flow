@@ -526,6 +526,12 @@ Deno.serve(async (req) => {
             status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           });
         }
+        const msgTs = info.Timestamp || info.timestamp || info.MessageTimestamp || data.messageTimestamp;
+        if (isBeforeCutoff(msgTs)) {
+          return new Response(JSON.stringify({ ok: true, skipped: 'before-cutoff' }), {
+            status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
         const type = messageType(msg, String(info.MediaType || info.Type || '').toLowerCase());
         const mediaMime = mediaMimeFrom(msg) || (type === 'document' ? mimeFromFileName(docFileName(msg)) : null);
         const mediaFetchCtx = (type !== 'text' && settings.base_url && settings.api_key && instanceName)
