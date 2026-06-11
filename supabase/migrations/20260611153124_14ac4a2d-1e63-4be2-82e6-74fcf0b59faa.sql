@@ -1,0 +1,1 @@
+ALTER TABLE public.evolution_settings ADD COLUMN IF NOT EXISTS history_cutoff_at timestamptz;

@@ -826,6 +826,7 @@ export type Database = {
           autoreply_system_prompt: string
           base_url: string
           created_at: string
+          history_cutoff_at: string | null
           id: string
           instance_name: string
           is_enabled: boolean
@@ -844,6 +845,7 @@ export type Database = {
           autoreply_system_prompt?: string
           base_url?: string
           created_at?: string
+          history_cutoff_at?: string | null
           id?: string
           instance_name?: string
           is_enabled?: boolean
@@ -862,6 +864,7 @@ export type Database = {
           autoreply_system_prompt?: string
           base_url?: string
           created_at?: string
+          history_cutoff_at?: string | null
           id?: string
           instance_name?: string
           is_enabled?: boolean
