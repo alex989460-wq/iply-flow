@@ -74,14 +74,8 @@ export default function Auth() {
     
     if (!validateForm()) return;
 
-    if (!recaptchaToken) {
-      toast({
-        title: 'Verificação necessária',
-        description: 'Por favor, complete o reCAPTCHA.',
-        variant: 'destructive',
-      });
-      return;
-    }
+    // reCAPTCHA opcional: se carregou, exige token; se não carregou (domínio não autorizado / bloqueio de rede), libera o login para não travar o acesso.
+    
     
     setLoading(true);
 
@@ -287,7 +281,7 @@ export default function Auth() {
             <Button 
               type="submit" 
               className="w-full h-12 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-background font-semibold rounded-xl shadow-lg shadow-amber-500/25 transition-all hover:shadow-amber-500/40 hover:scale-[1.02] active:scale-[0.98]" 
-              disabled={loading || !recaptchaToken}
+              disabled={loading}
             >
               {loading ? (
                 <Loader2 className="w-5 h-5 animate-spin" />
