@@ -9,9 +9,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Mail, Lock, User, Loader2, AlertCircle, Eye, EyeOff, Shield } from 'lucide-react';
 import { z } from 'zod';
 import logoSg from '@/assets/logo-sg.png';
-import ReCAPTCHA from 'react-google-recaptcha';
 
-const RECAPTCHA_SITE_KEY = '6Lcf91EsAAAAAGGKsVmiOMQ0Xe8LDK3qITzT8lB9';
 
 const loginSchema = z.object({
   email: z.string().email('Email inválido'),
@@ -31,8 +29,7 @@ export default function Auth() {
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [accessDeniedMessage, setAccessDeniedMessage] = useState<string | null>(null);
-  const [recaptchaToken, setRecaptchaToken] = useState<string | null>(null);
-  const [recaptchaInstanceKey, setRecaptchaInstanceKey] = useState(0);
+
   
   const { signIn, signUp, accessDeniedReason } = useAuth();
   const navigate = useNavigate();
@@ -123,10 +120,9 @@ export default function Auth() {
       }
     } finally {
       setLoading(false);
-      setRecaptchaToken(null);
-      setRecaptchaInstanceKey((v) => v + 1);
     }
   };
+
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background relative overflow-hidden">
@@ -268,15 +264,7 @@ export default function Auth() {
               )}
             </div>
 
-            <div className="flex justify-center">
-              <ReCAPTCHA
-                key={recaptchaInstanceKey}
-                sitekey={RECAPTCHA_SITE_KEY}
-                onChange={(token) => setRecaptchaToken(token)}
-                onExpired={() => setRecaptchaToken(null)}
-                theme="dark"
-              />
-            </div>
+
 
             <Button 
               type="submit" 
