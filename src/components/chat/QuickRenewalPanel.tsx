@@ -1329,7 +1329,7 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
               <CardContent className="p-3 pt-0 space-y-3">
                 <div className="space-y-2 text-sm">
                   <div className="flex items-center gap-2">
-                    <Phone className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                    <PhoneFlagBadge phone={editedPhone} size="sm" />
                     <Input
                       value={editedPhone}
                       onChange={(e) => setEditedPhone(e.target.value)}
@@ -1339,7 +1339,7 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                   </div>
 
                   <div className="flex items-center gap-2">
-                    <Phone className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+                    <PhoneFlagBadge phone={editedExtraPhone} size="sm" fallbackIconColor="text-emerald-500" />
                     <Input
                       value={editedExtraPhone}
                       onChange={(e) => setEditedExtraPhone(e.target.value)}
