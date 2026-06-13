@@ -758,11 +758,22 @@ serve(async (req) => {
       }
     }
 
+    // Track customers removed by any filter so we can ALWAYS notify the reseller
+    const removedByStatus: any[] = [];
+    const removedByExpired: any[] = [];
+
     // Filter out suspended and blocked customers - they should NEVER be renewed
-    const excludedByStatus = allMatchedCustomers.filter((c: any) => c.status === 'suspensa' || c.status === 'bloqueado').length;
-    if (excludedByStatus > 0) {
-      console.log(`[Cakto] Removendo ${excludedByStatus} cliente(s) com status 'suspensa'/'bloqueado' para evitar conflitos.`);
-      allMatchedCustomers = allMatchedCustomers.filter((c: any) => c.status !== 'suspensa' && c.status !== 'bloqueado');
+    const beforeStatusFilter = allMatchedCustomers.length;
+    allMatchedCustomers = allMatchedCustomers.filter((c: any) => {
+      if (c.status === 'suspensa' || c.status === 'bloqueado') {
+        console.log(`[Cakto] Removendo cliente "${c.name}" (status: ${c.status}) — não renova automaticamente.`);
+        removedByStatus.push(c);
+        return false;
+      }
+      return true;
+    });
+    if (allMatchedCustomers.length < beforeStatusFilter) {
+      console.log(`[Cakto] ${beforeStatusFilter - allMatchedCustomers.length} cliente(s) removido(s) por status suspensa/bloqueado.`);
     }
 
     // Filter out customers expired for more than 90 days (regardless of status) - they are abandoned
@@ -772,7 +783,6 @@ serve(async (req) => {
     thresholdDate.setDate(thresholdDate.getDate() - EXPIRED_THRESHOLD_DAYS);
     const thresholdStr = thresholdDate.toISOString().split('T')[0];
     const beforeExpiredFilter = allMatchedCustomers.length;
-    const removedByExpired: any[] = [];
     allMatchedCustomers = allMatchedCustomers.filter((c: any) => {
       const dueDate = c.due_date || '';
       if (dueDate && dueDate < thresholdStr) {
@@ -1238,6 +1248,9 @@ serve(async (req) => {
         if (!pmrOwnerId && removedByExpired.length > 0) {
           pmrOwnerId = removedByExpired[0].created_by || null;
         }
+        if (!pmrOwnerId && removedByStatus.length > 0) {
+          pmrOwnerId = removedByStatus[0].created_by || null;
+        }
         if (!pmrOwnerId) {
           const { data: adminRow } = await supabaseAdmin
             .from('user_roles')
@@ -1249,10 +1262,18 @@ serve(async (req) => {
         }
 
         if (pmrOwnerId) {
-          if (removedByExpired.length > 0) {
-            // Case: customer(s) found but filtered as expired > 90 days
-            for (const c of removedByExpired) {
-              await supabaseAdmin.from('pending_manual_renewals').insert({
+          const allRemoved = [
+            ...removedByExpired.map((c) => ({ c, reason: 'expired_over_90d' as const })),
+            ...removedByStatus.map((c) => ({ c, reason: 'status_blocked' as const })),
+          ];
+
+          if (allRemoved.length > 0) {
+            // Case: customer(s) found but filtered out (>90d expired OR suspensa/bloqueado)
+            for (const { c, reason } of allRemoved) {
+              const msg = reason === 'expired_over_90d'
+                ? `⚠️ Pagamento Cakto recebido (R$ ${amountNumeric.toFixed(2)}), mas cliente está vencido há mais de 90 dias (venc: ${c.due_date}). Renove manualmente se ainda for válido.`
+                : `⚠️ Pagamento Cakto recebido (R$ ${amountNumeric.toFixed(2)}), mas cliente está com status "${c.status}". Verifique antes de renovar.`;
+              const { error: pmrErr } = await supabaseAdmin.from('pending_manual_renewals').insert({
                 owner_id: c.created_by || pmrOwnerId,
                 customer_id: c.id,
                 customer_name: c.name,
@@ -1264,21 +1285,22 @@ serve(async (req) => {
                 plan_name: null,
                 amount: amountNumeric,
                 new_due_date: null,
-                reason: 'expired_over_90d',
+                reason,
                 source: 'cakto',
                 error_details: {
-                  message: `Cliente vencido há mais de 90 dias (venc: ${c.due_date}). Verifique se ainda deve renovar.`,
+                  message: msg,
                   status: c.status,
                   due_date: c.due_date,
                   payment_phone: phone,
                   cakto_id: caktoId || null,
                 },
               });
+              if (pmrErr) console.error(`[Cakto] ❌ Falha ao inserir pending_manual_renewals (${reason}):`, pmrErr);
             }
-            console.log(`[Cakto] 📌 ${removedByExpired.length} cliente(s) expirado(s) >90d enviado(s) para revisão manual.`);
+            console.log(`[Cakto] 📌 ${allRemoved.length} cliente(s) filtrado(s) enviado(s) para revisão manual.`);
           } else {
-            // Case: phone did not match ANY customer at all
-            await supabaseAdmin.from('pending_manual_renewals').insert({
+            // Case: phone did not match ANY customer at all (wrong number)
+            const { error: pmrErr } = await supabaseAdmin.from('pending_manual_renewals').insert({
               owner_id: pmrOwnerId,
               customer_id: null,
               customer_name: `(Telefone não cadastrado) ${phone}`,
@@ -1293,16 +1315,17 @@ serve(async (req) => {
               reason: 'phone_not_found',
               source: 'cakto',
               error_details: {
-                message: 'Pagamento Cakto recebido mas telefone não corresponde a nenhum cliente. Verifique se o número foi digitado errado.',
+                message: `⚠️ Pagamento Cakto recebido (R$ ${amountNumeric.toFixed(2)}) mas telefone não corresponde a nenhum cliente. Verifique se o número foi digitado errado.`,
                 payment_phone: phone,
                 searched_variants: [...searchVariants],
                 cakto_id: caktoId || null,
               },
             });
+            if (pmrErr) console.error(`[Cakto] ❌ Falha ao inserir pending_manual_renewals (phone_not_found):`, pmrErr);
             console.log(`[Cakto] 📌 Pagamento sem cliente correspondente enviado para revisão manual (telefone: ${phone}).`);
           }
         } else {
-          console.warn('[Cakto] Não foi possível resolver owner_id para fila manual.');
+          console.warn('[Cakto] ⚠️ Não foi possível resolver owner_id para fila manual.');
         }
       } catch (pmrErr) {
         console.error('[Cakto] Erro ao enfileirar revisão manual (sem match):', pmrErr);
