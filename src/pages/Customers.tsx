@@ -2056,21 +2056,17 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
                     </div>
                     <div className="space-y-2 col-span-2">
                       <Label>Telefone (WhatsApp)</Label>
-                      <Input
+                      <PhoneInput
                         value={formData.phone}
-                        onChange={(e) => setFormData({ ...formData, phone: formatBrazilPhoneInput(e.target.value) })}
-                        placeholder="+55 (21) 98309-7135"
+                        onChange={(digits) => setFormData({ ...formData, phone: digits })}
                         required
-                        className="bg-secondary/50"
                       />
                     </div>
                     <div className="space-y-2 col-span-2">
                       <Label>Telefone Extra (opcional)</Label>
-                      <Input
+                      <PhoneInput
                         value={formData.extra_phone}
-                        onChange={(e) => setFormData({ ...formData, extra_phone: formatBrazilPhoneInput(e.target.value) })}
-                        placeholder="+55 (21) 98309-7135"
-                        className="bg-secondary/50"
+                        onChange={(digits) => setFormData({ ...formData, extra_phone: digits })}
                       />
                     </div>
                     <div className="space-y-2">
