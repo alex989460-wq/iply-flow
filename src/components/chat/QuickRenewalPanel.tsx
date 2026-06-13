@@ -35,6 +35,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import QuickCustomerForm from './QuickCustomerForm';
 import BillingSettingsModal from './BillingSettingsModal';
+import { PhoneFlagBadge } from '@/components/ui/phone-flag-badge';
 
 type PaymentMethod = 'pix' | 'dinheiro' | 'transferencia' | 'cartao_credito';
 
