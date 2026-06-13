@@ -12,6 +12,7 @@ import ActivityFeed from '@/components/dashboard/ActivityFeed';
 import MonthlyGoals from '@/components/dashboard/MonthlyGoals';
 import FloatingActions from '@/components/dashboard/FloatingActions';
 import ExtraMonthsPopup from '@/components/dashboard/ExtraMonthsPopup';
+import CustomerGeoMap from '@/components/dashboard/CustomerGeoMap';
 import { ScrollToTop } from '@/components/ui/scroll-to-top';
 import { useDashboardStats, useDailyRevenueHistory } from '@/hooks/useDashboardStats';
 import { useAuth } from '@/contexts/AuthContext';
@@ -271,6 +272,11 @@ export default function Dashboard() {
             <PlanDistributionChart data={stats.planDistribution} />
           )}
           <MetaMessagesStats />
+        </div>
+
+        {/* Geographic distribution */}
+        <div className="animate-fade-in" style={{ animationDelay: '675ms' }}>
+          <CustomerGeoMap />
         </div>
 
         {stats?.serverDistribution && stats.serverDistribution.length > 0 && (

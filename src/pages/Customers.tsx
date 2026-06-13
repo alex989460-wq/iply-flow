@@ -7,6 +7,7 @@ import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { PhoneInput } from '@/components/ui/phone-input';
+import { PhoneFlagBadge } from '@/components/ui/phone-flag-badge';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent } from '@/components/ui/card';
@@ -2694,9 +2695,13 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
                       <TableCell className="font-medium">{customer.name}</TableCell>
                       <TableCell>
                         <div className="flex flex-col gap-1">
-                          <span className="font-mono text-xs bg-muted/50 px-2 py-1 rounded">{customer.phone}</span>
+                          <span className="font-mono text-xs bg-muted/50 px-2 py-1 rounded inline-flex items-center gap-1.5">
+                            <PhoneFlagBadge phone={customer.phone} size="xs" />
+                            {customer.phone}
+                          </span>
                           {customer.extra_phone && (
-                            <span className="font-mono text-[10px] bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 px-2 py-0.5 rounded" title="Telefone extra">
+                            <span className="font-mono text-[10px] bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 px-2 py-0.5 rounded inline-flex items-center gap-1.5" title="Telefone extra">
+                              <PhoneFlagBadge phone={customer.extra_phone} size="xs" fallbackIconColor="text-emerald-500" />
                               + {customer.extra_phone}
                             </span>
                           )}

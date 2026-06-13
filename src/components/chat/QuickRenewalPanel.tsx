@@ -35,6 +35,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import QuickCustomerForm from './QuickCustomerForm';
 import BillingSettingsModal from './BillingSettingsModal';
+import { PhoneFlagBadge } from '@/components/ui/phone-flag-badge';
 
 type PaymentMethod = 'pix' | 'dinheiro' | 'transferencia' | 'cartao_credito';
 
@@ -1270,7 +1271,8 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                     <div className="flex items-center justify-between gap-2">
                       <div className="min-w-0 flex-1">
                         <p className="text-sm font-medium truncate">{customer.name}</p>
-                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                          <PhoneFlagBadge phone={customer.phone} size="xs" />
                           <span>{customer.phone}</span>
                           {customer.username && (
                             <>
@@ -1328,7 +1330,7 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
               <CardContent className="p-3 pt-0 space-y-3">
                 <div className="space-y-2 text-sm">
                   <div className="flex items-center gap-2">
-                    <Phone className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                    <PhoneFlagBadge phone={editedPhone} size="sm" />
                     <Input
                       value={editedPhone}
                       onChange={(e) => setEditedPhone(e.target.value)}
@@ -1338,7 +1340,7 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                   </div>
 
                   <div className="flex items-center gap-2">
-                    <Phone className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+                    <PhoneFlagBadge phone={editedExtraPhone} size="sm" fallbackIconColor="text-emerald-500" />
                     <Input
                       value={editedExtraPhone}
                       onChange={(e) => setEditedExtraPhone(e.target.value)}
