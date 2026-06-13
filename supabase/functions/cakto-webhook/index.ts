@@ -772,10 +772,12 @@ serve(async (req) => {
     thresholdDate.setDate(thresholdDate.getDate() - EXPIRED_THRESHOLD_DAYS);
     const thresholdStr = thresholdDate.toISOString().split('T')[0];
     const beforeExpiredFilter = allMatchedCustomers.length;
+    const removedByExpired: any[] = [];
     allMatchedCustomers = allMatchedCustomers.filter((c: any) => {
       const dueDate = c.due_date || '';
       if (dueDate && dueDate < thresholdStr) {
         console.log(`[Cakto] Removendo cliente "${c.name}" (status: ${c.status}, venc: ${dueDate}) - expirado há mais de ${EXPIRED_THRESHOLD_DAYS} dias.`);
+        removedByExpired.push(c);
         return false;
       }
       return true;
