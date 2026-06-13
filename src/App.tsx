@@ -16,6 +16,7 @@ import Customers from "./pages/Customers";
 import Payments from "./pages/Payments";
 import Billing from "./pages/Billing";
 import MassBroadcast from "./pages/MassBroadcast";
+import BolaoBroadcast from "./pages/BolaoBroadcast";
 import Chat from "./pages/Chat";
 import Settings from "./pages/Settings";
 import Resellers from "./pages/Resellers";
@@ -96,6 +97,7 @@ function AppRoutes() {
       <Route path="/payments" element={<ProtectedRoute><Payments /></ProtectedRoute>} />
       <Route path="/billing" element={<ProtectedRoute><Billing /></ProtectedRoute>} />
       <Route path="/mass-broadcast" element={<ProtectedRoute><MassBroadcast /></ProtectedRoute>} />
+      <Route path="/bolao-broadcast" element={<ProtectedRoute><BolaoBroadcast /></ProtectedRoute>} />
       <Route path="/chat" element={<ProtectedRoute><Chat /></ProtectedRoute>} />
       <Route path="/bot-triggers" element={<ProtectedRoute><BotTriggers /></ProtectedRoute>} />
       <Route path="/tutorial" element={<ProtectedRoute><Tutorial /></ProtectedRoute>} />
