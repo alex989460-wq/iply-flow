@@ -203,12 +203,10 @@ export default function PublicCheckout() {
               <Label className="flex items-center gap-2">
                 <Phone className="w-4 h-4" /> Telefone (WhatsApp)
               </Label>
-              <Input
-                value={phone}
-                onChange={e => setPhone(formatPhone(e.target.value))}
-                placeholder="(41) 99999-9999"
+              <PhoneInput
+                value={phone.replace(/\D/g, '')}
+                onChange={(digits) => setPhone(digits)}
                 required
-                className="bg-secondary/30"
               />
             </div>
 
