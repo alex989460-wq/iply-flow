@@ -27,6 +27,9 @@ const REASON_LABEL: Record<string, string> = {
   renewal_failed: 'Falha na renovação',
   webhook_error: 'Erro no Webhook',
   manual: 'Manual',
+  expired_over_90d: 'Vencido +90 dias',
+  status_blocked: 'Status bloqueado',
+  phone_not_found: 'Telefone não encontrado',
 };
 
 const REASON_COLOR: Record<string, string> = {
@@ -34,6 +37,9 @@ const REASON_COLOR: Record<string, string> = {
   renewal_failed: 'bg-red-500',
   webhook_error: 'bg-red-600',
   manual: 'bg-blue-500',
+  expired_over_90d: 'bg-orange-500',
+  status_blocked: 'bg-purple-500',
+  phone_not_found: 'bg-pink-500',
 };
 
 export default function PendingManualRenewalsFloat() {
