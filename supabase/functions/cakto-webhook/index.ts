@@ -772,10 +772,12 @@ serve(async (req) => {
     thresholdDate.setDate(thresholdDate.getDate() - EXPIRED_THRESHOLD_DAYS);
     const thresholdStr = thresholdDate.toISOString().split('T')[0];
     const beforeExpiredFilter = allMatchedCustomers.length;
+    const removedByExpired: any[] = [];
     allMatchedCustomers = allMatchedCustomers.filter((c: any) => {
       const dueDate = c.due_date || '';
       if (dueDate && dueDate < thresholdStr) {
         console.log(`[Cakto] Removendo cliente "${c.name}" (status: ${c.status}, venc: ${dueDate}) - expirado há mais de ${EXPIRED_THRESHOLD_DAYS} dias.`);
+        removedByExpired.push(c);
         return false;
       }
       return true;
@@ -1228,10 +1230,89 @@ serve(async (req) => {
         error_message: `Nenhum cliente encontrado. Variantes: ${[...searchVariants].join(', ')}`,
         metadata: { phone_original: phone, searched_variants: [...searchVariants], amount: amountNumeric },
       });
-      return new Response(JSON.stringify({ 
-        success: false, 
+
+      // ── Push to manual review queue so reseller is always notified ──
+      try {
+        // Resolve an owner_id (NOT NULL on pending_manual_renewals)
+        let pmrOwnerId: string | null = webhookOwnerId;
+        if (!pmrOwnerId && removedByExpired.length > 0) {
+          pmrOwnerId = removedByExpired[0].created_by || null;
+        }
+        if (!pmrOwnerId) {
+          const { data: adminRow } = await supabaseAdmin
+            .from('user_roles')
+            .select('user_id')
+            .eq('role', 'admin')
+            .limit(1)
+            .maybeSingle();
+          pmrOwnerId = adminRow?.user_id || null;
+        }
+
+        if (pmrOwnerId) {
+          if (removedByExpired.length > 0) {
+            // Case: customer(s) found but filtered as expired > 90 days
+            for (const c of removedByExpired) {
+              await supabaseAdmin.from('pending_manual_renewals').insert({
+                owner_id: c.created_by || pmrOwnerId,
+                customer_id: c.id,
+                customer_name: c.name,
+                customer_phone: c.phone,
+                username: c.username,
+                server_id: c.server_id || null,
+                server_name: null,
+                server_host: null,
+                plan_name: null,
+                amount: amountNumeric,
+                new_due_date: null,
+                reason: 'expired_over_90d',
+                source: 'cakto',
+                error_details: {
+                  message: `Cliente vencido há mais de 90 dias (venc: ${c.due_date}). Verifique se ainda deve renovar.`,
+                  status: c.status,
+                  due_date: c.due_date,
+                  payment_phone: phone,
+                  cakto_id: caktoId || null,
+                },
+              });
+            }
+            console.log(`[Cakto] 📌 ${removedByExpired.length} cliente(s) expirado(s) >90d enviado(s) para revisão manual.`);
+          } else {
+            // Case: phone did not match ANY customer at all
+            await supabaseAdmin.from('pending_manual_renewals').insert({
+              owner_id: pmrOwnerId,
+              customer_id: null,
+              customer_name: `(Telefone não cadastrado) ${phone}`,
+              customer_phone: phoneDigits,
+              username: null,
+              server_id: null,
+              server_name: null,
+              server_host: null,
+              plan_name: null,
+              amount: amountNumeric,
+              new_due_date: null,
+              reason: 'phone_not_found',
+              source: 'cakto',
+              error_details: {
+                message: 'Pagamento Cakto recebido mas telefone não corresponde a nenhum cliente. Verifique se o número foi digitado errado.',
+                payment_phone: phone,
+                searched_variants: [...searchVariants],
+                cakto_id: caktoId || null,
+              },
+            });
+            console.log(`[Cakto] 📌 Pagamento sem cliente correspondente enviado para revisão manual (telefone: ${phone}).`);
+          }
+        } else {
+          console.warn('[Cakto] Não foi possível resolver owner_id para fila manual.');
+        }
+      } catch (pmrErr) {
+        console.error('[Cakto] Erro ao enfileirar revisão manual (sem match):', pmrErr);
+      }
+
+      return new Response(JSON.stringify({
+        success: false,
         error: `Nenhum cliente encontrado com telefone ${phone}`,
         searched_variants: [...searchVariants],
+        queued_manual: true,
       }), { status: 404, headers: jsonHeaders });
     }
 
