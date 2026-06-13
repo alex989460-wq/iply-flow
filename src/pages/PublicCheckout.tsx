@@ -124,8 +124,9 @@ export default function PublicCheckout() {
     setSubmitting(true);
     try {
       // Save pending new customer
+      // PhoneInput já entrega dígitos com DDI. Só prefixa 55 se não houver DDI nenhum (compat).
       const phoneDigits = phone.replace(/\D/g, '');
-      const phoneNormalized = phoneDigits.startsWith('55') ? phoneDigits : '55' + phoneDigits;
+      const phoneNormalized = phoneDigits.length >= 11 ? phoneDigits : '55' + phoneDigits;
 
       // Prefer the server detected during username verification (vplay/natv).
       // Fallback to first available server if none was detected.
