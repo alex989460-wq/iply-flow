@@ -4,6 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { PhoneInput } from '@/components/ui/phone-input';
 import { Label } from '@/components/ui/label';
 import { Loader2, ShoppingCart, User, Phone, Package, ExternalLink, Check, AlertCircle, CheckCircle2 } from 'lucide-react';
 
@@ -123,8 +124,9 @@ export default function PublicCheckout() {
     setSubmitting(true);
     try {
       // Save pending new customer
+      // PhoneInput já entrega dígitos com DDI. Só prefixa 55 se não houver DDI nenhum (compat).
       const phoneDigits = phone.replace(/\D/g, '');
-      const phoneNormalized = phoneDigits.startsWith('55') ? phoneDigits : '55' + phoneDigits;
+      const phoneNormalized = phoneDigits.length >= 11 ? phoneDigits : '55' + phoneDigits;
 
       // Prefer the server detected during username verification (vplay/natv).
       // Fallback to first available server if none was detected.
@@ -203,12 +205,10 @@ export default function PublicCheckout() {
               <Label className="flex items-center gap-2">
                 <Phone className="w-4 h-4" /> Telefone (WhatsApp)
               </Label>
-              <Input
-                value={phone}
-                onChange={e => setPhone(formatPhone(e.target.value))}
-                placeholder="(41) 99999-9999"
+              <PhoneInput
+                value={phone.replace(/\D/g, '')}
+                onChange={(digits) => setPhone(digits)}
                 required
-                className="bg-secondary/30"
               />
             </div>
 

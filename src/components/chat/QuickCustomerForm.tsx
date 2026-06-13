@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { Input } from '@/components/ui/input';
+import { PhoneInput } from '@/components/ui/phone-input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -50,7 +51,7 @@ interface QuickCustomerFormProps {
 export default function QuickCustomerForm({ onSuccess, onCancel, initialPhone = '' }: QuickCustomerFormProps) {
   const [formData, setFormData] = useState({
     name: '',
-    phone: formatBrazilPhoneInput(initialPhone),
+    phone: (initialPhone || '').replace(/\D/g, ''),
     username: '',
     server_id: '',
     plan_id: '',
@@ -297,12 +298,11 @@ export default function QuickCustomerForm({ onSuccess, onCancel, initialPhone = 
 
         <div>
           <Label htmlFor="phone" className="text-xs">Telefone *</Label>
-          <Input
+          <PhoneInput
             id="phone"
             value={formData.phone}
-            onChange={(e) => setFormData(prev => ({ ...prev, phone: formatBrazilPhoneInput(e.target.value) }))}
-            placeholder=""
-            className="h-8 text-sm"
+            onChange={(digits) => setFormData(prev => ({ ...prev, phone: digits }))}
+            inputClassName="h-8 text-sm"
           />
         </div>
 

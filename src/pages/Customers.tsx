@@ -6,6 +6,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { PhoneInput } from '@/components/ui/phone-input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent } from '@/components/ui/card';
@@ -838,8 +839,8 @@ export default function Customers() {
     setEditingCustomer(customer);
     setFormData({
       name: customer.name,
-      phone: formatBrazilPhoneInput(customer.phone || ''),
-      extra_phone: formatBrazilPhoneInput(customer.extra_phone || ''),
+      phone: (customer.phone || '').replace(/\D/g, ''),
+      extra_phone: (customer.extra_phone || '').replace(/\D/g, ''),
       server_id: customer.server_id || '',
       plan_id: customer.plan_id || '',
       status: customer.status,
@@ -2056,21 +2057,17 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
                     </div>
                     <div className="space-y-2 col-span-2">
                       <Label>Telefone (WhatsApp)</Label>
-                      <Input
+                      <PhoneInput
                         value={formData.phone}
-                        onChange={(e) => setFormData({ ...formData, phone: formatBrazilPhoneInput(e.target.value) })}
-                        placeholder="+55 (21) 98309-7135"
+                        onChange={(digits) => setFormData({ ...formData, phone: digits })}
                         required
-                        className="bg-secondary/50"
                       />
                     </div>
                     <div className="space-y-2 col-span-2">
                       <Label>Telefone Extra (opcional)</Label>
-                      <Input
+                      <PhoneInput
                         value={formData.extra_phone}
-                        onChange={(e) => setFormData({ ...formData, extra_phone: formatBrazilPhoneInput(e.target.value) })}
-                        placeholder="+55 (21) 98309-7135"
-                        className="bg-secondary/50"
+                        onChange={(digits) => setFormData({ ...formData, extra_phone: digits })}
                       />
                     </div>
                     <div className="space-y-2">
