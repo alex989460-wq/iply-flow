@@ -95,6 +95,8 @@ async function resolveValidatedTargets(baseUrl: string, apiKey: string, instance
 
 async function resolveSendPhone(admin: any, userId: string, phone: string) {
   if (phone.startsWith('55') && phone.length >= 12) return phone;
+  // Foreign numbers (any non-55 DDI with full length) are returned as-is.
+  if (!phone.startsWith('55') && phone.length >= 11) return phone;
   const { data } = await admin
     .from('evolution_messages')
     .select('raw')
