@@ -758,11 +758,22 @@ serve(async (req) => {
       }
     }
 
+    // Track customers removed by any filter so we can ALWAYS notify the reseller
+    const removedByStatus: any[] = [];
+    const removedByExpired: any[] = [];
+
     // Filter out suspended and blocked customers - they should NEVER be renewed
-    const excludedByStatus = allMatchedCustomers.filter((c: any) => c.status === 'suspensa' || c.status === 'bloqueado').length;
-    if (excludedByStatus > 0) {
-      console.log(`[Cakto] Removendo ${excludedByStatus} cliente(s) com status 'suspensa'/'bloqueado' para evitar conflitos.`);
-      allMatchedCustomers = allMatchedCustomers.filter((c: any) => c.status !== 'suspensa' && c.status !== 'bloqueado');
+    const beforeStatusFilter = allMatchedCustomers.length;
+    allMatchedCustomers = allMatchedCustomers.filter((c: any) => {
+      if (c.status === 'suspensa' || c.status === 'bloqueado') {
+        console.log(`[Cakto] Removendo cliente "${c.name}" (status: ${c.status}) — não renova automaticamente.`);
+        removedByStatus.push(c);
+        return false;
+      }
+      return true;
+    });
+    if (allMatchedCustomers.length < beforeStatusFilter) {
+      console.log(`[Cakto] ${beforeStatusFilter - allMatchedCustomers.length} cliente(s) removido(s) por status suspensa/bloqueado.`);
     }
 
     // Filter out customers expired for more than 90 days (regardless of status) - they are abandoned
@@ -772,7 +783,6 @@ serve(async (req) => {
     thresholdDate.setDate(thresholdDate.getDate() - EXPIRED_THRESHOLD_DAYS);
     const thresholdStr = thresholdDate.toISOString().split('T')[0];
     const beforeExpiredFilter = allMatchedCustomers.length;
-    const removedByExpired: any[] = [];
     allMatchedCustomers = allMatchedCustomers.filter((c: any) => {
       const dueDate = c.due_date || '';
       if (dueDate && dueDate < thresholdStr) {
