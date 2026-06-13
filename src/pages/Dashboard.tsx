@@ -274,6 +274,11 @@ export default function Dashboard() {
           <MetaMessagesStats />
         </div>
 
+        {/* Geographic distribution */}
+        <div className="animate-fade-in" style={{ animationDelay: '675ms' }}>
+          <CustomerGeoMap />
+        </div>
+
         {stats?.serverDistribution && stats.serverDistribution.length > 0 && (
           <div className="animate-fade-in" style={{ animationDelay: '700ms' }}>
             <ServerDistributionChart data={stats.serverDistribution} />
