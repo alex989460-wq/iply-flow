@@ -18,6 +18,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import KnowledgeBaseDialog from '@/components/chat/KnowledgeBaseDialog';
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from '@/components/ui/context-menu';
 import { Link } from 'react-router-dom';
+import { tryAutocorrectOnInput } from '@/lib/pt-autocorrect';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
@@ -2179,7 +2180,22 @@ export default function EvolutionChat() {
                       ref={composerRef}
                       placeholder="Digite uma mensagem..."
                       value={draft}
-                      onChange={(e) => { setDraft(e.target.value); if (e.target.value.trim()) notifyTyping(); }}
+                      onChange={(e) => {
+                        const el = e.target as HTMLTextAreaElement;
+                        // Detecta o último caractere digitado para tentar autocorreção
+                        const prev = draft;
+                        const next = el.value;
+                        const inserted = next.length === prev.length + 1 ? next[(el.selectionStart ?? next.length) - 1] : '';
+                        setDraft(next);
+                        if (next.trim()) notifyTyping();
+                        if (inserted) {
+                          // adia para o próximo tick para garantir o caret atualizado
+                          requestAnimationFrame(() => {
+                            const changed = tryAutocorrectOnInput(el, inserted);
+                            if (changed) setDraft(el.value);
+                          });
+                        }
+                      }}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter' && (e.ctrlKey || e.shiftKey)) {
                           e.preventDefault();
