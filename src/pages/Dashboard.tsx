@@ -12,6 +12,7 @@ import ActivityFeed from '@/components/dashboard/ActivityFeed';
 import MonthlyGoals from '@/components/dashboard/MonthlyGoals';
 import FloatingActions from '@/components/dashboard/FloatingActions';
 import ExtraMonthsPopup from '@/components/dashboard/ExtraMonthsPopup';
+import CustomerGeoMap from '@/components/dashboard/CustomerGeoMap';
 import { ScrollToTop } from '@/components/ui/scroll-to-top';
 import { useDashboardStats, useDailyRevenueHistory } from '@/hooks/useDashboardStats';
 import { useAuth } from '@/contexts/AuthContext';
