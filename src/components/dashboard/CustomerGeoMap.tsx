@@ -31,15 +31,7 @@ const UF_NAMES: Record<string, string> = {
   TO: 'Tocantins',
 };
 
-async function loadScale(): Promise<typeof scaleLinear> {
-  // d3-scale ships with the d3-geo dependency tree; if not present, fall back.
-  try {
-    const mod = await import('d3-scale');
-    return mod.scaleLinear as any;
-  } catch {
-    return ((..._args: any[]) => () => '#888') as any;
-  }
-}
+
 
 export default function CustomerGeoMap({ className }: Props) {
   const { user, isAdmin } = useAuth();
