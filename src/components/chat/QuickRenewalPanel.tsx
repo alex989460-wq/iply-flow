@@ -1271,7 +1271,8 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                     <div className="flex items-center justify-between gap-2">
                       <div className="min-w-0 flex-1">
                         <p className="text-sm font-medium truncate">{customer.name}</p>
-                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                          <PhoneFlagBadge phone={customer.phone} size="xs" />
                           <span>{customer.phone}</span>
                           {customer.username && (
                             <>
