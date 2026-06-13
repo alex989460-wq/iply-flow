@@ -51,7 +51,7 @@ interface QuickCustomerFormProps {
 export default function QuickCustomerForm({ onSuccess, onCancel, initialPhone = '' }: QuickCustomerFormProps) {
   const [formData, setFormData] = useState({
     name: '',
-    phone: formatBrazilPhoneInput(initialPhone),
+    phone: (initialPhone || '').replace(/\D/g, ''),
     username: '',
     server_id: '',
     plan_id: '',
