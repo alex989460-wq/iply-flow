@@ -9,14 +9,19 @@ const corsHeaders = {
 function normalizePhone(p: string) {
   const digits = String(p || '').replace(/\D/g, '');
   if (!digits) return '';
-  return digits.startsWith('55') ? digits : `55${digits}`;
+  if (digits.startsWith('55')) return digits;
+  // Foreign numbers already include their own DDI (length >= 11).
+  // Only auto-prepend BR "55" for short legacy stored numbers (DDD+number, 10-11 dígitos).
+  if (digits.length >= 12) return digits;
+  return `55${digits}`;
 }
 
 function normalizeChatPhone(p: string) {
   const digits = String(p || '').replace(/\D/g, '');
   if (!digits) return '';
-  if (digits.startsWith('55') || digits.length <= 11) return normalizePhone(digits);
-  return digits;
+  // Foreign DDI already present → keep as-is
+  if (!digits.startsWith('55') && digits.length >= 11) return digits;
+  return normalizePhone(digits);
 }
 
 function jsonResponse(payload: unknown, status = 200) {
