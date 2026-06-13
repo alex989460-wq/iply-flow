@@ -16,6 +16,7 @@ import Customers from "./pages/Customers";
 import Payments from "./pages/Payments";
 import Billing from "./pages/Billing";
 import MassBroadcast from "./pages/MassBroadcast";
+import BolaoBroadcast from "./pages/BolaoBroadcast";
 import Chat from "./pages/Chat";
 import Settings from "./pages/Settings";
 import Resellers from "./pages/Resellers";
