@@ -839,8 +839,8 @@ export default function Customers() {
     setEditingCustomer(customer);
     setFormData({
       name: customer.name,
-      phone: formatBrazilPhoneInput(customer.phone || ''),
-      extra_phone: formatBrazilPhoneInput(customer.extra_phone || ''),
+      phone: (customer.phone || '').replace(/\D/g, ''),
+      extra_phone: (customer.extra_phone || '').replace(/\D/g, ''),
       server_id: customer.server_id || '',
       plan_id: customer.plan_id || '',
       status: customer.status,
