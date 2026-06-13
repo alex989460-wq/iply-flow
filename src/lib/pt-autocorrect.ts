@@ -4,41 +4,38 @@
 
 const DICT: Record<string, string> = {
   // negações / partículas comuns
-  nao: 'não', naum: 'não', n: 'não',
-  sim: 'sim',
-  // pronomes / artigos
+  nao: 'não', naum: 'não',
+  // pronomes / artigos / abreviações
   voce: 'você', vc: 'você', vcs: 'vocês', voces: 'vocês',
-  eh: 'é', ja: 'já', ate: 'até', so: 'só', tb: 'também', tbm: 'também', tmb: 'também',
+  eh: 'é', ja: 'já', ate: 'até', so: 'só',
+  tb: 'também', tbm: 'também', tmb: 'também', tambem: 'também',
   pq: 'porque', pf: 'por favor', obg: 'obrigado', vlw: 'valeu', blz: 'beleza',
   qnd: 'quando', qto: 'quanto', qtd: 'quantidade', qq: 'qualquer',
   td: 'tudo', tds: 'todos', hj: 'hoje', amh: 'amanhã', amanha: 'amanhã',
-  ontem: 'ontem',
   // verbos / palavras frequentes
   esta: 'está', estao: 'estão', estavamos: 'estávamos',
-  nao: 'não', sao: 'são', nos: 'nós',
-  alem: 'além', porem: 'porém', tambem: 'também',
-  ate: 'até', apos: 'após', atras: 'atrás',
+  sao: 'são', nos: 'nós',
+  alem: 'além', porem: 'porém',
+  apos: 'após', atras: 'atrás',
   facil: 'fácil', dificil: 'difícil', possivel: 'possível', impossivel: 'impossível',
   ultimo: 'último', proximo: 'próximo', publico: 'público',
   numero: 'número', codigo: 'código', credito: 'crédito', debito: 'débito',
   servico: 'serviço', servicos: 'serviços', usuario: 'usuário', usuarios: 'usuários',
-  senha: 'senha', email: 'e-mail',
-  pagina: 'página', historico: 'histórico', vencimento: 'vencimento',
-  mes: 'mês', ja: 'já', mae: 'mãe', pai: 'pai', irmao: 'irmão',
+  pagina: 'página', historico: 'histórico',
+  mes: 'mês', mae: 'mãe', irmao: 'irmão',
   funcao: 'função', informacao: 'informação', informacoes: 'informações',
   configuracao: 'configuração', configuracoes: 'configurações',
   notificacao: 'notificação', notificacoes: 'notificações',
   renovacao: 'renovação', renovacoes: 'renovações',
   ativacao: 'ativação', ativacoes: 'ativações',
-  acao: 'ação', acoes: 'ações', sao: 'são',
-  pagamentos: 'pagamentos', cartao: 'cartão', cartoes: 'cartões',
-  ola: 'olá', oi: 'oi', tchau: 'tchau',
-  boa: 'boa', bom: 'bom',
-  manha: 'manhã', amanha: 'amanhã',
-  voce: 'você', familia: 'família', dia: 'dia', dias: 'dias',
-  // saudações compostas (uma palavra cada)
+  acao: 'ação', acoes: 'ações',
+  cartao: 'cartão', cartoes: 'cartões',
+  ola: 'olá',
+  manha: 'manhã',
+  familia: 'família',
   ne: 'né',
 };
+
 
 const TRIGGERS = new Set([' ', '\n', '\t', '.', ',', '!', '?', ';', ':']);
 
