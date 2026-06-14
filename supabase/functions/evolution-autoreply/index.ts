@@ -241,22 +241,26 @@ Deno.serve(async (req) => {
 
     const { data: settings } = await admin
       .from('evolution_settings')
-      .select('user_id, base_url, api_key, instance_name, autoreply_enabled, autoreply_only_outside_hours, autoreply_business_start, autoreply_business_end, autoreply_disabled_phones')
+      .select('user_id, base_url, api_key, instance_name, autoreply_enabled, autoreply_only_outside_hours, autoreply_business_start, autoreply_business_end, autoreply_disabled_phones, autoreply_absence_enabled, autoreply_absence_message, autoreply_absence_cooldown_hours')
       .eq('user_id', user_id)
       .maybeSingle();
 
-    if (!settings?.autoreply_enabled) {
+    if (!settings) {
+      return new Response(JSON.stringify({ ok: true, skipped: 'no_settings' }), { status: 200, headers: corsHeaders });
+    }
+    const kbEnabled = !!settings.autoreply_enabled;
+    const absenceEnabled = !!settings.autoreply_absence_enabled;
+    if (!kbEnabled && !absenceEnabled) {
       return new Response(JSON.stringify({ ok: true, skipped: 'disabled' }), { status: 200, headers: corsHeaders });
     }
     const disabledPhones = new Set((settings.autoreply_disabled_phones || []).map((p: string) => normalizeChatPhone(p)));
     if (disabledPhones.has(normalizeChatPhone(phone))) {
       return new Response(JSON.stringify({ ok: true, skipped: 'opted_out' }), { status: 200, headers: corsHeaders });
     }
-    if (settings.autoreply_only_outside_hours && isWithinBusinessHours(settings.autoreply_business_start, settings.autoreply_business_end)) {
-      return new Response(JSON.stringify({ ok: true, skipped: 'business_hours' }), { status: 200, headers: corsHeaders });
-    }
+    const outsideHours = !isWithinBusinessHours(settings.autoreply_business_start, settings.autoreply_business_end);
+    const kbAllowedNow = kbEnabled && (!settings.autoreply_only_outside_hours || outsideHours);
 
-    // Anti-loop
+    // Anti-double-fire: ignore very recent autoreply outs (3s) to avoid duplicate fires on same incoming
     const { data: recent } = await admin
       .from('evolution_messages')
       .select('id, external_id, direction, content, created_at, message_type, status, raw')
@@ -266,13 +270,17 @@ Deno.serve(async (req) => {
       .limit(20);
 
     const lastOut = recent?.find((m) => m.direction === 'out' && m.status !== 'failed');
-    if (lastOut && Date.now() - new Date(lastOut.created_at).getTime() < 20000) {
+    if (lastOut && Date.now() - new Date(lastOut.created_at).getTime() < 3000) {
       return new Response(JSON.stringify({ ok: true, skipped: 'cooldown' }), { status: 200, headers: corsHeaders });
     }
     const lastIn = recent?.find((m) => m.direction === 'in');
-    if (lastIn && lastOut && new Date(lastOut.created_at).getTime() > new Date(lastIn.created_at).getTime()) {
+    // If the last OUT was a manual human reply (not autoreply) AND it came after lastIn,
+    // stop replying. Autoreply outs do NOT count as "human took over".
+    const lastOutIsAutoreply = !!(lastOut?.raw && (lastOut.raw as any).__autoreply === true);
+    if (lastOut && !lastOutIsAutoreply && lastIn && new Date(lastOut.created_at).getTime() > new Date(lastIn.created_at).getTime()) {
       return new Response(JSON.stringify({ ok: true, skipped: 'human_replied' }), { status: 200, headers: corsHeaders });
     }
+
 
     // Load knowledge base
     const { data: kbRows } = await admin
