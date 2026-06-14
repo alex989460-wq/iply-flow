@@ -1250,13 +1250,88 @@ export default function EvolutionChat() {
       if (kind === 'image') {
         setImageToSend({ file: f, url: URL.createObjectURL(f), caption: '' });
       } else if (kind === 'sticker') {
-        sendMedia(f, 'sticker' as 'image');
+        addStickerToLibrary(f, true);
       } else {
         setDocToSend({ file: f, caption: '' });
       }
     }
     e.target.value = '';
   };
+
+  // ============ STICKER LIBRARY ============
+  const loadStickerLibrary = async () => {
+    if (!user) return;
+    setStickerLibLoading(true);
+    try {
+      const { data, error } = await (supabase as any)
+        .from('evolution_stickers')
+        .select('id, storage_path, mime_type')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      const rows = (data || []) as Array<{ id: string; storage_path: string; mime_type: string }>;
+      const signed = await Promise.all(rows.map(async (r) => {
+        const { data: s } = await supabase.storage.from('evolution-stickers').createSignedUrl(r.storage_path, 60 * 60 * 24);
+        return { id: r.id, url: s?.signedUrl || '', mime: r.mime_type, path: r.storage_path };
+      }));
+      setStickerLibrary(signed.filter(s => s.url));
+    } catch (e) {
+      console.error('loadStickerLibrary', e);
+    } finally {
+      setStickerLibLoading(false);
+    }
+  };
+
+  const addStickerToLibrary = async (file: File, sendNow: boolean) => {
+    if (!user) return;
+    try {
+      const ext = file.name.toLowerCase().endsWith('.png') ? 'png' : 'webp';
+      const mime = file.type || (ext === 'png' ? 'image/png' : 'image/webp');
+      const path = `${user.id}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+      const { error: upErr } = await supabase.storage.from('evolution-stickers').upload(path, file, { contentType: mime, upsert: false });
+      if (upErr) throw upErr;
+      const { data: row, error: insErr } = await (supabase as any)
+        .from('evolution_stickers')
+        .insert({ user_id: user.id, storage_path: path, mime_type: mime })
+        .select('id')
+        .single();
+      if (insErr) throw insErr;
+      const { data: s } = await supabase.storage.from('evolution-stickers').createSignedUrl(path, 60 * 60 * 24);
+      const newItem = { id: row.id, url: s?.signedUrl || '', mime, path };
+      setStickerLibrary(prev => [newItem, ...prev]);
+      if (sendNow && selectedPhone) await sendMedia(file, 'sticker');
+      toast({ title: 'Figurinha salva', description: 'Disponível na sua biblioteca.' });
+    } catch (e: any) {
+      console.error('addStickerToLibrary', e);
+      toast({ title: 'Erro ao salvar figurinha', description: e?.message, variant: 'destructive' });
+    }
+  };
+
+  const sendStickerFromLibrary = async (item: { id: string; url: string; mime: string; path: string }) => {
+    if (!selectedPhone) return;
+    try {
+      const res = await fetch(item.url);
+      const blob = await res.blob();
+      const file = new File([blob], `sticker.${item.mime.includes('png') ? 'png' : 'webp'}`, { type: item.mime });
+      setStickerPopoverOpen(false);
+      await sendMedia(file, 'sticker');
+    } catch (e: any) {
+      toast({ title: 'Erro ao enviar figurinha', description: e?.message, variant: 'destructive' });
+    }
+  };
+
+  const deleteSticker = async (item: { id: string; path: string }) => {
+    try {
+      await supabase.storage.from('evolution-stickers').remove([item.path]);
+      await (supabase as any).from('evolution_stickers').delete().eq('id', item.id);
+      setStickerLibrary(prev => prev.filter(s => s.id !== item.id));
+    } catch (e: any) {
+      toast({ title: 'Erro ao remover', description: e?.message, variant: 'destructive' });
+    }
+  };
+
+  useEffect(() => { if (user) loadStickerLibrary(); /* eslint-disable-next-line */ }, [user?.id]);
+
 
   // Group thread by day
   // Build reaction map and filter reaction rows out of the visible thread
