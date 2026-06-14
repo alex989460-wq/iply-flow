@@ -219,17 +219,28 @@ async function checkNatv(username: string, apiKey: string, baseUrl: string): Pro
       });
     }
 
-    // Helper: resolve owner's server_id matching a host keyword (e.g. 'vplay', 'natv')
-    const resolveServerId = async (keyword: string): Promise<string | null> => {
+    // Helper: resolve owner's server_id matching a host/name keyword.
+    // variant 'natv' -> NATV (exclui natv2/natv²); 'natv2' -> NATV² apenas; 'vplay' -> vplay
+    const resolveServerId = async (variant: 'vplay' | 'natv' | 'natv2'): Promise<string | null> => {
       const { data: ownerServers } = await supabase
         .from('servers')
-        .select('id, host')
+        .select('id, host, server_name')
         .eq('created_by', ownerId);
       if (!ownerServers) return null;
-      const k = keyword.toLowerCase();
-      const hit = ownerServers.find((s: any) =>
-        String(s.host || '').toLowerCase().includes(k)
-      );
+      const isNatv2 = (s: any) => {
+        const t = `${String(s.server_name || '')} ${String(s.host || '')}`.toLowerCase();
+        return t.includes('natv²') || t.includes('natv2');
+      };
+      const isNatv = (s: any) => {
+        const t = `${String(s.server_name || '')} ${String(s.host || '')}`.toLowerCase();
+        return t.includes('natv') && !isNatv2(s);
+      };
+      const isVplay = (s: any) => {
+        const t = `${String(s.server_name || '')} ${String(s.host || '')}`.toLowerCase();
+        return t.includes('vplay');
+      };
+      const pred = variant === 'vplay' ? isVplay : variant === 'natv2' ? isNatv2 : isNatv;
+      const hit = ownerServers.find(pred);
       return hit?.id || null;
     };
 
