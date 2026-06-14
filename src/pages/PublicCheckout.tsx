@@ -175,16 +175,16 @@ export default function PublicCheckout() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5 flex items-center justify-center p-4">
-      <Card className="w-full max-w-lg border-border/50 shadow-xl">
-        <CardHeader className="text-center pb-2">
-          <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-3">
-            <ShoppingCart className="w-7 h-7 text-primary" />
+    <div className="min-h-screen bg-[radial-gradient(ellipse_at_top,hsl(var(--primary)/0.15),transparent_60%),radial-gradient(ellipse_at_bottom,hsl(var(--primary)/0.08),transparent_50%)] bg-background flex items-center justify-center p-4">
+      <Card className="w-full max-w-lg border-border/40 shadow-2xl backdrop-blur-sm bg-card/80 rounded-2xl">
+        <CardHeader className="text-center pb-3">
+          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center mx-auto mb-4 shadow-lg shadow-primary/30">
+            <ShoppingCart className="w-8 h-8 text-primary-foreground" />
           </div>
-          <CardTitle className="text-2xl">Nova Assinatura</CardTitle>
-          {ownerName && (
-            <CardDescription className="text-base">{ownerName}</CardDescription>
-          )}
+          <CardTitle className="text-3xl font-bold tracking-tight">Nova Assinatura</CardTitle>
+          <CardDescription className="text-sm text-muted-foreground mt-1">
+            Preencha seus dados para continuar
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
