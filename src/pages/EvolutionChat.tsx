@@ -300,13 +300,20 @@ export default function EvolutionChat() {
     business_start: string;
     business_end: string;
     disabled_phones: string[];
+    absence_enabled: boolean;
+    absence_message: string;
+    absence_cooldown_hours: number;
   }>({
     enabled: false,
     only_outside_hours: false,
     business_start: '08:00',
     business_end: '18:00',
     disabled_phones: [],
+    absence_enabled: false,
+    absence_message: 'Olá! No momento estamos fora do horário de atendimento. Assim que possível responderemos sua mensagem. 🙏',
+    absence_cooldown_hours: 6,
   });
+
   const [autoReplyLoading, setAutoReplyLoading] = useState(false);
   const [autoReplySaving, setAutoReplySaving] = useState(false);
   const [instances, setInstances] = useState<Array<{ id: string; name: string; phone: string | null; state: string; profile_name: string | null }>>([]);
