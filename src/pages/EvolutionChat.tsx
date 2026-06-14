@@ -2650,6 +2650,9 @@ export default function EvolutionChat() {
                       <Input type="time" value={autoReply.business_end} onChange={(e) => setAutoReply(s => ({ ...s, business_end: e.target.value }))} className="h-8 text-xs" />
                     </div>
                   </div>
+                )}
+
+
 
                 <div className="rounded-md border border-border p-2 space-y-2">
                   <label className="flex items-center justify-between gap-2">
