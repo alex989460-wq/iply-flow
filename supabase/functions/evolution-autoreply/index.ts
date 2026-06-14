@@ -443,6 +443,8 @@ Deno.serve(async (req) => {
       return { sent: true };
     };
 
+    let skippedKbRepeat = false;
+
     // Knowledge-base keyword match (free, predictable)
     if (kbAllowedNow) {
       const kwMatch = matchByKeywords(incomingContent, kb);
@@ -452,17 +454,20 @@ Deno.serve(async (req) => {
           return new Response(JSON.stringify({ ok: true, flagged_human: true, via: 'knowledge_base', category: kwMatch.category }), { status: 200, headers: corsHeaders });
         }
         if (await alreadyRepliedIn24h(kwMatch.id, kwMatch.response_template || '')) {
-          return new Response(JSON.stringify({ ok: true, skipped: 'already_replied_24h', via: 'knowledge_base', category: kwMatch.category }), { status: 200, headers: corsHeaders });
+          skippedKbRepeat = true;
+        } else {
+          const r = await sendReply(kwMatch);
+          if (!r.sent) await flagHuman(kwMatch.category);
+          return new Response(JSON.stringify({ ok: true, replied: r.sent, via: 'knowledge_base', category: kwMatch.category, error: r.error || null }), { status: 200, headers: corsHeaders });
         }
-        const r = await sendReply(kwMatch);
-        if (!r.sent) await flagHuman(kwMatch.category);
-        return new Response(JSON.stringify({ ok: true, replied: r.sent, via: 'knowledge_base', category: kwMatch.category, error: r.error || null }), { status: 200, headers: corsHeaders });
       }
     }
 
-    // Absence message — sent when outside business hours and no KB matched
+    // Absence message — sent when absent is enabled and no KB matched.
+    // If "only outside hours" is enabled, respect business hours; otherwise treat absence as a manual away mode.
     const absenceMsg = String(settings.autoreply_absence_message || '').trim();
-    if (absenceEnabled && outsideHours && absenceMsg) {
+    const absenceAllowedNow = absenceEnabled && (!settings.autoreply_only_outside_hours || outsideHours);
+    if (absenceAllowedNow && absenceMsg) {
       const cooldownH = Math.max(1, Number(settings.autoreply_absence_cooldown_hours) || 6);
       const since = new Date(Date.now() - cooldownH * 60 * 60 * 1000).toISOString();
       const { data: prior } = await admin
@@ -491,7 +496,7 @@ Deno.serve(async (req) => {
     }
 
 
-    return new Response(JSON.stringify({ ok: true, skipped: 'no_knowledge_base_keyword_match' }), { status: 200, headers: corsHeaders });
+    return new Response(JSON.stringify({ ok: true, skipped: skippedKbRepeat ? 'already_replied_24h' : 'no_knowledge_base_keyword_match' }), { status: 200, headers: corsHeaders });
 
   } catch (e) {
     console.error('[evolution-autoreply]', e);
