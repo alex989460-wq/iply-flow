@@ -345,6 +345,9 @@ export default function EvolutionChat() {
   const [typingByPhone, setTypingByPhone] = useState<Record<string, { presence: string; at: number }>>({});
   const [lastSeenByPhone, setLastSeenByPhone] = useState<Record<string, string>>({});
   const [syncingHistory, setSyncingHistory] = useState(false);
+  const [stickerLibrary, setStickerLibrary] = useState<Array<{ id: string; url: string; mime: string; path: string }>>([]);
+  const [stickerLibLoading, setStickerLibLoading] = useState(false);
+  const [stickerPopoverOpen, setStickerPopoverOpen] = useState(false);
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
