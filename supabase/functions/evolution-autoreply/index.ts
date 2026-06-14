@@ -460,9 +460,11 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Absence message — sent when outside business hours and no KB matched
+    // Absence message — sent when absent is enabled and no KB matched.
+    // If "only outside hours" is enabled, respect business hours; otherwise treat absence as a manual away mode.
     const absenceMsg = String(settings.autoreply_absence_message || '').trim();
-    if (absenceEnabled && outsideHours && absenceMsg) {
+    const absenceAllowedNow = absenceEnabled && (!settings.autoreply_only_outside_hours || outsideHours);
+    if (absenceAllowedNow && absenceMsg) {
       const cooldownH = Math.max(1, Number(settings.autoreply_absence_cooldown_hours) || 6);
       const since = new Date(Date.now() - cooldownH * 60 * 60 * 1000).toISOString();
       const { data: prior } = await admin
