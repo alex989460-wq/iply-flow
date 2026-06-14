@@ -2728,8 +2728,12 @@ export default function EvolutionChat() {
                           autoreply_business_start: autoReply.business_start,
                           autoreply_business_end: autoReply.business_end,
                           autoreply_disabled_phones: autoReply.disabled_phones,
-                        })
+                          autoreply_absence_enabled: autoReply.absence_enabled,
+                          autoreply_absence_message: autoReply.absence_message,
+                          autoreply_absence_cooldown_hours: autoReply.absence_cooldown_hours,
+                        } as any)
                         .eq('user_id', user.id);
+
                       setAutoReplySaving(false);
                       if (error) {
                         toast({ title: 'Erro ao salvar', description: error.message, variant: 'destructive' });
