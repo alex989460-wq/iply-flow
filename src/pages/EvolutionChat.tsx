@@ -2650,7 +2650,45 @@ export default function EvolutionChat() {
                       <Input type="time" value={autoReply.business_end} onChange={(e) => setAutoReply(s => ({ ...s, business_end: e.target.value }))} className="h-8 text-xs" />
                     </div>
                   </div>
-                )}
+
+                <div className="rounded-md border border-border p-2 space-y-2">
+                  <label className="flex items-center justify-between gap-2">
+                    <div className="text-sm">Enviar mensagem de ausência fora do horário</div>
+                    <input
+                      type="checkbox"
+                      checked={autoReply.absence_enabled}
+                      onChange={(e) => setAutoReply(s => ({ ...s, absence_enabled: e.target.checked }))}
+                      className="h-4 w-4 accent-primary"
+                    />
+                  </label>
+                  {autoReply.absence_enabled && (
+                    <>
+                      <div className="text-[11px] text-muted-foreground">
+                        Quando o cliente escrever fora do horário comercial e nenhuma palavra-chave da Base de Conhecimento bater, o robô envia esta mensagem (uma vez por contato dentro do intervalo abaixo). Usa o mesmo horário definido acima.
+                      </div>
+                      <textarea
+                        value={autoReply.absence_message}
+                        onChange={(e) => setAutoReply(s => ({ ...s, absence_message: e.target.value }))}
+                        rows={3}
+                        placeholder="Mensagem enviada automaticamente quando estou ausente..."
+                        className="w-full resize-none rounded-md border border-input bg-background px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
+                      />
+                      <div className="flex items-center gap-2">
+                        <div className="text-xs">Reenviar para o mesmo contato a cada</div>
+                        <Input
+                          type="number"
+                          min={1}
+                          max={72}
+                          value={autoReply.absence_cooldown_hours}
+                          onChange={(e) => setAutoReply(s => ({ ...s, absence_cooldown_hours: Math.max(1, Math.min(72, Number(e.target.value) || 6)) }))}
+                          className="h-7 w-16 text-xs"
+                        />
+                        <div className="text-xs">horas</div>
+                      </div>
+                    </>
+                  )}
+                </div>
+
 
                 {autoReply.disabled_phones.length > 0 && (
                   <div>
