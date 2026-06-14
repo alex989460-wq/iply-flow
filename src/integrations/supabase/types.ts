@@ -883,6 +883,30 @@ export type Database = {
         }
         Relationships: []
       }
+      evolution_stickers: {
+        Row: {
+          created_at: string
+          id: string
+          mime_type: string
+          storage_path: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          mime_type?: string
+          storage_path: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          mime_type?: string
+          storage_path?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       expenses: {
         Row: {
           amount: number
