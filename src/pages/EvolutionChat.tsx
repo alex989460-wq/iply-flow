@@ -300,13 +300,20 @@ export default function EvolutionChat() {
     business_start: string;
     business_end: string;
     disabled_phones: string[];
+    absence_enabled: boolean;
+    absence_message: string;
+    absence_cooldown_hours: number;
   }>({
     enabled: false,
     only_outside_hours: false,
     business_start: '08:00',
     business_end: '18:00',
     disabled_phones: [],
+    absence_enabled: false,
+    absence_message: 'Olá! No momento estamos fora do horário de atendimento. Assim que possível responderemos sua mensagem. 🙏',
+    absence_cooldown_hours: 6,
   });
+
   const [autoReplyLoading, setAutoReplyLoading] = useState(false);
   const [autoReplySaving, setAutoReplySaving] = useState(false);
   const [instances, setInstances] = useState<Array<{ id: string; name: string; phone: string | null; state: string; profile_name: string | null }>>([]);
@@ -2570,7 +2577,7 @@ export default function EvolutionChat() {
           setAutoReplyLoading(true);
           supabase
             .from('evolution_settings')
-            .select('autoreply_enabled, autoreply_only_outside_hours, autoreply_business_start, autoreply_business_end, autoreply_disabled_phones')
+            .select('autoreply_enabled, autoreply_only_outside_hours, autoreply_business_start, autoreply_business_end, autoreply_disabled_phones, autoreply_absence_enabled, autoreply_absence_message, autoreply_absence_cooldown_hours')
             .eq('user_id', user.id)
             .maybeSingle()
             .then(({ data }) => {
@@ -2581,10 +2588,14 @@ export default function EvolutionChat() {
                   business_start: data.autoreply_business_start || '08:00',
                   business_end: data.autoreply_business_end || '18:00',
                   disabled_phones: data.autoreply_disabled_phones || [],
+                  absence_enabled: !!(data as any).autoreply_absence_enabled,
+                  absence_message: (data as any).autoreply_absence_message || '',
+                  absence_cooldown_hours: Number((data as any).autoreply_absence_cooldown_hours) || 6,
                 });
               }
               setAutoReplyLoading(false);
             });
+
         }
       }}>
         <DialogContent className="max-w-lg p-4 bg-background border-border">
@@ -2641,6 +2652,47 @@ export default function EvolutionChat() {
                   </div>
                 )}
 
+
+
+                <div className="rounded-md border border-border p-2 space-y-2">
+                  <label className="flex items-center justify-between gap-2">
+                    <div className="text-sm">Enviar mensagem de ausência fora do horário</div>
+                    <input
+                      type="checkbox"
+                      checked={autoReply.absence_enabled}
+                      onChange={(e) => setAutoReply(s => ({ ...s, absence_enabled: e.target.checked }))}
+                      className="h-4 w-4 accent-primary"
+                    />
+                  </label>
+                  {autoReply.absence_enabled && (
+                    <>
+                      <div className="text-[11px] text-muted-foreground">
+                        Quando o cliente escrever fora do horário comercial e nenhuma palavra-chave da Base de Conhecimento bater, o robô envia esta mensagem (uma vez por contato dentro do intervalo abaixo). Usa o mesmo horário definido acima.
+                      </div>
+                      <textarea
+                        value={autoReply.absence_message}
+                        onChange={(e) => setAutoReply(s => ({ ...s, absence_message: e.target.value }))}
+                        rows={3}
+                        placeholder="Mensagem enviada automaticamente quando estou ausente..."
+                        className="w-full resize-none rounded-md border border-input bg-background px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
+                      />
+                      <div className="flex items-center gap-2">
+                        <div className="text-xs">Reenviar para o mesmo contato a cada</div>
+                        <Input
+                          type="number"
+                          min={1}
+                          max={72}
+                          value={autoReply.absence_cooldown_hours}
+                          onChange={(e) => setAutoReply(s => ({ ...s, absence_cooldown_hours: Math.max(1, Math.min(72, Number(e.target.value) || 6)) }))}
+                          className="h-7 w-16 text-xs"
+                        />
+                        <div className="text-xs">horas</div>
+                      </div>
+                    </>
+                  )}
+                </div>
+
+
                 {autoReply.disabled_phones.length > 0 && (
                   <div>
                     <div className="text-xs font-medium mb-1">Contatos com auto-atendimento DESATIVADO ({autoReply.disabled_phones.length})</div>
@@ -2676,8 +2728,12 @@ export default function EvolutionChat() {
                           autoreply_business_start: autoReply.business_start,
                           autoreply_business_end: autoReply.business_end,
                           autoreply_disabled_phones: autoReply.disabled_phones,
-                        })
+                          autoreply_absence_enabled: autoReply.absence_enabled,
+                          autoreply_absence_message: autoReply.absence_message,
+                          autoreply_absence_cooldown_hours: autoReply.absence_cooldown_hours,
+                        } as any)
                         .eq('user_id', user.id);
+
                       setAutoReplySaving(false);
                       if (error) {
                         toast({ title: 'Erro ao salvar', description: error.message, variant: 'destructive' });

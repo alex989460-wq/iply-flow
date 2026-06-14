@@ -817,6 +817,9 @@ export type Database = {
       evolution_settings: {
         Row: {
           api_key: string
+          autoreply_absence_cooldown_hours: number
+          autoreply_absence_enabled: boolean
+          autoreply_absence_message: string
           autoreply_business_end: string
           autoreply_business_start: string
           autoreply_disabled_phones: string[]
@@ -836,6 +839,9 @@ export type Database = {
         }
         Insert: {
           api_key?: string
+          autoreply_absence_cooldown_hours?: number
+          autoreply_absence_enabled?: boolean
+          autoreply_absence_message?: string
           autoreply_business_end?: string
           autoreply_business_start?: string
           autoreply_disabled_phones?: string[]
@@ -855,6 +861,9 @@ export type Database = {
         }
         Update: {
           api_key?: string
+          autoreply_absence_cooldown_hours?: number
+          autoreply_absence_enabled?: boolean
+          autoreply_absence_message?: string
           autoreply_business_end?: string
           autoreply_business_start?: string
           autoreply_disabled_phones?: string[]

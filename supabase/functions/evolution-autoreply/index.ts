@@ -241,22 +241,26 @@ Deno.serve(async (req) => {
 
     const { data: settings } = await admin
       .from('evolution_settings')
-      .select('user_id, base_url, api_key, instance_name, autoreply_enabled, autoreply_only_outside_hours, autoreply_business_start, autoreply_business_end, autoreply_disabled_phones')
+      .select('user_id, base_url, api_key, instance_name, autoreply_enabled, autoreply_only_outside_hours, autoreply_business_start, autoreply_business_end, autoreply_disabled_phones, autoreply_absence_enabled, autoreply_absence_message, autoreply_absence_cooldown_hours')
       .eq('user_id', user_id)
       .maybeSingle();
 
-    if (!settings?.autoreply_enabled) {
+    if (!settings) {
+      return new Response(JSON.stringify({ ok: true, skipped: 'no_settings' }), { status: 200, headers: corsHeaders });
+    }
+    const kbEnabled = !!settings.autoreply_enabled;
+    const absenceEnabled = !!settings.autoreply_absence_enabled;
+    if (!kbEnabled && !absenceEnabled) {
       return new Response(JSON.stringify({ ok: true, skipped: 'disabled' }), { status: 200, headers: corsHeaders });
     }
     const disabledPhones = new Set((settings.autoreply_disabled_phones || []).map((p: string) => normalizeChatPhone(p)));
     if (disabledPhones.has(normalizeChatPhone(phone))) {
       return new Response(JSON.stringify({ ok: true, skipped: 'opted_out' }), { status: 200, headers: corsHeaders });
     }
-    if (settings.autoreply_only_outside_hours && isWithinBusinessHours(settings.autoreply_business_start, settings.autoreply_business_end)) {
-      return new Response(JSON.stringify({ ok: true, skipped: 'business_hours' }), { status: 200, headers: corsHeaders });
-    }
+    const outsideHours = !isWithinBusinessHours(settings.autoreply_business_start, settings.autoreply_business_end);
+    const kbAllowedNow = kbEnabled && (!settings.autoreply_only_outside_hours || outsideHours);
 
-    // Anti-loop
+    // Anti-double-fire: ignore very recent autoreply outs (3s) to avoid duplicate fires on same incoming
     const { data: recent } = await admin
       .from('evolution_messages')
       .select('id, external_id, direction, content, created_at, message_type, status, raw')
@@ -266,13 +270,17 @@ Deno.serve(async (req) => {
       .limit(20);
 
     const lastOut = recent?.find((m) => m.direction === 'out' && m.status !== 'failed');
-    if (lastOut && Date.now() - new Date(lastOut.created_at).getTime() < 20000) {
+    if (lastOut && Date.now() - new Date(lastOut.created_at).getTime() < 3000) {
       return new Response(JSON.stringify({ ok: true, skipped: 'cooldown' }), { status: 200, headers: corsHeaders });
     }
     const lastIn = recent?.find((m) => m.direction === 'in');
-    if (lastIn && lastOut && new Date(lastOut.created_at).getTime() > new Date(lastIn.created_at).getTime()) {
+    // If the last OUT was a manual human reply (not autoreply) AND it came after lastIn,
+    // stop replying. Autoreply outs do NOT count as "human took over".
+    const lastOutIsAutoreply = !!(lastOut?.raw && (lastOut.raw as any).__autoreply === true);
+    if (lastOut && !lastOutIsAutoreply && lastIn && new Date(lastOut.created_at).getTime() > new Date(lastIn.created_at).getTime()) {
       return new Response(JSON.stringify({ ok: true, skipped: 'human_replied' }), { status: 200, headers: corsHeaders });
     }
+
 
     // Load knowledge base
     const { data: kbRows } = await admin
@@ -435,22 +443,56 @@ Deno.serve(async (req) => {
       return { sent: true };
     };
 
-    // Only pass — knowledge-base keyword match (free, predictable)
-    const kwMatch = matchByKeywords(incomingContent, kb);
-    if (kwMatch) {
-      if (kwMatch.requires_human) {
-        await flagHuman(kwMatch.category);
-        return new Response(JSON.stringify({ ok: true, flagged_human: true, via: 'knowledge_base', category: kwMatch.category }), { status: 200, headers: corsHeaders });
+    // Knowledge-base keyword match (free, predictable)
+    if (kbAllowedNow) {
+      const kwMatch = matchByKeywords(incomingContent, kb);
+      if (kwMatch) {
+        if (kwMatch.requires_human) {
+          await flagHuman(kwMatch.category);
+          return new Response(JSON.stringify({ ok: true, flagged_human: true, via: 'knowledge_base', category: kwMatch.category }), { status: 200, headers: corsHeaders });
+        }
+        if (await alreadyRepliedIn24h(kwMatch.id, kwMatch.response_template || '')) {
+          return new Response(JSON.stringify({ ok: true, skipped: 'already_replied_24h', via: 'knowledge_base', category: kwMatch.category }), { status: 200, headers: corsHeaders });
+        }
+        const r = await sendReply(kwMatch);
+        if (!r.sent) await flagHuman(kwMatch.category);
+        return new Response(JSON.stringify({ ok: true, replied: r.sent, via: 'knowledge_base', category: kwMatch.category, error: r.error || null }), { status: 200, headers: corsHeaders });
       }
-      if (await alreadyRepliedIn24h(kwMatch.id, kwMatch.response_template || '')) {
-        return new Response(JSON.stringify({ ok: true, skipped: 'already_replied_24h', via: 'knowledge_base', category: kwMatch.category }), { status: 200, headers: corsHeaders });
-      }
-      const r = await sendReply(kwMatch);
-      if (!r.sent) await flagHuman(kwMatch.category);
-      return new Response(JSON.stringify({ ok: true, replied: r.sent, via: 'knowledge_base', category: kwMatch.category, error: r.error || null }), { status: 200, headers: corsHeaders });
     }
 
+    // Absence message — sent when outside business hours and no KB matched
+    const absenceMsg = String(settings.autoreply_absence_message || '').trim();
+    if (absenceEnabled && outsideHours && absenceMsg) {
+      const cooldownH = Math.max(1, Number(settings.autoreply_absence_cooldown_hours) || 6);
+      const since = new Date(Date.now() - cooldownH * 60 * 60 * 1000).toISOString();
+      const { data: prior } = await admin
+        .from('evolution_messages')
+        .select('id, raw')
+        .eq('user_id', user_id)
+        .eq('phone', phone)
+        .eq('direction', 'out')
+        .neq('status', 'failed')
+        .gte('created_at', since)
+        .limit(30);
+      const alreadySent = (prior || []).some((row: any) => row?.raw?.__autoreply === true && (row?.raw?.__absence === true || row?.raw?.__kb === 'absence'));
+      if (alreadySent) {
+        return new Response(JSON.stringify({ ok: true, skipped: 'absence_already_sent', via: 'absence' }), { status: 200, headers: corsHeaders });
+      }
+      const absenceEntry: KbEntry = {
+        id: 'absence',
+        title: 'Mensagem de ausência',
+        category: 'ausencia',
+        keywords: [],
+        response_template: absenceMsg,
+        requires_human: false,
+      } as any;
+      const r = await sendReply(absenceEntry);
+      return new Response(JSON.stringify({ ok: true, replied: r.sent, via: 'absence' }), { status: 200, headers: corsHeaders });
+    }
+
+
     return new Response(JSON.stringify({ ok: true, skipped: 'no_knowledge_base_keyword_match' }), { status: 200, headers: corsHeaders });
+
   } catch (e) {
     console.error('[evolution-autoreply]', e);
     return new Response(JSON.stringify({ error: String((e as Error).message || e) }), { status: 200, headers: corsHeaders });
