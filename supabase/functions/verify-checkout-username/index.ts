@@ -285,12 +285,12 @@ async function checkNatv(username: string, apiKey: string, baseUrl: string): Pro
     const natv2Key = ownerSettings?.natv2_api_key || '';
     const natv2Base = ownerSettings?.natv2_base_url || '';
     if (await checkNatv(username, natv2Key, natv2Base)) {
-      const server_id = await resolveServerId('natv');
+      const server_id = await resolveServerId('natv2');
       return new Response(JSON.stringify({
         found: true,
         source: 'natv2',
         server_id,
-        customer: { name: 'Novo cliente (teste NATV)', username, due_date: null, status: 'novo' },
+        customer: { name: 'Novo cliente (teste NATV²)', username, due_date: null, status: 'novo' },
       }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
