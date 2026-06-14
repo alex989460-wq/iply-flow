@@ -2577,7 +2577,7 @@ export default function EvolutionChat() {
           setAutoReplyLoading(true);
           supabase
             .from('evolution_settings')
-            .select('autoreply_enabled, autoreply_only_outside_hours, autoreply_business_start, autoreply_business_end, autoreply_disabled_phones')
+            .select('autoreply_enabled, autoreply_only_outside_hours, autoreply_business_start, autoreply_business_end, autoreply_disabled_phones, autoreply_absence_enabled, autoreply_absence_message, autoreply_absence_cooldown_hours')
             .eq('user_id', user.id)
             .maybeSingle()
             .then(({ data }) => {
@@ -2588,10 +2588,14 @@ export default function EvolutionChat() {
                   business_start: data.autoreply_business_start || '08:00',
                   business_end: data.autoreply_business_end || '18:00',
                   disabled_phones: data.autoreply_disabled_phones || [],
+                  absence_enabled: !!(data as any).autoreply_absence_enabled,
+                  absence_message: (data as any).autoreply_absence_message || '',
+                  absence_cooldown_hours: Number((data as any).autoreply_absence_cooldown_hours) || 6,
                 });
               }
               setAutoReplyLoading(false);
             });
+
         }
       }}>
         <DialogContent className="max-w-lg p-4 bg-background border-border">
