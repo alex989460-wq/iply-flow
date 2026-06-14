@@ -474,7 +474,7 @@ Deno.serve(async (req) => {
         .neq('status', 'failed')
         .gte('created_at', since)
         .limit(30);
-      const alreadySent = (prior || []).some((row: any) => row?.raw?.__autoreply === true && row?.raw?.__absence === true);
+      const alreadySent = (prior || []).some((row: any) => row?.raw?.__autoreply === true && (row?.raw?.__absence === true || row?.raw?.__kb === 'absence'));
       if (alreadySent) {
         return new Response(JSON.stringify({ ok: true, skipped: 'absence_already_sent', via: 'absence' }), { status: 200, headers: corsHeaders });
       }
@@ -487,13 +487,9 @@ Deno.serve(async (req) => {
         requires_human: false,
       } as any;
       const r = await sendReply(absenceEntry);
-      // Tag the just-inserted message as absence so cooldown can find it
-      if (r.sent) {
-        await admin.from('evolution_messages').update({ raw: { __autoreply: true, __absence: true, __category: 'ausencia' } as any })
-          .eq('user_id', user_id).eq('phone', phone).eq('direction', 'out').order('created_at', { ascending: false }).limit(1);
-      }
       return new Response(JSON.stringify({ ok: true, replied: r.sent, via: 'absence' }), { status: 200, headers: corsHeaders });
     }
+
 
     return new Response(JSON.stringify({ ok: true, skipped: 'no_knowledge_base_keyword_match' }), { status: 200, headers: corsHeaders });
 
