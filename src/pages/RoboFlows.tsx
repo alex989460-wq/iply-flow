@@ -851,12 +851,47 @@ function FlowBuilder({ flow, onChange }: { flow: Flow; onChange: (updater: (f: F
     setNodes((nds) => nds.filter((n) => n.id !== id));
   }
 
+  async function buildMediaPatch(file: File) {
+    let mediaUrl = URL.createObjectURL(file);
+    try {
+      const safeName = file.name.replace(/[^a-z0-9._-]/gi, "-");
+      const path = `${flow.owner_id}/bot-flow-${Date.now()}-${safeName}`;
+      const { error } = await supabase.storage.from("reseller-assets").upload(path, file, { contentType: file.type || "application/octet-stream", upsert: false });
+      if (!error) {
+        const { data } = supabase.storage.from("reseller-assets").getPublicUrl(path);
+        mediaUrl = data.publicUrl || mediaUrl;
+      }
+    } catch { /* keep local preview if upload is unavailable */ }
+    return { title: file.name, media_url: mediaUrl };
+  }
+
+  async function handleDropChild(parentId: string, event: DragEvent) {
+    event.preventDefault();
+    event.stopPropagation();
+    const droppedType = event.dataTransfer.getData("application/x-flow-step") as StepType;
+    const uri = event.dataTransfer.getData("text/uri-list") || event.dataTransfer.getData("text/plain");
+    const file = event.dataTransfer.files?.[0];
+    let child: Step | null = null;
+    if (droppedType && droppedType in TYPE_META) child = makeStep(droppedType);
+    else if (file) {
+      const mediaType: StepType = file.type.startsWith("video/") ? "video" : file.type.startsWith("audio/") ? "audio" : file.type.startsWith("image/") ? "image" : "file";
+      child = { ...makeStep(mediaType), ...(await buildMediaPatch(file)) };
+    } else if (/^https?:\/\//i.test(uri)) {
+      const mediaType: StepType = /\.(mp4|mov|webm)(\?|$)/i.test(uri) ? "video" : /\.(mp3|ogg|wav|m4a)(\?|$)/i.test(uri) ? "audio" : /\.(pdf|zip|docx?|xlsx?)(\?|$)/i.test(uri) ? "file" : "image";
+      child = { ...makeStep(mediaType), media_url: uri };
+    }
+    if (!child) return;
+    child.position = undefined;
+    onChange((f) => ({ ...f, steps: f.steps.map((s) => s.id === parentId ? { ...s, children: [...(s.children ?? []), child!] } : s) }));
+    toast.success(`${TYPE_META[normalizeStepType(child.type)].label} adicionado dentro do bloco`);
+  }
+
   const initialNodes: Node<StepNodeData>[] = useMemo(
     () => flow.steps.map((s, i) => ({
       id: s.id,
       type: "step",
       position: s.position ?? { x: 120 + (i % 4) * 320, y: 100 + Math.floor(i / 4) * 260 },
-      data: { step: s, isStart: flow.start_step_id === s.id, onEdit: setEditingId, onDelete: handleDelete, onSetStart: handleSetStart },
+      data: { step: s, isStart: flow.start_step_id === s.id, onEdit: setEditingId, onDelete: handleDelete, onSetStart: handleSetStart, onDropChild: handleDropChild },
     })),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [flow.id],
