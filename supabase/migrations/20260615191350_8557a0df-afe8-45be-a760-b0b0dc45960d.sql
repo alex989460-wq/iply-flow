@@ -1,0 +1,1 @@
+DROP INDEX IF EXISTS public.billing_logs_unique_per_day;
