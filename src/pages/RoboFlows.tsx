@@ -827,11 +827,16 @@ function FlowBuilder({ flow, onChange }: { flow: Flow; onChange: (updater: (f: F
 
   function addStep(type: StepType) {
     const s = makeStep(type);
+    s.position = { x: 360 + (flow.steps.length % 3) * 300, y: 160 + Math.floor(flow.steps.length / 3) * 230 };
     onChange((f) => ({ ...f, steps: [...f.steps, s] }));
+    setEditingId(s.id);
   }
 
   const onConnect = useCallback((params: Edge | Connection) => {
-    setEdges((eds) => addEdge({ ...params, animated: true, markerEnd: { type: MarkerType.ArrowClosed } }, eds));
+    setEdges((eds) => {
+      const cleaned = eds.filter((e) => !(e.source === params.source && e.sourceHandle === params.sourceHandle));
+      return addEdge({ ...params, animated: true, markerEnd: { type: MarkerType.ArrowClosed }, deletable: true }, cleaned);
+    });
     onChange((f) => ({
       ...f,
       steps: f.steps.map((s) => {
@@ -865,27 +870,19 @@ function FlowBuilder({ flow, onChange }: { flow: Flow; onChange: (updater: (f: F
   }, [onChange, setEdges]);
 
   const onEdgesDelete = useCallback((removed: Edge[]) => {
-    onChange((f) => ({
-      ...f,
-      steps: f.steps.map((s) => {
-        const hit = removed.find((e) => e.source === s.id);
-        if (!hit) return s;
-        const handle = hit.sourceHandle ?? "next";
-        if (handle.startsWith("rule-")) {
-          const ruleId = handle.replace("rule-", "");
-          if (ruleId === "default") {
-            return { ...s, buttons: s.buttons?.map((b) => b.id === "default" ? { ...b, next_step_id: null } : b) };
-          }
-          return { ...s, condition_rules: s.condition_rules?.map((r) => r.id === ruleId ? { ...r, next_step_id: null } : r) };
-        }
-        if (handle.startsWith("btn-")) {
-          const btnId = handle.replace("btn-", "");
-          return { ...s, buttons: s.buttons?.map((b) => b.id === btnId ? { ...b, next_step_id: null } : b) };
-        }
-        return { ...s, buttons: [{ id: "next", label: "Próximo", next_step_id: null }] };
-      }),
-    }));
+    onChange((f) => clearRemovedEdges(f, removed));
+    setSelectedEdgeIds((ids) => ids.filter((id) => !removed.some((e) => e.id === id)));
   }, [onChange]);
+
+  const deleteSelectedEdges = useCallback(() => {
+    setEdges((eds) => {
+      const removed = eds.filter((e) => selectedEdgeIds.includes(e.id));
+      if (!removed.length) return eds;
+      onChange((f) => clearRemovedEdges(f, removed));
+      setSelectedEdgeIds([]);
+      return eds.filter((e) => !selectedEdgeIds.includes(e.id));
+    });
+  }, [onChange, selectedEdgeIds, setEdges]);
 
   const onNodeDragStop = useCallback((_: any, node: Node) => {
     onChange((f) => ({ ...f, steps: f.steps.map((s) => s.id === node.id ? { ...s, position: node.position } : s) }));
