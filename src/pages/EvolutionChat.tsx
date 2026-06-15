@@ -1197,6 +1197,39 @@ export default function EvolutionChat() {
     return botFlows.filter(f => (f.name || '').toLowerCase().includes(q)).slice(0, 8);
   }, [botFlows, slashQuery]);
 
+  const sendFlowText = async (phone: string, text: string, raw: Record<string, unknown> = {}) => {
+    const tempId = `tmp-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+    const optimistic: EvoMessage = {
+      id: tempId, phone, contact_name: null, direction: 'out',
+      content: text, message_type: 'text', media_url: null, media_mime: null,
+      created_at: new Date().toISOString(), instance_name: currentInstance || null, raw, _pending: true,
+    };
+    setMessages(prev => [...prev, optimistic]);
+    const { data, error } = await invokeEvolution({ action: 'send', phone, text });
+    if (error || data?.error || data?.ok === false) {
+      setMessages(prev => prev.map(m => m.id === tempId ? { ...m, _pending: false, _failed: true } : m));
+      throw new Error(error?.message || data?.error || 'A Evolution não confirmou o envio.');
+    }
+    setMessages(prev => prev.map(m => m.id === tempId ? { ...m, _pending: false, status: 'sent', external_id: data?.externalId || m.external_id, raw: { ...(data || {}), ...raw } } : m));
+  };
+
+  const sendFlowMenu = async (phone: string, step: any) => {
+    const text = String(step.text || step.title || '').trim();
+    const buttons = Array.isArray(step.buttons) ? step.buttons.filter((b: any) => String(b?.label || '').trim()) : [];
+    const mode = String(step.menu_style || 'buttons');
+    const fallback = text ? `${text}\n\n${buttons.map((b: any, i: number) => `${i + 1}️⃣ ${b.label}`).join('\n')}` : buttons.map((b: any, i: number) => `${i + 1}️⃣ ${b.label}`).join('\n');
+    if (!buttons.length || mode === 'numbered') return sendFlowText(phone, fallback || text, { __bot_flow_menu: true, step_id: step.id });
+    const { data, error } = await invokeEvolution({ action: 'send-menu', phone, text, buttons: buttons.map((b: any) => ({ id: b.id, label: b.label })), mode });
+    if (error || data?.error || data?.ok === false) return sendFlowText(phone, fallback, { __bot_flow_menu_fallback: true, step_id: step.id });
+    setMessages(prev => [...prev, {
+      id: `tmp-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, phone, contact_name: null, direction: 'out',
+      content: fallback, message_type: 'text', media_url: null, media_mime: null,
+      created_at: new Date().toISOString(), instance_name: currentInstance || null, status: 'sent', raw: { ...(data || {}), __bot_flow_menu: true },
+    }]);
+  };
+
+  const nextStepId = (step: any) => Array.isArray(step.buttons) && step.buttons[0]?.next_step_id ? step.buttons[0].next_step_id : null;
+
   // Walks a flow linearly (start → buttons[0].next_step_id) and sends each step
   const dispatchFlow = async (flow: { id: string; name: string; start_step_id: string | null; steps: any[] }) => {
     if (!selectedPhone) {
