@@ -1,23 +1,25 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import DashboardLayout from "@/components/layout/DashboardLayout";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import {
   Bot, Plus, Trash2, MessageSquare, ListChecks, LogOut, ArrowRight,
   Save, Loader2, Flag, PlayCircle, X, Settings2,
+  Image as ImageIcon, Video, Music, FileText, User as UserIcon,
+  Star, Tag, IdCard, GitBranch, Clock, Shuffle, Globe, Sparkles,
+  Instagram, Layout, FileBadge, HelpCircle,
 } from "lucide-react";
-// Ensure d3-transition side-effects (selection.interrupt/transition) are registered
-// before reactflow's d3-zoom uses them — otherwise prod bundles tree-shake it
-// and we get "$r.interrupt is not a function".
+// Ensure d3-transition side-effects are registered (fixes "$r.interrupt is not a function" in prod)
 import "d3-transition";
 import ReactFlow, {
   Background, Controls, MiniMap, Handle, Position, addEdge,
@@ -26,16 +28,59 @@ import ReactFlow, {
 } from "reactflow";
 import "reactflow/dist/style.css";
 
-type StepType = "message" | "menu" | "transfer" | "end";
+/* ---------------- Types ---------------- */
+
+type StepType =
+  | "text" | "image" | "video" | "audio" | "file" | "contact"
+  | "menu" | "transfer" | "end" | "question" | "rating" | "tags" | "save_contact" | "save_card"
+  | "condition" | "delay" | "ab_test"
+  | "api_call" | "gpt"
+  | "ig_comment"
+  | "wa_flow" | "wa_template";
+
 type FlowButton = { id: string; label: string; next_step_id: string | null };
+
 type Step = {
   id: string;
   type: StepType;
   title?: string;
-  text: string;
+  text?: string;
   buttons?: FlowButton[];
   position?: { x: number; y: number };
+  // media
+  media_url?: string;
+  caption?: string;
+  // contact
+  contact_name?: string;
+  contact_phone?: string;
+  // question
+  variable?: string;
+  // tags / save
+  tags?: string[];
+  // delay
+  delay_ms?: number;
+  // condition
+  condition_variable?: string;
+  condition_rules?: { id: string; op: "eq" | "contains" | "starts" | "regex"; value: string; next_step_id: string | null }[];
+  // ab test
+  ab_weight_a?: number;
+  // api
+  api_url?: string;
+  api_method?: "GET" | "POST" | "PUT" | "DELETE";
+  api_headers?: string; // JSON
+  api_body?: string;
+  // gpt
+  gpt_prompt?: string;
+  gpt_model?: string;
+  // transfer
+  transfer_department?: string;
+  // rating
+  rating_scale?: number;
+  // wa
+  wa_template_name?: string;
+  wa_flow_id?: string;
 };
+
 type Flow = {
   id: string;
   owner_id: string;
@@ -48,38 +93,157 @@ type Flow = {
 
 const uid = () => Math.random().toString(36).slice(2, 10);
 
-const TYPE_META: Record<StepType, { label: string; icon: JSX.Element; color: string }> = {
-  message:  { label: "Mensagem",          icon: <MessageSquare className="w-3.5 h-3.5" />, color: "bg-blue-500" },
-  menu:     { label: "Menu com botões",   icon: <ListChecks   className="w-3.5 h-3.5" />, color: "bg-violet-500" },
-  transfer: { label: "Transferir humano", icon: <LogOut       className="w-3.5 h-3.5" />, color: "bg-amber-500" },
-  end:      { label: "Encerrar",          icon: <ArrowRight   className="w-3.5 h-3.5" />, color: "bg-rose-500" },
+/* ---------------- Type registry ---------------- */
+
+type TypeMeta = {
+  label: string;
+  icon: JSX.Element;
+  color: string;          // tailwind bg-* for header
+  category: "Conteúdos" | "Ações" | "Lógicas" | "Integrações" | "Instagram" | "WhatsApp Oficial";
 };
 
+const TYPE_META: Record<StepType, TypeMeta> = {
+  text:         { label: "Texto",          icon: <MessageSquare className="w-3.5 h-3.5" />, color: "bg-blue-500",   category: "Conteúdos" },
+  image:        { label: "Imagem",         icon: <ImageIcon    className="w-3.5 h-3.5" />, color: "bg-pink-500",   category: "Conteúdos" },
+  video:        { label: "Vídeo",          icon: <Video        className="w-3.5 h-3.5" />, color: "bg-purple-500", category: "Conteúdos" },
+  audio:        { label: "Áudio",          icon: <Music        className="w-3.5 h-3.5" />, color: "bg-cyan-500",   category: "Conteúdos" },
+  file:         { label: "Arquivo",        icon: <FileText     className="w-3.5 h-3.5" />, color: "bg-slate-500",  category: "Conteúdos" },
+  contact:      { label: "Contato",        icon: <UserIcon     className="w-3.5 h-3.5" />, color: "bg-teal-500",   category: "Conteúdos" },
+
+  menu:         { label: "Menu",           icon: <ListChecks   className="w-3.5 h-3.5" />, color: "bg-violet-500", category: "Ações" },
+  question:     { label: "Pergunta",       icon: <HelpCircle   className="w-3.5 h-3.5" />, color: "bg-orange-500", category: "Ações" },
+  rating:       { label: "Avaliação",      icon: <Star         className="w-3.5 h-3.5" />, color: "bg-yellow-500", category: "Ações" },
+  tags:         { label: "Etiquetas",      icon: <Tag          className="w-3.5 h-3.5" />, color: "bg-lime-600",   category: "Ações" },
+  save_contact: { label: "Salvar contato", icon: <UserIcon     className="w-3.5 h-3.5" />, color: "bg-emerald-600",category: "Ações" },
+  save_card:    { label: "Salvar card",    icon: <IdCard       className="w-3.5 h-3.5" />, color: "bg-emerald-700",category: "Ações" },
+  transfer:     { label: "Transferência",  icon: <LogOut       className="w-3.5 h-3.5" />, color: "bg-amber-500",  category: "Ações" },
+  end:          { label: "Finalizar",      icon: <ArrowRight   className="w-3.5 h-3.5" />, color: "bg-rose-500",   category: "Ações" },
+
+  condition:    { label: "Condicional",    icon: <GitBranch    className="w-3.5 h-3.5" />, color: "bg-indigo-500", category: "Lógicas" },
+  delay:        { label: "Delay",          icon: <Clock        className="w-3.5 h-3.5" />, color: "bg-zinc-500",   category: "Lógicas" },
+  ab_test:      { label: "Teste A/B",      icon: <Shuffle      className="w-3.5 h-3.5" />, color: "bg-fuchsia-500",category: "Lógicas" },
+
+  api_call:     { label: "Chamada API",    icon: <Globe        className="w-3.5 h-3.5" />, color: "bg-sky-600",    category: "Integrações" },
+  gpt:          { label: "Resposta GPT",   icon: <Sparkles     className="w-3.5 h-3.5" />, color: "bg-emerald-500",category: "Integrações" },
+
+  ig_comment:   { label: "Comentário IG",  icon: <Instagram    className="w-3.5 h-3.5" />, color: "bg-pink-600",   category: "Instagram" },
+
+  wa_flow:      { label: "Flows WhatsApp", icon: <Layout       className="w-3.5 h-3.5" />, color: "bg-green-600",  category: "WhatsApp Oficial" },
+  wa_template:  { label: "Template WA",    icon: <FileBadge    className="w-3.5 h-3.5" />, color: "bg-green-700",  category: "WhatsApp Oficial" },
+};
+
+const CATEGORIES: TypeMeta["category"][] = [
+  "Conteúdos", "Ações", "Lógicas", "Integrações", "Instagram", "WhatsApp Oficial",
+];
+
+/* ---------------- Step factories ---------------- */
+
+const NEXT_BTN = (): FlowButton[] => [{ id: "next", label: "Próximo", next_step_id: null }];
+
+function makeStep(type: StepType): Step {
+  const base: Step = {
+    id: uid(),
+    type,
+    title: TYPE_META[type].label,
+    position: { x: 200 + Math.random() * 300, y: 200 + Math.random() * 200 },
+  };
+  switch (type) {
+    case "text":
+      return { ...base, text: "Digite sua mensagem...", buttons: NEXT_BTN() };
+    case "image":
+    case "video":
+    case "audio":
+    case "file":
+      return { ...base, media_url: "", caption: "", buttons: NEXT_BTN() };
+    case "contact":
+      return { ...base, contact_name: "", contact_phone: "", buttons: NEXT_BTN() };
+    case "menu":
+      return {
+        ...base,
+        text: "Escolha uma opção:",
+        buttons: [
+          { id: uid(), label: "Opção 1", next_step_id: null },
+          { id: uid(), label: "Opção 2", next_step_id: null },
+        ],
+      };
+    case "question":
+      return { ...base, text: "Qual seu nome?", variable: "nome", buttons: NEXT_BTN() };
+    case "rating":
+      return { ...base, text: "Avalie de 1 a 5", rating_scale: 5, variable: "avaliacao", buttons: NEXT_BTN() };
+    case "tags":
+      return { ...base, tags: ["cliente"], buttons: NEXT_BTN() };
+    case "save_contact":
+    case "save_card":
+      return { ...base, buttons: NEXT_BTN() };
+    case "transfer":
+      return { ...base, text: "Transferindo para um atendente...", transfer_department: "", buttons: [] };
+    case "end":
+      return { ...base, text: "Obrigado pelo contato!", buttons: [] };
+    case "delay":
+      return { ...base, delay_ms: 2000, buttons: NEXT_BTN() };
+    case "ab_test":
+      return {
+        ...base,
+        ab_weight_a: 50,
+        buttons: [
+          { id: "a", label: "Variante A", next_step_id: null },
+          { id: "b", label: "Variante B", next_step_id: null },
+        ],
+      };
+    case "condition":
+      return {
+        ...base,
+        condition_variable: "ultima_resposta",
+        condition_rules: [{ id: uid(), op: "eq", value: "sim", next_step_id: null }],
+        buttons: [{ id: "default", label: "Senão", next_step_id: null }],
+      };
+    case "api_call":
+      return {
+        ...base,
+        api_url: "https://",
+        api_method: "POST",
+        api_headers: '{"Content-Type":"application/json"}',
+        api_body: "{}",
+        variable: "api_response",
+        buttons: NEXT_BTN(),
+      };
+    case "gpt":
+      return {
+        ...base,
+        gpt_prompt: "Responda de forma educada a: {{ultima_mensagem}}",
+        gpt_model: "google/gemini-2.5-flash",
+        variable: "gpt_resposta",
+        buttons: NEXT_BTN(),
+      };
+    case "ig_comment":
+      return { ...base, text: "Obrigado pelo comentário!", buttons: NEXT_BTN() };
+    case "wa_flow":
+      return { ...base, wa_flow_id: "", text: "Flow do WhatsApp", buttons: NEXT_BTN() };
+    case "wa_template":
+      return { ...base, wa_template_name: "", text: "Template oficial", buttons: NEXT_BTN() };
+  }
+}
+
 function emptyFlow(owner_id: string): Omit<Flow, "id"> {
-  const startId = uid();
+  const start = makeStep("menu");
+  start.title = "Boas-vindas";
+  start.text = "Olá! Como posso ajudar?";
+  start.position = { x: 280, y: 160 };
+  start.buttons = [
+    { id: uid(), label: "Renovar", next_step_id: null },
+    { id: uid(), label: "Suporte", next_step_id: null },
+  ];
   return {
     owner_id,
     name: "Novo fluxo",
     enabled: true,
     trigger_keywords: [],
-    start_step_id: startId,
-    steps: [
-      {
-        id: startId,
-        type: "menu",
-        title: "Boas-vindas",
-        text: "Olá! Como posso ajudar?",
-        buttons: [
-          { id: uid(), label: "Renovar", next_step_id: null },
-          { id: uid(), label: "Suporte", next_step_id: null },
-        ],
-        position: { x: 280, y: 160 },
-      },
-    ],
+    start_step_id: start.id,
+    steps: [start],
   };
 }
 
-/* ---------------- Custom Node ---------------- */
+/* ---------------- Node ---------------- */
 
 type StepNodeData = {
   step: Step;
@@ -89,62 +253,138 @@ type StepNodeData = {
   onSetStart: (id: string) => void;
 };
 
+function NodeBody({ step }: { step: Step }) {
+  const showText = step.text && (
+    <p className="text-xs text-foreground/90 whitespace-pre-wrap line-clamp-3">{step.text}</p>
+  );
+  switch (step.type) {
+    case "image":
+      return (
+        <div className="space-y-1.5">
+          {step.media_url
+            ? <img src={step.media_url} alt="" className="w-full max-h-32 object-cover rounded" />
+            : <div className="w-full h-16 bg-muted rounded flex items-center justify-center text-[10px] text-muted-foreground">sem imagem</div>}
+          {step.caption && <p className="text-[11px] line-clamp-2">{step.caption}</p>}
+        </div>
+      );
+    case "video":
+    case "audio":
+    case "file":
+      return (
+        <div className="text-[11px] text-muted-foreground truncate">
+          {step.media_url || <span className="italic">sem URL</span>}
+        </div>
+      );
+    case "contact":
+      return (
+        <div className="text-xs">
+          <div className="font-medium">{step.contact_name || "Nome"}</div>
+          <div className="text-muted-foreground">{step.contact_phone || "Telefone"}</div>
+        </div>
+      );
+    case "delay":
+      return <div className="text-xs">⏱ {(step.delay_ms ?? 0) / 1000}s</div>;
+    case "tags":
+      return (
+        <div className="flex flex-wrap gap-1">
+          {(step.tags ?? []).map((t) => <Badge key={t} variant="secondary" className="text-[10px]">{t}</Badge>)}
+        </div>
+      );
+    case "api_call":
+      return <div className="text-[11px] truncate"><span className="font-mono">{step.api_method}</span> {step.api_url}</div>;
+    case "gpt":
+      return <div className="text-[11px] line-clamp-3 italic">{step.gpt_prompt}</div>;
+    case "rating":
+      return <div className="text-xs">⭐ 1 a {step.rating_scale}</div>;
+    case "condition":
+      return (
+        <div className="text-[11px]">
+          var <span className="font-mono">{step.condition_variable}</span>
+          <div className="text-muted-foreground">{(step.condition_rules ?? []).length} regra(s)</div>
+        </div>
+      );
+    case "ab_test":
+      return <div className="text-xs">A {step.ab_weight_a ?? 50}% / B {100 - (step.ab_weight_a ?? 50)}%</div>;
+    case "wa_template":
+      return <div className="text-[11px]">tpl: <span className="font-mono">{step.wa_template_name || "—"}</span></div>;
+    case "wa_flow":
+      return <div className="text-[11px]">flow: <span className="font-mono">{step.wa_flow_id || "—"}</span></div>;
+    default:
+      return showText || <span className="text-muted-foreground italic text-xs">(vazio)</span>;
+  }
+}
+
 function StepNode({ data, selected }: NodeProps<StepNodeData>) {
   const { step, isStart, onEdit, onDelete, onSetStart } = data;
   const meta = TYPE_META[step.type];
+
+  // Decide branching style
+  const branching = step.type === "menu" || step.type === "condition" || step.type === "ab_test";
+  const hasNext = step.type !== "end" && step.type !== "transfer" && !branching;
+
   return (
-    <div
-      className={`rounded-xl border bg-card shadow-sm min-w-[240px] max-w-[280px] transition ${
-        selected ? "ring-2 ring-primary" : "border-border"
-      }`}
-    >
+    <div className={`rounded-xl border bg-card shadow-sm min-w-[230px] max-w-[260px] transition ${selected ? "ring-2 ring-primary" : "border-border"}`}>
       <Handle type="target" position={Position.Left} className="!w-2.5 !h-2.5 !bg-muted-foreground" />
+
       <div className={`flex items-center justify-between px-3 py-2 rounded-t-xl text-white text-xs font-medium ${meta.color}`}>
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5 truncate">
           {meta.icon}
-          <span>{step.title || meta.label}</span>
+          <span className="truncate">{step.title || meta.label}</span>
         </div>
-        <div className="flex items-center gap-1">
-          {isStart && (
-            <span className="bg-white/20 px-1.5 py-0.5 rounded text-[10px] flex items-center gap-1">
-              <Flag className="w-3 h-3" /> início
-            </span>
-          )}
-        </div>
+        {isStart && (
+          <span className="bg-white/20 px-1.5 py-0.5 rounded text-[10px] flex items-center gap-1 shrink-0">
+            <Flag className="w-3 h-3" /> início
+          </span>
+        )}
       </div>
+
       <div className="px-3 py-2 space-y-2">
-        <p className="text-xs text-foreground/90 whitespace-pre-wrap line-clamp-4">
-          {step.text || <span className="text-muted-foreground italic">(sem texto)</span>}
-        </p>
+        <NodeBody step={step} />
 
         {step.type === "menu" && step.buttons && step.buttons.length > 0 && (
           <div className="space-y-1 pt-1 border-t border-border">
             {step.buttons.map((b) => (
               <div key={b.id} className="relative flex items-center justify-between text-xs bg-muted/60 rounded px-2 py-1.5">
                 <span className="truncate">{b.label || "Botão"}</span>
-                <Handle
-                  type="source"
-                  position={Position.Right}
-                  id={`btn-${b.id}`}
-                  className="!w-2.5 !h-2.5 !bg-violet-500 !-right-[7px]"
-                  style={{ top: "50%" }}
-                />
+                <Handle type="source" position={Position.Right} id={`btn-${b.id}`} className="!w-2.5 !h-2.5 !bg-violet-500 !-right-[7px]" style={{ top: "50%" }} />
               </div>
             ))}
           </div>
         )}
 
-        {step.type !== "menu" && step.type !== "end" && (
+        {step.type === "condition" && (
+          <div className="space-y-1 pt-1 border-t border-border">
+            {(step.condition_rules ?? []).map((r) => (
+              <div key={r.id} className="relative flex items-center justify-between text-[11px] bg-indigo-500/10 rounded px-2 py-1.5">
+                <span className="truncate">{r.op} "{r.value}"</span>
+                <Handle type="source" position={Position.Right} id={`rule-${r.id}`} className="!w-2.5 !h-2.5 !bg-indigo-500 !-right-[7px]" style={{ top: "50%" }} />
+              </div>
+            ))}
+            <div className="relative flex items-center justify-between text-[11px] bg-muted rounded px-2 py-1.5">
+              <span className="truncate text-muted-foreground">Senão</span>
+              <Handle type="source" position={Position.Right} id="rule-default" className="!w-2.5 !h-2.5 !bg-muted-foreground !-right-[7px]" style={{ top: "50%" }} />
+            </div>
+          </div>
+        )}
+
+        {step.type === "ab_test" && step.buttons && (
+          <div className="space-y-1 pt-1 border-t border-border">
+            {step.buttons.map((b) => (
+              <div key={b.id} className="relative flex items-center justify-between text-xs bg-fuchsia-500/10 rounded px-2 py-1.5">
+                <span className="truncate">{b.label}</span>
+                <Handle type="source" position={Position.Right} id={`btn-${b.id}`} className="!w-2.5 !h-2.5 !bg-fuchsia-500 !-right-[7px]" style={{ top: "50%" }} />
+              </div>
+            ))}
+          </div>
+        )}
+
+        {hasNext && (
           <div className="relative h-2">
-            <Handle
-              type="source"
-              position={Position.Right}
-              id="next"
-              className="!w-2.5 !h-2.5 !bg-primary"
-            />
+            <Handle type="source" position={Position.Right} id="next" className="!w-2.5 !h-2.5 !bg-primary" />
           </div>
         )}
       </div>
+
       <div className="flex items-center gap-1 px-2 py-1.5 border-t border-border bg-muted/30 rounded-b-xl">
         <Button size="sm" variant="ghost" className="h-6 px-2 text-xs" onClick={() => onEdit(step.id)}>
           <Settings2 className="w-3 h-3 mr-1" /> Editar
@@ -164,65 +404,321 @@ function StepNode({ data, selected }: NodeProps<StepNodeData>) {
 
 const nodeTypes = { step: StepNode };
 
+/* ---------------- Editor panel ---------------- */
+
+function EditorPanel({
+  step, onChange, onClose,
+}: {
+  step: Step;
+  onChange: (patch: Partial<Step>) => void;
+  onClose: () => void;
+}) {
+  const t = step.type;
+  return (
+    <div className="absolute top-0 right-0 h-full w-[380px] bg-card border-l shadow-xl z-20 flex flex-col">
+      <div className="flex items-center justify-between p-3 border-b">
+        <div className="flex items-center gap-2">
+          <span className={`w-2 h-2 rounded-full ${TYPE_META[t].color}`} />
+          <h3 className="font-medium text-sm">Editar — {TYPE_META[t].label}</h3>
+        </div>
+        <Button size="sm" variant="ghost" onClick={onClose}><X className="w-4 h-4" /></Button>
+      </div>
+      <div className="flex-1 overflow-y-auto p-3 space-y-3">
+        <div>
+          <Label className="text-xs">Título (interno)</Label>
+          <Input className="h-9" value={step.title ?? ""} onChange={(e) => onChange({ title: e.target.value })} />
+        </div>
+
+        {(t === "text" || t === "menu" || t === "question" || t === "rating" || t === "transfer" || t === "end" || t === "ig_comment") && (
+          <div>
+            <Label className="text-xs">Mensagem</Label>
+            <Textarea rows={4} value={step.text ?? ""} onChange={(e) => onChange({ text: e.target.value })} />
+          </div>
+        )}
+
+        {(t === "image" || t === "video" || t === "audio" || t === "file") && (
+          <>
+            <div>
+              <Label className="text-xs">URL do {TYPE_META[t].label.toLowerCase()}</Label>
+              <Input className="h-9" placeholder="https://..." value={step.media_url ?? ""} onChange={(e) => onChange({ media_url: e.target.value })} />
+            </div>
+            <div>
+              <Label className="text-xs">Legenda (opcional)</Label>
+              <Textarea rows={2} value={step.caption ?? ""} onChange={(e) => onChange({ caption: e.target.value })} />
+            </div>
+          </>
+        )}
+
+        {t === "contact" && (
+          <>
+            <div>
+              <Label className="text-xs">Nome</Label>
+              <Input className="h-9" value={step.contact_name ?? ""} onChange={(e) => onChange({ contact_name: e.target.value })} />
+            </div>
+            <div>
+              <Label className="text-xs">Telefone</Label>
+              <Input className="h-9" placeholder="55119..." value={step.contact_phone ?? ""} onChange={(e) => onChange({ contact_phone: e.target.value })} />
+            </div>
+          </>
+        )}
+
+        {t === "question" && (
+          <div>
+            <Label className="text-xs">Salvar resposta em variável</Label>
+            <Input className="h-9" value={step.variable ?? ""} onChange={(e) => onChange({ variable: e.target.value })} />
+          </div>
+        )}
+
+        {t === "rating" && (
+          <>
+            <div>
+              <Label className="text-xs">Escala (1 a N)</Label>
+              <Input type="number" min={2} max={10} className="h-9" value={step.rating_scale ?? 5} onChange={(e) => onChange({ rating_scale: +e.target.value })} />
+            </div>
+            <div>
+              <Label className="text-xs">Variável</Label>
+              <Input className="h-9" value={step.variable ?? ""} onChange={(e) => onChange({ variable: e.target.value })} />
+            </div>
+          </>
+        )}
+
+        {t === "tags" && (
+          <div>
+            <Label className="text-xs">Etiquetas (separadas por vírgula)</Label>
+            <Input className="h-9" value={(step.tags ?? []).join(", ")}
+              onChange={(e) => onChange({ tags: e.target.value.split(",").map((s) => s.trim()).filter(Boolean) })} />
+          </div>
+        )}
+
+        {t === "transfer" && (
+          <div>
+            <Label className="text-xs">Departamento (opcional)</Label>
+            <Input className="h-9" value={step.transfer_department ?? ""} onChange={(e) => onChange({ transfer_department: e.target.value })} />
+          </div>
+        )}
+
+        {t === "delay" && (
+          <div>
+            <Label className="text-xs">Atraso (ms)</Label>
+            <Input type="number" min={0} step={500} className="h-9" value={step.delay_ms ?? 0} onChange={(e) => onChange({ delay_ms: +e.target.value })} />
+          </div>
+        )}
+
+        {t === "ab_test" && (
+          <div>
+            <Label className="text-xs">% da Variante A</Label>
+            <Input type="number" min={0} max={100} className="h-9" value={step.ab_weight_a ?? 50} onChange={(e) => onChange({ ab_weight_a: +e.target.value })} />
+          </div>
+        )}
+
+        {t === "condition" && (
+          <>
+            <div>
+              <Label className="text-xs">Variável a comparar</Label>
+              <Input className="h-9" value={step.condition_variable ?? ""} onChange={(e) => onChange({ condition_variable: e.target.value })} />
+            </div>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label className="text-xs">Regras</Label>
+                <Button size="sm" variant="outline" className="h-7 text-xs"
+                  onClick={() => onChange({
+                    condition_rules: [...(step.condition_rules ?? []), { id: uid(), op: "eq", value: "", next_step_id: null }],
+                  })}>
+                  <Plus className="w-3 h-3 mr-1" /> Regra
+                </Button>
+              </div>
+              {(step.condition_rules ?? []).map((r) => (
+                <div key={r.id} className="flex gap-1 items-center">
+                  <Select value={r.op} onValueChange={(v: any) => onChange({
+                    condition_rules: step.condition_rules!.map((x) => x.id === r.id ? { ...x, op: v } : x),
+                  })}>
+                    <SelectTrigger className="h-8 w-28 text-xs"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="eq">é igual</SelectItem>
+                      <SelectItem value="contains">contém</SelectItem>
+                      <SelectItem value="starts">começa com</SelectItem>
+                      <SelectItem value="regex">regex</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Input className="h-8 text-xs" value={r.value} onChange={(e) => onChange({
+                    condition_rules: step.condition_rules!.map((x) => x.id === r.id ? { ...x, value: e.target.value } : x),
+                  })} />
+                  <Button size="sm" variant="ghost" className="h-8 px-2 text-rose-500"
+                    onClick={() => onChange({ condition_rules: step.condition_rules!.filter((x) => x.id !== r.id) })}>
+                    <Trash2 className="w-3 h-3" />
+                  </Button>
+                </div>
+              ))}
+              <p className="text-[11px] text-muted-foreground">Conecte cada regra (ou Senão) a um próximo passo arrastando do círculo à direita.</p>
+            </div>
+          </>
+        )}
+
+        {t === "api_call" && (
+          <>
+            <div className="flex gap-2">
+              <div className="w-28">
+                <Label className="text-xs">Método</Label>
+                <Select value={step.api_method ?? "POST"} onValueChange={(v: any) => onChange({ api_method: v })}>
+                  <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {["GET", "POST", "PUT", "DELETE"].map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex-1">
+                <Label className="text-xs">URL</Label>
+                <Input className="h-9" value={step.api_url ?? ""} onChange={(e) => onChange({ api_url: e.target.value })} />
+              </div>
+            </div>
+            <div>
+              <Label className="text-xs">Headers (JSON)</Label>
+              <Textarea rows={3} className="font-mono text-xs" value={step.api_headers ?? ""} onChange={(e) => onChange({ api_headers: e.target.value })} />
+            </div>
+            <div>
+              <Label className="text-xs">Body</Label>
+              <Textarea rows={4} className="font-mono text-xs" value={step.api_body ?? ""} onChange={(e) => onChange({ api_body: e.target.value })} />
+            </div>
+            <div>
+              <Label className="text-xs">Salvar resposta em</Label>
+              <Input className="h-9" value={step.variable ?? ""} onChange={(e) => onChange({ variable: e.target.value })} />
+            </div>
+          </>
+        )}
+
+        {t === "gpt" && (
+          <>
+            <div>
+              <Label className="text-xs">Modelo</Label>
+              <Select value={step.gpt_model ?? "google/gemini-2.5-flash"} onValueChange={(v) => onChange({ gpt_model: v })}>
+                <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="google/gemini-2.5-flash">Gemini 2.5 Flash (rápido)</SelectItem>
+                  <SelectItem value="google/gemini-2.5-pro">Gemini 2.5 Pro</SelectItem>
+                  <SelectItem value="google/gemini-2.5-flash-lite">Gemini 2.5 Flash Lite</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-xs">Prompt (use {"{{variavel}}"})</Label>
+              <Textarea rows={5} value={step.gpt_prompt ?? ""} onChange={(e) => onChange({ gpt_prompt: e.target.value })} />
+            </div>
+            <div>
+              <Label className="text-xs">Salvar resposta em</Label>
+              <Input className="h-9" value={step.variable ?? ""} onChange={(e) => onChange({ variable: e.target.value })} />
+            </div>
+          </>
+        )}
+
+        {t === "wa_template" && (
+          <div>
+            <Label className="text-xs">Nome do template aprovado</Label>
+            <Input className="h-9" value={step.wa_template_name ?? ""} onChange={(e) => onChange({ wa_template_name: e.target.value })} />
+          </div>
+        )}
+
+        {t === "wa_flow" && (
+          <div>
+            <Label className="text-xs">Flow ID</Label>
+            <Input className="h-9" value={step.wa_flow_id ?? ""} onChange={(e) => onChange({ wa_flow_id: e.target.value })} />
+          </div>
+        )}
+
+        {t === "menu" && (
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <Label className="text-xs">Botões</Label>
+              <Button size="sm" variant="outline" className="h-7 text-xs"
+                onClick={() => onChange({
+                  buttons: [...(step.buttons ?? []), { id: uid(), label: `Opção ${(step.buttons?.length ?? 0) + 1}`, next_step_id: null }],
+                })}>
+                <Plus className="w-3 h-3 mr-1" /> Botão
+              </Button>
+            </div>
+            {step.buttons?.map((b) => (
+              <div key={b.id} className="flex gap-1">
+                <Input className="h-8" value={b.label}
+                  onChange={(e) => onChange({ buttons: step.buttons!.map((x) => x.id === b.id ? { ...x, label: e.target.value } : x) })} />
+                <Button size="sm" variant="ghost" className="h-8 px-2 text-rose-500"
+                  onClick={() => onChange({ buttons: step.buttons!.filter((x) => x.id !== b.id) })}>
+                  <Trash2 className="w-3 h-3" />
+                </Button>
+              </div>
+            ))}
+            <p className="text-[11px] text-muted-foreground">Arraste do círculo violeta de cada botão até outro passo para conectar.</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 /* ---------------- Builder ---------------- */
 
-function FlowBuilder({
-  flow,
-  onChange,
-}: {
-  flow: Flow;
-  onChange: (updater: (f: Flow) => Flow) => void;
-}) {
+function FlowBuilder({ flow, onChange }: { flow: Flow; onChange: (updater: (f: Flow) => Flow) => void }) {
   const [editingId, setEditingId] = useState<string | null>(null);
 
-  // Build nodes/edges from steps
+  function patchStep(id: string, patch: Partial<Step>) {
+    onChange((f) => ({ ...f, steps: f.steps.map((s) => (s.id === id ? { ...s, ...patch } : s)) }));
+  }
+
+  function handleSetStart(id: string) {
+    onChange((f) => ({ ...f, start_step_id: id }));
+  }
+
+  function handleDelete(id: string) {
+    onChange((f) => {
+      const steps = f.steps.filter((s) => s.id !== id).map((s) => ({
+        ...s,
+        buttons: s.buttons?.map((b) => (b.next_step_id === id ? { ...b, next_step_id: null } : b)),
+        condition_rules: s.condition_rules?.map((r) => (r.next_step_id === id ? { ...r, next_step_id: null } : r)),
+      }));
+      return { ...f, steps, start_step_id: f.start_step_id === id ? steps[0]?.id ?? null : f.start_step_id };
+    });
+    setEdges((eds) => eds.filter((e) => e.source !== id && e.target !== id));
+    setNodes((nds) => nds.filter((n) => n.id !== id));
+  }
+
   const initialNodes: Node<StepNodeData>[] = useMemo(
-    () =>
-      flow.steps.map((s, i) => ({
-        id: s.id,
-        type: "step",
-        position: s.position ?? { x: 120 + (i % 4) * 320, y: 100 + Math.floor(i / 4) * 260 },
-        data: {
-          step: s,
-          isStart: flow.start_step_id === s.id,
-          onEdit: setEditingId,
-          onDelete: handleDelete,
-          onSetStart: handleSetStart,
-        },
-      })),
+    () => flow.steps.map((s, i) => ({
+      id: s.id,
+      type: "step",
+      position: s.position ?? { x: 120 + (i % 4) * 320, y: 100 + Math.floor(i / 4) * 260 },
+      data: { step: s, isStart: flow.start_step_id === s.id, onEdit: setEditingId, onDelete: handleDelete, onSetStart: handleSetStart },
+    })),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [flow.id]
+    [flow.id],
   );
 
   const initialEdges: Edge[] = useMemo(() => {
     const list: Edge[] = [];
     for (const s of flow.steps) {
-      if (s.type === "menu" && s.buttons) {
-        for (const b of s.buttons) {
-          if (b.next_step_id) {
-            list.push({
-              id: `${s.id}-${b.id}`,
-              source: s.id,
-              sourceHandle: `btn-${b.id}`,
-              target: b.next_step_id,
-              animated: true,
-              markerEnd: { type: MarkerType.ArrowClosed },
-            });
-          }
-        }
-      } else if (s.type === "message" || s.type === "transfer") {
-        // next stored on buttons[0] convention
-        const nxt = s.buttons?.[0]?.next_step_id;
-        if (nxt) {
-          list.push({
-            id: `${s.id}-next`,
-            source: s.id,
-            sourceHandle: "next",
-            target: nxt,
-            animated: true,
-            markerEnd: { type: MarkerType.ArrowClosed },
+      // menu / ab_test: button-based
+      if (s.type === "menu" || s.type === "ab_test") {
+        for (const b of s.buttons ?? []) {
+          if (b.next_step_id) list.push({
+            id: `${s.id}-${b.id}`, source: s.id, sourceHandle: `btn-${b.id}`, target: b.next_step_id,
+            animated: true, markerEnd: { type: MarkerType.ArrowClosed },
           });
         }
+      } else if (s.type === "condition") {
+        for (const r of s.condition_rules ?? []) {
+          if (r.next_step_id) list.push({
+            id: `${s.id}-${r.id}`, source: s.id, sourceHandle: `rule-${r.id}`, target: r.next_step_id,
+            animated: true, markerEnd: { type: MarkerType.ArrowClosed },
+          });
+        }
+        const def = s.buttons?.find((b) => b.id === "default");
+        if (def?.next_step_id) list.push({
+          id: `${s.id}-default`, source: s.id, sourceHandle: "rule-default", target: def.next_step_id,
+          animated: true, markerEnd: { type: MarkerType.ArrowClosed },
+        });
+      } else if (s.type !== "end" && s.type !== "transfer") {
+        const nxt = s.buttons?.[0]?.next_step_id;
+        if (nxt) list.push({
+          id: `${s.id}-next`, source: s.id, sourceHandle: "next", target: nxt,
+          animated: true, markerEnd: { type: MarkerType.ArrowClosed },
+        });
       }
     }
     return list;
@@ -232,168 +728,112 @@ function FlowBuilder({
   const [nodes, setNodes, onNodesChange] = useNodesState<StepNodeData>(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
 
-  // Refresh nodes/edges when flow.id changes
   useEffect(() => {
     setNodes(initialNodes);
     setEdges(initialEdges);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [flow.id]);
 
-  // Sync node data (step content / isStart) when flow.steps changes
+  // Sync node data when flow.steps changes
   useEffect(() => {
-    setNodes((nds) =>
-      nds.map((n) => {
-        const step = flow.steps.find((s) => s.id === n.id);
-        if (!step) return n;
-        return {
-          ...n,
-          data: {
-            ...n.data,
-            step,
-            isStart: flow.start_step_id === step.id,
-          },
-        };
-      })
-    );
+    setNodes((nds) => nds.map((n) => {
+      const step = flow.steps.find((s) => s.id === n.id);
+      if (!step) return n;
+      return { ...n, data: { ...n.data, step, isStart: flow.start_step_id === step.id } };
+    }));
   }, [flow.steps, flow.start_step_id, setNodes]);
 
-  function handleSetStart(id: string) {
-    onChange((f) => ({ ...f, start_step_id: id }));
-  }
-
-  function handleDelete(id: string) {
-    onChange((f) => {
-      const steps = f.steps
-        .filter((s) => s.id !== id)
-        .map((s) => ({
-          ...s,
-          buttons: s.buttons?.map((b) =>
-            b.next_step_id === id ? { ...b, next_step_id: null } : b
-          ),
-        }));
-      return {
-        ...f,
-        steps,
-        start_step_id: f.start_step_id === id ? steps[0]?.id ?? null : f.start_step_id,
-      };
-    });
-    setNodes((nds) => nds.filter((n) => n.id !== id));
-    setEdges((eds) => eds.filter((e) => e.source !== id && e.target !== id));
-  }
-
   function addStep(type: StepType) {
-    const id = uid();
-    const newStep: Step = {
-      id,
-      type,
-      title: TYPE_META[type].label,
-      text:
-        type === "menu"
-          ? "Escolha uma opção:"
-          : type === "transfer"
-          ? "Aguarde, vou te transferir para um atendente."
-          : type === "end"
-          ? "Obrigado pelo contato!"
-          : "Digite sua mensagem...",
-      buttons:
-        type === "menu"
-          ? [
-              { id: uid(), label: "Opção 1", next_step_id: null },
-              { id: uid(), label: "Opção 2", next_step_id: null },
-            ]
-          : type === "message" || type === "transfer"
-          ? [{ id: "next", label: "Próximo", next_step_id: null }]
-          : [],
-      position: { x: 200 + Math.random() * 300, y: 200 + Math.random() * 200 },
-    };
-    onChange((f) => ({ ...f, steps: [...f.steps, newStep] }));
+    const s = makeStep(type);
+    onChange((f) => ({ ...f, steps: [...f.steps, s] }));
   }
 
-  const onConnect = useCallback(
-    (params: Edge | Connection) => {
-      setEdges((eds) =>
-        addEdge(
-          { ...params, animated: true, markerEnd: { type: MarkerType.ArrowClosed } },
-          eds
-        )
-      );
-      // persist into flow data
-      onChange((f) => ({
-        ...f,
-        steps: f.steps.map((s) => {
-          if (s.id !== params.source) return s;
-          if (s.type === "menu") {
-            const btnId = params.sourceHandle?.replace("btn-", "");
+  const onConnect = useCallback((params: Edge | Connection) => {
+    setEdges((eds) => addEdge({ ...params, animated: true, markerEnd: { type: MarkerType.ArrowClosed } }, eds));
+    onChange((f) => ({
+      ...f,
+      steps: f.steps.map((s) => {
+        if (s.id !== params.source) return s;
+        const handle = params.sourceHandle ?? "next";
+        // condition rule branch
+        if (handle.startsWith("rule-")) {
+          const ruleId = handle.replace("rule-", "");
+          if (ruleId === "default") {
             return {
               ...s,
-              buttons: s.buttons?.map((b) =>
-                b.id === btnId ? { ...b, next_step_id: params.target ?? null } : b
-              ),
-            };
-          }
-          // message/transfer: store on buttons[0]
-          return {
-            ...s,
-            buttons: [{ id: "next", label: "Próximo", next_step_id: params.target ?? null }],
-          };
-        }),
-      }));
-    },
-    [onChange, setEdges]
-  );
-
-  const onEdgesDelete = useCallback(
-    (removed: Edge[]) => {
-      onChange((f) => ({
-        ...f,
-        steps: f.steps.map((s) => {
-          const hit = removed.find((e) => e.source === s.id);
-          if (!hit) return s;
-          if (s.type === "menu") {
-            const btnId = hit.sourceHandle?.replace("btn-", "");
-            return {
-              ...s,
-              buttons: s.buttons?.map((b) =>
-                b.id === btnId ? { ...b, next_step_id: null } : b
-              ),
+              buttons: (s.buttons ?? []).some((b) => b.id === "default")
+                ? s.buttons!.map((b) => b.id === "default" ? { ...b, next_step_id: params.target ?? null } : b)
+                : [...(s.buttons ?? []), { id: "default", label: "Senão", next_step_id: params.target ?? null }],
             };
           }
           return {
             ...s,
-            buttons: [{ id: "next", label: "Próximo", next_step_id: null }],
+            condition_rules: s.condition_rules?.map((r) => r.id === ruleId ? { ...r, next_step_id: params.target ?? null } : r),
           };
-        }),
-      }));
-    },
-    [onChange]
-  );
+        }
+        // menu/ab button
+        if (handle.startsWith("btn-")) {
+          const btnId = handle.replace("btn-", "");
+          return { ...s, buttons: s.buttons?.map((b) => b.id === btnId ? { ...b, next_step_id: params.target ?? null } : b) };
+        }
+        // simple next
+        return { ...s, buttons: [{ id: "next", label: "Próximo", next_step_id: params.target ?? null }] };
+      }),
+    }));
+  }, [onChange, setEdges]);
 
-  const onNodeDragStop = useCallback(
-    (_: any, node: Node) => {
-      onChange((f) => ({
-        ...f,
-        steps: f.steps.map((s) =>
-          s.id === node.id ? { ...s, position: node.position } : s
-        ),
-      }));
-    },
-    [onChange]
-  );
+  const onEdgesDelete = useCallback((removed: Edge[]) => {
+    onChange((f) => ({
+      ...f,
+      steps: f.steps.map((s) => {
+        const hit = removed.find((e) => e.source === s.id);
+        if (!hit) return s;
+        const handle = hit.sourceHandle ?? "next";
+        if (handle.startsWith("rule-")) {
+          const ruleId = handle.replace("rule-", "");
+          if (ruleId === "default") {
+            return { ...s, buttons: s.buttons?.map((b) => b.id === "default" ? { ...b, next_step_id: null } : b) };
+          }
+          return { ...s, condition_rules: s.condition_rules?.map((r) => r.id === ruleId ? { ...r, next_step_id: null } : r) };
+        }
+        if (handle.startsWith("btn-")) {
+          const btnId = handle.replace("btn-", "");
+          return { ...s, buttons: s.buttons?.map((b) => b.id === btnId ? { ...b, next_step_id: null } : b) };
+        }
+        return { ...s, buttons: [{ id: "next", label: "Próximo", next_step_id: null }] };
+      }),
+    }));
+  }, [onChange]);
 
-  const editing = editingId ? flow.steps.find((s) => s.id === editingId) : null;
+  const onNodeDragStop = useCallback((_: any, node: Node) => {
+    onChange((f) => ({ ...f, steps: f.steps.map((s) => s.id === node.id ? { ...s, position: node.position } : s) }));
+  }, [onChange]);
+
+  const editing = editingId ? flow.steps.find((s) => s.id === editingId) ?? null : null;
 
   return (
     <div className="relative h-full w-full">
-      {/* Toolbar */}
-      <div className="absolute top-3 left-3 z-10 flex flex-wrap gap-2 bg-card/95 backdrop-blur p-2 rounded-lg border shadow-sm">
-        <span className="text-xs font-medium px-2 self-center text-muted-foreground">Adicionar:</span>
-        {(["message", "menu", "transfer", "end"] as StepType[]).map((t) => (
-          <Button key={t} size="sm" variant="outline" className="h-7 text-xs" onClick={() => addStep(t)}>
-            <Plus className="w-3 h-3 mr-1" />
-            {TYPE_META[t].icon}
-            <span className="ml-1">{TYPE_META[t].label}</span>
-          </Button>
-        ))}
+      {/* Floating palette */}
+      <div className="absolute top-3 left-3 z-10 w-56 bg-card/95 backdrop-blur rounded-lg border shadow-sm max-h-[calc(100%-1.5rem)] overflow-y-auto">
+        <div className="p-2 space-y-3">
+          {CATEGORIES.map((cat) => {
+            const items = (Object.keys(TYPE_META) as StepType[]).filter((k) => TYPE_META[k].category === cat);
+            return (
+              <div key={cat}>
+                <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold px-1 mb-1">{cat}</p>
+                <div className="grid grid-cols-2 gap-1">
+                  {items.map((t) => (
+                    <Button key={t} size="sm" variant="outline" className="h-7 text-[11px] justify-start gap-1 px-2"
+                      onClick={() => addStep(t)}>
+                      {TYPE_META[t].icon}
+                      <span className="truncate">{TYPE_META[t].label}</span>
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
       </div>
 
       <ReactFlow
@@ -413,155 +853,12 @@ function FlowBuilder({
         <MiniMap pannable zoomable className="!bg-card" />
       </ReactFlow>
 
-      {/* Editor side panel */}
       {editing && (
-        <div className="absolute top-0 right-0 h-full w-[360px] bg-card border-l shadow-xl z-20 flex flex-col">
-          <div className="flex items-center justify-between p-3 border-b">
-            <div className="flex items-center gap-2">
-              <span className={`w-2 h-2 rounded-full ${TYPE_META[editing.type].color}`} />
-              <h3 className="font-medium text-sm">Editar passo</h3>
-            </div>
-            <Button size="sm" variant="ghost" onClick={() => setEditingId(null)}>
-              <X className="w-4 h-4" />
-            </Button>
-          </div>
-          <div className="flex-1 overflow-y-auto p-3 space-y-3">
-            <div>
-              <Label className="text-xs">Tipo</Label>
-              <Select
-                value={editing.type}
-                onValueChange={(v: StepType) =>
-                  onChange((f) => ({
-                    ...f,
-                    steps: f.steps.map((s) =>
-                      s.id === editing.id
-                        ? {
-                            ...s,
-                            type: v,
-                            buttons:
-                              v === "menu"
-                                ? s.buttons && s.buttons.length && s.buttons[0].id !== "next"
-                                  ? s.buttons
-                                  : [{ id: uid(), label: "Opção 1", next_step_id: null }]
-                                : v === "end"
-                                ? []
-                                : [{ id: "next", label: "Próximo", next_step_id: null }],
-                          }
-                        : s
-                    ),
-                  }))
-                }
-              >
-                <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {(Object.keys(TYPE_META) as StepType[]).map((t) => (
-                    <SelectItem key={t} value={t}>{TYPE_META[t].label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label className="text-xs">Título (interno)</Label>
-              <Input
-                className="h-9"
-                value={editing.title ?? ""}
-                onChange={(e) =>
-                  onChange((f) => ({
-                    ...f,
-                    steps: f.steps.map((s) => (s.id === editing.id ? { ...s, title: e.target.value } : s)),
-                  }))
-                }
-              />
-            </div>
-            <div>
-              <Label className="text-xs">Mensagem enviada</Label>
-              <Textarea
-                rows={5}
-                value={editing.text}
-                onChange={(e) =>
-                  onChange((f) => ({
-                    ...f,
-                    steps: f.steps.map((s) => (s.id === editing.id ? { ...s, text: e.target.value } : s)),
-                  }))
-                }
-              />
-            </div>
-
-            {editing.type === "menu" && (
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label className="text-xs">Botões</Label>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-7 text-xs"
-                    onClick={() =>
-                      onChange((f) => ({
-                        ...f,
-                        steps: f.steps.map((s) =>
-                          s.id === editing.id
-                            ? {
-                                ...s,
-                                buttons: [
-                                  ...(s.buttons ?? []),
-                                  { id: uid(), label: `Opção ${(s.buttons?.length ?? 0) + 1}`, next_step_id: null },
-                                ],
-                              }
-                            : s
-                        ),
-                      }))
-                    }
-                  >
-                    <Plus className="w-3 h-3 mr-1" /> Adicionar
-                  </Button>
-                </div>
-                {editing.buttons?.map((b) => (
-                  <div key={b.id} className="flex gap-1">
-                    <Input
-                      className="h-8"
-                      value={b.label}
-                      onChange={(e) =>
-                        onChange((f) => ({
-                          ...f,
-                          steps: f.steps.map((s) =>
-                            s.id === editing.id
-                              ? {
-                                  ...s,
-                                  buttons: s.buttons?.map((x) =>
-                                    x.id === b.id ? { ...x, label: e.target.value } : x
-                                  ),
-                                }
-                              : s
-                          ),
-                        }))
-                      }
-                    />
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="h-8 px-2 text-rose-500"
-                      onClick={() =>
-                        onChange((f) => ({
-                          ...f,
-                          steps: f.steps.map((s) =>
-                            s.id === editing.id
-                              ? { ...s, buttons: s.buttons?.filter((x) => x.id !== b.id) }
-                              : s
-                          ),
-                        }))
-                      }
-                    >
-                      <Trash2 className="w-3 h-3" />
-                    </Button>
-                  </div>
-                ))}
-                <p className="text-[11px] text-muted-foreground">
-                  Arraste do círculo violeta à direita de cada botão até outro passo para conectar.
-                </p>
-              </div>
-            )}
-          </div>
-        </div>
+        <EditorPanel
+          step={editing}
+          onChange={(patch) => patchStep(editing.id, patch)}
+          onClose={() => setEditingId(null)}
+        />
       )}
     </div>
   );
@@ -578,23 +875,13 @@ export default function RoboFlows() {
 
   const active = flows.find((f) => f.id === activeId) || null;
 
-  useEffect(() => {
-    if (!user) return;
-    void load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user]);
+  useEffect(() => { if (user) void load(); /* eslint-disable-next-line */ }, [user]);
 
   async function load() {
     setLoading(true);
-    const { data, error } = await supabase
-      .from("bot_flows" as any)
-      .select("*")
-      .order("created_at", { ascending: false });
+    const { data, error } = await supabase.from("bot_flows" as any).select("*").order("created_at", { ascending: false });
     setLoading(false);
-    if (error) {
-      toast.error("Erro ao carregar fluxos");
-      return;
-    }
+    if (error) { toast.error("Erro ao carregar fluxos"); return; }
     const list = (data ?? []) as any[];
     setFlows(list.map((r) => ({ ...r, steps: r.steps ?? [], trigger_keywords: r.trigger_keywords ?? [] })));
     if (list.length && !activeId) setActiveId(list[0].id);
@@ -603,15 +890,8 @@ export default function RoboFlows() {
   async function createFlow() {
     if (!user) return;
     const payload = emptyFlow(user.id);
-    const { data, error } = await supabase
-      .from("bot_flows" as any)
-      .insert(payload as any)
-      .select()
-      .single();
-    if (error || !data) {
-      toast.error("Erro ao criar fluxo");
-      return;
-    }
+    const { data, error } = await supabase.from("bot_flows" as any).insert(payload as any).select().single();
+    if (error || !data) { toast.error("Erro ao criar fluxo"); return; }
     const newF = data as any as Flow;
     setFlows((p) => [newF, ...p]);
     setActiveId(newF.id);
@@ -620,31 +900,22 @@ export default function RoboFlows() {
   async function saveActive() {
     if (!active) return;
     setSaving(true);
-    const { error } = await supabase
-      .from("bot_flows" as any)
-      .update({
-        name: active.name,
-        enabled: active.enabled,
-        trigger_keywords: active.trigger_keywords,
-        start_step_id: active.start_step_id,
-        steps: active.steps as any,
-      })
-      .eq("id", active.id);
+    const { error } = await supabase.from("bot_flows" as any).update({
+      name: active.name,
+      enabled: active.enabled,
+      trigger_keywords: active.trigger_keywords,
+      start_step_id: active.start_step_id,
+      steps: active.steps as any,
+    }).eq("id", active.id);
     setSaving(false);
-    if (error) {
-      toast.error("Erro ao salvar");
-      return;
-    }
+    if (error) { toast.error("Erro ao salvar"); return; }
     toast.success("Fluxo salvo");
   }
 
   async function deleteFlow(id: string) {
     if (!confirm("Excluir este fluxo?")) return;
     const { error } = await supabase.from("bot_flows" as any).delete().eq("id", id);
-    if (error) {
-      toast.error("Erro ao excluir");
-      return;
-    }
+    if (error) { toast.error("Erro ao excluir"); return; }
     setFlows((p) => p.filter((f) => f.id !== id));
     if (activeId === id) setActiveId(null);
   }
@@ -656,7 +927,6 @@ export default function RoboFlows() {
   return (
     <DashboardLayout>
       <div className="h-[calc(100vh-4rem)] flex flex-col">
-        {/* Header */}
         <div className="px-4 py-3 border-b flex items-center justify-between bg-card">
           <div className="flex items-center gap-2">
             <Bot className="w-5 h-5 text-primary" />
@@ -666,8 +936,7 @@ export default function RoboFlows() {
           <div className="flex items-center gap-2">
             {active && (
               <Button size="sm" onClick={saveActive} disabled={saving}>
-                {saving ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Save className="w-4 h-4 mr-1" />}
-                Salvar
+                {saving ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Save className="w-4 h-4 mr-1" />} Salvar
               </Button>
             )}
             <Button size="sm" variant="outline" onClick={createFlow}>
@@ -677,7 +946,6 @@ export default function RoboFlows() {
         </div>
 
         <div className="flex-1 flex min-h-0">
-          {/* Sidebar */}
           <aside className="w-64 border-r bg-muted/30 flex flex-col">
             <div className="p-3 border-b">
               <h2 className="text-xs uppercase tracking-wide text-muted-foreground font-semibold">Fluxos</h2>
@@ -691,27 +959,21 @@ export default function RoboFlows() {
                 </div>
               )}
               {flows.map((f) => (
-                <button
-                  key={f.id}
-                  onClick={() => setActiveId(f.id)}
+                <button key={f.id} onClick={() => setActiveId(f.id)}
                   className={`w-full text-left px-2 py-2 rounded-md text-sm flex items-center justify-between group ${
                     activeId === f.id ? "bg-primary/10 text-primary" : "hover:bg-muted"
-                  }`}
-                >
+                  }`}>
                   <span className="truncate flex items-center gap-1.5">
                     <PlayCircle className={`w-3.5 h-3.5 ${f.enabled ? "text-emerald-500" : "text-muted-foreground"}`} />
                     {f.name}
                   </span>
-                  <Trash2
-                    className="w-3 h-3 opacity-0 group-hover:opacity-100 text-rose-500"
-                    onClick={(e) => { e.stopPropagation(); deleteFlow(f.id); }}
-                  />
+                  <Trash2 className="w-3 h-3 opacity-0 group-hover:opacity-100 text-rose-500"
+                    onClick={(e) => { e.stopPropagation(); deleteFlow(f.id); }} />
                 </button>
               ))}
             </div>
           </aside>
 
-          {/* Canvas */}
           <main className="flex-1 relative bg-muted/10">
             {!active ? (
               <div className="h-full flex items-center justify-center text-muted-foreground text-sm">
@@ -719,33 +981,20 @@ export default function RoboFlows() {
               </div>
             ) : (
               <div className="h-full flex flex-col">
-                {/* Flow meta bar */}
                 <div className="px-4 py-2 border-b bg-card flex flex-wrap items-center gap-3">
-                  <Input
-                    className="h-8 max-w-xs font-medium"
-                    value={active.name}
-                    onChange={(e) => patchActive((f) => ({ ...f, name: e.target.value }))}
-                  />
+                  <Input className="h-8 max-w-xs font-medium" value={active.name}
+                    onChange={(e) => patchActive((f) => ({ ...f, name: e.target.value }))} />
                   <div className="flex items-center gap-2">
-                    <Switch
-                      checked={active.enabled}
-                      onCheckedChange={(v) => patchActive((f) => ({ ...f, enabled: v }))}
-                    />
+                    <Switch checked={active.enabled} onCheckedChange={(v) => patchActive((f) => ({ ...f, enabled: v }))} />
                     <Label className="text-xs">Ativo</Label>
                   </div>
                   <div className="flex items-center gap-2 flex-1 min-w-[200px]">
                     <Label className="text-xs whitespace-nowrap">Gatilhos:</Label>
-                    <Input
-                      className="h-8"
-                      placeholder="oi, menu, ajuda (separados por vírgula)"
+                    <Input className="h-8" placeholder="oi, menu, ajuda (separados por vírgula)"
                       value={active.trigger_keywords.join(", ")}
-                      onChange={(e) =>
-                        patchActive((f) => ({
-                          ...f,
-                          trigger_keywords: e.target.value.split(",").map((s) => s.trim()).filter(Boolean),
-                        }))
-                      }
-                    />
+                      onChange={(e) => patchActive((f) => ({
+                        ...f, trigger_keywords: e.target.value.split(",").map((s) => s.trim()).filter(Boolean),
+                      }))} />
                   </div>
                 </div>
                 <div className="flex-1 min-h-0">
