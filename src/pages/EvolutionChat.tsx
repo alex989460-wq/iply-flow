@@ -1293,8 +1293,12 @@ export default function EvolutionChat() {
         const type = step.type as string;
         const phone = selectedPhone;
         for (const child of Array.isArray(step.children) ? step.children : []) {
-          await runInlineFlowStep(phone, flow.id, child, new Set<string>());
-          await new Promise(r => setTimeout(r, 250));
+          try {
+            await runInlineFlowStep(phone, flow.id, child, new Set<string>());
+            await new Promise(r => setTimeout(r, 250));
+          } catch (e) {
+            console.error('[dispatchFlow] inline child error', e);
+          }
         }
         if (type === 'text' || type === 'question' || type === 'rating' || type === 'transfer' || type === 'ig_comment' || type === 'wa_template' || type === 'wa_flow') {
           const text = (step.text || step.title || '').toString();
@@ -1307,13 +1311,14 @@ export default function EvolutionChat() {
           try {
             if (String(step.text || '').trim()) await sendFlowText(phone, String(step.text).trim(), { __manual_bot_flow: flow.id, step_id: step.id });
             const res = await fetch(step.media_url);
+            if (!res.ok) throw new Error(`HTTP ${res.status} ao baixar mídia`);
             const blob = await res.blob();
             const mediaType: 'image' | 'audio' | 'video' | 'document' = type === 'image' ? 'image' : type === 'audio' ? 'audio' : type === 'video' ? 'video' : 'document';
             const ext = (blob.type.split('/')[1] || 'bin').split(';')[0];
             const file = new File([blob], `flow-${type}-${Date.now()}.${ext}`, { type: blob.type || 'application/octet-stream' });
             await sendMedia(file, mediaType, step.caption || '');
           } catch (e) {
-            toast({ title: 'Falha em mídia do fluxo', description: e instanceof Error ? e.message : 'Erro ao baixar mídia.', variant: 'destructive' });
+            toast({ title: 'Falha em mídia do fluxo', description: e instanceof Error ? e.message : 'Erro ao baixar mídia. Verifique se a URL aponta direto para o arquivo (.jpg, .png, .mp4...).', variant: 'destructive' });
           }
         } else if (type === 'delay') {
           const ms = Math.max(0, Math.min(15000, Number(step.delay_ms) || 800));
@@ -1332,6 +1337,9 @@ export default function EvolutionChat() {
         curId = nextId;
       }
       toast({ title: `Fluxo "${flow.name}" disparado` });
+    } catch (e) {
+      console.error('[dispatchFlow] failed', e);
+      toast({ title: 'Erro ao disparar fluxo', description: e instanceof Error ? e.message : String(e), variant: 'destructive' });
     } finally {
       setDispatchingFlow(false);
     }
