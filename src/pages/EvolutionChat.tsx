@@ -1165,7 +1165,102 @@ export default function EvolutionChat() {
       id: tempId, phone: selectedPhone, contact_name: null, direction: 'out',
       content: text, message_type: 'text', media_url: null, media_mime: null,
       created_at: new Date().toISOString(), instance_name: currentInstance || null, raw: quotedRaw, _pending: true,
-    };
+  };
+
+
+  // Load user's bot flows for the slash (/) command
+  useEffect(() => {
+    if (!user) return;
+    (async () => {
+      const { data } = await supabase
+        .from('bot_flows' as any)
+        .select('id,name,enabled,start_step_id,steps')
+        .eq('owner_id', user.id)
+        .eq('enabled', true)
+        .order('updated_at', { ascending: false });
+      const rows = (data as any[] | null) ?? [];
+      setBotFlows(rows.map(r => ({
+        id: r.id, name: r.name,
+        start_step_id: r.start_step_id ?? null,
+        steps: Array.isArray(r.steps) ? r.steps : [],
+      })));
+    })();
+  }, [user]);
+
+  const filteredFlows = useMemo(() => {
+    const q = slashQuery.trim().toLowerCase();
+    if (!q) return botFlows.slice(0, 8);
+    return botFlows.filter(f => (f.name || '').toLowerCase().includes(q)).slice(0, 8);
+  }, [botFlows, slashQuery]);
+
+  // Walks a flow linearly (start → buttons[0].next_step_id) and sends each step
+  const dispatchFlow = async (flow: { id: string; name: string; start_step_id: string | null; steps: any[] }) => {
+    if (!selectedPhone) {
+      toast({ title: 'Selecione uma conversa', variant: 'destructive' });
+      return;
+    }
+    const stepsById = new Map<string, any>();
+    (flow.steps || []).forEach((s: any) => { if (s?.id) stepsById.set(s.id, s); });
+    const startId = flow.start_step_id || flow.steps?.[0]?.id;
+    if (!startId) {
+      toast({ title: 'Fluxo vazio', description: 'Nenhum passo configurado.', variant: 'destructive' });
+      return;
+    }
+    setDispatchingFlow(true);
+    const visited = new Set<string>();
+    let curId: string | null = startId;
+    try {
+      while (curId && !visited.has(curId)) {
+        visited.add(curId);
+        const step = stepsById.get(curId);
+        if (!step) break;
+        const type = step.type as string;
+        const phone = selectedPhone;
+        if (type === 'text' || type === 'menu') {
+          let text = (step.text || step.title || '').toString();
+          if (type === 'menu' && Array.isArray(step.buttons) && step.buttons.length) {
+            const opts = step.buttons.map((b: any, i: number) => `${i + 1}️⃣ ${b.label}`).join('\n');
+            text = text ? `${text}\n\n${opts}` : opts;
+          }
+          if (text.trim()) {
+            const tempId = `tmp-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+            const optimistic: EvoMessage = {
+              id: tempId, phone, contact_name: null, direction: 'out',
+              content: text, message_type: 'text', media_url: null, media_mime: null,
+              created_at: new Date().toISOString(), instance_name: currentInstance || null, _pending: true,
+            };
+            setMessages(prev => [...prev, optimistic]);
+            sendTextPayload(phone, text, tempId, null, undefined);
+          }
+        } else if ((type === 'image' || type === 'video' || type === 'audio' || type === 'file') && step.media_url) {
+          try {
+            const res = await fetch(step.media_url);
+            const blob = await res.blob();
+            const mediaType: 'image' | 'audio' | 'document' = type === 'image' ? 'image' : type === 'audio' ? 'audio' : 'document';
+            const ext = (blob.type.split('/')[1] || 'bin').split(';')[0];
+            const file = new File([blob], `flow-${type}-${Date.now()}.${ext}`, { type: blob.type || 'application/octet-stream' });
+            await sendMedia(file, mediaType, step.caption || '');
+          } catch (e) {
+            toast({ title: 'Falha em mídia do fluxo', description: e instanceof Error ? e.message : 'Erro ao baixar mídia.', variant: 'destructive' });
+          }
+        } else if (type === 'delay') {
+          const ms = Math.max(0, Math.min(15000, Number(step.delay_ms) || 800));
+          await new Promise(r => setTimeout(r, ms));
+        } else if (type === 'end') {
+          break;
+        }
+        // Pequena pausa entre mensagens para preservar ordem
+        await new Promise(r => setTimeout(r, 400));
+        const nextId = Array.isArray(step.buttons) && step.buttons[0]?.next_step_id ? step.buttons[0].next_step_id : null;
+        curId = nextId;
+      }
+      toast({ title: `Fluxo "${flow.name}" disparado` });
+    } finally {
+      setDispatchingFlow(false);
+    }
+  };
+
+
     setMessages(prev => [...prev, optimistic]);
     setDraft('');
     setReplyTo(null);
