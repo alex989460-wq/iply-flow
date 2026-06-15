@@ -919,7 +919,7 @@ function FlowBuilder({ flow, onChange }: { flow: Flow; onChange: (updater: (f: F
         id: s.id,
         type: "step",
         position: current?.position ?? s.position ?? { x: 300 + (i % 3) * 320, y: 180 + Math.floor(i / 3) * 250 },
-        data: { step: s, isStart: flow.start_step_id === s.id, onEdit: setEditingId, onDelete: handleDelete, onSetStart: handleSetStart },
+        data: { step: s, isStart: flow.start_step_id === s.id, onEdit: setEditingId, onDelete: handleDelete, onSetStart: handleSetStart, onDropChild: handleDropChild },
       };
     }));
     setEdges(edgesFromSteps(flow.steps));
@@ -935,17 +935,7 @@ function FlowBuilder({ flow, onChange }: { flow: Flow; onChange: (updater: (f: F
 
   const addDroppedFile = async (file: File, position: { x: number; y: number }) => {
     const mediaType: StepType = file.type.startsWith("video/") ? "video" : file.type.startsWith("audio/") ? "audio" : file.type.startsWith("image/") ? "image" : "file";
-    let mediaUrl = URL.createObjectURL(file);
-    try {
-      const safeName = file.name.replace(/[^a-z0-9._-]/gi, "-");
-      const path = `${flow.owner_id}/bot-flow-${Date.now()}-${safeName}`;
-      const { error } = await supabase.storage.from("reseller-assets").upload(path, file, { contentType: file.type || "application/octet-stream", upsert: false });
-      if (!error) {
-        const { data } = supabase.storage.from("reseller-assets").getPublicUrl(path);
-        mediaUrl = data.publicUrl || mediaUrl;
-      }
-    } catch { /* keep local preview if upload is unavailable */ }
-    addStep(mediaType, position, { title: file.name, media_url: mediaUrl });
+    addStep(mediaType, position, await buildMediaPatch(file));
   };
 
   const onConnect = useCallback((params: Edge | Connection) => {
