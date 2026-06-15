@@ -2412,6 +2412,14 @@ export default function EvolutionChat() {
                         const inserted = next.length === prev.length + 1 ? next[(el.selectionStart ?? next.length) - 1] : '';
                         setDraft(next);
                         if (next.trim()) notifyTyping();
+                        // Slash command: abre menu de fluxos quando começar com "/"
+                        if (next.startsWith('/')) {
+                          setSlashOpen(true);
+                          setSlashQuery(next.slice(1));
+                          setSlashIndex(0);
+                        } else if (slashOpen) {
+                          setSlashOpen(false);
+                        }
                         if (inserted) {
                           // adia para o próximo tick para garantir o caret atualizado
                           requestAnimationFrame(() => {
@@ -2421,6 +2429,17 @@ export default function EvolutionChat() {
                         }
                       }}
                       onKeyDown={(e) => {
+                        if (slashOpen && filteredFlows.length > 0) {
+                          if (e.key === 'ArrowDown') { e.preventDefault(); setSlashIndex(i => Math.min(filteredFlows.length - 1, i + 1)); return; }
+                          if (e.key === 'ArrowUp') { e.preventDefault(); setSlashIndex(i => Math.max(0, i - 1)); return; }
+                          if (e.key === 'Escape') { e.preventDefault(); setSlashOpen(false); return; }
+                          if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey) {
+                            e.preventDefault();
+                            const f = filteredFlows[slashIndex];
+                            if (f) { setDraft(''); setSlashOpen(false); dispatchFlow(f); }
+                            return;
+                          }
+                        }
                         if (e.key === 'Enter' && (e.ctrlKey || e.shiftKey)) {
                           e.preventDefault();
                           const t = e.currentTarget;
