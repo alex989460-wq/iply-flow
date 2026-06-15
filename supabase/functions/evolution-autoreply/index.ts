@@ -313,7 +313,7 @@ Deno.serve(async (req) => {
     const sendBotMedia = async (step: any) => {
       const mediaUrl = String(step.media_url || '').trim();
       if (!mediaUrl) return { ok: true };
-      if (String(step.text || '').trim()) await callEvolution({ action: 'send', phone, text: String(step.text).trim() });
+      if (String(step.text || '').trim()) await callEvolution({ action: 'send', phone, text: String(step.text).trim(), bot_flow: true });
       const res = await fetch(mediaUrl, { signal: AbortSignal.timeout(10000) });
       if (!res.ok) return { ok: false, error: `media_fetch_${res.status}` };
       const buf = new Uint8Array(await res.arrayBuffer());
