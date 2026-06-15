@@ -928,8 +928,8 @@ export default function RoboFlows() {
     const { data, error } = await supabase.from("bot_flows" as any).select("*").order("created_at", { ascending: false });
     setLoading(false);
     if (error) { toast.error("Erro ao carregar fluxos"); return; }
-    const list = (data ?? []) as any[];
-    setFlows(list.map((r) => ({ ...r, steps: r.steps ?? [], trigger_keywords: r.trigger_keywords ?? [] })));
+    const list = ((data ?? []) as any[]).map(normalizeFlow);
+    setFlows(list);
     if (list.length && !activeId) setActiveId(list[0].id);
   }
 
@@ -938,7 +938,7 @@ export default function RoboFlows() {
     const payload = emptyFlow(user.id);
     const { data, error } = await supabase.from("bot_flows" as any).insert(payload as any).select().single();
     if (error || !data) { toast.error("Erro ao criar fluxo"); return; }
-    const newF = data as any as Flow;
+    const newF = normalizeFlow(data as any);
     setFlows((p) => [newF, ...p]);
     setActiveId(newF.id);
   }
