@@ -654,7 +654,7 @@ Deno.serve(async (req) => {
             content: text,
             status: 'failed',
             external_id: `failed-${crypto.randomUUID()}`,
-            raw: { __mode: 'failed-463', __attempts: log, __error: 'whatsapp_reachout_locked_463', __retry_on_inbound: true, lastResponse: result.data },
+            raw: { __mode: 'failed-463', __attempts: log, __error: 'whatsapp_reachout_locked_463', __retry_on_inbound: true, __bot_flow: !!body.bot_flow, lastResponse: result.data },
           });
         }
         return jsonResponse({
@@ -677,7 +677,7 @@ Deno.serve(async (req) => {
         content: text,
         status: 'sent',
         external_id: realExternalId || `sent-${crypto.randomUUID()}`,
-        raw: quotedRaw?.messageId ? { ...result.data, __mode: mode, __attempts: log, __quoted: { id: quotedRaw.messageId, text: quotedRaw.text || '', fromMe: !!quotedRaw.fromMe } } : { ...result.data, __mode: mode, __attempts: log },
+        raw: quotedRaw?.messageId ? { ...result.data, __mode: mode, __attempts: log, __bot_flow: !!body.bot_flow, __quoted: { id: quotedRaw.messageId, text: quotedRaw.text || '', fromMe: !!quotedRaw.fromMe } } : { ...result.data, __mode: mode, __attempts: log, __bot_flow: !!body.bot_flow },
       });
 
       return jsonResponse({ ok: true, mode, data: result.data, externalId: realExternalId });
