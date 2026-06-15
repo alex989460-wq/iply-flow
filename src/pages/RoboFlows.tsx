@@ -15,6 +15,10 @@ import {
   Bot, Plus, Trash2, MessageSquare, ListChecks, LogOut, ArrowRight,
   Save, Loader2, Flag, PlayCircle, X, Settings2,
 } from "lucide-react";
+// Ensure d3-transition side-effects (selection.interrupt/transition) are registered
+// before reactflow's d3-zoom uses them — otherwise prod bundles tree-shake it
+// and we get "$r.interrupt is not a function".
+import "d3-transition";
 import ReactFlow, {
   Background, Controls, MiniMap, Handle, Position, addEdge,
   useNodesState, useEdgesState, type Node, type Edge, type Connection,
