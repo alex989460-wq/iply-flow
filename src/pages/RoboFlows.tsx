@@ -287,6 +287,66 @@ function emptyFlow(owner_id: string): Omit<Flow, "id"> {
   };
 }
 
+function edgesFromSteps(steps: Step[]): Edge[] {
+  const list: Edge[] = [];
+  for (const rawStep of steps) {
+    const s = normalizeStep(rawStep, 0);
+    if (s.type === "menu" || s.type === "ab_test") {
+      for (const b of s.buttons ?? []) {
+        if (b.next_step_id) list.push({
+          id: `${s.id}-${b.id}`, source: s.id, sourceHandle: `btn-${b.id}`, target: b.next_step_id,
+          animated: true, markerEnd: { type: MarkerType.ArrowClosed }, deletable: true, selectable: true,
+        });
+      }
+    } else if (s.type === "condition") {
+      for (const r of s.condition_rules ?? []) {
+        if (r.next_step_id) list.push({
+          id: `${s.id}-${r.id}`, source: s.id, sourceHandle: `rule-${r.id}`, target: r.next_step_id,
+          animated: true, markerEnd: { type: MarkerType.ArrowClosed }, deletable: true, selectable: true,
+        });
+      }
+      const def = s.buttons?.find((b) => b.id === "default");
+      if (def?.next_step_id) list.push({
+        id: `${s.id}-default`, source: s.id, sourceHandle: "rule-default", target: def.next_step_id,
+        animated: true, markerEnd: { type: MarkerType.ArrowClosed }, deletable: true, selectable: true,
+      });
+    } else if (s.type !== "end" && s.type !== "transfer") {
+      const nxt = s.buttons?.[0]?.next_step_id;
+      if (nxt) list.push({
+        id: `${s.id}-next`, source: s.id, sourceHandle: "next", target: nxt,
+        animated: true, markerEnd: { type: MarkerType.ArrowClosed }, deletable: true, selectable: true,
+      });
+    }
+  }
+  return list;
+}
+
+function clearRemovedEdges(flow: Flow, removed: Edge[]): Flow {
+  return {
+    ...flow,
+    steps: flow.steps.map((s) => {
+      const hits = removed.filter((e) => e.source === s.id);
+      if (!hits.length) return s;
+      let next = s;
+      for (const hit of hits) {
+        const handle = hit.sourceHandle ?? "next";
+        if (handle.startsWith("rule-")) {
+          const ruleId = handle.replace("rule-", "");
+          next = ruleId === "default"
+            ? { ...next, buttons: next.buttons?.map((b) => b.id === "default" ? { ...b, next_step_id: null } : b) }
+            : { ...next, condition_rules: next.condition_rules?.map((r) => r.id === ruleId ? { ...r, next_step_id: null } : r) };
+        } else if (handle.startsWith("btn-")) {
+          const btnId = handle.replace("btn-", "");
+          next = { ...next, buttons: next.buttons?.map((b) => b.id === btnId ? { ...b, next_step_id: null } : b) };
+        } else {
+          next = { ...next, buttons: [{ id: "next", label: "Próximo", next_step_id: null }] };
+        }
+      }
+      return next;
+    }),
+  };
+}
+
 /* ---------------- Node ---------------- */
 
 type StepNodeData = {
