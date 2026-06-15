@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type DragEvent } from "react";
 import DashboardLayout from "@/components/layout/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -377,7 +377,7 @@ type StepNodeData = {
   onEdit: (id: string) => void;
   onDelete: (id: string) => void;
   onSetStart: (id: string) => void;
-  onDropChild: (parentId: string, event: React.DragEvent) => void;
+  onDropChild: (parentId: string, event: DragEvent) => void;
 };
 
 function NodeBody({ step }: { step: Step }) {
