@@ -287,6 +287,66 @@ function emptyFlow(owner_id: string): Omit<Flow, "id"> {
   };
 }
 
+function edgesFromSteps(steps: Step[]): Edge[] {
+  const list: Edge[] = [];
+  for (const rawStep of steps) {
+    const s = normalizeStep(rawStep, 0);
+    if (s.type === "menu" || s.type === "ab_test") {
+      for (const b of s.buttons ?? []) {
+        if (b.next_step_id) list.push({
+          id: `${s.id}-${b.id}`, source: s.id, sourceHandle: `btn-${b.id}`, target: b.next_step_id,
+          animated: true, markerEnd: { type: MarkerType.ArrowClosed }, deletable: true,
+        });
+      }
+    } else if (s.type === "condition") {
+      for (const r of s.condition_rules ?? []) {
+        if (r.next_step_id) list.push({
+          id: `${s.id}-${r.id}`, source: s.id, sourceHandle: `rule-${r.id}`, target: r.next_step_id,
+          animated: true, markerEnd: { type: MarkerType.ArrowClosed }, deletable: true,
+        });
+      }
+      const def = s.buttons?.find((b) => b.id === "default");
+      if (def?.next_step_id) list.push({
+        id: `${s.id}-default`, source: s.id, sourceHandle: "rule-default", target: def.next_step_id,
+        animated: true, markerEnd: { type: MarkerType.ArrowClosed }, deletable: true,
+      });
+    } else if (s.type !== "end" && s.type !== "transfer") {
+      const nxt = s.buttons?.[0]?.next_step_id;
+      if (nxt) list.push({
+        id: `${s.id}-next`, source: s.id, sourceHandle: "next", target: nxt,
+        animated: true, markerEnd: { type: MarkerType.ArrowClosed }, deletable: true,
+      });
+    }
+  }
+  return list;
+}
+
+function clearRemovedEdges(flow: Flow, removed: Edge[]): Flow {
+  return {
+    ...flow,
+    steps: flow.steps.map((s) => {
+      const hits = removed.filter((e) => e.source === s.id);
+      if (!hits.length) return s;
+      let next = s;
+      for (const hit of hits) {
+        const handle = hit.sourceHandle ?? "next";
+        if (handle.startsWith("rule-")) {
+          const ruleId = handle.replace("rule-", "");
+          next = ruleId === "default"
+            ? { ...next, buttons: next.buttons?.map((b) => b.id === "default" ? { ...b, next_step_id: null } : b) }
+            : { ...next, condition_rules: next.condition_rules?.map((r) => r.id === ruleId ? { ...r, next_step_id: null } : r) };
+        } else if (handle.startsWith("btn-")) {
+          const btnId = handle.replace("btn-", "");
+          next = { ...next, buttons: next.buttons?.map((b) => b.id === btnId ? { ...b, next_step_id: null } : b) };
+        } else {
+          next = { ...next, buttons: [{ id: "next", label: "Próximo", next_step_id: null }] };
+        }
+      }
+      return next;
+    }),
+  };
+}
+
 /* ---------------- Node ---------------- */
 
 type StepNodeData = {
@@ -703,6 +763,7 @@ function EditorPanel({
 
 function FlowBuilder({ flow, onChange }: { flow: Flow; onChange: (updater: (f: Flow) => Flow) => void }) {
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [selectedEdgeIds, setSelectedEdgeIds] = useState<string[]>([]);
 
   function patchStep(id: string, patch: Partial<Step>) {
     onChange((f) => ({ ...f, steps: f.steps.map((s) => (s.id === id ? { ...s, ...patch } : s)) }));
@@ -737,37 +798,7 @@ function FlowBuilder({ flow, onChange }: { flow: Flow; onChange: (updater: (f: F
   );
 
   const initialEdges: Edge[] = useMemo(() => {
-    const list: Edge[] = [];
-    for (const s of flow.steps) {
-      // menu / ab_test: button-based
-      if (s.type === "menu" || s.type === "ab_test") {
-        for (const b of s.buttons ?? []) {
-          if (b.next_step_id) list.push({
-            id: `${s.id}-${b.id}`, source: s.id, sourceHandle: `btn-${b.id}`, target: b.next_step_id,
-            animated: true, markerEnd: { type: MarkerType.ArrowClosed },
-          });
-        }
-      } else if (s.type === "condition") {
-        for (const r of s.condition_rules ?? []) {
-          if (r.next_step_id) list.push({
-            id: `${s.id}-${r.id}`, source: s.id, sourceHandle: `rule-${r.id}`, target: r.next_step_id,
-            animated: true, markerEnd: { type: MarkerType.ArrowClosed },
-          });
-        }
-        const def = s.buttons?.find((b) => b.id === "default");
-        if (def?.next_step_id) list.push({
-          id: `${s.id}-default`, source: s.id, sourceHandle: "rule-default", target: def.next_step_id,
-          animated: true, markerEnd: { type: MarkerType.ArrowClosed },
-        });
-      } else if (s.type !== "end" && s.type !== "transfer") {
-        const nxt = s.buttons?.[0]?.next_step_id;
-        if (nxt) list.push({
-          id: `${s.id}-next`, source: s.id, sourceHandle: "next", target: nxt,
-          animated: true, markerEnd: { type: MarkerType.ArrowClosed },
-        });
-      }
-    }
-    return list;
+    return edgesFromSteps(flow.steps);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [flow.id]);
 
@@ -780,22 +811,32 @@ function FlowBuilder({ flow, onChange }: { flow: Flow; onChange: (updater: (f: F
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [flow.id]);
 
-  // Sync node data when flow.steps changes
+  // Sync nodes/edges when steps change, including newly clicked palette options.
   useEffect(() => {
-    setNodes((nds) => nds.map((n) => {
-      const step = flow.steps.find((s) => s.id === n.id);
-      if (!step) return n;
-      return { ...n, data: { ...n.data, step, isStart: flow.start_step_id === step.id } };
+    setNodes((nds) => flow.steps.map((s, i) => {
+      const current = nds.find((n) => n.id === s.id);
+      return {
+        id: s.id,
+        type: "step",
+        position: current?.position ?? s.position ?? { x: 300 + (i % 3) * 320, y: 180 + Math.floor(i / 3) * 250 },
+        data: { step: s, isStart: flow.start_step_id === s.id, onEdit: setEditingId, onDelete: handleDelete, onSetStart: handleSetStart },
+      };
     }));
+    setEdges(edgesFromSteps(flow.steps));
   }, [flow.steps, flow.start_step_id, setNodes]);
 
   function addStep(type: StepType) {
     const s = makeStep(type);
+    s.position = { x: 360 + (flow.steps.length % 3) * 300, y: 160 + Math.floor(flow.steps.length / 3) * 230 };
     onChange((f) => ({ ...f, steps: [...f.steps, s] }));
+    setEditingId(s.id);
   }
 
   const onConnect = useCallback((params: Edge | Connection) => {
-    setEdges((eds) => addEdge({ ...params, animated: true, markerEnd: { type: MarkerType.ArrowClosed } }, eds));
+    setEdges((eds) => {
+      const cleaned = eds.filter((e) => !(e.source === params.source && e.sourceHandle === params.sourceHandle));
+      return addEdge({ ...params, animated: true, markerEnd: { type: MarkerType.ArrowClosed }, deletable: true }, cleaned);
+    });
     onChange((f) => ({
       ...f,
       steps: f.steps.map((s) => {
@@ -829,27 +870,17 @@ function FlowBuilder({ flow, onChange }: { flow: Flow; onChange: (updater: (f: F
   }, [onChange, setEdges]);
 
   const onEdgesDelete = useCallback((removed: Edge[]) => {
-    onChange((f) => ({
-      ...f,
-      steps: f.steps.map((s) => {
-        const hit = removed.find((e) => e.source === s.id);
-        if (!hit) return s;
-        const handle = hit.sourceHandle ?? "next";
-        if (handle.startsWith("rule-")) {
-          const ruleId = handle.replace("rule-", "");
-          if (ruleId === "default") {
-            return { ...s, buttons: s.buttons?.map((b) => b.id === "default" ? { ...b, next_step_id: null } : b) };
-          }
-          return { ...s, condition_rules: s.condition_rules?.map((r) => r.id === ruleId ? { ...r, next_step_id: null } : r) };
-        }
-        if (handle.startsWith("btn-")) {
-          const btnId = handle.replace("btn-", "");
-          return { ...s, buttons: s.buttons?.map((b) => b.id === btnId ? { ...b, next_step_id: null } : b) };
-        }
-        return { ...s, buttons: [{ id: "next", label: "Próximo", next_step_id: null }] };
-      }),
-    }));
+    onChange((f) => clearRemovedEdges(f, removed));
+    setSelectedEdgeIds((ids) => ids.filter((id) => !removed.some((e) => e.id === id)));
   }, [onChange]);
+
+  const deleteSelectedEdges = useCallback(() => {
+    const removed = edges.filter((e) => selectedEdgeIds.includes(e.id));
+    if (!removed.length) return;
+    onChange((f) => clearRemovedEdges(f, removed));
+    setEdges((eds) => eds.filter((e) => !selectedEdgeIds.includes(e.id)));
+    setSelectedEdgeIds([]);
+  }, [edges, onChange, selectedEdgeIds, setEdges]);
 
   const onNodeDragStop = useCallback((_: any, node: Node) => {
     onChange((f) => ({ ...f, steps: f.steps.map((s) => s.id === node.id ? { ...s, position: node.position } : s) }));
@@ -882,6 +913,15 @@ function FlowBuilder({ flow, onChange }: { flow: Flow; onChange: (updater: (f: F
         </div>
       </div>
 
+      {selectedEdgeIds.length > 0 && (
+        <div className="absolute top-3 left-[250px] z-10 bg-card/95 backdrop-blur rounded-lg border shadow-sm p-2 flex items-center gap-2">
+          <span className="text-xs text-muted-foreground">{selectedEdgeIds.length} ligação selecionada(s)</span>
+          <Button size="sm" variant="destructive" className="h-7 text-xs" onClick={deleteSelectedEdges}>
+            <Trash2 className="w-3 h-3 mr-1" /> Excluir ligação
+          </Button>
+        </div>
+      )}
+
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -890,9 +930,12 @@ function FlowBuilder({ flow, onChange }: { flow: Flow; onChange: (updater: (f: F
         onConnect={onConnect}
         onEdgesDelete={onEdgesDelete}
         onNodeDragStop={onNodeDragStop}
+        onEdgeClick={(_, edge) => setSelectedEdgeIds([edge.id])}
+        onSelectionChange={({ edges: selected }) => setSelectedEdgeIds(selected.map((e) => e.id))}
         nodeTypes={nodeTypes}
         fitView
         defaultEdgeOptions={{ animated: true, markerEnd: { type: MarkerType.ArrowClosed } }}
+        deleteKeyCode={["Backspace", "Delete"]}
       >
         <Background gap={20} size={1} />
         <Controls />
