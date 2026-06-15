@@ -360,11 +360,13 @@ function NodeBody({ step }: { step: Step }) {
 
 function StepNode({ data, selected }: NodeProps<StepNodeData>) {
   const { step, isStart, onEdit, onDelete, onSetStart } = data;
-  const meta = TYPE_META[step.type];
+  const safeType = normalizeStepType(step.type);
+  const safeStep = safeType === step.type ? step : { ...step, type: safeType };
+  const meta = TYPE_META[safeType];
 
   // Decide branching style
-  const branching = step.type === "menu" || step.type === "condition" || step.type === "ab_test";
-  const hasNext = step.type !== "end" && step.type !== "transfer" && !branching;
+  const branching = safeStep.type === "menu" || safeStep.type === "condition" || safeStep.type === "ab_test";
+  const hasNext = safeStep.type !== "end" && safeStep.type !== "transfer" && !branching;
 
   return (
     <div className={`rounded-xl border bg-card shadow-sm min-w-[230px] max-w-[260px] transition ${selected ? "ring-2 ring-primary" : "border-border"}`}>
@@ -373,7 +375,7 @@ function StepNode({ data, selected }: NodeProps<StepNodeData>) {
       <div className={`flex items-center justify-between px-3 py-2 rounded-t-xl text-white text-xs font-medium ${meta.color}`}>
         <div className="flex items-center gap-1.5 truncate">
           {meta.icon}
-          <span className="truncate">{step.title || meta.label}</span>
+          <span className="truncate">{safeStep.title || meta.label}</span>
         </div>
         {isStart && (
           <span className="bg-white/20 px-1.5 py-0.5 rounded text-[10px] flex items-center gap-1 shrink-0">
@@ -383,11 +385,11 @@ function StepNode({ data, selected }: NodeProps<StepNodeData>) {
       </div>
 
       <div className="px-3 py-2 space-y-2">
-        <NodeBody step={step} />
+        <NodeBody step={safeStep} />
 
-        {step.type === "menu" && step.buttons && step.buttons.length > 0 && (
+        {safeStep.type === "menu" && safeStep.buttons && safeStep.buttons.length > 0 && (
           <div className="space-y-1 pt-1 border-t border-border">
-            {step.buttons.map((b) => (
+            {safeStep.buttons.map((b) => (
               <div key={b.id} className="relative flex items-center justify-between text-xs bg-muted/60 rounded px-2 py-1.5">
                 <span className="truncate">{b.label || "Botão"}</span>
                 <Handle type="source" position={Position.Right} id={`btn-${b.id}`} className="!w-2.5 !h-2.5 !bg-violet-500 !-right-[7px]" style={{ top: "50%" }} />
@@ -396,9 +398,9 @@ function StepNode({ data, selected }: NodeProps<StepNodeData>) {
           </div>
         )}
 
-        {step.type === "condition" && (
+        {safeStep.type === "condition" && (
           <div className="space-y-1 pt-1 border-t border-border">
-            {(step.condition_rules ?? []).map((r) => (
+            {(safeStep.condition_rules ?? []).map((r) => (
               <div key={r.id} className="relative flex items-center justify-between text-[11px] bg-indigo-500/10 rounded px-2 py-1.5">
                 <span className="truncate">{r.op} "{r.value}"</span>
                 <Handle type="source" position={Position.Right} id={`rule-${r.id}`} className="!w-2.5 !h-2.5 !bg-indigo-500 !-right-[7px]" style={{ top: "50%" }} />
@@ -411,9 +413,9 @@ function StepNode({ data, selected }: NodeProps<StepNodeData>) {
           </div>
         )}
 
-        {step.type === "ab_test" && step.buttons && (
+        {safeStep.type === "ab_test" && safeStep.buttons && (
           <div className="space-y-1 pt-1 border-t border-border">
-            {step.buttons.map((b) => (
+            {safeStep.buttons.map((b) => (
               <div key={b.id} className="relative flex items-center justify-between text-xs bg-fuchsia-500/10 rounded px-2 py-1.5">
                 <span className="truncate">{b.label}</span>
                 <Handle type="source" position={Position.Right} id={`btn-${b.id}`} className="!w-2.5 !h-2.5 !bg-fuchsia-500 !-right-[7px]" style={{ top: "50%" }} />
@@ -430,15 +432,15 @@ function StepNode({ data, selected }: NodeProps<StepNodeData>) {
       </div>
 
       <div className="flex items-center gap-1 px-2 py-1.5 border-t border-border bg-muted/30 rounded-b-xl">
-        <Button size="sm" variant="ghost" className="h-6 px-2 text-xs" onClick={() => onEdit(step.id)}>
+        <Button size="sm" variant="ghost" className="h-6 px-2 text-xs" onClick={() => onEdit(safeStep.id)}>
           <Settings2 className="w-3 h-3 mr-1" /> Editar
         </Button>
         {!isStart && (
-          <Button size="sm" variant="ghost" className="h-6 px-2 text-xs" onClick={() => onSetStart(step.id)}>
+          <Button size="sm" variant="ghost" className="h-6 px-2 text-xs" onClick={() => onSetStart(safeStep.id)}>
             <Flag className="w-3 h-3" />
           </Button>
         )}
-        <Button size="sm" variant="ghost" className="h-6 px-2 text-xs text-rose-500 ml-auto" onClick={() => onDelete(step.id)}>
+        <Button size="sm" variant="ghost" className="h-6 px-2 text-xs text-rose-500 ml-auto" onClick={() => onDelete(safeStep.id)}>
           <Trash2 className="w-3 h-3" />
         </Button>
       </div>
