@@ -280,6 +280,12 @@ export default function EvolutionChat() {
   const [search, setSearch] = useState('');
   const [showRenewalPanel, setShowRenewalPanel] = useState(false);
   const [showQuickReplies, setShowQuickReplies] = useState(false);
+  // Slash command (/) — dispatch bot flow from composer
+  const [botFlows, setBotFlows] = useState<Array<{ id: string; name: string; start_step_id: string | null; steps: any[] }>>([]);
+  const [slashOpen, setSlashOpen] = useState(false);
+  const [slashQuery, setSlashQuery] = useState('');
+  const [slashIndex, setSlashIndex] = useState(0);
+  const [dispatchingFlow, setDispatchingFlow] = useState(false);
   const [recording, setRecording] = useState(false);
   const [recordSeconds, setRecordSeconds] = useState(0);
   const [previewImage, setPreviewImage] = useState<{ url: string; caption: string } | null>(null);
@@ -1165,6 +1171,100 @@ export default function EvolutionChat() {
     setReplyTo(null);
     sendTextPayload(selectedPhone, text, tempId, quoted, quotedRaw);
   };
+
+  // Load user's bot flows for the slash (/) command
+  useEffect(() => {
+    if (!user) return;
+    (async () => {
+      const { data } = await supabase
+        .from('bot_flows' as any)
+        .select('id,name,enabled,start_step_id,steps')
+        .eq('owner_id', user.id)
+        .eq('enabled', true)
+        .order('updated_at', { ascending: false });
+      const rows = (data as any[] | null) ?? [];
+      setBotFlows(rows.map(r => ({
+        id: r.id, name: r.name,
+        start_step_id: r.start_step_id ?? null,
+        steps: Array.isArray(r.steps) ? r.steps : [],
+      })));
+    })();
+  }, [user]);
+
+  const filteredFlows = useMemo(() => {
+    const q = slashQuery.trim().toLowerCase();
+    if (!q) return botFlows.slice(0, 8);
+    return botFlows.filter(f => (f.name || '').toLowerCase().includes(q)).slice(0, 8);
+  }, [botFlows, slashQuery]);
+
+  // Walks a flow linearly (start → buttons[0].next_step_id) and sends each step
+  const dispatchFlow = async (flow: { id: string; name: string; start_step_id: string | null; steps: any[] }) => {
+    if (!selectedPhone) {
+      toast({ title: 'Selecione uma conversa', variant: 'destructive' });
+      return;
+    }
+    const stepsById = new Map<string, any>();
+    (flow.steps || []).forEach((s: any) => { if (s?.id) stepsById.set(s.id, s); });
+    const startId = flow.start_step_id || flow.steps?.[0]?.id;
+    if (!startId) {
+      toast({ title: 'Fluxo vazio', description: 'Nenhum passo configurado.', variant: 'destructive' });
+      return;
+    }
+    setDispatchingFlow(true);
+    const visited = new Set<string>();
+    let curId: string | null = startId;
+    try {
+      while (curId && !visited.has(curId)) {
+        visited.add(curId);
+        const step = stepsById.get(curId);
+        if (!step) break;
+        const type = step.type as string;
+        const phone = selectedPhone;
+        if (type === 'text' || type === 'menu') {
+          let text = (step.text || step.title || '').toString();
+          if (type === 'menu' && Array.isArray(step.buttons) && step.buttons.length) {
+            const opts = step.buttons.map((b: any, i: number) => `${i + 1}️⃣ ${b.label}`).join('\n');
+            text = text ? `${text}\n\n${opts}` : opts;
+          }
+          if (text.trim()) {
+            const tempId = `tmp-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+            const optimistic: EvoMessage = {
+              id: tempId, phone, contact_name: null, direction: 'out',
+              content: text, message_type: 'text', media_url: null, media_mime: null,
+              created_at: new Date().toISOString(), instance_name: currentInstance || null, _pending: true,
+            };
+            setMessages(prev => [...prev, optimistic]);
+            sendTextPayload(phone, text, tempId, null, undefined);
+          }
+        } else if ((type === 'image' || type === 'video' || type === 'audio' || type === 'file') && step.media_url) {
+          try {
+            const res = await fetch(step.media_url);
+            const blob = await res.blob();
+            const mediaType: 'image' | 'audio' | 'document' = type === 'image' ? 'image' : type === 'audio' ? 'audio' : 'document';
+            const ext = (blob.type.split('/')[1] || 'bin').split(';')[0];
+            const file = new File([blob], `flow-${type}-${Date.now()}.${ext}`, { type: blob.type || 'application/octet-stream' });
+            await sendMedia(file, mediaType, step.caption || '');
+          } catch (e) {
+            toast({ title: 'Falha em mídia do fluxo', description: e instanceof Error ? e.message : 'Erro ao baixar mídia.', variant: 'destructive' });
+          }
+        } else if (type === 'delay') {
+          const ms = Math.max(0, Math.min(15000, Number(step.delay_ms) || 800));
+          await new Promise(r => setTimeout(r, ms));
+        } else if (type === 'end') {
+          break;
+        }
+        // Pequena pausa entre mensagens para preservar ordem
+        await new Promise(r => setTimeout(r, 400));
+        const nextId = Array.isArray(step.buttons) && step.buttons[0]?.next_step_id ? step.buttons[0].next_step_id : null;
+        curId = nextId;
+      }
+      toast({ title: `Fluxo "${flow.name}" disparado` });
+    } finally {
+      setDispatchingFlow(false);
+    }
+  };
+
+
 
 
   const sendMedia = async (file: File, mediaType: 'image' | 'audio' | 'document' | 'sticker', caption = '') => {
@@ -2207,6 +2307,42 @@ export default function EvolutionChat() {
               )}
 
 
+              {/* Slash command — disparar fluxo do robô */}
+              {slashOpen && (
+                <div className="px-2 pt-2 border-t border-[#0b1115] bg-[#1d282f]">
+                  <div className="rounded-lg border border-[#0b1115] bg-[#202c33] overflow-hidden">
+                    <div className="px-3 py-1.5 text-[10px] uppercase tracking-wide text-[#8696a0] flex items-center justify-between">
+                      <span>Disparar fluxo do robô</span>
+                      <span className="text-[#5e6b72]">↑↓ navegar • Enter selecionar • Esc fechar</span>
+                    </div>
+                    {filteredFlows.length === 0 ? (
+                      <div className="px-3 py-3 text-xs text-[#8696a0]">
+                        Nenhum fluxo encontrado. Crie em <Link to="/robo-flows" className="text-[#00a884] hover:underline">Robô</Link>.
+                      </div>
+                    ) : (
+                      <div className="max-h-56 overflow-y-auto">
+                        {filteredFlows.map((f, i) => (
+                          <button
+                            key={f.id}
+                            type="button"
+                            onMouseEnter={() => setSlashIndex(i)}
+                            onClick={() => { setDraft(''); setSlashOpen(false); dispatchFlow(f); composerRef.current?.focus(); }}
+                            className={cn(
+                              'w-full text-left px-3 py-2 flex items-center gap-2 text-sm transition-colors',
+                              i === slashIndex ? 'bg-[#2a3942] text-[#e9edef]' : 'text-[#d1d7db] hover:bg-[#2a3942]/60'
+                            )}
+                          >
+                            <Zap className="w-4 h-4 text-[#00a884] shrink-0" />
+                            <span className="flex-1 truncate">{f.name}</span>
+                            <span className="text-[10px] text-[#8696a0]">{(f.steps?.length ?? 0)} passos</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
               {/* Composer */}
               <div className="px-2 py-2 border-t border-[#0b1115] bg-[#202c33] flex items-end gap-1.5">
                 <input ref={imgInputRef} type="file" accept="image/*" hidden onChange={onPickFile('image')} />
@@ -2311,6 +2447,14 @@ export default function EvolutionChat() {
                         const inserted = next.length === prev.length + 1 ? next[(el.selectionStart ?? next.length) - 1] : '';
                         setDraft(next);
                         if (next.trim()) notifyTyping();
+                        // Slash command: abre menu de fluxos quando começar com "/"
+                        if (next.startsWith('/')) {
+                          setSlashOpen(true);
+                          setSlashQuery(next.slice(1));
+                          setSlashIndex(0);
+                        } else if (slashOpen) {
+                          setSlashOpen(false);
+                        }
                         if (inserted) {
                           // adia para o próximo tick para garantir o caret atualizado
                           requestAnimationFrame(() => {
@@ -2320,6 +2464,17 @@ export default function EvolutionChat() {
                         }
                       }}
                       onKeyDown={(e) => {
+                        if (slashOpen && filteredFlows.length > 0) {
+                          if (e.key === 'ArrowDown') { e.preventDefault(); setSlashIndex(i => Math.min(filteredFlows.length - 1, i + 1)); return; }
+                          if (e.key === 'ArrowUp') { e.preventDefault(); setSlashIndex(i => Math.max(0, i - 1)); return; }
+                          if (e.key === 'Escape') { e.preventDefault(); setSlashOpen(false); return; }
+                          if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey) {
+                            e.preventDefault();
+                            const f = filteredFlows[slashIndex];
+                            if (f) { setDraft(''); setSlashOpen(false); dispatchFlow(f); }
+                            return;
+                          }
+                        }
                         if (e.key === 'Enter' && (e.ctrlKey || e.shiftKey)) {
                           e.preventDefault();
                           const t = e.currentTarget;
