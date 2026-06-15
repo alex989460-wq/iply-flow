@@ -725,7 +725,7 @@ Deno.serve(async (req) => {
       }
       if (!result.ok) return jsonResponse({ ok: false, error: `Falha ao enviar menu (${log.map((l) => `${l.mode}:${l.status}`).join(' | ')})`, attempts: log, data: result.data }, 200);
       const content = `${text}\n\n${buttons.map((b, i) => `${i + 1}️⃣ ${b.label}`).join('\n')}`.trim();
-      await insertOutgoingMessage(admin, { user_id: user.id, instance_name: instance, remote_jid: `${phone}@s.whatsapp.net`, phone, direction: 'out', content, message_type: 'text', status: 'sent', external_id: result.data?.key?.id || result.data?.messageId || result.data?.data?.Info?.ID || `menu-${crypto.randomUUID()}`, raw: { ...result.data, __bot_menu: true, __mode: mode, __attempts: log } });
+      await insertOutgoingMessage(admin, { user_id: user.id, instance_name: instance, remote_jid: `${phone}@s.whatsapp.net`, phone, direction: 'out', content, message_type: 'text', status: 'sent', external_id: result.data?.key?.id || result.data?.messageId || result.data?.data?.Info?.ID || `menu-${crypto.randomUUID()}`, raw: { ...result.data, __bot_menu: true, __bot_flow: true, __mode: mode, __attempts: log } });
       return jsonResponse({ ok: true, mode, data: result.data });
     }
 
