@@ -131,12 +131,18 @@ Deno.serve(async (req) => {
       const sendMin = sh * 60 + sm;
       if (currentMinutes < sendMin) return false;
       if (currentMinutes > sendMin + 360) return false;
-      if (s.last_run_at && typeof s.last_run_status === 'string' && s.last_run_status.startsWith('completed:')) {
+      const status = typeof s.last_run_status === 'string' ? s.last_run_status : '';
+      if (s.last_run_at && status.startsWith('completed:')) {
         const last = new Date(s.last_run_at);
         const lastSP = new Intl.DateTimeFormat('en-CA', {
           timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit',
         }).format(last);
         if (lastSP === todayStrSP) return false;
+      }
+      // Concurrency lock: skip if another tick is currently running this schedule (<3 min ago)
+      if (s.last_run_at && status.startsWith('in_progress')) {
+        const ageMs = Date.now() - new Date(s.last_run_at).getTime();
+        if (ageMs < 3 * 60 * 1000) return false;
       }
       return true;
     });
