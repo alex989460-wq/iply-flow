@@ -295,26 +295,26 @@ function edgesFromSteps(steps: Step[]): Edge[] {
       for (const b of s.buttons ?? []) {
         if (b.next_step_id) list.push({
           id: `${s.id}-${b.id}`, source: s.id, sourceHandle: `btn-${b.id}`, target: b.next_step_id,
-          animated: true, markerEnd: { type: MarkerType.ArrowClosed }, deletable: true, selectable: true,
+          animated: true, markerEnd: { type: MarkerType.ArrowClosed }, deletable: true,
         });
       }
     } else if (s.type === "condition") {
       for (const r of s.condition_rules ?? []) {
         if (r.next_step_id) list.push({
           id: `${s.id}-${r.id}`, source: s.id, sourceHandle: `rule-${r.id}`, target: r.next_step_id,
-          animated: true, markerEnd: { type: MarkerType.ArrowClosed }, deletable: true, selectable: true,
+          animated: true, markerEnd: { type: MarkerType.ArrowClosed }, deletable: true,
         });
       }
       const def = s.buttons?.find((b) => b.id === "default");
       if (def?.next_step_id) list.push({
         id: `${s.id}-default`, source: s.id, sourceHandle: "rule-default", target: def.next_step_id,
-        animated: true, markerEnd: { type: MarkerType.ArrowClosed }, deletable: true, selectable: true,
+        animated: true, markerEnd: { type: MarkerType.ArrowClosed }, deletable: true,
       });
     } else if (s.type !== "end" && s.type !== "transfer") {
       const nxt = s.buttons?.[0]?.next_step_id;
       if (nxt) list.push({
         id: `${s.id}-next`, source: s.id, sourceHandle: "next", target: nxt,
-        animated: true, markerEnd: { type: MarkerType.ArrowClosed }, deletable: true, selectable: true,
+        animated: true, markerEnd: { type: MarkerType.ArrowClosed }, deletable: true,
       });
     }
   }
