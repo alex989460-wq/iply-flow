@@ -1281,6 +1281,10 @@ export default function EvolutionChat() {
         if (!step) break;
         const type = step.type as string;
         const phone = selectedPhone;
+        for (const child of Array.isArray(step.children) ? step.children : []) {
+          await runInlineFlowStep(phone, flow.id, child, new Set<string>());
+          await new Promise(r => setTimeout(r, 250));
+        }
         if (type === 'text' || type === 'question' || type === 'rating' || type === 'transfer' || type === 'ig_comment' || type === 'wa_template' || type === 'wa_flow') {
           const text = (step.text || step.title || '').toString();
           if (text.trim()) await sendFlowText(phone, text, { __manual_bot_flow: flow.id, step_id: step.id });
