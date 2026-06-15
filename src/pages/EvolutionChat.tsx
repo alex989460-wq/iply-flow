@@ -1234,7 +1234,12 @@ export default function EvolutionChat() {
     if (!step?.id || visited.has(step.id)) return;
     visited.add(step.id);
     for (const child of Array.isArray(step.children) ? step.children : []) {
-      await runInlineFlowStep(phone, flowId, child, visited);
+      try {
+        await runInlineFlowStep(phone, flowId, child, visited);
+      } catch (e) {
+        console.error('[dispatchFlow] child failed', e);
+        toast({ title: 'Sub-bloco falhou', description: e instanceof Error ? e.message : String(e), variant: 'destructive' });
+      }
     }
     const type = String(step.type || 'text');
     if (type === 'text' || type === 'question' || type === 'rating' || type === 'ig_comment' || type === 'wa_template' || type === 'wa_flow') {
@@ -1244,11 +1249,17 @@ export default function EvolutionChat() {
       await sendFlowMenu(phone, step);
     } else if ((type === 'image' || type === 'video' || type === 'audio' || type === 'file') && step.media_url) {
       if (String(step.text || '').trim()) await sendFlowText(phone, String(step.text).trim(), { __manual_bot_flow: flowId, step_id: step.id, __inline_step: true });
-      const res = await fetch(step.media_url);
-      const blob = await res.blob();
-      const mediaType: 'image' | 'audio' | 'video' | 'document' = type === 'image' ? 'image' : type === 'audio' ? 'audio' : type === 'video' ? 'video' : 'document';
-      const ext = (blob.type.split('/')[1] || 'bin').split(';')[0];
-      await sendMedia(new File([blob], `flow-${type}-${Date.now()}.${ext}`, { type: blob.type || 'application/octet-stream' }), mediaType, step.caption || '');
+      try {
+        const res = await fetch(step.media_url);
+        if (!res.ok) throw new Error(`HTTP ${res.status} ao baixar mídia`);
+        const blob = await res.blob();
+        const mediaType: 'image' | 'audio' | 'video' | 'document' = type === 'image' ? 'image' : type === 'audio' ? 'audio' : type === 'video' ? 'video' : 'document';
+        const ext = (blob.type.split('/')[1] || 'bin').split(';')[0];
+        await sendMedia(new File([blob], `flow-${type}-${Date.now()}.${ext}`, { type: blob.type || 'application/octet-stream' }), mediaType, step.caption || '');
+      } catch (e) {
+        console.error('[dispatchFlow] media fetch failed', step.media_url, e);
+        toast({ title: 'URL de mídia inválida', description: `Não foi possível baixar: ${String(step.media_url).slice(0, 80)}`, variant: 'destructive' });
+      }
     } else if (type === 'delay') {
       await new Promise(r => setTimeout(r, Math.max(0, Math.min(15000, Number(step.delay_ms) || 800))));
     } else if (type === 'api_call' || type === 'gpt' || type === 'tags' || type === 'save_contact' || type === 'save_card' || type === 'condition' || type === 'ab_test') {
