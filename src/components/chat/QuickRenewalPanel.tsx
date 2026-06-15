@@ -775,6 +775,13 @@ Obrigado pela preferência! 🙏`;
     }
   };
 
+  const extractScreensFromPlanName = (name?: string | null): number | null => {
+    if (!name) return null;
+    const m = name.match(/(\d+)\s*telas?/i);
+    if (m) return parseInt(m[1], 10);
+    return null;
+  };
+
   const handleSelectCustomer = (customer: Customer) => {
     setSelectedCustomer(customer);
     setSearchTerm(customer.username || customer.phone);
@@ -784,7 +791,9 @@ Obrigado pela preferência! 🙏`;
     setSelectedPlanId(customer.plan?.id || null);
     const currentPrice = customer.custom_price ?? customer.plan?.price ?? 0;
     setCustomRenewalPrice(currentPrice.toString());
-    setSelectedScreens(customer.screens || 1);
+    // Force screens to match plan name (e.g. "Mensal 2 Telas" => 2)
+    const planScreens = extractScreensFromPlanName(customer.plan?.plan_name);
+    setSelectedScreens(planScreens ?? customer.screens ?? 1);
     setEditedUsername(customer.username || '');
     setEditedServerId(customer.server?.id || null);
     setEditedStatus(customer.status);
@@ -1432,11 +1441,15 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                     <label className="text-xs text-muted-foreground">Plano:</label>
                     <Select 
                       value={selectedPlanId || ''} 
-                      onValueChange={(v) => {
-                        setSelectedPlanId(v);
-                        const plan = allPlans.find(p => p.id === v);
-                        if (plan) setCustomRenewalPrice(plan.price.toString());
-                      }}
+                       onValueChange={(v) => {
+                         setSelectedPlanId(v);
+                         const plan = allPlans.find(p => p.id === v);
+                         if (plan) {
+                           setCustomRenewalPrice(plan.price.toString());
+                           const ps = extractScreensFromPlanName(plan.plan_name);
+                           if (ps) setSelectedScreens(ps);
+                         }
+                       }}
                     >
                       <SelectTrigger className="h-8 text-sm">
                         <SelectValue placeholder="Selecione o plano" />
