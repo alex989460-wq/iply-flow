@@ -295,6 +295,17 @@ function isEvolutionReachoutLock(data: any) {
   return /(^|\D)463(\D|$)|NackCallerReachoutTimelocked|reach[- ]?out|time[- ]?lock/i.test(getEvolutionErrorText(data));
 }
 
+function templateText(value: unknown, vars: Record<string, unknown>) {
+  return String(value || '').replace(/\{\{\s*([\w.-]+)\s*\}\}/g, (_, key) => String(vars[key] ?? ''));
+}
+
+function evalCondition(op: string, left: string, right: string) {
+  if (op === 'contains') return left.toLowerCase().includes(right.toLowerCase());
+  if (op === 'starts') return left.toLowerCase().startsWith(right.toLowerCase());
+  if (op === 'regex') { try { return new RegExp(right, 'i').test(left); } catch { return false; } }
+  return left.toLowerCase() === right.toLowerCase();
+}
+
 const DEFAULT_WEBHOOK_EVENTS = ['MESSAGE', 'SEND_MESSAGE', 'CONNECTION', 'QRCODE', 'PRESENCE', 'CHAT_PRESENCE', 'MESSAGE_RECEIPT', 'MESSAGES_UPDATE', 'RECEIPT'];
 
 function normalizeWebhookEvents(value: unknown) {
