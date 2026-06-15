@@ -915,6 +915,15 @@ function FlowBuilder({ flow, onChange }: { flow: Flow; onChange: (updater: (f: F
         </div>
       </div>
 
+      {selectedEdgeIds.length > 0 && (
+        <div className="absolute top-3 left-[250px] z-10 bg-card/95 backdrop-blur rounded-lg border shadow-sm p-2 flex items-center gap-2">
+          <span className="text-xs text-muted-foreground">{selectedEdgeIds.length} ligação selecionada(s)</span>
+          <Button size="sm" variant="destructive" className="h-7 text-xs" onClick={deleteSelectedEdges}>
+            <Trash2 className="w-3 h-3 mr-1" /> Excluir ligação
+          </Button>
+        </div>
+      )}
+
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -923,9 +932,11 @@ function FlowBuilder({ flow, onChange }: { flow: Flow; onChange: (updater: (f: F
         onConnect={onConnect}
         onEdgesDelete={onEdgesDelete}
         onNodeDragStop={onNodeDragStop}
+        onSelectionChange={({ edges: selected }) => setSelectedEdgeIds(selected.map((e) => e.id))}
         nodeTypes={nodeTypes}
         fitView
         defaultEdgeOptions={{ animated: true, markerEnd: { type: MarkerType.ArrowClosed } }}
+        deleteKeyCode={["Backspace", "Delete"]}
       >
         <Background gap={20} size={1} />
         <Controls />
