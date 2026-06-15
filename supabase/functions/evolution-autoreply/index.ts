@@ -288,13 +288,14 @@ Deno.serve(async (req) => {
       .limit(20);
 
     const lastOut = recent?.find((m) => m.direction === 'out' && m.status !== 'failed');
-    if (lastOut && Date.now() - new Date(lastOut.created_at).getTime() < 3000) {
+    const lastOutIsBotFlow = !!(lastOut?.raw && ((lastOut.raw as any).__bot_menu === true || (lastOut.raw as any).__bot_flow === true));
+    if (lastOut && !lastOutIsBotFlow && Date.now() - new Date(lastOut.created_at).getTime() < 3000) {
       return new Response(JSON.stringify({ ok: true, skipped: 'cooldown' }), { status: 200, headers: corsHeaders });
     }
     const lastIn = recent?.find((m) => m.direction === 'in');
     // If the last OUT was a manual human reply (not autoreply) AND it came after lastIn,
     // stop replying. Autoreply outs do NOT count as "human took over".
-    const lastOutIsAutoreply = !!(lastOut?.raw && (lastOut.raw as any).__autoreply === true);
+    const lastOutIsAutoreply = !!(lastOut?.raw && ((lastOut.raw as any).__autoreply === true || (lastOut.raw as any).__bot_menu === true || (lastOut.raw as any).__bot_flow === true));
     if (lastOut && !lastOutIsAutoreply && lastIn && new Date(lastOut.created_at).getTime() > new Date(lastIn.created_at).getTime()) {
       return new Response(JSON.stringify({ ok: true, skipped: 'human_replied' }), { status: 200, headers: corsHeaders });
     }
