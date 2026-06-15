@@ -24,7 +24,7 @@ import "d3-transition";
 import ReactFlow, {
   Background, Controls, MiniMap, Handle, Position, addEdge,
   useNodesState, useEdgesState, type Node, type Edge, type Connection,
-  type NodeProps, MarkerType, ReactFlowProvider,
+  type NodeProps, MarkerType, ReactFlowProvider, useReactFlow,
 } from "reactflow";
 import "reactflow/dist/style.css";
 
@@ -786,6 +786,7 @@ function EditorPanel({
 function FlowBuilder({ flow, onChange }: { flow: Flow; onChange: (updater: (f: Flow) => Flow) => void }) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [selectedEdgeIds, setSelectedEdgeIds] = useState<string[]>([]);
+  const { screenToFlowPosition } = useReactFlow();
 
   function patchStep(id: string, patch: Partial<Step>) {
     onChange((f) => ({ ...f, steps: f.steps.map((s) => (s.id === id ? { ...s, ...patch } : s)) }));
@@ -847,12 +848,28 @@ function FlowBuilder({ flow, onChange }: { flow: Flow; onChange: (updater: (f: F
     setEdges(edgesFromSteps(flow.steps));
   }, [flow.steps, flow.start_step_id, setNodes]);
 
-  function addStep(type: StepType) {
+  function addStep(type: StepType, position?: { x: number; y: number }, patch?: Partial<Step>) {
     const s = makeStep(type);
-    s.position = { x: 360 + (flow.steps.length % 3) * 300, y: 160 + Math.floor(flow.steps.length / 3) * 230 };
+    s.position = position ?? { x: 360 + (flow.steps.length % 3) * 300, y: 160 + Math.floor(flow.steps.length / 3) * 230 };
+    Object.assign(s, patch ?? {});
     onChange((f) => ({ ...f, steps: [...f.steps, s] }));
     setEditingId(s.id);
   }
+
+  const addDroppedFile = async (file: File, position: { x: number; y: number }) => {
+    const mediaType: StepType = file.type.startsWith("video/") ? "video" : file.type.startsWith("audio/") ? "audio" : file.type.startsWith("image/") ? "image" : "file";
+    let mediaUrl = URL.createObjectURL(file);
+    try {
+      const safeName = file.name.replace(/[^a-z0-9._-]/gi, "-");
+      const path = `${flow.owner_id}/bot-flow-${Date.now()}-${safeName}`;
+      const { error } = await supabase.storage.from("reseller-assets").upload(path, file, { contentType: file.type || "application/octet-stream", upsert: false });
+      if (!error) {
+        const { data } = supabase.storage.from("reseller-assets").getPublicUrl(path);
+        mediaUrl = data.publicUrl || mediaUrl;
+      }
+    } catch { /* keep local preview if upload is unavailable */ }
+    addStep(mediaType, position, { title: file.name, media_url: mediaUrl });
+  };
 
   const onConnect = useCallback((params: Edge | Connection) => {
     setEdges((eds) => {
@@ -923,6 +940,8 @@ function FlowBuilder({ flow, onChange }: { flow: Flow; onChange: (updater: (f: F
                 <div className="grid grid-cols-2 gap-1">
                   {items.map((t) => (
                     <Button key={t} size="sm" variant="outline" className="h-7 text-[11px] justify-start gap-1 px-2"
+                      draggable
+                      onDragStart={(e) => { e.dataTransfer.setData("application/x-flow-step", t); e.dataTransfer.effectAllowed = "copy"; }}
                       onClick={() => addStep(t)}>
                       {TYPE_META[t].icon}
                       <span className="truncate">{TYPE_META[t].label}</span>
@@ -954,6 +973,17 @@ function FlowBuilder({ flow, onChange }: { flow: Flow; onChange: (updater: (f: F
         onNodeDragStop={onNodeDragStop}
         onEdgeClick={(_, edge) => setSelectedEdgeIds([edge.id])}
         onSelectionChange={({ edges: selected }) => setSelectedEdgeIds(selected.map((e) => e.id))}
+        onDragOver={(event) => { event.preventDefault(); event.dataTransfer.dropEffect = "copy"; }}
+        onDrop={async (event) => {
+          event.preventDefault();
+          const position = screenToFlowPosition({ x: event.clientX, y: event.clientY });
+          const droppedType = event.dataTransfer.getData("application/x-flow-step") as StepType;
+          const uri = event.dataTransfer.getData("text/uri-list") || event.dataTransfer.getData("text/plain");
+          const file = event.dataTransfer.files?.[0];
+          if (droppedType && droppedType in TYPE_META) addStep(droppedType, position);
+          else if (file) await addDroppedFile(file, position);
+          else if (/^https?:\/\//i.test(uri)) addStep(/\.(mp4|mov|webm)(\?|$)/i.test(uri) ? "video" : /\.(mp3|ogg|wav|m4a)(\?|$)/i.test(uri) ? "audio" : /\.(pdf|zip|docx?|xlsx?)(\?|$)/i.test(uri) ? "file" : "image", position, { media_url: uri });
+        }}
         nodeTypes={nodeTypes}
         fitView
         defaultEdgeOptions={{ animated: true, markerEnd: { type: MarkerType.ArrowClosed } }}
