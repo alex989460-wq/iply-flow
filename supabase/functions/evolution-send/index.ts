@@ -372,19 +372,26 @@ Deno.serve(async (req) => {
     const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const anonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
 
-    const authHeader = req.headers.get('Authorization') || '';
-    const userClient = createClient(supabaseUrl, anonKey, {
-      global: { headers: { Authorization: authHeader } },
-    });
-    const { data: { user }, error: authErr } = await userClient.auth.getUser();
-    if (authErr || !user) {
-      return new Response(JSON.stringify({ error: 'unauthorized' }), {
-        status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
     const admin = createClient(supabaseUrl, serviceKey);
     const body = await req.json().catch(() => ({}));
+    const internalToken = req.headers.get('x-internal-token') || '';
+    const internalUserId = String(body.user_id || '').trim();
+    let user: { id: string } | null = null;
+    if (internalToken === serviceKey && isUuid(internalUserId)) {
+      user = { id: internalUserId };
+    } else {
+      const authHeader = req.headers.get('Authorization') || '';
+      const userClient = createClient(supabaseUrl, anonKey, {
+        global: { headers: { Authorization: authHeader } },
+      });
+      const { data: { user: authUser }, error: authErr } = await userClient.auth.getUser();
+      if (authErr || !authUser) {
+        return new Response(JSON.stringify({ error: 'unauthorized' }), {
+          status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      user = { id: authUser.id };
+    }
     const action = body.action || 'send';
 
     const { data: settings } = await admin
