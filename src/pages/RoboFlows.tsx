@@ -132,6 +132,50 @@ const TYPE_META: Record<StepType, TypeMeta> = {
   wa_template:  { label: "Template WA",    icon: <FileBadge    className="w-3.5 h-3.5" />, color: "bg-green-700",  category: "WhatsApp Oficial" },
 };
 
+const LEGACY_STEP_TYPES: Record<string, StepType> = {
+  message: "text",
+  buttons: "menu",
+  list: "menu",
+  wait: "delay",
+  webhook: "api_call",
+  human: "transfer",
+  finish: "end",
+};
+
+function normalizeStepType(type: unknown): StepType {
+  if (typeof type !== "string") return "text";
+  if (type in TYPE_META) return type as StepType;
+  return LEGACY_STEP_TYPES[type] ?? "text";
+}
+
+function normalizeStep(step: any, index: number): Step {
+  const normalizedType = normalizeStepType(step?.type);
+  const fallback = makeStep(normalizedType);
+  return {
+    ...fallback,
+    ...(step ?? {}),
+    id: step?.id || fallback.id,
+    type: normalizedType,
+    title: step?.title || (step?.type === "message" ? "Texto" : TYPE_META[normalizedType].label),
+    buttons: Array.isArray(step?.buttons) ? step.buttons : fallback.buttons,
+    condition_rules: Array.isArray(step?.condition_rules) ? step.condition_rules : fallback.condition_rules,
+    tags: Array.isArray(step?.tags) ? step.tags : fallback.tags,
+    position: step?.position ?? fallback.position ?? { x: 120 + (index % 4) * 320, y: 100 + Math.floor(index / 4) * 260 },
+  };
+}
+
+function normalizeFlow(row: any): Flow {
+  const steps = Array.isArray(row?.steps) ? row.steps.map(normalizeStep) : [];
+  return {
+    ...row,
+    steps,
+    trigger_keywords: Array.isArray(row?.trigger_keywords) ? row.trigger_keywords : [],
+    start_step_id: row?.start_step_id && steps.some((s) => s.id === row.start_step_id)
+      ? row.start_step_id
+      : steps[0]?.id ?? null,
+  } as Flow;
+}
+
 const CATEGORIES: TypeMeta["category"][] = [
   "Conteúdos", "Ações", "Lógicas", "Integrações", "Instagram", "WhatsApp Oficial",
 ];
