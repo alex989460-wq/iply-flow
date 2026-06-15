@@ -2307,6 +2307,42 @@ export default function EvolutionChat() {
               )}
 
 
+              {/* Slash command — disparar fluxo do robô */}
+              {slashOpen && (
+                <div className="px-2 pt-2 border-t border-[#0b1115] bg-[#1d282f]">
+                  <div className="rounded-lg border border-[#0b1115] bg-[#202c33] overflow-hidden">
+                    <div className="px-3 py-1.5 text-[10px] uppercase tracking-wide text-[#8696a0] flex items-center justify-between">
+                      <span>Disparar fluxo do robô</span>
+                      <span className="text-[#5e6b72]">↑↓ navegar • Enter selecionar • Esc fechar</span>
+                    </div>
+                    {filteredFlows.length === 0 ? (
+                      <div className="px-3 py-3 text-xs text-[#8696a0]">
+                        Nenhum fluxo encontrado. Crie em <Link to="/robo-flows" className="text-[#00a884] hover:underline">Robô</Link>.
+                      </div>
+                    ) : (
+                      <div className="max-h-56 overflow-y-auto">
+                        {filteredFlows.map((f, i) => (
+                          <button
+                            key={f.id}
+                            type="button"
+                            onMouseEnter={() => setSlashIndex(i)}
+                            onClick={() => { setDraft(''); setSlashOpen(false); dispatchFlow(f); composerRef.current?.focus(); }}
+                            className={cn(
+                              'w-full text-left px-3 py-2 flex items-center gap-2 text-sm transition-colors',
+                              i === slashIndex ? 'bg-[#2a3942] text-[#e9edef]' : 'text-[#d1d7db] hover:bg-[#2a3942]/60'
+                            )}
+                          >
+                            <Zap className="w-4 h-4 text-[#00a884] shrink-0" />
+                            <span className="flex-1 truncate">{f.name}</span>
+                            <span className="text-[10px] text-[#8696a0]">{(f.steps?.length ?? 0)} passos</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
               {/* Composer */}
               <div className="px-2 py-2 border-t border-[#0b1115] bg-[#202c33] flex items-end gap-1.5">
                 <input ref={imgInputRef} type="file" accept="image/*" hidden onChange={onPickFile('image')} />
