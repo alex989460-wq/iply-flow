@@ -280,6 +280,12 @@ export default function EvolutionChat() {
   const [search, setSearch] = useState('');
   const [showRenewalPanel, setShowRenewalPanel] = useState(false);
   const [showQuickReplies, setShowQuickReplies] = useState(false);
+  // Slash command (/) — dispatch bot flow from composer
+  const [botFlows, setBotFlows] = useState<Array<{ id: string; name: string; start_step_id: string | null; steps: any[] }>>([]);
+  const [slashOpen, setSlashOpen] = useState(false);
+  const [slashQuery, setSlashQuery] = useState('');
+  const [slashIndex, setSlashIndex] = useState(0);
+  const [dispatchingFlow, setDispatchingFlow] = useState(false);
   const [recording, setRecording] = useState(false);
   const [recordSeconds, setRecordSeconds] = useState(0);
   const [previewImage, setPreviewImage] = useState<{ url: string; caption: string } | null>(null);
