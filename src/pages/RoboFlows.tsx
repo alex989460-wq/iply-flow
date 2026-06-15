@@ -46,6 +46,7 @@ type Step = {
   title?: string;
   text?: string;
   buttons?: FlowButton[];
+  children?: Step[];
   menu_style?: "buttons" | "list" | "numbered";
   position?: { x: number; y: number };
   // media
@@ -159,9 +160,27 @@ function normalizeStep(step: any, index: number): Step {
     type: normalizedType,
     title: step?.title || (step?.type === "message" ? "Texto" : TYPE_META[normalizedType].label),
     buttons: Array.isArray(step?.buttons) ? step.buttons : fallback.buttons,
+    children: Array.isArray(step?.children) ? step.children.map(normalizeInlineStep) : [],
     condition_rules: Array.isArray(step?.condition_rules) ? step.condition_rules : fallback.condition_rules,
     tags: Array.isArray(step?.tags) ? step.tags : fallback.tags,
     position: step?.position ?? fallback.position ?? { x: 120 + (index % 4) * 320, y: 100 + Math.floor(index / 4) * 260 },
+  };
+}
+
+function normalizeInlineStep(step: any, index: number): Step {
+  const normalizedType = normalizeStepType(step?.type);
+  const fallback = makeStep(normalizedType);
+  return {
+    ...fallback,
+    ...(step ?? {}),
+    id: step?.id || fallback.id,
+    type: normalizedType,
+    title: step?.title || TYPE_META[normalizedType].label,
+    buttons: Array.isArray(step?.buttons) ? step.buttons : fallback.buttons,
+    children: Array.isArray(step?.children) ? step.children.map(normalizeInlineStep) : [],
+    condition_rules: Array.isArray(step?.condition_rules) ? step.condition_rules : fallback.condition_rules,
+    tags: Array.isArray(step?.tags) ? step.tags : fallback.tags,
+    position: undefined,
   };
 }
 
@@ -190,6 +209,7 @@ function makeStep(type: StepType): Step {
     id: uid(),
     type,
     title: TYPE_META[type].label,
+    children: [],
     position: { x: 200 + Math.random() * 300, y: 200 + Math.random() * 200 },
   };
   switch (type) {
