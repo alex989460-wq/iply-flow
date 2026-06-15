@@ -763,6 +763,7 @@ function EditorPanel({
 
 function FlowBuilder({ flow, onChange }: { flow: Flow; onChange: (updater: (f: Flow) => Flow) => void }) {
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [selectedEdgeIds, setSelectedEdgeIds] = useState<string[]>([]);
 
   function patchStep(id: string, patch: Partial<Step>) {
     onChange((f) => ({ ...f, steps: f.steps.map((s) => (s.id === id ? { ...s, ...patch } : s)) }));
@@ -797,37 +798,7 @@ function FlowBuilder({ flow, onChange }: { flow: Flow; onChange: (updater: (f: F
   );
 
   const initialEdges: Edge[] = useMemo(() => {
-    const list: Edge[] = [];
-    for (const s of flow.steps) {
-      // menu / ab_test: button-based
-      if (s.type === "menu" || s.type === "ab_test") {
-        for (const b of s.buttons ?? []) {
-          if (b.next_step_id) list.push({
-            id: `${s.id}-${b.id}`, source: s.id, sourceHandle: `btn-${b.id}`, target: b.next_step_id,
-            animated: true, markerEnd: { type: MarkerType.ArrowClosed },
-          });
-        }
-      } else if (s.type === "condition") {
-        for (const r of s.condition_rules ?? []) {
-          if (r.next_step_id) list.push({
-            id: `${s.id}-${r.id}`, source: s.id, sourceHandle: `rule-${r.id}`, target: r.next_step_id,
-            animated: true, markerEnd: { type: MarkerType.ArrowClosed },
-          });
-        }
-        const def = s.buttons?.find((b) => b.id === "default");
-        if (def?.next_step_id) list.push({
-          id: `${s.id}-default`, source: s.id, sourceHandle: "rule-default", target: def.next_step_id,
-          animated: true, markerEnd: { type: MarkerType.ArrowClosed },
-        });
-      } else if (s.type !== "end" && s.type !== "transfer") {
-        const nxt = s.buttons?.[0]?.next_step_id;
-        if (nxt) list.push({
-          id: `${s.id}-next`, source: s.id, sourceHandle: "next", target: nxt,
-          animated: true, markerEnd: { type: MarkerType.ArrowClosed },
-        });
-      }
-    }
-    return list;
+    return edgesFromSteps(flow.steps);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [flow.id]);
 
@@ -840,13 +811,18 @@ function FlowBuilder({ flow, onChange }: { flow: Flow; onChange: (updater: (f: F
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [flow.id]);
 
-  // Sync node data when flow.steps changes
+  // Sync nodes/edges when steps change, including newly clicked palette options.
   useEffect(() => {
-    setNodes((nds) => nds.map((n) => {
-      const step = flow.steps.find((s) => s.id === n.id);
-      if (!step) return n;
-      return { ...n, data: { ...n.data, step, isStart: flow.start_step_id === step.id } };
+    setNodes((nds) => flow.steps.map((s, i) => {
+      const current = nds.find((n) => n.id === s.id);
+      return {
+        id: s.id,
+        type: "step",
+        position: current?.position ?? s.position ?? { x: 300 + (i % 3) * 320, y: 180 + Math.floor(i / 3) * 250 },
+        data: { step: s, isStart: flow.start_step_id === s.id, onEdit: setEditingId, onDelete: handleDelete, onSetStart: handleSetStart },
+      };
     }));
+    setEdges(edgesFromSteps(flow.steps));
   }, [flow.steps, flow.start_step_id, setNodes]);
 
   function addStep(type: StepType) {
