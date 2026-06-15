@@ -377,16 +377,28 @@ type StepNodeData = {
   onEdit: (id: string) => void;
   onDelete: (id: string) => void;
   onSetStart: (id: string) => void;
+  onDropChild: (parentId: string, event: React.DragEvent) => void;
 };
 
 function NodeBody({ step }: { step: Step }) {
   const showText = step.text && (
     <p className="text-xs text-foreground/90 whitespace-pre-wrap line-clamp-3">{step.text}</p>
   );
+  const children = (step.children ?? []).length > 0 && (
+    <div className="flex flex-wrap gap-1 pt-1">
+      {(step.children ?? []).slice(0, 4).map((child) => (
+        <Badge key={child.id} variant="secondary" className="text-[10px] gap-1">
+          {TYPE_META[normalizeStepType(child.type)].icon}{child.title || TYPE_META[normalizeStepType(child.type)].label}
+        </Badge>
+      ))}
+      {(step.children ?? []).length > 4 && <Badge variant="outline" className="text-[10px]">+{(step.children ?? []).length - 4}</Badge>}
+    </div>
+  );
   switch (step.type) {
     case "image":
       return (
         <div className="space-y-1.5">
+          {children}
           {showText}
           {step.media_url
             ? <img src={step.media_url} alt="" className="w-full max-h-32 object-cover rounded" />
@@ -399,6 +411,7 @@ function NodeBody({ step }: { step: Step }) {
     case "file":
       return (
         <div className="space-y-1">
+          {children}
           {showText}
           <div className="text-[11px] text-muted-foreground truncate">
             {step.media_url || <span className="italic">sem URL</span>}
@@ -441,7 +454,12 @@ function NodeBody({ step }: { step: Step }) {
     case "wa_flow":
       return <div className="text-[11px]">flow: <span className="font-mono">{step.wa_flow_id || "—"}</span></div>;
     default:
-      return showText || <span className="text-muted-foreground italic text-xs">(vazio)</span>;
+      return (
+        <div className="space-y-1">
+          {children}
+          {showText || <span className="text-muted-foreground italic text-xs">(vazio)</span>}
+        </div>
+      );
   }
 }
 
