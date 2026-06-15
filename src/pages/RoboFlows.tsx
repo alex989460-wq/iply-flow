@@ -825,7 +825,7 @@ function EditorPanel({
               <Label className="text-xs">Conteúdos dentro deste bloco</Label>
               <p className="text-[11px] text-muted-foreground">Arraste itens da esquerda para o bloco no canvas ou adicione por aqui.</p>
             </div>
-            <Select onValueChange={(v: StepType) => onChange({ children: [...(step.children ?? []), { ...makeStep(v), position: undefined }] })}>
+            <Select onValueChange={(v) => onChange({ children: [...(step.children ?? []), { ...makeStep(v as StepType), position: undefined }] })}>
               <SelectTrigger className="h-8 w-32 text-xs"><SelectValue placeholder="Adicionar" /></SelectTrigger>
               <SelectContent>
                 {(Object.keys(TYPE_META) as StepType[]).filter((k) => k !== "end" && k !== "transfer").map((k) => (
@@ -857,7 +857,8 @@ function EditorPanel({
                     <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
                     <SelectContent><SelectItem value="buttons">Botões reais</SelectItem><SelectItem value="list">Lista real</SelectItem><SelectItem value="numbered">Texto numerado</SelectItem></SelectContent>
                   </Select>
-                  {(child.buttons ?? []).map((b) => <Input key={b.id} className="h-8 text-xs" value={b.label} onChange={(e) => onChange({ children: step.children!.map((x) => x.id === child.id ? { ...x, buttons: (x.buttons ?? []).map((btn) => btn.id === b.id ? { ...btn, label: e.target.value } : btn) } : x) })} />)}
+                  <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => onChange({ children: step.children!.map((x) => x.id === child.id ? { ...x, buttons: [...(x.buttons ?? []), { id: uid(), label: `Opção ${(x.buttons?.length ?? 0) + 1}`, next_step_id: null }] } : x) })}><Plus className="w-3 h-3 mr-1" /> Botão</Button>
+                  {(child.buttons ?? []).map((b) => <div key={b.id} className="flex gap-1"><Input className="h-8 text-xs" value={b.label} onChange={(e) => onChange({ children: step.children!.map((x) => x.id === child.id ? { ...x, buttons: (x.buttons ?? []).map((btn) => btn.id === b.id ? { ...btn, label: e.target.value } : btn) } : x) })} /><Button size="sm" variant="ghost" className="h-8 px-2 text-rose-500" onClick={() => onChange({ children: step.children!.map((x) => x.id === child.id ? { ...x, buttons: (x.buttons ?? []).filter((btn) => btn.id !== b.id) } : x) })}><Trash2 className="w-3 h-3" /></Button></div>)}
                 </div>
               )}
               <div className="flex justify-between text-[10px] text-muted-foreground"><span>Ordem {index + 1}</span><span>{child.buttons?.some((b) => b.next_step_id) ? "tem ligação" : "sem ligação"}</span></div>
