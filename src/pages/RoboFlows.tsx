@@ -932,6 +932,7 @@ function FlowBuilder({ flow, onChange }: { flow: Flow; onChange: (updater: (f: F
         onConnect={onConnect}
         onEdgesDelete={onEdgesDelete}
         onNodeDragStop={onNodeDragStop}
+        onEdgeClick={(_, edge) => setSelectedEdgeIds([edge.id])}
         onSelectionChange={({ edges: selected }) => setSelectedEdgeIds(selected.map((e) => e.id))}
         nodeTypes={nodeTypes}
         fitView
