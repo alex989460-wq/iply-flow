@@ -1165,8 +1165,12 @@ export default function EvolutionChat() {
       id: tempId, phone: selectedPhone, contact_name: null, direction: 'out',
       content: text, message_type: 'text', media_url: null, media_mime: null,
       created_at: new Date().toISOString(), instance_name: currentInstance || null, raw: quotedRaw, _pending: true,
+    };
+    setMessages(prev => [...prev, optimistic]);
+    setDraft('');
+    setReplyTo(null);
+    sendTextPayload(selectedPhone, text, tempId, quoted, quotedRaw);
   };
-
 
   // Load user's bot flows for the slash (/) command
   useEffect(() => {
@@ -1261,11 +1265,6 @@ export default function EvolutionChat() {
   };
 
 
-    setMessages(prev => [...prev, optimistic]);
-    setDraft('');
-    setReplyTo(null);
-    sendTextPayload(selectedPhone, text, tempId, quoted, quotedRaw);
-  };
 
 
   const sendMedia = async (file: File, mediaType: 'image' | 'audio' | 'document' | 'sticker', caption = '') => {
