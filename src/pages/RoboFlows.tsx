@@ -552,6 +552,10 @@ function EditorPanel({
         {(t === "image" || t === "video" || t === "audio" || t === "file") && (
           <>
             <div>
+              <Label className="text-xs">Texto antes da mídia (opcional)</Label>
+              <Textarea rows={3} value={step.text ?? ""} onChange={(e) => onChange({ text: e.target.value })} />
+            </div>
+            <div>
               <Label className="text-xs">URL do {TYPE_META[t].label.toLowerCase()}</Label>
               <Input className="h-9" placeholder="https://..." value={step.media_url ?? ""} onChange={(e) => onChange({ media_url: e.target.value })} />
             </div>
@@ -739,6 +743,17 @@ function EditorPanel({
 
         {t === "menu" && (
           <div className="space-y-2">
+            <div>
+              <Label className="text-xs">Formato de envio</Label>
+              <Select value={step.menu_style ?? "buttons"} onValueChange={(v: any) => onChange({ menu_style: v })}>
+                <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="buttons">Botões reais</SelectItem>
+                  <SelectItem value="list">Lista real</SelectItem>
+                  <SelectItem value="numbered">Texto numerado</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
             <div className="flex items-center justify-between">
               <Label className="text-xs">Botões</Label>
               <Button size="sm" variant="outline" className="h-7 text-xs"
