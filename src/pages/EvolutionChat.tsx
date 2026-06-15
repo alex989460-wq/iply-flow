@@ -1230,7 +1230,7 @@ export default function EvolutionChat() {
 
   const nextStepId = (step: any) => Array.isArray(step.buttons) && step.buttons[0]?.next_step_id ? step.buttons[0].next_step_id : null;
 
-  // Walks a flow linearly (start → buttons[0].next_step_id) and sends each step
+  // Walks a flow linearly until a branching/menu step waits for the customer's choice.
   const dispatchFlow = async (flow: { id: string; name: string; start_step_id: string | null; steps: any[] }) => {
     if (!selectedPhone) {
       toast({ title: 'Selecione uma conversa', variant: 'destructive' });
@@ -1253,27 +1253,19 @@ export default function EvolutionChat() {
         if (!step) break;
         const type = step.type as string;
         const phone = selectedPhone;
-        if (type === 'text' || type === 'menu') {
-          let text = (step.text || step.title || '').toString();
-          if (type === 'menu' && Array.isArray(step.buttons) && step.buttons.length) {
-            const opts = step.buttons.map((b: any, i: number) => `${i + 1}️⃣ ${b.label}`).join('\n');
-            text = text ? `${text}\n\n${opts}` : opts;
-          }
-          if (text.trim()) {
-            const tempId = `tmp-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
-            const optimistic: EvoMessage = {
-              id: tempId, phone, contact_name: null, direction: 'out',
-              content: text, message_type: 'text', media_url: null, media_mime: null,
-              created_at: new Date().toISOString(), instance_name: currentInstance || null, _pending: true,
-            };
-            setMessages(prev => [...prev, optimistic]);
-            sendTextPayload(phone, text, tempId, null, undefined);
-          }
+        if (type === 'text' || type === 'question' || type === 'rating' || type === 'transfer' || type === 'ig_comment' || type === 'wa_template' || type === 'wa_flow') {
+          const text = (step.text || step.title || '').toString();
+          if (text.trim()) await sendFlowText(phone, text, { __manual_bot_flow: flow.id, step_id: step.id });
+        } else if (type === 'menu') {
+          await sendFlowMenu(phone, step);
+          const hasBranches = Array.isArray(step.buttons) && step.buttons.some((b: any) => b.next_step_id);
+          if (hasBranches) break;
         } else if ((type === 'image' || type === 'video' || type === 'audio' || type === 'file') && step.media_url) {
           try {
+            if (String(step.text || '').trim()) await sendFlowText(phone, String(step.text).trim(), { __manual_bot_flow: flow.id, step_id: step.id });
             const res = await fetch(step.media_url);
             const blob = await res.blob();
-            const mediaType: 'image' | 'audio' | 'document' = type === 'image' ? 'image' : type === 'audio' ? 'audio' : 'document';
+            const mediaType: 'image' | 'audio' | 'video' | 'document' = type === 'image' ? 'image' : type === 'audio' ? 'audio' : type === 'video' ? 'video' : 'document';
             const ext = (blob.type.split('/')[1] || 'bin').split(';')[0];
             const file = new File([blob], `flow-${type}-${Date.now()}.${ext}`, { type: blob.type || 'application/octet-stream' });
             await sendMedia(file, mediaType, step.caption || '');
@@ -1283,12 +1275,17 @@ export default function EvolutionChat() {
         } else if (type === 'delay') {
           const ms = Math.max(0, Math.min(15000, Number(step.delay_ms) || 800));
           await new Promise(r => setTimeout(r, ms));
+        } else if (type === 'api_call' || type === 'gpt' || type === 'tags' || type === 'save_contact' || type === 'save_card' || type === 'condition' || type === 'ab_test') {
+          const { data, error } = await invokeEvolution({ action: 'run-flow-step', phone, step, incoming: '' });
+          if (error || data?.error || data?.ok === false) throw new Error(error?.message || data?.error || `Falha no bloco ${type}`);
+          if (data?.replyText) await sendFlowText(phone, String(data.replyText), { __manual_bot_flow: flow.id, step_id: step.id });
+          if (data?.nextStepId) { curId = data.nextStepId; continue; }
         } else if (type === 'end') {
           break;
         }
         // Pequena pausa entre mensagens para preservar ordem
         await new Promise(r => setTimeout(r, 400));
-        const nextId = Array.isArray(step.buttons) && step.buttons[0]?.next_step_id ? step.buttons[0].next_step_id : null;
+        const nextId = nextStepId(step);
         curId = nextId;
       }
       toast({ title: `Fluxo "${flow.name}" disparado` });
