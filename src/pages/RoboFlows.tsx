@@ -132,6 +132,50 @@ const TYPE_META: Record<StepType, TypeMeta> = {
   wa_template:  { label: "Template WA",    icon: <FileBadge    className="w-3.5 h-3.5" />, color: "bg-green-700",  category: "WhatsApp Oficial" },
 };
 
+const LEGACY_STEP_TYPES: Record<string, StepType> = {
+  message: "text",
+  buttons: "menu",
+  list: "menu",
+  wait: "delay",
+  webhook: "api_call",
+  human: "transfer",
+  finish: "end",
+};
+
+function normalizeStepType(type: unknown): StepType {
+  if (typeof type !== "string") return "text";
+  if (type in TYPE_META) return type as StepType;
+  return LEGACY_STEP_TYPES[type] ?? "text";
+}
+
+function normalizeStep(step: any, index: number): Step {
+  const normalizedType = normalizeStepType(step?.type);
+  const fallback = makeStep(normalizedType);
+  return {
+    ...fallback,
+    ...(step ?? {}),
+    id: step?.id || fallback.id,
+    type: normalizedType,
+    title: step?.title || (step?.type === "message" ? "Texto" : TYPE_META[normalizedType].label),
+    buttons: Array.isArray(step?.buttons) ? step.buttons : fallback.buttons,
+    condition_rules: Array.isArray(step?.condition_rules) ? step.condition_rules : fallback.condition_rules,
+    tags: Array.isArray(step?.tags) ? step.tags : fallback.tags,
+    position: step?.position ?? fallback.position ?? { x: 120 + (index % 4) * 320, y: 100 + Math.floor(index / 4) * 260 },
+  };
+}
+
+function normalizeFlow(row: any): Flow {
+  const steps = Array.isArray(row?.steps) ? row.steps.map(normalizeStep) : [];
+  return {
+    ...row,
+    steps,
+    trigger_keywords: Array.isArray(row?.trigger_keywords) ? row.trigger_keywords : [],
+    start_step_id: row?.start_step_id && steps.some((s) => s.id === row.start_step_id)
+      ? row.start_step_id
+      : steps[0]?.id ?? null,
+  } as Flow;
+}
+
 const CATEGORIES: TypeMeta["category"][] = [
   "Conteúdos", "Ações", "Lógicas", "Integrações", "Instagram", "WhatsApp Oficial",
 ];
@@ -316,11 +360,13 @@ function NodeBody({ step }: { step: Step }) {
 
 function StepNode({ data, selected }: NodeProps<StepNodeData>) {
   const { step, isStart, onEdit, onDelete, onSetStart } = data;
-  const meta = TYPE_META[step.type];
+  const safeType = normalizeStepType(step.type);
+  const safeStep = safeType === step.type ? step : { ...step, type: safeType };
+  const meta = TYPE_META[safeType];
 
   // Decide branching style
-  const branching = step.type === "menu" || step.type === "condition" || step.type === "ab_test";
-  const hasNext = step.type !== "end" && step.type !== "transfer" && !branching;
+  const branching = safeStep.type === "menu" || safeStep.type === "condition" || safeStep.type === "ab_test";
+  const hasNext = safeStep.type !== "end" && safeStep.type !== "transfer" && !branching;
 
   return (
     <div className={`rounded-xl border bg-card shadow-sm min-w-[230px] max-w-[260px] transition ${selected ? "ring-2 ring-primary" : "border-border"}`}>
@@ -329,7 +375,7 @@ function StepNode({ data, selected }: NodeProps<StepNodeData>) {
       <div className={`flex items-center justify-between px-3 py-2 rounded-t-xl text-white text-xs font-medium ${meta.color}`}>
         <div className="flex items-center gap-1.5 truncate">
           {meta.icon}
-          <span className="truncate">{step.title || meta.label}</span>
+          <span className="truncate">{safeStep.title || meta.label}</span>
         </div>
         {isStart && (
           <span className="bg-white/20 px-1.5 py-0.5 rounded text-[10px] flex items-center gap-1 shrink-0">
@@ -339,11 +385,11 @@ function StepNode({ data, selected }: NodeProps<StepNodeData>) {
       </div>
 
       <div className="px-3 py-2 space-y-2">
-        <NodeBody step={step} />
+        <NodeBody step={safeStep} />
 
-        {step.type === "menu" && step.buttons && step.buttons.length > 0 && (
+        {safeStep.type === "menu" && safeStep.buttons && safeStep.buttons.length > 0 && (
           <div className="space-y-1 pt-1 border-t border-border">
-            {step.buttons.map((b) => (
+            {safeStep.buttons.map((b) => (
               <div key={b.id} className="relative flex items-center justify-between text-xs bg-muted/60 rounded px-2 py-1.5">
                 <span className="truncate">{b.label || "Botão"}</span>
                 <Handle type="source" position={Position.Right} id={`btn-${b.id}`} className="!w-2.5 !h-2.5 !bg-violet-500 !-right-[7px]" style={{ top: "50%" }} />
@@ -352,9 +398,9 @@ function StepNode({ data, selected }: NodeProps<StepNodeData>) {
           </div>
         )}
 
-        {step.type === "condition" && (
+        {safeStep.type === "condition" && (
           <div className="space-y-1 pt-1 border-t border-border">
-            {(step.condition_rules ?? []).map((r) => (
+            {(safeStep.condition_rules ?? []).map((r) => (
               <div key={r.id} className="relative flex items-center justify-between text-[11px] bg-indigo-500/10 rounded px-2 py-1.5">
                 <span className="truncate">{r.op} "{r.value}"</span>
                 <Handle type="source" position={Position.Right} id={`rule-${r.id}`} className="!w-2.5 !h-2.5 !bg-indigo-500 !-right-[7px]" style={{ top: "50%" }} />
@@ -367,9 +413,9 @@ function StepNode({ data, selected }: NodeProps<StepNodeData>) {
           </div>
         )}
 
-        {step.type === "ab_test" && step.buttons && (
+        {safeStep.type === "ab_test" && safeStep.buttons && (
           <div className="space-y-1 pt-1 border-t border-border">
-            {step.buttons.map((b) => (
+            {safeStep.buttons.map((b) => (
               <div key={b.id} className="relative flex items-center justify-between text-xs bg-fuchsia-500/10 rounded px-2 py-1.5">
                 <span className="truncate">{b.label}</span>
                 <Handle type="source" position={Position.Right} id={`btn-${b.id}`} className="!w-2.5 !h-2.5 !bg-fuchsia-500 !-right-[7px]" style={{ top: "50%" }} />
@@ -386,15 +432,15 @@ function StepNode({ data, selected }: NodeProps<StepNodeData>) {
       </div>
 
       <div className="flex items-center gap-1 px-2 py-1.5 border-t border-border bg-muted/30 rounded-b-xl">
-        <Button size="sm" variant="ghost" className="h-6 px-2 text-xs" onClick={() => onEdit(step.id)}>
+        <Button size="sm" variant="ghost" className="h-6 px-2 text-xs" onClick={() => onEdit(safeStep.id)}>
           <Settings2 className="w-3 h-3 mr-1" /> Editar
         </Button>
         {!isStart && (
-          <Button size="sm" variant="ghost" className="h-6 px-2 text-xs" onClick={() => onSetStart(step.id)}>
+          <Button size="sm" variant="ghost" className="h-6 px-2 text-xs" onClick={() => onSetStart(safeStep.id)}>
             <Flag className="w-3 h-3" />
           </Button>
         )}
-        <Button size="sm" variant="ghost" className="h-6 px-2 text-xs text-rose-500 ml-auto" onClick={() => onDelete(step.id)}>
+        <Button size="sm" variant="ghost" className="h-6 px-2 text-xs text-rose-500 ml-auto" onClick={() => onDelete(safeStep.id)}>
           <Trash2 className="w-3 h-3" />
         </Button>
       </div>
@@ -882,8 +928,8 @@ export default function RoboFlows() {
     const { data, error } = await supabase.from("bot_flows" as any).select("*").order("created_at", { ascending: false });
     setLoading(false);
     if (error) { toast.error("Erro ao carregar fluxos"); return; }
-    const list = (data ?? []) as any[];
-    setFlows(list.map((r) => ({ ...r, steps: r.steps ?? [], trigger_keywords: r.trigger_keywords ?? [] })));
+    const list = ((data ?? []) as any[]).map(normalizeFlow);
+    setFlows(list);
     if (list.length && !activeId) setActiveId(list[0].id);
   }
 
@@ -892,7 +938,7 @@ export default function RoboFlows() {
     const payload = emptyFlow(user.id);
     const { data, error } = await supabase.from("bot_flows" as any).insert(payload as any).select().single();
     if (error || !data) { toast.error("Erro ao criar fluxo"); return; }
-    const newF = data as any as Flow;
+    const newF = normalizeFlow(data as any);
     setFlows((p) => [newF, ...p]);
     setActiveId(newF.id);
   }
