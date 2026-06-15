@@ -111,24 +111,60 @@ serve(async (req) => {
 
     switch (action) {
       case "list": {
-        const { limit = 100, after } = body;
-        let url = `https://graph.facebook.com/${GRAPH_API_VERSION}/${wabaId}/message_templates?limit=${limit}&fields=id,name,status,category,language,components,quality_score,message_send_ttl_seconds${proofParam}`;
-        if (after) url += `&after=${after}`;
+        const { limit = 100 } = body;
+        const fields = "id,name,status,category,language,components,quality_score,message_send_ttl_seconds";
 
-        const res = await fetch(url, {
-          headers: { Authorization: `Bearer ${accessToken}` },
-        });
-        const data = await res.json();
+        // Discover ALL accessible WABAs (same approach billing uses)
+        const wabaIds = new Set<string>();
+        wabaIds.add(wabaId);
+        try {
+          const bizRes = await fetch(
+            `https://graph.facebook.com/${GRAPH_API_VERSION}/me/businesses?fields=id,name&limit=100${proofParam}`,
+            { headers: { Authorization: `Bearer ${accessToken}` } }
+          );
+          const bizData = await bizRes.json();
+          if (bizRes.ok && Array.isArray(bizData?.data)) {
+            for (const biz of bizData.data) {
+              try {
+                const wabaRes = await fetch(
+                  `https://graph.facebook.com/${GRAPH_API_VERSION}/${biz.id}/owned_whatsapp_business_accounts?fields=id,name&limit=100${proofParam}`,
+                  { headers: { Authorization: `Bearer ${accessToken}` } }
+                );
+                const wabaData = await wabaRes.json();
+                if (wabaRes.ok && Array.isArray(wabaData?.data)) {
+                  for (const w of wabaData.data) wabaIds.add(w.id);
+                }
+              } catch (_) { /* ignore */ }
+            }
+          }
+        } catch (_) { /* ignore */ }
 
-        if (!res.ok) {
-          console.error("[MetaTemplates] List error:", data);
-          return new Response(JSON.stringify({ error: data.error?.message || "Erro ao listar templates" }), {
-            status: res.status,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          });
+        console.log(`[MetaTemplates] Fetching templates from ${wabaIds.size} WABA(s)`);
+
+        const allTemplates: any[] = [];
+        const seen = new Set<string>();
+        for (const wId of wabaIds) {
+          try {
+            const url = `https://graph.facebook.com/${GRAPH_API_VERSION}/${wId}/message_templates?limit=${limit}&fields=${fields}${proofParam}`;
+            const res = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
+            const data = await res.json();
+            if (!res.ok) {
+              console.error(`[MetaTemplates] WABA ${wId} list error:`, data?.error?.message);
+              continue;
+            }
+            for (const t of (data?.data || [])) {
+              const key = `${wId}:${t.name}:${t.language}`;
+              if (!seen.has(key)) {
+                seen.add(key);
+                allTemplates.push({ ...t, waba_id: wId });
+              }
+            }
+          } catch (e) {
+            console.error(`[MetaTemplates] WABA ${wId} fetch failed:`, e);
+          }
         }
 
-        return new Response(JSON.stringify(data), {
+        return new Response(JSON.stringify({ data: allTemplates }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
