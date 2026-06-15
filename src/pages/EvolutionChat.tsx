@@ -1297,12 +1297,12 @@ export default function EvolutionChat() {
 
 
 
-  const sendMedia = async (file: File, mediaType: 'image' | 'audio' | 'document' | 'sticker', caption = '') => {
+  const sendMedia = async (file: File, mediaType: 'image' | 'audio' | 'video' | 'document' | 'sticker', caption = '') => {
     if (!selectedPhone) return;
     setSending(true);
     const tempId = `tmp-${Date.now()}`;
     const previewUrl = URL.createObjectURL(file);
-    const labelFallback = mediaType === 'audio' ? '🎤 Áudio' : mediaType === 'image' ? '📷 Imagem' : mediaType === 'sticker' ? '🌟 Sticker' : `📎 ${file.name}`;
+    const labelFallback = mediaType === 'audio' ? '🎤 Áudio' : mediaType === 'image' ? '📷 Imagem' : mediaType === 'video' ? '🎬 Vídeo' : mediaType === 'sticker' ? '🌟 Sticker' : `📎 ${file.name}`;
     const optimistic: EvoMessage = {
       id: tempId, phone: selectedPhone, contact_name: null, direction: 'out',
       content: caption || labelFallback,
