@@ -355,6 +355,42 @@ export type Database = {
         }
         Relationships: []
       }
+      bot_flows: {
+        Row: {
+          created_at: string
+          enabled: boolean
+          id: string
+          name: string
+          owner_id: string
+          start_step_id: string | null
+          steps: Json
+          trigger_keywords: string[]
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          name: string
+          owner_id: string
+          start_step_id?: string | null
+          steps?: Json
+          trigger_keywords?: string[]
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          name?: string
+          owner_id?: string
+          start_step_id?: string | null
+          steps?: Json
+          trigger_keywords?: string[]
+          updated_at?: string
+        }
+        Relationships: []
+      }
       bot_triggers: {
         Row: {
           bot_department_id: string | null
