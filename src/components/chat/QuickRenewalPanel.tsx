@@ -416,7 +416,7 @@ export default function QuickRenewalPanel({ isMobile = false, onClose, initialPh
       if (paymentError) throw paymentError;
 
       // Update customer due_date, status, plan, screens, extra_months, username and custom_price if changed
-      const updateData: Record<string, unknown> = {
+      const updateData: any = {
         due_date: newDueDateStr,
         status: 'ativa' as const,
         screens: selectedScreens,
@@ -841,7 +841,7 @@ Obrigado pela preferência! 🙏`;
   const saveCustomerData = useMutation({
     mutationFn: async () => {
       if (!selectedCustomer) throw new Error('Nenhum cliente selecionado');
-      const updateData: Record<string, unknown> = {
+      const updateData: any = {
         name: editedName.trim(),
         phone: editedPhone.trim(),
         extra_phone: editedExtraPhone.trim() || null,

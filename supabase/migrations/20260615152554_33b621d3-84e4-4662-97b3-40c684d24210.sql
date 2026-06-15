@@ -1,0 +1,2 @@
+ALTER TABLE public.bot_flow_sessions
+DROP CONSTRAINT IF EXISTS bot_flow_sessions_owner_id_fkey;

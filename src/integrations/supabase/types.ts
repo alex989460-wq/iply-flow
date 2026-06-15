@@ -355,6 +355,50 @@ export type Database = {
         }
         Relationships: []
       }
+      bot_flow_sessions: {
+        Row: {
+          created_at: string
+          current_step_id: string | null
+          expires_at: string
+          flow_id: string
+          id: string
+          owner_id: string
+          phone: string
+          updated_at: string
+          variables: Json
+        }
+        Insert: {
+          created_at?: string
+          current_step_id?: string | null
+          expires_at?: string
+          flow_id: string
+          id?: string
+          owner_id: string
+          phone: string
+          updated_at?: string
+          variables?: Json
+        }
+        Update: {
+          created_at?: string
+          current_step_id?: string | null
+          expires_at?: string
+          flow_id?: string
+          id?: string
+          owner_id?: string
+          phone?: string
+          updated_at?: string
+          variables?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bot_flow_sessions_flow_id_fkey"
+            columns: ["flow_id"]
+            isOneToOne: false
+            referencedRelation: "bot_flows"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bot_flows: {
         Row: {
           created_at: string

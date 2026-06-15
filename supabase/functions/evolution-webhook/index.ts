@@ -572,8 +572,8 @@ Deno.serve(async (req) => {
               );
             }
           }
-          // Trigger AI auto-reply for direct, non-status, non-group, non-channel incoming TEXT
-          if ((settings.autoreply_enabled || settings.autoreply_absence_enabled) && !info.IsFromMe && !isStatus && phone && phone.length <= 14 && type === 'text') {
+          // Trigger automation for direct, non-status, non-group, non-channel incoming TEXT
+          if (!info.IsFromMe && !isStatus && phone && phone.length <= 14 && type === 'text') {
             const content = messageText(msg) || '';
             if (content) fireAutoReply(settings.user_id, phone, content);
           }
@@ -637,8 +637,8 @@ Deno.serve(async (req) => {
           { onConflict: 'user_id,phone' }
         );
       }
-      // Trigger AI auto-reply for direct, non-status, non-group, non-channel incoming TEXT
-      if ((settings.autoreply_enabled || settings.autoreply_absence_enabled) && !fromMe && !isStatus && phone && phone.length <= 14 && type === 'text' && content) {
+      // Trigger automation for direct, non-status, non-group, non-channel incoming TEXT
+      if (!fromMe && !isStatus && phone && phone.length <= 14 && type === 'text' && content) {
         fireAutoReply(settings.user_id, phone, content);
       }
     }

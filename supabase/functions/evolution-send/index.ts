@@ -295,6 +295,17 @@ function isEvolutionReachoutLock(data: any) {
   return /(^|\D)463(\D|$)|NackCallerReachoutTimelocked|reach[- ]?out|time[- ]?lock/i.test(getEvolutionErrorText(data));
 }
 
+function templateText(value: unknown, vars: Record<string, unknown>) {
+  return String(value || '').replace(/\{\{\s*([\w.-]+)\s*\}\}/g, (_, key) => String(vars[key] ?? ''));
+}
+
+function evalCondition(op: string, left: string, right: string) {
+  if (op === 'contains') return left.toLowerCase().includes(right.toLowerCase());
+  if (op === 'starts') return left.toLowerCase().startsWith(right.toLowerCase());
+  if (op === 'regex') { try { return new RegExp(right, 'i').test(left); } catch { return false; } }
+  return left.toLowerCase() === right.toLowerCase();
+}
+
 const DEFAULT_WEBHOOK_EVENTS = ['MESSAGE', 'SEND_MESSAGE', 'CONNECTION', 'QRCODE', 'PRESENCE', 'CHAT_PRESENCE', 'MESSAGE_RECEIPT', 'MESSAGES_UPDATE', 'RECEIPT'];
 
 function normalizeWebhookEvents(value: unknown) {
@@ -372,19 +383,26 @@ Deno.serve(async (req) => {
     const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const anonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
 
-    const authHeader = req.headers.get('Authorization') || '';
-    const userClient = createClient(supabaseUrl, anonKey, {
-      global: { headers: { Authorization: authHeader } },
-    });
-    const { data: { user }, error: authErr } = await userClient.auth.getUser();
-    if (authErr || !user) {
-      return new Response(JSON.stringify({ error: 'unauthorized' }), {
-        status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
     const admin = createClient(supabaseUrl, serviceKey);
     const body = await req.json().catch(() => ({}));
+    const internalToken = req.headers.get('x-internal-token') || '';
+    const internalUserId = String(body.user_id || '').trim();
+    let user: { id: string } | null = null;
+    if (internalToken === serviceKey && isUuid(internalUserId)) {
+      user = { id: internalUserId };
+    } else {
+      const authHeader = req.headers.get('Authorization') || '';
+      const userClient = createClient(supabaseUrl, anonKey, {
+        global: { headers: { Authorization: authHeader } },
+      });
+      const { data: { user: authUser }, error: authErr } = await userClient.auth.getUser();
+      if (authErr || !authUser) {
+        return new Response(JSON.stringify({ error: 'unauthorized' }), {
+          status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      user = { id: authUser.id };
+    }
     const action = body.action || 'send';
 
     const { data: settings } = await admin
@@ -636,7 +654,7 @@ Deno.serve(async (req) => {
             content: text,
             status: 'failed',
             external_id: `failed-${crypto.randomUUID()}`,
-            raw: { __mode: 'failed-463', __attempts: log, __error: 'whatsapp_reachout_locked_463', __retry_on_inbound: true, lastResponse: result.data },
+            raw: { __mode: 'failed-463', __attempts: log, __error: 'whatsapp_reachout_locked_463', __retry_on_inbound: true, __bot_flow: !!body.bot_flow, lastResponse: result.data },
           });
         }
         return jsonResponse({
@@ -659,10 +677,88 @@ Deno.serve(async (req) => {
         content: text,
         status: 'sent',
         external_id: realExternalId || `sent-${crypto.randomUUID()}`,
-        raw: quotedRaw?.messageId ? { ...result.data, __mode: mode, __attempts: log, __quoted: { id: quotedRaw.messageId, text: quotedRaw.text || '', fromMe: !!quotedRaw.fromMe } } : { ...result.data, __mode: mode, __attempts: log },
+        raw: quotedRaw?.messageId ? { ...result.data, __mode: mode, __attempts: log, __bot_flow: !!body.bot_flow, __quoted: { id: quotedRaw.messageId, text: quotedRaw.text || '', fromMe: !!quotedRaw.fromMe } } : { ...result.data, __mode: mode, __attempts: log, __bot_flow: !!body.bot_flow },
       });
 
       return jsonResponse({ ok: true, mode, data: result.data, externalId: realExternalId });
+    }
+
+    if (action === 'send-menu') {
+      if (!instance) return jsonResponse({ error: 'Escolha uma instância em Conexões WhatsApp antes de enviar menus.' }, 200);
+      const phone = normalizeChatPhone(body.phone);
+      const text = String(body.text || '').trim();
+      const buttons = Array.isArray(body.buttons) ? body.buttons.slice(0, 10).map((b: any, i: number) => ({ id: String(b?.id || `opt-${i + 1}`), label: String(b?.label || `Opção ${i + 1}`).slice(0, 60) })) : [];
+      const menuMode = String(body.mode || 'buttons');
+      if (!phone || !buttons.length) return jsonResponse({ error: 'phone e buttons obrigatórios' }, 400);
+      const instAuth = await resolveInstanceAuth(baseUrl, apiKey, instance);
+      const dbTargets = await resolveSendTargets(admin, user.id, phone);
+      const targets = Array.from(new Set([...dbTargets.map((target) => target.value), phone]));
+      const attempts: Array<{ url: string; headers: Record<string, string>; body: any; mode: string }> = [];
+      for (const target of targets) {
+        const title = text || 'Escolha uma opção:';
+        const rows = buttons.map((b) => ({ id: b.id, title: b.label, description: '' }));
+        const replyButtons = buttons.slice(0, 3).map((b) => ({ id: b.id, title: b.label, displayText: b.label, type: 'reply' }));
+        if (menuMode === 'list' || buttons.length > 3) {
+          attempts.push(
+            { url: `${baseUrl}/message/sendList/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: target, title, description: title, buttonText: 'MENU', footerText: '', sections: [{ title: 'Opções', rows }] }, mode: 'evolution-api-list' },
+            { url: `${baseUrl}/message/sendList`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: target, title, description: title, buttonText: 'MENU', sections: [{ title: 'Opções', rows }] }, mode: 'evolution-go-list' },
+            { url: `${baseUrl}/send/list`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: target, title, description: title, buttonText: 'MENU', sections: [{ title: 'Opções', rows }], formatJid: !/@/.test(target) }, mode: 'evolution-go-send-list' },
+          );
+        } else {
+          attempts.push(
+            { url: `${baseUrl}/message/sendButtons/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: target, title, description: title, footer: '', buttons: replyButtons }, mode: 'evolution-api-buttons' },
+            { url: `${baseUrl}/message/sendButtons`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: target, title, description: title, buttons: replyButtons }, mode: 'evolution-go-buttons' },
+            { url: `${baseUrl}/send/buttons`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: target, title, description: title, buttons: replyButtons, formatJid: !/@/.test(target) }, mode: 'evolution-go-send-buttons' },
+          );
+        }
+      }
+      let result: any = { ok: false, status: 0, data: {} };
+      let mode = 'menu';
+      const log: any[] = [];
+      for (const att of attempts) {
+        const r = await fetchJson(att.url, { method: 'POST', headers: att.headers, body: JSON.stringify(att.body) }, 8000).catch((error) => ({ ok: false, status: 0, data: { error: String(error?.message || error) } }));
+        log.push({ mode: att.mode, status: r.status, error: getEvolutionErrorText(r.data).slice(0, 160) });
+        result = r; mode = att.mode;
+        if (r.ok) break;
+        if (isEvolutionReachoutLock(r.data)) continue;
+        if (r.status !== 404 && r.status !== 405 && r.status !== 400 && r.status !== 0) break;
+      }
+      if (!result.ok) return jsonResponse({ ok: false, error: `Falha ao enviar menu (${log.map((l) => `${l.mode}:${l.status}`).join(' | ')})`, attempts: log, data: result.data }, 200);
+      const content = `${text}\n\n${buttons.map((b, i) => `${i + 1}️⃣ ${b.label}`).join('\n')}`.trim();
+      await insertOutgoingMessage(admin, { user_id: user.id, instance_name: instance, remote_jid: `${phone}@s.whatsapp.net`, phone, direction: 'out', content, message_type: 'text', status: 'sent', external_id: result.data?.key?.id || result.data?.messageId || result.data?.data?.Info?.ID || `menu-${crypto.randomUUID()}`, raw: { ...result.data, __bot_menu: true, __bot_flow: true, __mode: mode, __attempts: log } });
+      return jsonResponse({ ok: true, mode, data: result.data });
+    }
+
+    if (action === 'run-flow-step') {
+      const step = body.step || {};
+      const incoming = String(body.incoming || '');
+      const vars = { ...(typeof body.variables === 'object' && body.variables ? body.variables : {}), ultima_mensagem: incoming, ultima_resposta: incoming } as Record<string, unknown>;
+      const type = String(step.type || '');
+      if (type === 'api_call') {
+        const apiUrl = templateText(step.api_url, vars);
+        if (!/^https?:\/\//i.test(apiUrl)) return jsonResponse({ ok: false, error: 'URL de API inválida' }, 200);
+        let headers: Record<string, string> = {};
+        try { headers = step.api_headers ? JSON.parse(templateText(step.api_headers, vars)) : {}; } catch { return jsonResponse({ ok: false, error: 'Headers da API não são JSON válido' }, 200); }
+        const method = String(step.api_method || 'POST').toUpperCase();
+        const apiRes = await fetch(apiUrl, { method, headers, body: method === 'GET' ? undefined : templateText(step.api_body || '{}', vars), signal: AbortSignal.timeout(8000) });
+        const text = await apiRes.text();
+        return jsonResponse({ ok: apiRes.ok, status: apiRes.status, replyText: '', variables: { [String(step.variable || 'api_response')]: text }, nextStepId: step.buttons?.[0]?.next_step_id || null });
+      }
+      if (type === 'gpt') {
+        const key = Deno.env.get('LOVABLE_API_KEY');
+        if (!key) return jsonResponse({ ok: false, error: 'IA não configurada' }, 200);
+        const prompt = templateText(step.gpt_prompt || 'Responda: {{ultima_mensagem}}', vars);
+        const ai = await fetch('https://ai-gateway.lovable.dev/v1/chat/completions', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` }, body: JSON.stringify({ model: step.gpt_model || 'google/gemini-2.5-flash', messages: [{ role: 'user', content: prompt }] }), signal: AbortSignal.timeout(15000) }).then((r) => r.json()).catch((e) => ({ error: String(e?.message || e) }));
+        const replyText = String(ai?.choices?.[0]?.message?.content || ai?.message || '').trim();
+        return jsonResponse({ ok: !!replyText, replyText, variables: { [String(step.variable || 'gpt_resposta')]: replyText }, nextStepId: step.buttons?.[0]?.next_step_id || null, error: replyText ? null : (ai?.error || 'IA não respondeu') });
+      }
+      if (type === 'condition') {
+        const variable = String(step.condition_variable || 'ultima_resposta');
+        const left = String(vars[variable] ?? incoming);
+        const rule = (Array.isArray(step.condition_rules) ? step.condition_rules : []).find((r: any) => evalCondition(String(r.op || 'eq'), left, String(r.value || '')));
+        return jsonResponse({ ok: true, nextStepId: rule?.next_step_id || step.buttons?.find((b: any) => b.id === 'default')?.next_step_id || null });
+      }
+      return jsonResponse({ ok: true, nextStepId: step.buttons?.[0]?.next_step_id || null });
     }
 
     // SEND STATUS (broadcast to status@broadcast - text status)
@@ -721,7 +817,7 @@ Deno.serve(async (req) => {
         content: text,
         status: 'sent',
         external_id: result.data?.key?.id || result.data?.messageId || null,
-        raw: result.data,
+        raw: { ...result.data, __bot_flow: !!body.bot_flow },
       });
       return jsonResponse({ ok: true, mode, data: result.data });
     }
@@ -905,7 +1001,7 @@ Deno.serve(async (req) => {
           );
         } else {
           const isImg = mediaType === 'image';
-          const goType = isImg ? 'image' : 'document';
+          const goType = isImg ? 'image' : mediaType === 'video' ? 'video' : 'document';
           attempts.push(
             { url: `${baseUrl}/message/sendMedia/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: target, mediatype: goType, mimetype: cleanMime, fileName: filename, caption, media: mediaForEvolution }, mode: 'evolution-api-url' },
             { url: `${baseUrl}/message/sendMedia/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: target, mediatype: goType, mimetype: cleanMime, fileName: filename, caption, media: mediaBase64 }, mode: 'evolution-api-base64' },
@@ -940,7 +1036,7 @@ Deno.serve(async (req) => {
         remote_jid: `${phone}@s.whatsapp.net`,
         phone,
         direction: 'out',
-        content: caption || (mediaType === 'audio' ? '🎤 Áudio' : mediaType === 'image' ? '📷 Imagem' : mediaType === 'sticker' ? '🌟 Sticker' : `📎 ${filename}`),
+        content: caption || (mediaType === 'audio' ? '🎤 Áudio' : mediaType === 'image' ? '📷 Imagem' : mediaType === 'video' ? '🎬 Vídeo' : mediaType === 'sticker' ? '🌟 Sticker' : `📎 ${filename}`),
         message_type: mediaType,
         media_url: mediaUrl,
         media_mime: mimetype,

@@ -24,7 +24,7 @@ import "d3-transition";
 import ReactFlow, {
   Background, Controls, MiniMap, Handle, Position, addEdge,
   useNodesState, useEdgesState, type Node, type Edge, type Connection,
-  type NodeProps, MarkerType, ReactFlowProvider,
+  type NodeProps, MarkerType, ReactFlowProvider, useReactFlow,
 } from "reactflow";
 import "reactflow/dist/style.css";
 
@@ -46,6 +46,7 @@ type Step = {
   title?: string;
   text?: string;
   buttons?: FlowButton[];
+  menu_style?: "buttons" | "list" | "numbered";
   position?: { x: number; y: number };
   // media
   media_url?: string;
@@ -198,13 +199,14 @@ function makeStep(type: StepType): Step {
     case "video":
     case "audio":
     case "file":
-      return { ...base, media_url: "", caption: "", buttons: NEXT_BTN() };
+      return { ...base, text: "", media_url: "", caption: "", buttons: NEXT_BTN() };
     case "contact":
       return { ...base, contact_name: "", contact_phone: "", buttons: NEXT_BTN() };
     case "menu":
       return {
         ...base,
         text: "Escolha uma opção:",
+        menu_style: "buttons",
         buttons: [
           { id: uid(), label: "Opção 1", next_step_id: null },
           { id: uid(), label: "Opção 2", next_step_id: null },
@@ -365,6 +367,7 @@ function NodeBody({ step }: { step: Step }) {
     case "image":
       return (
         <div className="space-y-1.5">
+          {showText}
           {step.media_url
             ? <img src={step.media_url} alt="" className="w-full max-h-32 object-cover rounded" />
             : <div className="w-full h-16 bg-muted rounded flex items-center justify-center text-[10px] text-muted-foreground">sem imagem</div>}
@@ -375,8 +378,12 @@ function NodeBody({ step }: { step: Step }) {
     case "audio":
     case "file":
       return (
-        <div className="text-[11px] text-muted-foreground truncate">
-          {step.media_url || <span className="italic">sem URL</span>}
+        <div className="space-y-1">
+          {showText}
+          <div className="text-[11px] text-muted-foreground truncate">
+            {step.media_url || <span className="italic">sem URL</span>}
+          </div>
+          {step.caption && <p className="text-[11px] line-clamp-2">{step.caption}</p>}
         </div>
       );
     case "contact":
@@ -544,6 +551,10 @@ function EditorPanel({
 
         {(t === "image" || t === "video" || t === "audio" || t === "file") && (
           <>
+            <div>
+              <Label className="text-xs">Texto antes da mídia (opcional)</Label>
+              <Textarea rows={3} value={step.text ?? ""} onChange={(e) => onChange({ text: e.target.value })} />
+            </div>
             <div>
               <Label className="text-xs">URL do {TYPE_META[t].label.toLowerCase()}</Label>
               <Input className="h-9" placeholder="https://..." value={step.media_url ?? ""} onChange={(e) => onChange({ media_url: e.target.value })} />
@@ -732,6 +743,17 @@ function EditorPanel({
 
         {t === "menu" && (
           <div className="space-y-2">
+            <div>
+              <Label className="text-xs">Formato de envio</Label>
+              <Select value={step.menu_style ?? "buttons"} onValueChange={(v: any) => onChange({ menu_style: v })}>
+                <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="buttons">Botões reais</SelectItem>
+                  <SelectItem value="list">Lista real</SelectItem>
+                  <SelectItem value="numbered">Texto numerado</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
             <div className="flex items-center justify-between">
               <Label className="text-xs">Botões</Label>
               <Button size="sm" variant="outline" className="h-7 text-xs"
@@ -764,6 +786,7 @@ function EditorPanel({
 function FlowBuilder({ flow, onChange }: { flow: Flow; onChange: (updater: (f: Flow) => Flow) => void }) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [selectedEdgeIds, setSelectedEdgeIds] = useState<string[]>([]);
+  const { screenToFlowPosition } = useReactFlow();
 
   function patchStep(id: string, patch: Partial<Step>) {
     onChange((f) => ({ ...f, steps: f.steps.map((s) => (s.id === id ? { ...s, ...patch } : s)) }));
@@ -825,12 +848,28 @@ function FlowBuilder({ flow, onChange }: { flow: Flow; onChange: (updater: (f: F
     setEdges(edgesFromSteps(flow.steps));
   }, [flow.steps, flow.start_step_id, setNodes]);
 
-  function addStep(type: StepType) {
+  function addStep(type: StepType, position?: { x: number; y: number }, patch?: Partial<Step>) {
     const s = makeStep(type);
-    s.position = { x: 360 + (flow.steps.length % 3) * 300, y: 160 + Math.floor(flow.steps.length / 3) * 230 };
+    s.position = position ?? { x: 360 + (flow.steps.length % 3) * 300, y: 160 + Math.floor(flow.steps.length / 3) * 230 };
+    Object.assign(s, patch ?? {});
     onChange((f) => ({ ...f, steps: [...f.steps, s] }));
     setEditingId(s.id);
   }
+
+  const addDroppedFile = async (file: File, position: { x: number; y: number }) => {
+    const mediaType: StepType = file.type.startsWith("video/") ? "video" : file.type.startsWith("audio/") ? "audio" : file.type.startsWith("image/") ? "image" : "file";
+    let mediaUrl = URL.createObjectURL(file);
+    try {
+      const safeName = file.name.replace(/[^a-z0-9._-]/gi, "-");
+      const path = `${flow.owner_id}/bot-flow-${Date.now()}-${safeName}`;
+      const { error } = await supabase.storage.from("reseller-assets").upload(path, file, { contentType: file.type || "application/octet-stream", upsert: false });
+      if (!error) {
+        const { data } = supabase.storage.from("reseller-assets").getPublicUrl(path);
+        mediaUrl = data.publicUrl || mediaUrl;
+      }
+    } catch { /* keep local preview if upload is unavailable */ }
+    addStep(mediaType, position, { title: file.name, media_url: mediaUrl });
+  };
 
   const onConnect = useCallback((params: Edge | Connection) => {
     setEdges((eds) => {
@@ -901,6 +940,8 @@ function FlowBuilder({ flow, onChange }: { flow: Flow; onChange: (updater: (f: F
                 <div className="grid grid-cols-2 gap-1">
                   {items.map((t) => (
                     <Button key={t} size="sm" variant="outline" className="h-7 text-[11px] justify-start gap-1 px-2"
+                      draggable
+                      onDragStart={(e) => { e.dataTransfer.setData("application/x-flow-step", t); e.dataTransfer.effectAllowed = "copy"; }}
                       onClick={() => addStep(t)}>
                       {TYPE_META[t].icon}
                       <span className="truncate">{TYPE_META[t].label}</span>
@@ -932,6 +973,17 @@ function FlowBuilder({ flow, onChange }: { flow: Flow; onChange: (updater: (f: F
         onNodeDragStop={onNodeDragStop}
         onEdgeClick={(_, edge) => setSelectedEdgeIds([edge.id])}
         onSelectionChange={({ edges: selected }) => setSelectedEdgeIds(selected.map((e) => e.id))}
+        onDragOver={(event) => { event.preventDefault(); event.dataTransfer.dropEffect = "copy"; }}
+        onDrop={async (event) => {
+          event.preventDefault();
+          const position = screenToFlowPosition({ x: event.clientX, y: event.clientY });
+          const droppedType = event.dataTransfer.getData("application/x-flow-step") as StepType;
+          const uri = event.dataTransfer.getData("text/uri-list") || event.dataTransfer.getData("text/plain");
+          const file = event.dataTransfer.files?.[0];
+          if (droppedType && droppedType in TYPE_META) addStep(droppedType, position);
+          else if (file) await addDroppedFile(file, position);
+          else if (/^https?:\/\//i.test(uri)) addStep(/\.(mp4|mov|webm)(\?|$)/i.test(uri) ? "video" : /\.(mp3|ogg|wav|m4a)(\?|$)/i.test(uri) ? "audio" : /\.(pdf|zip|docx?|xlsx?)(\?|$)/i.test(uri) ? "file" : "image", position, { media_url: uri });
+        }}
         nodeTypes={nodeTypes}
         fitView
         defaultEdgeOptions={{ animated: true, markerEnd: { type: MarkerType.ArrowClosed } }}
