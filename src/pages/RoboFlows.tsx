@@ -464,7 +464,7 @@ function NodeBody({ step }: { step: Step }) {
 }
 
 function StepNode({ data, selected }: NodeProps<StepNodeData>) {
-  const { step, isStart, onEdit, onDelete, onSetStart } = data;
+  const { step, isStart, onEdit, onDelete, onSetStart, onDropChild } = data;
   const safeType = normalizeStepType(step.type);
   const safeStep = safeType === step.type ? step : { ...step, type: safeType };
   const meta = TYPE_META[safeType];
@@ -474,7 +474,11 @@ function StepNode({ data, selected }: NodeProps<StepNodeData>) {
   const hasNext = safeStep.type !== "end" && safeStep.type !== "transfer" && !branching;
 
   return (
-    <div className={`rounded-xl border bg-card shadow-sm min-w-[230px] max-w-[260px] transition ${selected ? "ring-2 ring-primary" : "border-border"}`}>
+    <div
+      className={`rounded-xl border bg-card shadow-sm min-w-[230px] max-w-[260px] transition ${selected ? "ring-2 ring-primary" : "border-border"}`}
+      onDragOver={(event) => { event.preventDefault(); event.stopPropagation(); event.dataTransfer.dropEffect = "copy"; }}
+      onDrop={(event) => onDropChild(safeStep.id, event)}
+    >
       <Handle type="target" position={Position.Left} className="!w-2.5 !h-2.5 !bg-muted-foreground" />
 
       <div className={`flex items-center justify-between px-3 py-2 rounded-t-xl text-white text-xs font-medium ${meta.color}`}>
