@@ -698,8 +698,12 @@ Deno.serve(async (req) => {
         const title = text || 'Escolha uma opção:';
         const rows = buttons.map((b) => ({ id: b.id, rowId: b.id, title: b.label, description: '' }));
         const replyButtons = buttons.slice(0, 3).map((b) => ({ id: b.id, buttonId: b.id, title: b.label, displayText: b.label, buttonText: { displayText: b.label }, type: 'reply' }));
+        const isJid = /@(lid|s\.whatsapp\.net)\b/i.test(target);
+        const number = isJid ? target : target.split('@')[0].replace(/\D/g, '');
         if (menuMode === 'list' || buttons.length > 3) {
           attempts.push(
+            { url: `${baseUrl}/send/list`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number, title, description: title, footerText: ' ', buttonText: 'Selecionar', sections: [{ title: 'Opções', rows }], formatJid: !isJid }, mode: 'evolution-go-send-list-singular' },
+            { url: `${baseUrl}/send/list`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number, title, description: title, footerText: ' ', buttonText: 'Ver opções', sections: [{ title: 'Opções', rows }], formatJid: false }, mode: 'evolution-go-send-list-singular-raw' },
             { url: `${baseUrl}/message/sendList/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: target, title, description: title, buttonText: 'MENU', footerText: '', sections: [{ title: 'Opções', rows }] }, mode: 'evolution-api-list' },
             { url: `${baseUrl}/message/sendList`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: target, title, description: title, buttonText: 'MENU', sections: [{ title: 'Opções', rows }] }, mode: 'evolution-go-list' },
             { url: `${baseUrl}/send/list`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: target, title, description: title, buttonText: 'MENU', sections: [{ title: 'Opções', rows }], formatJid: !/@/.test(target) }, mode: 'evolution-go-send-list' },
@@ -708,6 +712,8 @@ Deno.serve(async (req) => {
           );
         } else {
           attempts.push(
+            { url: `${baseUrl}/send/button`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number, title, description: title, footer: ' ', buttons: replyButtons.map((b) => ({ id: b.id, displayText: b.displayText, type: 'reply' })), formatJid: !isJid }, mode: 'evolution-go-send-button-singular' },
+            { url: `${baseUrl}/send/button`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number, title, description: title, footer: ' ', buttons: replyButtons.map((b) => ({ id: b.id, displayText: b.displayText, type: 'reply' })), formatJid: false }, mode: 'evolution-go-send-button-singular-raw' },
             { url: `${baseUrl}/message/sendButtons/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: target, title, description: title, footer: '', buttons: replyButtons }, mode: 'evolution-api-buttons' },
             { url: `${baseUrl}/message/sendButtons`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: target, title, description: title, buttons: replyButtons }, mode: 'evolution-go-buttons' },
             { url: `${baseUrl}/send/buttons`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: target, title, description: title, buttons: replyButtons, formatJid: !/@/.test(target) }, mode: 'evolution-go-send-buttons' },

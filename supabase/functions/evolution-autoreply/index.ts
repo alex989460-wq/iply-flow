@@ -337,17 +337,23 @@ Deno.serve(async (req) => {
     const runBotFlow = async () => {
       const { data: session } = await admin.from('bot_flow_sessions').select('*').eq('owner_id', user_id).eq('phone', phone).gt('expires_at', new Date().toISOString()).maybeSingle();
       const { data: flows } = await admin.from('bot_flows').select('id,name,start_step_id,steps,trigger_keywords,enabled').eq('owner_id', user_id).eq('enabled', true).order('updated_at', { ascending: false });
-      let flow = session ? (flows || []).find((f: any) => f.id === session.flow_id) : null;
-      let startId: string | null = session?.current_step_id || null;
       const incomingNorm = normalizeText(incomingContent);
+      const triggeredFlow = (flows || []).find((f: any) => {
+        const keys = Array.isArray(f.trigger_keywords) ? f.trigger_keywords : [];
+        return keys.some((k: string) => {
+          const kk = normalizeText(k);
+          return kk && (incomingNorm === kk || incomingNorm.includes(kk));
+        });
+      }) || null;
+      let flow = triggeredFlow || (session ? (flows || []).find((f: any) => f.id === session.flow_id) : null);
+      let startId: string | null = triggeredFlow ? null : (session?.current_step_id || null);
+      if (triggeredFlow && session?.id) {
+        await admin.from('bot_flow_sessions').delete().eq('id', session.id);
+      }
       if (!flow) {
-        flow = (flows || []).find((f: any) => {
-          const keys = Array.isArray(f.trigger_keywords) ? f.trigger_keywords : [];
-          return keys.some((k: string) => {
-            const kk = normalizeText(k);
-            return kk && (incomingNorm === kk || incomingNorm.includes(kk));
-          });
-        }) || null;
+        flow = triggeredFlow;
+        startId = flow?.start_step_id || flow?.steps?.[0]?.id || null;
+      } else if (triggeredFlow) {
         startId = flow?.start_step_id || flow?.steps?.[0]?.id || null;
       } else {
         const waiting = (flow.steps || []).find((s: any) => s?.id === startId);
