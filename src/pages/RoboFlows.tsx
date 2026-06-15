@@ -46,6 +46,7 @@ type Step = {
   title?: string;
   text?: string;
   buttons?: FlowButton[];
+  menu_style?: "buttons" | "list" | "numbered";
   position?: { x: number; y: number };
   // media
   media_url?: string;
@@ -198,13 +199,14 @@ function makeStep(type: StepType): Step {
     case "video":
     case "audio":
     case "file":
-      return { ...base, media_url: "", caption: "", buttons: NEXT_BTN() };
+      return { ...base, text: "", media_url: "", caption: "", buttons: NEXT_BTN() };
     case "contact":
       return { ...base, contact_name: "", contact_phone: "", buttons: NEXT_BTN() };
     case "menu":
       return {
         ...base,
         text: "Escolha uma opção:",
+        menu_style: "buttons",
         buttons: [
           { id: uid(), label: "Opção 1", next_step_id: null },
           { id: uid(), label: "Opção 2", next_step_id: null },
