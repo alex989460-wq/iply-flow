@@ -219,6 +219,27 @@ function isEvolutionReachoutLock(data: any) {
   return /(^|\D)463(\D|$)|NackCallerReachoutTimelocked|reach[- ]?out|time[- ]?lock/i.test(getEvolutionErrorText(data));
 }
 
+function stepType(type: unknown) {
+  const map: Record<string, string> = { message: 'text', buttons: 'menu', list: 'menu', wait: 'delay', webhook: 'api_call', human: 'transfer', finish: 'end' };
+  const t = String(type || 'text');
+  return map[t] || t;
+}
+
+function nextStepId(step: any) {
+  return Array.isArray(step?.buttons) && step.buttons[0]?.next_step_id ? step.buttons[0].next_step_id : null;
+}
+
+function menuChoice(step: any, incoming: string) {
+  const clean = normalizeText(incoming);
+  const digit = String(incoming || '').match(/\d+/)?.[0];
+  const buttons = Array.isArray(step?.buttons) ? step.buttons : [];
+  if (digit) {
+    const byIndex = buttons[Number(digit) - 1];
+    if (byIndex) return byIndex;
+  }
+  return buttons.find((b: any) => normalizeText(String(b?.label || '')) === clean || normalizeText(String(b?.label || '')).includes(clean));
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
