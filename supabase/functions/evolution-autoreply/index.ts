@@ -322,7 +322,7 @@ Deno.serve(async (req) => {
       const mediaBase64 = btoa(bin);
       const type = stepType(step.type);
       const mediaType = type === 'image' ? 'image' : type === 'video' ? 'video' : type === 'audio' ? 'audio' : 'document';
-      return callEvolution({ action: 'send-media', phone, mediaType, mimetype: res.headers.get('content-type') || 'application/octet-stream', filename: `bot-${Date.now()}`, mediaBase64, caption: String(step.caption || '') });
+      return callEvolution({ action: 'send-media', phone, mediaType, mimetype: res.headers.get('content-type') || 'application/octet-stream', filename: `bot-${Date.now()}`, mediaBase64, caption: String(step.caption || ''), bot_flow: true });
     };
 
     const runBotFlow = async () => {
@@ -345,7 +345,7 @@ Deno.serve(async (req) => {
         if (stepType(waiting?.type) === 'menu') {
           const choice = menuChoice(waiting, incomingContent);
           if (!choice?.next_step_id) {
-            await callEvolution({ action: 'send', phone, text: 'Escolha uma das opções do menu, por favor.' });
+            await callEvolution({ action: 'send', phone, text: 'Escolha uma das opções do menu, por favor.', bot_flow: true });
             return { handled: true, waiting: true };
           }
           startId = choice.next_step_id;
@@ -367,7 +367,7 @@ Deno.serve(async (req) => {
         const type = stepType(step.type);
         if (type === 'text' || type === 'ig_comment' || type === 'wa_template' || type === 'wa_flow') {
           const text = String(step.text || step.title || '').trim();
-          if (text) await callEvolution({ action: 'send', phone, text });
+          if (text) await callEvolution({ action: 'send', phone, text, bot_flow: true });
           curId = nextStepId(step);
         } else if (type === 'menu') {
           await callEvolution({ action: 'send-menu', phone, text: String(step.text || step.title || ''), buttons: (step.buttons || []).map((b: any) => ({ id: b.id, label: b.label })), mode: step.menu_style || 'buttons' });
@@ -382,11 +382,11 @@ Deno.serve(async (req) => {
         } else if (type === 'api_call' || type === 'gpt' || type === 'condition' || type === 'ab_test' || type === 'tags' || type === 'save_contact' || type === 'save_card') {
           const r = await callEvolution({ action: 'run-flow-step', phone, step, incoming: incomingContent, variables });
           Object.assign(variables, r?.variables || {});
-          if (r?.replyText) await callEvolution({ action: 'send', phone, text: String(r.replyText) });
+          if (r?.replyText) await callEvolution({ action: 'send', phone, text: String(r.replyText), bot_flow: true });
           curId = r?.nextStepId || nextStepId(step);
         } else if (type === 'question' || type === 'rating') {
           const text = String(step.text || step.title || '').trim();
-          if (text) await callEvolution({ action: 'send', phone, text });
+          if (text) await callEvolution({ action: 'send', phone, text, bot_flow: true });
           await admin.from('bot_flow_sessions').upsert({ owner_id: user_id, phone, flow_id: flow.id, current_step_id: step.id, variables, expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() }, { onConflict: 'owner_id,phone' });
           return { handled: true, waiting: true };
         } else if (type === 'transfer') {
@@ -396,7 +396,7 @@ Deno.serve(async (req) => {
             ai_category: step.transfer_department || 'suporte',
             last_classified_at: new Date().toISOString(),
           }, { onConflict: 'user_id,phone' as any });
-          if (String(step.text || '').trim()) await callEvolution({ action: 'send', phone, text: String(step.text).trim() });
+          if (String(step.text || '').trim()) await callEvolution({ action: 'send', phone, text: String(step.text).trim(), bot_flow: true });
           curId = null;
         } else {
           curId = null;
