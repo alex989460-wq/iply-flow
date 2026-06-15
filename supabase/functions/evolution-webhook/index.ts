@@ -71,8 +71,11 @@ function messageText(message: any) {
     msg?.videoMessage?.caption ||
     msg?.documentMessage?.caption ||
     msg?.buttonsResponseMessage?.selectedDisplayText ||
+    msg?.buttonsResponseMessage?.selectedButtonId ||
     msg?.listResponseMessage?.title ||
+    msg?.listResponseMessage?.singleSelectReply?.selectedRowId ||
     msg?.templateButtonReplyMessage?.selectedDisplayText ||
+    msg?.templateButtonReplyMessage?.selectedId ||
     (msg?.audioMessage ? '🎤 Áudio' : '') ||
     '';
 }
