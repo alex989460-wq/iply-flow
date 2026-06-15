@@ -237,7 +237,7 @@ function menuChoice(step: any, incoming: string) {
     const byIndex = buttons[Number(digit) - 1];
     if (byIndex) return byIndex;
   }
-  return buttons.find((b: any) => normalizeText(String(b?.label || '')) === clean || normalizeText(String(b?.label || '')).includes(clean));
+  return buttons.find((b: any) => normalizeText(String(b?.id || '')) === clean || normalizeText(String(b?.label || '')) === clean || normalizeText(String(b?.label || '')).includes(clean));
 }
 
 Deno.serve(async (req) => {
