@@ -1441,11 +1441,15 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                     <label className="text-xs text-muted-foreground">Plano:</label>
                     <Select 
                       value={selectedPlanId || ''} 
-                      onValueChange={(v) => {
-                        setSelectedPlanId(v);
-                        const plan = allPlans.find(p => p.id === v);
-                        if (plan) setCustomRenewalPrice(plan.price.toString());
-                      }}
+                       onValueChange={(v) => {
+                         setSelectedPlanId(v);
+                         const plan = allPlans.find(p => p.id === v);
+                         if (plan) {
+                           setCustomRenewalPrice(plan.price.toString());
+                           const ps = extractScreensFromPlanName(plan.plan_name);
+                           if (ps) setSelectedScreens(ps);
+                         }
+                       }}
                     >
                       <SelectTrigger className="h-8 text-sm">
                         <SelectValue placeholder="Selecione o plano" />
