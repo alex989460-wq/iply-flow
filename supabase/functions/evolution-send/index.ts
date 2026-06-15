@@ -1001,7 +1001,7 @@ Deno.serve(async (req) => {
           );
         } else {
           const isImg = mediaType === 'image';
-          const goType = isImg ? 'image' : 'document';
+          const goType = isImg ? 'image' : mediaType === 'video' ? 'video' : 'document';
           attempts.push(
             { url: `${baseUrl}/message/sendMedia/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: target, mediatype: goType, mimetype: cleanMime, fileName: filename, caption, media: mediaForEvolution }, mode: 'evolution-api-url' },
             { url: `${baseUrl}/message/sendMedia/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: target, mediatype: goType, mimetype: cleanMime, fileName: filename, caption, media: mediaBase64 }, mode: 'evolution-api-base64' },
@@ -1036,7 +1036,7 @@ Deno.serve(async (req) => {
         remote_jid: `${phone}@s.whatsapp.net`,
         phone,
         direction: 'out',
-        content: caption || (mediaType === 'audio' ? '🎤 Áudio' : mediaType === 'image' ? '📷 Imagem' : mediaType === 'sticker' ? '🌟 Sticker' : `📎 ${filename}`),
+        content: caption || (mediaType === 'audio' ? '🎤 Áudio' : mediaType === 'image' ? '📷 Imagem' : mediaType === 'video' ? '🎬 Vídeo' : mediaType === 'sticker' ? '🌟 Sticker' : `📎 ${filename}`),
         message_type: mediaType,
         media_url: mediaUrl,
         media_mime: mimetype,
