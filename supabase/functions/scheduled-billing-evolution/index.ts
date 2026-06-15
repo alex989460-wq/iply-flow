@@ -131,12 +131,18 @@ Deno.serve(async (req) => {
       const sendMin = sh * 60 + sm;
       if (currentMinutes < sendMin) return false;
       if (currentMinutes > sendMin + 360) return false;
-      if (s.last_run_at && typeof s.last_run_status === 'string' && s.last_run_status.startsWith('completed:')) {
+      const status = typeof s.last_run_status === 'string' ? s.last_run_status : '';
+      if (s.last_run_at && status.startsWith('completed:')) {
         const last = new Date(s.last_run_at);
         const lastSP = new Intl.DateTimeFormat('en-CA', {
           timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit',
         }).format(last);
         if (lastSP === todayStrSP) return false;
+      }
+      // Concurrency lock: skip if another tick is currently running this schedule (<3 min ago)
+      if (s.last_run_at && status.startsWith('in_progress')) {
+        const ageMs = Date.now() - new Date(s.last_run_at).getTime();
+        if (ageMs < 3 * 60 * 1000) return false;
       }
       return true;
     });
@@ -265,6 +271,25 @@ Deno.serve(async (req) => {
         }
 
         const phone = normalizePhone(c.phone);
+
+        // Atomic reservation: insert the log first; unique index blocks duplicates from parallel ticks
+        const { data: reservation, error: reserveError } = await supabase
+          .from('billing_logs')
+          .insert({
+            customer_id: c.id,
+            billing_type: c.billingType,
+            message: `[Evolution] [${phone}] reservando envio...`,
+            whatsapp_status: 'pending',
+          })
+          .select('id')
+          .single();
+
+        if (reserveError) {
+          // Duplicate (already sent today by another tick) — skip silently
+          console.log(`[evo-billing] skip duplicate ${c.name} ${c.billingType}:`, reserveError.message);
+          continue;
+        }
+
         let result: any;
         try {
           if (sched.image_url) {
@@ -282,12 +307,10 @@ Deno.serve(async (req) => {
           console.error(`[evo-billing] exception for ${c.name}:`, e);
         }
 
-        await supabase.from('billing_logs').insert({
-          customer_id: c.id,
-          billing_type: c.billingType,
+        await supabase.from('billing_logs').update({
           message: `[Evolution] [${phone}] ${text.substring(0, 120)}`,
           whatsapp_status: result?.ok ? 'sent' : 'error',
-        });
+        }).eq('id', reservation.id);
 
         if (i < batch.length - 1) {
           const delay = Math.floor(Math.random() * (maxDelay - minDelay + 1)) + minDelay;
