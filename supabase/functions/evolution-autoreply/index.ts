@@ -325,6 +325,15 @@ Deno.serve(async (req) => {
       return callEvolution({ action: 'send-media', phone, mediaType, mimetype: res.headers.get('content-type') || 'application/octet-stream', filename: `bot-${Date.now()}`, mediaBase64, caption: String(step.caption || ''), bot_flow: true });
     };
 
+    const sendBotMenu = async (step: any) => callEvolution({
+      action: 'send-menu',
+      phone,
+      text: String(step.text || step.title || ''),
+      buttons: (step.buttons || []).map((b: any) => ({ id: b.id, label: b.label })),
+      mode: step.menu_style || 'buttons',
+      bot_flow: true,
+    });
+
     const runBotFlow = async () => {
       const { data: session } = await admin.from('bot_flow_sessions').select('*').eq('owner_id', user_id).eq('phone', phone).gt('expires_at', new Date().toISOString()).maybeSingle();
       const { data: flows } = await admin.from('bot_flows').select('id,name,start_step_id,steps,trigger_keywords,enabled').eq('owner_id', user_id).eq('enabled', true).order('updated_at', { ascending: false });
@@ -358,6 +367,28 @@ Deno.serve(async (req) => {
       if (!flow || !startId) return { handled: false };
       const stepsById = new Map<string, any>((flow.steps || []).map((s: any) => [s.id, s]));
       const variables = { ...(session?.variables || {}), ultima_mensagem: incomingContent, ultima_resposta: incomingContent };
+      const runInlineChildren = async (step: any, seen = new Set<string>()) => {
+        for (const child of Array.isArray(step?.children) ? step.children : []) {
+          if (!child?.id || seen.has(child.id)) continue;
+          seen.add(child.id);
+          await runInlineChildren(child, seen);
+          const type = stepType(child.type);
+          if (type === 'text' || type === 'ig_comment' || type === 'wa_template' || type === 'wa_flow' || type === 'question' || type === 'rating') {
+            const text = String(child.text || child.title || '').trim();
+            if (text) await callEvolution({ action: 'send', phone, text, bot_flow: true });
+          } else if (type === 'menu') {
+            await sendBotMenu(child);
+          } else if (type === 'image' || type === 'video' || type === 'audio' || type === 'file') {
+            await sendBotMedia(child);
+          } else if (type === 'delay') {
+            await new Promise((r) => setTimeout(r, Math.max(0, Math.min(15000, Number(child.delay_ms) || 800))));
+          } else if (type === 'api_call' || type === 'gpt' || type === 'condition' || type === 'ab_test' || type === 'tags' || type === 'save_contact' || type === 'save_card') {
+            const r = await callEvolution({ action: 'run-flow-step', phone, step: child, incoming: incomingContent, variables });
+            Object.assign(variables, r?.variables || {});
+            if (r?.replyText) await callEvolution({ action: 'send', phone, text: String(r.replyText), bot_flow: true });
+          }
+        }
+      };
       let curId: string | null = startId;
       const visited = new Set<string>();
       while (curId && !visited.has(curId)) {
@@ -365,12 +396,13 @@ Deno.serve(async (req) => {
         const step = stepsById.get(curId);
         if (!step) break;
         const type = stepType(step.type);
+        await runInlineChildren(step);
         if (type === 'text' || type === 'ig_comment' || type === 'wa_template' || type === 'wa_flow') {
           const text = String(step.text || step.title || '').trim();
           if (text) await callEvolution({ action: 'send', phone, text, bot_flow: true });
           curId = nextStepId(step);
         } else if (type === 'menu') {
-          await callEvolution({ action: 'send-menu', phone, text: String(step.text || step.title || ''), buttons: (step.buttons || []).map((b: any) => ({ id: b.id, label: b.label })), mode: step.menu_style || 'buttons' });
+          await sendBotMenu(step);
           await admin.from('bot_flow_sessions').upsert({ owner_id: user_id, phone, flow_id: flow.id, current_step_id: step.id, variables, expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() }, { onConflict: 'owner_id,phone' });
           return { handled: true, waiting: true };
         } else if (type === 'image' || type === 'video' || type === 'audio' || type === 'file') {
