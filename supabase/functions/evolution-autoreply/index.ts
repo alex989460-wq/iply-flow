@@ -271,9 +271,6 @@ Deno.serve(async (req) => {
     }
     const kbEnabled = !!settings.autoreply_enabled;
     const absenceEnabled = !!settings.autoreply_absence_enabled;
-    if (!kbEnabled && !absenceEnabled) {
-      return new Response(JSON.stringify({ ok: true, skipped: 'disabled' }), { status: 200, headers: corsHeaders });
-    }
     const disabledPhones = new Set((settings.autoreply_disabled_phones || []).map((p: string) => normalizeChatPhone(p)));
     if (disabledPhones.has(normalizeChatPhone(phone))) {
       return new Response(JSON.stringify({ ok: true, skipped: 'opted_out' }), { status: 200, headers: corsHeaders });
@@ -300,6 +297,116 @@ Deno.serve(async (req) => {
     const lastOutIsAutoreply = !!(lastOut?.raw && (lastOut.raw as any).__autoreply === true);
     if (lastOut && !lastOutIsAutoreply && lastIn && new Date(lastOut.created_at).getTime() > new Date(lastIn.created_at).getTime()) {
       return new Response(JSON.stringify({ ok: true, skipped: 'human_replied' }), { status: 200, headers: corsHeaders });
+    }
+
+    const callEvolution = async (payload: Record<string, unknown>) => {
+      const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+      const r = await fetch(`${supabaseUrl}/functions/v1/evolution-send`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${serviceRole}`, apikey: serviceRole, 'x-internal-token': serviceRole },
+        body: JSON.stringify({ ...payload, user_id }),
+      });
+      return await r.json().catch(() => ({}));
+    };
+
+    const sendBotMedia = async (step: any) => {
+      const mediaUrl = String(step.media_url || '').trim();
+      if (!mediaUrl) return { ok: true };
+      if (String(step.text || '').trim()) await callEvolution({ action: 'send', phone, text: String(step.text).trim() });
+      const res = await fetch(mediaUrl, { signal: AbortSignal.timeout(10000) });
+      if (!res.ok) return { ok: false, error: `media_fetch_${res.status}` };
+      const buf = new Uint8Array(await res.arrayBuffer());
+      let bin = '';
+      for (const b of buf) bin += String.fromCharCode(b);
+      const mediaBase64 = btoa(bin);
+      const type = stepType(step.type);
+      const mediaType = type === 'image' ? 'image' : type === 'video' ? 'video' : type === 'audio' ? 'audio' : 'document';
+      return callEvolution({ action: 'send-media', phone, mediaType, mimetype: res.headers.get('content-type') || 'application/octet-stream', filename: `bot-${Date.now()}`, mediaBase64, caption: String(step.caption || '') });
+    };
+
+    const runBotFlow = async () => {
+      const { data: session } = await admin.from('bot_flow_sessions').select('*').eq('owner_id', user_id).eq('phone', phone).gt('expires_at', new Date().toISOString()).maybeSingle();
+      const { data: flows } = await admin.from('bot_flows').select('id,name,start_step_id,steps,trigger_keywords,enabled').eq('owner_id', user_id).eq('enabled', true).order('updated_at', { ascending: false });
+      let flow = session ? (flows || []).find((f: any) => f.id === session.flow_id) : null;
+      let startId: string | null = session?.current_step_id || null;
+      const incomingNorm = normalizeText(incomingContent);
+      if (!flow) {
+        flow = (flows || []).find((f: any) => {
+          const keys = Array.isArray(f.trigger_keywords) ? f.trigger_keywords : [];
+          return keys.some((k: string) => {
+            const kk = normalizeText(k);
+            return kk && (incomingNorm === kk || incomingNorm.includes(kk));
+          });
+        }) || null;
+        startId = flow?.start_step_id || flow?.steps?.[0]?.id || null;
+      } else {
+        const waiting = (flow.steps || []).find((s: any) => s?.id === startId);
+        if (stepType(waiting?.type) === 'menu') {
+          const choice = menuChoice(waiting, incomingContent);
+          if (!choice?.next_step_id) {
+            await callEvolution({ action: 'send', phone, text: 'Escolha uma das opções do menu, por favor.' });
+            return { handled: true, waiting: true };
+          }
+          startId = choice.next_step_id;
+        } else if (stepType(waiting?.type) === 'question' || stepType(waiting?.type) === 'rating') {
+          const vars = { ...(session?.variables || {}), [waiting.variable || 'ultima_resposta']: incomingContent, ultima_resposta: incomingContent, ultima_mensagem: incomingContent };
+          await admin.from('bot_flow_sessions').update({ variables: vars }).eq('id', session.id);
+          startId = nextStepId(waiting);
+        }
+      }
+      if (!flow || !startId) return { handled: false };
+      const stepsById = new Map<string, any>((flow.steps || []).map((s: any) => [s.id, s]));
+      const variables = { ...(session?.variables || {}), ultima_mensagem: incomingContent, ultima_resposta: incomingContent };
+      let curId: string | null = startId;
+      const visited = new Set<string>();
+      while (curId && !visited.has(curId)) {
+        visited.add(curId);
+        const step = stepsById.get(curId);
+        if (!step) break;
+        const type = stepType(step.type);
+        if (type === 'text' || type === 'ig_comment' || type === 'wa_template' || type === 'wa_flow') {
+          const text = String(step.text || step.title || '').trim();
+          if (text) await callEvolution({ action: 'send', phone, text });
+          curId = nextStepId(step);
+        } else if (type === 'menu') {
+          await callEvolution({ action: 'send-menu', phone, text: String(step.text || step.title || ''), buttons: (step.buttons || []).map((b: any) => ({ id: b.id, label: b.label })), mode: step.menu_style || 'buttons' });
+          await admin.from('bot_flow_sessions').upsert({ owner_id: user_id, phone, flow_id: flow.id, current_step_id: step.id, variables, expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() }, { onConflict: 'owner_id,phone' });
+          return { handled: true, waiting: true };
+        } else if (type === 'image' || type === 'video' || type === 'audio' || type === 'file') {
+          await sendBotMedia(step);
+          curId = nextStepId(step);
+        } else if (type === 'delay') {
+          await new Promise((r) => setTimeout(r, Math.max(0, Math.min(15000, Number(step.delay_ms) || 800))));
+          curId = nextStepId(step);
+        } else if (type === 'api_call' || type === 'gpt' || type === 'condition' || type === 'ab_test' || type === 'tags' || type === 'save_contact' || type === 'save_card') {
+          const r = await callEvolution({ action: 'run-flow-step', phone, step, incoming: incomingContent, variables });
+          Object.assign(variables, r?.variables || {});
+          if (r?.replyText) await callEvolution({ action: 'send', phone, text: String(r.replyText) });
+          curId = r?.nextStepId || nextStepId(step);
+        } else if (type === 'question' || type === 'rating') {
+          const text = String(step.text || step.title || '').trim();
+          if (text) await callEvolution({ action: 'send', phone, text });
+          await admin.from('bot_flow_sessions').upsert({ owner_id: user_id, phone, flow_id: flow.id, current_step_id: step.id, variables, expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() }, { onConflict: 'owner_id,phone' });
+          return { handled: true, waiting: true };
+        } else if (type === 'transfer') {
+          await flagHuman(step.transfer_department || 'suporte');
+          if (String(step.text || '').trim()) await callEvolution({ action: 'send', phone, text: String(step.text).trim() });
+          curId = null;
+        } else {
+          curId = null;
+        }
+      }
+      await admin.from('bot_flow_sessions').delete().eq('owner_id', user_id).eq('phone', phone);
+      return { handled: true, waiting: false };
+    };
+
+    const botResult = await runBotFlow();
+    if (botResult.handled) {
+      return new Response(JSON.stringify({ ok: true, via: 'bot_flow', waiting: botResult.waiting }), { status: 200, headers: corsHeaders });
+    }
+
+    if (!kbEnabled && !absenceEnabled) {
+      return new Response(JSON.stringify({ ok: true, skipped: 'disabled_no_bot_match' }), { status: 200, headers: corsHeaders });
     }
 
 
