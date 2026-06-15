@@ -1205,7 +1205,7 @@ export default function EvolutionChat() {
       created_at: new Date().toISOString(), instance_name: currentInstance || null, raw, _pending: true,
     };
     setMessages(prev => [...prev, optimistic]);
-    const { data, error } = await invokeEvolution({ action: 'send', phone, text });
+    const { data, error } = await invokeEvolution({ action: 'send', phone, text, bot_flow: true });
     if (error || data?.error || data?.ok === false) {
       setMessages(prev => prev.map(m => m.id === tempId ? { ...m, _pending: false, _failed: true } : m));
       throw new Error(error?.message || data?.error || 'A Evolution não confirmou o envio.');
@@ -1220,7 +1220,7 @@ export default function EvolutionChat() {
     const fallback = text ? `${text}\n\n${buttons.map((b: any, i: number) => `${i + 1}️⃣ ${b.label}`).join('\n')}` : buttons.map((b: any, i: number) => `${i + 1}️⃣ ${b.label}`).join('\n');
     if (!buttons.length || mode === 'numbered') return sendFlowText(phone, fallback || text, { __bot_flow_menu: true, step_id: step.id });
     const { data, error } = await invokeEvolution({ action: 'send-menu', phone, text, buttons: buttons.map((b: any) => ({ id: b.id, label: b.label })), mode });
-    if (error || data?.error || data?.ok === false) return sendFlowText(phone, fallback, { __bot_flow_menu_fallback: true, step_id: step.id });
+    if (error || data?.error || data?.ok === false) throw new Error(error?.message || data?.error || 'A Evolution não confirmou o envio do menu real.');
     setMessages(prev => [...prev, {
       id: `tmp-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, phone, contact_name: null, direction: 'out',
       content: fallback, message_type: 'text', media_url: null, media_mime: null,
@@ -1229,6 +1229,34 @@ export default function EvolutionChat() {
   };
 
   const nextStepId = (step: any) => Array.isArray(step.buttons) && step.buttons[0]?.next_step_id ? step.buttons[0].next_step_id : null;
+
+  const runInlineFlowStep = async (phone: string, flowId: string, step: any, visited: Set<string>) => {
+    if (!step?.id || visited.has(step.id)) return;
+    visited.add(step.id);
+    for (const child of Array.isArray(step.children) ? step.children : []) {
+      await runInlineFlowStep(phone, flowId, child, visited);
+    }
+    const type = String(step.type || 'text');
+    if (type === 'text' || type === 'question' || type === 'rating' || type === 'ig_comment' || type === 'wa_template' || type === 'wa_flow') {
+      const text = String(step.text || step.title || '').trim();
+      if (text) await sendFlowText(phone, text, { __manual_bot_flow: flowId, step_id: step.id, __inline_step: true });
+    } else if (type === 'menu') {
+      await sendFlowMenu(phone, step);
+    } else if ((type === 'image' || type === 'video' || type === 'audio' || type === 'file') && step.media_url) {
+      if (String(step.text || '').trim()) await sendFlowText(phone, String(step.text).trim(), { __manual_bot_flow: flowId, step_id: step.id, __inline_step: true });
+      const res = await fetch(step.media_url);
+      const blob = await res.blob();
+      const mediaType: 'image' | 'audio' | 'video' | 'document' = type === 'image' ? 'image' : type === 'audio' ? 'audio' : type === 'video' ? 'video' : 'document';
+      const ext = (blob.type.split('/')[1] || 'bin').split(';')[0];
+      await sendMedia(new File([blob], `flow-${type}-${Date.now()}.${ext}`, { type: blob.type || 'application/octet-stream' }), mediaType, step.caption || '');
+    } else if (type === 'delay') {
+      await new Promise(r => setTimeout(r, Math.max(0, Math.min(15000, Number(step.delay_ms) || 800))));
+    } else if (type === 'api_call' || type === 'gpt' || type === 'tags' || type === 'save_contact' || type === 'save_card' || type === 'condition' || type === 'ab_test') {
+      const { data, error } = await invokeEvolution({ action: 'run-flow-step', phone, step, incoming: '' });
+      if (error || data?.error || data?.ok === false) throw new Error(error?.message || data?.error || `Falha no bloco interno ${type}`);
+      if (data?.replyText) await sendFlowText(phone, String(data.replyText), { __manual_bot_flow: flowId, step_id: step.id, __inline_step: true });
+    }
+  };
 
   // Walks a flow linearly until a branching/menu step waits for the customer's choice.
   const dispatchFlow = async (flow: { id: string; name: string; start_step_id: string | null; steps: any[] }) => {
@@ -1253,6 +1281,10 @@ export default function EvolutionChat() {
         if (!step) break;
         const type = step.type as string;
         const phone = selectedPhone;
+        for (const child of Array.isArray(step.children) ? step.children : []) {
+          await runInlineFlowStep(phone, flow.id, child, new Set<string>());
+          await new Promise(r => setTimeout(r, 250));
+        }
         if (type === 'text' || type === 'question' || type === 'rating' || type === 'transfer' || type === 'ig_comment' || type === 'wa_template' || type === 'wa_flow') {
           const text = (step.text || step.title || '').toString();
           if (text.trim()) await sendFlowText(phone, text, { __manual_bot_flow: flow.id, step_id: step.id });

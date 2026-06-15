@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type DragEvent } from "react";
 import DashboardLayout from "@/components/layout/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -46,6 +46,7 @@ type Step = {
   title?: string;
   text?: string;
   buttons?: FlowButton[];
+  children?: Step[];
   menu_style?: "buttons" | "list" | "numbered";
   position?: { x: number; y: number };
   // media
@@ -159,9 +160,27 @@ function normalizeStep(step: any, index: number): Step {
     type: normalizedType,
     title: step?.title || (step?.type === "message" ? "Texto" : TYPE_META[normalizedType].label),
     buttons: Array.isArray(step?.buttons) ? step.buttons : fallback.buttons,
+    children: Array.isArray(step?.children) ? step.children.map(normalizeInlineStep) : [],
     condition_rules: Array.isArray(step?.condition_rules) ? step.condition_rules : fallback.condition_rules,
     tags: Array.isArray(step?.tags) ? step.tags : fallback.tags,
     position: step?.position ?? fallback.position ?? { x: 120 + (index % 4) * 320, y: 100 + Math.floor(index / 4) * 260 },
+  };
+}
+
+function normalizeInlineStep(step: any, index: number): Step {
+  const normalizedType = normalizeStepType(step?.type);
+  const fallback = makeStep(normalizedType);
+  return {
+    ...fallback,
+    ...(step ?? {}),
+    id: step?.id || fallback.id,
+    type: normalizedType,
+    title: step?.title || TYPE_META[normalizedType].label,
+    buttons: Array.isArray(step?.buttons) ? step.buttons : fallback.buttons,
+    children: Array.isArray(step?.children) ? step.children.map(normalizeInlineStep) : [],
+    condition_rules: Array.isArray(step?.condition_rules) ? step.condition_rules : fallback.condition_rules,
+    tags: Array.isArray(step?.tags) ? step.tags : fallback.tags,
+    position: undefined,
   };
 }
 
@@ -190,6 +209,7 @@ function makeStep(type: StepType): Step {
     id: uid(),
     type,
     title: TYPE_META[type].label,
+    children: [],
     position: { x: 200 + Math.random() * 300, y: 200 + Math.random() * 200 },
   };
   switch (type) {
@@ -357,16 +377,28 @@ type StepNodeData = {
   onEdit: (id: string) => void;
   onDelete: (id: string) => void;
   onSetStart: (id: string) => void;
+  onDropChild: (parentId: string, event: DragEvent) => void;
 };
 
 function NodeBody({ step }: { step: Step }) {
   const showText = step.text && (
     <p className="text-xs text-foreground/90 whitespace-pre-wrap line-clamp-3">{step.text}</p>
   );
+  const children = (step.children ?? []).length > 0 && (
+    <div className="flex flex-wrap gap-1 pt-1">
+      {(step.children ?? []).slice(0, 4).map((child) => (
+        <Badge key={child.id} variant="secondary" className="text-[10px] gap-1">
+          {TYPE_META[normalizeStepType(child.type)].icon}{child.title || TYPE_META[normalizeStepType(child.type)].label}
+        </Badge>
+      ))}
+      {(step.children ?? []).length > 4 && <Badge variant="outline" className="text-[10px]">+{(step.children ?? []).length - 4}</Badge>}
+    </div>
+  );
   switch (step.type) {
     case "image":
       return (
         <div className="space-y-1.5">
+          {children}
           {showText}
           {step.media_url
             ? <img src={step.media_url} alt="" className="w-full max-h-32 object-cover rounded" />
@@ -379,6 +411,7 @@ function NodeBody({ step }: { step: Step }) {
     case "file":
       return (
         <div className="space-y-1">
+          {children}
           {showText}
           <div className="text-[11px] text-muted-foreground truncate">
             {step.media_url || <span className="italic">sem URL</span>}
@@ -421,12 +454,17 @@ function NodeBody({ step }: { step: Step }) {
     case "wa_flow":
       return <div className="text-[11px]">flow: <span className="font-mono">{step.wa_flow_id || "—"}</span></div>;
     default:
-      return showText || <span className="text-muted-foreground italic text-xs">(vazio)</span>;
+      return (
+        <div className="space-y-1">
+          {children}
+          {showText || <span className="text-muted-foreground italic text-xs">(vazio)</span>}
+        </div>
+      );
   }
 }
 
 function StepNode({ data, selected }: NodeProps<StepNodeData>) {
-  const { step, isStart, onEdit, onDelete, onSetStart } = data;
+  const { step, isStart, onEdit, onDelete, onSetStart, onDropChild } = data;
   const safeType = normalizeStepType(step.type);
   const safeStep = safeType === step.type ? step : { ...step, type: safeType };
   const meta = TYPE_META[safeType];
@@ -436,7 +474,11 @@ function StepNode({ data, selected }: NodeProps<StepNodeData>) {
   const hasNext = safeStep.type !== "end" && safeStep.type !== "transfer" && !branching;
 
   return (
-    <div className={`rounded-xl border bg-card shadow-sm min-w-[230px] max-w-[260px] transition ${selected ? "ring-2 ring-primary" : "border-border"}`}>
+    <div
+      className={`rounded-xl border bg-card shadow-sm min-w-[230px] max-w-[260px] transition ${selected ? "ring-2 ring-primary" : "border-border"}`}
+      onDragOver={(event) => { event.preventDefault(); event.stopPropagation(); event.dataTransfer.dropEffect = "copy"; }}
+      onDrop={(event) => onDropChild(safeStep.id, event)}
+    >
       <Handle type="target" position={Position.Left} className="!w-2.5 !h-2.5 !bg-muted-foreground" />
 
       <div className={`flex items-center justify-between px-3 py-2 rounded-t-xl text-white text-xs font-medium ${meta.color}`}>
@@ -776,6 +818,53 @@ function EditorPanel({
             <p className="text-[11px] text-muted-foreground">Arraste do círculo violeta de cada botão até outro passo para conectar.</p>
           </div>
         )}
+
+        <div className="space-y-2 rounded-md border bg-muted/20 p-2">
+          <div className="flex items-center justify-between gap-2">
+            <div>
+              <Label className="text-xs">Conteúdos dentro deste bloco</Label>
+              <p className="text-[11px] text-muted-foreground">Arraste itens da esquerda para o bloco no canvas ou adicione por aqui.</p>
+            </div>
+            <Select onValueChange={(v) => onChange({ children: [...(step.children ?? []), { ...makeStep(v as StepType), position: undefined }] })}>
+              <SelectTrigger className="h-8 w-32 text-xs"><SelectValue placeholder="Adicionar" /></SelectTrigger>
+              <SelectContent>
+                {(Object.keys(TYPE_META) as StepType[]).filter((k) => k !== "end" && k !== "transfer").map((k) => (
+                  <SelectItem key={k} value={k}>{TYPE_META[k].label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          {(step.children ?? []).length === 0 && <p className="text-[11px] text-muted-foreground">Nenhum conteúdo interno.</p>}
+          {(step.children ?? []).map((child, index) => (
+            <div key={child.id} className="space-y-2 rounded border bg-card p-2">
+              <div className="flex items-center gap-2">
+                <Badge variant="secondary" className="text-[10px] gap-1">{TYPE_META[normalizeStepType(child.type)].icon}{TYPE_META[normalizeStepType(child.type)].label}</Badge>
+                <Input className="h-7 text-xs" value={child.title ?? ""} onChange={(e) => onChange({ children: step.children!.map((x) => x.id === child.id ? { ...x, title: e.target.value } : x) })} />
+                <Button size="sm" variant="ghost" className="h-7 px-2 text-rose-500" onClick={() => onChange({ children: step.children!.filter((x) => x.id !== child.id) })}><Trash2 className="w-3 h-3" /></Button>
+              </div>
+              {(child.type === "text" || child.type === "menu" || child.type === "question" || child.type === "rating" || child.type === "ig_comment") && (
+                <Textarea rows={2} value={child.text ?? ""} onChange={(e) => onChange({ children: step.children!.map((x) => x.id === child.id ? { ...x, text: e.target.value } : x) })} />
+              )}
+              {(child.type === "image" || child.type === "video" || child.type === "audio" || child.type === "file") && (
+                <div className="space-y-1">
+                  <Input className="h-8 text-xs" placeholder="URL da mídia" value={child.media_url ?? ""} onChange={(e) => onChange({ children: step.children!.map((x) => x.id === child.id ? { ...x, media_url: e.target.value } : x) })} />
+                  <Input className="h-8 text-xs" placeholder="Legenda" value={child.caption ?? ""} onChange={(e) => onChange({ children: step.children!.map((x) => x.id === child.id ? { ...x, caption: e.target.value } : x) })} />
+                </div>
+              )}
+              {child.type === "menu" && (
+                <div className="space-y-1">
+                  <Select value={child.menu_style ?? "buttons"} onValueChange={(v: any) => onChange({ children: step.children!.map((x) => x.id === child.id ? { ...x, menu_style: v } : x) })}>
+                    <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                    <SelectContent><SelectItem value="buttons">Botões reais</SelectItem><SelectItem value="list">Lista real</SelectItem><SelectItem value="numbered">Texto numerado</SelectItem></SelectContent>
+                  </Select>
+                  <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => onChange({ children: step.children!.map((x) => x.id === child.id ? { ...x, buttons: [...(x.buttons ?? []), { id: uid(), label: `Opção ${(x.buttons?.length ?? 0) + 1}`, next_step_id: null }] } : x) })}><Plus className="w-3 h-3 mr-1" /> Botão</Button>
+                  {(child.buttons ?? []).map((b) => <div key={b.id} className="flex gap-1"><Input className="h-8 text-xs" value={b.label} onChange={(e) => onChange({ children: step.children!.map((x) => x.id === child.id ? { ...x, buttons: (x.buttons ?? []).map((btn) => btn.id === b.id ? { ...btn, label: e.target.value } : btn) } : x) })} /><Button size="sm" variant="ghost" className="h-8 px-2 text-rose-500" onClick={() => onChange({ children: step.children!.map((x) => x.id === child.id ? { ...x, buttons: (x.buttons ?? []).filter((btn) => btn.id !== b.id) } : x) })}><Trash2 className="w-3 h-3" /></Button></div>)}
+                </div>
+              )}
+              <div className="flex justify-between text-[10px] text-muted-foreground"><span>Ordem {index + 1}</span><span>{child.buttons?.some((b) => b.next_step_id) ? "tem ligação" : "sem ligação"}</span></div>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );
@@ -809,12 +898,47 @@ function FlowBuilder({ flow, onChange }: { flow: Flow; onChange: (updater: (f: F
     setNodes((nds) => nds.filter((n) => n.id !== id));
   }
 
+  async function buildMediaPatch(file: File) {
+    let mediaUrl = URL.createObjectURL(file);
+    try {
+      const safeName = file.name.replace(/[^a-z0-9._-]/gi, "-");
+      const path = `${flow.owner_id}/bot-flow-${Date.now()}-${safeName}`;
+      const { error } = await supabase.storage.from("reseller-assets").upload(path, file, { contentType: file.type || "application/octet-stream", upsert: false });
+      if (!error) {
+        const { data } = supabase.storage.from("reseller-assets").getPublicUrl(path);
+        mediaUrl = data.publicUrl || mediaUrl;
+      }
+    } catch { /* keep local preview if upload is unavailable */ }
+    return { title: file.name, media_url: mediaUrl };
+  }
+
+  async function handleDropChild(parentId: string, event: DragEvent) {
+    event.preventDefault();
+    event.stopPropagation();
+    const droppedType = event.dataTransfer.getData("application/x-flow-step") as StepType;
+    const uri = event.dataTransfer.getData("text/uri-list") || event.dataTransfer.getData("text/plain");
+    const file = event.dataTransfer.files?.[0];
+    let child: Step | null = null;
+    if (droppedType && droppedType in TYPE_META) child = makeStep(droppedType);
+    else if (file) {
+      const mediaType: StepType = file.type.startsWith("video/") ? "video" : file.type.startsWith("audio/") ? "audio" : file.type.startsWith("image/") ? "image" : "file";
+      child = { ...makeStep(mediaType), ...(await buildMediaPatch(file)) };
+    } else if (/^https?:\/\//i.test(uri)) {
+      const mediaType: StepType = /\.(mp4|mov|webm)(\?|$)/i.test(uri) ? "video" : /\.(mp3|ogg|wav|m4a)(\?|$)/i.test(uri) ? "audio" : /\.(pdf|zip|docx?|xlsx?)(\?|$)/i.test(uri) ? "file" : "image";
+      child = { ...makeStep(mediaType), media_url: uri };
+    }
+    if (!child) return;
+    child.position = undefined;
+    onChange((f) => ({ ...f, steps: f.steps.map((s) => s.id === parentId ? { ...s, children: [...(s.children ?? []), child!] } : s) }));
+    toast.success(`${TYPE_META[normalizeStepType(child.type)].label} adicionado dentro do bloco`);
+  }
+
   const initialNodes: Node<StepNodeData>[] = useMemo(
     () => flow.steps.map((s, i) => ({
       id: s.id,
       type: "step",
       position: s.position ?? { x: 120 + (i % 4) * 320, y: 100 + Math.floor(i / 4) * 260 },
-      data: { step: s, isStart: flow.start_step_id === s.id, onEdit: setEditingId, onDelete: handleDelete, onSetStart: handleSetStart },
+      data: { step: s, isStart: flow.start_step_id === s.id, onEdit: setEditingId, onDelete: handleDelete, onSetStart: handleSetStart, onDropChild: handleDropChild },
     })),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [flow.id],
@@ -842,7 +966,7 @@ function FlowBuilder({ flow, onChange }: { flow: Flow; onChange: (updater: (f: F
         id: s.id,
         type: "step",
         position: current?.position ?? s.position ?? { x: 300 + (i % 3) * 320, y: 180 + Math.floor(i / 3) * 250 },
-        data: { step: s, isStart: flow.start_step_id === s.id, onEdit: setEditingId, onDelete: handleDelete, onSetStart: handleSetStart },
+        data: { step: s, isStart: flow.start_step_id === s.id, onEdit: setEditingId, onDelete: handleDelete, onSetStart: handleSetStart, onDropChild: handleDropChild },
       };
     }));
     setEdges(edgesFromSteps(flow.steps));
@@ -858,17 +982,7 @@ function FlowBuilder({ flow, onChange }: { flow: Flow; onChange: (updater: (f: F
 
   const addDroppedFile = async (file: File, position: { x: number; y: number }) => {
     const mediaType: StepType = file.type.startsWith("video/") ? "video" : file.type.startsWith("audio/") ? "audio" : file.type.startsWith("image/") ? "image" : "file";
-    let mediaUrl = URL.createObjectURL(file);
-    try {
-      const safeName = file.name.replace(/[^a-z0-9._-]/gi, "-");
-      const path = `${flow.owner_id}/bot-flow-${Date.now()}-${safeName}`;
-      const { error } = await supabase.storage.from("reseller-assets").upload(path, file, { contentType: file.type || "application/octet-stream", upsert: false });
-      if (!error) {
-        const { data } = supabase.storage.from("reseller-assets").getPublicUrl(path);
-        mediaUrl = data.publicUrl || mediaUrl;
-      }
-    } catch { /* keep local preview if upload is unavailable */ }
-    addStep(mediaType, position, { title: file.name, media_url: mediaUrl });
+    addStep(mediaType, position, await buildMediaPatch(file));
   };
 
   const onConnect = useCallback((params: Edge | Connection) => {

@@ -696,19 +696,23 @@ Deno.serve(async (req) => {
       const attempts: Array<{ url: string; headers: Record<string, string>; body: any; mode: string }> = [];
       for (const target of targets) {
         const title = text || 'Escolha uma opção:';
-        const rows = buttons.map((b) => ({ id: b.id, title: b.label, description: '' }));
-        const replyButtons = buttons.slice(0, 3).map((b) => ({ id: b.id, title: b.label, displayText: b.label, type: 'reply' }));
+        const rows = buttons.map((b) => ({ id: b.id, rowId: b.id, title: b.label, description: '' }));
+        const replyButtons = buttons.slice(0, 3).map((b) => ({ id: b.id, buttonId: b.id, title: b.label, displayText: b.label, buttonText: { displayText: b.label }, type: 'reply' }));
         if (menuMode === 'list' || buttons.length > 3) {
           attempts.push(
             { url: `${baseUrl}/message/sendList/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: target, title, description: title, buttonText: 'MENU', footerText: '', sections: [{ title: 'Opções', rows }] }, mode: 'evolution-api-list' },
             { url: `${baseUrl}/message/sendList`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: target, title, description: title, buttonText: 'MENU', sections: [{ title: 'Opções', rows }] }, mode: 'evolution-go-list' },
             { url: `${baseUrl}/send/list`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: target, title, description: title, buttonText: 'MENU', sections: [{ title: 'Opções', rows }], formatJid: !/@/.test(target) }, mode: 'evolution-go-send-list' },
+            { url: `${baseUrl}/message/sendList/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: target, title, text: title, buttonText: 'Selecionar', footerText: '', sections: [{ title: 'Opções', rows }] }, mode: 'evolution-api-list-alt' },
+            { url: `${baseUrl}/send/list`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: target, text: title, buttonText: 'Selecionar', sections: [{ title: 'Opções', rows }], formatJid: !/@/.test(target) }, mode: 'evolution-go-send-list-alt' },
           );
         } else {
           attempts.push(
             { url: `${baseUrl}/message/sendButtons/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: target, title, description: title, footer: '', buttons: replyButtons }, mode: 'evolution-api-buttons' },
             { url: `${baseUrl}/message/sendButtons`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: target, title, description: title, buttons: replyButtons }, mode: 'evolution-go-buttons' },
             { url: `${baseUrl}/send/buttons`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: target, title, description: title, buttons: replyButtons, formatJid: !/@/.test(target) }, mode: 'evolution-go-send-buttons' },
+            { url: `${baseUrl}/message/sendButtons/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number: target, text: title, title, footer: '', buttons: replyButtons }, mode: 'evolution-api-buttons-alt' },
+            { url: `${baseUrl}/send/buttons`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: target, text: title, buttons: replyButtons, formatJid: !/@/.test(target) }, mode: 'evolution-go-send-buttons-alt' },
           );
         }
       }
