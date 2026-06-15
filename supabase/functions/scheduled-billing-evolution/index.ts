@@ -271,6 +271,25 @@ Deno.serve(async (req) => {
         }
 
         const phone = normalizePhone(c.phone);
+
+        // Atomic reservation: insert the log first; unique index blocks duplicates from parallel ticks
+        const { data: reservation, error: reserveError } = await supabase
+          .from('billing_logs')
+          .insert({
+            customer_id: c.id,
+            billing_type: c.billingType,
+            message: `[Evolution] [${phone}] reservando envio...`,
+            whatsapp_status: 'pending',
+          })
+          .select('id')
+          .single();
+
+        if (reserveError) {
+          // Duplicate (already sent today by another tick) — skip silently
+          console.log(`[evo-billing] skip duplicate ${c.name} ${c.billingType}:`, reserveError.message);
+          continue;
+        }
+
         let result: any;
         try {
           if (sched.image_url) {
@@ -288,12 +307,10 @@ Deno.serve(async (req) => {
           console.error(`[evo-billing] exception for ${c.name}:`, e);
         }
 
-        await supabase.from('billing_logs').insert({
-          customer_id: c.id,
-          billing_type: c.billingType,
+        await supabase.from('billing_logs').update({
           message: `[Evolution] [${phone}] ${text.substring(0, 120)}`,
           whatsapp_status: result?.ok ? 'sent' : 'error',
-        });
+        }).eq('id', reservation.id);
 
         if (i < batch.length - 1) {
           const delay = Math.floor(Math.random() * (maxDelay - minDelay + 1)) + minDelay;
