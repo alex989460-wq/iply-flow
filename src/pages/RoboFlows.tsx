@@ -818,6 +818,52 @@ function EditorPanel({
             <p className="text-[11px] text-muted-foreground">Arraste do círculo violeta de cada botão até outro passo para conectar.</p>
           </div>
         )}
+
+        <div className="space-y-2 rounded-md border bg-muted/20 p-2">
+          <div className="flex items-center justify-between gap-2">
+            <div>
+              <Label className="text-xs">Conteúdos dentro deste bloco</Label>
+              <p className="text-[11px] text-muted-foreground">Arraste itens da esquerda para o bloco no canvas ou adicione por aqui.</p>
+            </div>
+            <Select onValueChange={(v: StepType) => onChange({ children: [...(step.children ?? []), { ...makeStep(v), position: undefined }] })}>
+              <SelectTrigger className="h-8 w-32 text-xs"><SelectValue placeholder="Adicionar" /></SelectTrigger>
+              <SelectContent>
+                {(Object.keys(TYPE_META) as StepType[]).filter((k) => k !== "end" && k !== "transfer").map((k) => (
+                  <SelectItem key={k} value={k}>{TYPE_META[k].label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          {(step.children ?? []).length === 0 && <p className="text-[11px] text-muted-foreground">Nenhum conteúdo interno.</p>}
+          {(step.children ?? []).map((child, index) => (
+            <div key={child.id} className="space-y-2 rounded border bg-card p-2">
+              <div className="flex items-center gap-2">
+                <Badge variant="secondary" className="text-[10px] gap-1">{TYPE_META[normalizeStepType(child.type)].icon}{TYPE_META[normalizeStepType(child.type)].label}</Badge>
+                <Input className="h-7 text-xs" value={child.title ?? ""} onChange={(e) => onChange({ children: step.children!.map((x) => x.id === child.id ? { ...x, title: e.target.value } : x) })} />
+                <Button size="sm" variant="ghost" className="h-7 px-2 text-rose-500" onClick={() => onChange({ children: step.children!.filter((x) => x.id !== child.id) })}><Trash2 className="w-3 h-3" /></Button>
+              </div>
+              {(child.type === "text" || child.type === "menu" || child.type === "question" || child.type === "rating" || child.type === "ig_comment") && (
+                <Textarea rows={2} value={child.text ?? ""} onChange={(e) => onChange({ children: step.children!.map((x) => x.id === child.id ? { ...x, text: e.target.value } : x) })} />
+              )}
+              {(child.type === "image" || child.type === "video" || child.type === "audio" || child.type === "file") && (
+                <div className="space-y-1">
+                  <Input className="h-8 text-xs" placeholder="URL da mídia" value={child.media_url ?? ""} onChange={(e) => onChange({ children: step.children!.map((x) => x.id === child.id ? { ...x, media_url: e.target.value } : x) })} />
+                  <Input className="h-8 text-xs" placeholder="Legenda" value={child.caption ?? ""} onChange={(e) => onChange({ children: step.children!.map((x) => x.id === child.id ? { ...x, caption: e.target.value } : x) })} />
+                </div>
+              )}
+              {child.type === "menu" && (
+                <div className="space-y-1">
+                  <Select value={child.menu_style ?? "buttons"} onValueChange={(v: any) => onChange({ children: step.children!.map((x) => x.id === child.id ? { ...x, menu_style: v } : x) })}>
+                    <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                    <SelectContent><SelectItem value="buttons">Botões reais</SelectItem><SelectItem value="list">Lista real</SelectItem><SelectItem value="numbered">Texto numerado</SelectItem></SelectContent>
+                  </Select>
+                  {(child.buttons ?? []).map((b) => <Input key={b.id} className="h-8 text-xs" value={b.label} onChange={(e) => onChange({ children: step.children!.map((x) => x.id === child.id ? { ...x, buttons: (x.buttons ?? []).map((btn) => btn.id === b.id ? { ...btn, label: e.target.value } : btn) } : x) })} />)}
+                </div>
+              )}
+              <div className="flex justify-between text-[10px] text-muted-foreground"><span>Ordem {index + 1}</span><span>{child.buttons?.some((b) => b.next_step_id) ? "tem ligação" : "sem ligação"}</span></div>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );
