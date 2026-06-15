@@ -367,6 +367,7 @@ function NodeBody({ step }: { step: Step }) {
     case "image":
       return (
         <div className="space-y-1.5">
+          {showText}
           {step.media_url
             ? <img src={step.media_url} alt="" className="w-full max-h-32 object-cover rounded" />
             : <div className="w-full h-16 bg-muted rounded flex items-center justify-center text-[10px] text-muted-foreground">sem imagem</div>}
@@ -377,8 +378,12 @@ function NodeBody({ step }: { step: Step }) {
     case "audio":
     case "file":
       return (
-        <div className="text-[11px] text-muted-foreground truncate">
-          {step.media_url || <span className="italic">sem URL</span>}
+        <div className="space-y-1">
+          {showText}
+          <div className="text-[11px] text-muted-foreground truncate">
+            {step.media_url || <span className="italic">sem URL</span>}
+          </div>
+          {step.caption && <p className="text-[11px] line-clamp-2">{step.caption}</p>}
         </div>
       );
     case "contact":
