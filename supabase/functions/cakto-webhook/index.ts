@@ -2045,37 +2045,59 @@ serve(async (req) => {
         console.error('[Cakto] Erro ao notificar sobre conflito:', e);
       }
 
-      // ── Registrar pendência no painel flutuante (uma por cliente em conflito) ──
+      // ── Registrar UMA pendência única no painel flutuante por pagamento em conflito ──
       try {
         const appUrl = 'https://iply-flow.lovable.app';
-        const pendingRows = conflictCustomers.map((c: any) => ({
-          owner_id: c.created_by || matchedCustomer.created_by,
-          customer_id: c.id,
-          customer_name: c.name,
-          customer_phone: c.phone || phoneDigits,
+        const candidates = conflictCustomers.map((c: any) => ({
+          id: c.id,
+          name: c.name,
           username: c.username || null,
-          server_id: c.server_id || null,
-          server_name: null,
-          server_host: null,
-          plan_name: matchedPlanName || null,
-          amount: amountNumeric || 0,
-          new_due_date: null,
-          reason: 'manual',
-          source: caktoId ? `cakto:${caktoId}` : 'cakto',
-          error_details: {
-            conflict: true,
-            conflict_reason: conflictReason,
-            payment_id: conflictPaymentId,
-            confirm_url: `${appUrl}/confirmar-renovacao?payment_id=${conflictPaymentId}&customer_id=${c.id}`,
-            total_conflicts: conflictCustomers.length,
-          },
+          phone: c.phone || null,
+          due_date: c.due_date || null,
+          confirm_url: `${appUrl}/confirmar-renovacao?payment_id=${conflictPaymentId}&customer_id=${c.id}`,
         }));
-        const { error: pmrErr } = await supabaseAdmin.from('pending_manual_renewals').insert(pendingRows);
-        if (pmrErr) console.error('[Cakto] Erro ao inserir pendências de conflito:', pmrErr);
-        else console.log(`[Cakto] ${pendingRows.length} pendência(s) de conflito registradas no flutuante.`);
+
+        // Evita duplicar pendência para o mesmo payment_id (idempotência)
+        const { data: existingPending } = await supabaseAdmin
+          .from('pending_manual_renewals')
+          .select('id')
+          .eq('owner_id', matchedCustomer.created_by)
+          .contains('error_details', { payment_id: conflictPaymentId })
+          .limit(1);
+
+        if (!existingPending || existingPending.length === 0) {
+          const pendingRow = {
+            owner_id: matchedCustomer.created_by,
+            customer_id: null,
+            customer_name: `Conflito: ${conflictCustomers.length} clientes — escolha qual renovar`,
+            customer_phone: phoneDigits,
+            username: null,
+            server_id: null,
+            server_name: null,
+            server_host: null,
+            plan_name: matchedPlanName || null,
+            amount: amountNumeric || 0,
+            new_due_date: null,
+            reason: 'manual',
+            source: caktoId ? `cakto:${caktoId}` : 'cakto',
+            error_details: {
+              conflict: true,
+              conflict_reason: conflictReason,
+              payment_id: conflictPaymentId,
+              total_conflicts: conflictCustomers.length,
+              candidates,
+            },
+          };
+          const { error: pmrErr } = await supabaseAdmin.from('pending_manual_renewals').insert(pendingRow);
+          if (pmrErr) console.error('[Cakto] Erro ao inserir pendência de conflito:', pmrErr);
+          else console.log('[Cakto] 1 pendência de conflito registrada no flutuante.');
+        } else {
+          console.log('[Cakto] Pendência de conflito já existe para este payment_id, ignorando.');
+        }
       } catch (e) {
         console.error('[Cakto] Erro ao registrar pendência de conflito:', e);
       }
+
 
       return new Response(JSON.stringify({
         success: true,
