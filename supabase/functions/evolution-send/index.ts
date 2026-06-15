@@ -817,7 +817,7 @@ Deno.serve(async (req) => {
         content: text,
         status: 'sent',
         external_id: result.data?.key?.id || result.data?.messageId || null,
-        raw: result.data,
+        raw: { ...result.data, __bot_flow: !!body.bot_flow },
       });
       return jsonResponse({ ok: true, mode, data: result.data });
     }
