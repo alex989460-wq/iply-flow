@@ -875,14 +875,12 @@ function FlowBuilder({ flow, onChange }: { flow: Flow; onChange: (updater: (f: F
   }, [onChange]);
 
   const deleteSelectedEdges = useCallback(() => {
-    setEdges((eds) => {
-      const removed = eds.filter((e) => selectedEdgeIds.includes(e.id));
-      if (!removed.length) return eds;
-      onChange((f) => clearRemovedEdges(f, removed));
-      setSelectedEdgeIds([]);
-      return eds.filter((e) => !selectedEdgeIds.includes(e.id));
-    });
-  }, [onChange, selectedEdgeIds, setEdges]);
+    const removed = edges.filter((e) => selectedEdgeIds.includes(e.id));
+    if (!removed.length) return;
+    onChange((f) => clearRemovedEdges(f, removed));
+    setEdges((eds) => eds.filter((e) => !selectedEdgeIds.includes(e.id)));
+    setSelectedEdgeIds([]);
+  }, [edges, onChange, selectedEdgeIds, setEdges]);
 
   const onNodeDragStop = useCallback((_: any, node: Node) => {
     onChange((f) => ({ ...f, steps: f.steps.map((s) => s.id === node.id ? { ...s, position: node.position } : s) }));
