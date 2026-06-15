@@ -389,7 +389,12 @@ Deno.serve(async (req) => {
           await admin.from('bot_flow_sessions').upsert({ owner_id: user_id, phone, flow_id: flow.id, current_step_id: step.id, variables, expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() }, { onConflict: 'owner_id,phone' });
           return { handled: true, waiting: true };
         } else if (type === 'transfer') {
-          await flagHuman(step.transfer_department || 'suporte');
+          await admin.from('evolution_contacts').upsert({
+            user_id, phone,
+            needs_human: true,
+            ai_category: step.transfer_department || 'suporte',
+            last_classified_at: new Date().toISOString(),
+          }, { onConflict: 'user_id,phone' as any });
           if (String(step.text || '').trim()) await callEvolution({ action: 'send', phone, text: String(step.text).trim() });
           curId = null;
         } else {
