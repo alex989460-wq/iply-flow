@@ -604,8 +604,9 @@ export default function Resellers() {
                     <TableRow>
                       <TableHead>Email</TableHead>
                       <TableHead>Nome</TableHead>
+                      <TableHead>Revenda de</TableHead>
                       <TableHead>Status</TableHead>
-                      {isAdmin && <TableHead>Créditos</TableHead>}
+                      <TableHead>Créditos</TableHead>
                       <TableHead>Expira em</TableHead>
                       <TableHead>Cadastrado em</TableHead>
                       <TableHead className="text-right">Ações</TableHead>
@@ -615,25 +616,28 @@ export default function Resellers() {
                     {filteredResellers?.map((reseller) => {
                       const status = getAccessStatus(reseller.access_expires_at, reseller.is_active);
                       const StatusIcon = status.icon;
-                      
+                      const isMySub = reseller.parent_reseller_id === currentUserId;
+                      const canManage = isAdmin || isMySub;
+
                       return (
                         <TableRow key={reseller.id} className="table-row-hover">
                           <TableCell className="font-medium">{reseller.email}</TableCell>
                           <TableCell>{reseller.full_name || "-"}</TableCell>
+                          <TableCell className="text-sm text-muted-foreground">
+                            {getParentLabel(reseller.parent_reseller_id)}
+                          </TableCell>
                           <TableCell>
                             <Badge variant={status.variant} className="gap-1">
                               <StatusIcon className="h-3 w-3" />
                               {status.label}
                             </Badge>
                           </TableCell>
-                          {isAdmin && (
-                            <TableCell>
-                              <Badge variant="outline" className="gap-1">
-                                <Coins className="h-3 w-3" />
-                                {reseller.credits}
-                              </Badge>
-                            </TableCell>
-                          )}
+                          <TableCell>
+                            <Badge variant="outline" className="gap-1">
+                              <Coins className="h-3 w-3" />
+                              {reseller.credits}
+                            </Badge>
+                          </TableCell>
 
                           <TableCell>
                             {format(new Date(reseller.access_expires_at), "dd/MM/yyyy", { locale: ptBR })}
@@ -643,7 +647,7 @@ export default function Resellers() {
                           </TableCell>
                           <TableCell className="text-right">
                             <div className="flex justify-end gap-2 flex-wrap">
-                              {isAdmin && (
+                              {canManage && reseller.user_id !== currentUserId && (
                                 <Button
                                   variant="outline"
                                   size="sm"
@@ -653,24 +657,29 @@ export default function Resellers() {
                                   Créditos
                                 </Button>
                               )}
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => handleEdit(reseller)}
-                              >
-                                <Pencil className="h-4 w-4 mr-1" />
-                                Editar
-                              </Button>
+                              {isAdmin && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleEdit(reseller)}
+                                >
+                                  <Pencil className="h-4 w-4 mr-1" />
+                                  Editar
+                                </Button>
+                              )}
+                              {canManage && reseller.user_id !== currentUserId && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleRenew(reseller)}
+                                  title={isAdmin ? 'Renovar acesso' : 'Renovar (1 crédito = 30 dias)'}
+                                >
+                                  <Calendar className="h-4 w-4 mr-1" />
+                                  Renovar
+                                </Button>
+                              )}
                               {isAdmin && (
                                 <>
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => handleRenew(reseller)}
-                                  >
-                                    <Calendar className="h-4 w-4 mr-1" />
-                                    Renovar
-                                  </Button>
                                   <Button
                                     variant="outline"
                                     size="sm"
@@ -716,16 +725,18 @@ export default function Resellers() {
                                       </>
                                     )}
                                   </Button>
-                                  <Button
-                                    variant="destructive"
-                                    size="sm"
-                                    onClick={() => setResellerToDelete(reseller)}
-                                    title="Excluir revendedor"
-                                  >
-                                    <Trash2 className="h-4 w-4 mr-1" />
-                                    Excluir
-                                  </Button>
                                 </>
+                              )}
+                              {canManage && reseller.user_id !== currentUserId && (
+                                <Button
+                                  variant="destructive"
+                                  size="sm"
+                                  onClick={() => setResellerToDelete(reseller)}
+                                  title="Excluir revendedor"
+                                >
+                                  <Trash2 className="h-4 w-4 mr-1" />
+                                  Excluir
+                                </Button>
                               )}
                             </div>
 
@@ -739,6 +750,7 @@ export default function Resellers() {
             )}
           </CardContent>
         </Card>
+
 
         {/* Access Codes Card */}
         <Card>
