@@ -580,7 +580,7 @@ export default function Resellers() {
                       <TableHead>Email</TableHead>
                       <TableHead>Nome</TableHead>
                       <TableHead>Status</TableHead>
-                      <TableHead>Créditos</TableHead>
+                      {isAdmin && <TableHead>Créditos</TableHead>}
                       <TableHead>Expira em</TableHead>
                       <TableHead>Cadastrado em</TableHead>
                       <TableHead className="text-right">Ações</TableHead>
@@ -601,12 +601,15 @@ export default function Resellers() {
                               {status.label}
                             </Badge>
                           </TableCell>
-                          <TableCell>
-                            <Badge variant="outline" className="gap-1">
-                              <Coins className="h-3 w-3" />
-                              {reseller.credits}
-                            </Badge>
-                          </TableCell>
+                          {isAdmin && (
+                            <TableCell>
+                              <Badge variant="outline" className="gap-1">
+                                <Coins className="h-3 w-3" />
+                                {reseller.credits}
+                              </Badge>
+                            </TableCell>
+                          )}
+
                           <TableCell>
                             {format(new Date(reseller.access_expires_at), "dd/MM/yyyy", { locale: ptBR })}
                           </TableCell>
