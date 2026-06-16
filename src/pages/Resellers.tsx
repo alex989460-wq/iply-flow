@@ -49,7 +49,8 @@ const createSchema = z.object({
 });
 
 export default function Resellers() {
-  const { isAdmin } = useAuth();
+  const { isAdmin, user } = useAuth();
+  const currentUserId = user?.id ?? null;
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState("");
