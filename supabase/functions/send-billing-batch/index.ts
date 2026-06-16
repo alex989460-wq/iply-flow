@@ -183,7 +183,8 @@ async function sendWhatsAppTemplateZap(
   templateName: string,
   token: string, 
   apiBaseUrl: string,
-  departmentId: string
+  departmentId: string,
+  vars: Array<{ name: string; value: string }> = []
 ): Promise<{ success: boolean; error?: string }> {
   try {
     let formattedPhone = phone.replace(/\D/g, '');
@@ -191,14 +192,22 @@ async function sendWhatsAppTemplateZap(
       formattedPhone = '55' + formattedPhone;
     }
     
-    console.log(`[Zap Responder] Sending template "${templateName}" to ${formattedPhone} via dept ${departmentId}`);
+    console.log(`[Zap Responder] Sending template "${templateName}" to ${formattedPhone} via dept ${departmentId} with ${vars.length} vars`);
     
-    const body = {
+    const positional = vars.map(v => v.value);
+    const namedParams = vars.map(v => ({ type: 'text', parameter_name: v.name, text: v.value }));
+
+    const body: Record<string, unknown> = {
       type: 'template',
       template_name: templateName,
       number: formattedPhone,
       language: 'pt_BR',
     };
+    if (vars.length > 0) {
+      body.components = [{ type: 'body', parameters: namedParams }];
+      body.variables = { body_text: positional };
+      body.params = positional;
+    }
     
     const response = await fetch(`${apiBaseUrl}/whatsapp/message/${departmentId}`, {
       method: 'POST',
