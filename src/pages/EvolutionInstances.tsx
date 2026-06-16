@@ -15,6 +15,8 @@ import {
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import logoSg from '@/assets/logo-sg.png';
+
 
 interface InstanceRow {
   id: string;
@@ -377,7 +379,7 @@ export default function EvolutionInstances() {
                       className="absolute inset-0 w-full h-full items-center justify-center bg-gradient-to-br from-emerald-500/10 to-primary/10"
                       style={{ display: inst.profile_pic ? 'none' : 'flex' }}
                     >
-                      <Smartphone className="w-16 h-16 text-muted-foreground/30" />
+                      <img src={logoSg} className="w-24 h-24 object-contain opacity-60" alt="" />
                     </div>
                   </div>
 
