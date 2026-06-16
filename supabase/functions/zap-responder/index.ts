@@ -612,154 +612,149 @@ async function enviarTemplateWhatsApp(
       return [];
     })();
 
-    const basePayload = {
-      type: 'template',
-      template_name: templateName,
-      number,
-      language,
+    const buildPayloadsForLang = (lang: string) => {
+      const basePayload = {
+        type: 'template',
+        template_name: templateName,
+        number,
+        language: lang,
+      };
+
+      const metaShapeNamed = namedParams.length > 0 ? [{
+        name: `meta-shape template object (named) [${lang}]`,
+        body: {
+          type: 'template',
+          number,
+          template: {
+            name: templateName,
+            language: { code: lang },
+            components: [{
+              type: 'body',
+              parameters: namedParams.map((p) => ({ type: 'text', parameter_name: p.name, text: p.value })),
+            }],
+          },
+        } as Record<string, unknown>,
+      }] : [];
+
+      const metaShapePositional = bodyTextValues.length > 0 ? [{
+        name: `meta-shape template object (positional) [${lang}]`,
+        body: {
+          type: 'template',
+          number,
+          template: {
+            name: templateName,
+            language: { code: lang },
+            components: [{
+              type: 'body',
+              parameters: bodyTextValues.map((v: string) => ({ type: 'text', text: v })),
+            }],
+          },
+        } as Record<string, unknown>,
+      }] : [];
+
+      const namedAttempts = namedParams.length > 0
+        ? [
+            {
+              name: `template + components[named] [${lang}]`,
+              body: {
+                ...basePayload,
+                components: [{ type: 'body', parameters: namedParams.map((p) => ({ type: 'text', parameter_name: p.name, text: p.value })) }],
+              } as Record<string, unknown>,
+            },
+            {
+              name: `template + variables.named [${lang}]`,
+              body: { ...basePayload, variables: { named: namedParams } } as Record<string, unknown>,
+            },
+          ]
+        : [];
+
+      const positionalAttempts = bodyTextValues.length > 0
+        ? [
+            {
+              name: `template + components[] [${lang}]`,
+              body: {
+                ...basePayload,
+                components: [{ type: 'body', parameters: bodyTextValues.map((v: string) => ({ type: 'text', text: v })) }],
+              } as Record<string, unknown>,
+            },
+            { name: `template + variables.body_text [${lang}]`, body: { ...basePayload, variables: { body_text: bodyTextValues } } as Record<string, unknown> },
+            { name: `template + params[] [${lang}]`, body: { ...basePayload, params: bodyTextValues } as Record<string, unknown> },
+            { name: `template + body_text[][] [${lang}]`, body: { ...basePayload, body_text: [bodyTextValues] } as Record<string, unknown> },
+          ]
+        : [{ name: `template (no vars) [${lang}]`, body: { ...basePayload } as Record<string, unknown> }];
+
+      return [...metaShapeNamed, ...metaShapePositional, ...namedAttempts, ...positionalAttempts];
     };
 
-    const metaShapeNamed = namedParams.length > 0 ? [{
-      name: 'meta-shape template object (named)',
-      body: {
-        type: 'template',
-        number,
-        template: {
-          name: templateName,
-          language: { code: language },
-          components: [{
-            type: 'body',
-            parameters: namedParams.map((p) => ({ type: 'text', parameter_name: p.name, text: p.value })),
-          }],
-        },
-      } as Record<string, unknown>,
-    }] : [];
-
-    const metaShapePositional = bodyTextValues.length > 0 ? [{
-      name: 'meta-shape template object (positional)',
-      body: {
-        type: 'template',
-        number,
-        template: {
-          name: templateName,
-          language: { code: language },
-          components: [{
-            type: 'body',
-            parameters: bodyTextValues.map((v: string) => ({ type: 'text', text: v })),
-          }],
-        },
-      } as Record<string, unknown>,
-    }] : [];
-
-    const namedAttempts: Array<{ name: string; body: Record<string, unknown> }> = namedParams.length > 0
-      ? [
-          {
-            name: 'template + components[named]',
-            body: {
-              ...basePayload,
-              components: [
-                {
-                  type: 'body',
-                  parameters: namedParams.map((p) => ({ type: 'text', parameter_name: p.name, text: p.value })),
-                },
-              ],
-            },
-          },
-          {
-            name: 'template + variables.named',
-            body: { ...basePayload, variables: { named: namedParams } },
-          },
-        ]
-      : [];
-
-    const positionalAttempts: Array<{ name: string; body: Record<string, unknown> }> = bodyTextValues.length > 0
-      ? [
-          {
-            name: 'template + components[]',
-            body: {
-              ...basePayload,
-              components: [
-                {
-                  type: 'body',
-                  parameters: bodyTextValues.map((v: string) => ({ type: 'text', text: v })),
-                },
-              ],
-            },
-          },
-          {
-            name: 'template + variables.body_text',
-            body: { ...basePayload, variables: { body_text: bodyTextValues } },
-          },
-          {
-            name: 'template + params[]',
-            body: { ...basePayload, params: bodyTextValues },
-          },
-          {
-            name: 'template + body_text[][]',
-            body: { ...basePayload, body_text: [bodyTextValues] },
-          },
-          {
-            name: 'template + parameters[]',
-            body: { ...basePayload, parameters: bodyTextValues.map((v: string) => ({ type: 'text', text: v })) },
-          },
-          {
-            name: 'template + template_params{}',
-            body: { ...basePayload, template_params: Object.fromEntries(namedParams.length > 0 ? namedParams.map((p) => [p.name, p.value]) : bodyTextValues.map((v, i) => [String(i + 1), v])) },
-          },
-        ]
-      : [{ name: 'template (no vars)', body: { ...basePayload } }];
-
-    const payloadAttempts = [...metaShapeNamed, ...metaShapePositional, ...namedAttempts, ...positionalAttempts];
-
+    // Try multiple language codes if Meta returns "template does not exist in translation"
+    const langCandidates = Array.from(new Set([language, 'en', 'en_US', 'pt_BR', 'pt_PT']));
     let lastError = 'Falha ao enviar template';
+    let translationErrorSeen = false;
 
-    for (const payload of payloadAttempts) {
-      console.log(`[Template] Trying payload: ${payload.name}`, JSON.stringify(payload.body));
+    for (const lang of langCandidates) {
+      translationErrorSeen = false;
+      const payloadAttempts = buildPayloadsForLang(lang);
 
-      const response = await fetch(url, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(payload.body),
-      });
+      for (const payload of payloadAttempts) {
+        console.log(`[Template] Trying payload: ${payload.name}`, JSON.stringify(payload.body));
 
-      const responseText = await response.text();
-      console.log(`[Template] ${payload.name}: status=${response.status} body=${responseText}`);
+        const response = await fetch(url, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(payload.body),
+        });
 
-      if (!response.ok) {
-        lastError = `HTTP ${response.status} - ${responseText || 'sem resposta'}`;
-        continue;
-      }
+        const responseText = await response.text();
+        console.log(`[Template] ${payload.name}: status=${response.status} body=${responseText}`);
 
-      // API returning 200 with empty body has been producing false-positive "sent"
-      if (!responseText.trim()) {
-        lastError = 'API respondeu 200 sem corpo (envio não confirmado)';
-        continue;
-      }
-
-      let result: any;
-      try {
-        result = JSON.parse(responseText);
-      } catch {
-        // Some providers return plain "ok"
-        if (responseText.trim().toLowerCase() === 'ok') {
-          return { success: true, data: { ok: true } };
+        const isTranslationError =
+          responseText.includes('#132001') ||
+          responseText.includes('does not exist') ||
+          responseText.includes('translation');
+        if (isTranslationError) {
+          translationErrorSeen = true;
+          lastError = `Template "${templateName}" não existe no idioma ${lang} (132001). Tentando próximo idioma...`;
+          // Skip remaining attempts for this language and move to next
+          break;
         }
-        lastError = `Resposta inválida da API: ${responseText}`;
-        continue;
+
+        if (!response.ok) {
+          lastError = `HTTP ${response.status} - ${responseText || 'sem resposta'}`;
+          continue;
+        }
+
+        if (!responseText.trim()) {
+          lastError = 'API respondeu 200 sem corpo (envio não confirmado)';
+          continue;
+        }
+
+        let result: any;
+        try {
+          result = JSON.parse(responseText);
+        } catch {
+          if (responseText.trim().toLowerCase() === 'ok') {
+            return { success: true, data: { ok: true } };
+          }
+          lastError = `Resposta inválida da API: ${responseText}`;
+          continue;
+        }
+
+        const hasParamError = responseText.includes('#132000') || responseText.includes('localizable_params');
+        if (hasParamError) {
+          lastError = 'Template com variáveis rejeitado (erro 132000). O provedor não está repassando variáveis para o WhatsApp.';
+          continue;
+        }
+
+        if (result?.error === true) {
+          lastError = result?.message || result?.error || 'Template rejeitado pela API';
+          continue;
+        }
+
+        return { success: true, data: result };
       }
 
-      const hasParamError = responseText.includes('#132000') || responseText.includes('localizable_params');
-      if (hasParamError) {
-        lastError = 'Template com variáveis rejeitado (erro 132000). O provedor não está repassando variáveis para o WhatsApp.';
-        continue;
-      }
-
-      if (result?.error === true) {
-        lastError = result?.message || result?.error || 'Template rejeitado pela API';
-        continue;
-      }
-
-      return { success: true, data: result };
+      // If we didn't see a translation error, no point in trying another language
+      if (!translationErrorSeen) break;
     }
 
     console.error('[Template] All payload attempts failed:', lastError);
