@@ -1163,9 +1163,9 @@ Deno.serve(async (req) => {
       .maybeSingle();
     const isAdminUser = !!roleRow;
 
-    // Helper: list of instance names this user owns (admins => null = all)
+    // Helper: list of instance names this user owns. Each user (including admins)
+    // only sees the instances they personally registered, for privacy isolation.
     const getOwnedNames = async (): Promise<Set<string> | null> => {
-      if (isAdminUser) return null;
       const { data } = await admin
         .from('user_evolution_instances')
         .select('instance_name')
@@ -1244,12 +1244,7 @@ Deno.serve(async (req) => {
       // show them (and allow Excluir) even when the Evolution panel is offline
       // or the API key is wrong.
       let localOwned: any[] = [];
-      if (isAdminUser) {
-        const { data } = await admin
-          .from('user_evolution_instances')
-          .select('instance_name, instance_id');
-        localOwned = data || [];
-      } else {
+      {
         const { data } = await admin
           .from('user_evolution_instances')
           .select('instance_name, instance_id')
