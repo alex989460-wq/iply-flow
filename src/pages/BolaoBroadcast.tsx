@@ -11,26 +11,18 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
-import { Loader2, Send, Trophy, RefreshCw, Image as ImageIcon, MessageSquare, CheckCircle, XCircle } from 'lucide-react';
+import { Loader2, Send, Megaphone, RefreshCw, Image as ImageIcon, MessageSquare, CheckCircle, XCircle } from 'lucide-react';
 
-const DEFAULT_IMAGE_URL =
-  'https://fphqfgxfeaylldpxjqan.supabase.co/storage/v1/object/public/reseller-assets/bolao/bolao_copa_2026.png';
+const DEFAULT_IMAGE_URL = '';
 
-const DEFAULT_TEXT = `🎁 Quer participar do BOLÃO DIÁRIO da Copa 2026?
-
-R$ 11,00 por rodada · premiação em tempo real
-🥇 50% · 🥈 25% · 🥉 10%
-
-Entre em qualquer dia! Faltam 5 minutos para o 1º jogo.
-
-👉 https://planos.socialplay.com.br/bolao`;
+const DEFAULT_TEXT = '';
 
 interface Target {
   phone: string;
   name?: string;
 }
 
-type Source = 'window24h' | 'window48h' | 'all_customers';
+type Source = 'window24h' | 'window48h';
 
 function normalizePhone(raw?: string | null): string | null {
   if (!raw) return null;
@@ -90,20 +82,24 @@ export default function BolaoBroadcast() {
           }
           if (data.length < pageSize) break;
         }
-      } else if (source === 'all_customers') {
+      } else {
+        // window48h
+        const hours = 48;
+        const since = new Date(Date.now() - hours * 3600 * 1000).toISOString();
         const pageSize = 1000;
-        for (let from = 0; from < 100000; from += pageSize) {
+        for (let from = 0; from < 50000; from += pageSize) {
           const { data, error } = await supabase
-            .from('customers')
-            .select('phone, name')
-            .not('phone', 'is', null)
+            .from('evolution_messages')
+            .select('phone, contact_name')
+            .eq('direction', 'in')
+            .gte('created_at', since)
             .range(from, from + pageSize - 1);
           if (error) throw error;
           if (!data || data.length === 0) break;
-          for (const c of data) {
-            const p = normalizePhone(c.phone);
+          for (const m of data) {
+            const p = normalizePhone(m.phone);
             if (!p) continue;
-            if (!map.has(p)) map.set(p, { phone: p, name: c.name || undefined });
+            if (!map.has(p)) map.set(p, { phone: p, name: m.contact_name || undefined });
           }
           if (data.length < pageSize) break;
         }
@@ -178,16 +174,16 @@ export default function BolaoBroadcast() {
     <DashboardLayout>
       <div className="space-y-4 p-4 animate-fade-in">
         <div className="flex items-center gap-2">
-          <Trophy className="w-6 h-6 text-primary" />
-          <h1 className="text-xl font-bold">Disparo Bolão Copa 2026</h1>
+          <Megaphone className="w-6 h-6 text-primary" />
+          <h1 className="text-xl font-bold">Disparo Janela 24h</h1>
         </div>
 
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Origem dos destinatários</CardTitle>
             <CardDescription>
-              A API do Zap Responder não permite listar conversas abertas, então usamos as mensagens recebidas
-              recentemente (janela ativa do WhatsApp) ou a base de clientes.
+              Envia somente para contatos que interagiram com você nas últimas horas (janela ativa do WhatsApp),
+              evitando bloqueios por mensagens fora da janela.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -197,9 +193,8 @@ export default function BolaoBroadcast() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="window24h">Janela aberta (últimas 24h)</SelectItem>
+                  <SelectItem value="window24h">Janela ativa (últimas 24h)</SelectItem>
                   <SelectItem value="window48h">Janela ampliada (últimas 48h)</SelectItem>
-                  <SelectItem value="all_customers">Todos os clientes (com telefone)</SelectItem>
                 </SelectContent>
               </Select>
               <Button variant="outline" size="sm" onClick={loadTargets} disabled={loading}>

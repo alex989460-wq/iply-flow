@@ -88,7 +88,7 @@ interface Department {
 }
 
 export default function Settings() {
-  const { user, session } = useAuth();
+  const { user, session, isAdmin } = useAuth();
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -661,10 +661,12 @@ export default function Settings() {
               <span className="hidden sm:inline">Zap Responder</span>
               <span className="sm:hidden">ZapResp</span>
             </TabsTrigger>
-            <TabsTrigger value="evolution" className="flex items-center gap-2">
-              <span className="hidden sm:inline">Evolution</span>
-              <span className="sm:hidden">Evo</span>
-            </TabsTrigger>
+            {isAdmin && (
+              <TabsTrigger value="evolution" className="flex items-center gap-2">
+                <span className="hidden sm:inline">Evolution</span>
+                <span className="sm:hidden">Evo</span>
+              </TabsTrigger>
+            )}
             <TabsTrigger value="apis_externas" className="flex items-center gap-2">
               <span className="hidden sm:inline">APIs Externas</span>
               <span className="sm:hidden">APIs</span>
@@ -686,9 +688,11 @@ export default function Settings() {
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="evolution" className="mt-6">
-            <EvolutionApiCard />
-          </TabsContent>
+          {isAdmin && (
+            <TabsContent value="evolution" className="mt-6">
+              <EvolutionApiCard />
+            </TabsContent>
+          )}
 
           {/* Cobrança Tab */}
           <TabsContent value="cobranca" className="mt-6">
