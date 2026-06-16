@@ -88,7 +88,7 @@ interface Department {
 }
 
 export default function Settings() {
-  const { user, session } = useAuth();
+  const { user, session, isAdmin } = useAuth();
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
