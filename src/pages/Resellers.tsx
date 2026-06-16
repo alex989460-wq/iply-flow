@@ -499,8 +499,17 @@ export default function Resellers() {
     reseller.full_name?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  const resellerByUserId = new Map<string, ResellerAccess>();
+  (resellers || []).forEach(r => resellerByUserId.set(r.user_id, r));
+  const getParentLabel = (parentId: string | null) => {
+    if (!parentId) return isAdmin ? 'Admin' : '-';
+    const p = resellerByUserId.get(parentId);
+    return p ? (p.full_name || p.email) : '—';
+  };
+
   const activeCount = resellers?.filter(r => r.is_active && !isPast(new Date(r.access_expires_at))).length || 0;
   const expiredCount = resellers?.filter(r => !r.is_active || isPast(new Date(r.access_expires_at))).length || 0;
+
 
   return (
     <DashboardLayout>
