@@ -358,14 +358,27 @@ export default function EvolutionInstances() {
                     </div>
                   )}
                   {/* Foto de perfil grande */}
-                  <div className="relative w-full aspect-square bg-gradient-to-br from-muted to-muted/50 overflow-hidden">
+                  <div className="relative w-full aspect-square bg-gradient-to-br from-muted to-muted/50 overflow-hidden flex items-center justify-center">
                     {inst.profile_pic ? (
-                      <img src={inst.profile_pic} alt={inst.name} className="w-full h-full object-cover" />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-emerald-500/10 to-primary/10">
-                        <Smartphone className="w-16 h-16 text-muted-foreground/30" />
-                      </div>
-                    )}
+                      <img
+                        src={inst.profile_pic}
+                        alt=""
+                        referrerPolicy="no-referrer"
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          const img = e.currentTarget;
+                          img.style.display = 'none';
+                          const fb = img.nextElementSibling as HTMLElement | null;
+                          if (fb) fb.style.display = 'flex';
+                        }}
+                      />
+                    ) : null}
+                    <div
+                      className="absolute inset-0 w-full h-full items-center justify-center bg-gradient-to-br from-emerald-500/10 to-primary/10"
+                      style={{ display: inst.profile_pic ? 'none' : 'flex' }}
+                    >
+                      <Smartphone className="w-16 h-16 text-muted-foreground/30" />
+                    </div>
                   </div>
 
                   <CardContent className="p-4 space-y-3">
