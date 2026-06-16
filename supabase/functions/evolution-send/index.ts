@@ -1197,14 +1197,30 @@ Deno.serve(async (req) => {
         const list = await Promise.all(filteredRows.map(async (item: any) => {
           const id = item?.id || item?.instanceId || item?.name || '';
           const token = item?.token || item?.hash || null;
+          const instanceName = item?.name || item?.instanceName || item?.instance?.instanceName || item?.id || '';
           const statusData = token ? await getGoInstanceStatus(baseUrl, token, id) : {};
+          const phone = extractInstancePhone(item, statusData);
+          let profilePic: string | null =
+            item?.profilePictureUrl || item?.profilePicUrl || item?.profilePicture ||
+            item?.profile?.picture || item?.profile?.pictureUrl ||
+            statusData?.profilePictureUrl || statusData?.profilePicUrl || null;
+          if (!profilePic) profilePic = findUrlDeep(item) || findUrlDeep(statusData);
+          if (!profilePic && phone && instanceName) {
+            const pic = await fetchJson(
+              `${baseUrl}/chat/fetchProfilePictureUrl/${encodeURIComponent(instanceName)}`,
+              { method: 'POST', headers: evolutionHeaders(token || apiKey, true), body: JSON.stringify({ number: phone }) },
+              5000,
+            ).catch(() => null);
+            const url = pic?.data?.profilePictureUrl || pic?.data?.profilePicUrl || pic?.data?.url || findUrlDeep(pic?.data);
+            if (url) profilePic = url;
+          }
           return {
             id,
-            name: item?.name || item?.instanceName || item?.instance?.instanceName || item?.id || '',
+            name: instanceName,
             state: normalizeInstanceState(item, statusData),
-            phone: extractInstancePhone(item, statusData),
+            phone,
             profile_name: item?.profileName || statusData?.Name || statusData?.name || null,
-            profile_pic: item?.profilePictureUrl || item?.profilePicUrl || null,
+            profile_pic: profilePic,
             token,
           };
         }));
