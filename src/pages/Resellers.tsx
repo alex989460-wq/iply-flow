@@ -691,6 +691,128 @@ export default function Resellers() {
           </CardContent>
         </Card>
 
+        {/* Access Codes Card */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <KeyRound className="h-5 w-5" />
+              Códigos de Acesso (30 dias)
+            </CardTitle>
+            <CardDescription>
+              Gere códigos que revendedores podem resgatar quando o acesso expirar. Cada código vale 30 dias.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex flex-wrap items-end gap-2">
+              <div className="space-y-2">
+                <Label>Quantidade</Label>
+                <Input
+                  type="number"
+                  min="1"
+                  max="100"
+                  value={newCodesQty}
+                  onChange={(e) => setNewCodesQty(e.target.value)}
+                  className="w-32"
+                />
+              </div>
+              <Button
+                onClick={() => generateCodesMutation.mutate(parseInt(newCodesQty) || 1)}
+                disabled={generateCodesMutation.isPending}
+              >
+                {generateCodesMutation.isPending ? (
+                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Plus className="h-4 w-4 mr-2" />
+                )}
+                Gerar Códigos
+              </Button>
+            </div>
+
+            {codesLoading ? (
+              <div className="flex justify-center py-4">
+                <RefreshCw className="h-5 w-5 animate-spin text-muted-foreground" />
+              </div>
+            ) : (accessCodes?.length || 0) === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">Nenhum código gerado ainda.</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Código</TableHead>
+                      <TableHead>Dias</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Usado em</TableHead>
+                      <TableHead className="text-right">Ações</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {accessCodes?.map((c) => (
+                      <TableRow key={c.id}>
+                        <TableCell className="font-mono font-semibold">{c.code}</TableCell>
+                        <TableCell>{c.days}</TableCell>
+                        <TableCell>
+                          {c.used_by ? (
+                            <Badge variant="secondary">Utilizado</Badge>
+                          ) : (
+                            <Badge variant="default">Disponível</Badge>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {c.used_at ? format(new Date(c.used_at), "dd/MM/yyyy HH:mm", { locale: ptBR }) : "-"}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex justify-end gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                navigator.clipboard.writeText(c.code);
+                                toast({ title: "Copiado", description: c.code });
+                              }}
+                            >
+                              <Copy className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="destructive"
+                              size="sm"
+                              onClick={() => deleteCodeMutation.mutate(c.id)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Delete confirmation */}
+        <AlertDialog open={!!resellerToDelete} onOpenChange={(o) => !o && setResellerToDelete(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Excluir revendedor?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Esta ação é permanente. A conta, o acesso e o perfil de <strong>{resellerToDelete?.email}</strong> serão removidos. Esta ação não pode ser desfeita.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => resellerToDelete && deleteMutation.mutate(resellerToDelete.user_id)}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                {deleteMutation.isPending ? <RefreshCw className="h-4 w-4 mr-2 animate-spin" /> : <Trash2 className="h-4 w-4 mr-2" />}
+                Excluir definitivamente
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
         {/* Edit Dialog */}
         <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
           <DialogContent className="sm:max-w-md">
