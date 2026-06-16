@@ -16,6 +16,8 @@ import {
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import logoSg from '@/assets/logo-sg.png';
+import whatsappBg from '@/assets/whatsapp-bg.jpg';
+
 
 
 interface InstanceRow {
@@ -276,10 +278,18 @@ export default function EvolutionInstances() {
 
   return (
     <DashboardLayout>
-      <div className="space-y-6 max-w-6xl mx-auto p-4 md:p-6">
+      {/* Full-screen background image */}
+      <div
+        className="fixed inset-0 -z-10 bg-cover bg-center bg-no-repeat"
+        style={{ backgroundImage: `url(${whatsappBg})` }}
+        aria-hidden
+      />
+      <div className="fixed inset-0 -z-10 bg-gradient-to-b from-background/70 via-background/85 to-background/95 backdrop-blur-[2px]" aria-hidden />
+
+      <div className="space-y-6 max-w-6xl mx-auto p-4 md:p-6 relative">
         {/* Hero */}
-        <div className="relative overflow-hidden rounded-2xl border border-border/50 bg-gradient-to-br from-emerald-600/10 via-primary/10 to-cyan-500/10 p-6 md:p-8">
-          <div className="absolute -top-12 -right-12 w-48 h-48 rounded-full bg-emerald-500/20 blur-3xl" />
+        <div className="relative overflow-hidden rounded-2xl border border-emerald-500/20 bg-background/40 backdrop-blur-xl p-6 md:p-8 shadow-2xl shadow-emerald-500/10">
+          <div className="absolute -top-12 -right-12 w-48 h-48 rounded-full bg-emerald-500/30 blur-3xl" />
           <div className="absolute -bottom-12 -left-12 w-48 h-48 rounded-full bg-primary/20 blur-3xl" />
           <div className="relative flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             <div>
@@ -292,7 +302,7 @@ export default function EvolutionInstances() {
               </p>
             </div>
             <div className="flex gap-2">
-              <Button variant="outline" size="sm" onClick={fetchInstances}>
+              <Button variant="outline" size="sm" onClick={fetchInstances} className="bg-background/60 backdrop-blur">
                 <RefreshCw className="w-4 h-4 mr-2" /> Atualizar
               </Button>
             </div>
@@ -300,7 +310,7 @@ export default function EvolutionInstances() {
         </div>
 
         {/* Create */}
-        <Card className="border-border/60">
+        <Card className="border-emerald-500/15 bg-background/50 backdrop-blur-xl shadow-xl">
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2 text-base">
               <Plus className="w-4 h-4 text-primary" /> Nova instância
@@ -350,8 +360,8 @@ export default function EvolutionInstances() {
               return (
                 <Card
                   key={inst.id || inst.name}
-                  className={`relative overflow-hidden border-0 bg-card transition-all hover:shadow-xl ${
-                    isActive ? 'ring-1 ring-primary/40' : ''
+                  className={`relative overflow-hidden border bg-background/55 backdrop-blur-xl transition-all hover:shadow-2xl hover:shadow-emerald-500/20 hover:-translate-y-1 ${
+                    isActive ? 'ring-2 ring-emerald-500/50 border-emerald-500/40' : 'border-white/10'
                   }`}
                 >
                   {isActive && (
