@@ -114,7 +114,7 @@ export default function EvolutionInstances() {
     toast({
       title: 'Salvo',
       description: data.remoteOk === false
-        ? `Configurações de "${settingsInstance}" foram guardadas; o painel Evolution recusou aplicar uma parte agora.`
+        ? `Configurações de "${settingsInstance}" foram guardadas; o painel WhatsApp recusou aplicar uma parte agora.`
         : `Configurações de "${settingsInstance}" aplicadas.`,
     });
     setSettingsOpen(false);
@@ -250,7 +250,7 @@ export default function EvolutionInstances() {
   };
 
   const deleteInstance = async (name: string) => {
-    if (!confirm(`Excluir definitivamente a instância "${name}"? Isso libera seu slot e remove do painel Evolution.`)) return;
+    if (!confirm(`Excluir definitivamente a instância "${name}"? Isso libera seu slot e remove do painel WhatsApp.`)) return;
     const { data, error } = await supabase.functions.invoke('evolution-send', {
       body: { action: 'delete-instance', instance: name },
     });

@@ -1101,7 +1101,7 @@ export default function EvolutionChat() {
       });
       toast({
         title: 'Reação não enviada',
-        description: data?.error || error?.message || 'A Evolution não confirmou a reação no WhatsApp.',
+        description: data?.error || error?.message || 'O WhatsApp não confirmou a reação no WhatsApp.',
         variant: 'destructive',
       });
       return;
@@ -1123,7 +1123,7 @@ export default function EvolutionChat() {
     invokeEvolution({ action: 'send', phone, text, quoted }).then(({ data, error }) => {
       if (error || data?.error || data?.ok === false) {
         setMessages(prev => prev.map(m => m.id === tempId ? { ...m, _pending: false, _failed: true } : m));
-        toast({ title: 'Erro ao enviar', description: error?.message || data?.error || 'A Evolution não confirmou o envio.', variant: 'destructive' });
+        toast({ title: 'Erro ao enviar', description: error?.message || data?.error || 'O WhatsApp não confirmou o envio.', variant: 'destructive' });
         return;
       }
       setMessages(prev => prev.map(m => m.id === tempId ? { ...m, _pending: false, _failed: false, status: 'sent', external_id: data?.externalId || m.external_id, raw: quotedRaw ? { ...(data || {}), ...quotedRaw } : data } : m));
@@ -1208,7 +1208,7 @@ export default function EvolutionChat() {
     const { data, error } = await invokeEvolution({ action: 'send', phone, text, bot_flow: true });
     if (error || data?.error || data?.ok === false) {
       setMessages(prev => prev.map(m => m.id === tempId ? { ...m, _pending: false, _failed: true } : m));
-      throw new Error(error?.message || data?.error || 'A Evolution não confirmou o envio.');
+      throw new Error(error?.message || data?.error || 'O WhatsApp não confirmou o envio.');
     }
     setMessages(prev => prev.map(m => m.id === tempId ? { ...m, _pending: false, status: 'sent', external_id: data?.externalId || m.external_id, raw: { ...(data || {}), ...raw } } : m));
   };
@@ -1220,7 +1220,7 @@ export default function EvolutionChat() {
     const fallback = text ? `${text}\n\n${buttons.map((b: any, i: number) => `${i + 1}️⃣ ${b.label}`).join('\n')}` : buttons.map((b: any, i: number) => `${i + 1}️⃣ ${b.label}`).join('\n');
     if (!buttons.length || mode === 'numbered') return sendFlowText(phone, fallback || text, { __bot_flow_menu: true, step_id: step.id });
     const { data, error } = await invokeEvolution({ action: 'send-menu', phone, text, buttons: buttons.map((b: any) => ({ id: b.id, label: b.label })), mode });
-    if (error || data?.error || data?.ok === false) throw new Error(error?.message || data?.error || 'A Evolution não confirmou o envio do menu real.');
+    if (error || data?.error || data?.ok === false) throw new Error(error?.message || data?.error || 'O WhatsApp não confirmou o envio do menu real.');
     setMessages(prev => [...prev, {
       id: `tmp-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, phone, contact_name: null, direction: 'out',
       content: fallback, message_type: 'text', media_url: null, media_mime: null,
@@ -1807,7 +1807,7 @@ export default function EvolutionChat() {
             </div>
             <div className="flex-1 min-w-0">
               <h2 className="font-bold text-sm leading-tight flex items-center gap-1.5">
-                Evolution Chat
+                Chat WhatsApp
                 <button
                   type="button"
                   onClick={() => setShowAutoReplySettings(true)}
