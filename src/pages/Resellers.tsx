@@ -483,7 +483,7 @@ export default function Resellers() {
             <p className="text-muted-foreground">
               {isAdmin
                 ? 'Gerencie o acesso dos revendedores ao sistema'
-                : 'Crie sub-revendas e gere códigos de 30 dias (1 crédito cada)'}
+                : 'Crie sub-revendas e renove o acesso deles usando seus créditos (1 crédito = 30 dias)'}
             </p>
           </div>
           <div className="flex items-center gap-3">
