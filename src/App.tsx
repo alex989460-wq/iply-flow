@@ -20,7 +20,7 @@ import BolaoBroadcast from "./pages/BolaoBroadcast";
 import Chat from "./pages/Chat";
 import Settings from "./pages/Settings";
 import Resellers from "./pages/Resellers";
-import SubResellers from "./pages/SubResellers";
+
 import Tutorial from "./pages/Tutorial";
 import BotTriggers from "./pages/BotTriggers";
 import Expenses from "./pages/Expenses";
