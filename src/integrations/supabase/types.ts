@@ -1572,6 +1572,36 @@ export type Database = {
           },
         ]
       }
+      reseller_access_codes: {
+        Row: {
+          code: string
+          created_at: string
+          created_by: string
+          days: number
+          id: string
+          used_at: string | null
+          used_by: string | null
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          created_by: string
+          days?: number
+          id?: string
+          used_at?: string | null
+          used_by?: string | null
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          created_by?: string
+          days?: number
+          id?: string
+          used_at?: string | null
+          used_by?: string | null
+        }
+        Relationships: []
+      }
       reseller_api_settings: {
         Row: {
           cakto_client_id: string | null
