@@ -46,12 +46,41 @@ async function generateAppSecretProof(accessToken: string, appSecret: string): P
     .join('');
 }
 
+// Format BRL price (35 -> "35,00")
+function formatBRL(v: any): string {
+  const n = typeof v === 'number' ? v : parseFloat(String(v ?? '0').replace(',', '.'));
+  if (!isFinite(n)) return '0,00';
+  return n.toFixed(2).replace('.', ',');
+}
+function formatBRDate(iso: string): string {
+  if (!iso) return '';
+  const [y, m, d] = iso.split('-');
+  return `${d}/${m}/${y}`;
+}
+// Variables: name, user, price, weak (plano), serv (servidor), data (vencimento)
+function buildTemplateVars(customer: any): Array<{ name: string; value: string }> {
+  const planName = customer?.plan?.plan_name || '';
+  const planPrice = customer?.plan?.price;
+  const serverName = customer?.server?.server_name || '';
+  const price = customer?.custom_price ?? planPrice ?? 0;
+  const firstName = String(customer?.name || '').trim().split(/\s+/)[0] || customer?.name || '';
+  return [
+    { name: 'name', value: firstName },
+    { name: 'user', value: String(customer?.username || '') },
+    { name: 'price', value: formatBRL(price) },
+    { name: 'weak', value: String(planName) },
+    { name: 'serv', value: String(serverName) },
+    { name: 'data', value: formatBRDate(customer?.due_date || '') },
+  ];
+}
+
 // Send WhatsApp template message via Meta Cloud API
 async function sendWhatsAppTemplateMeta(
   phone: string, 
   templateName: string,
   accessToken: string,
-  phoneNumberId: string
+  phoneNumberId: string,
+  vars: Array<{ name: string; value: string }> = []
 ): Promise<{ success: boolean; error?: string; isBillingError?: boolean }> {
   try {
     let formattedPhone = phone.replace(/\D/g, '');
