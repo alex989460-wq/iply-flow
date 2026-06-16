@@ -709,13 +709,14 @@ Deno.serve(async (req) => {
                 customer.extra_phone,
                 templateName,
                 zapSettings.meta_access_token,
-                zapSettings.meta_phone_number_id
+                zapSettings.meta_phone_number_id,
+                templateVars
               );
             } else {
               const zapToken = zapSettings?.zap_api_token || Deno.env.get('ZAP_RESPONDER_TOKEN');
               const apiBaseUrl = zapSettings?.api_base_url || 'https://api.zapresponder.com.br/api';
               const departmentId = zapSettings?.selected_department_id;
-              await sendWhatsAppTemplateZap(customer.extra_phone, templateName, zapToken!, apiBaseUrl, departmentId!);
+              await sendWhatsAppTemplateZap(customer.extra_phone, templateName, zapToken!, apiBaseUrl, departmentId!, templateVars);
             }
             console.log(`[Billing Batch] Extra phone notified for ${customer.name}: ${customer.extra_phone}`);
           } catch (e) {
