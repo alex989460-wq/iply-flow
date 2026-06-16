@@ -78,7 +78,7 @@ export default function Resellers() {
   const [isAddCreditsDialogOpen, setIsAddCreditsDialogOpen] = useState(false);
   const [creditsToAdd, setCreditsToAdd] = useState("10");
   const [resellerToDelete, setResellerToDelete] = useState<ResellerAccess | null>(null);
-  const [newCodesQty, setNewCodesQty] = useState("1");
+  
   const { data: resellers, isLoading } = useQuery({
     queryKey: ['reseller-access'],
     queryFn: async () => {
