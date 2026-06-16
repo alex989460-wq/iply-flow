@@ -619,6 +619,38 @@ async function enviarTemplateWhatsApp(
       language,
     };
 
+    const metaShapeNamed = namedParams.length > 0 ? [{
+      name: 'meta-shape template object (named)',
+      body: {
+        type: 'template',
+        number,
+        template: {
+          name: templateName,
+          language: { code: language },
+          components: [{
+            type: 'body',
+            parameters: namedParams.map((p) => ({ type: 'text', parameter_name: p.name, text: p.value })),
+          }],
+        },
+      } as Record<string, unknown>,
+    }] : [];
+
+    const metaShapePositional = bodyTextValues.length > 0 ? [{
+      name: 'meta-shape template object (positional)',
+      body: {
+        type: 'template',
+        number,
+        template: {
+          name: templateName,
+          language: { code: language },
+          components: [{
+            type: 'body',
+            parameters: bodyTextValues.map((v: string) => ({ type: 'text', text: v })),
+          }],
+        },
+      } as Record<string, unknown>,
+    }] : [];
+
     const namedAttempts: Array<{ name: string; body: Record<string, unknown> }> = namedParams.length > 0
       ? [
           {
@@ -666,10 +698,18 @@ async function enviarTemplateWhatsApp(
             name: 'template + body_text[][]',
             body: { ...basePayload, body_text: [bodyTextValues] },
           },
+          {
+            name: 'template + parameters[]',
+            body: { ...basePayload, parameters: bodyTextValues.map((v: string) => ({ type: 'text', text: v })) },
+          },
+          {
+            name: 'template + template_params{}',
+            body: { ...basePayload, template_params: Object.fromEntries(namedParams.length > 0 ? namedParams.map((p) => [p.name, p.value]) : bodyTextValues.map((v, i) => [String(i + 1), v])) },
+          },
         ]
       : [{ name: 'template (no vars)', body: { ...basePayload } }];
 
-    const payloadAttempts = [...namedAttempts, ...positionalAttempts];
+    const payloadAttempts = [...metaShapeNamed, ...metaShapePositional, ...namedAttempts, ...positionalAttempts];
 
     let lastError = 'Falha ao enviar template';
 
