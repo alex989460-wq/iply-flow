@@ -11,8 +11,25 @@ import { Label } from '@/components/ui/label';
 import { 
   Search, User, Calendar, CreditCard, CheckCircle, Phone, RefreshCw, 
   Server, Copy, Settings, Wifi, Download, Key, Bell, Smile, MessageSquare,
-  ChevronDown, ChevronUp, UserPlus, AlertTriangle, Monitor, Play, Loader2, X
+  ChevronDown, ChevronUp, UserPlus, AlertTriangle, Monitor, Play, Loader2, X, GripVertical
 } from 'lucide-react';
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  KeyboardSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import { toast } from 'sonner';
 import { addDays, addMonths, format, startOfDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -89,6 +106,22 @@ interface QuickRenewalPanelProps {
   onClose?: () => void;
   initialPhone?: string | null;
 }
+
+function SortableMessageRow({ msg, children }: { msg: QuickMessage; children: (handleProps: { listeners: any; attributes: any; isDragging: boolean }) => React.ReactNode }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: msg.id });
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+  return (
+    <div ref={setNodeRef} style={style}>
+      {children({ listeners, attributes, isDragging })}
+    </div>
+  );
+}
+
+
 
 export default function QuickRenewalPanel({ isMobile = false, onClose, initialPhone }: QuickRenewalPanelProps) {
   const { user } = useAuth();
@@ -728,6 +761,48 @@ Obrigado pela preferência! 🙏`;
       toast.error('Erro ao salvar: ' + error.message);
     },
   });
+
+  // Reorder quick messages mutation
+  const reorderMessages = useMutation({
+    mutationFn: async (ordered: QuickMessage[]) => {
+      const client = supabase as any;
+      const updates = ordered.map((m, idx) =>
+        client.from('quick_messages').update({ sort_order: idx }).eq('id', m.id)
+      );
+      const results = await Promise.all(updates);
+      const err = results.find((r: any) => r.error);
+      if (err?.error) throw err.error;
+    },
+    onMutate: async (ordered: QuickMessage[]) => {
+      await queryClient.cancelQueries({ queryKey: ['quick-messages', user?.id] });
+      const previous = queryClient.getQueryData(['quick-messages', user?.id]);
+      queryClient.setQueryData(['quick-messages', user?.id], ordered);
+      return { previous };
+    },
+    onError: (error: any, _vars, ctx) => {
+      if (ctx?.previous) queryClient.setQueryData(['quick-messages', user?.id], ctx.previous);
+      toast.error('Erro ao reordenar: ' + error.message);
+    },
+    onSuccess: () => {
+      toast.success('Ordem atualizada!');
+      queryClient.invalidateQueries({ queryKey: ['quick-messages'] });
+    },
+  });
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const oldIndex = quickMessages.findIndex((m) => m.id === active.id);
+    const newIndex = quickMessages.findIndex((m) => m.id === over.id);
+    if (oldIndex === -1 || newIndex === -1) return;
+    const reordered = arrayMove(quickMessages, oldIndex, newIndex);
+    reorderMessages.mutate(reordered);
+  };
 
   // Delete quick message mutation
   const deleteMessage = useMutation({
@@ -1836,59 +1911,82 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                       </CardContent>
                     </Card>
 
-                    {/* Existing messages */}
-                    {quickMessages.map((msg) => (
-                      <Card key={msg.id}>
-                        <CardContent className="p-3 space-y-2">
-                          {editingMessage?.id === msg.id ? (
-                            <>
-                              <Input
-                                value={editingMessage.title}
-                                onChange={(e) => setEditingMessage({ ...editingMessage, title: e.target.value })}
-                                className="h-8 text-sm"
-                              />
-                              <Input
-                                value={editingMessage.category}
-                                onChange={(e) => setEditingMessage({ ...editingMessage, category: e.target.value })}
-                                className="h-8 text-sm"
-                              />
-                              <Textarea
-                                value={editingMessage.content}
-                                onChange={(e) => setEditingMessage({ ...editingMessage, content: e.target.value })}
-                                className="text-sm min-h-[80px]"
-                              />
-                              <div className="flex gap-2">
-                                <Button size="sm" onClick={() => saveMessage.mutate(editingMessage)}>
-                                  Salvar
-                                </Button>
-                                <Button size="sm" variant="outline" onClick={() => setEditingMessage(null)}>
-                                  Cancelar
-                                </Button>
-                              </div>
-                            </>
-                          ) : (
-                            <>
-                              <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-2">
-                                  {getIcon(msg.icon)}
-                                  <span className="font-medium text-sm">{msg.title}</span>
-                                </div>
-                                <Badge variant="secondary" className="text-xs">{msg.category}</Badge>
-                              </div>
-                              <p className="text-xs text-muted-foreground line-clamp-2">{msg.content}</p>
-                              <div className="flex gap-2">
-                                <Button size="sm" variant="outline" onClick={() => setEditingMessage(msg)}>
-                                  Editar
-                                </Button>
-                                <Button size="sm" variant="destructive" onClick={() => deleteMessage.mutate(msg.id)}>
-                                  Remover
-                                </Button>
-                              </div>
-                            </>
-                          )}
-                        </CardContent>
-                      </Card>
-                    ))}
+                    {/* Existing messages - drag to reorder */}
+                    {quickMessages.length > 0 && (
+                      <p className="text-xs text-muted-foreground px-1">
+                        Arraste pelo ícone <GripVertical className="inline h-3 w-3" /> para reordenar as mensagens.
+                      </p>
+                    )}
+                    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                      <SortableContext items={quickMessages.map((m) => m.id)} strategy={verticalListSortingStrategy}>
+                        {quickMessages.map((msg) => (
+                          <SortableMessageRow key={msg.id} msg={msg}>
+                            {({ listeners, attributes, isDragging }) => (
+                              <Card className={isDragging ? 'ring-2 ring-primary' : ''}>
+                                <CardContent className="p-3 space-y-2">
+                                  {editingMessage?.id === msg.id ? (
+                                    <>
+                                      <Input
+                                        value={editingMessage.title}
+                                        onChange={(e) => setEditingMessage({ ...editingMessage, title: e.target.value })}
+                                        className="h-8 text-sm"
+                                      />
+                                      <Input
+                                        value={editingMessage.category}
+                                        onChange={(e) => setEditingMessage({ ...editingMessage, category: e.target.value })}
+                                        className="h-8 text-sm"
+                                      />
+                                      <Textarea
+                                        value={editingMessage.content}
+                                        onChange={(e) => setEditingMessage({ ...editingMessage, content: e.target.value })}
+                                        className="text-sm min-h-[80px]"
+                                      />
+                                      <div className="flex gap-2">
+                                        <Button size="sm" onClick={() => saveMessage.mutate(editingMessage)}>
+                                          Salvar
+                                        </Button>
+                                        <Button size="sm" variant="outline" onClick={() => setEditingMessage(null)}>
+                                          Cancelar
+                                        </Button>
+                                      </div>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-2">
+                                          <button
+                                            type="button"
+                                            className="cursor-grab active:cursor-grabbing touch-none p-1 -ml-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground"
+                                            aria-label="Arrastar para reordenar"
+                                            {...listeners}
+                                            {...attributes}
+                                          >
+                                            <GripVertical className="h-4 w-4" />
+                                          </button>
+                                          {getIcon(msg.icon)}
+                                          <span className="font-medium text-sm">{msg.title}</span>
+                                        </div>
+                                        <Badge variant="secondary" className="text-xs">{msg.category}</Badge>
+                                      </div>
+                                      <p className="text-xs text-muted-foreground line-clamp-2">{msg.content}</p>
+                                      <div className="flex gap-2">
+                                        <Button size="sm" variant="outline" onClick={() => setEditingMessage(msg)}>
+                                          Editar
+                                        </Button>
+                                        <Button size="sm" variant="destructive" onClick={() => deleteMessage.mutate(msg.id)}>
+                                          Remover
+                                        </Button>
+                                      </div>
+                                    </>
+                                  )}
+                                </CardContent>
+                              </Card>
+                            )}
+                          </SortableMessageRow>
+                        ))}
+                      </SortableContext>
+                    </DndContext>
+
                   </div>
                 </DialogContent>
               </Dialog>
