@@ -618,14 +618,16 @@ export default function Resellers() {
                           </TableCell>
                           <TableCell className="text-right">
                             <div className="flex justify-end gap-2 flex-wrap">
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => handleAddCredits(reseller)}
-                              >
-                                <Plus className="h-4 w-4 mr-1" />
-                                Créditos
-                              </Button>
+                              {isAdmin && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleAddCredits(reseller)}
+                                >
+                                  <Plus className="h-4 w-4 mr-1" />
+                                  Créditos
+                                </Button>
+                              )}
                               <Button
                                 variant="outline"
                                 size="sm"
@@ -634,69 +636,74 @@ export default function Resellers() {
                                 <Pencil className="h-4 w-4 mr-1" />
                                 Editar
                               </Button>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => handleRenew(reseller)}
-                              >
-                                <Calendar className="h-4 w-4 mr-1" />
-                                Renovar
-                              </Button>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={async () => {
-                                  const current = reseller.max_evolution_instances ?? 1;
-                                  const input = prompt(`Máximo de instâncias WhatsApp para ${reseller.email}:`, String(current));
-                                  if (input === null) return;
-                                  const value = parseInt(input, 10);
-                                  if (isNaN(value) || value < 0) {
-                                    toast({ title: 'Valor inválido', description: 'Informe um número >= 0', variant: 'destructive' });
-                                    return;
-                                  }
-                                  const { error } = await supabase
-                                    .from('reseller_access')
-                                    .update({ max_evolution_instances: value })
-                                    .eq('id', reseller.id);
-                                  if (error) {
-                                    toast({ title: 'Erro', description: error.message, variant: 'destructive' });
-                                  } else {
-                                    toast({ title: 'Atualizado', description: `Limite: ${value} instância(s)` });
-                                    queryClient.invalidateQueries({ queryKey: ['reseller-access'] });
-                                  }
-                                }}
-                                title={`Limite atual: ${reseller.max_evolution_instances ?? 1} instância(s)`}
-                              >
-                                <Smartphone className="h-4 w-4 mr-1" />
-                                WhatsApp ({reseller.max_evolution_instances ?? 1})
-                              </Button>
-                              <Button
-                                variant={reseller.is_active ? "destructive" : "default"}
-                                size="sm"
-                                onClick={() => toggleActiveMutation.mutate({ id: reseller.id, isActive: reseller.is_active })}
-                              >
-                                {reseller.is_active ? (
-                                  <>
-                                    <Ban className="h-4 w-4 mr-1" />
-                                    Desativar
-                                  </>
-                                ) : (
-                                  <>
-                                    <CheckCircle className="h-4 w-4 mr-1" />
-                                    Ativar
-                                  </>
-                                )}
-                              </Button>
-                              <Button
-                                variant="destructive"
-                                size="sm"
-                                onClick={() => setResellerToDelete(reseller)}
-                                title="Excluir revendedor"
-                              >
-                                <Trash2 className="h-4 w-4 mr-1" />
-                                Excluir
-                              </Button>
+                              {isAdmin && (
+                                <>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => handleRenew(reseller)}
+                                  >
+                                    <Calendar className="h-4 w-4 mr-1" />
+                                    Renovar
+                                  </Button>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={async () => {
+                                      const current = reseller.max_evolution_instances ?? 1;
+                                      const input = prompt(`Máximo de instâncias WhatsApp para ${reseller.email}:`, String(current));
+                                      if (input === null) return;
+                                      const value = parseInt(input, 10);
+                                      if (isNaN(value) || value < 0) {
+                                        toast({ title: 'Valor inválido', description: 'Informe um número >= 0', variant: 'destructive' });
+                                        return;
+                                      }
+                                      const { error } = await supabase
+                                        .from('reseller_access')
+                                        .update({ max_evolution_instances: value })
+                                        .eq('id', reseller.id);
+                                      if (error) {
+                                        toast({ title: 'Erro', description: error.message, variant: 'destructive' });
+                                      } else {
+                                        toast({ title: 'Atualizado', description: `Limite: ${value} instância(s)` });
+                                        queryClient.invalidateQueries({ queryKey: ['reseller-access'] });
+                                      }
+                                    }}
+                                    title={`Limite atual: ${reseller.max_evolution_instances ?? 1} instância(s)`}
+                                  >
+                                    <Smartphone className="h-4 w-4 mr-1" />
+                                    WhatsApp ({reseller.max_evolution_instances ?? 1})
+                                  </Button>
+                                  <Button
+                                    variant={reseller.is_active ? "destructive" : "default"}
+                                    size="sm"
+                                    onClick={() => toggleActiveMutation.mutate({ id: reseller.id, isActive: reseller.is_active })}
+                                  >
+                                    {reseller.is_active ? (
+                                      <>
+                                        <Ban className="h-4 w-4 mr-1" />
+                                        Desativar
+                                      </>
+                                    ) : (
+                                      <>
+                                        <CheckCircle className="h-4 w-4 mr-1" />
+                                        Ativar
+                                      </>
+                                    )}
+                                  </Button>
+                                  <Button
+                                    variant="destructive"
+                                    size="sm"
+                                    onClick={() => setResellerToDelete(reseller)}
+                                    title="Excluir revendedor"
+                                  >
+                                    <Trash2 className="h-4 w-4 mr-1" />
+                                    Excluir
+                                  </Button>
+                                </>
+                              )}
                             </div>
+
                           </TableCell>
                         </TableRow>
                       );
