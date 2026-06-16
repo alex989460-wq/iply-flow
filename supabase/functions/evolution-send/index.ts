@@ -1244,12 +1244,7 @@ Deno.serve(async (req) => {
       // show them (and allow Excluir) even when the Evolution panel is offline
       // or the API key is wrong.
       let localOwned: any[] = [];
-      if (isAdminUser) {
-        const { data } = await admin
-          .from('user_evolution_instances')
-          .select('instance_name, instance_id');
-        localOwned = data || [];
-      } else {
+      {
         const { data } = await admin
           .from('user_evolution_instances')
           .select('instance_name, instance_id')
