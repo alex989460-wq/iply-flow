@@ -14,7 +14,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { format, addDays, isPast, differenceInDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Users, RefreshCw, Search, Calendar, Ban, CheckCircle, Clock, Pencil, Eye, EyeOff, UserPlus, Coins, Plus, Smartphone } from "lucide-react";
+import { Users, RefreshCw, Search, Calendar, Ban, CheckCircle, Clock, Pencil, Eye, EyeOff, UserPlus, Coins, Plus, Smartphone, Trash2, KeyRound, Copy } from "lucide-react";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Navigate } from "react-router-dom";
 import { z } from "zod";
 
@@ -75,6 +76,8 @@ export default function Resellers() {
   const [createErrors, setCreateErrors] = useState<Record<string, string>>({});
   const [isAddCreditsDialogOpen, setIsAddCreditsDialogOpen] = useState(false);
   const [creditsToAdd, setCreditsToAdd] = useState("10");
+  const [resellerToDelete, setResellerToDelete] = useState<ResellerAccess | null>(null);
+  const [newCodesQty, setNewCodesQty] = useState("1");
   const { data: resellers, isLoading } = useQuery({
     queryKey: ['reseller-access'],
     queryFn: async () => {
@@ -281,6 +284,68 @@ export default function Resellers() {
         description: error.message,
         variant: "destructive",
       });
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (user_id: string) => {
+      const { data, error } = await supabase.functions.invoke('delete-reseller', { body: { user_id } });
+      if (error) throw error;
+      if (!data?.success) throw new Error(data?.error || 'Erro ao excluir');
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['reseller-access'] });
+      toast({ title: 'Revendedor excluído', description: 'Conta removida com sucesso.' });
+      setResellerToDelete(null);
+    },
+    onError: (error) => {
+      toast({ title: 'Erro ao excluir', description: error.message, variant: 'destructive' });
+    },
+  });
+
+  const { data: accessCodes, isLoading: codesLoading } = useQuery({
+    queryKey: ['reseller-access-codes'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('reseller_access_codes')
+        .select('*')
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return data as Array<{ id: string; code: string; days: number; used_by: string | null; used_at: string | null; created_at: string }>;
+    },
+    enabled: isAdmin,
+  });
+
+  const generateCodesMutation = useMutation({
+    mutationFn: async (qty: number) => {
+      const { data: userData } = await supabase.auth.getUser();
+      const created_by = userData.user?.id;
+      if (!created_by) throw new Error('Não autenticado');
+      const rows = Array.from({ length: qty }).map(() => ({
+        code: Array.from({ length: 10 }, () => 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[Math.floor(Math.random() * 32)]).join(''),
+        days: 30,
+        created_by,
+      }));
+      const { error } = await supabase.from('reseller_access_codes').insert(rows);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['reseller-access-codes'] });
+      toast({ title: 'Códigos gerados', description: `${newCodesQty} código(s) criado(s).` });
+    },
+    onError: (error) => {
+      toast({ title: 'Erro', description: error.message, variant: 'destructive' });
+    },
+  });
+
+  const deleteCodeMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from('reseller_access_codes').delete().eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['reseller-access-codes'] });
+      toast({ title: 'Código removido' });
     },
   });
 
@@ -605,6 +670,15 @@ export default function Resellers() {
                                   </>
                                 )}
                               </Button>
+                              <Button
+                                variant="destructive"
+                                size="sm"
+                                onClick={() => setResellerToDelete(reseller)}
+                                title="Excluir revendedor"
+                              >
+                                <Trash2 className="h-4 w-4 mr-1" />
+                                Excluir
+                              </Button>
                             </div>
                           </TableCell>
                         </TableRow>
@@ -616,6 +690,128 @@ export default function Resellers() {
             )}
           </CardContent>
         </Card>
+
+        {/* Access Codes Card */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <KeyRound className="h-5 w-5" />
+              Códigos de Acesso (30 dias)
+            </CardTitle>
+            <CardDescription>
+              Gere códigos que revendedores podem resgatar quando o acesso expirar. Cada código vale 30 dias.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex flex-wrap items-end gap-2">
+              <div className="space-y-2">
+                <Label>Quantidade</Label>
+                <Input
+                  type="number"
+                  min="1"
+                  max="100"
+                  value={newCodesQty}
+                  onChange={(e) => setNewCodesQty(e.target.value)}
+                  className="w-32"
+                />
+              </div>
+              <Button
+                onClick={() => generateCodesMutation.mutate(parseInt(newCodesQty) || 1)}
+                disabled={generateCodesMutation.isPending}
+              >
+                {generateCodesMutation.isPending ? (
+                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Plus className="h-4 w-4 mr-2" />
+                )}
+                Gerar Códigos
+              </Button>
+            </div>
+
+            {codesLoading ? (
+              <div className="flex justify-center py-4">
+                <RefreshCw className="h-5 w-5 animate-spin text-muted-foreground" />
+              </div>
+            ) : (accessCodes?.length || 0) === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">Nenhum código gerado ainda.</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Código</TableHead>
+                      <TableHead>Dias</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Usado em</TableHead>
+                      <TableHead className="text-right">Ações</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {accessCodes?.map((c) => (
+                      <TableRow key={c.id}>
+                        <TableCell className="font-mono font-semibold">{c.code}</TableCell>
+                        <TableCell>{c.days}</TableCell>
+                        <TableCell>
+                          {c.used_by ? (
+                            <Badge variant="secondary">Utilizado</Badge>
+                          ) : (
+                            <Badge variant="default">Disponível</Badge>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {c.used_at ? format(new Date(c.used_at), "dd/MM/yyyy HH:mm", { locale: ptBR }) : "-"}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex justify-end gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                navigator.clipboard.writeText(c.code);
+                                toast({ title: "Copiado", description: c.code });
+                              }}
+                            >
+                              <Copy className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="destructive"
+                              size="sm"
+                              onClick={() => deleteCodeMutation.mutate(c.id)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Delete confirmation */}
+        <AlertDialog open={!!resellerToDelete} onOpenChange={(o) => !o && setResellerToDelete(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Excluir revendedor?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Esta ação é permanente. A conta, o acesso e o perfil de <strong>{resellerToDelete?.email}</strong> serão removidos. Esta ação não pode ser desfeita.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => resellerToDelete && deleteMutation.mutate(resellerToDelete.user_id)}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                {deleteMutation.isPending ? <RefreshCw className="h-4 w-4 mr-2 animate-spin" /> : <Trash2 className="h-4 w-4 mr-2" />}
+                Excluir definitivamente
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
 
         {/* Edit Dialog */}
         <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>

@@ -20,7 +20,7 @@ import BolaoBroadcast from "./pages/BolaoBroadcast";
 import Chat from "./pages/Chat";
 import Settings from "./pages/Settings";
 import Resellers from "./pages/Resellers";
-import SubResellers from "./pages/SubResellers";
+
 import Tutorial from "./pages/Tutorial";
 import BotTriggers from "./pages/BotTriggers";
 import Expenses from "./pages/Expenses";
@@ -104,7 +104,7 @@ function AppRoutes() {
       <Route path="/tutorial" element={<ProtectedRoute><Tutorial /></ProtectedRoute>} />
       <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
       <Route path="/resellers" element={<ProtectedRoute><Resellers /></ProtectedRoute>} />
-      <Route path="/sub-resellers" element={<ProtectedRoute><SubResellers /></ProtectedRoute>} />
+      <Route path="/sub-resellers" element={<Navigate to="/resellers" replace />} />
       <Route path="/expenses" element={<ProtectedRoute><Expenses /></ProtectedRoute>} />
       <Route path="/message-logs" element={<ProtectedRoute><MessageLogs /></ProtectedRoute>} />
       <Route path="/activation-apps" element={<ProtectedRoute><ActivationApps /></ProtectedRoute>} />
