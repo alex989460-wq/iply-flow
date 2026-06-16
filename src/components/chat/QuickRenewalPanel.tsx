@@ -11,8 +11,25 @@ import { Label } from '@/components/ui/label';
 import { 
   Search, User, Calendar, CreditCard, CheckCircle, Phone, RefreshCw, 
   Server, Copy, Settings, Wifi, Download, Key, Bell, Smile, MessageSquare,
-  ChevronDown, ChevronUp, UserPlus, AlertTriangle, Monitor, Play, Loader2, X
+  ChevronDown, ChevronUp, UserPlus, AlertTriangle, Monitor, Play, Loader2, X, GripVertical
 } from 'lucide-react';
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  KeyboardSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import { toast } from 'sonner';
 import { addDays, addMonths, format, startOfDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
