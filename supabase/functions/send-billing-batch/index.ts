@@ -97,17 +97,22 @@ async function sendWhatsAppTemplateMeta(
       url += `?appsecret_proof=${proof}`;
     }
     
+    const templateBlock: Record<string, unknown> = {
+      name: templateName,
+      language: { code: 'pt_BR' },
+    };
+    if (vars.length > 0) {
+      templateBlock.components = [{
+        type: 'body',
+        parameters: vars.map(v => ({ type: 'text', parameter_name: v.name, text: v.value })),
+      }];
+    }
     const body = {
       messaging_product: 'whatsapp',
       recipient_type: 'individual',
       to: formattedPhone,
       type: 'template',
-      template: {
-        name: templateName,
-        language: {
-          code: 'pt_BR'
-        }
-      }
+      template: templateBlock,
     };
     
     const response = await fetch(url, {
