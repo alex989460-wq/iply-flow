@@ -184,7 +184,8 @@ async function sendWhatsAppTemplateZap(
   token: string, 
   apiBaseUrl: string,
   departmentId: string,
-  vars: Array<{ name: string; value: string }> = []
+  vars: Array<{ name: string; value: string }> = [],
+  language: string = 'pt_BR'
 ): Promise<{ success: boolean; error?: string }> {
   try {
     let formattedPhone = phone.replace(/\D/g, '');
@@ -197,80 +198,136 @@ async function sendWhatsAppTemplateZap(
     const positional = vars.map(v => v.value);
     const namedParams = vars.map(v => ({ type: 'text', parameter_name: v.name, text: v.value }));
 
-    const body: Record<string, unknown> = {
-      type: 'template',
-      template_name: templateName,
-      number: formattedPhone,
-      language: 'pt_BR',
+    const buildPayloadsForLang = (lang: string) => {
+      const basePayload = {
+        type: 'template',
+        template_name: templateName,
+        number: formattedPhone,
+        language: lang,
+      };
+
+      return [
+        {
+          name: `template + components[named] [${lang}]`,
+          body: {
+            ...basePayload,
+            components: [{ type: 'body', parameters: namedParams }],
+            variables: { body_text: positional },
+            params: positional,
+          } as Record<string, unknown>,
+        },
+        {
+          name: `meta-shape template object (named) [${lang}]`,
+          body: {
+            type: 'template',
+            number: formattedPhone,
+            template: {
+              name: templateName,
+              language: { code: lang },
+              components: [{ type: 'body', parameters: namedParams }],
+            },
+          } as Record<string, unknown>,
+        },
+        {
+          name: `template + components[positional] [${lang}]`,
+          body: {
+            ...basePayload,
+            components: [{ type: 'body', parameters: positional.map((text) => ({ type: 'text', text })) }],
+          } as Record<string, unknown>,
+        },
+        { name: `template + variables.body_text [${lang}]`, body: { ...basePayload, variables: { body_text: positional } } as Record<string, unknown> },
+        { name: `template + params[] [${lang}]`, body: { ...basePayload, params: positional } as Record<string, unknown> },
+      ];
     };
-    if (vars.length > 0) {
-      body.components = [{ type: 'body', parameters: namedParams }];
-      body.variables = { body_text: positional };
-      body.params = positional;
-    }
-    
-    const response = await fetch(`${apiBaseUrl}/whatsapp/message/${departmentId}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        'Authorization': `Bearer ${token}`,
-      },
-      body: JSON.stringify(body),
-    });
 
-    // Check content-type before parsing
-    const contentType = response.headers.get('content-type');
-    
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`[Zap Responder] API error: ${response.status} - ${errorText}`);
-      
-      // Try to parse error details
-      if (contentType?.includes('application/json')) {
-        try {
-          const errorJson = JSON.parse(errorText);
-          return { success: false, error: errorJson.message || errorJson.error || `HTTP ${response.status}` };
-        } catch {
-          // Not valid JSON
+    const langCandidates = Array.from(new Set([language, 'en', 'en_US', 'pt_BR', 'pt_PT']));
+    let lastError = 'Falha ao enviar template';
+    const headers = {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      'Authorization': `Bearer ${token}`,
+    };
+
+    for (const lang of langCandidates) {
+      let translationErrorSeen = false;
+
+      for (const payload of buildPayloadsForLang(lang)) {
+        console.log(`[Zap Responder] Trying ${payload.name}`);
+
+        const response = await fetch(`${apiBaseUrl}/whatsapp/message/${departmentId}`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(payload.body),
+        });
+
+        const responseText = await response.text();
+        const isTranslationError =
+          responseText.includes('#132001') ||
+          responseText.includes('does not exist') ||
+          responseText.includes('translation');
+
+        if (isTranslationError) {
+          translationErrorSeen = true;
+          lastError = `Template "${templateName}" não existe no idioma ${lang} (132001). Tentando próximo idioma...`;
+          console.warn(`[Zap Responder] ${lastError}`);
+          break;
         }
+
+        if (!response.ok) {
+          console.error(`[Zap Responder] API error: ${response.status} - ${responseText}`);
+          try {
+            const errorJson = JSON.parse(responseText);
+            lastError = errorJson.message || errorJson.error || `HTTP ${response.status}`;
+          } catch {
+            lastError = `HTTP ${response.status}: ${responseText.substring(0, 100)}`;
+          }
+          continue;
+        }
+
+        if (!responseText.trim()) {
+          lastError = 'API respondeu sem confirmação';
+          continue;
+        }
+
+        let result: any;
+        try {
+          result = JSON.parse(responseText);
+        } catch {
+          if (responseText.trim().toLowerCase() === 'ok') return { success: true };
+          lastError = `Resposta inválida da API: ${responseText.substring(0, 100)}`;
+          continue;
+        }
+
+        if (result.error || result.success === false) {
+          const message = result.message || result.error || 'Erro retornado pela API';
+          const body = JSON.stringify(result);
+          if (body.includes('#132001') || body.includes('does not exist') || body.includes('translation')) {
+            translationErrorSeen = true;
+            lastError = `Template "${templateName}" não existe no idioma ${lang} (132001). Tentando próximo idioma...`;
+            console.warn(`[Zap Responder] ${lastError}`);
+            break;
+          }
+          console.error(`[Zap Responder] API returned error in body:`, result);
+          lastError = message;
+          continue;
+        }
+
+        const statusValue = result.status;
+        if (statusValue && typeof statusValue === 'string') {
+          const statusLower = statusValue.toLowerCase();
+          if (!['queued', 'sent', 'delivered', 'read'].includes(statusLower)) {
+            console.warn(`[Zap Responder] Unexpected status: ${statusValue}`, result);
+          }
+        }
+
+        console.log(`[Zap Responder] Template sent successfully to ${formattedPhone} using ${payload.name}`, result);
+        return { success: true };
       }
-      
-      return { success: false, error: `HTTP ${response.status}: ${errorText.substring(0, 100)}` };
+
+      if (!translationErrorSeen) break;
     }
 
-    // Parse response with error handling
-    let result;
-    if (contentType?.includes('application/json')) {
-      try {
-        result = await response.json();
-      } catch (e) {
-        console.error(`[Zap Responder] Failed to parse JSON response:`, e);
-        return { success: false, error: 'Resposta inválida da API' };
-      }
-    } else {
-      const textResult = await response.text();
-      console.warn(`[Zap Responder] Non-JSON response: ${textResult.substring(0, 200)}`);
-      return { success: false, error: 'Resposta não-JSON da API' };
-    }
-    
-    // Check for error in response body
-    if (result.error || result.success === false) {
-      console.error(`[Zap Responder] API returned error in body:`, result);
-      return { success: false, error: result.error || result.message || 'Erro retornado pela API' };
-    }
-    
-    // Check for queued/sent status (with proper type checking)
-    const statusValue = result.status;
-    if (statusValue && typeof statusValue === 'string') {
-      const statusLower = statusValue.toLowerCase();
-      if (!['queued', 'sent', 'delivered', 'read'].includes(statusLower)) {
-        console.warn(`[Zap Responder] Unexpected status: ${statusValue}`, result);
-      }
-    }
-
-    console.log(`[Zap Responder] Template sent successfully to ${formattedPhone}`, result);
-    return { success: true };
+    return { success: false, error: lastError };
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     console.error(`[Zap Responder] Error sending template to ${phone}:`, error);
