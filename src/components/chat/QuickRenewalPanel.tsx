@@ -107,6 +107,22 @@ interface QuickRenewalPanelProps {
   initialPhone?: string | null;
 }
 
+function SortableMessageRow({ msg, children }: { msg: QuickMessage; children: (handleProps: { listeners: any; attributes: any; isDragging: boolean }) => React.ReactNode }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: msg.id });
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+  return (
+    <div ref={setNodeRef} style={style}>
+      {children({ listeners, attributes, isDragging })}
+    </div>
+  );
+}
+
+
+
 export default function QuickRenewalPanel({ isMobile = false, onClose, initialPhone }: QuickRenewalPanelProps) {
   const { user } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
