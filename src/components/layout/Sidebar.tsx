@@ -59,7 +59,7 @@ const menuItems: Array<{
   { icon: Bot, label: 'Robô', path: '/robo', adminOnly: false },
   { icon: Smartphone, label: 'Ativação de Apps', path: '/activation-apps', adminOnly: false },
   { icon: FileText, label: 'Templates Meta', path: '/meta-templates', adminOnly: true },
-  { icon: UsersRound, label: 'Sub-Revendedores', path: '/sub-resellers', adminOnly: false },
+  
   { icon: GraduationCap, label: 'Tutorial', path: '/tutorial', adminOnly: false },
   { icon: PiggyBank, label: 'Despesas', path: '/expenses', adminOnly: true },
   { icon: ScrollText, label: 'Logs de Mensagens', path: '/message-logs', adminOnly: true },
