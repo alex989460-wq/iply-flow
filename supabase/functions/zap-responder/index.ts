@@ -583,7 +583,18 @@ async function enviarTemplateWhatsApp(
     // Use the message endpoint (same for templates and regular messages)
     const url = `${apiBaseUrl}/whatsapp/message/${departmentId}`;
 
-    // Normalize variables into ordered text array
+    // Extract named parameters if provided (Meta NAMED templates)
+    const namedParams: Array<{ name: string; value: string }> = (() => {
+      if (!variables) return [];
+      if (Array.isArray(variables?.named)) {
+        return variables.named
+          .filter((p: any) => p && p.name != null)
+          .map((p: any) => ({ name: String(p.name), value: String(p.value ?? '') }));
+      }
+      return [];
+    })();
+
+    // Normalize variables into ordered text array (positional fallback)
     const bodyTextValues: string[] = (() => {
       if (!variables) return [];
       if (variables?.body_text && Array.isArray(variables.body_text)) {
@@ -591,6 +602,9 @@ async function enviarTemplateWhatsApp(
       }
       if (Array.isArray(variables)) {
         return variables.map((value: unknown) => String(value));
+      }
+      if (namedParams.length > 0) {
+        return namedParams.map((p) => p.value);
       }
       if (typeof variables === 'object') {
         return Object.values(variables).map((value: unknown) => String(value));
@@ -605,7 +619,28 @@ async function enviarTemplateWhatsApp(
       language,
     };
 
-    const payloadAttempts: Array<{ name: string; body: Record<string, unknown> }> = bodyTextValues.length > 0
+    const namedAttempts: Array<{ name: string; body: Record<string, unknown> }> = namedParams.length > 0
+      ? [
+          {
+            name: 'template + components[named]',
+            body: {
+              ...basePayload,
+              components: [
+                {
+                  type: 'body',
+                  parameters: namedParams.map((p) => ({ type: 'text', parameter_name: p.name, text: p.value })),
+                },
+              ],
+            },
+          },
+          {
+            name: 'template + variables.named',
+            body: { ...basePayload, variables: { named: namedParams } },
+          },
+        ]
+      : [];
+
+    const positionalAttempts: Array<{ name: string; body: Record<string, unknown> }> = bodyTextValues.length > 0
       ? [
           {
             name: 'template + components[]',
@@ -633,6 +668,8 @@ async function enviarTemplateWhatsApp(
           },
         ]
       : [{ name: 'template (no vars)', body: { ...basePayload } }];
+
+    const payloadAttempts = [...namedAttempts, ...positionalAttempts];
 
     let lastError = 'Falha ao enviar template';
 
