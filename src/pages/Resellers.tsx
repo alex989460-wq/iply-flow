@@ -723,7 +723,10 @@ export default function Resellers() {
               Códigos de Acesso (30 dias)
             </CardTitle>
             <CardDescription>
-              Gere códigos que revendedores podem resgatar quando o acesso expirar. Cada código vale 30 dias.
+              {isAdmin
+                ? 'Gere códigos que revendedores podem resgatar quando o acesso expirar. Cada código vale 30 dias.'
+                : 'Gere códigos de 30 dias para seus sub-revendedores resgatarem. Cada código consome 1 crédito do seu saldo.'}
+
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
