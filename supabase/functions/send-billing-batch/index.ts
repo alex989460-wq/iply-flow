@@ -492,7 +492,7 @@ Deno.serve(async (req) => {
       // Fetch customers
       let customerQuery = supabase
         .from('customers')
-        .select('id, name, phone, extra_phone, due_date, status')
+        .select('id, name, phone, extra_phone, due_date, status, username, custom_price, plan:plans(plan_name, price), server:servers(server_name)')
         .in('status', ['ativa', 'inativa'])
         .in('due_date', [yesterday, today, tomorrow]);
       
