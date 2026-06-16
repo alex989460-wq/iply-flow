@@ -82,20 +82,24 @@ export default function BolaoBroadcast() {
           }
           if (data.length < pageSize) break;
         }
-      } else if (source === 'all_customers') {
+      } else {
+        // window48h
+        const hours = 48;
+        const since = new Date(Date.now() - hours * 3600 * 1000).toISOString();
         const pageSize = 1000;
-        for (let from = 0; from < 100000; from += pageSize) {
+        for (let from = 0; from < 50000; from += pageSize) {
           const { data, error } = await supabase
-            .from('customers')
-            .select('phone, name')
-            .not('phone', 'is', null)
+            .from('evolution_messages')
+            .select('phone, contact_name')
+            .eq('direction', 'in')
+            .gte('created_at', since)
             .range(from, from + pageSize - 1);
           if (error) throw error;
           if (!data || data.length === 0) break;
-          for (const c of data) {
-            const p = normalizePhone(c.phone);
+          for (const m of data) {
+            const p = normalizePhone(m.phone);
             if (!p) continue;
-            if (!map.has(p)) map.set(p, { phone: p, name: c.name || undefined });
+            if (!map.has(p)) map.set(p, { phone: p, name: m.contact_name || undefined });
           }
           if (data.length < pageSize) break;
         }
