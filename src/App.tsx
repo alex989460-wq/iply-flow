@@ -104,7 +104,7 @@ function AppRoutes() {
       <Route path="/tutorial" element={<ProtectedRoute><Tutorial /></ProtectedRoute>} />
       <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
       <Route path="/resellers" element={<ProtectedRoute><Resellers /></ProtectedRoute>} />
-      <Route path="/sub-resellers" element={<ProtectedRoute><SubResellers /></ProtectedRoute>} />
+      <Route path="/sub-resellers" element={<Navigate to="/resellers" replace />} />
       <Route path="/expenses" element={<ProtectedRoute><Expenses /></ProtectedRoute>} />
       <Route path="/message-logs" element={<ProtectedRoute><MessageLogs /></ProtectedRoute>} />
       <Route path="/activation-apps" element={<ProtectedRoute><ActivationApps /></ProtectedRoute>} />
