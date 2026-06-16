@@ -670,6 +670,15 @@ export default function Resellers() {
                                   </>
                                 )}
                               </Button>
+                              <Button
+                                variant="destructive"
+                                size="sm"
+                                onClick={() => setResellerToDelete(reseller)}
+                                title="Excluir revendedor"
+                              >
+                                <Trash2 className="h-4 w-4 mr-1" />
+                                Excluir
+                              </Button>
                             </div>
                           </TableCell>
                         </TableRow>
