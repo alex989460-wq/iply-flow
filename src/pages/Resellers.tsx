@@ -486,24 +486,32 @@ export default function Resellers() {
   const activeCount = resellers?.filter(r => r.is_active && !isPast(new Date(r.access_expires_at))).length || 0;
   const expiredCount = resellers?.filter(r => !r.is_active || isPast(new Date(r.access_expires_at))).length || 0;
 
-  // Redirect non-admin users
-  if (!isAdmin) {
-    return <Navigate to="/" replace />;
-  }
-
   return (
     <DashboardLayout>
       <div className="space-y-6 animate-fade-in">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">Revendedores</h1>
-            <p className="text-muted-foreground">Gerencie o acesso dos revendedores ao sistema</p>
+            <h1 className="text-3xl font-bold tracking-tight">{isAdmin ? 'Revendedores' : 'Minhas Revendas'}</h1>
+            <p className="text-muted-foreground">
+              {isAdmin
+                ? 'Gerencie o acesso dos revendedores ao sistema'
+                : 'Crie sub-revendas e gere códigos de 30 dias (1 crédito cada)'}
+            </p>
           </div>
-          <Button onClick={() => setIsCreateDialogOpen(true)}>
-            <UserPlus className="h-4 w-4 mr-2" />
-            Cadastrar Revendedor
-          </Button>
+          <div className="flex items-center gap-3">
+            {!isAdmin && (
+              <Badge variant="outline" className="gap-1 text-base py-1.5 px-3">
+                <Coins className="h-4 w-4" />
+                {myAccess?.credits ?? 0} créditos
+              </Badge>
+            )}
+            <Button onClick={() => setIsCreateDialogOpen(true)}>
+              <UserPlus className="h-4 w-4 mr-2" />
+              {isAdmin ? 'Cadastrar Revendedor' : 'Criar Sub-Revenda'}
+            </Button>
+          </div>
         </div>
+
 
         {/* Stats Cards */}
         <div className="grid gap-4 md:grid-cols-3 stagger-children">
