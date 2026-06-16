@@ -27,13 +27,46 @@ interface Customer {
   status: string;
 }
 
-// Send WhatsApp template message via Zap Responder API
+// Format BRL price (e.g. 35 -> "35,00")
+function formatBRL(v: any): string {
+  const n = typeof v === 'number' ? v : parseFloat(String(v ?? '0').replace(',', '.'));
+  if (!isFinite(n)) return '0,00';
+  return n.toFixed(2).replace('.', ',');
+}
+
+// Format date as dd/MM/yyyy from YYYY-MM-DD
+function formatBRDate(iso: string): string {
+  if (!iso) return '';
+  const [y, m, d] = iso.split('-');
+  return `${d}/${m}/${y}`;
+}
+
+// Build named template variables that match the Meta template
+// Variables in template: name, user, price, weak (plano), serv (servidor), data (vencimento)
+function buildTemplateVars(customer: any): Array<{ name: string; value: string }> {
+  const planName = customer?.plan?.plan_name || '';
+  const planPrice = customer?.plan?.price;
+  const serverName = customer?.server?.server_name || '';
+  const price = customer?.custom_price ?? planPrice ?? 0;
+  const firstName = String(customer?.name || '').trim().split(/\s+/)[0] || customer?.name || '';
+  return [
+    { name: 'name', value: firstName },
+    { name: 'user', value: String(customer?.username || '') },
+    { name: 'price', value: formatBRL(price) },
+    { name: 'weak', value: String(planName) },
+    { name: 'serv', value: String(serverName) },
+    { name: 'data', value: formatBRDate(customer?.due_date || '') },
+  ];
+}
+
+// Send WhatsApp template message via Zap Responder API (with variable substitution)
 async function sendWhatsAppTemplate(
   phone: string, 
   templateName: string,
   token: string, 
   apiBaseUrl: string,
-  departmentId: string
+  departmentId: string,
+  vars: Array<{ name: string; value: string }> = []
 ): Promise<{ success: boolean; error?: string }> {
   try {
     // Format phone number (remove non-digits and ensure country code)
@@ -44,15 +77,23 @@ async function sendWhatsAppTemplate(
       formattedPhone = '55' + formattedPhone;
     }
     
-    console.log(`Sending WhatsApp template "${templateName}" to ${formattedPhone} via department ${departmentId}`);
+    console.log(`Sending WhatsApp template "${templateName}" to ${formattedPhone} via department ${departmentId} with ${vars.length} vars`);
     
-    // Use the WhatsApp template endpoint
-    const body = {
+    // Build payload sending BOTH named and positional formats — gateways accept either.
+    const positional = vars.map(v => v.value);
+    const namedParams = vars.map(v => ({ type: 'text', parameter_name: v.name, text: v.value }));
+
+    const body: Record<string, unknown> = {
       type: 'template',
       template_name: templateName,
       number: formattedPhone,
       language: 'pt_BR',
     };
+    if (vars.length > 0) {
+      body.components = [{ type: 'body', parameters: namedParams }];
+      body.variables = { body_text: positional };
+      body.params = positional;
+    }
     
     const response = await fetch(`${apiBaseUrl}/whatsapp/message/${departmentId}`, {
       method: 'POST',
@@ -295,7 +336,7 @@ Deno.serve(async (req) => {
     // SECURITY: Filter by created_by to ensure user can only process their own customers
     let customerQuery = supabase
       .from('customers')
-      .select('id, name, phone, extra_phone, due_date, status')
+      .select('id, name, phone, extra_phone, due_date, status, username, custom_price, plan:plans(plan_name, price), server:servers(server_name)')
       .in('status', ['ativa', 'inativa'])
       .in('due_date', [yesterday, today, tomorrow]);
     
@@ -402,14 +443,15 @@ Deno.serve(async (req) => {
       const batchPromises = batch.map(async (customer) => {
         const billingType = customer.billingType as 'D-1' | 'D0' | 'D+1';
         const templateName = templateMapping[billingType];
+        const templateVars = buildTemplateVars(customer);
         
         // Send WhatsApp template (main phone)
-        const sendResult = await sendWhatsAppTemplate(customer.phone, templateName, zapToken, apiBaseUrl, departmentId);
+        const sendResult = await sendWhatsAppTemplate(customer.phone, templateName, zapToken, apiBaseUrl, departmentId, templateVars);
 
         // Also send to extra_phone if configured
         if (customer.extra_phone && String(customer.extra_phone).replace(/\D/g, '').length >= 10) {
           try {
-            await sendWhatsAppTemplate(customer.extra_phone, templateName, zapToken, apiBaseUrl, departmentId);
+            await sendWhatsAppTemplate(customer.extra_phone, templateName, zapToken, apiBaseUrl, departmentId, templateVars);
             console.log(`[Billing] Extra phone notified for ${customer.name}: ${customer.extra_phone}`);
           } catch (e) {
             console.error(`[Billing] Failed to send to extra_phone for ${customer.name}:`, e);

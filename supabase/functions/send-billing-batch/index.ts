@@ -46,12 +46,41 @@ async function generateAppSecretProof(accessToken: string, appSecret: string): P
     .join('');
 }
 
+// Format BRL price (35 -> "35,00")
+function formatBRL(v: any): string {
+  const n = typeof v === 'number' ? v : parseFloat(String(v ?? '0').replace(',', '.'));
+  if (!isFinite(n)) return '0,00';
+  return n.toFixed(2).replace('.', ',');
+}
+function formatBRDate(iso: string): string {
+  if (!iso) return '';
+  const [y, m, d] = iso.split('-');
+  return `${d}/${m}/${y}`;
+}
+// Variables: name, user, price, weak (plano), serv (servidor), data (vencimento)
+function buildTemplateVars(customer: any): Array<{ name: string; value: string }> {
+  const planName = customer?.plan?.plan_name || '';
+  const planPrice = customer?.plan?.price;
+  const serverName = customer?.server?.server_name || '';
+  const price = customer?.custom_price ?? planPrice ?? 0;
+  const firstName = String(customer?.name || '').trim().split(/\s+/)[0] || customer?.name || '';
+  return [
+    { name: 'name', value: firstName },
+    { name: 'user', value: String(customer?.username || '') },
+    { name: 'price', value: formatBRL(price) },
+    { name: 'weak', value: String(planName) },
+    { name: 'serv', value: String(serverName) },
+    { name: 'data', value: formatBRDate(customer?.due_date || '') },
+  ];
+}
+
 // Send WhatsApp template message via Meta Cloud API
 async function sendWhatsAppTemplateMeta(
   phone: string, 
   templateName: string,
   accessToken: string,
-  phoneNumberId: string
+  phoneNumberId: string,
+  vars: Array<{ name: string; value: string }> = []
 ): Promise<{ success: boolean; error?: string; isBillingError?: boolean }> {
   try {
     let formattedPhone = phone.replace(/\D/g, '');
@@ -68,17 +97,22 @@ async function sendWhatsAppTemplateMeta(
       url += `?appsecret_proof=${proof}`;
     }
     
+    const templateBlock: Record<string, unknown> = {
+      name: templateName,
+      language: { code: 'pt_BR' },
+    };
+    if (vars.length > 0) {
+      templateBlock.components = [{
+        type: 'body',
+        parameters: vars.map(v => ({ type: 'text', parameter_name: v.name, text: v.value })),
+      }];
+    }
     const body = {
       messaging_product: 'whatsapp',
       recipient_type: 'individual',
       to: formattedPhone,
       type: 'template',
-      template: {
-        name: templateName,
-        language: {
-          code: 'pt_BR'
-        }
-      }
+      template: templateBlock,
     };
     
     const response = await fetch(url, {
@@ -149,7 +183,8 @@ async function sendWhatsAppTemplateZap(
   templateName: string,
   token: string, 
   apiBaseUrl: string,
-  departmentId: string
+  departmentId: string,
+  vars: Array<{ name: string; value: string }> = []
 ): Promise<{ success: boolean; error?: string }> {
   try {
     let formattedPhone = phone.replace(/\D/g, '');
@@ -157,14 +192,22 @@ async function sendWhatsAppTemplateZap(
       formattedPhone = '55' + formattedPhone;
     }
     
-    console.log(`[Zap Responder] Sending template "${templateName}" to ${formattedPhone} via dept ${departmentId}`);
+    console.log(`[Zap Responder] Sending template "${templateName}" to ${formattedPhone} via dept ${departmentId} with ${vars.length} vars`);
     
-    const body = {
+    const positional = vars.map(v => v.value);
+    const namedParams = vars.map(v => ({ type: 'text', parameter_name: v.name, text: v.value }));
+
+    const body: Record<string, unknown> = {
       type: 'template',
       template_name: templateName,
       number: formattedPhone,
       language: 'pt_BR',
     };
+    if (vars.length > 0) {
+      body.components = [{ type: 'body', parameters: namedParams }];
+      body.variables = { body_text: positional };
+      body.params = positional;
+    }
     
     const response = await fetch(`${apiBaseUrl}/whatsapp/message/${departmentId}`, {
       method: 'POST',
@@ -492,7 +535,7 @@ Deno.serve(async (req) => {
       // Fetch customers
       let customerQuery = supabase
         .from('customers')
-        .select('id, name, phone, extra_phone, due_date, status')
+        .select('id, name, phone, extra_phone, due_date, status, username, custom_price, plan:plans(plan_name, price), server:servers(server_name)')
         .in('status', ['ativa', 'inativa'])
         .in('due_date', [yesterday, today, tomorrow]);
       
@@ -618,6 +661,7 @@ Deno.serve(async (req) => {
         const billingType = customer.billingType as 'D-1' | 'D0' | 'D+1';
         const templateName = TEMPLATE_MAPPING[billingType];
         const normalizedPhone = customer.normalizedPhone || normalizePhone(customer.phone);
+        const templateVars = buildTemplateVars(customer);
 
         let sendResult: { success: boolean; error?: string };
         let outboundLabel = templateName;
@@ -634,7 +678,8 @@ Deno.serve(async (req) => {
             customer.phone,
             templateName,
             zapSettings.meta_access_token,
-            zapSettings.meta_phone_number_id
+            zapSettings.meta_phone_number_id,
+            templateVars
           );
         } else {
           const zapToken = zapSettings?.zap_api_token || Deno.env.get('ZAP_RESPONDER_TOKEN');
@@ -647,7 +692,8 @@ Deno.serve(async (req) => {
             templateName,
             zapToken!,
             apiBaseUrl,
-            departmentId!
+            departmentId!,
+            templateVars
           );
         }
 
@@ -663,13 +709,14 @@ Deno.serve(async (req) => {
                 customer.extra_phone,
                 templateName,
                 zapSettings.meta_access_token,
-                zapSettings.meta_phone_number_id
+                zapSettings.meta_phone_number_id,
+                templateVars
               );
             } else {
               const zapToken = zapSettings?.zap_api_token || Deno.env.get('ZAP_RESPONDER_TOKEN');
               const apiBaseUrl = zapSettings?.api_base_url || 'https://api.zapresponder.com.br/api';
               const departmentId = zapSettings?.selected_department_id;
-              await sendWhatsAppTemplateZap(customer.extra_phone, templateName, zapToken!, apiBaseUrl, departmentId!);
+              await sendWhatsAppTemplateZap(customer.extra_phone, templateName, zapToken!, apiBaseUrl, departmentId!, templateVars);
             }
             console.log(`[Billing Batch] Extra phone notified for ${customer.name}: ${customer.extra_phone}`);
           } catch (e) {
