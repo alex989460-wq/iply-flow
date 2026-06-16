@@ -331,46 +331,8 @@ export default function Resellers() {
     },
   });
 
-  const { data: accessCodes, isLoading: codesLoading } = useQuery({
-    queryKey: ['reseller-access-codes'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('reseller_access_codes')
-        .select('*')
-        .order('created_at', { ascending: false });
-      if (error) throw error;
-      return data as Array<{ id: string; code: string; days: number; used_by: string | null; used_at: string | null; created_at: string }>;
-    },
-    enabled: isAdmin,
-  });
-
-  const generateCodesMutation = useMutation({
-    mutationFn: async (qty: number) => {
-      const { data, error } = await supabase.functions.invoke('generate-access-code', { body: { quantity: qty } });
-      if (error) throw error;
-      if (!data?.success) throw new Error(data?.error || 'Erro ao gerar códigos');
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['reseller-access-codes'] });
-      queryClient.invalidateQueries({ queryKey: ['my-reseller-access'] });
-      toast({ title: 'Códigos gerados', description: `${newCodesQty} código(s) criado(s).` });
-    },
-    onError: (error) => {
-      toast({ title: 'Erro', description: error.message, variant: 'destructive' });
-    },
-  });
 
 
-  const deleteCodeMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase.from('reseller_access_codes').delete().eq('id', id);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['reseller-access-codes'] });
-      toast({ title: 'Código removido' });
-    },
-  });
 
   const handleAddCredits = (reseller: ResellerAccess) => {
     setSelectedReseller(reseller);
