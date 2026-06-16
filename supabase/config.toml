@@ -71,3 +71,9 @@ verify_jwt = false
 
 [functions.evolution-send]
 verify_jwt = false
+
+[functions.delete-reseller]
+verify_jwt = false
+
+[functions.redeem-access-code]
+verify_jwt = false
