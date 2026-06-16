@@ -405,6 +405,22 @@ Deno.serve(async (req) => {
       body?.instance || body?.instanceName ||
       data?.instanceId || body?.instanceId || settings.instance_name || null;
 
+    // Resolve the owner of this instance so reseller messages are stored under
+    // their own user_id (not the admin who owns the global webhook_token).
+    let ownerUserId: string = settings.user_id as string;
+    if (instanceName) {
+      try {
+        const { data: ownerRow } = await admin
+          .from('user_evolution_instances')
+          .select('user_id')
+          .ilike('instance_name', String(instanceName))
+          .maybeSingle();
+        if (ownerRow?.user_id) ownerUserId = ownerRow.user_id as string;
+      } catch (_) { /* ignore */ }
+    }
+    // Backwards-compat shim so the rest of the handler attributes rows to the owner
+    settings.user_id = ownerUserId;
+
     // Presence (digitando…, online, visto por último) — Evolution Go: 'PresenceUpdate' / classic: 'presence.update'
     {
       const lower = String(event).toLowerCase();
