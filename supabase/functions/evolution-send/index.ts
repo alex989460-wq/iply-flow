@@ -405,11 +405,38 @@ Deno.serve(async (req) => {
     }
     const action = body.action || 'send';
 
-    const { data: settings } = await admin
+    let { data: settings } = await admin
       .from('evolution_settings')
       .select('*')
       .eq('user_id', user.id)
       .maybeSingle();
+
+    // Fallback: resellers share the admin's global Evolution server (URL + API Key).
+    // Their per-user row only customizes the active instance_name.
+    if (!settings || !settings.base_url || !settings.api_key) {
+      const { data: adminRole } = await admin
+        .from('user_roles')
+        .select('user_id')
+        .eq('role', 'admin')
+        .limit(1)
+        .maybeSingle();
+      if (adminRole?.user_id && adminRole.user_id !== user.id) {
+        const { data: adminSettings } = await admin
+          .from('evolution_settings')
+          .select('*')
+          .eq('user_id', adminRole.user_id)
+          .maybeSingle();
+        if (adminSettings?.base_url && adminSettings?.api_key) {
+          settings = {
+            ...adminSettings,
+            ...(settings || {}),
+            base_url: settings?.base_url || adminSettings.base_url,
+            api_key: settings?.api_key || adminSettings.api_key,
+            webhook_token: settings?.webhook_token || adminSettings.webhook_token,
+          };
+        }
+      }
+    }
 
     if (!settings) {
       return jsonResponse({ error: 'Evolution não configurada' }, 200);
