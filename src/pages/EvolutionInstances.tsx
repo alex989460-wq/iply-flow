@@ -369,27 +369,10 @@ export default function EvolutionInstances() {
                       <ShieldCheck className="w-3 h-3" /> EM USO
                     </div>
                   )}
-                  {/* Foto de perfil grande */}
+                  {/* Logo Super Gestor grande */}
                   <div className="relative w-full aspect-square bg-gradient-to-br from-muted to-muted/50 overflow-hidden flex items-center justify-center">
-                    {inst.profile_pic ? (
-                      <img
-                        src={inst.profile_pic}
-                        alt=""
-                        referrerPolicy="no-referrer"
-                        className="w-full h-full object-cover"
-                        onError={(e) => {
-                          const img = e.currentTarget;
-                          img.style.display = 'none';
-                          const fb = img.nextElementSibling as HTMLElement | null;
-                          if (fb) fb.style.display = 'flex';
-                        }}
-                      />
-                    ) : null}
-                    <div
-                      className="absolute inset-0 w-full h-full items-center justify-center bg-gradient-to-br from-emerald-500/10 to-primary/10"
-                      style={{ display: inst.profile_pic ? 'none' : 'flex' }}
-                    >
-                      <img src={logoSg} className="w-24 h-24 object-contain opacity-60" alt="" />
+                    <div className="absolute inset-0 w-full h-full flex items-center justify-center bg-gradient-to-br from-emerald-500/10 to-primary/10">
+                      <img src={logoSg} className="w-40 h-40 object-contain opacity-80" alt="Super Gestor" />
                     </div>
                   </div>
 
