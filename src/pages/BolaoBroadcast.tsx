@@ -11,26 +11,18 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
-import { Loader2, Send, Trophy, RefreshCw, Image as ImageIcon, MessageSquare, CheckCircle, XCircle } from 'lucide-react';
+import { Loader2, Send, Megaphone, RefreshCw, Image as ImageIcon, MessageSquare, CheckCircle, XCircle } from 'lucide-react';
 
-const DEFAULT_IMAGE_URL =
-  'https://fphqfgxfeaylldpxjqan.supabase.co/storage/v1/object/public/reseller-assets/bolao/bolao_copa_2026.png';
+const DEFAULT_IMAGE_URL = '';
 
-const DEFAULT_TEXT = `🎁 Quer participar do BOLÃO DIÁRIO da Copa 2026?
-
-R$ 11,00 por rodada · premiação em tempo real
-🥇 50% · 🥈 25% · 🥉 10%
-
-Entre em qualquer dia! Faltam 5 minutos para o 1º jogo.
-
-👉 https://planos.socialplay.com.br/bolao`;
+const DEFAULT_TEXT = '';
 
 interface Target {
   phone: string;
   name?: string;
 }
 
-type Source = 'window24h' | 'window48h' | 'all_customers';
+type Source = 'window24h' | 'window48h';
 
 function normalizePhone(raw?: string | null): string | null {
   if (!raw) return null;
