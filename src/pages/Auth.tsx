@@ -171,12 +171,56 @@ export default function Auth() {
         {/* Form Card */}
         <div className="backdrop-blur-xl bg-card/80 border border-border/50 rounded-2xl p-8 shadow-2xl shadow-black/20 animate-fade-in">
           {accessDeniedMessage && (
-            <Alert variant="destructive" className="mb-6 border-destructive/50 bg-destructive/10">
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>
-                {accessDeniedMessage}
-              </AlertDescription>
-            </Alert>
+            <>
+              <Alert variant="destructive" className="mb-4 border-destructive/50 bg-destructive/10">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>
+                  {accessDeniedMessage}
+                </AlertDescription>
+              </Alert>
+              {isLogin && email && password && (
+                <div className="mb-6 p-4 rounded-xl border border-amber-500/30 bg-amber-500/5 space-y-3">
+                  <div className="flex items-center gap-2 text-sm font-medium text-amber-400">
+                    <KeyRound className="w-4 h-4" />
+                    Resgatar código de acesso (30 dias)
+                  </div>
+                  <Input
+                    placeholder="Digite o código fornecido pelo admin"
+                    value={redeemCode}
+                    onChange={(e) => setRedeemCode(e.target.value.toUpperCase())}
+                    className="h-11 bg-secondary/50 border-border/50 font-mono"
+                  />
+                  <Button
+                    type="button"
+                    disabled={redeeming || !redeemCode.trim()}
+                    onClick={async () => {
+                      setRedeeming(true);
+                      try {
+                        const { data, error } = await supabase.functions.invoke('redeem-access-code', {
+                          body: { code: redeemCode.trim(), email, password },
+                        });
+                        if (error) throw error;
+                        if (!data?.success) throw new Error(data?.error || 'Erro ao resgatar');
+                        toast({
+                          title: 'Acesso renovado!',
+                          description: `+${data.days} dias adicionados. Faça login novamente.`,
+                        });
+                        setAccessDeniedMessage(null);
+                        setRedeemCode('');
+                      } catch (err) {
+                        const msg = err instanceof Error ? err.message : 'Erro';
+                        toast({ title: 'Erro ao resgatar', description: msg, variant: 'destructive' });
+                      } finally {
+                        setRedeeming(false);
+                      }
+                    }}
+                    className="w-full h-11 bg-amber-500 hover:bg-amber-600 text-background font-semibold"
+                  >
+                    {redeeming ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Resgatar Código'}
+                  </Button>
+                </div>
+              )}
+            </>
           )}
 
           <form onSubmit={handleSubmit} className="space-y-5">
