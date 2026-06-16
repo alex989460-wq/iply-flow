@@ -746,6 +746,48 @@ Obrigado pela preferência! 🙏`;
     },
   });
 
+  // Reorder quick messages mutation
+  const reorderMessages = useMutation({
+    mutationFn: async (ordered: QuickMessage[]) => {
+      const client = supabase as any;
+      const updates = ordered.map((m, idx) =>
+        client.from('quick_messages').update({ sort_order: idx }).eq('id', m.id)
+      );
+      const results = await Promise.all(updates);
+      const err = results.find((r: any) => r.error);
+      if (err?.error) throw err.error;
+    },
+    onMutate: async (ordered: QuickMessage[]) => {
+      await queryClient.cancelQueries({ queryKey: ['quick-messages', user?.id] });
+      const previous = queryClient.getQueryData(['quick-messages', user?.id]);
+      queryClient.setQueryData(['quick-messages', user?.id], ordered);
+      return { previous };
+    },
+    onError: (error: any, _vars, ctx) => {
+      if (ctx?.previous) queryClient.setQueryData(['quick-messages', user?.id], ctx.previous);
+      toast.error('Erro ao reordenar: ' + error.message);
+    },
+    onSuccess: () => {
+      toast.success('Ordem atualizada!');
+      queryClient.invalidateQueries({ queryKey: ['quick-messages'] });
+    },
+  });
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const oldIndex = quickMessages.findIndex((m) => m.id === active.id);
+    const newIndex = quickMessages.findIndex((m) => m.id === over.id);
+    if (oldIndex === -1 || newIndex === -1) return;
+    const reordered = arrayMove(quickMessages, oldIndex, newIndex);
+    reorderMessages.mutate(reordered);
+  };
+
   // Delete quick message mutation
   const deleteMessage = useMutation({
     mutationFn: async (id: string) => {
