@@ -1308,7 +1308,7 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
     if (useEvolutionForBilling) {
       const instance = billingSettings?.evolution_instance;
       if (!instance) {
-        toast({ title: 'Instância não configurada', description: 'Configure uma instância Evolution em Configurações → Cobrança.', variant: 'destructive' });
+        toast({ title: 'Instância não configurada', description: 'Configure uma instância WhatsApp em Configurações → Cobrança.', variant: 'destructive' });
         return;
       }
       const tplMap: Record<string, string> = {
@@ -1329,14 +1329,14 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
         await supabase.from('billing_logs').insert({
           customer_id: sendingBillingCustomer.id,
           billing_type: selectedEvoTemplateKey === 'D-1' ? 'D-1' : selectedEvoTemplateKey === 'D+1' ? 'D+1' : 'D0',
-          message: `Evolution (${instance}) - ${selectedEvoTemplateKey}`,
+          message: `WhatsApp (${instance}) - ${selectedEvoTemplateKey}`,
           whatsapp_status: 'sent',
         });
-        toast({ title: 'Cobrança enviada!', description: `Mensagem enviada pela Evolution para ${sendingBillingCustomer.name}.` });
+        toast({ title: 'Cobrança enviada!', description: `Mensagem enviada pelo WhatsApp para ${sendingBillingCustomer.name}.` });
         setIsSendBillingOpen(false);
         setSendingBillingCustomer(null);
       } catch (err: any) {
-        toast({ title: 'Erro ao enviar pela Evolution', description: err.message, variant: 'destructive' });
+        toast({ title: 'Erro ao enviar pelo WhatsApp', description: err.message, variant: 'destructive' });
       } finally {
         setIsSendingBilling(false);
       }
@@ -2874,7 +2874,7 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
 
               <div className="flex items-center justify-between p-3 rounded-lg bg-emerald-500/5 border border-emerald-500/20">
                 <div>
-                  <Label className="text-sm font-semibold">Enviar pela Evolution</Label>
+                  <Label className="text-sm font-semibold">Enviar pelo WhatsApp</Label>
                   <p className="text-[11px] text-muted-foreground">
                     {useEvolutionForBilling
                       ? `Instância: ${billingSettings?.evolution_instance || 'não configurada'}`
@@ -2907,7 +2907,7 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
                   </Select>
                   {!billingSettings?.evolution_instance && (
                     <p className="text-[11px] text-destructive">
-                      Configure a instância em Configurações → Cobrança → "Enviar Cobrança pela Evolution".
+                      Configure a instância em Configurações → Cobrança.
                     </p>
                   )}
                 </div>
