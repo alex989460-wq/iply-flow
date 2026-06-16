@@ -661,6 +661,7 @@ Deno.serve(async (req) => {
         const billingType = customer.billingType as 'D-1' | 'D0' | 'D+1';
         const templateName = TEMPLATE_MAPPING[billingType];
         const normalizedPhone = customer.normalizedPhone || normalizePhone(customer.phone);
+        const templateVars = buildTemplateVars(customer);
 
         let sendResult: { success: boolean; error?: string };
         let outboundLabel = templateName;
@@ -677,7 +678,8 @@ Deno.serve(async (req) => {
             customer.phone,
             templateName,
             zapSettings.meta_access_token,
-            zapSettings.meta_phone_number_id
+            zapSettings.meta_phone_number_id,
+            templateVars
           );
         } else {
           const zapToken = zapSettings?.zap_api_token || Deno.env.get('ZAP_RESPONDER_TOKEN');
@@ -690,7 +692,8 @@ Deno.serve(async (req) => {
             templateName,
             zapToken!,
             apiBaseUrl,
-            departmentId!
+            departmentId!,
+            templateVars
           );
         }
 
