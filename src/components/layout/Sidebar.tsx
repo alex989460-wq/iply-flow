@@ -50,7 +50,7 @@ const menuItems: Array<{
   { icon: Wallet, label: 'Pagamentos', path: '/payments', adminOnly: false },
   { icon: Receipt, label: 'Cobranças', path: '/billing', adminOnly: false },
   { icon: Megaphone, label: 'Disparo em Massa', path: '/mass-broadcast', adminOnly: false },
-  { icon: Trophy, label: 'Bolão Copa 2026', path: '/bolao-broadcast', adminOnly: false },
+  { icon: Trophy, label: 'Disparo Janela 24h', path: '/bolao-broadcast', adminOnly: false },
   { icon: MessageCircleMore, label: 'Chat', path: '/chat', adminOnly: false },
   { icon: MessageCircleMore, label: 'Chat Evolution', path: '/chat-evolution', adminOnly: false, badgeKey: 'evolution' },
   { icon: QrCode, label: 'Conexões WhatsApp', path: '/evolution-instances', adminOnly: false },
