@@ -89,8 +89,23 @@ export default function Resellers() {
       if (error) throw error;
       return data as ResellerAccess[];
     },
-    enabled: isAdmin,
   });
+
+  const { data: myAccess } = useQuery({
+    queryKey: ['my-reseller-access'],
+    queryFn: async () => {
+      const { data: u } = await supabase.auth.getUser();
+      if (!u.user) return null;
+      const { data } = await supabase
+        .from('reseller_access')
+        .select('credits')
+        .eq('user_id', u.user.id)
+        .maybeSingle();
+      return data;
+    },
+    enabled: !isAdmin,
+  });
+
 
   const renewMutation = useMutation({
     mutationFn: async ({ id, days }: { id: string; days: number }) => {
@@ -216,26 +231,21 @@ export default function Resellers() {
       password: string;
       access_days: number;
     }) => {
-      // Create user via edge function
-      const { data: result, error: fnError } = await supabase.functions.invoke('create-reseller', {
-        body: { 
-          email: data.email, 
-          password: data.password,
-          full_name: data.full_name,
-          access_days: data.access_days,
-        }
-      });
-      
+      const fnName = isAdmin ? 'create-reseller' : 'create-sub-reseller';
+      const body = isAdmin
+        ? { email: data.email, password: data.password, full_name: data.full_name, access_days: data.access_days }
+        : { email: data.email, password: data.password, full_name: data.full_name, credits_to_use: Math.max(1, Math.ceil(data.access_days / 30)) };
+      const { data: result, error: fnError } = await supabase.functions.invoke(fnName, { body });
       if (fnError) throw fnError;
       if (!result?.success) throw new Error(result?.error || 'Erro ao criar revendedor');
-      
       return result;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['reseller-access'] });
+      queryClient.invalidateQueries({ queryKey: ['my-reseller-access'] });
       toast({
         title: "Revendedor cadastrado",
-        description: "Novo revendedor criado com sucesso!",
+        description: isAdmin ? "Novo revendedor criado com sucesso!" : "Sub-revendedor criado (créditos debitados).",
       });
       setIsCreateDialogOpen(false);
       setCreateForm({ full_name: "", email: "", password: "", access_days: "30" });
@@ -249,6 +259,7 @@ export default function Resellers() {
       });
     },
   });
+
 
   const addCreditsMutation = useMutation({
     mutationFn: async ({ id, credits }: { id: string; credits: number }) => {
@@ -318,25 +329,20 @@ export default function Resellers() {
 
   const generateCodesMutation = useMutation({
     mutationFn: async (qty: number) => {
-      const { data: userData } = await supabase.auth.getUser();
-      const created_by = userData.user?.id;
-      if (!created_by) throw new Error('Não autenticado');
-      const rows = Array.from({ length: qty }).map(() => ({
-        code: Array.from({ length: 10 }, () => 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[Math.floor(Math.random() * 32)]).join(''),
-        days: 30,
-        created_by,
-      }));
-      const { error } = await supabase.from('reseller_access_codes').insert(rows);
+      const { data, error } = await supabase.functions.invoke('generate-access-code', { body: { quantity: qty } });
       if (error) throw error;
+      if (!data?.success) throw new Error(data?.error || 'Erro ao gerar códigos');
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['reseller-access-codes'] });
+      queryClient.invalidateQueries({ queryKey: ['my-reseller-access'] });
       toast({ title: 'Códigos gerados', description: `${newCodesQty} código(s) criado(s).` });
     },
     onError: (error) => {
       toast({ title: 'Erro', description: error.message, variant: 'destructive' });
     },
   });
+
 
   const deleteCodeMutation = useMutation({
     mutationFn: async (id: string) => {
@@ -480,24 +486,32 @@ export default function Resellers() {
   const activeCount = resellers?.filter(r => r.is_active && !isPast(new Date(r.access_expires_at))).length || 0;
   const expiredCount = resellers?.filter(r => !r.is_active || isPast(new Date(r.access_expires_at))).length || 0;
 
-  // Redirect non-admin users
-  if (!isAdmin) {
-    return <Navigate to="/" replace />;
-  }
-
   return (
     <DashboardLayout>
       <div className="space-y-6 animate-fade-in">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">Revendedores</h1>
-            <p className="text-muted-foreground">Gerencie o acesso dos revendedores ao sistema</p>
+            <h1 className="text-3xl font-bold tracking-tight">{isAdmin ? 'Revendedores' : 'Minhas Revendas'}</h1>
+            <p className="text-muted-foreground">
+              {isAdmin
+                ? 'Gerencie o acesso dos revendedores ao sistema'
+                : 'Crie sub-revendas e gere códigos de 30 dias (1 crédito cada)'}
+            </p>
           </div>
-          <Button onClick={() => setIsCreateDialogOpen(true)}>
-            <UserPlus className="h-4 w-4 mr-2" />
-            Cadastrar Revendedor
-          </Button>
+          <div className="flex items-center gap-3">
+            {!isAdmin && (
+              <Badge variant="outline" className="gap-1 text-base py-1.5 px-3">
+                <Coins className="h-4 w-4" />
+                {myAccess?.credits ?? 0} créditos
+              </Badge>
+            )}
+            <Button onClick={() => setIsCreateDialogOpen(true)}>
+              <UserPlus className="h-4 w-4 mr-2" />
+              {isAdmin ? 'Cadastrar Revendedor' : 'Criar Sub-Revenda'}
+            </Button>
+          </div>
         </div>
+
 
         {/* Stats Cards */}
         <div className="grid gap-4 md:grid-cols-3 stagger-children">
@@ -566,7 +580,7 @@ export default function Resellers() {
                       <TableHead>Email</TableHead>
                       <TableHead>Nome</TableHead>
                       <TableHead>Status</TableHead>
-                      <TableHead>Créditos</TableHead>
+                      {isAdmin && <TableHead>Créditos</TableHead>}
                       <TableHead>Expira em</TableHead>
                       <TableHead>Cadastrado em</TableHead>
                       <TableHead className="text-right">Ações</TableHead>
@@ -587,12 +601,15 @@ export default function Resellers() {
                               {status.label}
                             </Badge>
                           </TableCell>
-                          <TableCell>
-                            <Badge variant="outline" className="gap-1">
-                              <Coins className="h-3 w-3" />
-                              {reseller.credits}
-                            </Badge>
-                          </TableCell>
+                          {isAdmin && (
+                            <TableCell>
+                              <Badge variant="outline" className="gap-1">
+                                <Coins className="h-3 w-3" />
+                                {reseller.credits}
+                              </Badge>
+                            </TableCell>
+                          )}
+
                           <TableCell>
                             {format(new Date(reseller.access_expires_at), "dd/MM/yyyy", { locale: ptBR })}
                           </TableCell>
@@ -601,14 +618,16 @@ export default function Resellers() {
                           </TableCell>
                           <TableCell className="text-right">
                             <div className="flex justify-end gap-2 flex-wrap">
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => handleAddCredits(reseller)}
-                              >
-                                <Plus className="h-4 w-4 mr-1" />
-                                Créditos
-                              </Button>
+                              {isAdmin && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleAddCredits(reseller)}
+                                >
+                                  <Plus className="h-4 w-4 mr-1" />
+                                  Créditos
+                                </Button>
+                              )}
                               <Button
                                 variant="outline"
                                 size="sm"
@@ -617,69 +636,74 @@ export default function Resellers() {
                                 <Pencil className="h-4 w-4 mr-1" />
                                 Editar
                               </Button>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => handleRenew(reseller)}
-                              >
-                                <Calendar className="h-4 w-4 mr-1" />
-                                Renovar
-                              </Button>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={async () => {
-                                  const current = reseller.max_evolution_instances ?? 1;
-                                  const input = prompt(`Máximo de instâncias WhatsApp para ${reseller.email}:`, String(current));
-                                  if (input === null) return;
-                                  const value = parseInt(input, 10);
-                                  if (isNaN(value) || value < 0) {
-                                    toast({ title: 'Valor inválido', description: 'Informe um número >= 0', variant: 'destructive' });
-                                    return;
-                                  }
-                                  const { error } = await supabase
-                                    .from('reseller_access')
-                                    .update({ max_evolution_instances: value })
-                                    .eq('id', reseller.id);
-                                  if (error) {
-                                    toast({ title: 'Erro', description: error.message, variant: 'destructive' });
-                                  } else {
-                                    toast({ title: 'Atualizado', description: `Limite: ${value} instância(s)` });
-                                    queryClient.invalidateQueries({ queryKey: ['reseller-access'] });
-                                  }
-                                }}
-                                title={`Limite atual: ${reseller.max_evolution_instances ?? 1} instância(s)`}
-                              >
-                                <Smartphone className="h-4 w-4 mr-1" />
-                                WhatsApp ({reseller.max_evolution_instances ?? 1})
-                              </Button>
-                              <Button
-                                variant={reseller.is_active ? "destructive" : "default"}
-                                size="sm"
-                                onClick={() => toggleActiveMutation.mutate({ id: reseller.id, isActive: reseller.is_active })}
-                              >
-                                {reseller.is_active ? (
-                                  <>
-                                    <Ban className="h-4 w-4 mr-1" />
-                                    Desativar
-                                  </>
-                                ) : (
-                                  <>
-                                    <CheckCircle className="h-4 w-4 mr-1" />
-                                    Ativar
-                                  </>
-                                )}
-                              </Button>
-                              <Button
-                                variant="destructive"
-                                size="sm"
-                                onClick={() => setResellerToDelete(reseller)}
-                                title="Excluir revendedor"
-                              >
-                                <Trash2 className="h-4 w-4 mr-1" />
-                                Excluir
-                              </Button>
+                              {isAdmin && (
+                                <>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => handleRenew(reseller)}
+                                  >
+                                    <Calendar className="h-4 w-4 mr-1" />
+                                    Renovar
+                                  </Button>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={async () => {
+                                      const current = reseller.max_evolution_instances ?? 1;
+                                      const input = prompt(`Máximo de instâncias WhatsApp para ${reseller.email}:`, String(current));
+                                      if (input === null) return;
+                                      const value = parseInt(input, 10);
+                                      if (isNaN(value) || value < 0) {
+                                        toast({ title: 'Valor inválido', description: 'Informe um número >= 0', variant: 'destructive' });
+                                        return;
+                                      }
+                                      const { error } = await supabase
+                                        .from('reseller_access')
+                                        .update({ max_evolution_instances: value })
+                                        .eq('id', reseller.id);
+                                      if (error) {
+                                        toast({ title: 'Erro', description: error.message, variant: 'destructive' });
+                                      } else {
+                                        toast({ title: 'Atualizado', description: `Limite: ${value} instância(s)` });
+                                        queryClient.invalidateQueries({ queryKey: ['reseller-access'] });
+                                      }
+                                    }}
+                                    title={`Limite atual: ${reseller.max_evolution_instances ?? 1} instância(s)`}
+                                  >
+                                    <Smartphone className="h-4 w-4 mr-1" />
+                                    WhatsApp ({reseller.max_evolution_instances ?? 1})
+                                  </Button>
+                                  <Button
+                                    variant={reseller.is_active ? "destructive" : "default"}
+                                    size="sm"
+                                    onClick={() => toggleActiveMutation.mutate({ id: reseller.id, isActive: reseller.is_active })}
+                                  >
+                                    {reseller.is_active ? (
+                                      <>
+                                        <Ban className="h-4 w-4 mr-1" />
+                                        Desativar
+                                      </>
+                                    ) : (
+                                      <>
+                                        <CheckCircle className="h-4 w-4 mr-1" />
+                                        Ativar
+                                      </>
+                                    )}
+                                  </Button>
+                                  <Button
+                                    variant="destructive"
+                                    size="sm"
+                                    onClick={() => setResellerToDelete(reseller)}
+                                    title="Excluir revendedor"
+                                  >
+                                    <Trash2 className="h-4 w-4 mr-1" />
+                                    Excluir
+                                  </Button>
+                                </>
+                              )}
                             </div>
+
                           </TableCell>
                         </TableRow>
                       );
@@ -699,7 +723,10 @@ export default function Resellers() {
               Códigos de Acesso (30 dias)
             </CardTitle>
             <CardDescription>
-              Gere códigos que revendedores podem resgatar quando o acesso expirar. Cada código vale 30 dias.
+              {isAdmin
+                ? 'Gere códigos que revendedores podem resgatar quando o acesso expirar. Cada código vale 30 dias.'
+                : 'Gere códigos de 30 dias para seus sub-revendedores resgatarem. Cada código consome 1 crédito do seu saldo.'}
+
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">

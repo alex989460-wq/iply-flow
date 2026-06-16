@@ -63,7 +63,7 @@ const menuItems: Array<{
   { icon: GraduationCap, label: 'Tutorial', path: '/tutorial', adminOnly: false },
   { icon: PiggyBank, label: 'Despesas', path: '/expenses', adminOnly: true },
   { icon: ScrollText, label: 'Logs de Mensagens', path: '/message-logs', adminOnly: true },
-  { icon: UserCog, label: 'Revendedores', path: '/resellers', adminOnly: true },
+  { icon: UserCog, label: 'Revendas', path: '/resellers', adminOnly: false },
   { icon: Cog, label: 'Configurações', path: '/settings', adminOnly: false },
 ];
 
