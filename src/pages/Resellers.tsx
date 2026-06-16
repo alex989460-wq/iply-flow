@@ -216,26 +216,21 @@ export default function Resellers() {
       password: string;
       access_days: number;
     }) => {
-      // Create user via edge function
-      const { data: result, error: fnError } = await supabase.functions.invoke('create-reseller', {
-        body: { 
-          email: data.email, 
-          password: data.password,
-          full_name: data.full_name,
-          access_days: data.access_days,
-        }
-      });
-      
+      const fnName = isAdmin ? 'create-reseller' : 'create-sub-reseller';
+      const body = isAdmin
+        ? { email: data.email, password: data.password, full_name: data.full_name, access_days: data.access_days }
+        : { email: data.email, password: data.password, full_name: data.full_name, credits_to_use: Math.max(1, Math.ceil(data.access_days / 30)) };
+      const { data: result, error: fnError } = await supabase.functions.invoke(fnName, { body });
       if (fnError) throw fnError;
       if (!result?.success) throw new Error(result?.error || 'Erro ao criar revendedor');
-      
       return result;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['reseller-access'] });
+      queryClient.invalidateQueries({ queryKey: ['my-reseller-access'] });
       toast({
         title: "Revendedor cadastrado",
-        description: "Novo revendedor criado com sucesso!",
+        description: isAdmin ? "Novo revendedor criado com sucesso!" : "Sub-revendedor criado (créditos debitados).",
       });
       setIsCreateDialogOpen(false);
       setCreateForm({ full_name: "", email: "", password: "", access_days: "30" });
@@ -249,6 +244,7 @@ export default function Resellers() {
       });
     },
   });
+
 
   const addCreditsMutation = useMutation({
     mutationFn: async ({ id, credits }: { id: string; credits: number }) => {
