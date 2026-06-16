@@ -174,16 +174,16 @@ export default function BolaoBroadcast() {
     <DashboardLayout>
       <div className="space-y-4 p-4 animate-fade-in">
         <div className="flex items-center gap-2">
-          <Trophy className="w-6 h-6 text-primary" />
-          <h1 className="text-xl font-bold">Disparo Bolão Copa 2026</h1>
+          <Megaphone className="w-6 h-6 text-primary" />
+          <h1 className="text-xl font-bold">Disparo Janela 24h</h1>
         </div>
 
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Origem dos destinatários</CardTitle>
             <CardDescription>
-              A API do Zap Responder não permite listar conversas abertas, então usamos as mensagens recebidas
-              recentemente (janela ativa do WhatsApp) ou a base de clientes.
+              Envia somente para contatos que interagiram com você nas últimas horas (janela ativa do WhatsApp),
+              evitando bloqueios por mensagens fora da janela.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -193,9 +193,8 @@ export default function BolaoBroadcast() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="window24h">Janela aberta (últimas 24h)</SelectItem>
+                  <SelectItem value="window24h">Janela ativa (últimas 24h)</SelectItem>
                   <SelectItem value="window48h">Janela ampliada (últimas 48h)</SelectItem>
-                  <SelectItem value="all_customers">Todos os clientes (com telefone)</SelectItem>
                 </SelectContent>
               </Select>
               <Button variant="outline" size="sm" onClick={loadTargets} disabled={loading}>
