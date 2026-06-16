@@ -11,6 +11,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import {
   Loader2, QrCode, Plus, RefreshCw, LogOut, CheckCircle2, Smartphone,
   Wifi, WifiOff, Zap, ShieldCheck, Sparkles, Settings as SettingsIcon, Save, Trash2,
+  Lock, Server,
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -338,61 +339,108 @@ export default function EvolutionInstances() {
             </CardContent>
           </Card>
         ) : (
-          <div className="grid gap-3 md:grid-cols-2">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {instances.map((inst) => {
               const b = stateBadge(inst.state);
               const Icon = b.icon;
               const isActive = inst.name === current;
               const connected = /open|connected|online/i.test(inst.state);
               return (
-                <Card key={inst.id || inst.name} className={`relative overflow-hidden transition-all hover:shadow-lg ${isActive ? 'border-primary/50 ring-1 ring-primary/30' : 'border-border/60'}`}>
+                <Card
+                  key={inst.id || inst.name}
+                  className={`relative overflow-hidden border-0 bg-card transition-all hover:shadow-xl ${
+                    isActive ? 'ring-1 ring-primary/40' : ''
+                  }`}
+                >
                   {isActive && (
-                    <div className="absolute top-0 right-0 bg-primary/90 text-primary-foreground text-[10px] font-bold px-2 py-0.5 rounded-bl-md flex items-center gap-1">
+                    <div className="absolute top-2 right-2 z-10 bg-primary/90 text-primary-foreground text-[10px] font-bold px-2 py-0.5 rounded-md flex items-center gap-1">
                       <ShieldCheck className="w-3 h-3" /> EM USO
                     </div>
                   )}
-                  <CardContent className="p-4 space-y-3">
-                    <div className="flex items-start gap-3">
-                      <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-500/20 to-primary/20 flex items-center justify-center overflow-hidden ring-1 ring-border/50">
-                        {inst.profile_pic ? (
-                          <img src={inst.profile_pic} alt="" className="w-full h-full object-cover" />
-                        ) : (
-                          <Smartphone className="w-5 h-5 text-emerald-400" />
-                        )}
+                  {/* Foto de perfil grande */}
+                  <div className="relative w-full aspect-square bg-gradient-to-br from-muted to-muted/50 overflow-hidden">
+                    {inst.profile_pic ? (
+                      <img src={inst.profile_pic} alt={inst.name} className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-emerald-500/10 to-primary/10">
+                        <Smartphone className="w-16 h-16 text-muted-foreground/30" />
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="font-semibold truncate">{inst.name}</div>
-                        <div className="text-xs text-muted-foreground truncate">
-                          {inst.phone ? `+${inst.phone}` : 'Sem número vinculado'}
-                        </div>
-                        <Badge variant="outline" className={`mt-1.5 gap-1 text-[10px] ${b.cls}`}>
+                    )}
+                  </div>
+
+                  <CardContent className="p-4 space-y-3">
+                    {/* Nome e status/telefone */}
+                    <div>
+                      <div className="font-bold text-lg leading-tight truncate">{inst.name}</div>
+                      <div className="flex items-center justify-between mt-2">
+                        <Badge className={`gap-1 text-[10px] border-0 ${b.cls}`}>
                           <Icon className="w-3 h-3" /> {b.label}
                         </Badge>
+                        <span className="text-xs text-muted-foreground">
+                          {inst.phone ? `+${inst.phone}` : '—'}
+                        </span>
                       </div>
                     </div>
 
-                    <div className="flex flex-wrap gap-2 pt-1">
+                    {/* Info extra */}
+                    <div className="space-y-1 text-xs text-muted-foreground">
+                      <div className="flex items-center gap-1.5">
+                        <Lock className="w-3 h-3 shrink-0" />
+                        <span className="truncate">{inst.name}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <Server className="w-3 h-3 shrink-0" />
+                        <span className="truncate">WhatsApp API</span>
+                      </div>
+                    </div>
+
+                    {/* Botões de ação */}
+                    <div className="flex items-center gap-2 pt-1">
                       {!connected && (
-                        <Button size="sm" variant="default" onClick={() => openQr(inst.name)} className="gap-1.5 bg-emerald-600 hover:bg-emerald-700">
-                          <QrCode className="w-3.5 h-3.5" /> Conectar (QR)
+                        <Button
+                          size="icon"
+                          onClick={() => openQr(inst.name)}
+                          className="h-9 w-9 bg-emerald-600 hover:bg-emerald-700 text-white border-0"
+                        >
+                          <QrCode className="w-4 h-4" />
                         </Button>
                       )}
-                      {!isActive && (
-                        <Button size="sm" variant="outline" onClick={() => setActive(inst.name)} className="gap-1.5">
-                          <CheckCircle2 className="w-3.5 h-3.5" /> Usar no Chat
-                        </Button>
-                      )}
-                      <Button size="sm" variant="outline" onClick={() => openSettings(inst.name)} className="gap-1.5">
-                        <SettingsIcon className="w-3.5 h-3.5" /> Configurar
+                      <Button
+                        size="icon"
+                        variant="secondary"
+                        onClick={() => openSettings(inst.name)}
+                        className="h-9 w-9 bg-blue-600 hover:bg-blue-700 text-white border-0"
+                      >
+                        <SettingsIcon className="w-4 h-4" />
                       </Button>
                       {connected && (
-                        <Button size="sm" variant="ghost" onClick={() => logout(inst.name)} className="gap-1.5 text-amber-400 hover:text-amber-300 hover:bg-amber-500/10">
-                          <LogOut className="w-3.5 h-3.5" /> Desconectar
+                        <Button
+                          size="icon"
+                          variant="secondary"
+                          onClick={() => logout(inst.name)}
+                          className="h-9 w-9 bg-rose-400 hover:bg-rose-500 text-white border-0"
+                        >
+                          <LogOut className="w-4 h-4" />
                         </Button>
                       )}
-                      <Button size="sm" variant="ghost" onClick={() => deleteInstance(inst.name)} className="gap-1.5 text-rose-400 hover:text-rose-300 hover:bg-rose-500/10">
-                        <Trash2 className="w-3.5 h-3.5" /> Excluir
+                      <Button
+                        size="icon"
+                        variant="secondary"
+                        onClick={() => deleteInstance(inst.name)}
+                        className="h-9 w-9 bg-rose-600 hover:bg-rose-700 text-white border-0"
+                      >
+                        <Trash2 className="w-4 h-4" />
                       </Button>
+                      {!isActive && connected && (
+                        <Button
+                          size="icon"
+                          variant="outline"
+                          onClick={() => setActive(inst.name)}
+                          className="h-9 w-9 ml-auto border-primary/50 text-primary hover:bg-primary/10"
+                        >
+                          <CheckCircle2 className="w-4 h-4" />
+                        </Button>
+                      )}
                     </div>
                   </CardContent>
                 </Card>
