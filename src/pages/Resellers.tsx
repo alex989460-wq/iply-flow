@@ -263,26 +263,31 @@ export default function Resellers() {
 
   const addCreditsMutation = useMutation({
     mutationFn: async ({ id, credits }: { id: string; credits: number }) => {
-      // First get current credits
-      const { data: current, error: fetchError } = await supabase
-        .from('reseller_access')
-        .select('credits')
-        .eq('id', id)
-        .single();
-      
-      if (fetchError) throw fetchError;
-
-      const { error } = await supabase
-        .from('reseller_access')
-        .update({ credits: (current?.credits || 0) + credits })
-        .eq('id', id);
-      
-      if (error) throw error;
+      if (isAdmin) {
+        const { data: current, error: fetchError } = await supabase
+          .from('reseller_access')
+          .select('credits')
+          .eq('id', id)
+          .single();
+        if (fetchError) throw fetchError;
+        const { error } = await supabase
+          .from('reseller_access')
+          .update({ credits: (current?.credits || 0) + credits })
+          .eq('id', id);
+        if (error) throw error;
+      } else {
+        const { data, error } = await supabase.functions.invoke('transfer-credits', {
+          body: { sub_reseller_id: id, credits },
+        });
+        if (error) throw error;
+        if (!data?.success) throw new Error(data?.error || 'Erro ao transferir créditos');
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['reseller-access'] });
+      queryClient.invalidateQueries({ queryKey: ['my-reseller-access'] });
       toast({
-        title: "Créditos adicionados",
+        title: "Créditos enviados",
         description: `${creditsToAdd} créditos adicionados com sucesso!`,
       });
       setIsAddCreditsDialogOpen(false);
@@ -297,6 +302,7 @@ export default function Resellers() {
       });
     },
   });
+
 
   const deleteMutation = useMutation({
     mutationFn: async (user_id: string) => {
