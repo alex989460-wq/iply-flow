@@ -458,6 +458,17 @@ Deno.serve(async (req) => {
       .eq('user_id', userId)
       .maybeSingle();
 
+    // Load custom template names from billing_schedule (overrides defaults)
+    const { data: scheduleCfg } = await supabase
+      .from('billing_schedule')
+      .select('template_d_minus_1, template_d0, template_d_plus_1')
+      .eq('user_id', userId)
+      .maybeSingle();
+    if (scheduleCfg?.template_d_minus_1) TEMPLATE_MAPPING['D-1'] = scheduleCfg.template_d_minus_1;
+    if (scheduleCfg?.template_d0) TEMPLATE_MAPPING['D0'] = scheduleCfg.template_d0;
+    if (scheduleCfg?.template_d_plus_1) TEMPLATE_MAPPING['D+1'] = scheduleCfg.template_d_plus_1;
+    console.log('[Billing Batch] Active template mapping:', TEMPLATE_MAPPING);
+
     const useEvolution = !!(billSettings as any)?.use_evolution_billing;
     let evoSettings: any = null;
     if (useEvolution) {
