@@ -89,8 +89,23 @@ export default function Resellers() {
       if (error) throw error;
       return data as ResellerAccess[];
     },
-    enabled: isAdmin,
   });
+
+  const { data: myAccess } = useQuery({
+    queryKey: ['my-reseller-access'],
+    queryFn: async () => {
+      const { data: u } = await supabase.auth.getUser();
+      if (!u.user) return null;
+      const { data } = await supabase
+        .from('reseller_access')
+        .select('credits')
+        .eq('user_id', u.user.id)
+        .maybeSingle();
+      return data;
+    },
+    enabled: !isAdmin,
+  });
+
 
   const renewMutation = useMutation({
     mutationFn: async ({ id, days }: { id: string; days: number }) => {
