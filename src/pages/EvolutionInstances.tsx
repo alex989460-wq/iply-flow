@@ -40,7 +40,6 @@ export default function EvolutionInstances() {
   const [loading, setLoading] = useState(true);
   const [instances, setInstances] = useState<InstanceRow[]>([]);
   const [current, setCurrent] = useState<string>('');
-  const [adminMode, setAdminMode] = useState(true);
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState('');
   const [qrOpen, setQrOpen] = useState(false);
@@ -132,7 +131,6 @@ export default function EvolutionInstances() {
     if (data?.ok) {
       setInstances(data.instances || []);
       setCurrent(data.current || '');
-      setAdminMode(!!data.adminMode);
       if (data.warning) {
         toast({ title: 'Atenção', description: data.warning });
       }
