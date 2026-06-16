@@ -1476,8 +1476,7 @@ Deno.serve(async (req) => {
       if (!name) return jsonResponse({ error: 'name obrigatório' }, 400);
       const { error } = await admin
         .from('evolution_settings')
-        .update({ instance_name: name })
-        .eq('user_id', user.id);
+        .upsert({ user_id: user.id, instance_name: name }, { onConflict: 'user_id' });
       if (error) return jsonResponse({ error: error.message }, 500);
       return jsonResponse({ ok: true });
     }
