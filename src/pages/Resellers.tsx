@@ -287,6 +287,68 @@ export default function Resellers() {
     },
   });
 
+  const deleteMutation = useMutation({
+    mutationFn: async (user_id: string) => {
+      const { data, error } = await supabase.functions.invoke('delete-reseller', { body: { user_id } });
+      if (error) throw error;
+      if (!data?.success) throw new Error(data?.error || 'Erro ao excluir');
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['reseller-access'] });
+      toast({ title: 'Revendedor excluído', description: 'Conta removida com sucesso.' });
+      setResellerToDelete(null);
+    },
+    onError: (error) => {
+      toast({ title: 'Erro ao excluir', description: error.message, variant: 'destructive' });
+    },
+  });
+
+  const { data: accessCodes, isLoading: codesLoading } = useQuery({
+    queryKey: ['reseller-access-codes'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('reseller_access_codes')
+        .select('*')
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return data as Array<{ id: string; code: string; days: number; used_by: string | null; used_at: string | null; created_at: string }>;
+    },
+    enabled: isAdmin,
+  });
+
+  const generateCodesMutation = useMutation({
+    mutationFn: async (qty: number) => {
+      const { data: userData } = await supabase.auth.getUser();
+      const created_by = userData.user?.id;
+      if (!created_by) throw new Error('Não autenticado');
+      const rows = Array.from({ length: qty }).map(() => ({
+        code: Array.from({ length: 10 }, () => 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[Math.floor(Math.random() * 32)]).join(''),
+        days: 30,
+        created_by,
+      }));
+      const { error } = await supabase.from('reseller_access_codes').insert(rows);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['reseller-access-codes'] });
+      toast({ title: 'Códigos gerados', description: `${newCodesQty} código(s) criado(s).` });
+    },
+    onError: (error) => {
+      toast({ title: 'Erro', description: error.message, variant: 'destructive' });
+    },
+  });
+
+  const deleteCodeMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from('reseller_access_codes').delete().eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['reseller-access-codes'] });
+      toast({ title: 'Código removido' });
+    },
+  });
+
   const handleAddCredits = (reseller: ResellerAccess) => {
     setSelectedReseller(reseller);
     setCreditsToAdd("10");
