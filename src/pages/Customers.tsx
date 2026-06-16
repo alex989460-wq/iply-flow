@@ -1422,7 +1422,7 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
           department_id: zapSettings.selected_department_id,
           template_name: selectedTemplate,
           number: phoneWithCode,
-          language: 'pt_BR',
+          language: selectedTemplateConfig?.language || 'pt_BR',
           ...(templateVariables ? { variables: templateVariables } : {}),
         },
       });
