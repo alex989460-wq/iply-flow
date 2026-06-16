@@ -14,7 +14,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { format, addDays, isPast, differenceInDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Users, RefreshCw, Search, Calendar, Ban, CheckCircle, Clock, Pencil, Eye, EyeOff, UserPlus, Coins, Plus, Smartphone, Trash2, KeyRound, Copy } from "lucide-react";
+import { Users, RefreshCw, Search, Calendar, Ban, CheckCircle, Clock, Pencil, Eye, EyeOff, UserPlus, Coins, Plus, Smartphone, Trash2 } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Navigate } from "react-router-dom";
 import { z } from "zod";
@@ -49,7 +49,8 @@ const createSchema = z.object({
 });
 
 export default function Resellers() {
-  const { isAdmin } = useAuth();
+  const { isAdmin, user } = useAuth();
+  const currentUserId = user?.id ?? null;
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState("");
@@ -77,7 +78,7 @@ export default function Resellers() {
   const [isAddCreditsDialogOpen, setIsAddCreditsDialogOpen] = useState(false);
   const [creditsToAdd, setCreditsToAdd] = useState("10");
   const [resellerToDelete, setResellerToDelete] = useState<ResellerAccess | null>(null);
-  const [newCodesQty, setNewCodesQty] = useState("1");
+  
   const { data: resellers, isLoading } = useQuery({
     queryKey: ['reseller-access'],
     queryFn: async () => {
@@ -109,19 +110,28 @@ export default function Resellers() {
 
   const renewMutation = useMutation({
     mutationFn: async ({ id, days }: { id: string; days: number }) => {
-      const newExpiration = addDays(new Date(), days);
-      const { error } = await supabase
-        .from('reseller_access')
-        .update({ 
-          access_expires_at: newExpiration.toISOString(),
-          is_active: true 
-        })
-        .eq('id', id);
-      
-      if (error) throw error;
+      if (isAdmin) {
+        const newExpiration = addDays(new Date(), days);
+        const { error } = await supabase
+          .from('reseller_access')
+          .update({
+            access_expires_at: newExpiration.toISOString(),
+            is_active: true,
+          })
+          .eq('id', id);
+        if (error) throw error;
+      } else {
+        const creditsNeeded = Math.max(1, Math.ceil(days / 30));
+        const { data, error } = await supabase.functions.invoke('renew-sub-reseller', {
+          body: { sub_reseller_id: id, credits_to_use: creditsNeeded },
+        });
+        if (error) throw error;
+        if (!data?.success) throw new Error(data?.error || 'Erro ao renovar');
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['reseller-access'] });
+      queryClient.invalidateQueries({ queryKey: ['my-reseller-access'] });
       toast({
         title: "Acesso renovado",
         description: `Acesso renovado por ${renewDays} dias com sucesso!`,
@@ -137,6 +147,7 @@ export default function Resellers() {
       });
     },
   });
+
 
   const editMutation = useMutation({
     mutationFn: async (data: { 
@@ -263,26 +274,31 @@ export default function Resellers() {
 
   const addCreditsMutation = useMutation({
     mutationFn: async ({ id, credits }: { id: string; credits: number }) => {
-      // First get current credits
-      const { data: current, error: fetchError } = await supabase
-        .from('reseller_access')
-        .select('credits')
-        .eq('id', id)
-        .single();
-      
-      if (fetchError) throw fetchError;
-
-      const { error } = await supabase
-        .from('reseller_access')
-        .update({ credits: (current?.credits || 0) + credits })
-        .eq('id', id);
-      
-      if (error) throw error;
+      if (isAdmin) {
+        const { data: current, error: fetchError } = await supabase
+          .from('reseller_access')
+          .select('credits')
+          .eq('id', id)
+          .single();
+        if (fetchError) throw fetchError;
+        const { error } = await supabase
+          .from('reseller_access')
+          .update({ credits: (current?.credits || 0) + credits })
+          .eq('id', id);
+        if (error) throw error;
+      } else {
+        const { data, error } = await supabase.functions.invoke('transfer-credits', {
+          body: { sub_reseller_id: id, credits },
+        });
+        if (error) throw error;
+        if (!data?.success) throw new Error(data?.error || 'Erro ao transferir créditos');
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['reseller-access'] });
+      queryClient.invalidateQueries({ queryKey: ['my-reseller-access'] });
       toast({
-        title: "Créditos adicionados",
+        title: "Créditos enviados",
         description: `${creditsToAdd} créditos adicionados com sucesso!`,
       });
       setIsAddCreditsDialogOpen(false);
@@ -297,6 +313,7 @@ export default function Resellers() {
       });
     },
   });
+
 
   const deleteMutation = useMutation({
     mutationFn: async (user_id: string) => {
@@ -314,46 +331,8 @@ export default function Resellers() {
     },
   });
 
-  const { data: accessCodes, isLoading: codesLoading } = useQuery({
-    queryKey: ['reseller-access-codes'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('reseller_access_codes')
-        .select('*')
-        .order('created_at', { ascending: false });
-      if (error) throw error;
-      return data as Array<{ id: string; code: string; days: number; used_by: string | null; used_at: string | null; created_at: string }>;
-    },
-    enabled: isAdmin,
-  });
-
-  const generateCodesMutation = useMutation({
-    mutationFn: async (qty: number) => {
-      const { data, error } = await supabase.functions.invoke('generate-access-code', { body: { quantity: qty } });
-      if (error) throw error;
-      if (!data?.success) throw new Error(data?.error || 'Erro ao gerar códigos');
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['reseller-access-codes'] });
-      queryClient.invalidateQueries({ queryKey: ['my-reseller-access'] });
-      toast({ title: 'Códigos gerados', description: `${newCodesQty} código(s) criado(s).` });
-    },
-    onError: (error) => {
-      toast({ title: 'Erro', description: error.message, variant: 'destructive' });
-    },
-  });
 
 
-  const deleteCodeMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase.from('reseller_access_codes').delete().eq('id', id);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['reseller-access-codes'] });
-      toast({ title: 'Código removido' });
-    },
-  });
 
   const handleAddCredits = (reseller: ResellerAccess) => {
     setSelectedReseller(reseller);
@@ -483,8 +462,17 @@ export default function Resellers() {
     reseller.full_name?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  const resellerByUserId = new Map<string, ResellerAccess>();
+  (resellers || []).forEach(r => resellerByUserId.set(r.user_id, r));
+  const getParentLabel = (parentId: string | null) => {
+    if (!parentId) return isAdmin ? 'Admin' : '-';
+    const p = resellerByUserId.get(parentId);
+    return p ? (p.full_name || p.email) : '—';
+  };
+
   const activeCount = resellers?.filter(r => r.is_active && !isPast(new Date(r.access_expires_at))).length || 0;
   const expiredCount = resellers?.filter(r => !r.is_active || isPast(new Date(r.access_expires_at))).length || 0;
+
 
   return (
     <DashboardLayout>
@@ -495,7 +483,7 @@ export default function Resellers() {
             <p className="text-muted-foreground">
               {isAdmin
                 ? 'Gerencie o acesso dos revendedores ao sistema'
-                : 'Crie sub-revendas e gere códigos de 30 dias (1 crédito cada)'}
+                : 'Crie sub-revendas e renove o acesso deles usando seus créditos (1 crédito = 30 dias)'}
             </p>
           </div>
           <div className="flex items-center gap-3">
@@ -579,8 +567,9 @@ export default function Resellers() {
                     <TableRow>
                       <TableHead>Email</TableHead>
                       <TableHead>Nome</TableHead>
+                      <TableHead>Revenda de</TableHead>
                       <TableHead>Status</TableHead>
-                      {isAdmin && <TableHead>Créditos</TableHead>}
+                      <TableHead>Créditos</TableHead>
                       <TableHead>Expira em</TableHead>
                       <TableHead>Cadastrado em</TableHead>
                       <TableHead className="text-right">Ações</TableHead>
@@ -590,25 +579,28 @@ export default function Resellers() {
                     {filteredResellers?.map((reseller) => {
                       const status = getAccessStatus(reseller.access_expires_at, reseller.is_active);
                       const StatusIcon = status.icon;
-                      
+                      const isMySub = reseller.parent_reseller_id === currentUserId;
+                      const canManage = isAdmin || isMySub;
+
                       return (
                         <TableRow key={reseller.id} className="table-row-hover">
                           <TableCell className="font-medium">{reseller.email}</TableCell>
                           <TableCell>{reseller.full_name || "-"}</TableCell>
+                          <TableCell className="text-sm text-muted-foreground">
+                            {getParentLabel(reseller.parent_reseller_id)}
+                          </TableCell>
                           <TableCell>
                             <Badge variant={status.variant} className="gap-1">
                               <StatusIcon className="h-3 w-3" />
                               {status.label}
                             </Badge>
                           </TableCell>
-                          {isAdmin && (
-                            <TableCell>
-                              <Badge variant="outline" className="gap-1">
-                                <Coins className="h-3 w-3" />
-                                {reseller.credits}
-                              </Badge>
-                            </TableCell>
-                          )}
+                          <TableCell>
+                            <Badge variant="outline" className="gap-1">
+                              <Coins className="h-3 w-3" />
+                              {reseller.credits}
+                            </Badge>
+                          </TableCell>
 
                           <TableCell>
                             {format(new Date(reseller.access_expires_at), "dd/MM/yyyy", { locale: ptBR })}
@@ -618,7 +610,7 @@ export default function Resellers() {
                           </TableCell>
                           <TableCell className="text-right">
                             <div className="flex justify-end gap-2 flex-wrap">
-                              {isAdmin && (
+                              {canManage && reseller.user_id !== currentUserId && (
                                 <Button
                                   variant="outline"
                                   size="sm"
@@ -628,24 +620,29 @@ export default function Resellers() {
                                   Créditos
                                 </Button>
                               )}
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => handleEdit(reseller)}
-                              >
-                                <Pencil className="h-4 w-4 mr-1" />
-                                Editar
-                              </Button>
+                              {isAdmin && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleEdit(reseller)}
+                                >
+                                  <Pencil className="h-4 w-4 mr-1" />
+                                  Editar
+                                </Button>
+                              )}
+                              {canManage && reseller.user_id !== currentUserId && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleRenew(reseller)}
+                                  title={isAdmin ? 'Renovar acesso' : 'Renovar (1 crédito = 30 dias)'}
+                                >
+                                  <Calendar className="h-4 w-4 mr-1" />
+                                  Renovar
+                                </Button>
+                              )}
                               {isAdmin && (
                                 <>
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => handleRenew(reseller)}
-                                  >
-                                    <Calendar className="h-4 w-4 mr-1" />
-                                    Renovar
-                                  </Button>
                                   <Button
                                     variant="outline"
                                     size="sm"
@@ -691,16 +688,18 @@ export default function Resellers() {
                                       </>
                                     )}
                                   </Button>
-                                  <Button
-                                    variant="destructive"
-                                    size="sm"
-                                    onClick={() => setResellerToDelete(reseller)}
-                                    title="Excluir revendedor"
-                                  >
-                                    <Trash2 className="h-4 w-4 mr-1" />
-                                    Excluir
-                                  </Button>
                                 </>
+                              )}
+                              {canManage && reseller.user_id !== currentUserId && (
+                                <Button
+                                  variant="destructive"
+                                  size="sm"
+                                  onClick={() => setResellerToDelete(reseller)}
+                                  title="Excluir revendedor"
+                                >
+                                  <Trash2 className="h-4 w-4 mr-1" />
+                                  Excluir
+                                </Button>
                               )}
                             </div>
 
@@ -715,108 +714,6 @@ export default function Resellers() {
           </CardContent>
         </Card>
 
-        {/* Access Codes Card */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <KeyRound className="h-5 w-5" />
-              Códigos de Acesso (30 dias)
-            </CardTitle>
-            <CardDescription>
-              {isAdmin
-                ? 'Gere códigos que revendedores podem resgatar quando o acesso expirar. Cada código vale 30 dias.'
-                : 'Gere códigos de 30 dias para seus sub-revendedores resgatarem. Cada código consome 1 crédito do seu saldo.'}
-
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex flex-wrap items-end gap-2">
-              <div className="space-y-2">
-                <Label>Quantidade</Label>
-                <Input
-                  type="number"
-                  min="1"
-                  max="100"
-                  value={newCodesQty}
-                  onChange={(e) => setNewCodesQty(e.target.value)}
-                  className="w-32"
-                />
-              </div>
-              <Button
-                onClick={() => generateCodesMutation.mutate(parseInt(newCodesQty) || 1)}
-                disabled={generateCodesMutation.isPending}
-              >
-                {generateCodesMutation.isPending ? (
-                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                ) : (
-                  <Plus className="h-4 w-4 mr-2" />
-                )}
-                Gerar Códigos
-              </Button>
-            </div>
-
-            {codesLoading ? (
-              <div className="flex justify-center py-4">
-                <RefreshCw className="h-5 w-5 animate-spin text-muted-foreground" />
-              </div>
-            ) : (accessCodes?.length || 0) === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-4">Nenhum código gerado ainda.</p>
-            ) : (
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Código</TableHead>
-                      <TableHead>Dias</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Usado em</TableHead>
-                      <TableHead className="text-right">Ações</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {accessCodes?.map((c) => (
-                      <TableRow key={c.id}>
-                        <TableCell className="font-mono font-semibold">{c.code}</TableCell>
-                        <TableCell>{c.days}</TableCell>
-                        <TableCell>
-                          {c.used_by ? (
-                            <Badge variant="secondary">Utilizado</Badge>
-                          ) : (
-                            <Badge variant="default">Disponível</Badge>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {c.used_at ? format(new Date(c.used_at), "dd/MM/yyyy HH:mm", { locale: ptBR }) : "-"}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex justify-end gap-2">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => {
-                                navigator.clipboard.writeText(c.code);
-                                toast({ title: "Copiado", description: c.code });
-                              }}
-                            >
-                              <Copy className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="destructive"
-                              size="sm"
-                              onClick={() => deleteCodeMutation.mutate(c.id)}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            )}
-          </CardContent>
-        </Card>
 
         {/* Delete confirmation */}
         <AlertDialog open={!!resellerToDelete} onOpenChange={(o) => !o && setResellerToDelete(null)}>
