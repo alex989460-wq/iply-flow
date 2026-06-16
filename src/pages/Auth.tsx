@@ -30,6 +30,8 @@ export default function Auth() {
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [accessDeniedMessage, setAccessDeniedMessage] = useState<string | null>(null);
+  const [redeemCode, setRedeemCode] = useState('');
+  const [redeeming, setRedeeming] = useState(false);
 
   
   const { signIn, signUp, accessDeniedReason } = useAuth();
