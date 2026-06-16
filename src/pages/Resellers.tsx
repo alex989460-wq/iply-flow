@@ -314,25 +314,20 @@ export default function Resellers() {
 
   const generateCodesMutation = useMutation({
     mutationFn: async (qty: number) => {
-      const { data: userData } = await supabase.auth.getUser();
-      const created_by = userData.user?.id;
-      if (!created_by) throw new Error('Não autenticado');
-      const rows = Array.from({ length: qty }).map(() => ({
-        code: Array.from({ length: 10 }, () => 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[Math.floor(Math.random() * 32)]).join(''),
-        days: 30,
-        created_by,
-      }));
-      const { error } = await supabase.from('reseller_access_codes').insert(rows);
+      const { data, error } = await supabase.functions.invoke('generate-access-code', { body: { quantity: qty } });
       if (error) throw error;
+      if (!data?.success) throw new Error(data?.error || 'Erro ao gerar códigos');
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['reseller-access-codes'] });
+      queryClient.invalidateQueries({ queryKey: ['my-reseller-access'] });
       toast({ title: 'Códigos gerados', description: `${newCodesQty} código(s) criado(s).` });
     },
     onError: (error) => {
       toast({ title: 'Erro', description: error.message, variant: 'destructive' });
     },
   });
+
 
   const deleteCodeMutation = useMutation({
     mutationFn: async (id: string) => {
