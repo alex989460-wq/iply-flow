@@ -302,7 +302,7 @@ export default function EvolutionInstances() {
             <CardTitle className="flex items-center gap-2 text-base">
               <Plus className="w-4 h-4 text-primary" /> Nova instância
             </CardTitle>
-            <CardDescription>Apenas escolha um nome. O webhook é configurado automaticamente.</CardDescription>
+            <CardDescription>Apenas escolha um nome.</CardDescription>
           </CardHeader>
           <CardContent>
 
