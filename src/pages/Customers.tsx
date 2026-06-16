@@ -1353,26 +1353,10 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
       const selectedTemplateConfig = templates.find((template) => template.name === selectedTemplate);
       const bodyComponent = selectedTemplateConfig?.components?.find((component) => component.type === 'BODY');
       const bodyText = typeof bodyComponent?.text === 'string' ? bodyComponent.text : '';
-      const requiredBodyVars = (bodyText.match(/\{\{\d+\}\}/g) || []).length;
-
-      const hasNamedVariables = selectedTemplateConfig?.parameter_format === 'NAMED';
-      if (hasNamedVariables) {
-        toast({
-          title: 'Template não suportado neste envio',
-          description: 'Esse template usa variáveis nomeadas (NAMED). Selecione um template POSITIONAL ou sem variáveis.',
-          variant: 'destructive',
-        });
-        return;
-      }
-
-      if (requiredBodyVars > 0) {
-        toast({
-          title: 'Variáveis não entregues por este provedor',
-          description: 'No Zap Responder, templates com variáveis estão sendo rejeitados (erro 132000). Use um template sem variáveis.',
-          variant: 'destructive',
-        });
-        return;
-      }
+      const isNamed = selectedTemplateConfig?.parameter_format === 'NAMED';
+      const positionalMatches = (bodyText.match(/\{\{\d+\}\}/g) || []).length;
+      const namedNames = Array.from(new Set((bodyText.match(/\{\{\s*([A-Za-z_]\w*)\s*\}\}/g) || [])
+        .map((m) => m.replace(/[\{\}\s]/g, ''))));
 
       const hasImageHeader = selectedTemplateConfig?.components?.some(
         (component) => component.type === 'HEADER' && component.format === 'IMAGE'
@@ -1402,16 +1386,35 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
       }
 
       const customerName = sendingBillingCustomer.name || '';
+      const firstName = customerName.trim().split(/\s+/)[0] || customerName;
       const customerUsername = sendingBillingCustomer.username || 'N/A';
       const serverName = sendingBillingCustomer.servers?.server_name || 'N/A';
+      const planName = sendingBillingCustomer.plans?.plan_name || 'N/A';
+      const rawPrice = sendingBillingCustomer.custom_price ?? sendingBillingCustomer.plans?.price ?? 0;
+      const priceFormatted = (typeof rawPrice === 'number' ? rawPrice : parseFloat(String(rawPrice).replace(',', '.')) || 0)
+        .toFixed(2).replace('.', ',');
       const dueDate = sendingBillingCustomer.due_date
         ? new Date(sendingBillingCustomer.due_date + 'T12:00:00').toLocaleDateString('pt-BR')
         : 'N/A';
 
-      const availableBodyValues = [customerName, customerUsername, serverName, dueDate];
-      const templateVariables = requiredBodyVars > 0
-        ? { body_text: availableBodyValues.slice(0, requiredBodyVars) }
-        : undefined;
+      // Map of common named variables -> customer data
+      const namedMap: Record<string, string> = {
+        name: firstName, nome: firstName, customer: firstName, cliente: firstName,
+        user: String(customerUsername), usuario: String(customerUsername), username: String(customerUsername),
+        price: priceFormatted, valor: priceFormatted, preco: priceFormatted,
+        weak: planName, plan: planName, plano: planName,
+        serv: serverName, server: serverName, servidor: serverName,
+        data: dueDate, vencimento: dueDate, due: dueDate, due_date: dueDate, date: dueDate,
+      };
+
+      let templateVariables: any = undefined;
+      if (isNamed && namedNames.length > 0) {
+        const named = namedNames.map((n) => ({ name: n, value: namedMap[n.toLowerCase()] ?? '' }));
+        templateVariables = { named, body_text: named.map((v) => v.value) };
+      } else if (positionalMatches > 0) {
+        const availableBodyValues = [customerName, customerUsername, serverName, dueDate];
+        templateVariables = { body_text: availableBodyValues.slice(0, positionalMatches) };
+      }
 
       const { data, error } = await supabase.functions.invoke('zap-responder', {
         body: {
