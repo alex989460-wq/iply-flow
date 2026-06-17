@@ -110,14 +110,6 @@ async function sendWhatsAppTemplate(
       };
       return [
         { name: `simple [${lang}]`, body: basePayload as Record<string, unknown> },
-        {
-          name: `meta-shape [${lang}]`,
-          body: {
-            type: 'template',
-            number: formattedPhone,
-            template: { name: templateName, language: { code: lang } },
-          } as Record<string, unknown>,
-        },
       ];
     };
 

@@ -1,0 +1,1 @@
+UPDATE public.billing_schedule SET is_enabled = false, last_run_status = 'cancelado pelo usuário', last_run_at = now() WHERE id = '2ded89b2-f99f-4c3d-9fa7-c80eb95246cb';
