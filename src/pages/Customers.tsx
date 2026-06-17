@@ -1430,6 +1430,7 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
           number: phoneWithCode,
           language: selectedTemplateConfig?.language || 'pt_BR',
           ...(templateVariables ? { variables: templateVariables } : {}),
+          ...(headerImageUrl ? { header_image_url: headerImageUrl } : {}),
         },
       });
 
