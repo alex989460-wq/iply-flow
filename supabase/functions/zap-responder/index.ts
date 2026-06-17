@@ -569,7 +569,8 @@ async function enviarTemplateWhatsApp(
   templateName: string,
   number: string,
   language: string = 'pt_BR',
-  variables?: any
+  variables?: any,
+  headerImageUrl?: string
 ): Promise<{ success: boolean; data?: any; error?: string }> {
   try {
     console.log('Sending WhatsApp template...', { departmentId, templateName, number, language, variables });
