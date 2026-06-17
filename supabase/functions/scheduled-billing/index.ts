@@ -84,44 +84,116 @@ function normalizePhone(phone: string): string {
   return normalized;
 }
 
-// Send WhatsApp template message
+// Send WhatsApp template message with language + payload fallbacks (mirrors send-billing-batch)
 async function sendWhatsAppTemplate(
-  phone: string, 
+  phone: string,
   templateName: string,
-  token: string, 
+  token: string,
   apiBaseUrl: string,
-  departmentId: string
+  departmentId: string,
+  language: string = 'pt_BR'
 ): Promise<{ success: boolean; error?: string }> {
   try {
     let formattedPhone = phone.replace(/\D/g, '');
     if (!formattedPhone.startsWith('55') && formattedPhone.length <= 11) {
       formattedPhone = '55' + formattedPhone;
     }
-    
+
     console.log(`[Scheduled] Sending template "${templateName}" to ${formattedPhone}`);
-    
-    const response = await fetch(`${apiBaseUrl}/whatsapp/message/${departmentId}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        'Authorization': `Bearer ${token}`,
-      },
-      body: JSON.stringify({
+
+    const buildPayloadsForLang = (lang: string) => {
+      const basePayload = {
         type: 'template',
         template_name: templateName,
         number: formattedPhone,
-        language: 'pt_BR',
-      }),
-    });
+        language: lang,
+      };
+      return [
+        { name: `simple [${lang}]`, body: basePayload as Record<string, unknown> },
+        {
+          name: `meta-shape [${lang}]`,
+          body: {
+            type: 'template',
+            number: formattedPhone,
+            template: { name: templateName, language: { code: lang } },
+          } as Record<string, unknown>,
+        },
+      ];
+    };
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`[Scheduled] API error: ${response.status} - ${errorText}`);
-      return { success: false, error: 'Falha ao enviar mensagem' };
+    const langCandidates = Array.from(new Set([language, 'pt_BR', 'en', 'en_US', 'pt_PT']));
+    const headers = {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      'Authorization': `Bearer ${token}`,
+    };
+    let lastError = 'Falha ao enviar mensagem';
+
+    for (const lang of langCandidates) {
+      let translationErrorSeen = false;
+
+      for (const payload of buildPayloadsForLang(lang)) {
+        const response = await fetch(`${apiBaseUrl}/whatsapp/message/${departmentId}`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(payload.body),
+        });
+
+        const responseText = await response.text();
+        const isTranslationError =
+          responseText.includes('#132001') ||
+          responseText.includes('does not exist') ||
+          responseText.includes('translation');
+
+        if (isTranslationError) {
+          translationErrorSeen = true;
+          lastError = `Template "${templateName}" não existe no idioma ${lang} (132001).`;
+          console.warn(`[Scheduled] ${lastError} Tentando próximo idioma...`);
+          break;
+        }
+
+        if (!response.ok) {
+          console.error(`[Scheduled] API error: ${response.status} - ${responseText}`);
+          try {
+            const j = JSON.parse(responseText);
+            lastError = j.message || j.error || `HTTP ${response.status}`;
+          } catch {
+            lastError = `HTTP ${response.status}`;
+          }
+          continue;
+        }
+
+        // Inspect JSON body for embedded errors
+        if (responseText.trim()) {
+          try {
+            const result = JSON.parse(responseText);
+            const body = JSON.stringify(result);
+            if (body.includes('#132001') || body.includes('does not exist') || body.includes('translation')) {
+              translationErrorSeen = true;
+              lastError = `Template "${templateName}" não existe no idioma ${lang} (132001).`;
+              console.warn(`[Scheduled] ${lastError} Tentando próximo idioma...`);
+              break;
+            }
+            if (result.error || result.success === false) {
+              lastError = result.message || result.error || 'Erro retornado pela API';
+              continue;
+            }
+          } catch {
+            if (responseText.trim().toLowerCase() === 'ok') {
+              console.log(`[Scheduled] Template enviado (${payload.name})`);
+              return { success: true };
+            }
+          }
+        }
+
+        console.log(`[Scheduled] Template enviado (${payload.name}) idioma=${lang}`);
+        return { success: true };
+      }
+
+      if (!translationErrorSeen) break;
     }
 
-    return { success: true };
+    return { success: false, error: lastError };
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     console.error(`[Scheduled] Error sending to ${phone}:`, error);

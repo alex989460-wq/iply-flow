@@ -1,0 +1,1 @@
+UPDATE public.billing_schedule SET last_run_status = 'reset: fallback de idioma aplicado', last_run_at = NULL WHERE id = '2ded89b2-f99f-4c3d-9fa7-c80eb95246cb';
