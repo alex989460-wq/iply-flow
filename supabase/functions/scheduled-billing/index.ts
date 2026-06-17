@@ -324,6 +324,39 @@ Deno.serve(async (req) => {
 
       console.log(`[Scheduled Billing] Using department ID: ${departmentId}`);
 
+      // Fetch templates from ZapResponder once to resolve EXACT language per template name (avoids #132001)
+      const templateLangMap: Record<string, string> = {};
+      try {
+        const tplRes = await fetch(`${zapSettings.api_base_url}/whatsapp/templates/${departmentId}`, {
+          headers: {
+            'Authorization': `Bearer ${zapSettings.zap_api_token}`,
+            'Accept': 'application/json',
+          },
+        });
+        if (tplRes.ok) {
+          const tplJson = await tplRes.json();
+          const list = Array.isArray(tplJson) ? tplJson : (tplJson.data || tplJson.templates || []);
+          for (const t of list) {
+            const name = t?.name || t?.template_name;
+            const lang = t?.language || t?.language_code || t?.lang;
+            const status = (t?.status || '').toString().toUpperCase();
+            if (!name || !lang) continue;
+            // Prefer APPROVED entries; only overwrite if current entry isn't approved
+            const existing = templateLangMap[name];
+            if (!existing || status === 'APPROVED') {
+              templateLangMap[name] = lang;
+            }
+          }
+          console.log(`[Scheduled Billing] Loaded ${Object.keys(templateLangMap).length} template languages from Meta`);
+        } else {
+          console.warn(`[Scheduled Billing] Could not fetch templates list (${tplRes.status}). Falling back to language guessing.`);
+        }
+      } catch (e) {
+        console.error('[Scheduled Billing] Error fetching templates list:', e);
+      }
+
+
+
       // Get dates using São Paulo timezone-aware function
       const today = getRelativeDateSaoPaulo(0);
       const yesterday = getRelativeDateSaoPaulo(-1);
