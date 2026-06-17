@@ -165,7 +165,7 @@ export default function Customers() {
   const [isSendBillingOpen, setIsSendBillingOpen] = useState(false);
   const [sendingBillingCustomer, setSendingBillingCustomer] = useState<any | null>(null);
   const [selectedTemplate, setSelectedTemplate] = useState('');
-  const [templates, setTemplates] = useState<Array<{ id?: string; name: string; language?: string; status?: string; parameter_format?: string; components?: Array<{ type?: string; text?: string; format?: string; buttons?: Array<{ url?: string }> }> }>>([]);
+  const [templates, setTemplates] = useState<Array<{ id?: string; name: string; language?: string; status?: string; parameter_format?: string; components?: Array<{ type?: string; text?: string; format?: string; example?: any; buttons?: Array<{ url?: string }> }> }>>([]);
   const [isLoadingTemplates, setIsLoadingTemplates] = useState(false);
   const [isSendingBilling, setIsSendingBilling] = useState(false);
   const [useEvolutionForBilling, setUseEvolutionForBilling] = useState(false);
@@ -1358,17 +1358,23 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
       const namedNames = Array.from(new Set((bodyText.match(/\{\{\s*([A-Za-z_]\w*)\s*\}\}/g) || [])
         .map((m) => m.replace(/[\{\}\s]/g, ''))));
 
-      const hasImageHeader = selectedTemplateConfig?.components?.some(
+      const headerComponent = selectedTemplateConfig?.components?.find(
         (component) => component.type === 'HEADER' && component.format === 'IMAGE'
       );
-      if (hasImageHeader) {
+      const headerImageUrl: string | undefined =
+        headerComponent?.example?.header_handle?.[0] ||
+        headerComponent?.example?.header_url?.[0] ||
+        (billingSettings as any)?.renewal_image_url ||
+        undefined;
+      if (headerComponent && !headerImageUrl) {
         toast({
           title: 'Template exige imagem no cabeçalho',
-          description: 'Esse template precisa de header_image. Use um template sem mídia para envio manual.',
+          description: 'Não foi possível obter a URL da imagem do template. Cadastre uma imagem padrão em Configurações → Cobrança.',
           variant: 'destructive',
         });
         return;
       }
+
 
       const hasDynamicButton = selectedTemplateConfig?.components?.some(
         (component) =>
@@ -1424,6 +1430,7 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
           number: phoneWithCode,
           language: selectedTemplateConfig?.language || 'pt_BR',
           ...(templateVariables ? { variables: templateVariables } : {}),
+          ...(headerImageUrl ? { header_image_url: headerImageUrl } : {}),
         },
       });
 
