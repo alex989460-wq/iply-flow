@@ -165,7 +165,7 @@ export default function Customers() {
   const [isSendBillingOpen, setIsSendBillingOpen] = useState(false);
   const [sendingBillingCustomer, setSendingBillingCustomer] = useState<any | null>(null);
   const [selectedTemplate, setSelectedTemplate] = useState('');
-  const [templates, setTemplates] = useState<Array<{ id?: string; name: string; language?: string; status?: string; parameter_format?: string; components?: Array<{ type?: string; text?: string; format?: string; buttons?: Array<{ url?: string }> }> }>>([]);
+  const [templates, setTemplates] = useState<Array<{ id?: string; name: string; language?: string; status?: string; parameter_format?: string; components?: Array<{ type?: string; text?: string; format?: string; example?: any; buttons?: Array<{ url?: string }> }> }>>([]);
   const [isLoadingTemplates, setIsLoadingTemplates] = useState(false);
   const [isSendingBilling, setIsSendingBilling] = useState(false);
   const [useEvolutionForBilling, setUseEvolutionForBilling] = useState(false);
