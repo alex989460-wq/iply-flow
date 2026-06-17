@@ -476,12 +476,20 @@ Deno.serve(async (req) => {
 
         console.log(`[Scheduled] (${i + 1}/${batch.length}) Template "${templateName}" -> ${customer.name}`);
 
+        const exactLang = templateLangMap[templateName];
+        if (exactLang) {
+          console.log(`[Scheduled] Using exact Meta language "${exactLang}" for template "${templateName}"`);
+        } else {
+          console.warn(`[Scheduled] Template "${templateName}" not found in Meta list; using fallback language order`);
+        }
+
         const sendResult = await sendWhatsAppTemplate(
           customer.phone,
           templateName,
           zapSettings.zap_api_token,
           zapSettings.api_base_url,
-          departmentId
+          departmentId,
+          exactLang || 'pt_BR'
         );
 
         if (customer.extra_phone && String(customer.extra_phone).replace(/\D/g, '').length >= 10) {
@@ -491,12 +499,14 @@ Deno.serve(async (req) => {
               templateName,
               zapSettings.zap_api_token,
               zapSettings.api_base_url,
-              departmentId
+              departmentId,
+              exactLang || 'pt_BR'
             );
           } catch (e) {
             console.error(`[Scheduled] Extra phone send failed for ${customer.name}:`, e);
           }
         }
+
 
         await supabase.from('billing_logs').insert({
           customer_id: customer.id,
