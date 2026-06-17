@@ -613,13 +613,23 @@ async function enviarTemplateWhatsApp(
       return [];
     })();
 
+    const headerImageComponent = headerImageUrl
+      ? { type: 'header', parameters: [{ type: 'image', image: { link: headerImageUrl } }] }
+      : null;
+
     const buildPayloadsForLang = (lang: string) => {
-      const basePayload = {
+      const basePayload: Record<string, unknown> = {
         type: 'template',
         template_name: templateName,
         number,
         language: lang,
       };
+      if (headerImageUrl) {
+        basePayload.header_image = headerImageUrl;
+        basePayload.image_url = headerImageUrl;
+      }
+
+      const withHeader = (comps: any[]) => headerImageComponent ? [headerImageComponent, ...comps] : comps;
 
       const metaShapeNamed = namedParams.length > 0 ? [{
         name: `meta-shape template object (named) [${lang}]`,
@@ -629,10 +639,10 @@ async function enviarTemplateWhatsApp(
           template: {
             name: templateName,
             language: { code: lang },
-            components: [{
+            components: withHeader([{
               type: 'body',
               parameters: namedParams.map((p) => ({ type: 'text', parameter_name: p.name, text: p.value })),
-            }],
+            }]),
           },
         } as Record<string, unknown>,
       }] : [];
@@ -645,10 +655,24 @@ async function enviarTemplateWhatsApp(
           template: {
             name: templateName,
             language: { code: lang },
-            components: [{
+            components: withHeader([{
               type: 'body',
               parameters: bodyTextValues.map((v: string) => ({ type: 'text', text: v })),
-            }],
+            }]),
+          },
+        } as Record<string, unknown>,
+      }] : [];
+
+      // Meta-shape with header only (no body vars)
+      const metaShapeHeaderOnly = (headerImageComponent && namedParams.length === 0 && bodyTextValues.length === 0) ? [{
+        name: `meta-shape template object (header only) [${lang}]`,
+        body: {
+          type: 'template',
+          number,
+          template: {
+            name: templateName,
+            language: { code: lang },
+            components: [headerImageComponent],
           },
         } as Record<string, unknown>,
       }] : [];
@@ -659,7 +683,7 @@ async function enviarTemplateWhatsApp(
               name: `template + components[named] [${lang}]`,
               body: {
                 ...basePayload,
-                components: [{ type: 'body', parameters: namedParams.map((p) => ({ type: 'text', parameter_name: p.name, text: p.value })) }],
+                components: withHeader([{ type: 'body', parameters: namedParams.map((p) => ({ type: 'text', parameter_name: p.name, text: p.value })) }]),
               } as Record<string, unknown>,
             },
             {
@@ -675,7 +699,7 @@ async function enviarTemplateWhatsApp(
               name: `template + components[] [${lang}]`,
               body: {
                 ...basePayload,
-                components: [{ type: 'body', parameters: bodyTextValues.map((v: string) => ({ type: 'text', text: v })) }],
+                components: withHeader([{ type: 'body', parameters: bodyTextValues.map((v: string) => ({ type: 'text', text: v })) }]),
               } as Record<string, unknown>,
             },
             { name: `template + variables.body_text [${lang}]`, body: { ...basePayload, variables: { body_text: bodyTextValues } } as Record<string, unknown> },
@@ -684,8 +708,9 @@ async function enviarTemplateWhatsApp(
           ]
         : [{ name: `template (no vars) [${lang}]`, body: { ...basePayload } as Record<string, unknown> }];
 
-      return [...metaShapeNamed, ...metaShapePositional, ...namedAttempts, ...positionalAttempts];
+      return [...metaShapeHeaderOnly, ...metaShapeNamed, ...metaShapePositional, ...namedAttempts, ...positionalAttempts];
     };
+
 
     // Try multiple language codes if Meta returns "template does not exist in translation"
     const langCandidates = Array.from(new Set([language, 'en', 'en_US', 'pt_BR', 'pt_PT']));
