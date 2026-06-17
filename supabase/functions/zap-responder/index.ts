@@ -2062,14 +2062,14 @@ Deno.serve(async (req) => {
 
       // Enviar template WhatsApp
       case 'enviar-template': {
-        const { department_id, template_name, number, language, variables } = body;
+        const { department_id, template_name, number, language, variables, header_image_url } = body;
         if (!department_id || !template_name || !number) {
           return new Response(
             JSON.stringify({ success: false, error: 'department_id, template_name, and number are required' }),
             { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
         }
-        const result = await enviarTemplateWhatsApp(apiBaseUrl, zapToken, department_id, template_name, number, language, variables);
+        const result = await enviarTemplateWhatsApp(apiBaseUrl, zapToken, department_id, template_name, number, language, variables, header_image_url);
         return new Response(
           JSON.stringify(result),
           { status: result.success ? 200 : 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
