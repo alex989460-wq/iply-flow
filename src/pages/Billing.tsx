@@ -762,8 +762,8 @@ export default function Billing() {
   });
 
   const [sendingType, setSendingType] = useState<string | null>(null);
-  const BATCH_SIZE = 8;
-  const BATCH_DELAY_MS = 2000; // 2 seconds between batches
+  const BATCH_SIZE = 12;
+  const BATCH_DELAY_MS = 500; // short pause between batches
 
   const handleSendBillings = async (billingType?: BillingType, forceResend: boolean = false) => {
     if (!hasValidSession) {

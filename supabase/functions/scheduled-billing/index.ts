@@ -126,7 +126,9 @@ function filterVarsForTemplate(
   if (!template) return vars;
   const body = template?.components?.find((c: any) => String(c?.type).toUpperCase() === 'BODY');
   const text: string = body?.text || '';
-  if (!text) return [];
+  // Some Zap Responder template endpoints omit BODY.text even when Meta expects variables.
+  // In that case keep the complete default variable list instead of sending 0 params (#132000).
+  if (!text) return vars;
   const tokens = Array.from(text.matchAll(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g)).map((m) => m[1]);
   if (tokens.length === 0) return [];
   const isPositional = tokens.every((t) => /^\d+$/.test(t));
@@ -162,13 +164,9 @@ async function sendWhatsAppTemplate(
 
     console.log(`[Scheduled] Sending template "${templateName}" to ${formattedPhone}`);
 
-    const namedParams = vars.map((v) => ({ type: 'text', parameter_name: v.name, text: v.value }));
     const positional = vars.map((v) => v.value);
-    const headerImageComponent = headerImageUrl
-      ? { type: 'header', parameters: [{ type: 'image', image: { link: headerImageUrl } }] }
-      : null;
 
-    const buildPayloadsForLang = (lang: string) => {
+    const buildPayloadForLang = (lang: string) => {
       const basePayload: Record<string, unknown> = {
         type: 'template',
         template_name: templateName,
@@ -180,58 +178,11 @@ async function sendWhatsAppTemplate(
         basePayload.image_url = headerImageUrl;
       }
 
-      const withHeader = (components: any[]) => headerImageComponent ? [headerImageComponent, ...components] : components;
+      const body = vars.length > 0
+        ? { ...basePayload, variables: { body_text: positional } }
+        : basePayload;
 
-      if (vars.length === 0) {
-        return headerImageComponent ? [
-          {
-            name: `meta-shape template object (header only) [${lang}]`,
-            body: {
-              type: 'template',
-              number: formattedPhone,
-              template: { name: templateName, language: { code: lang }, components: [headerImageComponent] },
-            } as Record<string, unknown>,
-          },
-          { name: `simple [${lang}]`, body: basePayload },
-        ] : [{ name: `simple [${lang}]`, body: basePayload }];
-      }
-
-      return [
-        {
-          name: `meta-shape template object (named) [${lang}]`,
-          body: {
-            type: 'template',
-            number: formattedPhone,
-            template: {
-              name: templateName,
-              language: { code: lang },
-              components: withHeader([{ type: 'body', parameters: namedParams }]),
-            },
-          } as Record<string, unknown>,
-        },
-        {
-          name: `template + components[named] [${lang}]`,
-          body: { ...basePayload, components: withHeader([{ type: 'body', parameters: namedParams }]) } as Record<string, unknown>,
-        },
-        {
-          name: `meta-shape template object (positional) [${lang}]`,
-          body: {
-            type: 'template',
-            number: formattedPhone,
-            template: {
-              name: templateName,
-              language: { code: lang },
-              components: withHeader([{ type: 'body', parameters: positional.map((text) => ({ type: 'text', text })) }]),
-            },
-          } as Record<string, unknown>,
-        },
-        {
-          name: `template + components[positional] [${lang}]`,
-          body: { ...basePayload, components: withHeader([{ type: 'body', parameters: positional.map((text) => ({ type: 'text', text })) }]) } as Record<string, unknown>,
-        },
-        { name: `template + variables.body_text [${lang}]`, body: { ...basePayload, variables: { body_text: positional } } as Record<string, unknown> },
-        { name: `template + params[] [${lang}]`, body: { ...basePayload, params: positional } as Record<string, unknown> },
-      ];
+      return { name: `template + variables.body_text [${lang}]`, body: body as Record<string, unknown> };
     };
 
     // If caller explicitly passed a language (resolved from Meta template list), don't iterate others.
@@ -246,82 +197,59 @@ async function sendWhatsAppTemplate(
     let lastError = 'Falha ao enviar mensagem';
 
     for (const lang of langCandidates) {
-      let translationErrorSeen = false;
+      const payload = buildPayloadForLang(lang);
+      const response = await fetch(`${apiBaseUrl}/whatsapp/message/${departmentId}`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(payload.body),
+      });
 
-      for (const payload of buildPayloadsForLang(lang)) {
-        const response = await fetch(`${apiBaseUrl}/whatsapp/message/${departmentId}`, {
-          method: 'POST',
-          headers,
-          body: JSON.stringify(payload.body),
-        });
+      const responseText = await response.text();
+      const isTranslationError =
+        responseText.includes('#132001') ||
+        responseText.includes('does not exist') ||
+        responseText.includes('translation');
 
-        const responseText = await response.text();
-        const isTranslationError =
-          responseText.includes('#132001') ||
-          responseText.includes('does not exist') ||
-          responseText.includes('translation');
-
-        const isParamError =
-          responseText.includes('#132000') ||
-          responseText.includes('localizable_params') ||
-          responseText.includes('Number of parameters does not match');
-
-        if (isTranslationError) {
-          translationErrorSeen = true;
-          lastError = `Template "${templateName}" não existe no idioma ${lang} (132001).`;
-          console.warn(`[Scheduled] ${lastError} Tentando próximo idioma...`);
-          break;
-        }
-
-        if (isParamError) {
-          lastError = `Formato de variáveis rejeitado para "${templateName}" (${lang}). Tentando outro formato...`;
-          console.warn(`[Scheduled] ${lastError}`);
-          continue;
-        }
-
-        if (!response.ok) {
-          console.error(`[Scheduled] API error: ${response.status} - ${responseText}`);
-          try {
-            const j = JSON.parse(responseText);
-            lastError = j.message || j.error || `HTTP ${response.status}`;
-          } catch {
-            lastError = `HTTP ${response.status}`;
-          }
-          continue;
-        }
-
-        // Inspect JSON body for embedded errors
-        if (responseText.trim()) {
-          try {
-            const result = JSON.parse(responseText);
-            const body = JSON.stringify(result);
-            if (body.includes('#132001') || body.includes('does not exist') || body.includes('translation')) {
-              translationErrorSeen = true;
-              lastError = `Template "${templateName}" não existe no idioma ${lang} (132001).`;
-              console.warn(`[Scheduled] ${lastError} Tentando próximo idioma...`);
-              break;
-            }
-            if (body.includes('#132000') || body.includes('localizable_params') || body.includes('Number of parameters does not match')) {
-              lastError = `Formato de variáveis rejeitado para "${templateName}" (${lang}). Tentando outro formato...`;
-              continue;
-            }
-            if (result.error || result.success === false) {
-              lastError = result.message || result.error || 'Erro retornado pela API';
-              continue;
-            }
-          } catch {
-            if (responseText.trim().toLowerCase() === 'ok') {
-              console.log(`[Scheduled] Template enviado (${payload.name})`);
-              return { success: true };
-            }
-          }
-        }
-
-        console.log(`[Scheduled] Template enviado (${payload.name}) idioma=${lang}`);
-        return { success: true };
+      if (isTranslationError) {
+        lastError = `Template "${templateName}" não existe no idioma ${lang} (132001).`;
+        console.warn(`[Scheduled] ${lastError} Tentando próximo idioma...`);
+        continue;
       }
 
-      if (!translationErrorSeen) break;
+      if (!response.ok) {
+        console.error(`[Scheduled] API error: ${response.status} - ${responseText}`);
+        try {
+          const j = JSON.parse(responseText);
+          lastError = j.message || j.error || `HTTP ${response.status}`;
+        } catch {
+          lastError = `HTTP ${response.status}`;
+        }
+        break;
+      }
+
+      if (responseText.trim()) {
+        try {
+          const result = JSON.parse(responseText);
+          const body = JSON.stringify(result);
+          if (body.includes('#132001') || body.includes('does not exist') || body.includes('translation')) {
+            lastError = `Template "${templateName}" não existe no idioma ${lang} (132001).`;
+            console.warn(`[Scheduled] ${lastError} Tentando próximo idioma...`);
+            continue;
+          }
+          if (result.error || result.success === false) {
+            lastError = result.message || result.error || 'Erro retornado pela API';
+            break;
+          }
+        } catch {
+          if (responseText.trim().toLowerCase() === 'ok') {
+            console.log(`[Scheduled] Template enviado (${payload.name})`);
+            return { success: true };
+          }
+        }
+      }
+
+      console.log(`[Scheduled] Template enviado (${payload.name}) idioma=${lang}`);
+      return { success: true };
     }
 
     return { success: false, error: lastError };
@@ -396,7 +324,7 @@ Deno.serve(async (req) => {
     }
 
     // Process at most this many customers per invocation to stay under edge function limits
-    const BATCH_SIZE = 4;
+    const BATCH_SIZE = 8;
 
     const results: any[] = [];
 
@@ -601,9 +529,9 @@ Deno.serve(async (req) => {
         })
         .eq('id', schedule.id);
 
-      // Sequential send with anti-ban delay (shorter to fit more per invocation)
-      const MIN_DELAY_MS = 8_000;
-      const MAX_DELAY_MS = 15_000;
+      // Short pause only, to keep scheduled sending responsive without retry storms.
+      const MIN_DELAY_MS = 1_000;
+      const MAX_DELAY_MS = 2_000;
       
       // Build template mapping from schedule's saved templates
       const templateMapping: Record<string, string> = { ...DEFAULT_TEMPLATE_MAPPING };
