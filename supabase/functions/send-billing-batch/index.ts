@@ -111,7 +111,9 @@ async function sendWhatsAppTemplateMeta(
   templateName: string,
   accessToken: string,
   phoneNumberId: string,
-  vars: Array<{ name: string; value: string }> = []
+  vars: Array<{ name: string; value: string }> = [],
+  headerImageUrl?: string,
+  language: string = 'pt_BR'
 ): Promise<{ success: boolean; error?: string; isBillingError?: boolean }> {
   try {
     let formattedPhone = phone.replace(/\D/g, '');
@@ -121,7 +123,6 @@ async function sendWhatsAppTemplateMeta(
     
     console.log(`[Meta Cloud] Sending template "${templateName}" to ${formattedPhone}`);
     
-    // Generate appsecret_proof for security
     let url = `https://graph.facebook.com/v21.0/${phoneNumberId}/messages`;
     if (META_APP_SECRET) {
       const proof = await generateAppSecretProof(accessToken, META_APP_SECRET);
@@ -130,14 +131,25 @@ async function sendWhatsAppTemplateMeta(
     
     const templateBlock: Record<string, unknown> = {
       name: templateName,
-      language: { code: 'pt_BR' },
+      language: { code: language || 'pt_BR' },
     };
-    if (vars.length > 0) {
-      templateBlock.components = [{
-        type: 'body',
-        parameters: vars.map(v => ({ type: 'text', parameter_name: v.name, text: v.value })),
-      }];
+    const components: any[] = [];
+    if (headerImageUrl) {
+      components.push({
+        type: 'header',
+        parameters: [{ type: 'image', image: { link: headerImageUrl } }],
+      });
     }
+    if (vars.length > 0) {
+      const isPositional = vars.every(v => /^\d+$/.test(v.name));
+      components.push({
+        type: 'body',
+        parameters: vars.map(v => isPositional
+          ? { type: 'text', text: v.value }
+          : { type: 'text', parameter_name: v.name, text: v.value }),
+      });
+    }
+    if (components.length > 0) templateBlock.components = components;
     const body = {
       messaging_product: 'whatsapp',
       recipient_type: 'individual',
