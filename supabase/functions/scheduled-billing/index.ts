@@ -197,8 +197,6 @@ async function sendWhatsAppTemplate(
     let lastError = 'Falha ao enviar mensagem';
 
     for (const lang of langCandidates) {
-      let translationErrorSeen = false;
-
       const payload = buildPayloadForLang(lang);
       const response = await fetch(`${apiBaseUrl}/whatsapp/message/${departmentId}`, {
         method: 'POST',
@@ -213,7 +211,6 @@ async function sendWhatsAppTemplate(
         responseText.includes('translation');
 
       if (isTranslationError) {
-        translationErrorSeen = true;
         lastError = `Template "${templateName}" não existe no idioma ${lang} (132001).`;
         console.warn(`[Scheduled] ${lastError} Tentando próximo idioma...`);
         continue;
@@ -235,11 +232,10 @@ async function sendWhatsAppTemplate(
           const result = JSON.parse(responseText);
           const body = JSON.stringify(result);
           if (body.includes('#132001') || body.includes('does not exist') || body.includes('translation')) {
-          translationErrorSeen = true;
-          lastError = `Template "${templateName}" não existe no idioma ${lang} (132001).`;
-          console.warn(`[Scheduled] ${lastError} Tentando próximo idioma...`);
+            lastError = `Template "${templateName}" não existe no idioma ${lang} (132001).`;
+            console.warn(`[Scheduled] ${lastError} Tentando próximo idioma...`);
             continue;
-        }
+          }
           if (result.error || result.success === false) {
             lastError = result.message || result.error || 'Erro retornado pela API';
             break;
@@ -254,8 +250,6 @@ async function sendWhatsAppTemplate(
 
       console.log(`[Scheduled] Template enviado (${payload.name}) idioma=${lang}`);
       return { success: true };
-
-      if (!translationErrorSeen) break;
     }
 
     return { success: false, error: lastError };
