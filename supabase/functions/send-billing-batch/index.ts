@@ -111,7 +111,9 @@ async function sendWhatsAppTemplateMeta(
   templateName: string,
   accessToken: string,
   phoneNumberId: string,
-  vars: Array<{ name: string; value: string }> = []
+  vars: Array<{ name: string; value: string }> = [],
+  headerImageUrl?: string,
+  language: string = 'pt_BR'
 ): Promise<{ success: boolean; error?: string; isBillingError?: boolean }> {
   try {
     let formattedPhone = phone.replace(/\D/g, '');
@@ -121,7 +123,6 @@ async function sendWhatsAppTemplateMeta(
     
     console.log(`[Meta Cloud] Sending template "${templateName}" to ${formattedPhone}`);
     
-    // Generate appsecret_proof for security
     let url = `https://graph.facebook.com/v21.0/${phoneNumberId}/messages`;
     if (META_APP_SECRET) {
       const proof = await generateAppSecretProof(accessToken, META_APP_SECRET);
@@ -130,14 +131,25 @@ async function sendWhatsAppTemplateMeta(
     
     const templateBlock: Record<string, unknown> = {
       name: templateName,
-      language: { code: 'pt_BR' },
+      language: { code: language || 'pt_BR' },
     };
-    if (vars.length > 0) {
-      templateBlock.components = [{
-        type: 'body',
-        parameters: vars.map(v => ({ type: 'text', parameter_name: v.name, text: v.value })),
-      }];
+    const components: any[] = [];
+    if (headerImageUrl) {
+      components.push({
+        type: 'header',
+        parameters: [{ type: 'image', image: { link: headerImageUrl } }],
+      });
     }
+    if (vars.length > 0) {
+      const isPositional = vars.every(v => /^\d+$/.test(v.name));
+      components.push({
+        type: 'body',
+        parameters: vars.map(v => isPositional
+          ? { type: 'text', text: v.value }
+          : { type: 'text', parameter_name: v.name, text: v.value }),
+      });
+    }
+    if (components.length > 0) templateBlock.components = components;
     const body = {
       messaging_product: 'whatsapp',
       recipient_type: 'individual',
@@ -742,7 +754,47 @@ Deno.serve(async (req) => {
 
       const templateLangMap: Record<string, string> = {};
       const templateConfigMap: Record<string, any> = {};
-      if (!isEvolution && !isMetaCloud) {
+      if (isMetaCloud) {
+        try {
+          const accessToken = zapSettings?.meta_access_token;
+          const businessId = zapSettings?.meta_business_id;
+          const proofParam = (accessToken && META_APP_SECRET)
+            ? `&appsecret_proof=${await generateAppSecretProof(accessToken, META_APP_SECRET)}`
+            : '';
+          const wabaIds: string[] = [];
+          if (businessId) {
+            const r = await fetch(`https://graph.facebook.com/v21.0/${businessId}/owned_whatsapp_business_accounts?fields=id,name&limit=100${proofParam ? '?' + proofParam.slice(1) : ''}`, {
+              headers: { Authorization: `Bearer ${accessToken}` },
+            });
+            if (r.ok) {
+              const j = await r.json();
+              for (const w of (j?.data || [])) if (w?.id) wabaIds.push(w.id);
+            }
+          }
+          for (const wId of wabaIds) {
+            const fields = 'name,language,status,category,components';
+            const r = await fetch(`https://graph.facebook.com/v21.0/${wId}/message_templates?limit=200&fields=${fields}${proofParam}`, {
+              headers: { Authorization: `Bearer ${accessToken}` },
+            });
+            if (!r.ok) continue;
+            const j = await r.json();
+            for (const t of (j?.data || [])) {
+              const name = t?.name;
+              const lang = t?.language;
+              const status = String(t?.status || '').toUpperCase();
+              if (!name) continue;
+              const existing = templateConfigMap[name];
+              if (!existing || status === 'APPROVED') {
+                templateLangMap[name] = lang || 'pt_BR';
+                templateConfigMap[name] = t;
+              }
+            }
+          }
+          console.log(`[Billing Batch] Loaded ${Object.keys(templateConfigMap).length} Meta templates`);
+        } catch (e) {
+          console.error('[Billing Batch] Error fetching Meta templates:', e);
+        }
+      } else if (!isEvolution) {
         try {
           const zapToken = zapSettings?.zap_api_token || Deno.env.get('ZAP_RESPONDER_TOKEN');
           const apiBaseUrl = zapSettings?.api_base_url || 'https://api.zapresponder.com.br/api';
@@ -795,7 +847,9 @@ Deno.serve(async (req) => {
             templateName,
             zapSettings.meta_access_token,
             zapSettings.meta_phone_number_id,
-            templateVars
+            templateVars,
+            headerImageUrl,
+            exactLang
           );
         } else {
           const zapToken = zapSettings?.zap_api_token || Deno.env.get('ZAP_RESPONDER_TOKEN');
@@ -828,7 +882,9 @@ Deno.serve(async (req) => {
                 templateName,
                 zapSettings.meta_access_token,
                 zapSettings.meta_phone_number_id,
-                templateVars
+                templateVars,
+                headerImageUrl,
+                exactLang
               );
             } else {
               const zapToken = zapSettings?.zap_api_token || Deno.env.get('ZAP_RESPONDER_TOKEN');
