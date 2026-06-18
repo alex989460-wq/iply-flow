@@ -185,7 +185,8 @@ async function sendWhatsAppTemplateZap(
   apiBaseUrl: string,
   departmentId: string,
   vars: Array<{ name: string; value: string }> = [],
-  language: string = 'pt_BR'
+  language: string = 'pt_BR',
+  headerImageUrl?: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
     let formattedPhone = phone.replace(/\D/g, '');
@@ -197,21 +198,30 @@ async function sendWhatsAppTemplateZap(
     
     const positional = vars.map(v => v.value);
     const namedParams = vars.map(v => ({ type: 'text', parameter_name: v.name, text: v.value }));
+    const headerImageComponent = headerImageUrl
+      ? { type: 'header', parameters: [{ type: 'image', image: { link: headerImageUrl } }] }
+      : null;
 
     const buildPayloadsForLang = (lang: string) => {
-      const basePayload = {
+      const basePayload: Record<string, unknown> = {
         type: 'template',
         template_name: templateName,
         number: formattedPhone,
         language: lang,
       };
+      if (headerImageUrl) {
+        basePayload.header_image = headerImageUrl;
+        basePayload.image_url = headerImageUrl;
+      }
+
+      const withHeader = (components: any[]) => headerImageComponent ? [headerImageComponent, ...components] : components;
 
       return [
         {
           name: `template + components[named] [${lang}]`,
           body: {
             ...basePayload,
-            components: [{ type: 'body', parameters: namedParams }],
+            components: withHeader([{ type: 'body', parameters: namedParams }]),
             variables: { body_text: positional },
             params: positional,
           } as Record<string, unknown>,
@@ -224,7 +234,7 @@ async function sendWhatsAppTemplateZap(
             template: {
               name: templateName,
               language: { code: lang },
-              components: [{ type: 'body', parameters: namedParams }],
+              components: withHeader([{ type: 'body', parameters: namedParams }]),
             },
           } as Record<string, unknown>,
         },
@@ -232,7 +242,7 @@ async function sendWhatsAppTemplateZap(
           name: `template + components[positional] [${lang}]`,
           body: {
             ...basePayload,
-            components: [{ type: 'body', parameters: positional.map((text) => ({ type: 'text', text })) }],
+            components: withHeader([{ type: 'body', parameters: positional.map((text) => ({ type: 'text', text })) }]),
           } as Record<string, unknown>,
         },
         { name: `template + variables.body_text [${lang}]`, body: { ...basePayload, variables: { body_text: positional } } as Record<string, unknown> },
