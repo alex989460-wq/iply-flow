@@ -234,7 +234,10 @@ async function sendWhatsAppTemplate(
       ];
     };
 
-    const langCandidates = Array.from(new Set([language, 'pt_BR', 'en', 'en_US', 'pt_PT']));
+    // If caller explicitly passed a language (resolved from Meta template list), don't iterate others.
+    const langCandidates = language
+      ? [language]
+      : Array.from(new Set(['pt_BR', 'en', 'en_US', 'pt_PT']));
     const headers = {
       'Content-Type': 'application/json',
       'Accept': 'application/json',
