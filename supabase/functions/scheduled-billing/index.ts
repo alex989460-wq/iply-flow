@@ -615,8 +615,9 @@ Deno.serve(async (req) => {
         const customer = batch[i];
         const billingType = customer.billingType as 'D-1' | 'D0' | 'D+1';
         const templateName = templateMapping[billingType];
-        const templateVars = buildTemplateVars(customer);
-        const headerImageUrl = extractHeaderImageUrl(templateConfigMap[templateName]);
+        const templateConfig = templateConfigMap[templateName];
+        const templateVars = filterVarsForTemplate(templateConfig, buildTemplateVars(customer));
+        const headerImageUrl = extractHeaderImageUrl(templateConfig);
 
         console.log(`[Scheduled] (${i + 1}/${batch.length}) Template "${templateName}" -> ${customer.name}`);
 
