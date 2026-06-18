@@ -324,7 +324,7 @@ Deno.serve(async (req) => {
     }
 
     // Process at most this many customers per invocation to stay under edge function limits
-    const BATCH_SIZE = 4;
+    const BATCH_SIZE = 8;
 
     const results: any[] = [];
 
@@ -529,9 +529,9 @@ Deno.serve(async (req) => {
         })
         .eq('id', schedule.id);
 
-      // Sequential send with anti-ban delay (shorter to fit more per invocation)
-      const MIN_DELAY_MS = 8_000;
-      const MAX_DELAY_MS = 15_000;
+      // Short pause only, to keep scheduled sending responsive without retry storms.
+      const MIN_DELAY_MS = 1_000;
+      const MAX_DELAY_MS = 2_000;
       
       // Build template mapping from schedule's saved templates
       const templateMapping: Record<string, string> = { ...DEFAULT_TEMPLATE_MAPPING };
