@@ -228,10 +228,6 @@ async function sendWhatsAppTemplateZap(
     console.log(`[Zap Responder] Sending template "${templateName}" to ${formattedPhone} via dept ${departmentId} with ${vars.length} vars`);
     
     const positional = vars.map(v => v.value);
-    const namedParams = vars.map(v => ({ type: 'text', parameter_name: v.name, text: v.value }));
-    const headerImageComponent = headerImageUrl
-      ? { type: 'header', parameters: [{ type: 'image', image: { link: headerImageUrl } }] }
-      : null;
 
     const buildPayloadForLang = (lang: string) => {
       const basePayload: Record<string, unknown> = {
@@ -484,6 +480,13 @@ Deno.serve(async (req) => {
       } catch (e) {
         console.log('Could not extract user from token:', e);
       }
+    }
+
+    if (!userId) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Usuário não autenticado' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
     // Check if user is admin
