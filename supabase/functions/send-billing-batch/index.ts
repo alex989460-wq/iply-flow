@@ -87,7 +87,9 @@ function filterVarsForTemplate(
   if (!template) return vars;
   const body = template?.components?.find((c: any) => String(c?.type).toUpperCase() === 'BODY');
   const text: string = body?.text || '';
-  if (!text) return [];
+  // Some Zap Responder template endpoints omit BODY.text even when Meta expects variables.
+  // In that case keep the complete default variable list instead of sending 0 params (#132000).
+  if (!text) return vars;
   const tokens = Array.from(text.matchAll(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g)).map((m) => m[1]);
   if (tokens.length === 0) return [];
   const isPositional = tokens.every((t) => /^\d+$/.test(t));
@@ -231,7 +233,7 @@ async function sendWhatsAppTemplateZap(
       ? { type: 'header', parameters: [{ type: 'image', image: { link: headerImageUrl } }] }
       : null;
 
-    const buildPayloadsForLang = (lang: string) => {
+    const buildPayloadForLang = (lang: string) => {
       const basePayload: Record<string, unknown> = {
         type: 'template',
         template_name: templateName,
@@ -243,38 +245,14 @@ async function sendWhatsAppTemplateZap(
         basePayload.image_url = headerImageUrl;
       }
 
-      const withHeader = (components: any[]) => headerImageComponent ? [headerImageComponent, ...components] : components;
+      const body = vars.length > 0
+        ? { ...basePayload, variables: { body_text: positional } }
+        : basePayload;
 
-      return [
-        {
-          name: `meta-shape template object (named) [${lang}]`,
-          body: {
-            type: 'template',
-            number: formattedPhone,
-            template: {
-              name: templateName,
-              language: { code: lang },
-              components: withHeader([{ type: 'body', parameters: namedParams }]),
-            },
-          } as Record<string, unknown>,
-        },
-        {
-          name: `template + components[named] [${lang}]`,
-          body: {
-            ...basePayload,
-            components: withHeader([{ type: 'body', parameters: namedParams }]),
-          } as Record<string, unknown>,
-        },
-        {
-          name: `template + components[positional] [${lang}]`,
-          body: {
-            ...basePayload,
-            components: withHeader([{ type: 'body', parameters: positional.map((text) => ({ type: 'text', text })) }]),
-          } as Record<string, unknown>,
-        },
-        { name: `template + variables.body_text [${lang}]`, body: { ...basePayload, variables: { body_text: positional } } as Record<string, unknown> },
-        { name: `template + params[] [${lang}]`, body: { ...basePayload, params: positional } as Record<string, unknown> },
-      ];
+      return {
+        name: `template + variables.body_text [${lang}]`,
+        body: body as Record<string, unknown>,
+      };
     };
 
     // If caller explicitly passed a language (resolved from Meta template list), don't iterate others.
@@ -291,78 +269,77 @@ async function sendWhatsAppTemplateZap(
     for (const lang of langCandidates) {
       let translationErrorSeen = false;
 
-      for (const payload of buildPayloadsForLang(lang)) {
-        console.log(`[Zap Responder] Trying ${payload.name}`);
+      const payload = buildPayloadForLang(lang);
+      console.log(`[Zap Responder] Sending with ${payload.name}`);
 
-        const response = await fetch(`${apiBaseUrl}/whatsapp/message/${departmentId}`, {
-          method: 'POST',
-          headers,
-          body: JSON.stringify(payload.body),
-        });
+      const response = await fetch(`${apiBaseUrl}/whatsapp/message/${departmentId}`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(payload.body),
+      });
 
-        const responseText = await response.text();
-        const isTranslationError =
-          responseText.includes('#132001') ||
-          responseText.includes('does not exist') ||
-          responseText.includes('translation');
+      const responseText = await response.text();
+      const isTranslationError =
+        responseText.includes('#132001') ||
+        responseText.includes('does not exist') ||
+        responseText.includes('translation');
 
-        if (isTranslationError) {
+      if (isTranslationError) {
+        translationErrorSeen = true;
+        lastError = `Template "${templateName}" não existe no idioma ${lang} (132001). Tentando próximo idioma...`;
+        console.warn(`[Zap Responder] ${lastError}`);
+        continue;
+      }
+
+      if (!response.ok) {
+        console.error(`[Zap Responder] API error: ${response.status} - ${responseText}`);
+        try {
+          const errorJson = JSON.parse(responseText);
+          lastError = errorJson.message || errorJson.error || `HTTP ${response.status}`;
+        } catch {
+          lastError = `HTTP ${response.status}: ${responseText.substring(0, 100)}`;
+        }
+        break;
+      }
+
+      if (!responseText.trim()) {
+        lastError = 'API respondeu sem confirmação';
+        break;
+      }
+
+      let result: any;
+      try {
+        result = JSON.parse(responseText);
+      } catch {
+        if (responseText.trim().toLowerCase() === 'ok') return { success: true };
+        lastError = `Resposta inválida da API: ${responseText.substring(0, 100)}`;
+        break;
+      }
+
+      if (result.error || result.success === false) {
+        const message = result.message || result.error || 'Erro retornado pela API';
+        const body = JSON.stringify(result);
+        if (body.includes('#132001') || body.includes('does not exist') || body.includes('translation')) {
           translationErrorSeen = true;
           lastError = `Template "${templateName}" não existe no idioma ${lang} (132001). Tentando próximo idioma...`;
           console.warn(`[Zap Responder] ${lastError}`);
-          break;
-        }
-
-        if (!response.ok) {
-          console.error(`[Zap Responder] API error: ${response.status} - ${responseText}`);
-          try {
-            const errorJson = JSON.parse(responseText);
-            lastError = errorJson.message || errorJson.error || `HTTP ${response.status}`;
-          } catch {
-            lastError = `HTTP ${response.status}: ${responseText.substring(0, 100)}`;
-          }
           continue;
         }
-
-        if (!responseText.trim()) {
-          lastError = 'API respondeu sem confirmação';
-          continue;
-        }
-
-        let result: any;
-        try {
-          result = JSON.parse(responseText);
-        } catch {
-          if (responseText.trim().toLowerCase() === 'ok') return { success: true };
-          lastError = `Resposta inválida da API: ${responseText.substring(0, 100)}`;
-          continue;
-        }
-
-        if (result.error || result.success === false) {
-          const message = result.message || result.error || 'Erro retornado pela API';
-          const body = JSON.stringify(result);
-          if (body.includes('#132001') || body.includes('does not exist') || body.includes('translation')) {
-            translationErrorSeen = true;
-            lastError = `Template "${templateName}" não existe no idioma ${lang} (132001). Tentando próximo idioma...`;
-            console.warn(`[Zap Responder] ${lastError}`);
-            break;
-          }
-          console.error(`[Zap Responder] API returned error in body:`, result);
-          lastError = message;
-          continue;
-        }
-
-        const statusValue = result.status;
-        if (statusValue && typeof statusValue === 'string') {
-          const statusLower = statusValue.toLowerCase();
-          if (!['queued', 'sent', 'delivered', 'read'].includes(statusLower)) {
-            console.warn(`[Zap Responder] Unexpected status: ${statusValue}`, result);
-          }
-        }
-
-        console.log(`[Zap Responder] Template sent successfully to ${formattedPhone} using ${payload.name}`, result);
-        return { success: true };
+        console.error(`[Zap Responder] API returned error in body:`, result);
+        lastError = message;
+        break;
       }
+
+      const statusValue = result.status;
+      if (statusValue && typeof statusValue === 'string') {
+        const statusLower = statusValue.toLowerCase();
+        if (!['queued', 'sent', 'delivered', 'read'].includes(statusLower)) {
+          console.warn(`[Zap Responder] Unexpected status: ${statusValue}`, result);
+        }
+      }
+
+      console.log(`[Zap Responder] Template sent successfully to ${formattedPhone} using ${payload.name}`, result);
+      return { success: true };
 
       if (!translationErrorSeen) break;
     }
