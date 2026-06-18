@@ -738,11 +738,43 @@ Deno.serve(async (req) => {
         'D+1': (billSettings as any)?.evolution_msg_d_plus_1 || 'Olá {{nome}}, seu plano venceu em {{vencimento}}. PIX: {{pix}}',
       };
 
+      const templateLangMap: Record<string, string> = {};
+      const templateConfigMap: Record<string, any> = {};
+      if (!isEvolution && !isMetaCloud) {
+        try {
+          const zapToken = zapSettings?.zap_api_token || Deno.env.get('ZAP_RESPONDER_TOKEN');
+          const apiBaseUrl = zapSettings?.api_base_url || 'https://api.zapresponder.com.br/api';
+          const departmentId = zapSettings?.selected_department_id;
+          const tplRes = await fetch(`${apiBaseUrl}/whatsapp/templates/${departmentId}`, {
+            headers: { Authorization: `Bearer ${zapToken}`, Accept: 'application/json' },
+          });
+          if (tplRes.ok) {
+            const tplJson = await tplRes.json();
+            const list = Array.isArray(tplJson) ? tplJson : (tplJson.data || tplJson.templates || []);
+            for (const t of list) {
+              const name = t?.name || t?.template_name;
+              const lang = t?.language || t?.language_code || t?.lang;
+              const status = (t?.status || '').toString().toUpperCase();
+              if (!name || !lang) continue;
+              const existing = templateLangMap[name];
+              if (!existing || status === 'APPROVED') {
+                templateLangMap[name] = lang;
+                templateConfigMap[name] = t;
+              }
+            }
+          }
+        } catch (e) {
+          console.error('[Billing Batch] Error fetching template metadata:', e);
+        }
+      }
+
       for (const customer of batch) {
         const billingType = customer.billingType as 'D-1' | 'D0' | 'D+1';
         const templateName = TEMPLATE_MAPPING[billingType];
         const normalizedPhone = customer.normalizedPhone || normalizePhone(customer.phone);
         const templateVars = buildTemplateVars(customer);
+        const exactLang = templateLangMap[templateName] || 'pt_BR';
+        const headerImageUrl = extractHeaderImageUrl(templateConfigMap[templateName]);
 
         let sendResult: { success: boolean; error?: string };
         let outboundLabel = templateName;
@@ -774,7 +806,9 @@ Deno.serve(async (req) => {
             zapToken!,
             apiBaseUrl,
             departmentId!,
-            templateVars
+            templateVars,
+            exactLang,
+            headerImageUrl
           );
         }
 
@@ -797,7 +831,7 @@ Deno.serve(async (req) => {
               const zapToken = zapSettings?.zap_api_token || Deno.env.get('ZAP_RESPONDER_TOKEN');
               const apiBaseUrl = zapSettings?.api_base_url || 'https://api.zapresponder.com.br/api';
               const departmentId = zapSettings?.selected_department_id;
-              await sendWhatsAppTemplateZap(customer.extra_phone, templateName, zapToken!, apiBaseUrl, departmentId!, templateVars);
+              await sendWhatsAppTemplateZap(customer.extra_phone, templateName, zapToken!, apiBaseUrl, departmentId!, templateVars, exactLang, headerImageUrl);
             }
             console.log(`[Billing Batch] Extra phone notified for ${customer.name}: ${customer.extra_phone}`);
           } catch (e) {
