@@ -499,7 +499,7 @@ Deno.serve(async (req) => {
       // Pre-fetch all existing logs for today to avoid individual queries (OPTIMIZATION)
       const { data: existingLogs } = await supabase
         .from('billing_logs')
-        .select('customer_id, billing_type, message')
+        .select('customer_id, billing_type, message, whatsapp_status')
         .gte('sent_at', `${today}T00:00:00`)
         .lte('sent_at', `${today}T23:59:59`);
 
@@ -511,6 +511,7 @@ Deno.serve(async (req) => {
       };
 
       for (const log of existingLogs || []) {
+        if (log.whatsapp_status !== 'sent') continue;
         const type = log.billing_type as string;
         if (processedByType[type]) {
           processedByType[type].customerIds.add(log.customer_id);
