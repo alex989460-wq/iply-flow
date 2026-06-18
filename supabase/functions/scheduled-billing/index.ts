@@ -436,6 +436,7 @@ Deno.serve(async (req) => {
 
       // Fetch templates from ZapResponder once to resolve EXACT language per template name (avoids #132001)
       const templateLangMap: Record<string, string> = {};
+      const templateConfigMap: Record<string, any> = {};
       try {
         const tplRes = await fetch(`${zapSettings.api_base_url}/whatsapp/templates/${departmentId}`, {
           headers: {
@@ -455,6 +456,7 @@ Deno.serve(async (req) => {
             const existing = templateLangMap[name];
             if (!existing || status === 'APPROVED') {
               templateLangMap[name] = lang;
+              templateConfigMap[name] = t;
             }
           }
           console.log(`[Scheduled Billing] Loaded ${Object.keys(templateLangMap).length} template languages from Meta`);
@@ -483,7 +485,7 @@ Deno.serve(async (req) => {
       // Get customers for this user (ativa and inativa only - suspensa is excluded)
       const { data: customers } = await supabase
         .from('customers')
-        .select('id, name, phone, extra_phone, due_date, status')
+        .select('id, name, phone, extra_phone, due_date, status, username, custom_price, plan:plans(plan_name, price), server:servers(server_name)')
         .in('status', ['ativa', 'inativa'])
         .eq('created_by', schedule.user_id)
         .in('due_date', [yesterday, today, tomorrow]);
@@ -583,6 +585,8 @@ Deno.serve(async (req) => {
         const customer = batch[i];
         const billingType = customer.billingType as 'D-1' | 'D0' | 'D+1';
         const templateName = templateMapping[billingType];
+        const templateVars = buildTemplateVars(customer);
+        const headerImageUrl = extractHeaderImageUrl(templateConfigMap[templateName]);
 
         console.log(`[Scheduled] (${i + 1}/${batch.length}) Template "${templateName}" -> ${customer.name}`);
 
@@ -599,7 +603,9 @@ Deno.serve(async (req) => {
           zapSettings.zap_api_token,
           zapSettings.api_base_url,
           departmentId,
-          exactLang || 'pt_BR'
+          exactLang || 'pt_BR',
+          templateVars,
+          headerImageUrl
         );
 
         if (customer.extra_phone && String(customer.extra_phone).replace(/\D/g, '').length >= 10) {
@@ -610,7 +616,9 @@ Deno.serve(async (req) => {
               zapSettings.zap_api_token,
               zapSettings.api_base_url,
               departmentId,
-              exactLang || 'pt_BR'
+              exactLang || 'pt_BR',
+              templateVars,
+              headerImageUrl
             );
           } catch (e) {
             console.error(`[Scheduled] Extra phone send failed for ${customer.name}:`, e);
