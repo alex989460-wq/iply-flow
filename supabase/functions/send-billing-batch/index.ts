@@ -797,9 +797,10 @@ Deno.serve(async (req) => {
         const billingType = customer.billingType as 'D-1' | 'D0' | 'D+1';
         const templateName = TEMPLATE_MAPPING[billingType];
         const normalizedPhone = customer.normalizedPhone || normalizePhone(customer.phone);
-        const templateVars = buildTemplateVars(customer);
+        const templateConfig = templateConfigMap[templateName];
+        const templateVars = filterVarsForTemplate(templateConfig, buildTemplateVars(customer));
         const exactLang = templateLangMap[templateName] || 'pt_BR';
-        const headerImageUrl = extractHeaderImageUrl(templateConfigMap[templateName]);
+        const headerImageUrl = extractHeaderImageUrl(templateConfig);
 
         let sendResult: { success: boolean; error?: string };
         let outboundLabel = templateName;
