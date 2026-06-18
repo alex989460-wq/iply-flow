@@ -74,6 +74,11 @@ function buildTemplateVars(customer: any): Array<{ name: string; value: string }
   ];
 }
 
+function extractHeaderImageUrl(template: any): string | undefined {
+  const header = template?.components?.find((c: any) => c?.type === 'HEADER' && c?.format === 'IMAGE');
+  return header?.example?.header_handle?.[0] || header?.example?.header_url?.[0] || undefined;
+}
+
 // Send WhatsApp template message via Meta Cloud API
 async function sendWhatsAppTemplateMeta(
   phone: string, 
@@ -218,15 +223,6 @@ async function sendWhatsAppTemplateZap(
 
       return [
         {
-          name: `template + components[named] [${lang}]`,
-          body: {
-            ...basePayload,
-            components: withHeader([{ type: 'body', parameters: namedParams }]),
-            variables: { body_text: positional },
-            params: positional,
-          } as Record<string, unknown>,
-        },
-        {
           name: `meta-shape template object (named) [${lang}]`,
           body: {
             type: 'template',
@@ -236,6 +232,13 @@ async function sendWhatsAppTemplateZap(
               language: { code: lang },
               components: withHeader([{ type: 'body', parameters: namedParams }]),
             },
+          } as Record<string, unknown>,
+        },
+        {
+          name: `template + components[named] [${lang}]`,
+          body: {
+            ...basePayload,
+            components: withHeader([{ type: 'body', parameters: namedParams }]),
           } as Record<string, unknown>,
         },
         {
