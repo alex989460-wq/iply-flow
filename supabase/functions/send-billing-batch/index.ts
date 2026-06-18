@@ -754,7 +754,47 @@ Deno.serve(async (req) => {
 
       const templateLangMap: Record<string, string> = {};
       const templateConfigMap: Record<string, any> = {};
-      if (!isEvolution && !isMetaCloud) {
+      if (isMetaCloud) {
+        try {
+          const accessToken = zapSettings?.meta_access_token;
+          const businessId = zapSettings?.meta_business_id;
+          const proofParam = (accessToken && META_APP_SECRET)
+            ? `&appsecret_proof=${await generateAppSecretProof(accessToken, META_APP_SECRET)}`
+            : '';
+          const wabaIds: string[] = [];
+          if (businessId) {
+            const r = await fetch(`https://graph.facebook.com/v21.0/${businessId}/owned_whatsapp_business_accounts?fields=id,name&limit=100${proofParam ? '?' + proofParam.slice(1) : ''}`, {
+              headers: { Authorization: `Bearer ${accessToken}` },
+            });
+            if (r.ok) {
+              const j = await r.json();
+              for (const w of (j?.data || [])) if (w?.id) wabaIds.push(w.id);
+            }
+          }
+          for (const wId of wabaIds) {
+            const fields = 'name,language,status,category,components';
+            const r = await fetch(`https://graph.facebook.com/v21.0/${wId}/message_templates?limit=200&fields=${fields}${proofParam}`, {
+              headers: { Authorization: `Bearer ${accessToken}` },
+            });
+            if (!r.ok) continue;
+            const j = await r.json();
+            for (const t of (j?.data || [])) {
+              const name = t?.name;
+              const lang = t?.language;
+              const status = String(t?.status || '').toUpperCase();
+              if (!name) continue;
+              const existing = templateConfigMap[name];
+              if (!existing || status === 'APPROVED') {
+                templateLangMap[name] = lang || 'pt_BR';
+                templateConfigMap[name] = t;
+              }
+            }
+          }
+          console.log(`[Billing Batch] Loaded ${Object.keys(templateConfigMap).length} Meta templates`);
+        } catch (e) {
+          console.error('[Billing Batch] Error fetching Meta templates:', e);
+        }
+      } else if (!isEvolution) {
         try {
           const zapToken = zapSettings?.zap_api_token || Deno.env.get('ZAP_RESPONDER_TOKEN');
           const apiBaseUrl = zapSettings?.api_base_url || 'https://api.zapresponder.com.br/api';
