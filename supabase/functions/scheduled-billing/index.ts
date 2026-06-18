@@ -117,6 +117,32 @@ function extractHeaderImageUrl(template: any): string | undefined {
   return header?.example?.header_handle?.[0] || header?.example?.header_url?.[0] || undefined;
 }
 
+// Filter vars to only those actually used by the template body (avoids Meta #132000).
+// Supports named placeholders ({{name}}) and positional ({{1}}, {{2}}...).
+function filterVarsForTemplate(
+  template: any,
+  vars: Array<{ name: string; value: string }>
+): Array<{ name: string; value: string }> {
+  if (!template) return vars;
+  const body = template?.components?.find((c: any) => String(c?.type).toUpperCase() === 'BODY');
+  const text: string = body?.text || '';
+  if (!text) return [];
+  const tokens = Array.from(text.matchAll(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g)).map((m) => m[1]);
+  if (tokens.length === 0) return [];
+  const isPositional = tokens.every((t) => /^\d+$/.test(t));
+  if (isPositional) {
+    const count = Math.max(...tokens.map((t) => parseInt(t, 10)));
+    return vars.slice(0, count).map((v, i) => ({ name: String(i + 1), value: v.value }));
+  }
+  const used = new Set(tokens);
+  const filtered = vars.filter((v) => used.has(v.name));
+  // Preserve order as in template
+  const order = new Map<string, number>();
+  tokens.forEach((t, i) => { if (!order.has(t)) order.set(t, i); });
+  filtered.sort((a, b) => (order.get(a.name) ?? 0) - (order.get(b.name) ?? 0));
+  return filtered;
+}
+
 // Send WhatsApp template message with language + payload fallbacks (mirrors send-billing-batch)
 async function sendWhatsAppTemplate(
   phone: string,
