@@ -199,78 +199,61 @@ async function sendWhatsAppTemplate(
     for (const lang of langCandidates) {
       let translationErrorSeen = false;
 
-      for (const payload of buildPayloadsForLang(lang)) {
-        const response = await fetch(`${apiBaseUrl}/whatsapp/message/${departmentId}`, {
-          method: 'POST',
-          headers,
-          body: JSON.stringify(payload.body),
-        });
+      const payload = buildPayloadForLang(lang);
+      const response = await fetch(`${apiBaseUrl}/whatsapp/message/${departmentId}`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(payload.body),
+      });
 
-        const responseText = await response.text();
-        const isTranslationError =
-          responseText.includes('#132001') ||
-          responseText.includes('does not exist') ||
-          responseText.includes('translation');
+      const responseText = await response.text();
+      const isTranslationError =
+        responseText.includes('#132001') ||
+        responseText.includes('does not exist') ||
+        responseText.includes('translation');
 
-        const isParamError =
-          responseText.includes('#132000') ||
-          responseText.includes('localizable_params') ||
-          responseText.includes('Number of parameters does not match');
+      if (isTranslationError) {
+        translationErrorSeen = true;
+        lastError = `Template "${templateName}" não existe no idioma ${lang} (132001).`;
+        console.warn(`[Scheduled] ${lastError} Tentando próximo idioma...`);
+        continue;
+      }
 
-        if (isTranslationError) {
+      if (!response.ok) {
+        console.error(`[Scheduled] API error: ${response.status} - ${responseText}`);
+        try {
+          const j = JSON.parse(responseText);
+          lastError = j.message || j.error || `HTTP ${response.status}`;
+        } catch {
+          lastError = `HTTP ${response.status}`;
+        }
+        break;
+      }
+
+      if (responseText.trim()) {
+        try {
+          const result = JSON.parse(responseText);
+          const body = JSON.stringify(result);
+          if (body.includes('#132001') || body.includes('does not exist') || body.includes('translation')) {
           translationErrorSeen = true;
           lastError = `Template "${templateName}" não existe no idioma ${lang} (132001).`;
           console.warn(`[Scheduled] ${lastError} Tentando próximo idioma...`);
-          break;
+            continue;
         }
-
-        if (isParamError) {
-          lastError = `Formato de variáveis rejeitado para "${templateName}" (${lang}). Tentando outro formato...`;
-          console.warn(`[Scheduled] ${lastError}`);
-          continue;
-        }
-
-        if (!response.ok) {
-          console.error(`[Scheduled] API error: ${response.status} - ${responseText}`);
-          try {
-            const j = JSON.parse(responseText);
-            lastError = j.message || j.error || `HTTP ${response.status}`;
-          } catch {
-            lastError = `HTTP ${response.status}`;
+          if (result.error || result.success === false) {
+            lastError = result.message || result.error || 'Erro retornado pela API';
+            break;
           }
-          continue;
-        }
-
-        // Inspect JSON body for embedded errors
-        if (responseText.trim()) {
-          try {
-            const result = JSON.parse(responseText);
-            const body = JSON.stringify(result);
-            if (body.includes('#132001') || body.includes('does not exist') || body.includes('translation')) {
-              translationErrorSeen = true;
-              lastError = `Template "${templateName}" não existe no idioma ${lang} (132001).`;
-              console.warn(`[Scheduled] ${lastError} Tentando próximo idioma...`);
-              break;
-            }
-            if (body.includes('#132000') || body.includes('localizable_params') || body.includes('Number of parameters does not match')) {
-              lastError = `Formato de variáveis rejeitado para "${templateName}" (${lang}). Tentando outro formato...`;
-              continue;
-            }
-            if (result.error || result.success === false) {
-              lastError = result.message || result.error || 'Erro retornado pela API';
-              continue;
-            }
-          } catch {
-            if (responseText.trim().toLowerCase() === 'ok') {
-              console.log(`[Scheduled] Template enviado (${payload.name})`);
-              return { success: true };
-            }
+        } catch {
+          if (responseText.trim().toLowerCase() === 'ok') {
+            console.log(`[Scheduled] Template enviado (${payload.name})`);
+            return { success: true };
           }
         }
-
-        console.log(`[Scheduled] Template enviado (${payload.name}) idioma=${lang}`);
-        return { success: true };
       }
+
+      console.log(`[Scheduled] Template enviado (${payload.name}) idioma=${lang}`);
+      return { success: true };
 
       if (!translationErrorSeen) break;
     }
