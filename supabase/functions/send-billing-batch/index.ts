@@ -646,12 +646,13 @@ Deno.serve(async (req) => {
       if (!forceResend) {
         const { data: existingLogs } = await supabase
           .from('billing_logs')
-          .select('customer_id, billing_type, message')
+          .select('customer_id, billing_type, message, whatsapp_status')
           .gte('sent_at', `${today}T00:00:00`)
           .lte('sent_at', `${today}T23:59:59`);
 
         // Build sets for deduplication
         for (const log of existingLogs || []) {
+          if (log.whatsapp_status !== 'sent') continue;
           sentByCustomerAndType.add(`${log.customer_id}:${log.billing_type}`);
           const phoneMatch = log.message?.match(/\[(\d+)\]/);
           if (phoneMatch) {
