@@ -126,7 +126,9 @@ function filterVarsForTemplate(
   if (!template) return vars;
   const body = template?.components?.find((c: any) => String(c?.type).toUpperCase() === 'BODY');
   const text: string = body?.text || '';
-  if (!text) return [];
+  // Some Zap Responder template endpoints omit BODY.text even when Meta expects variables.
+  // In that case keep the complete default variable list instead of sending 0 params (#132000).
+  if (!text) return vars;
   const tokens = Array.from(text.matchAll(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g)).map((m) => m[1]);
   if (tokens.length === 0) return [];
   const isPositional = tokens.every((t) => /^\d+$/.test(t));
@@ -162,13 +164,9 @@ async function sendWhatsAppTemplate(
 
     console.log(`[Scheduled] Sending template "${templateName}" to ${formattedPhone}`);
 
-    const namedParams = vars.map((v) => ({ type: 'text', parameter_name: v.name, text: v.value }));
     const positional = vars.map((v) => v.value);
-    const headerImageComponent = headerImageUrl
-      ? { type: 'header', parameters: [{ type: 'image', image: { link: headerImageUrl } }] }
-      : null;
 
-    const buildPayloadsForLang = (lang: string) => {
+    const buildPayloadForLang = (lang: string) => {
       const basePayload: Record<string, unknown> = {
         type: 'template',
         template_name: templateName,
@@ -180,58 +178,11 @@ async function sendWhatsAppTemplate(
         basePayload.image_url = headerImageUrl;
       }
 
-      const withHeader = (components: any[]) => headerImageComponent ? [headerImageComponent, ...components] : components;
+      const body = vars.length > 0
+        ? { ...basePayload, variables: { body_text: positional } }
+        : basePayload;
 
-      if (vars.length === 0) {
-        return headerImageComponent ? [
-          {
-            name: `meta-shape template object (header only) [${lang}]`,
-            body: {
-              type: 'template',
-              number: formattedPhone,
-              template: { name: templateName, language: { code: lang }, components: [headerImageComponent] },
-            } as Record<string, unknown>,
-          },
-          { name: `simple [${lang}]`, body: basePayload },
-        ] : [{ name: `simple [${lang}]`, body: basePayload }];
-      }
-
-      return [
-        {
-          name: `meta-shape template object (named) [${lang}]`,
-          body: {
-            type: 'template',
-            number: formattedPhone,
-            template: {
-              name: templateName,
-              language: { code: lang },
-              components: withHeader([{ type: 'body', parameters: namedParams }]),
-            },
-          } as Record<string, unknown>,
-        },
-        {
-          name: `template + components[named] [${lang}]`,
-          body: { ...basePayload, components: withHeader([{ type: 'body', parameters: namedParams }]) } as Record<string, unknown>,
-        },
-        {
-          name: `meta-shape template object (positional) [${lang}]`,
-          body: {
-            type: 'template',
-            number: formattedPhone,
-            template: {
-              name: templateName,
-              language: { code: lang },
-              components: withHeader([{ type: 'body', parameters: positional.map((text) => ({ type: 'text', text })) }]),
-            },
-          } as Record<string, unknown>,
-        },
-        {
-          name: `template + components[positional] [${lang}]`,
-          body: { ...basePayload, components: withHeader([{ type: 'body', parameters: positional.map((text) => ({ type: 'text', text })) }]) } as Record<string, unknown>,
-        },
-        { name: `template + variables.body_text [${lang}]`, body: { ...basePayload, variables: { body_text: positional } } as Record<string, unknown> },
-        { name: `template + params[] [${lang}]`, body: { ...basePayload, params: positional } as Record<string, unknown> },
-      ];
+      return { name: `template + variables.body_text [${lang}]`, body: body as Record<string, unknown> };
     };
 
     // If caller explicitly passed a language (resolved from Meta template list), don't iterate others.
