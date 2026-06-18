@@ -79,6 +79,30 @@ function extractHeaderImageUrl(template: any): string | undefined {
   return header?.example?.header_handle?.[0] || header?.example?.header_url?.[0] || undefined;
 }
 
+// Filter vars to only those actually used by the template body (avoids Meta #132000).
+function filterVarsForTemplate(
+  template: any,
+  vars: Array<{ name: string; value: string }>
+): Array<{ name: string; value: string }> {
+  if (!template) return vars;
+  const body = template?.components?.find((c: any) => String(c?.type).toUpperCase() === 'BODY');
+  const text: string = body?.text || '';
+  if (!text) return [];
+  const tokens = Array.from(text.matchAll(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g)).map((m) => m[1]);
+  if (tokens.length === 0) return [];
+  const isPositional = tokens.every((t) => /^\d+$/.test(t));
+  if (isPositional) {
+    const count = Math.max(...tokens.map((t) => parseInt(t, 10)));
+    return vars.slice(0, count).map((v, i) => ({ name: String(i + 1), value: v.value }));
+  }
+  const used = new Set(tokens);
+  const filtered = vars.filter((v) => used.has(v.name));
+  const order = new Map<string, number>();
+  tokens.forEach((t, i) => { if (!order.has(t)) order.set(t, i); });
+  filtered.sort((a, b) => (order.get(a.name) ?? 0) - (order.get(b.name) ?? 0));
+  return filtered;
+}
+
 // Send WhatsApp template message via Meta Cloud API
 async function sendWhatsAppTemplateMeta(
   phone: string, 
@@ -253,7 +277,10 @@ async function sendWhatsAppTemplateZap(
       ];
     };
 
-    const langCandidates = Array.from(new Set([language, 'en', 'en_US', 'pt_BR', 'pt_PT']));
+    // If caller explicitly passed a language (resolved from Meta template list), don't iterate others.
+    const langCandidates = language
+      ? [language]
+      : Array.from(new Set(['pt_BR', 'en', 'en_US', 'pt_PT']));
     let lastError = 'Falha ao enviar template';
     const headers = {
       'Content-Type': 'application/json',
@@ -773,9 +800,10 @@ Deno.serve(async (req) => {
         const billingType = customer.billingType as 'D-1' | 'D0' | 'D+1';
         const templateName = TEMPLATE_MAPPING[billingType];
         const normalizedPhone = customer.normalizedPhone || normalizePhone(customer.phone);
-        const templateVars = buildTemplateVars(customer);
+        const templateConfig = templateConfigMap[templateName];
+        const templateVars = filterVarsForTemplate(templateConfig, buildTemplateVars(customer));
         const exactLang = templateLangMap[templateName] || 'pt_BR';
-        const headerImageUrl = extractHeaderImageUrl(templateConfigMap[templateName]);
+        const headerImageUrl = extractHeaderImageUrl(templateConfig);
 
         let sendResult: { success: boolean; error?: string };
         let outboundLabel = templateName;
