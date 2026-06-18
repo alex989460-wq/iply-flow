@@ -263,8 +263,6 @@ async function sendWhatsAppTemplateZap(
     };
 
     for (const lang of langCandidates) {
-      let translationErrorSeen = false;
-
       const payload = buildPayloadForLang(lang);
       console.log(`[Zap Responder] Sending with ${payload.name}`);
 
@@ -281,7 +279,6 @@ async function sendWhatsAppTemplateZap(
         responseText.includes('translation');
 
       if (isTranslationError) {
-        translationErrorSeen = true;
         lastError = `Template "${templateName}" não existe no idioma ${lang} (132001). Tentando próximo idioma...`;
         console.warn(`[Zap Responder] ${lastError}`);
         continue;
@@ -316,7 +313,6 @@ async function sendWhatsAppTemplateZap(
         const message = result.message || result.error || 'Erro retornado pela API';
         const body = JSON.stringify(result);
         if (body.includes('#132001') || body.includes('does not exist') || body.includes('translation')) {
-          translationErrorSeen = true;
           lastError = `Template "${templateName}" não existe no idioma ${lang} (132001). Tentando próximo idioma...`;
           console.warn(`[Zap Responder] ${lastError}`);
           continue;
@@ -336,8 +332,6 @@ async function sendWhatsAppTemplateZap(
 
       console.log(`[Zap Responder] Template sent successfully to ${formattedPhone} using ${payload.name}`, result);
       return { success: true };
-
-      if (!translationErrorSeen) break;
     }
 
     return { success: false, error: lastError };
