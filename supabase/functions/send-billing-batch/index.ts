@@ -277,7 +277,10 @@ async function sendWhatsAppTemplateZap(
       ];
     };
 
-    const langCandidates = Array.from(new Set([language, 'en', 'en_US', 'pt_BR', 'pt_PT']));
+    // If caller explicitly passed a language (resolved from Meta template list), don't iterate others.
+    const langCandidates = language
+      ? [language]
+      : Array.from(new Set(['pt_BR', 'en', 'en_US', 'pt_PT']));
     let lastError = 'Falha ao enviar template';
     const headers = {
       'Content-Type': 'application/json',
