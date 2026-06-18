@@ -84,6 +84,39 @@ function normalizePhone(phone: string): string {
   return normalized;
 }
 
+function formatBRL(v: any): string {
+  const n = typeof v === 'number' ? v : parseFloat(String(v ?? '0').replace(',', '.'));
+  if (!isFinite(n)) return '0,00';
+  return n.toFixed(2).replace('.', ',');
+}
+
+function formatBRDate(iso: string): string {
+  if (!iso) return '';
+  const [y, m, d] = iso.split('-');
+  return `${d}/${m}/${y}`;
+}
+
+function buildTemplateVars(customer: any): Array<{ name: string; value: string }> {
+  const planName = customer?.plan?.plan_name || '';
+  const planPrice = customer?.plan?.price;
+  const serverName = customer?.server?.server_name || '';
+  const price = customer?.custom_price ?? planPrice ?? 0;
+  const firstName = String(customer?.name || '').trim().split(/\s+/)[0] || customer?.name || '';
+  return [
+    { name: 'name', value: firstName },
+    { name: 'user', value: String(customer?.username || '') },
+    { name: 'price', value: formatBRL(price) },
+    { name: 'weak', value: String(planName) },
+    { name: 'serv', value: String(serverName) },
+    { name: 'data', value: formatBRDate(customer?.due_date || '') },
+  ];
+}
+
+function extractHeaderImageUrl(template: any): string | undefined {
+  const header = template?.components?.find((c: any) => c?.type === 'HEADER' && c?.format === 'IMAGE');
+  return header?.example?.header_handle?.[0] || header?.example?.header_url?.[0] || undefined;
+}
+
 // Send WhatsApp template message with language + payload fallbacks (mirrors send-billing-batch)
 async function sendWhatsAppTemplate(
   phone: string,
@@ -91,7 +124,9 @@ async function sendWhatsAppTemplate(
   token: string,
   apiBaseUrl: string,
   departmentId: string,
-  language: string = 'pt_BR'
+  language: string = 'pt_BR',
+  vars: Array<{ name: string; value: string }> = [],
+  headerImageUrl?: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
     let formattedPhone = phone.replace(/\D/g, '');
@@ -101,15 +136,75 @@ async function sendWhatsAppTemplate(
 
     console.log(`[Scheduled] Sending template "${templateName}" to ${formattedPhone}`);
 
+    const namedParams = vars.map((v) => ({ type: 'text', parameter_name: v.name, text: v.value }));
+    const positional = vars.map((v) => v.value);
+    const headerImageComponent = headerImageUrl
+      ? { type: 'header', parameters: [{ type: 'image', image: { link: headerImageUrl } }] }
+      : null;
+
     const buildPayloadsForLang = (lang: string) => {
-      const basePayload = {
+      const basePayload: Record<string, unknown> = {
         type: 'template',
         template_name: templateName,
         number: formattedPhone,
         language: lang,
       };
+      if (headerImageUrl) {
+        basePayload.header_image = headerImageUrl;
+        basePayload.image_url = headerImageUrl;
+      }
+
+      const withHeader = (components: any[]) => headerImageComponent ? [headerImageComponent, ...components] : components;
+
+      if (vars.length === 0) {
+        return headerImageComponent ? [
+          {
+            name: `meta-shape template object (header only) [${lang}]`,
+            body: {
+              type: 'template',
+              number: formattedPhone,
+              template: { name: templateName, language: { code: lang }, components: [headerImageComponent] },
+            } as Record<string, unknown>,
+          },
+          { name: `simple [${lang}]`, body: basePayload },
+        ] : [{ name: `simple [${lang}]`, body: basePayload }];
+      }
+
       return [
-        { name: `simple [${lang}]`, body: basePayload as Record<string, unknown> },
+        {
+          name: `meta-shape template object (named) [${lang}]`,
+          body: {
+            type: 'template',
+            number: formattedPhone,
+            template: {
+              name: templateName,
+              language: { code: lang },
+              components: withHeader([{ type: 'body', parameters: namedParams }]),
+            },
+          } as Record<string, unknown>,
+        },
+        {
+          name: `template + components[named] [${lang}]`,
+          body: { ...basePayload, components: withHeader([{ type: 'body', parameters: namedParams }]) } as Record<string, unknown>,
+        },
+        {
+          name: `meta-shape template object (positional) [${lang}]`,
+          body: {
+            type: 'template',
+            number: formattedPhone,
+            template: {
+              name: templateName,
+              language: { code: lang },
+              components: withHeader([{ type: 'body', parameters: positional.map((text) => ({ type: 'text', text })) }]),
+            },
+          } as Record<string, unknown>,
+        },
+        {
+          name: `template + components[positional] [${lang}]`,
+          body: { ...basePayload, components: withHeader([{ type: 'body', parameters: positional.map((text) => ({ type: 'text', text })) }]) } as Record<string, unknown>,
+        },
+        { name: `template + variables.body_text [${lang}]`, body: { ...basePayload, variables: { body_text: positional } } as Record<string, unknown> },
+        { name: `template + params[] [${lang}]`, body: { ...basePayload, params: positional } as Record<string, unknown> },
       ];
     };
 
@@ -137,11 +232,22 @@ async function sendWhatsAppTemplate(
           responseText.includes('does not exist') ||
           responseText.includes('translation');
 
+        const isParamError =
+          responseText.includes('#132000') ||
+          responseText.includes('localizable_params') ||
+          responseText.includes('Number of parameters does not match');
+
         if (isTranslationError) {
           translationErrorSeen = true;
           lastError = `Template "${templateName}" não existe no idioma ${lang} (132001).`;
           console.warn(`[Scheduled] ${lastError} Tentando próximo idioma...`);
           break;
+        }
+
+        if (isParamError) {
+          lastError = `Formato de variáveis rejeitado para "${templateName}" (${lang}). Tentando outro formato...`;
+          console.warn(`[Scheduled] ${lastError}`);
+          continue;
         }
 
         if (!response.ok) {
@@ -165,6 +271,10 @@ async function sendWhatsAppTemplate(
               lastError = `Template "${templateName}" não existe no idioma ${lang} (132001).`;
               console.warn(`[Scheduled] ${lastError} Tentando próximo idioma...`);
               break;
+            }
+            if (body.includes('#132000') || body.includes('localizable_params') || body.includes('Number of parameters does not match')) {
+              lastError = `Formato de variáveis rejeitado para "${templateName}" (${lang}). Tentando outro formato...`;
+              continue;
             }
             if (result.error || result.success === false) {
               lastError = result.message || result.error || 'Erro retornado pela API';
@@ -326,6 +436,7 @@ Deno.serve(async (req) => {
 
       // Fetch templates from ZapResponder once to resolve EXACT language per template name (avoids #132001)
       const templateLangMap: Record<string, string> = {};
+      const templateConfigMap: Record<string, any> = {};
       try {
         const tplRes = await fetch(`${zapSettings.api_base_url}/whatsapp/templates/${departmentId}`, {
           headers: {
@@ -345,6 +456,7 @@ Deno.serve(async (req) => {
             const existing = templateLangMap[name];
             if (!existing || status === 'APPROVED') {
               templateLangMap[name] = lang;
+              templateConfigMap[name] = t;
             }
           }
           console.log(`[Scheduled Billing] Loaded ${Object.keys(templateLangMap).length} template languages from Meta`);
@@ -373,7 +485,7 @@ Deno.serve(async (req) => {
       // Get customers for this user (ativa and inativa only - suspensa is excluded)
       const { data: customers } = await supabase
         .from('customers')
-        .select('id, name, phone, extra_phone, due_date, status')
+        .select('id, name, phone, extra_phone, due_date, status, username, custom_price, plan:plans(plan_name, price), server:servers(server_name)')
         .in('status', ['ativa', 'inativa'])
         .eq('created_by', schedule.user_id)
         .in('due_date', [yesterday, today, tomorrow]);
@@ -387,7 +499,7 @@ Deno.serve(async (req) => {
       // Pre-fetch all existing logs for today to avoid individual queries (OPTIMIZATION)
       const { data: existingLogs } = await supabase
         .from('billing_logs')
-        .select('customer_id, billing_type, message')
+        .select('customer_id, billing_type, message, whatsapp_status')
         .gte('sent_at', `${today}T00:00:00`)
         .lte('sent_at', `${today}T23:59:59`);
 
@@ -399,6 +511,7 @@ Deno.serve(async (req) => {
       };
 
       for (const log of existingLogs || []) {
+        if (log.whatsapp_status !== 'sent') continue;
         const type = log.billing_type as string;
         if (processedByType[type]) {
           processedByType[type].customerIds.add(log.customer_id);
@@ -473,6 +586,8 @@ Deno.serve(async (req) => {
         const customer = batch[i];
         const billingType = customer.billingType as 'D-1' | 'D0' | 'D+1';
         const templateName = templateMapping[billingType];
+        const templateVars = buildTemplateVars(customer);
+        const headerImageUrl = extractHeaderImageUrl(templateConfigMap[templateName]);
 
         console.log(`[Scheduled] (${i + 1}/${batch.length}) Template "${templateName}" -> ${customer.name}`);
 
@@ -489,7 +604,9 @@ Deno.serve(async (req) => {
           zapSettings.zap_api_token,
           zapSettings.api_base_url,
           departmentId,
-          exactLang || 'pt_BR'
+          exactLang || 'pt_BR',
+          templateVars,
+          headerImageUrl
         );
 
         if (customer.extra_phone && String(customer.extra_phone).replace(/\D/g, '').length >= 10) {
@@ -500,7 +617,9 @@ Deno.serve(async (req) => {
               zapSettings.zap_api_token,
               zapSettings.api_base_url,
               departmentId,
-              exactLang || 'pt_BR'
+              exactLang || 'pt_BR',
+              templateVars,
+              headerImageUrl
             );
           } catch (e) {
             console.error(`[Scheduled] Extra phone send failed for ${customer.name}:`, e);

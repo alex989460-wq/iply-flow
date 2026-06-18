@@ -74,6 +74,11 @@ function buildTemplateVars(customer: any): Array<{ name: string; value: string }
   ];
 }
 
+function extractHeaderImageUrl(template: any): string | undefined {
+  const header = template?.components?.find((c: any) => c?.type === 'HEADER' && c?.format === 'IMAGE');
+  return header?.example?.header_handle?.[0] || header?.example?.header_url?.[0] || undefined;
+}
+
 // Send WhatsApp template message via Meta Cloud API
 async function sendWhatsAppTemplateMeta(
   phone: string, 
@@ -185,7 +190,8 @@ async function sendWhatsAppTemplateZap(
   apiBaseUrl: string,
   departmentId: string,
   vars: Array<{ name: string; value: string }> = [],
-  language: string = 'pt_BR'
+  language: string = 'pt_BR',
+  headerImageUrl?: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
     let formattedPhone = phone.replace(/\D/g, '');
@@ -197,25 +203,25 @@ async function sendWhatsAppTemplateZap(
     
     const positional = vars.map(v => v.value);
     const namedParams = vars.map(v => ({ type: 'text', parameter_name: v.name, text: v.value }));
+    const headerImageComponent = headerImageUrl
+      ? { type: 'header', parameters: [{ type: 'image', image: { link: headerImageUrl } }] }
+      : null;
 
     const buildPayloadsForLang = (lang: string) => {
-      const basePayload = {
+      const basePayload: Record<string, unknown> = {
         type: 'template',
         template_name: templateName,
         number: formattedPhone,
         language: lang,
       };
+      if (headerImageUrl) {
+        basePayload.header_image = headerImageUrl;
+        basePayload.image_url = headerImageUrl;
+      }
+
+      const withHeader = (components: any[]) => headerImageComponent ? [headerImageComponent, ...components] : components;
 
       return [
-        {
-          name: `template + components[named] [${lang}]`,
-          body: {
-            ...basePayload,
-            components: [{ type: 'body', parameters: namedParams }],
-            variables: { body_text: positional },
-            params: positional,
-          } as Record<string, unknown>,
-        },
         {
           name: `meta-shape template object (named) [${lang}]`,
           body: {
@@ -224,15 +230,22 @@ async function sendWhatsAppTemplateZap(
             template: {
               name: templateName,
               language: { code: lang },
-              components: [{ type: 'body', parameters: namedParams }],
+              components: withHeader([{ type: 'body', parameters: namedParams }]),
             },
+          } as Record<string, unknown>,
+        },
+        {
+          name: `template + components[named] [${lang}]`,
+          body: {
+            ...basePayload,
+            components: withHeader([{ type: 'body', parameters: namedParams }]),
           } as Record<string, unknown>,
         },
         {
           name: `template + components[positional] [${lang}]`,
           body: {
             ...basePayload,
-            components: [{ type: 'body', parameters: positional.map((text) => ({ type: 'text', text })) }],
+            components: withHeader([{ type: 'body', parameters: positional.map((text) => ({ type: 'text', text })) }]),
           } as Record<string, unknown>,
         },
         { name: `template + variables.body_text [${lang}]`, body: { ...basePayload, variables: { body_text: positional } } as Record<string, unknown> },
@@ -633,12 +646,13 @@ Deno.serve(async (req) => {
       if (!forceResend) {
         const { data: existingLogs } = await supabase
           .from('billing_logs')
-          .select('customer_id, billing_type, message')
+          .select('customer_id, billing_type, message, whatsapp_status')
           .gte('sent_at', `${today}T00:00:00`)
           .lte('sent_at', `${today}T23:59:59`);
 
         // Build sets for deduplication
         for (const log of existingLogs || []) {
+          if (log.whatsapp_status !== 'sent') continue;
           sentByCustomerAndType.add(`${log.customer_id}:${log.billing_type}`);
           const phoneMatch = log.message?.match(/\[(\d+)\]/);
           if (phoneMatch) {
@@ -725,11 +739,43 @@ Deno.serve(async (req) => {
         'D+1': (billSettings as any)?.evolution_msg_d_plus_1 || 'Olá {{nome}}, seu plano venceu em {{vencimento}}. PIX: {{pix}}',
       };
 
+      const templateLangMap: Record<string, string> = {};
+      const templateConfigMap: Record<string, any> = {};
+      if (!isEvolution && !isMetaCloud) {
+        try {
+          const zapToken = zapSettings?.zap_api_token || Deno.env.get('ZAP_RESPONDER_TOKEN');
+          const apiBaseUrl = zapSettings?.api_base_url || 'https://api.zapresponder.com.br/api';
+          const departmentId = zapSettings?.selected_department_id;
+          const tplRes = await fetch(`${apiBaseUrl}/whatsapp/templates/${departmentId}`, {
+            headers: { Authorization: `Bearer ${zapToken}`, Accept: 'application/json' },
+          });
+          if (tplRes.ok) {
+            const tplJson = await tplRes.json();
+            const list = Array.isArray(tplJson) ? tplJson : (tplJson.data || tplJson.templates || []);
+            for (const t of list) {
+              const name = t?.name || t?.template_name;
+              const lang = t?.language || t?.language_code || t?.lang;
+              const status = (t?.status || '').toString().toUpperCase();
+              if (!name || !lang) continue;
+              const existing = templateLangMap[name];
+              if (!existing || status === 'APPROVED') {
+                templateLangMap[name] = lang;
+                templateConfigMap[name] = t;
+              }
+            }
+          }
+        } catch (e) {
+          console.error('[Billing Batch] Error fetching template metadata:', e);
+        }
+      }
+
       for (const customer of batch) {
         const billingType = customer.billingType as 'D-1' | 'D0' | 'D+1';
         const templateName = TEMPLATE_MAPPING[billingType];
         const normalizedPhone = customer.normalizedPhone || normalizePhone(customer.phone);
         const templateVars = buildTemplateVars(customer);
+        const exactLang = templateLangMap[templateName] || 'pt_BR';
+        const headerImageUrl = extractHeaderImageUrl(templateConfigMap[templateName]);
 
         let sendResult: { success: boolean; error?: string };
         let outboundLabel = templateName;
@@ -761,7 +807,9 @@ Deno.serve(async (req) => {
             zapToken!,
             apiBaseUrl,
             departmentId!,
-            templateVars
+            templateVars,
+            exactLang,
+            headerImageUrl
           );
         }
 
@@ -784,7 +832,7 @@ Deno.serve(async (req) => {
               const zapToken = zapSettings?.zap_api_token || Deno.env.get('ZAP_RESPONDER_TOKEN');
               const apiBaseUrl = zapSettings?.api_base_url || 'https://api.zapresponder.com.br/api';
               const departmentId = zapSettings?.selected_department_id;
-              await sendWhatsAppTemplateZap(customer.extra_phone, templateName, zapToken!, apiBaseUrl, departmentId!, templateVars);
+              await sendWhatsAppTemplateZap(customer.extra_phone, templateName, zapToken!, apiBaseUrl, departmentId!, templateVars, exactLang, headerImageUrl);
             }
             console.log(`[Billing Batch] Extra phone notified for ${customer.name}: ${customer.extra_phone}`);
           } catch (e) {
