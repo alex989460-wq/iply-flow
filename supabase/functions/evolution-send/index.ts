@@ -450,6 +450,26 @@ Deno.serve(async (req) => {
       return jsonResponse({ error: 'Informe URL Base e API Key em Configurações → Evolution.' }, 200);
     }
 
+    // SERVER-SIDE UPLOAD FALLBACK — when the client cannot upload directly to storage
+    // (browser extension blocking the storage domain, corporate firewall, RLS issue, etc.)
+    if (action === 'upload-media') {
+      try {
+        const mediaBase64 = String(body.mediaBase64 || '');
+        const mimetype = String(body.mimetype || 'application/octet-stream');
+        const rawFilename = String(body.filename || `media-${Date.now()}`);
+        const filename = rawFilename.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 120) || `media-${Date.now()}`;
+        if (!mediaBase64) return jsonResponse({ error: 'mediaBase64 obrigatório' }, 200);
+        const bin = Uint8Array.from(atob(mediaBase64), (c) => c.charCodeAt(0));
+        const path = `${user.id}/${Date.now()}-${filename}`;
+        const { error: upErr } = await admin.storage.from('evolution-media').upload(path, bin, { contentType: mimetype, upsert: true });
+        if (upErr) return jsonResponse({ error: `Upload falhou: ${upErr.message || upErr}` }, 200);
+        const { data: signed } = await admin.storage.from('evolution-media').createSignedUrl(path, 60 * 60 * 24 * 365);
+        return jsonResponse({ ok: true, mediaUrl: signed?.signedUrl || null, path });
+      } catch (e) {
+        return jsonResponse({ error: `Upload falhou: ${e instanceof Error ? e.message : String(e)}` }, 200);
+      }
+    }
+
     // TEST PANEL LOGIN / CONNECTION
     if (action === 'test') {
       const adminEndpoints = [
