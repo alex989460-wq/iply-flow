@@ -1977,6 +1977,47 @@ export default function EvolutionChat() {
                   <BookOpen className="w-4 h-4 mr-2" /> Base de conhecimento
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onClick={async () => {
+                    try {
+                      toast({ title: 'Limpando cache…', description: 'A página será recarregada.' });
+                      try {
+                        const keep: Record<string, string> = {};
+                        for (let i = 0; i < localStorage.length; i++) {
+                          const k = localStorage.key(i);
+                          if (k && (k.startsWith('sb-') || k.includes('supabase.auth'))) {
+                            keep[k] = localStorage.getItem(k) || '';
+                          }
+                        }
+                        localStorage.clear();
+                        Object.entries(keep).forEach(([k, v]) => localStorage.setItem(k, v));
+                      } catch {}
+                      try { sessionStorage.clear(); } catch {}
+                      try {
+                        if ('caches' in window) {
+                          const names = await caches.keys();
+                          await Promise.all(names.map(n => caches.delete(n)));
+                        }
+                      } catch {}
+                      try {
+                        if ('serviceWorker' in navigator) {
+                          const regs = await navigator.serviceWorker.getRegistrations();
+                          await Promise.all(regs.map(r => r.unregister()));
+                        }
+                      } catch {}
+                      setTimeout(() => {
+                        const url = new URL(window.location.href);
+                        url.searchParams.set('_t', Date.now().toString());
+                        window.location.replace(url.toString());
+                      }, 600);
+                    } catch (e: any) {
+                      toast({ title: 'Erro ao limpar cache', description: e?.message || 'Tente novamente', variant: 'destructive' });
+                    }
+                  }}
+                >
+                  <RefreshCw className="w-4 h-4 mr-2" /> Limpar cache da página
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={clearAllConversations} className="text-destructive focus:text-destructive">
                   <Trash2 className="w-4 h-4 mr-2" /> Limpar TODO o histórico
                 </DropdownMenuItem>
