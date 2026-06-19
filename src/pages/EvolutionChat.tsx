@@ -1932,19 +1932,18 @@ export default function EvolutionChat() {
             </div>
             <div className="relative flex items-center gap-1">
               <div className="relative flex-1">
-                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
-                <Input placeholder="Pesquisar conversa..." value={search} onChange={(e) => setSearch(e.target.value)} className="h-8 text-xs pl-8" />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+                <Input placeholder="Pesquisar conversa..." value={search} onChange={(e) => setSearch(e.target.value)} className="h-8 text-xs pl-9 rounded-full bg-background/60 border-border/60" />
               </div>
               <Button
                 size="icon"
                 variant="ghost"
-                className="h-8 w-8 shrink-0"
+                className="h-8 w-8 shrink-0 rounded-full"
                 title={soundEnabled ? 'Som de notificação ativo' : 'Som de notificação desligado'}
                 onClick={() => {
                   setSoundEnabled(v => {
                     const next = !v;
                     if (next) {
-                      // play once to confirm + unlock audio context on mobile
                       lastSoundAtRef.current = 0;
                       setTimeout(() => playNotificationSound(), 0);
                     }
@@ -1955,9 +1954,9 @@ export default function EvolutionChat() {
                 {soundEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4 text-muted-foreground" />}
               </Button>
             </div>
-            <div className="flex gap-1">
-              <Input placeholder="Novo número (DDD + nº)" value={newPhone} onChange={(e) => setNewPhone(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && startConversation()} className="h-8 text-xs" />
-              <Button size="icon" className="h-8 w-8 shrink-0" onClick={startConversation}><Plus className="w-4 h-4" /></Button>
+            <div className="flex gap-1.5">
+              <Input placeholder="Novo número (DDD + nº)" value={newPhone} onChange={(e) => setNewPhone(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && startConversation()} className="h-8 text-xs rounded-full bg-background/60 border-border/60 px-3" />
+              <Button size="icon" className="h-8 w-8 shrink-0 rounded-full bg-[#00a884] hover:bg-[#06cf9c] text-white" onClick={startConversation}><Plus className="w-4 h-4" /></Button>
             </div>
             <div className="flex gap-1 flex-wrap">
               {([
@@ -1977,10 +1976,10 @@ export default function EvolutionChat() {
                   key={t.id}
                   onClick={() => setFilter(t.id)}
                   className={cn(
-                    'flex-1 text-[11px] px-2 py-1 rounded-md border transition-colors relative',
+                    'text-[11px] px-3 py-1 rounded-full border transition-all relative whitespace-nowrap',
                     filter === t.id
-                      ? 'bg-primary text-primary-foreground border-primary'
-                      : 'bg-background hover:bg-accent border-border text-muted-foreground'
+                      ? 'bg-[#00a884]/15 text-[#00a884] border-[#00a884]/40'
+                      : 'bg-transparent hover:bg-accent border-border text-muted-foreground'
                   )}
                 >
                   {t.label}
@@ -2031,7 +2030,7 @@ export default function EvolutionChat() {
                       <button
                         onClick={() => setSelectedPhone(c.phone)}
                         className={cn(
-                          'w-full text-left px-3 py-2.5 border-b border-border/40 hover:bg-accent/50 transition-colors flex gap-2.5 items-start',
+                          'w-full text-left px-3 py-2.5 hover:bg-accent/40 transition-colors flex gap-3 items-start border-b border-border/20',
                           active && 'bg-accent',
                           isPinnedContact && 'bg-gradient-to-r from-emerald-500/5 to-transparent',
                         )}
@@ -2112,7 +2111,7 @@ export default function EvolutionChat() {
             </div>
           ) : (
             <>
-              <div className="sticky top-0 z-10 px-3 py-2 border-b border-[#0b1115] bg-gradient-to-r from-[#202c33] via-[#1f2a30] to-[#202c33] flex items-center gap-3 shadow-sm">
+              <div className="sticky top-0 z-10 px-3 py-2 border-b border-[#0b1115] bg-[#202c33] flex items-center gap-3">
                 {isMobile && (
                   <Button size="icon" variant="ghost" className="h-8 w-8 text-[#aebac1] hover:bg-white/5" onClick={() => setSelectedPhone(null)}>
                     <ArrowLeft className="w-4 h-4" />
@@ -2244,13 +2243,13 @@ export default function EvolutionChat() {
                 {selectedPhone && !selectedPhone.startsWith('status:') && thread.length > 0 && (
                   <div className="flex justify-center pt-1 pb-2">
                     {exhaustedPhones.has(selectedPhone) ? (
-                      <span className="text-[11px] px-3 py-1 rounded-md bg-[#1d282f] text-[#8696a0]">Início da conversa</span>
+                      <span className="text-[11px] px-3 py-1 rounded-full bg-[#1d282f] text-[#8696a0] shadow-sm">Início da conversa</span>
                     ) : (
                       <button
                         type="button"
                         disabled={loadingOlder}
                         onClick={() => loadOlderForPhone(selectedPhone)}
-                        className="text-[11px] px-3 py-1 rounded-md bg-[#2a3942] text-[#e9edef] hover:bg-[#374248] transition-colors disabled:opacity-60"
+                        className="text-[11px] px-4 py-1.5 rounded-full bg-[#2a3942] text-[#e9edef] hover:bg-[#374248] transition-colors disabled:opacity-60 shadow-sm"
                       >
                         {loadingOlder ? 'Carregando…' : 'Carregar mensagens antigas'}
                       </button>
@@ -2262,18 +2261,18 @@ export default function EvolutionChat() {
                 )}
                 {groupedThread.map((g) => (
                   <div key={g.date} className="space-y-1.5">
-                    <div className="flex justify-center my-2">
-                      <span className="text-[11px] px-3 py-1 rounded-md bg-[#1d282f] text-[#aebac1] shadow-sm">{g.date}</span>
+                    <div className="flex justify-center my-3">
+                      <span className="text-[11px] px-3 py-1 rounded-full bg-[#1d282f] text-[#aebac1] shadow-sm uppercase tracking-wide font-medium">{g.date}</span>
                     </div>
                     {g.items.map((m) => {
                       const isPinned = pinnedIds.has(m.id);
                       return (
-                      <div key={m.id} id={`evo-msg-${m.id}`} className={cn('group flex transition-all rounded-lg', m.direction === 'out' ? 'justify-end' : 'justify-start')}>
+                      <div key={m.id} id={`evo-msg-${m.id}`} className={cn('group flex transition-all', m.direction === 'out' ? 'justify-end' : 'justify-start')}>
                         <ContextMenu>
                           <ContextMenuTrigger asChild>
                             <div className={cn(
-                              'max-w-[78%] md:max-w-[65%] rounded-lg px-2 py-1 text-sm shadow-sm relative text-[#e9edef] transition-transform hover:-translate-y-0.5 cursor-context-menu',
-                              m.direction === 'out' ? 'bg-[#005c4b] rounded-tr-sm' : 'bg-[#202c33] rounded-tl-sm',
+                              'max-w-[78%] md:max-w-[65%] rounded-[10px] px-2.5 py-1.5 text-sm relative text-[#e9edef] cursor-context-menu shadow-[0_1px_0.5px_rgba(11,20,26,0.13)]',
+                              m.direction === 'out' ? 'bg-[#005c4b] rounded-tr-[2px]' : 'bg-[#202c33] rounded-tl-[2px]',
                               m._failed && 'ring-1 ring-destructive',
                               isPinned && 'ring-1 ring-[#00a884]/60',
                             )}>
@@ -2653,8 +2652,8 @@ export default function EvolutionChat() {
                       lang="pt-BR"
                       autoCorrect="on"
                       autoCapitalize="sentences"
-                      className="flex-1 resize-none rounded-lg border-0 bg-[#2a3942] text-[#e9edef] placeholder:text-[#8696a0] px-4 py-3 text-base focus:outline-none focus:ring-1 focus:ring-[#00a884] max-h-48"
-                      style={{ minHeight: 56 }}
+                      className="flex-1 resize-none rounded-[10px] border-0 bg-[#2a3942] text-[#e9edef] placeholder:text-[#8696a0] px-4 py-3 text-[15px] leading-relaxed focus:outline-none focus:ring-1 focus:ring-[#00a884]/40 max-h-48 shadow-inner"
+                      style={{ minHeight: 48 }}
                     />
                     {draft.trim() ? (
                       <Button onClick={send} size="icon" className="h-10 w-10 shrink-0 rounded-full bg-[#00a884] hover:bg-[#06cf9c] text-white">
