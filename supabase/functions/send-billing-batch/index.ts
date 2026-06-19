@@ -740,8 +740,9 @@ Deno.serve(async (req) => {
     // ACTION: BATCH - Process a batch of customers
     if (action === 'batch') {
       const batch: Customer[] = body?.batch || [];
+      const forceResend = body?.force === true;
       const effectiveApiType = isEvolution ? 'evolution' : (isMetaCloud ? 'meta_cloud' : 'zap_responder');
-      console.log(`[Billing Batch] Processing batch of ${batch.length} customers via ${effectiveApiType}`);
+      console.log(`[Billing Batch] Processing batch of ${batch.length} customers via ${effectiveApiType} (force=${forceResend})`);
 
       const results: any[] = [];
 
