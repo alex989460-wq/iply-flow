@@ -2241,6 +2241,22 @@ export default function EvolutionChat() {
 
               <div ref={scrollRef} className="flex-1 overflow-auto px-3 py-3 space-y-2 bg-[#0b141a]"
                 style={{ backgroundImage: 'radial-gradient(circle at 1px 1px, rgba(255,255,255,0.025) 1px, transparent 0)', backgroundSize: '22px 22px' }}>
+                {selectedPhone && !selectedPhone.startsWith('status:') && thread.length > 0 && (
+                  <div className="flex justify-center pt-1 pb-2">
+                    {exhaustedPhones.has(selectedPhone) ? (
+                      <span className="text-[11px] px-3 py-1 rounded-md bg-[#1d282f] text-[#8696a0]">Início da conversa</span>
+                    ) : (
+                      <button
+                        type="button"
+                        disabled={loadingOlder}
+                        onClick={() => loadOlderForPhone(selectedPhone)}
+                        className="text-[11px] px-3 py-1 rounded-md bg-[#2a3942] text-[#e9edef] hover:bg-[#374248] transition-colors disabled:opacity-60"
+                      >
+                        {loadingOlder ? 'Carregando…' : 'Carregar mensagens antigas'}
+                      </button>
+                    )}
+                  </div>
+                )}
                 {groupedThread.length === 0 && (
                   <div className="text-xs text-[#8696a0] text-center py-10">Sem mensagens. Envie a primeira abaixo.</div>
                 )}
