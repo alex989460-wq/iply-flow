@@ -2030,7 +2030,7 @@ export default function EvolutionChat() {
                       <button
                         onClick={() => setSelectedPhone(c.phone)}
                         className={cn(
-                          'w-full text-left px-3 py-2.5 border-b border-border/40 hover:bg-accent/50 transition-colors flex gap-2.5 items-start',
+                          'w-full text-left px-3 py-2.5 hover:bg-accent/40 transition-colors flex gap-3 items-start border-b border-border/20',
                           active && 'bg-accent',
                           isPinnedContact && 'bg-gradient-to-r from-emerald-500/5 to-transparent',
                         )}
