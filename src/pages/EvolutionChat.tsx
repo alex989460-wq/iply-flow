@@ -1394,7 +1394,7 @@ export default function EvolutionChat() {
 
 
   const sendMedia = async (file: File, mediaType: 'image' | 'audio' | 'video' | 'document' | 'sticker', caption = '') => {
-    if (!selectedPhone) return;
+    if (!selectedPhone || !user) return;
     setSending(true);
     const tempId = `tmp-${Date.now()}`;
     const previewUrl = URL.createObjectURL(file);
@@ -1407,16 +1407,46 @@ export default function EvolutionChat() {
     };
     setMessages(prev => [...prev, optimistic]);
     try {
-      const base64 = await fileToBase64(file);
-      const { data, error } = await invokeEvolution({
+      const rawName = file.name || `media-${Date.now()}`;
+      const safeName = rawName.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 120) || `media-${Date.now()}`;
+      const mimetype = file.type || (mediaType === 'audio' ? 'audio/ogg' : 'application/octet-stream');
+
+      // Upload directly from client → bypasses the edge function's request body size limit (big prints failed before).
+      let mediaUrl: string | null = null;
+      try {
+        const path = `${user.id}/${Date.now()}-${safeName}`;
+        const { error: upErr } = await supabase.storage.from('evolution-media').upload(path, file, { contentType: mimetype, upsert: true });
+        if (!upErr) {
+          const { data: signed } = await supabase.storage.from('evolution-media').createSignedUrl(path, 60 * 60 * 24 * 365);
+          mediaUrl = signed?.signedUrl || null;
+        } else {
+          console.warn('[sendMedia] direct upload failed, will fall back to base64', upErr);
+        }
+      } catch (e) {
+        console.warn('[sendMedia] direct upload threw, falling back to base64', e);
+      }
+
+      const payload: Record<string, unknown> = {
         action: 'send-media',
         phone: selectedPhone,
         mediaType,
-        mimetype: file.type || (mediaType === 'audio' ? 'audio/ogg' : 'application/octet-stream'),
-        filename: file.name || `media-${Date.now()}`,
-        mediaBase64: base64,
+        mimetype,
+        filename: safeName,
         caption,
-      });
+      };
+      if (mediaUrl) {
+        payload.mediaUrl = mediaUrl;
+      } else {
+        // Fallback for small files only — large screenshots may exceed body limit.
+        if (file.size > 5 * 1024 * 1024) {
+          setMessages(prev => prev.map(m => m.id === tempId ? { ...m, _pending: false, _failed: true } : m));
+          toast({ title: 'Erro ao enviar', description: 'Falha no upload do arquivo. Tente novamente.', variant: 'destructive' });
+          return;
+        }
+        payload.mediaBase64 = await fileToBase64(file);
+      }
+
+      const { data, error } = await invokeEvolution(payload);
       if (error || data?.error) {
         setMessages(prev => prev.map(m => m.id === tempId ? { ...m, _pending: false, _failed: true } : m));
         toast({ title: 'Erro ao enviar', description: error?.message || data?.error, variant: 'destructive' });
