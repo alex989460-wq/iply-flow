@@ -513,6 +513,49 @@ export default function EvolutionChat() {
 
   const messagesRef = useRef<EvoMessage[]>(messages);
   useEffect(() => { messagesRef.current = messages; }, [messages]);
+
+  const loadOlderForPhone = useCallback(async (phone: string) => {
+    if (!user || !phone) return;
+    if (exhaustedPhones.has(phone)) return;
+    setLoadingOlder(true);
+    try {
+      const existingForPhone = messagesRef.current.filter(m => m.phone === phone);
+      const oldest = existingForPhone.reduce<string | null>((acc, m) => {
+        if (!acc) return m.created_at;
+        return new Date(m.created_at).getTime() < new Date(acc).getTime() ? m.created_at : acc;
+      }, null);
+      let query = supabase
+        .from('evolution_messages')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('phone', phone)
+        .order('created_at', { ascending: false })
+        .limit(500);
+      if (oldest) query = query.lt('created_at', oldest);
+      const { data, error } = await query;
+      if (error) {
+        toast({ title: 'Erro ao carregar antigas', description: error.message, variant: 'destructive' });
+        return;
+      }
+      const rows = ((data || []) as unknown) as EvoMessage[];
+      if (rows.length === 0) {
+        setExhaustedPhones(prev => { const n = new Set(prev); n.add(phone); return n; });
+        toast({ title: 'Sem mensagens mais antigas', description: 'Esta conversa já está totalmente carregada.' });
+        return;
+      }
+      setMessages(prev => {
+        const byId = new Map<string, EvoMessage>();
+        for (const m of prev) byId.set(m.id, m);
+        for (const m of rows) if (!byId.has(m.id)) byId.set(m.id, m);
+        return Array.from(byId.values());
+      });
+      if (rows.length < 500) {
+        setExhaustedPhones(prev => { const n = new Set(prev); n.add(phone); return n; });
+      }
+    } finally {
+      setLoadingOlder(false);
+    }
+  }, [user, exhaustedPhones]);
   const load = useCallback(async () => {
     if (!user) return;
     const hadCache = messagesRef.current.length > 0;
