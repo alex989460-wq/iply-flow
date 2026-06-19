@@ -2243,13 +2243,13 @@ export default function EvolutionChat() {
                 {selectedPhone && !selectedPhone.startsWith('status:') && thread.length > 0 && (
                   <div className="flex justify-center pt-1 pb-2">
                     {exhaustedPhones.has(selectedPhone) ? (
-                      <span className="text-[11px] px-3 py-1 rounded-md bg-[#1d282f] text-[#8696a0]">Início da conversa</span>
+                      <span className="text-[11px] px-3 py-1 rounded-full bg-[#1d282f] text-[#8696a0] shadow-sm">Início da conversa</span>
                     ) : (
                       <button
                         type="button"
                         disabled={loadingOlder}
                         onClick={() => loadOlderForPhone(selectedPhone)}
-                        className="text-[11px] px-3 py-1 rounded-md bg-[#2a3942] text-[#e9edef] hover:bg-[#374248] transition-colors disabled:opacity-60"
+                        className="text-[11px] px-4 py-1.5 rounded-full bg-[#2a3942] text-[#e9edef] hover:bg-[#374248] transition-colors disabled:opacity-60 shadow-sm"
                       >
                         {loadingOlder ? 'Carregando…' : 'Carregar mensagens antigas'}
                       </button>
