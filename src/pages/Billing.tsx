@@ -876,6 +876,10 @@ export default function Billing() {
           
           totalSent += batchData?.sent || 0;
           totalErrors += batchData?.errors || 0;
+          // Anti-duplicate skips from the batch action
+          if (batchData?.skipped) {
+            skippedCount += batchData.skipped;
+          }
           
           // Update results - replace pending with actual status
           setProgressResults(prev => {
