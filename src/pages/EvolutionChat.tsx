@@ -915,6 +915,54 @@ export default function EvolutionChat() {
     );
   }, [instanceMessages, search, contacts, selectedPhone, filter, instancePhones, pinnedContacts, lastReadByPhone, manualUnreadPhones]);
 
+  // Counts shown as badges on the filter pills (independent of current filter/search)
+  const filterCounts = useMemo(() => {
+    const phones = new Set<string>();
+    const lastByPhone = new Map<string, EvoMessage>();
+    const lastOutByPhone = new Map<string, string>();
+    const msgsByPhone = new Map<string, EvoMessage[]>();
+    Object.values(contacts).forEach((c) => {
+      if (!instancePhones || instancePhones.has(c.phone) || c.phone === selectedPhone) phones.add(c.phone);
+    });
+    for (const m of instanceMessages) {
+      phones.add(m.phone);
+      if (!msgsByPhone.has(m.phone)) msgsByPhone.set(m.phone, []);
+      msgsByPhone.get(m.phone)!.push(m);
+      const cur = lastByPhone.get(m.phone);
+      if (!cur || new Date(m.created_at) > new Date(cur.created_at)) lastByPhone.set(m.phone, m);
+      if (m.direction === 'out') {
+        const lo = lastOutByPhone.get(m.phone);
+        if (!lo || new Date(m.created_at) > new Date(lo)) lastOutByPhone.set(m.phone, m.created_at);
+      }
+    }
+    let all = 0, unread = 0, support = 0, contactsC = 0, groups = 0, channels = 0, media = 0;
+    for (const p of phones) {
+      if (p.startsWith('status:')) continue;
+      const isNews = isNewsletterPhone(p);
+      const isGrp = !isNews && isGroupJidPhone(p);
+      const last = lastByPhone.get(p);
+      const lastRead = lastReadByPhone[p] || '';
+      const lastOutAt = lastOutByPhone.get(p) || '';
+      const cutoffStr = [lastRead, lastOutAt].filter(Boolean).sort().pop() || '';
+      const cutoff = cutoffStr ? new Date(cutoffStr).getTime() : 0;
+      let u = 0;
+      for (const m of msgsByPhone.get(p) || []) {
+        if (m.direction !== 'in') continue;
+        if (m.status === 'read' || m.status === 'played') continue;
+        if (new Date(m.created_at).getTime() > cutoff) u++;
+      }
+      if (manualUnreadPhones.has(p) && u === 0) u = 1;
+      if (!isNews) all++;
+      if (!isNews && u > 0) unread++;
+      if (contacts[p]?.needs_human && !isNews) support++;
+      if (!isNews && !isGrp && p.length <= 15) contactsC++;
+      if (isGrp) groups++;
+      if (isNews) channels++;
+      if (last && ['image', 'audio', 'document', 'sticker'].includes(last.message_type) && !isNews) media++;
+    }
+    return { all, unread, support, contacts: contactsC, groups, channels, media };
+  }, [instanceMessages, contacts, lastReadByPhone, manualUnreadPhones, instancePhones, selectedPhone]);
+
   // Mark conversation as read when opened (or new message arrives in opened chat)
   useEffect(() => {
     if (!selectedPhone) return;
