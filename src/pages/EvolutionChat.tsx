@@ -1459,19 +1459,51 @@ export default function EvolutionChat() {
       const safeName = rawName.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 120) || `media-${Date.now()}`;
       const mimetype = file.type || (mediaType === 'audio' ? 'audio/ogg' : 'application/octet-stream');
 
-      // Upload directly from client → bypasses the edge function's request body size limit (big prints failed before).
+      // 1) Tenta upload direto do browser → bucket (mais rápido, sem limite de tamanho).
       let mediaUrl: string | null = null;
-      try {
-        const path = `${user.id}/${Date.now()}-${safeName}`;
-        const { error: upErr } = await supabase.storage.from('evolution-media').upload(path, file, { contentType: mimetype, upsert: true });
-        if (!upErr) {
-          const { data: signed } = await supabase.storage.from('evolution-media').createSignedUrl(path, 60 * 60 * 24 * 365);
-          mediaUrl = signed?.signedUrl || null;
-        } else {
-          console.warn('[sendMedia] direct upload failed, will fall back to base64', upErr);
+      let directUploadError: string | null = null;
+      for (let attempt = 1; attempt <= 3 && !mediaUrl; attempt++) {
+        try {
+          const path = `${user.id}/${Date.now()}-${attempt}-${safeName}`;
+          const { error: upErr } = await supabase.storage
+            .from('evolution-media')
+            .upload(path, file, { contentType: mimetype, upsert: true });
+          if (!upErr) {
+            const { data: signed } = await supabase.storage
+              .from('evolution-media')
+              .createSignedUrl(path, 60 * 60 * 24 * 365);
+            mediaUrl = signed?.signedUrl || null;
+          } else {
+            directUploadError = upErr.message || String(upErr);
+            console.warn(`[sendMedia] direct upload attempt ${attempt} failed:`, upErr);
+            await new Promise(r => setTimeout(r, 400 * attempt));
+          }
+        } catch (e: any) {
+          directUploadError = e?.message || String(e);
+          console.warn(`[sendMedia] direct upload attempt ${attempt} threw:`, e);
+          await new Promise(r => setTimeout(r, 400 * attempt));
         }
-      } catch (e) {
-        console.warn('[sendMedia] direct upload threw, falling back to base64', e);
+      }
+
+      // 2) Se falhou (rede/firewall/extensão bloqueando storage), tenta enviar via edge function
+      //    com service-role (bypass de RLS e de bloqueios do browser ao domínio do storage).
+      if (!mediaUrl && file.size <= 8 * 1024 * 1024) {
+        try {
+          const b64 = await fileToBase64(file);
+          const { data: upData, error: upErr } = await invokeEvolution({
+            action: 'upload-media',
+            mediaBase64: b64,
+            mimetype,
+            filename: safeName,
+          });
+          if (!upErr && upData?.mediaUrl) {
+            mediaUrl = upData.mediaUrl;
+          } else if (upData?.error) {
+            directUploadError = `${directUploadError || ''} | server: ${upData.error}`.trim();
+          }
+        } catch (e: any) {
+          directUploadError = `${directUploadError || ''} | server: ${e?.message || e}`.trim();
+        }
       }
 
       const payload: Record<string, unknown> = {
@@ -1485,10 +1517,14 @@ export default function EvolutionChat() {
       if (mediaUrl) {
         payload.mediaUrl = mediaUrl;
       } else {
-        // Fallback for small files only — large screenshots may exceed body limit.
-        if (file.size > 5 * 1024 * 1024) {
+        // Último recurso: enviar base64 direto pra Evolution (limite de ~8MB no body).
+        if (file.size > 8 * 1024 * 1024) {
           setMessages(prev => prev.map(m => m.id === tempId ? { ...m, _pending: false, _failed: true } : m));
-          toast({ title: 'Erro ao enviar', description: 'Falha no upload do arquivo. Tente novamente.', variant: 'destructive' });
+          toast({
+            title: 'Falha no upload da mídia',
+            description: `Arquivo grande e o upload foi bloqueado. ${directUploadError || 'Verifique antivírus/extensões do navegador.'}`.slice(0, 240),
+            variant: 'destructive',
+          });
           return;
         }
         payload.mediaBase64 = await fileToBase64(file);
@@ -1497,7 +1533,11 @@ export default function EvolutionChat() {
       const { data, error } = await invokeEvolution(payload);
       if (error || data?.error) {
         setMessages(prev => prev.map(m => m.id === tempId ? { ...m, _pending: false, _failed: true } : m));
-        toast({ title: 'Erro ao enviar', description: error?.message || data?.error, variant: 'destructive' });
+        toast({
+          title: 'Erro ao enviar mídia',
+          description: (error?.message || data?.error || directUploadError || 'Tente novamente.').toString().slice(0, 240),
+          variant: 'destructive',
+        });
       } else {
         setMessages(prev => prev.map(m => m.id === tempId ? { ...m, _pending: false, media_url: data?.mediaUrl || previewUrl } : m));
       }
