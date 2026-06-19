@@ -1932,19 +1932,18 @@ export default function EvolutionChat() {
             </div>
             <div className="relative flex items-center gap-1">
               <div className="relative flex-1">
-                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
-                <Input placeholder="Pesquisar conversa..." value={search} onChange={(e) => setSearch(e.target.value)} className="h-8 text-xs pl-8" />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+                <Input placeholder="Pesquisar conversa..." value={search} onChange={(e) => setSearch(e.target.value)} className="h-8 text-xs pl-9 rounded-full bg-background/60 border-border/60" />
               </div>
               <Button
                 size="icon"
                 variant="ghost"
-                className="h-8 w-8 shrink-0"
+                className="h-8 w-8 shrink-0 rounded-full"
                 title={soundEnabled ? 'Som de notificação ativo' : 'Som de notificação desligado'}
                 onClick={() => {
                   setSoundEnabled(v => {
                     const next = !v;
                     if (next) {
-                      // play once to confirm + unlock audio context on mobile
                       lastSoundAtRef.current = 0;
                       setTimeout(() => playNotificationSound(), 0);
                     }
@@ -1955,9 +1954,9 @@ export default function EvolutionChat() {
                 {soundEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4 text-muted-foreground" />}
               </Button>
             </div>
-            <div className="flex gap-1">
-              <Input placeholder="Novo número (DDD + nº)" value={newPhone} onChange={(e) => setNewPhone(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && startConversation()} className="h-8 text-xs" />
-              <Button size="icon" className="h-8 w-8 shrink-0" onClick={startConversation}><Plus className="w-4 h-4" /></Button>
+            <div className="flex gap-1.5">
+              <Input placeholder="Novo número (DDD + nº)" value={newPhone} onChange={(e) => setNewPhone(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && startConversation()} className="h-8 text-xs rounded-full bg-background/60 border-border/60 px-3" />
+              <Button size="icon" className="h-8 w-8 shrink-0 rounded-full bg-[#00a884] hover:bg-[#06cf9c] text-white" onClick={startConversation}><Plus className="w-4 h-4" /></Button>
             </div>
             <div className="flex gap-1 flex-wrap">
               {([
