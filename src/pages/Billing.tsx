@@ -805,7 +805,7 @@ export default function Billing() {
       }
 
       const customers = startData.customers || [];
-      const skippedCount = startData.skipped || 0;
+      let skippedCount = startData.skipped || 0;
       const totalToProcess = customers.length;
 
       setProgressStats({ sent: 0, errors: 0, skipped: skippedCount, total: totalToProcess + skippedCount });
