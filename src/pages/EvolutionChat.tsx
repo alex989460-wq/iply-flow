@@ -2046,24 +2046,38 @@ export default function EvolutionChat() {
                 { id: 'channels', label: '📢 Canais' },
                 { id: 'media', label: 'Mídia' },
               ] as const).map((t) => {
-                const supportCount = t.id === 'support'
-                  ? Object.values(contacts).filter(c => c?.needs_human).length
+                const badgeCount =
+                  t.id === 'support' ? filterCounts.support
+                  : t.id === 'unread' ? filterCounts.unread
+                  : t.id === 'all' ? filterCounts.all
+                  : t.id === 'contacts' ? filterCounts.contacts
+                  : t.id === 'groups' ? filterCounts.groups
+                  : t.id === 'channels' ? filterCounts.channels
+                  : t.id === 'media' ? filterCounts.media
                   : 0;
+                const isActive = filter === t.id;
+                const badgeTone = t.id === 'support'
+                  ? 'bg-amber-500 text-black'
+                  : t.id === 'unread'
+                    ? 'bg-[#00a884] text-black'
+                    : isActive
+                      ? 'bg-[#00a884]/25 text-[#00a884]'
+                      : 'bg-muted text-muted-foreground';
                 return (
                 <button
                   key={t.id}
                   onClick={() => setFilter(t.id)}
                   className={cn(
-                    'text-[11px] px-3 py-1 rounded-full border transition-all relative whitespace-nowrap',
-                    filter === t.id
+                    'text-[11px] px-3 py-1 rounded-full border transition-all relative whitespace-nowrap inline-flex items-center gap-1',
+                    isActive
                       ? 'bg-[#00a884]/15 text-[#00a884] border-[#00a884]/40'
                       : 'bg-transparent hover:bg-accent border-border text-muted-foreground'
                   )}
                 >
-                  {t.label}
-                  {supportCount > 0 && t.id === 'support' && (
-                    <span className="ml-1 inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full text-[9px] font-bold bg-amber-500 text-black">
-                      {supportCount}
+                  <span>{t.label}</span>
+                  {badgeCount > 0 && (
+                    <span className={cn('inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full text-[9px] font-bold', badgeTone)}>
+                      {badgeCount > 99 ? '99+' : badgeCount}
                     </span>
                   )}
                 </button>
