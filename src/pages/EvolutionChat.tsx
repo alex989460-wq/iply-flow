@@ -1458,6 +1458,11 @@ export default function EvolutionChat() {
       const rawName = file.name || `media-${Date.now()}`;
       const safeName = rawName.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 120) || `media-${Date.now()}`;
       const mimetype = file.type || (mediaType === 'audio' ? 'audio/ogg' : 'application/octet-stream');
+      let mediaBase64Cache: string | null = null;
+      const getMediaBase64 = async () => {
+        if (!mediaBase64Cache) mediaBase64Cache = await fileToBase64(file);
+        return mediaBase64Cache;
+      };
 
       // 1) Tenta upload direto do browser → bucket (mais rápido, sem limite de tamanho).
       let mediaUrl: string | null = null;
@@ -1489,7 +1494,7 @@ export default function EvolutionChat() {
       //    com service-role (bypass de RLS e de bloqueios do browser ao domínio do storage).
       if (!mediaUrl && file.size <= 8 * 1024 * 1024) {
         try {
-          const b64 = await fileToBase64(file);
+          const b64 = await getMediaBase64();
           const { data: upData, error: upErr } = await invokeEvolution({
             action: 'upload-media',
             mediaBase64: b64,
@@ -1516,6 +1521,7 @@ export default function EvolutionChat() {
       };
       if (mediaUrl) {
         payload.mediaUrl = mediaUrl;
+        if (file.size <= 8 * 1024 * 1024) payload.mediaBase64 = await getMediaBase64();
       } else {
         // Último recurso: enviar base64 direto pra Evolution (limite de ~8MB no body).
         if (file.size > 8 * 1024 * 1024) {
@@ -1527,7 +1533,7 @@ export default function EvolutionChat() {
           });
           return;
         }
-        payload.mediaBase64 = await fileToBase64(file);
+        payload.mediaBase64 = await getMediaBase64();
       }
 
       const { data, error } = await invokeEvolution(payload);
