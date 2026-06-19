@@ -841,7 +841,7 @@ export default function Billing() {
         setProgressResults(prev => [...prev, ...pendingItems]);
         
         const { data: batchData, error: batchError } = await supabase.functions.invoke('send-billing-batch', {
-          body: { action: 'batch', batch },
+          body: { action: 'batch', batch, force: forceResend },
         });
 
         if (batchError) {
