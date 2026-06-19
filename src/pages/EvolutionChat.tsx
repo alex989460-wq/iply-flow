@@ -1977,10 +1977,10 @@ export default function EvolutionChat() {
                   key={t.id}
                   onClick={() => setFilter(t.id)}
                   className={cn(
-                    'flex-1 text-[11px] px-2 py-1 rounded-md border transition-colors relative',
+                    'text-[11px] px-3 py-1 rounded-full border transition-all relative whitespace-nowrap',
                     filter === t.id
-                      ? 'bg-primary text-primary-foreground border-primary'
-                      : 'bg-background hover:bg-accent border-border text-muted-foreground'
+                      ? 'bg-[#00a884]/15 text-[#00a884] border-[#00a884]/40'
+                      : 'bg-transparent hover:bg-accent border-border text-muted-foreground'
                   )}
                 >
                   {t.label}
