@@ -274,6 +274,8 @@ export default function EvolutionChat() {
   const [messages, setMessages] = useState<EvoMessage[]>(cachedMessages);
   const [contacts, setContacts] = useState<Record<string, EvoContact>>(cachedContacts);
   const [selectedPhone, setSelectedPhone] = useState<string | null>(null);
+  const [loadingOlder, setLoadingOlder] = useState(false);
+  const [exhaustedPhones, setExhaustedPhones] = useState<Set<string>>(new Set());
   const [newPhone, setNewPhone] = useState('');
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
