@@ -958,6 +958,7 @@ Deno.serve(async (req) => {
           results,
           sent: results.filter(r => r.status === 'sent').length,
           errors: results.filter(r => r.status === 'error').length,
+          skipped: results.filter(r => r.status === 'skipped').length,
         }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
