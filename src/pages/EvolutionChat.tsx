@@ -2652,8 +2652,8 @@ export default function EvolutionChat() {
                       lang="pt-BR"
                       autoCorrect="on"
                       autoCapitalize="sentences"
-                      className="flex-1 resize-none rounded-lg border-0 bg-[#2a3942] text-[#e9edef] placeholder:text-[#8696a0] px-4 py-3 text-base focus:outline-none focus:ring-1 focus:ring-[#00a884] max-h-48"
-                      style={{ minHeight: 56 }}
+                      className="flex-1 resize-none rounded-[10px] border-0 bg-[#2a3942] text-[#e9edef] placeholder:text-[#8696a0] px-4 py-3 text-[15px] leading-relaxed focus:outline-none focus:ring-1 focus:ring-[#00a884]/40 max-h-48 shadow-inner"
+                      style={{ minHeight: 48 }}
                     />
                     {draft.trim() ? (
                       <Button onClick={send} size="icon" className="h-10 w-10 shrink-0 rounded-full bg-[#00a884] hover:bg-[#06cf9c] text-white">
