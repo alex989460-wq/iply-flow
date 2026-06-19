@@ -2268,12 +2268,12 @@ export default function EvolutionChat() {
                     {g.items.map((m) => {
                       const isPinned = pinnedIds.has(m.id);
                       return (
-                      <div key={m.id} id={`evo-msg-${m.id}`} className={cn('group flex transition-all rounded-lg', m.direction === 'out' ? 'justify-end' : 'justify-start')}>
+                      <div key={m.id} id={`evo-msg-${m.id}`} className={cn('group flex transition-all', m.direction === 'out' ? 'justify-end' : 'justify-start')}>
                         <ContextMenu>
                           <ContextMenuTrigger asChild>
                             <div className={cn(
-                              'max-w-[78%] md:max-w-[65%] rounded-lg px-2 py-1 text-sm shadow-sm relative text-[#e9edef] transition-transform hover:-translate-y-0.5 cursor-context-menu',
-                              m.direction === 'out' ? 'bg-[#005c4b] rounded-tr-sm' : 'bg-[#202c33] rounded-tl-sm',
+                              'max-w-[78%] md:max-w-[65%] rounded-[10px] px-2.5 py-1.5 text-sm relative text-[#e9edef] cursor-context-menu shadow-[0_1px_0.5px_rgba(11,20,26,0.13)]',
+                              m.direction === 'out' ? 'bg-[#005c4b] rounded-tr-[2px]' : 'bg-[#202c33] rounded-tl-[2px]',
                               m._failed && 'ring-1 ring-destructive',
                               isPinned && 'ring-1 ring-[#00a884]/60',
                             )}>
