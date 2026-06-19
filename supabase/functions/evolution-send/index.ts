@@ -1057,7 +1057,9 @@ Deno.serve(async (req) => {
       let mode = 'evolution-api';
       const log: any[] = [];
       for (const att of attempts) {
-        const r = await fetchJson(att.url, { method: 'POST', headers: att.headers, body: JSON.stringify(att.body) })
+        // Media uploads (prints, images, audio, video, docs) can take longer than text.
+        // Use a 45s timeout so prints aren't dropped by the default 8s ceiling.
+        const r = await fetchJson(att.url, { method: 'POST', headers: att.headers, body: JSON.stringify(att.body) }, 45000)
           .catch((error) => ({ ok: false, status: 0, data: { error: String(error?.message || error) } }));
         log.push({ url: att.url, mode: att.mode, status: r.status });
         if (r.ok) { result = r; mode = att.mode; break; }

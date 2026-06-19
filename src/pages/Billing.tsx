@@ -805,7 +805,7 @@ export default function Billing() {
       }
 
       const customers = startData.customers || [];
-      const skippedCount = startData.skipped || 0;
+      let skippedCount = startData.skipped || 0;
       const totalToProcess = customers.length;
 
       setProgressStats({ sent: 0, errors: 0, skipped: skippedCount, total: totalToProcess + skippedCount });
@@ -841,7 +841,7 @@ export default function Billing() {
         setProgressResults(prev => [...prev, ...pendingItems]);
         
         const { data: batchData, error: batchError } = await supabase.functions.invoke('send-billing-batch', {
-          body: { action: 'batch', batch },
+          body: { action: 'batch', batch, force: forceResend },
         });
 
         if (batchError) {
@@ -876,6 +876,10 @@ export default function Billing() {
           
           totalSent += batchData?.sent || 0;
           totalErrors += batchData?.errors || 0;
+          // Anti-duplicate skips from the batch action
+          if (batchData?.skipped) {
+            skippedCount += batchData.skipped;
+          }
           
           // Update results - replace pending with actual status
           setProgressResults(prev => {

@@ -740,8 +740,9 @@ Deno.serve(async (req) => {
     // ACTION: BATCH - Process a batch of customers
     if (action === 'batch') {
       const batch: Customer[] = body?.batch || [];
+      const forceResend = body?.force === true;
       const effectiveApiType = isEvolution ? 'evolution' : (isMetaCloud ? 'meta_cloud' : 'zap_responder');
-      console.log(`[Billing Batch] Processing batch of ${batch.length} customers via ${effectiveApiType}`);
+      console.log(`[Billing Batch] Processing batch of ${batch.length} customers via ${effectiveApiType} (force=${forceResend})`);
 
       const results: any[] = [];
 
@@ -826,6 +827,34 @@ Deno.serve(async (req) => {
         const billingType = customer.billingType as 'D-1' | 'D0' | 'D+1';
         const templateName = TEMPLATE_MAPPING[billingType];
         const normalizedPhone = customer.normalizedPhone || normalizePhone(customer.phone);
+
+        // ANTI-DUPLICATE: re-check billing_logs right before sending to prevent
+        // double sends from concurrent runs (manual + scheduled, double-click, etc.)
+        if (!forceResend) {
+          const { data: dupCheck } = await supabase
+            .from('billing_logs')
+            .select('id')
+            .eq('customer_id', customer.id)
+            .eq('billing_type', billingType)
+            .eq('whatsapp_status', 'sent')
+            .gte('sent_at', `${today}T00:00:00`)
+            .lte('sent_at', `${today}T23:59:59`)
+            .limit(1);
+          if (dupCheck && dupCheck.length > 0) {
+            console.log(`[Billing Batch] SKIP duplicate ${customer.name} (${billingType}) - already sent today`);
+            results.push({
+              customerId: customer.id,
+              customer: customer.name,
+              phone: normalizedPhone,
+              billingType,
+              template: templateName,
+              status: 'skipped',
+              error: 'Já enviado hoje',
+            });
+            continue;
+          }
+        }
+
         const templateConfig = templateConfigMap[templateName];
         const templateVars = filterVarsForTemplate(templateConfig, buildTemplateVars(customer));
         const exactLang = templateLangMap[templateName] || 'pt_BR';
@@ -929,6 +958,7 @@ Deno.serve(async (req) => {
           results,
           sent: results.filter(r => r.status === 'sent').length,
           errors: results.filter(r => r.status === 'error').length,
+          skipped: results.filter(r => r.status === 'skipped').length,
         }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
