@@ -1066,6 +1066,15 @@ Deno.serve(async (req) => {
         }
       }
 
+      // If client uploaded directly (no base64 was sent), drop any attempt that relies on raw base64.
+      if (!mediaBase64) {
+        attempts = attempts.filter((a) => {
+          const b = a.body as Record<string, unknown>;
+          const v = (b.media ?? b.audio ?? b.sticker ?? b.url) as string | undefined;
+          return typeof v === 'string' && v.length > 0 && !v.startsWith('data:') ? true : v === mediaForEvolution;
+        });
+      }
+
       let result: any = { ok: false, status: 0, data: {} };
       let mode = 'evolution-api';
       const log: any[] = [];
