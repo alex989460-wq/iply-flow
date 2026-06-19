@@ -2112,7 +2112,7 @@ export default function EvolutionChat() {
             </div>
           ) : (
             <>
-              <div className="sticky top-0 z-10 px-3 py-2 border-b border-[#0b1115] bg-gradient-to-r from-[#202c33] via-[#1f2a30] to-[#202c33] flex items-center gap-3 shadow-sm">
+              <div className="sticky top-0 z-10 px-3 py-2 border-b border-[#0b1115] bg-[#202c33] flex items-center gap-3">
                 {isMobile && (
                   <Button size="icon" variant="ghost" className="h-8 w-8 text-[#aebac1] hover:bg-white/5" onClick={() => setSelectedPhone(null)}>
                     <ArrowLeft className="w-4 h-4" />
