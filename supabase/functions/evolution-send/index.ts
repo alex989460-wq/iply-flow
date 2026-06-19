@@ -992,26 +992,39 @@ Deno.serve(async (req) => {
       const phone = normalizePhone(body.phone);
       const mediaType = String(body.mediaType || 'document');
       const mimetype = String(body.mimetype || 'application/octet-stream');
-      const filename = String(body.filename || `media-${Date.now()}`);
+      const rawFilename = String(body.filename || `media-${Date.now()}`);
+      const filename = rawFilename.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 120) || `media-${Date.now()}`;
       const caption = String(body.caption || '');
       const mediaBase64 = String(body.mediaBase64 || '');
-      if (!phone || !mediaBase64) return jsonResponse({ error: 'phone e mediaBase64 obrigatórios' }, 400);
+      const mediaUrlInput = String(body.mediaUrl || '');
+      if (!phone || (!mediaBase64 && !mediaUrlInput)) return jsonResponse({ error: 'phone e mediaBase64/mediaUrl obrigatórios' }, 400);
 
-      // Upload to storage for our own preview
-      let mediaUrl: string | null = null;
-      try {
-        const bin = Uint8Array.from(atob(mediaBase64), (c) => c.charCodeAt(0));
-        const path = `${user.id}/${Date.now()}-${filename}`;
-        const { error: upErr } = await admin.storage.from('evolution-media').upload(path, bin, { contentType: mimetype, upsert: false });
-        if (!upErr) {
-          const { data: signed } = await admin.storage.from('evolution-media').createSignedUrl(path, 60 * 60 * 24 * 365);
-          mediaUrl = signed?.signedUrl || null;
+      // Resolve preview URL: client may have uploaded already
+      let mediaUrl: string | null = mediaUrlInput || null;
+      let uploadErrMsg: string | null = null;
+      if (!mediaUrl && mediaBase64) {
+        try {
+          const bin = Uint8Array.from(atob(mediaBase64), (c) => c.charCodeAt(0));
+          const path = `${user.id}/${Date.now()}-${filename}`;
+          const { error: upErr } = await admin.storage.from('evolution-media').upload(path, bin, { contentType: mimetype, upsert: true });
+          if (!upErr) {
+            const { data: signed } = await admin.storage.from('evolution-media').createSignedUrl(path, 60 * 60 * 24 * 365);
+            mediaUrl = signed?.signedUrl || null;
+          } else {
+            uploadErrMsg = upErr.message || String(upErr);
+            console.error('[evolution-send] storage upload failed', upErr);
+          }
+        } catch (e) {
+          uploadErrMsg = e instanceof Error ? e.message : String(e);
+          console.error('[evolution-send] storage upload threw', e);
         }
-      } catch (e) {
-        console.error('[evolution-send] storage upload failed', e);
       }
 
-      const mediaForEvolution = publicMediaFromSignedUrl(mediaUrl) || `data:${mimetype};base64,${mediaBase64}`;
+      const dataUrl = mediaBase64 ? `data:${mimetype};base64,${mediaBase64}` : '';
+      const mediaForEvolution = publicMediaFromSignedUrl(mediaUrl) || dataUrl;
+      if (!mediaForEvolution) {
+        return jsonResponse({ error: `Falha ao preparar mídia${uploadErrMsg ? `: ${uploadErrMsg}` : ''}` }, 200);
+      }
       const cleanMime = mimetype.split(';')[0] || mimetype;
       const instAuth = await resolveInstanceAuth(baseUrl, apiKey, instance);
       const phoneVariants = [phone];
