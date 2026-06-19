@@ -915,6 +915,54 @@ export default function EvolutionChat() {
     );
   }, [instanceMessages, search, contacts, selectedPhone, filter, instancePhones, pinnedContacts, lastReadByPhone, manualUnreadPhones]);
 
+  // Counts shown as badges on the filter pills (independent of current filter/search)
+  const filterCounts = useMemo(() => {
+    const phones = new Set<string>();
+    const lastByPhone = new Map<string, EvoMessage>();
+    const lastOutByPhone = new Map<string, string>();
+    const msgsByPhone = new Map<string, EvoMessage[]>();
+    Object.values(contacts).forEach((c) => {
+      if (!instancePhones || instancePhones.has(c.phone) || c.phone === selectedPhone) phones.add(c.phone);
+    });
+    for (const m of instanceMessages) {
+      phones.add(m.phone);
+      if (!msgsByPhone.has(m.phone)) msgsByPhone.set(m.phone, []);
+      msgsByPhone.get(m.phone)!.push(m);
+      const cur = lastByPhone.get(m.phone);
+      if (!cur || new Date(m.created_at) > new Date(cur.created_at)) lastByPhone.set(m.phone, m);
+      if (m.direction === 'out') {
+        const lo = lastOutByPhone.get(m.phone);
+        if (!lo || new Date(m.created_at) > new Date(lo)) lastOutByPhone.set(m.phone, m.created_at);
+      }
+    }
+    let all = 0, unread = 0, support = 0, contactsC = 0, groups = 0, channels = 0, media = 0;
+    for (const p of phones) {
+      if (p.startsWith('status:')) continue;
+      const isNews = isNewsletterPhone(p);
+      const isGrp = !isNews && isGroupJidPhone(p);
+      const last = lastByPhone.get(p);
+      const lastRead = lastReadByPhone[p] || '';
+      const lastOutAt = lastOutByPhone.get(p) || '';
+      const cutoffStr = [lastRead, lastOutAt].filter(Boolean).sort().pop() || '';
+      const cutoff = cutoffStr ? new Date(cutoffStr).getTime() : 0;
+      let u = 0;
+      for (const m of msgsByPhone.get(p) || []) {
+        if (m.direction !== 'in') continue;
+        if (m.status === 'read' || m.status === 'played') continue;
+        if (new Date(m.created_at).getTime() > cutoff) u++;
+      }
+      if (manualUnreadPhones.has(p) && u === 0) u = 1;
+      if (!isNews) all++;
+      if (!isNews && u > 0) unread++;
+      if (contacts[p]?.needs_human && !isNews) support++;
+      if (!isNews && !isGrp && p.length <= 15) contactsC++;
+      if (isGrp) groups++;
+      if (isNews) channels++;
+      if (last && ['image', 'audio', 'document', 'sticker'].includes(last.message_type) && !isNews) media++;
+    }
+    return { all, unread, support, contacts: contactsC, groups, channels, media };
+  }, [instanceMessages, contacts, lastReadByPhone, manualUnreadPhones, instancePhones, selectedPhone]);
+
   // Mark conversation as read when opened (or new message arrives in opened chat)
   useEffect(() => {
     if (!selectedPhone) return;
@@ -1394,7 +1442,7 @@ export default function EvolutionChat() {
 
 
   const sendMedia = async (file: File, mediaType: 'image' | 'audio' | 'video' | 'document' | 'sticker', caption = '') => {
-    if (!selectedPhone) return;
+    if (!selectedPhone || !user) return;
     setSending(true);
     const tempId = `tmp-${Date.now()}`;
     const previewUrl = URL.createObjectURL(file);
@@ -1407,16 +1455,46 @@ export default function EvolutionChat() {
     };
     setMessages(prev => [...prev, optimistic]);
     try {
-      const base64 = await fileToBase64(file);
-      const { data, error } = await invokeEvolution({
+      const rawName = file.name || `media-${Date.now()}`;
+      const safeName = rawName.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 120) || `media-${Date.now()}`;
+      const mimetype = file.type || (mediaType === 'audio' ? 'audio/ogg' : 'application/octet-stream');
+
+      // Upload directly from client → bypasses the edge function's request body size limit (big prints failed before).
+      let mediaUrl: string | null = null;
+      try {
+        const path = `${user.id}/${Date.now()}-${safeName}`;
+        const { error: upErr } = await supabase.storage.from('evolution-media').upload(path, file, { contentType: mimetype, upsert: true });
+        if (!upErr) {
+          const { data: signed } = await supabase.storage.from('evolution-media').createSignedUrl(path, 60 * 60 * 24 * 365);
+          mediaUrl = signed?.signedUrl || null;
+        } else {
+          console.warn('[sendMedia] direct upload failed, will fall back to base64', upErr);
+        }
+      } catch (e) {
+        console.warn('[sendMedia] direct upload threw, falling back to base64', e);
+      }
+
+      const payload: Record<string, unknown> = {
         action: 'send-media',
         phone: selectedPhone,
         mediaType,
-        mimetype: file.type || (mediaType === 'audio' ? 'audio/ogg' : 'application/octet-stream'),
-        filename: file.name || `media-${Date.now()}`,
-        mediaBase64: base64,
+        mimetype,
+        filename: safeName,
         caption,
-      });
+      };
+      if (mediaUrl) {
+        payload.mediaUrl = mediaUrl;
+      } else {
+        // Fallback for small files only — large screenshots may exceed body limit.
+        if (file.size > 5 * 1024 * 1024) {
+          setMessages(prev => prev.map(m => m.id === tempId ? { ...m, _pending: false, _failed: true } : m));
+          toast({ title: 'Erro ao enviar', description: 'Falha no upload do arquivo. Tente novamente.', variant: 'destructive' });
+          return;
+        }
+        payload.mediaBase64 = await fileToBase64(file);
+      }
+
+      const { data, error } = await invokeEvolution(payload);
       if (error || data?.error) {
         setMessages(prev => prev.map(m => m.id === tempId ? { ...m, _pending: false, _failed: true } : m));
         toast({ title: 'Erro ao enviar', description: error?.message || data?.error, variant: 'destructive' });
@@ -1968,24 +2046,38 @@ export default function EvolutionChat() {
                 { id: 'channels', label: '📢 Canais' },
                 { id: 'media', label: 'Mídia' },
               ] as const).map((t) => {
-                const supportCount = t.id === 'support'
-                  ? Object.values(contacts).filter(c => c?.needs_human).length
+                const badgeCount =
+                  t.id === 'support' ? filterCounts.support
+                  : t.id === 'unread' ? filterCounts.unread
+                  : t.id === 'all' ? filterCounts.all
+                  : t.id === 'contacts' ? filterCounts.contacts
+                  : t.id === 'groups' ? filterCounts.groups
+                  : t.id === 'channels' ? filterCounts.channels
+                  : t.id === 'media' ? filterCounts.media
                   : 0;
+                const isActive = filter === t.id;
+                const badgeTone = t.id === 'support'
+                  ? 'bg-amber-500 text-black'
+                  : t.id === 'unread'
+                    ? 'bg-[#00a884] text-black'
+                    : isActive
+                      ? 'bg-[#00a884]/25 text-[#00a884]'
+                      : 'bg-muted text-muted-foreground';
                 return (
                 <button
                   key={t.id}
                   onClick={() => setFilter(t.id)}
                   className={cn(
-                    'text-[11px] px-3 py-1 rounded-full border transition-all relative whitespace-nowrap',
-                    filter === t.id
+                    'text-[11px] px-3 py-1 rounded-full border transition-all relative whitespace-nowrap inline-flex items-center gap-1',
+                    isActive
                       ? 'bg-[#00a884]/15 text-[#00a884] border-[#00a884]/40'
                       : 'bg-transparent hover:bg-accent border-border text-muted-foreground'
                   )}
                 >
-                  {t.label}
-                  {supportCount > 0 && t.id === 'support' && (
-                    <span className="ml-1 inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full text-[9px] font-bold bg-amber-500 text-black">
-                      {supportCount}
+                  <span>{t.label}</span>
+                  {badgeCount > 0 && (
+                    <span className={cn('inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full text-[9px] font-bold', badgeTone)}>
+                      {badgeCount > 99 ? '99+' : badgeCount}
                     </span>
                   )}
                 </button>
