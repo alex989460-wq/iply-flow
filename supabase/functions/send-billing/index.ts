@@ -444,6 +444,29 @@ Deno.serve(async (req) => {
         const billingType = customer.billingType as 'D-1' | 'D0' | 'D+1';
         const templateName = templateMapping[billingType];
         const templateVars = buildTemplateVars(customer);
+        const { data: reservation, error: reserveError } = await supabase
+          .from('billing_logs')
+          .insert({
+            customer_id: customer.id,
+            billing_type: billingType,
+            message: `[${customer.normalizedPhone}] reservando envio...`,
+            whatsapp_status: 'pending',
+          })
+          .select('id')
+          .single();
+
+        if (reserveError) {
+          console.log(`Skipping ${customer.name} - billing already reserved/sent today (${billingType})`);
+          return {
+            customer: customer.name,
+            phone: customer.phone,
+            billingType,
+            template: templateName,
+            success: false,
+            skipped: true,
+            error: 'Já enviado hoje',
+          };
+        }
         
         // Send WhatsApp template (main phone)
         const sendResult = await sendWhatsAppTemplate(customer.phone, templateName, zapToken, apiBaseUrl, departmentId, templateVars);
@@ -461,12 +484,11 @@ Deno.serve(async (req) => {
         // Log the billing attempt
         await supabase
           .from('billing_logs')
-          .insert({
-            customer_id: customer.id,
-            billing_type: billingType,
+          .update({
             message: `[${customer.normalizedPhone}] Template: ${templateName}`,
             whatsapp_status: sendResult.success ? 'sent' : `error: ${sendResult.error}`,
-          });
+          })
+          .eq('id', reservation.id);
 
         return {
           customer: customer.name,
@@ -481,7 +503,17 @@ Deno.serve(async (req) => {
       const batchResults = await Promise.all(batchPromises);
       
       for (const result of batchResults) {
-        if (result.success) {
+        if ((result as any).skipped) {
+          results.skipped++;
+          results.details.push({
+            customer: result.customer,
+            phone: result.phone,
+            billingType: result.billingType,
+            template: result.template,
+            status: 'skipped',
+            error: result.error,
+          });
+        } else if (result.success) {
           results.sent++;
           results.details.push({
             customer: result.customer,
