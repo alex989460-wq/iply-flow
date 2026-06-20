@@ -549,6 +549,24 @@ Deno.serve(async (req) => {
 
         console.log(`[Scheduled] (${i + 1}/${batch.length}) Template "${templateName}" -> ${customer.name}`);
 
+        const phone = normalizePhone(customer.phone);
+        const { data: reservation, error: reserveError } = await supabase
+          .from('billing_logs')
+          .insert({
+            customer_id: customer.id,
+            billing_type: billingType,
+            message: `[Agendado] [${phone}] reservando envio...`,
+            whatsapp_status: 'pending',
+          })
+          .select('id')
+          .single();
+
+        if (reserveError) {
+          console.log(`[Scheduled Billing] SKIP duplicate ${customer.name} (${billingType}): ${reserveError.message}`);
+          skipped++;
+          continue;
+        }
+
         const exactLang = templateLangMap[templateName];
         if (exactLang) {
           console.log(`[Scheduled] Using exact Meta language "${exactLang}" for template "${templateName}"`);
@@ -585,12 +603,10 @@ Deno.serve(async (req) => {
         }
 
 
-        await supabase.from('billing_logs').insert({
-          customer_id: customer.id,
-          billing_type: billingType,
+        await supabase.from('billing_logs').update({
           message: `[Agendado] [${normalizePhone(customer.phone)}] Template: ${templateName}`,
           whatsapp_status: sendResult.success ? 'sent' : `error: ${sendResult.error}`,
-        });
+        }).eq('id', reservation.id);
 
         if (sendResult.success) sent++; else errors++;
 
