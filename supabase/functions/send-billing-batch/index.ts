@@ -860,6 +860,31 @@ Deno.serve(async (req) => {
         const exactLang = templateLangMap[templateName] || 'pt_BR';
         const headerImageUrl = extractHeaderImageUrl(templateConfig);
 
+        const { data: reservation, error: reserveError } = await supabase
+          .from('billing_logs')
+          .insert({
+            customer_id: customer.id,
+            billing_type: billingType,
+            message: `[${normalizedPhone}] reservando envio via ${effectiveApiType}...`,
+            whatsapp_status: 'pending',
+          })
+          .select('id')
+          .single();
+
+        if (reserveError) {
+          console.log(`[Billing Batch] SKIP duplicate reservation ${customer.name} (${billingType}): ${reserveError.message}`);
+          results.push({
+            customerId: customer.id,
+            customer: customer.name,
+            phone: normalizedPhone,
+            billingType,
+            template: templateName,
+            status: 'skipped',
+            error: 'Já enviado hoje',
+          });
+          continue;
+        }
+
         let sendResult: { success: boolean; error?: string };
         let outboundLabel = templateName;
 
@@ -931,12 +956,11 @@ Deno.serve(async (req) => {
         const logMessage = `[${normalizedPhone}] Template: ${outboundLabel} via ${effectiveApiType}`;
         await supabase
           .from('billing_logs')
-          .insert({
-            customer_id: customer.id,
-            billing_type: billingType,
+          .update({
             message: logMessage,
             whatsapp_status: sendResult.success ? 'sent' : `error: ${sendResult.error}`,
-          });
+          })
+          .eq('id', reservation.id);
 
         console.log(`[Billing Batch] ${customer.name}: ${sendResult.success ? 'SENT' : 'ERROR'} - ${sendResult.error || 'OK'}`);
 
