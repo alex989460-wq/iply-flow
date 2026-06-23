@@ -54,7 +54,7 @@ function pickString(...values: unknown[]) {
 }
 
 function normalizeChannelLists(body: any) {
-  const fromChannels = Array.isArray(body?.channels) ? body.channels : [];
+  const fromChannels = Array.isArray(body) ? body : Array.isArray(body?.channels) ? body.channels : [];
   const whats = fromChannels.length
     ? fromChannels.filter((c: any) => String(c.kind || c.type || 'whatsapp_cloud').toLowerCase().includes('whatsapp') || c.primary || c.phone_number_id)
     : Array.isArray(body?.whatsapp)
