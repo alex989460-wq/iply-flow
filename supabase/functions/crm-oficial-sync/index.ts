@@ -155,14 +155,22 @@ async function doSendWhatsapp(payload: {
       components,
       template: { name: payload.template_name, language: { code: lang, policy: "deterministic" }, components },
     };
-    // Tenta endpoints específicos de template primeiro. Se a chave não tiver o escopo correto,
-    // retorna esse erro sem cair para texto comum, evitando enviar o nome/template literal.
+    // Tenta endpoints específicos de template. NÃO faz fallback para /whatsapp-send (texto puro),
+    // pois isso enviaria sem imagem/botões/formatação do template — exatamente o bug que estamos corrigindo.
     const templateAttempts: Array<() => Promise<{ ok: boolean; status: number; body: unknown }>> = [
       () => crmFetch("/api/public/v1/whatsapp-template-send", { method: "POST", body: JSON.stringify(tplPayload), apiKey }),
       () => crmFetch("/api/public/v1/whatsapp/template-send", { method: "POST", body: JSON.stringify(tplPayload), apiKey }),
       () => crmFetch("/api/public/v1/templates/send", { method: "POST", body: JSON.stringify(tplPayload), apiKey }),
     ];
     const templateResult = await firstOk(templateAttempts);
+    console.log("[crm-oficial-sync] template send", {
+      template: payload.template_name,
+      lang,
+      params,
+      ok: templateResult.ok,
+      status: templateResult.status,
+      attempts: (templateResult as { attempts?: Array<{ status: number; body: unknown }> }).attempts?.map((a) => ({ status: a.status, body: a.body })),
+    });
     if (templateResult.ok) return templateResult;
     if (hasMissingTemplateScope(templateResult)) {
       const scopeError = missingTemplateScopeResult(templateResult);
@@ -173,20 +181,25 @@ async function doSendWhatsapp(payload: {
           error: "CRM Oficial precisa liberar o escopo whatsapp-template-send:write para esta chave API.",
           crm_error: scopeError?.body,
         },
-        attempts: templateResult.attempts,
+        attempts: (templateResult as { attempts?: unknown }).attempts,
       };
     }
 
-    // Último fallback: /whatsapp-send com body real, somente quando o endpoint de template não existir/estiver instável.
-    return firstOk([
-      () => Promise.resolve(templateResult),
-      () => crmFetch("/api/public/v1/whatsapp-send", {
-        method: "POST",
-        body: JSON.stringify({ ...tplPayload, type: "template" }),
-        apiKey,
-      }),
-    ]);
+    // Todos os endpoints de template falharam — devolve erro claro em vez de degradar para texto puro.
+    const attemptsSummary = ((templateResult as { attempts?: Array<{ status: number; body: unknown }> }).attempts || []).map((a) => ({
+      status: a.status,
+      body: typeof a.body === "string" ? a.body.slice(0, 400) : a.body,
+    }));
+    return {
+      ok: false,
+      status: templateResult.status || 502,
+      body: {
+        error: "Nenhum endpoint de template do CRM Oficial respondeu com sucesso. Peça ao dev do CRM para confirmar /api/public/v1/whatsapp-template-send (envio de template Meta com header/imagem/botões).",
+        attempts: attemptsSummary,
+      },
+    };
   }
+
 
   // Plain text / mídia: /whatsapp-send precisa de body não vazio.
   if (!final.body || !String(final.body).trim()) {
