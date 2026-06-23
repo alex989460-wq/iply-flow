@@ -62,7 +62,7 @@ const menuItems: Array<{
   { icon: Bot, label: 'Gatilhos de Bot', path: '/bot-triggers', adminOnly: false },
   { icon: Bot, label: 'Robô', path: '/robo', adminOnly: false },
   { icon: Smartphone, label: 'Ativação de Apps', path: '/activation-apps', adminOnly: false },
-  { icon: FileText, label: 'Templates Meta', path: '/meta-templates', adminOnly: true },
+  
   
   { icon: GraduationCap, label: 'Tutorial', path: '/tutorial', adminOnly: false },
   { icon: PiggyBank, label: 'Despesas', path: '/expenses', adminOnly: true },

@@ -590,7 +590,8 @@ export default function CrmOficialChat() {
     if (isFailed) {
       return (
         <div className="mb-1 px-3 py-2 rounded-lg border border-amber-500/40 text-[11px] text-amber-500 bg-amber-500/10">
-          ⚠ Mídia indisponível. Sua API key precisa do escopo <code className="font-mono">media:read</code> para abrir arquivos.
+          ⚠ Mídia indisponível. Sua chave do CRM Oficial precisa do escopo <code className="font-mono">media:read</code>.
+          Peça ao admin para liberar esse escopo na chave atual (ele é separado de <code>templates:read</code>).
         </div>
       );
     }

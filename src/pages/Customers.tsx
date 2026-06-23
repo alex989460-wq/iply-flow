@@ -1343,7 +1343,12 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
         return;
       }
       const [tplName, tplLang] = selectedCrmTemplate.split('|');
-      const phone = sendingBillingCustomer.phone.replace(/\D/g, '');
+      const rawPhone = (sendingBillingCustomer.phone || '').toString();
+      const phone = rawPhone.replace(/\D/g, '');
+      if (!phone || phone.length < 10) {
+        toast({ title: 'Telefone inválido', description: 'Cadastre um telefone válido (com DDD) antes de enviar via CRM Oficial.', variant: 'destructive' });
+        return;
+      }
       const phoneWithCode = phone.startsWith('55') ? phone : `55${phone}`;
       const firstName = (sendingBillingCustomer.name || '').trim().split(/\s+/)[0] || sendingBillingCustomer.name || '';
       const dueDate = sendingBillingCustomer.due_date
