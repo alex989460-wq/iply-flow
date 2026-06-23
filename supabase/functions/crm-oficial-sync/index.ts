@@ -11,7 +11,12 @@ const corsHeaders = {
 
 const CRM_BASE = "https://crmapioficial.lovable.app";
 
-type Action = "signup" | "test-chat" | "renew-notify" | "ping" | "list-conversations" | "list-messages" | "send-whatsapp" | "list-contacts" | "list-channels" | "create-channel" | "get-media";
+type Action =
+  | "signup" | "test-chat" | "renew-notify" | "ping"
+  | "list-conversations" | "list-messages" | "send-whatsapp" | "mark-read"
+  | "list-contacts" | "list-channels" | "create-channel" | "get-media"
+  | "list-templates" | "create-template" | "update-template" | "delete-template"
+  | "list-chatbots" | "create-chatbot" | "update-chatbot" | "delete-chatbot";
 
 async function crmFetch(path: string, init: RequestInit & { withAuth?: boolean; apiKey?: string } = {}) {
   const apiKey = init.apiKey || Deno.env.get("CRM_OFICIAL_API_KEY") || "";
@@ -66,9 +71,32 @@ async function doListMessages(conversation_id: string, apiKey?: string) {
   return crmFetch(`/api/public/v1/messages?conversation_id=${encodeURIComponent(conversation_id)}`, { method: "GET", apiKey });
 }
 
-async function doSendWhatsapp(payload: { phone: string; body?: string; name?: string; media_url?: string; media_type?: string; caption?: string; file_name?: string }, apiKey?: string) {
+async function doSendWhatsapp(payload: {
+  phone: string;
+  body?: string;
+  name?: string;
+  media_url?: string;
+  mediaUrl?: string;
+  media_type?: string;
+  mediaType?: string;
+  mime_type?: string;
+  mimetype?: string;
+  caption?: string;
+  file_name?: string;
+  fileName?: string;
+  template_name?: string;
+  template_language?: string;
+  language?: string;
+  template_params?: unknown[];
+  components?: unknown[];
+}, apiKey?: string) {
   // /whatsapp-send aceita body + media_url + media_type. Para legendas o body é a caption.
   const final: Record<string, unknown> = { ...payload };
+  if (payload.media_url && !final.mediaUrl) final.mediaUrl = payload.media_url;
+  if (payload.media_type && !final.mediaType) final.mediaType = payload.media_type;
+  if (payload.file_name && !final.fileName) final.fileName = payload.file_name;
+  if (payload.mime_type && !final.mimetype) final.mimetype = payload.mime_type;
+  if (payload.template_name) final.template = { name: payload.template_name, language: payload.template_language || payload.language || "pt_BR", params: payload.template_params || [] };
   if (payload.caption && !payload.body) final.body = payload.caption;
   if (!final.body) final.body = "";
   return crmFetch("/api/public/v1/whatsapp-send", {
@@ -80,6 +108,16 @@ async function doSendWhatsapp(payload: { phone: string; body?: string; name?: st
 
 async function doListContacts(limit: number, apiKey?: string) {
   return crmFetch(`/api/public/v1/contacts?limit=${limit}`, { method: "GET", apiKey });
+}
+
+async function firstOk(calls: Array<() => Promise<{ ok: boolean; status: number; body: unknown }>>) {
+  const attempts: Array<{ ok: boolean; status: number; body: unknown }> = [];
+  for (const call of calls) {
+    const result = await call();
+    attempts.push(result);
+    if (result.ok) return { ...result, attempts };
+  }
+  return attempts[attempts.length - 1] ? { ...attempts[attempts.length - 1], attempts } : { ok: false, status: 0, body: null, attempts };
 }
 
 
@@ -137,10 +175,20 @@ Deno.serve(async (req) => {
     }
 
     if (action === "send-whatsapp") {
-      const { phone, body, name, media_url, media_type, caption, file_name } = data as { phone: string; body?: string; name?: string; media_url?: string; media_type?: string; caption?: string; file_name?: string };
+      const { phone, body, name, media_url, media_type, mime_type, caption, file_name, template_name, template_language, template_params, components } = data as { phone: string; body?: string; name?: string; media_url?: string; media_type?: string; mime_type?: string; caption?: string; file_name?: string; template_name?: string; template_language?: string; template_params?: unknown[]; components?: unknown[] };
       if (!phone) throw new Error("phone é obrigatório");
-      if (!body && !media_url) throw new Error("body ou media_url é obrigatório");
-      results.send = await doSendWhatsapp({ phone, body, name, media_url, media_type, caption, file_name }, apiKey);
+      if (!body && !media_url && !template_name) throw new Error("body, media_url ou template_name é obrigatório");
+      results.send = await doSendWhatsapp({ phone, body, name, media_url, media_type, mime_type, caption, file_name, template_name, template_language, template_params, components }, apiKey);
+    }
+
+    if (action === "mark-read") {
+      const { conversation_id } = data as { conversation_id: string };
+      if (!conversation_id) throw new Error("conversation_id é obrigatório");
+      results.read = await firstOk([
+        () => crmFetch(`/api/public/v1/conversations/${encodeURIComponent(conversation_id)}/read`, { method: "POST", body: JSON.stringify({}), apiKey }),
+        () => crmFetch(`/api/public/v1/conversations/read`, { method: "POST", body: JSON.stringify({ conversation_id }), apiKey }),
+        () => crmFetch(`/api/public/v1/conversations/${encodeURIComponent(conversation_id)}`, { method: "PATCH", body: JSON.stringify({ unread_count: 0, read: true }), apiKey }),
+      ]);
     }
 
     if (action === "list-contacts") {
@@ -166,26 +214,82 @@ Deno.serve(async (req) => {
       const { path, media_url } = data as { path?: string; media_url?: string };
       const target = path || media_url;
       if (!target) throw new Error("path é obrigatório");
-      // Se já é URL absoluta, devolve direto
-      if (/^https?:\/\//i.test(target)) {
-        results.media = { url: target };
-      } else {
-        // Proxy: baixa via /api/public/v1/media e devolve data URL
-        const apiKeyHere = apiKey || Deno.env.get("CRM_OFICIAL_API_KEY") || "";
-        const r = await fetch(`${CRM_BASE}/api/public/v1/media?path=${encodeURIComponent(target)}`, {
+      const apiKeyHere = apiKey || Deno.env.get("CRM_OFICIAL_API_KEY") || "";
+      const mediaUrl = /^https?:\/\//i.test(target)
+        ? target
+        : `${CRM_BASE}/api/public/v1/media?path=${encodeURIComponent(target)}`;
+      let r = await fetch(mediaUrl, { headers: { Authorization: `Bearer ${apiKeyHere}` } });
+      if (!r.ok && /^https?:\/\//i.test(target)) {
+        r = await fetch(`${CRM_BASE}/api/public/v1/media?path=${encodeURIComponent(target)}`, {
           headers: { Authorization: `Bearer ${apiKeyHere}` },
         });
-        if (!r.ok) {
-          const txt = await r.text();
-          throw new Error(`media ${r.status}: ${txt.slice(0, 200)}`);
-        }
-        const ct = r.headers.get("content-type") || "application/octet-stream";
-        const buf = new Uint8Array(await r.arrayBuffer());
-        let bin = "";
-        for (let i = 0; i < buf.length; i++) bin += String.fromCharCode(buf[i]);
-        const b64 = btoa(bin);
-        results.media = { url: `data:${ct};base64,${b64}`, mime: ct };
       }
+      if (!r.ok) {
+        const txt = await r.text();
+        throw new Error(`media ${r.status}: ${txt.slice(0, 200)}`);
+      }
+      const ct = r.headers.get("content-type") || "application/octet-stream";
+      const buf = new Uint8Array(await r.arrayBuffer());
+      let bin = "";
+      for (let i = 0; i < buf.length; i++) bin += String.fromCharCode(buf[i]);
+      const b64 = btoa(bin);
+      results.media = { url: `data:${ct};base64,${b64}`, mime: ct };
+    }
+
+    if (action === "list-templates") {
+      const { limit } = data as { limit?: number };
+      results.templates = await crmFetch(`/api/public/v1/templates?limit=${encodeURIComponent(String(limit || 250))}`, { method: "GET", apiKey });
+    }
+
+    if (action === "create-template") {
+      const { template } = data as { template?: Record<string, unknown> };
+      if (!template?.name || !template?.language || !template?.category || !Array.isArray(template?.components)) {
+        throw new Error("name, language, category e components são obrigatórios");
+      }
+      results.template = await crmFetch("/api/public/v1/templates", { method: "POST", body: JSON.stringify(template), apiKey });
+    }
+
+    if (action === "update-template") {
+      const { template_name, template } = data as { template_name?: string; template?: Record<string, unknown> };
+      if (!template_name || !template) throw new Error("template_name e template são obrigatórios");
+      results.template = await firstOk([
+        () => crmFetch(`/api/public/v1/templates/${encodeURIComponent(template_name)}`, { method: "PATCH", body: JSON.stringify(template), apiKey }),
+        () => crmFetch(`/api/public/v1/templates/${encodeURIComponent(template_name)}`, { method: "PUT", body: JSON.stringify(template), apiKey }),
+        () => crmFetch("/api/public/v1/templates", { method: "POST", body: JSON.stringify(template), apiKey }),
+      ]);
+    }
+
+    if (action === "delete-template") {
+      const { template_name, name } = data as { template_name?: string; name?: string };
+      const target = template_name || name;
+      if (!target) throw new Error("template_name é obrigatório");
+      results.template = await crmFetch(`/api/public/v1/templates/${encodeURIComponent(target)}`, { method: "DELETE", apiKey });
+    }
+
+    if (action === "list-chatbots") {
+      const { limit } = data as { limit?: number };
+      results.chatbots = await crmFetch(`/api/public/v1/chatbots?limit=${encodeURIComponent(String(limit || 100))}`, { method: "GET", apiKey });
+    }
+
+    if (action === "create-chatbot") {
+      const { chatbot } = data as { chatbot?: Record<string, unknown> };
+      if (!chatbot?.name) throw new Error("name é obrigatório");
+      results.chatbot = await crmFetch("/api/public/v1/chatbots", { method: "POST", body: JSON.stringify(chatbot), apiKey });
+    }
+
+    if (action === "update-chatbot") {
+      const { chatbot_id, chatbot } = data as { chatbot_id?: string; chatbot?: Record<string, unknown> };
+      if (!chatbot_id || !chatbot) throw new Error("chatbot_id e chatbot são obrigatórios");
+      results.chatbot = await firstOk([
+        () => crmFetch(`/api/public/v1/chatbots/${encodeURIComponent(chatbot_id)}`, { method: "PATCH", body: JSON.stringify(chatbot), apiKey }),
+        () => crmFetch(`/api/public/v1/chatbots/${encodeURIComponent(chatbot_id)}`, { method: "PUT", body: JSON.stringify(chatbot), apiKey }),
+      ]);
+    }
+
+    if (action === "delete-chatbot") {
+      const { chatbot_id } = data as { chatbot_id?: string };
+      if (!chatbot_id) throw new Error("chatbot_id é obrigatório");
+      results.chatbot = await crmFetch(`/api/public/v1/chatbots/${encodeURIComponent(chatbot_id)}`, { method: "DELETE", apiKey });
     }
 
 

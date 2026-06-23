@@ -3,7 +3,7 @@ import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -92,6 +92,95 @@ function detectMediaKind(mime?: string | null, mediaType?: string | null): 'imag
 
 type FilterId = 'all' | 'unread' | 'whatsapp' | 'webchat' | 'media';
 
+function pickString(...values: unknown[]) {
+  for (const value of values) {
+    if (typeof value === 'string' && value.trim()) return value.trim();
+  }
+  return '';
+}
+
+function normalizeChannels(body: any): Channel[] {
+  const fromChannels = Array.isArray(body?.channels) ? body.channels : [];
+  const whats = Array.isArray(body?.whatsapp) ? body.whatsapp : body?.whatsapp ? [body.whatsapp] : [];
+  const web = Array.isArray(body?.webchat) ? body.webchat : body?.webchat ? [body.webchat] : [];
+  const list = fromChannels.length ? fromChannels : [...whats, ...web];
+  const mapped = list.map((c: any, index: number) => {
+    const kind = c.kind || c.type || (c.widget_key || c.title ? 'webchat' : 'whatsapp_cloud');
+    return {
+      ...c,
+      id: String(c.id || (c.primary ? 'primary' : '') || c.phone_number_id || c.widget_key || `${kind}-${index}`),
+      kind,
+      name: pickString(c.name, c.title, c.verified_name, c.display_name),
+      display_phone_number: pickString(c.display_phone_number, c.displayPhoneNumber, c.phone_display),
+      phone_number: pickString(c.phone_number, c.phone, c.number),
+      verified_name: pickString(c.verified_name, c.verifiedName, c.business_name, c.name),
+      avatar_url: pickString(c.avatar_url, c.profile_pic_url, c.profile_picture_url, c.picture),
+      primary: !!(c.primary || c.is_primary || c.id === 'primary'),
+    } as Channel;
+  });
+  return mapped.sort((a, b) => Number(!!b.primary || !!b.is_primary) - Number(!!a.primary || !!a.is_primary));
+}
+
+function normalizeConversations(body: any): Conversation[] {
+  const raw = Array.isArray(body)
+    ? body
+    : Array.isArray(body?.conversations)
+      ? body.conversations
+      : Array.isArray(body?.data)
+        ? body.data
+        : Array.isArray(body?.items)
+          ? body.items
+          : [];
+  return raw.map((c: any, index: number) => {
+    const contact = c.contacts || c.contact || c.customer || {};
+    const phone = pickString(contact.phone, c.phone, c.contact_phone, c.wa_id, c.remote_jid).replace(/@.*/, '');
+    const name = pickString(contact.name, c.contact_name, c.name, c.push_name, phone);
+    const profile = pickString(contact.profile_pic_url, contact.avatar_url, contact.profile_picture_url, c.profile_pic_url, c.avatar_url, c.profile_picture_url);
+    return {
+      ...c,
+      id: String(c.id || c.conversation_id || phone || `conversation-${index}`),
+      contact_id: c.contact_id || contact.id,
+      updated_at: c.updated_at || c.last_message_at || c.created_at,
+      last_message: pickString(c.last_message, c.lastMessage?.body, c.lastMessage?.text, c.lastMessage?.content, c.preview),
+      last_message_at: c.last_message_at || c.lastMessage?.created_at || c.updated_at,
+      unread_count: Number(c.unread_count ?? c.unread ?? c.pending_count ?? 0) || 0,
+      channel: String(c.channel || c.channel_type || c.source || 'whatsapp').toLowerCase().includes('web') ? 'webchat' : 'whatsapp',
+      contacts: { ...contact, name, phone, profile_pic_url: profile },
+    } as Conversation;
+  });
+}
+
+function normalizeMessages(body: any): Message[] {
+  const raw = Array.isArray(body)
+    ? body
+    : Array.isArray(body?.messages)
+      ? body.messages
+      : Array.isArray(body?.data)
+        ? body.data
+        : Array.isArray(body?.items)
+          ? body.items
+          : [];
+  return raw.map((m: any, index: number) => {
+    const media = m.media || m.attachment || m.attachments?.[0] || {};
+    const bodyText = pickString(m.body, m.text, m.content, m.message, m.caption, media.caption);
+    const mediaUrl = pickString(m.media_url, m.mediaUrl, m.url, media.url, media.media_url, media.path, media.id);
+    const mime = pickString(m.mime_type, m.mimetype, m.media_mime, media.mime_type, media.mimetype, media.content_type);
+    const mediaType = pickString(m.media_type, m.mediaType, m.message_type, media.type, media.media_type);
+    return {
+      ...m,
+      id: String(m.id || m.message_id || m.external_id || `message-${index}-${m.created_at || Date.now()}`),
+      direction: String(m.direction || (m.from_me || m.fromMe ? 'out' : 'in')).toLowerCase().includes('out') ? 'out' : 'in',
+      body: bodyText,
+      created_at: m.created_at || m.timestamp || m.sent_at,
+      media_url: mediaUrl || null,
+      media_type: mediaType || null,
+      mime_type: mime || null,
+      file_name: pickString(m.file_name, m.filename, media.file_name, media.filename) || null,
+      status: pickString(m.status, m.delivery_status, m.read_status),
+    } as Message;
+  });
+}
+
 export default function CrmOficialChat() {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -124,6 +213,11 @@ export default function CrmOficialChat() {
   const scrollerRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const fileRef = useRef<HTMLInputElement | null>(null);
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const recordChunks = useRef<Blob[]>([]);
+  const recordTimerRef = useRef<number | null>(null);
+  const [recording, setRecording] = useState(false);
+  const [recordSeconds, setRecordSeconds] = useState(0);
 
   useEffect(() => {
     if (!user) return;
@@ -152,11 +246,7 @@ export default function CrmOficialChat() {
     if (!apiKey) return;
     try {
       const r = await invoke('list-channels');
-      const body = r?.channels?.body as { whatsapp?: any[]; webchat?: any[] } | undefined;
-      const list: Channel[] = [];
-      (body?.whatsapp || []).forEach((c: any) => list.push({ ...c, kind: 'whatsapp_cloud' }));
-      (body?.webchat || []).forEach((c: any) => list.push({ ...c, kind: 'webchat' }));
-      setChannels(list);
+      setChannels(normalizeChannels(r?.channels?.body));
     } catch (e: any) {
       // silencioso — canais é opcional
       console.warn('list-channels', e?.message);
@@ -168,8 +258,7 @@ export default function CrmOficialChat() {
     setLoadingConvos(true);
     try {
       const r = await invoke('list-conversations');
-      const body = r?.conversations?.body as { conversations?: Conversation[] } | undefined;
-      setConversations(body?.conversations ?? []);
+      setConversations(normalizeConversations(r?.conversations?.body));
     } catch (e: any) {
       toast({ title: 'Erro ao carregar conversas', description: e.message, variant: 'destructive' });
     } finally {
@@ -182,8 +271,9 @@ export default function CrmOficialChat() {
     setLoadingMsgs(true);
     try {
       const r = await invoke('list-messages', { conversation_id: id });
-      const body = r?.messages?.body as { messages?: Message[] } | undefined;
-      setMessages(body?.messages ?? []);
+      setMessages(normalizeMessages(r?.messages?.body));
+      setConversations(prev => prev.map(c => c.id === id ? { ...c, unread_count: 0 } : c));
+      invoke('mark-read', { conversation_id: id }).catch(() => undefined);
       requestAnimationFrame(() => {
         scrollerRef.current?.scrollTo({ top: scrollerRef.current.scrollHeight });
         inputRef.current?.focus();
@@ -203,7 +293,7 @@ export default function CrmOficialChat() {
     if (!rawUrl) return;
     if (mediaCache[rawUrl]) return;
     if (resolvingRef.current.has(rawUrl)) return;
-    if (/^https?:\/\//i.test(rawUrl) || rawUrl.startsWith('data:') || rawUrl.startsWith('blob:')) {
+    if (rawUrl.startsWith('data:') || rawUrl.startsWith('blob:')) {
       setMediaCache(c => ({ ...c, [rawUrl]: rawUrl }));
       return;
     }
@@ -290,10 +380,8 @@ export default function CrmOficialChat() {
     }
   };
 
-  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    e.target.value = '';
-    if (!file || !selectedConvo) return;
+  const sendMediaFile = async (file: File, explicitKind?: 'image' | 'audio' | 'video' | 'document', captionText?: string) => {
+    if (!selectedConvo) return;
     const phone = selectedConvo.contacts?.phone;
     if (!phone) {
       toast({ title: 'Sem telefone', description: 'Esse contato não tem telefone.', variant: 'destructive' });
@@ -308,19 +396,22 @@ export default function CrmOficialChat() {
       const ext = file.name.includes('.') ? file.name.split('.').pop() : 'bin';
       const path = `crm-oficial/${user?.id}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
       const { error: upErr } = await supabase.storage.from('evolution-media').upload(path, file, {
-        cacheControl: '3600', upsert: false, contentType: file.type,
+        cacheControl: '3600', upsert: false, contentType: file.type || 'application/octet-stream',
       });
       if (upErr) throw upErr;
-      const { data: signed, error: sErr } = await supabase.storage.from('evolution-media').createSignedUrl(path, 60 * 60 * 24);
+      const { data: signed, error: sErr } = await supabase.storage.from('evolution-media').createSignedUrl(path, 60 * 60 * 24 * 365);
       if (sErr || !signed?.signedUrl) throw sErr || new Error('Falha ao gerar URL');
-      const kind = detectMediaKind(file.type);
-      const caption = input.trim();
-      if (caption) setInput('');
+      const kind = explicitKind || detectMediaKind(file.type);
+      const caption = captionText ?? input.trim();
+      if (!captionText && caption) setInput('');
       await invoke('send-whatsapp', {
-        phone, name: selectedConvo.contacts?.name,
+        phone,
+        name: selectedConvo.contacts?.name,
         body: caption || file.name,
+        caption,
         media_url: signed.signedUrl,
         media_type: kind,
+        mime_type: file.type || 'application/octet-stream',
         file_name: file.name,
       });
       setMessages(m => [...m, {
@@ -333,7 +424,9 @@ export default function CrmOficialChat() {
         media_type: kind,
         mime_type: file.type,
         file_name: file.name,
+        status: 'sent',
       }]);
+      setMediaCache(c => ({ ...c, [signed.signedUrl]: signed.signedUrl }));
       toast({ title: 'Enviado', description: `${kind.toUpperCase()} enviado via CRM Oficial.` });
       setTimeout(() => loadMessages(selectedConvo.id), 2000);
     } catch (err: any) {
@@ -341,6 +434,57 @@ export default function CrmOficialChat() {
     } finally {
       setUploading(false);
     }
+  };
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file || !selectedConvo) return;
+    await sendMediaFile(file);
+  };
+
+  const startRecording = async () => {
+    if (!navigator.mediaDevices?.getUserMedia) {
+      toast({ title: 'Não suportado', description: 'Seu navegador não permite gravar áudio aqui.', variant: 'destructive' });
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mime = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus'
+        : MediaRecorder.isTypeSupported('audio/ogg;codecs=opus') ? 'audio/ogg;codecs=opus'
+        : 'audio/webm';
+      const rec = new MediaRecorder(stream, { mimeType: mime });
+      recordChunks.current = [];
+      rec.ondataavailable = (event) => { if (event.data.size) recordChunks.current.push(event.data); };
+      rec.onstop = async () => {
+        stream.getTracks().forEach(track => track.stop());
+        const blob = new Blob(recordChunks.current, { type: mime });
+        if (blob.size > 0) {
+          const file = new File([blob], `audio-${Date.now()}.${mime.includes('ogg') ? 'ogg' : 'webm'}`, { type: mime });
+          await sendMediaFile(file, 'audio');
+        }
+      };
+      recorderRef.current = rec;
+      rec.start();
+      setRecording(true);
+      setRecordSeconds(0);
+      recordTimerRef.current = window.setInterval(() => setRecordSeconds(s => s + 1), 1000);
+    } catch (e: any) {
+      toast({ title: 'Microfone bloqueado', description: e.message || 'Permita o acesso ao microfone.', variant: 'destructive' });
+    }
+  };
+
+  const stopRecording = (cancel = false) => {
+    if (recordTimerRef.current) {
+      clearInterval(recordTimerRef.current);
+      recordTimerRef.current = null;
+    }
+    setRecording(false);
+    const rec = recorderRef.current;
+    if (!rec) return;
+    if (cancel) recordChunks.current = [];
+    try { rec.stop(); } catch { recorderRef.current = null; }
+    recorderRef.current = null;
   };
 
   const renderMedia = (m: Message) => {
@@ -499,6 +643,12 @@ export default function CrmOficialChat() {
                 <DropdownMenuItem asChild>
                   <Link to="/crm-oficial-channels"><Phone className="w-4 h-4 mr-2" /> Canais</Link>
                 </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link to="/crm-oficial-templates"><FileText className="w-4 h-4 mr-2" /> Templates</Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link to="/crm-oficial-chatbots"><Zap className="w-4 h-4 mr-2" /> Chatbots</Link>
+                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
@@ -618,6 +768,7 @@ export default function CrmOficialChat() {
                     )}
                   >
                     <Avatar className="h-9 w-9">
+                      {c.contacts?.profile_pic_url && <AvatarImage src={c.contacts.profile_pic_url} alt={name} className="object-cover" />}
                       <AvatarFallback className={cn('text-xs', isWeb ? 'bg-cyan-500/15 text-cyan-500' : 'bg-emerald-500/15 text-emerald-500')}>
                         {isWeb ? <Globe className="w-4 h-4" /> : initials(name)}
                       </AvatarFallback>
@@ -654,9 +805,7 @@ export default function CrmOficialChat() {
             <>
               <div className="px-4 py-3 border-b border-border flex items-center gap-3 bg-card/30">
                 <Avatar className="h-10 w-10">
-                  {selectedConvo.contacts?.profile_pic_url && (
-                    <img src={selectedConvo.contacts.profile_pic_url} alt="" className="w-full h-full object-cover rounded-full" />
-                  )}
+                  {selectedConvo.contacts?.profile_pic_url && <AvatarImage src={selectedConvo.contacts.profile_pic_url} alt={selectedConvo.contacts?.name || 'Contato'} className="object-cover" />}
                   <AvatarFallback className={cn('text-xs', selectedConvo.channel === 'webchat' ? 'bg-cyan-500/15 text-cyan-500' : 'bg-emerald-500/15 text-emerald-500')}>
                     {selectedConvo.channel === 'webchat' ? <Globe className="w-4 h-4" /> : initials(selectedConvo.contacts?.name || selectedConvo.contacts?.phone || '?')}
                   </AvatarFallback>
@@ -793,10 +942,13 @@ export default function CrmOficialChat() {
                   disabled={sending}
                 />
                 <Button
-                  onClick={() => input.trim() ? sendMessage() : toast({ title: 'Áudio em breve', description: 'Gravação de áudio será habilitada quando a API expor /media upload.' })}
+                  onClick={() => {
+                    if (input.trim()) return sendMessage();
+                    return recording ? stopRecording(false) : startRecording();
+                  }}
                   disabled={sending}
-                  className="rounded-full h-10 w-10 p-0 bg-emerald-500 hover:bg-emerald-600 shrink-0"
-                  title={input.trim() ? 'Enviar' : 'Gravar áudio'}
+                  className={cn('rounded-full h-10 w-10 p-0 shrink-0', recording ? 'bg-red-500 hover:bg-red-600 animate-pulse' : 'bg-emerald-500 hover:bg-emerald-600')}
+                  title={input.trim() ? 'Enviar' : recording ? `Parar gravação (${recordSeconds}s)` : 'Gravar áudio'}
                 >
                   {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : input.trim() ? <Send className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
                 </Button>

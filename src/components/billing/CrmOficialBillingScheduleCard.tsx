@@ -11,8 +11,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
-import { Clock, Save, Loader2, Zap, AlertTriangle, RefreshCw, FileText } from 'lucide-react';
+import { Clock, Save, Loader2, Zap, AlertTriangle, RefreshCw, FileText, Plus, ExternalLink } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { Link } from 'react-router-dom';
 
 interface CrmSchedule {
   id: string;
@@ -44,6 +45,26 @@ interface MetaTemplate {
   language: string;
   category: string;
   components?: Array<{ type: string; text?: string; format?: string }>;
+}
+
+function normalizeTemplates(body: any): MetaTemplate[] {
+  const raw = Array.isArray(body)
+    ? body
+    : Array.isArray(body?.data)
+      ? body.data
+      : Array.isArray(body?.templates)
+        ? body.templates
+        : Array.isArray(body?.items)
+          ? body.items
+          : [];
+  return raw.map((t: any, index: number) => ({
+    id: String(t.id || `${t.name || 'template'}-${t.language || 'pt_BR'}-${index}`),
+    name: String(t.name || ''),
+    status: String(t.status || ''),
+    language: String(t.language || 'pt_BR'),
+    category: String(t.category || ''),
+    components: Array.isArray(t.components) ? t.components : [],
+  })).filter((t: MetaTemplate) => t.name);
 }
 
 type RowKey = 'd1' | 'd0' | 'dp1';
@@ -98,18 +119,19 @@ export function CrmOficialBillingScheduleCard() {
   });
 
   const { data: templates, isLoading: loadingTpls, refetch: refetchTpls } = useQuery({
-    queryKey: ['meta-templates-list', user?.id],
+    queryKey: ['crm-oficial-templates-list', user?.id, crmSettings?.api_key],
     queryFn: async () => {
-      const { data, error } = await supabase.functions.invoke('meta-templates', {
-        body: { action: 'list', limit: 100 },
+      const { data, error } = await supabase.functions.invoke('crm-oficial-sync', {
+        body: { action: 'list-templates', data: { apiKey: crmSettings?.api_key, limit: 250 } },
       });
       if (error) throw error;
-      if (data?.error) throw new Error(data.error);
-      const all = (data?.data || []) as MetaTemplate[];
-      // só aprovados pra cobrança automática
+      if (!data?.success) throw new Error(data?.error || 'Erro ao carregar templates');
+      const result = data?.results?.templates;
+      if (result && !result.ok) throw new Error(`CRM Oficial retornou status ${result.status}`);
+      const all = normalizeTemplates(result?.body);
       return all.filter(t => (t.status || '').toUpperCase() === 'APPROVED');
     },
-    enabled: !!user?.id,
+    enabled: !!user?.id && !!crmSettings?.api_key,
     retry: false,
   });
 
@@ -241,17 +263,22 @@ export function CrmOficialBillingScheduleCard() {
           </div>
         </div>
 
-        <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-3 text-xs flex items-center justify-between gap-2">
+        <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-3 text-xs flex items-center justify-between gap-2 flex-wrap">
           <div className="flex items-center gap-2">
             <FileText className="w-4 h-4 text-emerald-500" />
             <span>
-              <strong>{templates?.length ?? 0}</strong> templates Meta aprovados disponíveis
+              <strong>{templates?.length ?? 0}</strong> templates aprovados do CRM Oficial disponíveis
               {loadingTpls && <Loader2 className="w-3 h-3 ml-2 inline animate-spin" />}
             </span>
           </div>
-          <Button size="sm" variant="ghost" onClick={() => refetchTpls()} disabled={loadingTpls} className="h-7 text-xs">
-            <RefreshCw className={cn('w-3 h-3 mr-1', loadingTpls && 'animate-spin')} /> Recarregar
-          </Button>
+          <div className="flex items-center gap-1.5">
+            <Button size="sm" variant="ghost" asChild className="h-7 text-xs">
+              <Link to="/crm-oficial-templates"><Plus className="w-3 h-3 mr-1" /> Criar/enviar</Link>
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => refetchTpls()} disabled={loadingTpls || !crmSettings?.api_key} className="h-7 text-xs">
+              <RefreshCw className={cn('w-3 h-3 mr-1', loadingTpls && 'animate-spin')} /> Recarregar
+            </Button>
+          </div>
         </div>
 
         {rows.map((row) => {
@@ -289,7 +316,9 @@ export function CrmOficialBillingScheduleCard() {
                         </SelectItem>
                       ))}
                       {(!templates || templates.length === 0) && (
-                        <div className="px-2 py-3 text-xs text-muted-foreground">Nenhum template aprovado encontrado.</div>
+                        <div className="px-2 py-3 text-xs text-muted-foreground">
+                          Nenhum template aprovado encontrado. <Link to="/crm-oficial-templates" className="text-emerald-500 inline-flex items-center gap-1">Abrir biblioteca <ExternalLink className="w-3 h-3" /></Link>
+                        </div>
                       )}
                     </SelectContent>
                   </Select>
@@ -305,7 +334,7 @@ export function CrmOficialBillingScheduleCard() {
         })}
 
         <p className="text-xs text-muted-foreground">
-          Texto livre: <code>{'{{nome}}'}</code>, <code>{'{{vencimento}}'}</code>, <code>{'{{valor}}'}</code>, <code>{'{{usuario}}'}</code>, <code>{'{{plano}}'}</code>. Templates Meta seguem os parâmetros aprovados pela Meta.
+          Texto livre: <code>{'{{nome}}'}</code>, <code>{'{{vencimento}}'}</code>, <code>{'{{valor}}'}</code>, <code>{'{{usuario}}'}</code>, <code>{'{{plano}}'}</code>. Templates CRM Oficial seguem os parâmetros aprovados pela Meta.
         </p>
 
         {schedule?.last_run_at && (
