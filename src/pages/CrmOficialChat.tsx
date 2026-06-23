@@ -548,7 +548,26 @@ export default function CrmOficialChat() {
     recorderRef.current = null;
   };
 
-  const renderMedia = (m: Message) => {
+  const renderMedia = (m: Message & { _placeholder?: string | null }) => {
+    // Caso 1: a mensagem tem um marcador "[document]" / "[image]" mas sem URL — exibe card amigável.
+    if (!m.media_url && m._placeholder) {
+      const labelMap: Record<string, string> = {
+        image: '📷 Imagem',
+        video: '🎬 Vídeo',
+        audio: '🎵 Áudio',
+        document: '📄 Documento',
+        sticker: '✨ Figurinha',
+      };
+      return (
+        <div className={cn(
+          'flex items-center gap-2 mb-1 px-3 py-2 rounded-lg border text-xs',
+          m.direction === 'out' ? 'border-white/30 bg-white/10' : 'border-border/60 bg-muted/30'
+        )}>
+          <span className="font-medium">{labelMap[m._placeholder] || '📎 Anexo'}</span>
+          {m.file_name && <span className="truncate opacity-80">{m.file_name}</span>}
+        </div>
+      );
+    }
     if (!m.media_url) return null;
     const kind = detectMediaKind(m.mime_type, m.media_type);
     const resolved = mediaCache[m.media_url];
