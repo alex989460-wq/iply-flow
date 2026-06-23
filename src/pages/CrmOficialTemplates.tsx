@@ -103,12 +103,26 @@ export default function CrmOficialTemplates() {
   useEffect(() => { if (apiKey) void loadTemplates(); }, [apiKey]);
 
   const loadTemplates = async () => {
-    if (!apiKey) return;
     setSyncing(true);
     try {
+      // 1) Preferir Meta Graph API (oficial) — puxa templates aprovados direto da WABA
+      const { data: metaRes, error: metaErr } = await supabase.functions.invoke('meta-templates', {
+        body: { action: 'list', limit: 250 },
+      });
+      if (!metaErr && metaRes && !metaRes.error && Array.isArray(metaRes.data)) {
+        setTemplates(normalizeTemplates(metaRes));
+        return;
+      }
+      // 2) Fallback: API pública do CRM Oficial (requer scope templates:read)
+      if (!apiKey) {
+        throw new Error(metaRes?.error || metaErr?.message || 'Meta Cloud API não configurada.');
+      }
       const r = await invoke('list-templates', { limit: 250 });
       const result = r?.templates;
-      if (result && !result.ok) throw new Error(`Status ${result.status}`);
+      if (result && !result.ok) {
+        const detail = typeof result.body === 'string' ? result.body : JSON.stringify(result.body).slice(0, 180);
+        throw new Error(`CRM Oficial ${result.status}: ${detail}`);
+      }
       setTemplates(normalizeTemplates(result?.body));
     } catch (e: any) {
       toast({ title: 'Erro ao carregar templates', description: e.message, variant: 'destructive' });
@@ -154,10 +168,20 @@ export default function CrmOficialTemplates() {
     setSaving(true);
     try {
       const template = payloadFromForm();
-      const r = await invoke(dialog === 'edit' ? 'update-template' : 'create-template', dialog === 'edit' ? { template_name: selected?.name, template } : { template });
-      const result = r?.template;
-      if (result && !result.ok) throw new Error(`Status ${result.status}: ${JSON.stringify(result.body).slice(0, 180)}`);
-      toast({ title: dialog === 'edit' ? 'Template atualizado' : 'Template enviado', description: 'Sincronizado com a API pública do CRM Oficial.' });
+      // Preferir Meta Graph (oficial). Update via meta-templates requer template_id; sem ele, usa CRM Oficial.
+      const useMeta = dialog === 'create' || (dialog === 'edit' && (selected as any)?.metaId);
+      if (useMeta) {
+        const body = dialog === 'edit'
+          ? { action: 'update', template_id: (selected as any).metaId, components: template.components }
+          : { action: 'create', name: template.name, category: template.category, language: template.language, components: template.components };
+        const { data: res, error: err } = await supabase.functions.invoke('meta-templates', { body });
+        if (err || res?.error) throw new Error(res?.error || err?.message || 'Falha na Meta API');
+      } else {
+        const r = await invoke(dialog === 'edit' ? 'update-template' : 'create-template', dialog === 'edit' ? { template_name: selected?.name, template } : { template });
+        const result = r?.template;
+        if (result && !result.ok) throw new Error(`Status ${result.status}: ${JSON.stringify(result.body).slice(0, 180)}`);
+      }
+      toast({ title: dialog === 'edit' ? 'Template atualizado' : 'Template enviado', description: 'Sincronizado com a Meta.' });
       setDialog(null);
       await loadTemplates();
     } catch (e: any) {
@@ -170,14 +194,22 @@ export default function CrmOficialTemplates() {
   const deleteTemplate = async (t: CrmTemplate) => {
     if (!confirm(`Excluir template "${t.name}"?`)) return;
     try {
-      const r = await invoke('delete-template', { template_name: t.name });
-      if (r?.template && !r.template.ok) throw new Error(`Status ${r.template.status}`);
+      // Tenta Meta Graph primeiro
+      const { data: res, error: err } = await supabase.functions.invoke('meta-templates', {
+        body: { action: 'delete', template_name: t.name },
+      });
+      if (err || res?.error) {
+        // Fallback CRM Oficial
+        const r = await invoke('delete-template', { template_name: t.name });
+        if (r?.template && !r.template.ok) throw new Error(`Status ${r.template.status}`);
+      }
       toast({ title: 'Template excluído' });
       await loadTemplates();
     } catch (e: any) {
       toast({ title: 'Erro ao excluir', description: e.message, variant: 'destructive' });
     }
   };
+
 
   const openSend = (t: CrmTemplate) => {
     setSelected(t);
