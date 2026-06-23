@@ -215,11 +215,10 @@ Deno.serve(async (req) => {
       const target = path || media_url;
       if (!target) throw new Error("path é obrigatório");
       const apiKeyHere = apiKey || Deno.env.get("CRM_OFICIAL_API_KEY") || "";
-      const mediaUrl = /^https?:\/\//i.test(target)
-        ? target
-        : `${CRM_BASE}/api/public/v1/media?path=${encodeURIComponent(target)}`;
-      let r = await fetch(mediaUrl, { headers: { Authorization: `Bearer ${apiKeyHere}` } });
-      if (!r.ok && /^https?:\/\//i.test(target)) {
+      const isAbsolute = /^https?:\/\//i.test(target);
+      const mediaUrl = isAbsolute ? target : `${CRM_BASE}/api/public/v1/media?path=${encodeURIComponent(target)}`;
+      let r = await fetch(mediaUrl, isAbsolute ? {} : { headers: { Authorization: `Bearer ${apiKeyHere}` } });
+      if (!r.ok && isAbsolute) {
         r = await fetch(`${CRM_BASE}/api/public/v1/media?path=${encodeURIComponent(target)}`, {
           headers: { Authorization: `Bearer ${apiKeyHere}` },
         });
