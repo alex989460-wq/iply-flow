@@ -770,6 +770,12 @@ export default function CrmOficialChat() {
                 <RefreshCw className="w-3 h-3" />
               </Button>
             </div>
+            {selectedChannel !== 'all' && channels.find(c => c.id === selectedChannel)?.kind !== 'webchat' && (
+              <p className="text-[10px] text-amber-500/80 leading-tight px-1">
+                ⚠ A API do CRM Oficial ainda não separa conversas por número WhatsApp — todos os números
+                compartilham o mesmo inbox. O filtro atual só separa <strong>WhatsApp</strong> de <strong>Webchat</strong>.
+              </p>
+            )}
 
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
