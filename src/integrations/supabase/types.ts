@@ -555,6 +555,12 @@ export type Database = {
           send_d_plus_1: boolean
           send_d0: boolean
           send_time: string
+          template_d_minus_1: string | null
+          template_d_plus_1: string | null
+          template_d0: string | null
+          template_lang_d_minus_1: string | null
+          template_lang_d_plus_1: string | null
+          template_lang_d0: string | null
           updated_at: string
           user_id: string
         }
@@ -573,6 +579,12 @@ export type Database = {
           send_d_plus_1?: boolean
           send_d0?: boolean
           send_time?: string
+          template_d_minus_1?: string | null
+          template_d_plus_1?: string | null
+          template_d0?: string | null
+          template_lang_d_minus_1?: string | null
+          template_lang_d_plus_1?: string | null
+          template_lang_d0?: string | null
           updated_at?: string
           user_id: string
         }
@@ -591,6 +603,12 @@ export type Database = {
           send_d_plus_1?: boolean
           send_d0?: boolean
           send_time?: string
+          template_d_minus_1?: string | null
+          template_d_plus_1?: string | null
+          template_d0?: string | null
+          template_lang_d_minus_1?: string | null
+          template_lang_d_plus_1?: string | null
+          template_lang_d0?: string | null
           updated_at?: string
           user_id?: string
         }

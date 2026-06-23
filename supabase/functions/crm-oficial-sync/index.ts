@@ -66,10 +66,14 @@ async function doListMessages(conversation_id: string, apiKey?: string) {
   return crmFetch(`/api/public/v1/messages?conversation_id=${encodeURIComponent(conversation_id)}`, { method: "GET", apiKey });
 }
 
-async function doSendWhatsapp(payload: { phone: string; body: string; name?: string }, apiKey?: string) {
+async function doSendWhatsapp(payload: { phone: string; body?: string; name?: string; media_url?: string; media_type?: string; caption?: string; file_name?: string }, apiKey?: string) {
+  // /whatsapp-send aceita body + media_url + media_type. Para legendas o body é a caption.
+  const final: Record<string, unknown> = { ...payload };
+  if (payload.caption && !payload.body) final.body = payload.caption;
+  if (!final.body) final.body = "";
   return crmFetch("/api/public/v1/whatsapp-send", {
     method: "POST",
-    body: JSON.stringify(payload),
+    body: JSON.stringify(final),
     apiKey,
   });
 }
@@ -133,9 +137,10 @@ Deno.serve(async (req) => {
     }
 
     if (action === "send-whatsapp") {
-      const { phone, body, name } = data as { phone: string; body: string; name?: string };
-      if (!phone || !body) throw new Error("phone e body são obrigatórios");
-      results.send = await doSendWhatsapp({ phone, body, name }, apiKey);
+      const { phone, body, name, media_url, media_type, caption, file_name } = data as { phone: string; body?: string; name?: string; media_url?: string; media_type?: string; caption?: string; file_name?: string };
+      if (!phone) throw new Error("phone é obrigatório");
+      if (!body && !media_url) throw new Error("body ou media_url é obrigatório");
+      results.send = await doSendWhatsapp({ phone, body, name, media_url, media_type, caption, file_name }, apiKey);
     }
 
     if (action === "list-contacts") {
