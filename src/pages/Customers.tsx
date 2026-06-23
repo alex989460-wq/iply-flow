@@ -170,6 +170,11 @@ export default function Customers() {
   const [isSendingBilling, setIsSendingBilling] = useState(false);
   const [useEvolutionForBilling, setUseEvolutionForBilling] = useState(false);
   const [selectedEvoTemplateKey, setSelectedEvoTemplateKey] = useState<'D-1' | 'D0' | 'D+1'>('D0');
+  // 'zap' = API oficial / Zap Responder | 'evolution' = WhatsApp não oficial | 'crm' = CRM Oficial
+  const [billingChannel, setBillingChannel] = useState<'zap' | 'evolution' | 'crm'>('zap');
+  const [crmTemplates, setCrmTemplates] = useState<Array<{ name: string; language: string; status?: string; components?: any[] }>>([]);
+  const [isLoadingCrmTemplates, setIsLoadingCrmTemplates] = useState(false);
+  const [selectedCrmTemplate, setSelectedCrmTemplate] = useState('');
 
   // Server migration state
   const [isServerMigrationOpen, setIsServerMigrationOpen] = useState(false);
