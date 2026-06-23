@@ -91,6 +91,17 @@ function detectMediaKind(mime?: string | null, mediaType?: string | null): 'imag
 }
 
 type FilterId = 'all' | 'unread' | 'whatsapp' | 'webchat' | 'media';
+const CRM_READ_KEY = 'crm_oficial_read_at';
+
+function readMap(): Record<string, string> {
+  try { return JSON.parse(localStorage.getItem(CRM_READ_KEY) || '{}'); } catch { return {}; }
+}
+
+function saveReadAt(conversationId: string) {
+  const next = { ...readMap(), [conversationId]: new Date().toISOString() };
+  try { localStorage.setItem(CRM_READ_KEY, JSON.stringify(next)); } catch { /* noop */ }
+  return next;
+}
 
 function pickString(...values: unknown[]) {
   for (const value of values) {
@@ -258,7 +269,15 @@ export default function CrmOficialChat() {
     setLoadingConvos(true);
     try {
       const r = await invoke('list-conversations');
-      setConversations(normalizeConversations(r?.conversations?.body));
+      const localRead = readMap();
+      setConversations(normalizeConversations(r?.conversations?.body).map(c => {
+        const readAt = localRead[c.id];
+        const lastAt = c.last_message_at || c.updated_at;
+        if (readAt && (!lastAt || new Date(readAt).getTime() >= new Date(lastAt).getTime())) {
+          return { ...c, unread_count: 0 };
+        }
+        return c;
+      }));
     } catch (e: any) {
       toast({ title: 'Erro ao carregar conversas', description: e.message, variant: 'destructive' });
     } finally {
@@ -272,6 +291,7 @@ export default function CrmOficialChat() {
     try {
       const r = await invoke('list-messages', { conversation_id: id });
       setMessages(normalizeMessages(r?.messages?.body));
+      saveReadAt(id);
       setConversations(prev => prev.map(c => c.id === id ? { ...c, unread_count: 0 } : c));
       invoke('mark-read', { conversation_id: id }).catch(() => undefined);
       requestAnimationFrame(() => {
