@@ -1115,6 +1115,7 @@ export default function Billing() {
             {/* Billing Schedule Cards */}
             <BillingScheduleCard />
             <EvolutionBillingScheduleCard />
+            <CrmOficialBillingScheduleCard />
             
             
             {/* Meta Cloud API Configuration */}
