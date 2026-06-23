@@ -2963,27 +2963,33 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
                 <p className="text-sm"><strong>Vencimento:</strong> {sendingBillingCustomer?.due_date ? format(new Date(sendingBillingCustomer.due_date + 'T12:00:00'), 'dd/MM/yyyy', { locale: ptBR }) : 'Não definido'}</p>
               </div>
 
-              <div className="flex items-center justify-between p-3 rounded-lg bg-emerald-500/5 border border-emerald-500/20">
-                <div>
-                  <Label className="text-sm font-semibold">Enviar pelo WhatsApp</Label>
-                  <p className="text-[11px] text-muted-foreground">
-                    {useEvolutionForBilling
-                      ? `Instância: ${billingSettings?.evolution_instance || 'não configurada'}`
-                      : 'Usando API oficial / Zap Responder'}
-                  </p>
-                </div>
-                <Switch
-                  checked={useEvolutionForBilling}
-                  onCheckedChange={async (v) => {
-                    setUseEvolutionForBilling(v);
-                    if (!v && templates.length === 0 && zapSettings?.selected_department_id) {
+              <div className="space-y-2 p-3 rounded-lg bg-emerald-500/5 border border-emerald-500/20">
+                <Label className="text-sm font-semibold">Canal de envio</Label>
+                <Select
+                  value={billingChannel}
+                  onValueChange={async (v: 'zap' | 'evolution' | 'crm') => {
+                    setBillingChannel(v);
+                    setUseEvolutionForBilling(v === 'evolution');
+                    if (v === 'zap' && templates.length === 0 && zapSettings?.selected_department_id) {
                       await fetchTemplates();
                     }
+                    if (v === 'crm' && crmTemplates.length === 0) {
+                      await fetchCrmTemplates();
+                    }
                   }}
-                />
+                >
+                  <SelectTrigger className="bg-secondary/50">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="zap">API oficial / Zap Responder</SelectItem>
+                    <SelectItem value="evolution">WhatsApp (Evolution — {billingSettings?.evolution_instance || 'não configurado'})</SelectItem>
+                    <SelectItem value="crm">CRM Oficial (templates Meta)</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
 
-              {useEvolutionForBilling ? (
+              {billingChannel === 'evolution' && (
                 <div className="space-y-2">
                   <Label>Tipo de mensagem</Label>
                   <Select value={selectedEvoTemplateKey} onValueChange={(v: any) => setSelectedEvoTemplateKey(v)}>
@@ -3002,7 +3008,9 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
                     </p>
                   )}
                 </div>
-              ) : (
+              )}
+
+              {billingChannel === 'zap' && (
                 <div className="space-y-2">
                   <Label>Selecione o Template</Label>
                   {isLoadingTemplates ? (
@@ -3013,12 +3021,7 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
                   ) : templates.length === 0 ? (
                     <div className="text-center py-4">
                       <p className="text-sm text-muted-foreground">Nenhum template disponível.</p>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="mt-2"
-                        onClick={fetchTemplates}
-                      >
+                      <Button variant="outline" size="sm" className="mt-2" onClick={fetchTemplates}>
                         <RefreshCw className="w-3 h-3 mr-1" />
                         Recarregar
                       </Button>
@@ -3041,14 +3044,55 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
                 </div>
               )}
 
+              {billingChannel === 'crm' && (
+                <div className="space-y-2">
+                  <Label>Template Meta (CRM Oficial)</Label>
+                  {isLoadingCrmTemplates ? (
+                    <div className="flex items-center justify-center py-4">
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      <span className="ml-2 text-sm text-muted-foreground">Carregando templates...</span>
+                    </div>
+                  ) : crmTemplates.length === 0 ? (
+                    <div className="text-center py-4">
+                      <p className="text-sm text-muted-foreground">Nenhum template aprovado encontrado.</p>
+                      <Button variant="outline" size="sm" className="mt-2" onClick={fetchCrmTemplates}>
+                        <RefreshCw className="w-3 h-3 mr-1" />
+                        Recarregar
+                      </Button>
+                    </div>
+                  ) : (
+                    <>
+                      <Select value={selectedCrmTemplate} onValueChange={setSelectedCrmTemplate}>
+                        <SelectTrigger className="bg-secondary/50">
+                          <SelectValue placeholder="Selecione um template aprovado" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {crmTemplates.map((t) => (
+                            <SelectItem key={`${t.name}|${t.language}`} value={`${t.name}|${t.language}`}>
+                              {t.name} <span className="text-[10px] text-muted-foreground ml-1">({t.language})</span>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <p className="text-[10px] text-muted-foreground">
+                        Variáveis enviadas em ordem: <code>{'{{1}}'}</code> nome, <code>{'{{2}}'}</code> vencimento,{' '}
+                        <code>{'{{3}}'}</code> valor, <code>{'{{4}}'}</code> usuário, <code>{'{{5}}'}</code> plano.
+                      </p>
+                    </>
+                  )}
+                </div>
+              )}
+
               <Button
                 className="w-full"
                 onClick={sendIndividualBilling}
                 disabled={
                   isSendingBilling ||
-                  (useEvolutionForBilling
+                  (billingChannel === 'evolution'
                     ? !billingSettings?.evolution_instance
-                    : !selectedTemplate)
+                    : billingChannel === 'crm'
+                      ? !selectedCrmTemplate
+                      : !selectedTemplate)
                 }
               >
                 {isSendingBilling ? (
