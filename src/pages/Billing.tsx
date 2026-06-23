@@ -69,6 +69,7 @@ import { SendProgressModal } from '@/components/billing/SendProgressModal';
 import { BillingReportsTab } from '@/components/billing/BillingReportsTab';
 import { BillingScheduleCard } from '@/components/billing/BillingScheduleCard';
 import { EvolutionBillingScheduleCard } from '@/components/billing/EvolutionBillingScheduleCard';
+import { CrmOficialBillingScheduleCard } from '@/components/billing/CrmOficialBillingScheduleCard';
 
 type BillingType = Database['public']['Enums']['billing_type'];
 
