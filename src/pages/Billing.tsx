@@ -70,6 +70,7 @@ import { BillingReportsTab } from '@/components/billing/BillingReportsTab';
 import { BillingScheduleCard } from '@/components/billing/BillingScheduleCard';
 import { EvolutionBillingScheduleCard } from '@/components/billing/EvolutionBillingScheduleCard';
 import { CrmOficialBillingScheduleCard } from '@/components/billing/CrmOficialBillingScheduleCard';
+import { Link } from 'react-router-dom';
 
 type BillingType = Database['public']['Enums']['billing_type'];
 
@@ -1116,6 +1117,14 @@ export default function Billing() {
             <BillingScheduleCard />
             <EvolutionBillingScheduleCard />
             <CrmOficialBillingScheduleCard />
+            <div className="flex flex-wrap gap-2 rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-3">
+              <Button variant="outline" size="sm" asChild>
+                <Link to="/crm-oficial-templates"><FileText className="w-4 h-4 mr-2" /> Templates CRM Oficial</Link>
+              </Button>
+              <Button variant="outline" size="sm" asChild>
+                <Link to="/crm-oficial-chatbots"><Bot className="w-4 h-4 mr-2" /> Chatbots CRM Oficial</Link>
+              </Button>
+            </div>
             
             
             {/* Meta Cloud API Configuration */}
