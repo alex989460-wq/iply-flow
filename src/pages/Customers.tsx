@@ -1277,11 +1277,38 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
     }
   };
 
+  const fetchCrmTemplates = async () => {
+    setIsLoadingCrmTemplates(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('crm-oficial-sync', {
+        body: { action: 'list-templates', data: { limit: 250 } },
+      });
+      if (error) throw error;
+      const body = data?.results?.templates?.body;
+      const raw = Array.isArray(body) ? body : (body?.data || body?.templates || body?.items || []);
+      const approved = raw
+        .map((t: any) => ({
+          name: String(t.name || ''),
+          language: String(t.language || 'pt_BR'),
+          status: String(t.status || ''),
+          components: Array.isArray(t.components) ? t.components : [],
+        }))
+        .filter((t: any) => t.name && (t.status || '').toUpperCase() === 'APPROVED');
+      setCrmTemplates(approved);
+    } catch (err: any) {
+      toast({ title: 'Erro ao carregar templates CRM Oficial', description: err.message, variant: 'destructive' });
+    } finally {
+      setIsLoadingCrmTemplates(false);
+    }
+  };
+
   const openSendBillingDialog = async (customer: any) => {
     setSendingBillingCustomer(customer);
     setSelectedTemplate('');
+    setSelectedCrmTemplate('');
     const evoDefault = !!billingSettings?.use_evolution_billing;
     setUseEvolutionForBilling(evoDefault);
+    setBillingChannel(evoDefault ? 'evolution' : 'zap');
     setSelectedEvoTemplateKey('D0');
     setIsSendBillingOpen(true);
     if (!evoDefault && templates.length === 0 && zapSettings?.selected_department_id) {
