@@ -653,7 +653,7 @@ export default function Settings() {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-7 max-w-5xl">
+          <TabsList className="grid w-full grid-cols-8 max-w-6xl">
             <TabsTrigger value="cobranca" className="flex items-center gap-2">
               <CreditCard className="w-4 h-4 text-green-500" />
               <span className="hidden sm:inline">Cobrança</span>
@@ -662,6 +662,11 @@ export default function Settings() {
             <TabsTrigger value="zap_responder" className="flex items-center gap-2">
               <span className="hidden sm:inline">Zap Responder</span>
               <span className="sm:hidden">ZapResp</span>
+            </TabsTrigger>
+            <TabsTrigger value="crm_oficial" className="flex items-center gap-2">
+              <Zap className="w-4 h-4 text-emerald-500" />
+              <span className="hidden sm:inline">CRM Oficial</span>
+              <span className="sm:hidden">CRM</span>
             </TabsTrigger>
             {isAdmin && (
               <TabsTrigger value="evolution" className="flex items-center gap-2">
@@ -689,6 +694,12 @@ export default function Settings() {
               <span className="sm:hidden">Back.</span>
             </TabsTrigger>
           </TabsList>
+
+          <TabsContent value="crm_oficial" className="mt-6">
+            <CrmOficialCard />
+          </TabsContent>
+
+
 
           {isAdmin && (
             <TabsContent value="evolution" className="mt-6">
