@@ -122,6 +122,28 @@ Deno.serve(async (req) => {
       }, apiKey);
     }
 
+    if (action === "list-conversations") {
+      results.conversations = await doListConversations(apiKey);
+    }
+
+    if (action === "list-messages") {
+      const { conversation_id } = data as { conversation_id: string };
+      if (!conversation_id) throw new Error("conversation_id é obrigatório");
+      results.messages = await doListMessages(conversation_id, apiKey);
+    }
+
+    if (action === "send-whatsapp") {
+      const { phone, body, name } = data as { phone: string; body: string; name?: string };
+      if (!phone || !body) throw new Error("phone e body são obrigatórios");
+      results.send = await doSendWhatsapp({ phone, body, name }, apiKey);
+    }
+
+    if (action === "list-contacts") {
+      const { limit } = data as { limit?: number };
+      results.contacts = await doListContacts(typeof limit === "number" ? limit : 100, apiKey);
+    }
+
+
 
     return new Response(JSON.stringify({ success: true, action, results }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
