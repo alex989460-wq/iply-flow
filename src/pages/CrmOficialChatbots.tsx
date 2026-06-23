@@ -177,6 +177,20 @@ export default function CrmOficialChatbots() {
     }
   };
 
+  const toggleBot = async (bot: CrmBot) => {
+    const nextEnabled = !(bot.enabled || bot.active);
+    try {
+      const chatbot = { ...bot, enabled: nextEnabled, active: nextEnabled };
+      setBots(prev => prev.map(item => item.id === bot.id ? { ...item, enabled: nextEnabled, active: nextEnabled } : item));
+      const r = await invoke('update-chatbot', { chatbot_id: bot.id, chatbot });
+      if (r?.chatbot && !r.chatbot.ok) throw new Error(`Status ${r.chatbot.status}`);
+      toast({ title: nextEnabled ? 'Chatbot ativado' : 'Chatbot desativado' });
+    } catch (e: any) {
+      setBots(prev => prev.map(item => item.id === bot.id ? bot : item));
+      toast({ title: 'Erro ao alterar status', description: e.message, variant: 'destructive' });
+    }
+  };
+
   const activeBots = useMemo(() => bots.filter(b => b.enabled || b.active).length, [bots]);
 
   return (
@@ -216,7 +230,7 @@ export default function CrmOficialChatbots() {
                 </div>
                 <div className="mt-4 flex items-center gap-2">
                   <Button variant="outline" className="flex-1" onClick={() => openEdit(bot)}>Editar fluxo <Edit className="w-4 h-4 ml-2" /></Button>
-                  <Button size="icon" variant="ghost" onClick={() => openEdit({ ...bot, enabled: !(bot.enabled || bot.active) })}><Zap className="w-4 h-4" /></Button>
+                  <Button size="icon" variant="ghost" onClick={() => toggleBot(bot)}><Zap className="w-4 h-4" /></Button>
                   <Button size="icon" variant="ghost" className="text-red-400" onClick={() => deleteBot(bot)}><Trash2 className="w-4 h-4" /></Button>
                 </div>
               </div>
