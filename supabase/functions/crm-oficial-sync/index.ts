@@ -105,18 +105,50 @@ async function doSendWhatsapp(payload: {
   template_params?: unknown[];
   components?: unknown[];
 }, apiKey?: string) {
-  // /whatsapp-send aceita body + media_url + media_type. Para legendas o body é a caption.
   const final: Record<string, unknown> = { ...payload };
   if (payload.media_url && !final.mediaUrl) final.mediaUrl = payload.media_url;
   if (payload.media_type && !final.mediaType) final.mediaType = payload.media_type;
   if (payload.file_name && !final.fileName) final.fileName = payload.file_name;
   if (payload.mime_type && !final.mimetype) final.mimetype = payload.mime_type;
-  if (payload.template_name) final.template = { name: payload.template_name, language: payload.template_language || payload.language || "pt_BR", params: payload.template_params || [] };
   if (payload.caption && !payload.body) final.body = payload.caption;
-  // O endpoint /whatsapp-send exige body não vazio mesmo para templates/mídia.
+
+  // Template oficial: usar endpoint /whatsapp-template-send se houver template_name.
+  if (payload.template_name) {
+    const lang = payload.template_language || payload.language || "pt_BR";
+    const params = Array.isArray(payload.template_params) ? payload.template_params : [];
+    const components = Array.isArray(payload.components) && payload.components.length
+      ? payload.components
+      : (params.length ? [{ type: "body", parameters: params.map(p => ({ type: "text", text: String(p) })) }] : []);
+    const tplPayload: Record<string, unknown> = {
+      phone: payload.phone,
+      name: payload.name,
+      template_name: payload.template_name,
+      templateName: payload.template_name,
+      template_language: lang,
+      templateLanguage: lang,
+      language: lang,
+      template_params: params,
+      templateParams: params,
+      components,
+      template: { name: payload.template_name, language: { code: lang, policy: "deterministic" }, components },
+    };
+    // Tenta endpoints específicos de template; cai para /whatsapp-send com payload de template como fallback.
+    const attempts: Array<() => Promise<{ ok: boolean; status: number; body: unknown }>> = [
+      () => crmFetch("/api/public/v1/whatsapp-template-send", { method: "POST", body: JSON.stringify(tplPayload), apiKey }),
+      () => crmFetch("/api/public/v1/whatsapp/template-send", { method: "POST", body: JSON.stringify(tplPayload), apiKey }),
+      () => crmFetch("/api/public/v1/templates/send", { method: "POST", body: JSON.stringify(tplPayload), apiKey }),
+      () => crmFetch("/api/public/v1/whatsapp-send", {
+        method: "POST",
+        body: JSON.stringify({ ...tplPayload, type: "template" }),
+        apiKey,
+      }),
+    ];
+    return firstOk(attempts);
+  }
+
+  // Plain text / mídia: /whatsapp-send precisa de body não vazio.
   if (!final.body || !String(final.body).trim()) {
-    if (payload.template_name) final.body = `[template:${payload.template_name}]`;
-    else if (payload.file_name) final.body = String(payload.file_name);
+    if (payload.file_name) final.body = String(payload.file_name);
     else final.body = " ";
   }
   return crmFetch("/api/public/v1/whatsapp-send", {
