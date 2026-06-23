@@ -74,6 +74,35 @@ function imageHeaderFromComponents(components: unknown[]) {
   return undefined;
 }
 
+function pickString(...values: unknown[]) {
+  for (const value of values) {
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  return "";
+}
+
+async function ensurePublicMediaUrl(url: string, label = "media") {
+  if (!/scontent\.whatsapp\.net|lookaside\.fbsbx\.com/i.test(url)) return url;
+
+  const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+  if (!supabaseUrl || !serviceKey) return url;
+
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`Não foi possível baixar a imagem do template (${response.status}). Cadastre uma imagem pública em Configurações → Cobrança.`);
+
+  const contentType = response.headers.get("content-type") || "image/jpeg";
+  const ext = contentType.includes("png") ? "png" : contentType.includes("webp") ? "webp" : "jpg";
+  const bytes = new Uint8Array(await response.arrayBuffer());
+  const admin = createClient(supabaseUrl, serviceKey);
+  const path = `crm-oficial-template-headers/${Date.now()}-${label.replace(/[^a-zA-Z0-9_-]/g, "_")}.${ext}`;
+  const { error } = await admin.storage.from("reseller-assets").upload(path, bytes, { contentType, upsert: true });
+  if (error) throw new Error(`Falha ao publicar imagem do template: ${error.message || error}`);
+  const { data } = admin.storage.from("reseller-assets").getPublicUrl(path);
+  if (!data?.publicUrl) throw new Error("Falha ao gerar URL pública da imagem do template");
+  return data.publicUrl;
+}
+
 function hasMissingTemplateScope(result: { status: number; body: unknown }) {
   const results = [result, ...(((result as { attempts?: Array<{ status: number; body: unknown }> }).attempts) || [])];
   return results.some((item) => {
@@ -131,8 +160,13 @@ async function doSendWhatsapp(payload: {
   phone: string;
   body?: string;
   name?: string;
+  channel_id?: string;
+  phone_number_id?: string;
+  from_phone_number_id?: string;
   media_url?: string;
   mediaUrl?: string;
+  media_id?: string;
+  mediaId?: string;
   media_type?: string;
   mediaType?: string;
   mime_type?: string;
@@ -148,6 +182,7 @@ async function doSendWhatsapp(payload: {
 }, apiKey?: string) {
   const final: Record<string, unknown> = { ...payload };
   if (payload.media_url && !final.mediaUrl) final.mediaUrl = payload.media_url;
+  if (payload.media_id && !final.mediaId) final.mediaId = payload.media_id;
   if (payload.media_type && !final.mediaType) final.mediaType = payload.media_type;
   if (payload.file_name && !final.fileName) final.fileName = payload.file_name;
   if (payload.mime_type && !final.mimetype) final.mimetype = payload.mime_type;
@@ -161,11 +196,17 @@ async function doSendWhatsapp(payload: {
     const components = Array.isArray(payload.components) && payload.components.length
       ? payload.components
       : (params.length ? [{ type: "body", parameters: params.map(p => ({ type: "text", text: String(p) })) }] : []);
-    const headerImageUrl = imageHeaderFromComponents(components);
+    const rawHeaderImageUrl = imageHeaderFromComponents(components);
+    const headerImageUrl = rawHeaderImageUrl ? await ensurePublicMediaUrl(rawHeaderImageUrl, String(payload.template_name)) : undefined;
     const officialPayload: Record<string, unknown> = {
       phone: payload.phone,
       to: payload.phone,
       name: payload.name,
+      channel_id: payload.channel_id,
+      channelId: payload.channel_id,
+      phone_number_id: payload.phone_number_id || payload.from_phone_number_id,
+      phoneNumberId: payload.phone_number_id || payload.from_phone_number_id,
+      from_phone_number_id: payload.from_phone_number_id || payload.phone_number_id,
       template_name: payload.template_name,
       templateName: payload.template_name,
       template_language: lang,
@@ -178,6 +219,11 @@ async function doSendWhatsapp(payload: {
       phone: payload.phone,
       to: payload.phone,
       name: payload.name,
+      channel_id: payload.channel_id,
+      channelId: payload.channel_id,
+      phone_number_id: payload.phone_number_id || payload.from_phone_number_id,
+      phoneNumberId: payload.phone_number_id || payload.from_phone_number_id,
+      from_phone_number_id: payload.from_phone_number_id || payload.phone_number_id,
       body: fallbackBody || payload.template_name,
       template_name: payload.template_name,
       templateName: payload.template_name,
@@ -194,6 +240,11 @@ async function doSendWhatsapp(payload: {
       phone: payload.phone,
       to: payload.phone,
       name: payload.name,
+      channel_id: payload.channel_id,
+      channelId: payload.channel_id,
+      phone_number_id: payload.phone_number_id || payload.from_phone_number_id,
+      phoneNumberId: payload.phone_number_id || payload.from_phone_number_id,
+      from_phone_number_id: payload.from_phone_number_id || payload.phone_number_id,
       body: fallbackBody || payload.template_name,
       template_name: payload.template_name,
       language: lang,
@@ -332,10 +383,10 @@ Deno.serve(async (req) => {
     }
 
     if (action === "send-whatsapp") {
-      const { phone, body, name, media_url, media_type, mime_type, caption, file_name, template_name, template_language, template_params, components } = data as { phone: string; body?: string; name?: string; media_url?: string; media_type?: string; mime_type?: string; caption?: string; file_name?: string; template_name?: string; template_language?: string; template_params?: unknown[]; components?: unknown[] };
+      const { phone, body, name, channel_id, phone_number_id, media_url, media_id, media_type, mime_type, caption, file_name, template_name, template_language, template_params, components } = data as { phone: string; body?: string; name?: string; channel_id?: string; phone_number_id?: string; media_url?: string; media_id?: string; media_type?: string; mime_type?: string; caption?: string; file_name?: string; template_name?: string; template_language?: string; template_params?: unknown[]; components?: unknown[] };
       if (!phone) throw new Error("phone é obrigatório");
-      if (!body && !media_url && !template_name) throw new Error("body, media_url ou template_name é obrigatório");
-      results.send = await doSendWhatsapp({ phone, body, name, media_url, media_type, mime_type, caption, file_name, template_name, template_language, template_params, components }, apiKey);
+      if (!body && !media_url && !media_id && !template_name) throw new Error("body, media_url, media_id ou template_name é obrigatório");
+      results.send = await doSendWhatsapp({ phone, body, name, channel_id, phone_number_id, from_phone_number_id: phone_number_id, media_url, media_id, media_type, mime_type, caption, file_name, template_name, template_language, template_params, components }, apiKey);
     }
 
     if (action === "mark-read") {
@@ -368,8 +419,8 @@ Deno.serve(async (req) => {
     }
 
     if (action === "get-media") {
-      const { path, media_url } = data as { path?: string; media_url?: string };
-      const target = path || media_url;
+      const { path, media_url, media_id } = data as { path?: string; media_url?: string; media_id?: string };
+      const target = pickString(media_id, path, media_url);
       if (!target) throw new Error("path é obrigatório");
       const isAbsolute = /^https?:\/\//i.test(target);
       let r: Response | null = null;
@@ -381,18 +432,27 @@ Deno.serve(async (req) => {
       if (!r?.ok) {
         const attempts: string[] = [];
         for (const key of authKeys(apiKey)) {
-          r = await fetch(`${CRM_BASE}/api/public/v1/media?id=${encodeURIComponent(target)}&redirect=1`, {
-            headers: { Authorization: `Bearer ${key}` },
-          });
-          if (!r.ok) {
-            r = await fetch(`${CRM_BASE}/api/public/v1/media?path=${encodeURIComponent(target)}&redirect=1`, {
+          const candidates = [
+            media_id ? { param: "id", value: media_id } : null,
+            /^\d+$/.test(target) ? { param: "id", value: target } : null,
+            { param: "path", value: target },
+            media_url ? { param: "media_url", value: media_url } : null,
+          ].filter(Boolean) as Array<{ param: string; value: string }>;
+
+          for (const candidate of candidates) {
+            r = await fetch(`${CRM_BASE}/api/public/v1/media?${candidate.param}=${encodeURIComponent(candidate.value)}&redirect=1`, {
               headers: { Authorization: `Bearer ${key}` },
             });
+            if (r.ok) break;
+            const txt = await r.clone().text().catch(() => "");
+            attempts.push(`${candidate.param} ${r.status}: ${txt.slice(0, 200)}`);
           }
           if (r.ok) break;
-          attempts.push(`media ${r.status}: ${(await r.clone().text()).slice(0, 200)}`);
         }
-        if (!r?.ok && attempts.length) throw new Error(attempts[attempts.length - 1]);
+        if (!r?.ok && attempts.length) {
+          const useful = attempts.find((item) => !item.includes("id query param is required")) || attempts[attempts.length - 1];
+          throw new Error(useful);
+        }
       }
 
       if (!r) throw new Error("Não foi possível baixar a mídia");
