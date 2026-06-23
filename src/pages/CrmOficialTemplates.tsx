@@ -332,12 +332,21 @@ export default function CrmOficialTemplates() {
               <div className="text-center py-12 text-muted-foreground text-sm">Nenhum template encontrado.</div>
             ) : (
               <div className="grid lg:grid-cols-2 gap-4">
-                {filtered.map(t => (
+                {filtered.map(t => {
+                  const headerImg = (() => {
+                    const h: any = t.components.find(c => c.type === 'HEADER' && (c as any).format === 'IMAGE');
+                    return h?.example?.header_handle?.[0] || h?.example?.header_url?.[0] || null;
+                  })();
+                  return (
                   <div key={t.id} className="rounded-2xl border border-border/60 bg-card/60 overflow-hidden flex min-h-[210px]">
-                    <div className="w-36 bg-emerald-500/10 border-r border-border/50 p-4 flex flex-col items-center justify-center gap-3 text-center">
+                    <div className="w-36 bg-emerald-500/10 border-r border-border/50 p-3 flex flex-col items-center justify-center gap-2 text-center">
                       <Badge variant="outline" className={cn('text-[10px]', statusClass[t.status] || '')}>{t.status}</Badge>
-                      <div className="w-14 h-14 rounded-2xl border border-emerald-500/30 bg-emerald-500/15 flex items-center justify-center"><FileText className="w-7 h-7 text-emerald-400" /></div>
-                      <p className="text-xs font-semibold">{t.components.some(c => c.type === 'HEADER' && c.format !== 'TEXT') ? 'Com mídia' : 'Sem mídia'}</p>
+                      {headerImg ? (
+                        <img src={headerImg} alt={t.name} className="w-24 h-24 rounded-lg object-cover border border-emerald-500/30" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                      ) : (
+                        <div className="w-14 h-14 rounded-2xl border border-emerald-500/30 bg-emerald-500/15 flex items-center justify-center"><FileText className="w-7 h-7 text-emerald-400" /></div>
+                      )}
+                      <p className="text-xs font-semibold">{headerImg ? 'Com mídia' : 'Sem mídia'}</p>
                       <p className="text-[10px] text-muted-foreground">{t.language}</p>
                     </div>
                     <div className="flex-1 p-4 min-w-0 flex flex-col">
@@ -356,7 +365,8 @@ export default function CrmOficialTemplates() {
                       <Button size="sm" className="mt-3 self-end" onClick={() => openSend(t)} disabled={t.status !== 'APPROVED'}><Send className="w-3.5 h-3.5 mr-1" /> Enviar</Button>
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </CardContent>
