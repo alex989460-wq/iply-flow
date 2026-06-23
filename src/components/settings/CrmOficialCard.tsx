@@ -249,6 +249,12 @@ export default function CrmOficialCard() {
               Abrir Chat
             </Link>
           </Button>
+          <Button variant="ghost" asChild>
+            <Link to="/crm-oficial-channels">
+              <Zap className="w-4 h-4 mr-2" />
+              Gerenciar Canais
+            </Link>
+          </Button>
 
           <Button variant="outline" onClick={testConnection} disabled={testing || !settings.api_key}>
             {testing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <CheckCircle2 className="w-4 h-4 mr-2" />}

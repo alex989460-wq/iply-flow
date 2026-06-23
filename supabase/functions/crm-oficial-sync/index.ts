@@ -11,7 +11,7 @@ const corsHeaders = {
 
 const CRM_BASE = "https://crmapioficial.lovable.app";
 
-type Action = "signup" | "test-chat" | "renew-notify" | "ping" | "list-conversations" | "list-messages" | "send-whatsapp" | "list-contacts";
+type Action = "signup" | "test-chat" | "renew-notify" | "ping" | "list-conversations" | "list-messages" | "send-whatsapp" | "list-contacts" | "list-channels" | "create-channel";
 
 async function crmFetch(path: string, init: RequestInit & { withAuth?: boolean; apiKey?: string } = {}) {
   const apiKey = init.apiKey || Deno.env.get("CRM_OFICIAL_API_KEY") || "";
@@ -141,6 +141,20 @@ Deno.serve(async (req) => {
     if (action === "list-contacts") {
       const { limit } = data as { limit?: number };
       results.contacts = await doListContacts(typeof limit === "number" ? limit : 100, apiKey);
+    }
+
+    if (action === "list-channels") {
+      results.channels = await crmFetch("/api/public/v1/channels", { method: "GET", apiKey });
+    }
+
+    if (action === "create-channel") {
+      const payload = (data?.channel as Record<string, unknown>) || {};
+      if (!payload.kind) throw new Error("kind é obrigatório (whatsapp_cloud | webchat)");
+      results.channel = await crmFetch("/api/public/v1/channels", {
+        method: "POST",
+        body: JSON.stringify(payload),
+        apiKey,
+      });
     }
 
 
