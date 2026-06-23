@@ -20,10 +20,13 @@ interface WhatsAppChannel {
   kind: 'whatsapp_cloud';
   name?: string;
   phone_number?: string;
+  display_phone_number?: string;
+  verified_name?: string;
   phone_number_id?: string;
   waba_id?: string;
   quality_rating?: string;
   is_active?: boolean;
+  primary?: boolean;
   is_primary?: boolean;
   avatar_url?: string | null;
 }
@@ -214,30 +217,33 @@ export default function CrmOficialChannels() {
                 <div className="flex items-center gap-3 min-w-0">
                   <div className="relative shrink-0">
                     {ch.avatar_url ? (
-                      <img src={ch.avatar_url} alt={ch.name || 'WhatsApp'} className="w-12 h-12 rounded-full object-cover" />
+                      <img src={ch.avatar_url} alt={ch.verified_name || ch.name || 'WhatsApp'} className="w-12 h-12 rounded-full object-cover" />
                     ) : (
-                      <div className="w-12 h-12 rounded-full bg-gradient-to-br from-emerald-500/30 to-emerald-600/40 flex items-center justify-center text-emerald-300 font-bold">
-                        {(ch.name || 'W').slice(0, 1).toUpperCase()}
+                      <div className="w-12 h-12 rounded-full bg-gradient-to-br from-emerald-500/30 to-emerald-600/40 flex items-center justify-center text-emerald-300 font-bold text-lg">
+                        {(ch.verified_name || ch.name || 'W').slice(0, 1).toUpperCase()}
                       </div>
                     )}
+                    <span className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-emerald-500 border-2 border-card flex items-center justify-center">
+                      <Zap className="w-2 h-2 text-white" />
+                    </span>
                   </div>
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <h3 className="font-semibold truncate">{ch.name || 'WhatsApp'}</h3>
-                      {ch.is_primary && (
+                      <h3 className="font-semibold truncate">{ch.verified_name || ch.name || 'WhatsApp'}</h3>
+                      {(ch.is_primary || ch.primary) && (
                         <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-400">
                           <Star className="w-2.5 h-2.5 fill-amber-400" /> Principal
                         </span>
                       )}
                     </div>
-                    <p className="text-xs text-muted-foreground truncate">{ch.phone_number || '—'}</p>
+                    <p className="text-xs text-emerald-400 font-mono truncate">{ch.display_phone_number || ch.phone_number || '—'}</p>
                   </div>
                 </div>
                 <span className={cn(
                   'text-xs font-medium flex items-center gap-1.5 shrink-0',
                   ch.is_active ? 'text-emerald-400' : 'text-muted-foreground'
                 )}>
-                  <span className={cn('w-1.5 h-1.5 rounded-full', ch.is_active ? 'bg-emerald-400' : 'bg-muted-foreground')} />
+                  <span className={cn('w-1.5 h-1.5 rounded-full', ch.is_active ? 'bg-emerald-400 animate-pulse' : 'bg-muted-foreground')} />
                   {ch.is_active ? 'Conectado' : 'Inativo'}
                 </span>
               </div>
