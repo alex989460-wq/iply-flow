@@ -323,7 +323,7 @@ export function CrmOficialBillingScheduleCard() {
         })}
 
         <p className="text-xs text-muted-foreground">
-          Texto livre: <code>{'{{nome}}'}</code>, <code>{'{{vencimento}}'}</code>, <code>{'{{valor}}'}</code>, <code>{'{{usuario}}'}</code>, <code>{'{{plano}}'}</code>. Templates CRM Oficial seguem os parâmetros aprovados pela Meta.
+          Os templates seguem os parâmetros aprovados pela Meta. Variáveis disponíveis nos parâmetros: <code>{'{{nome}}'}</code>, <code>{'{{vencimento}}'}</code>, <code>{'{{valor}}'}</code>, <code>{'{{usuario}}'}</code>, <code>{'{{plano}}'}</code>.
         </p>
 
         {schedule?.last_run_at && (
