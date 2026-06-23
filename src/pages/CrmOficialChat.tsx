@@ -18,10 +18,10 @@ export default function CrmOficialChat() {
       if (!user) { setLoading(false); return; }
       const { data } = await supabase
         .from("crm_oficial_settings")
-        .select("api_key, enabled")
+        .select("api_key")
         .eq("user_id", user.id)
         .maybeSingle();
-      if (data?.enabled && data.api_key) setApiKey(data.api_key);
+      if (data?.api_key) setApiKey(data.api_key);
       setLoading(false);
     })();
   }, []);
