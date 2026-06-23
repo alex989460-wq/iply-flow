@@ -67,23 +67,28 @@ Deno.serve(async (req) => {
     const { action, data } = (await req.json()) as { action: Action; data: Record<string, unknown> };
     if (!action) throw new Error("action é obrigatório");
 
+    const apiKey = (data?.apiKey as string | undefined) || undefined;
     const results: Record<string, unknown> = {};
+
+    if (action === "ping") {
+      results.ping = await doPing(apiKey);
+    }
 
     if (action === "signup") {
       const { email, password, full_name } = data as { email: string; password: string; full_name?: string };
       if (!email || !password) throw new Error("email e password são obrigatórios");
-      results.signup = await doSignup({ email, password, full_name });
+      results.signup = await doSignup({ email, password, full_name }, apiKey);
     }
 
     if (action === "test-chat") {
       const { name, phone, email } = data as { name: string; phone: string; email?: string };
       if (!phone || !name) throw new Error("name e phone são obrigatórios");
-      results.contact = await doContact({ name, phone, email, stage: "new", notes: "Canal criado automaticamente pelo SuperGestor" });
+      results.contact = await doContact({ name, phone, email, stage: "new", notes: "Canal criado automaticamente pelo SuperGestor" }, apiKey);
       results.message = await doMessage({
         phone,
         name,
         body: `👋 Olá ${name}! Esta é uma conversa de teste criada automaticamente pelo SuperGestor. Seu canal está pronto para uso.`,
-      });
+      }, apiKey);
     }
 
     if (action === "renew-notify") {
@@ -94,8 +99,9 @@ Deno.serve(async (req) => {
         phone,
         name,
         body: `✅ Renovação confirmada${months ? ` (${months} mês${months > 1 ? "es" : ""})` : ""}. Nova validade: ${exp}.`,
-      });
+      }, apiKey);
     }
+
 
     return new Response(JSON.stringify({ success: true, action, results }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
