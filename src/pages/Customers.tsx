@@ -3339,7 +3339,7 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
                   (billingChannel === 'evolution'
                     ? !billingSettings?.evolution_instance
                     : billingChannel === 'crm'
-                      ? !selectedCrmTemplate
+                      ? !selectedCrmTemplate || !primaryCrmChannel
                       : !selectedTemplate)
                 }
               >
