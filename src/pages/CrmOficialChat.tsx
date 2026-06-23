@@ -566,8 +566,8 @@ export default function CrmOficialChat() {
     let arr = conversations;
     if (selectedChannel !== 'all') {
       const ch = channels.find(c => c.id === selectedChannel);
-      if (ch?.kind === 'webchat') arr = arr.filter(c => c.channel === 'webchat');
-      else if (ch?.kind === 'whatsapp_cloud') arr = arr.filter(c => c.channel === 'whatsapp');
+      if (String(ch?.kind || '').includes('webchat')) arr = arr.filter(c => c.channel === 'webchat');
+      else if (String(ch?.kind || '').includes('whatsapp')) arr = arr.filter(c => c.channel === 'whatsapp');
     }
     if (filter === 'unread') arr = arr.filter(c => (c.unread_count ?? 0) > 0);
     else if (filter === 'whatsapp') arr = arr.filter(c => c.channel === 'whatsapp');
