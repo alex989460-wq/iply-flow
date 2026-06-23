@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
-import { AlertCircle, CheckCircle2, Eye, EyeOff, ExternalLink, Loader2, MessageCircleMore, Save, XCircle, Zap } from 'lucide-react';
+import { AlertCircle, Bot, CheckCircle2, Eye, EyeOff, ExternalLink, FileText, Loader2, MessageCircleMore, Save, XCircle, Zap } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 
@@ -253,6 +253,18 @@ export default function CrmOficialCard() {
             <Link to="/crm-oficial-channels">
               <Zap className="w-4 h-4 mr-2" />
               Gerenciar Canais
+            </Link>
+          </Button>
+          <Button variant="ghost" asChild>
+            <Link to="/crm-oficial-templates">
+              <FileText className="w-4 h-4 mr-2" />
+              Templates
+            </Link>
+          </Button>
+          <Button variant="ghost" asChild>
+            <Link to="/crm-oficial-chatbots">
+              <Bot className="w-4 h-4 mr-2" />
+              Chatbots
             </Link>
           </Button>
 

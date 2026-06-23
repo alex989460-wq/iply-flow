@@ -37,6 +37,8 @@ import EvolutionChat from "./pages/EvolutionChat";
 import EvolutionInstances from "./pages/EvolutionInstances";
 import CrmOficialChat from "./pages/CrmOficialChat";
 import CrmOficialChannels from "./pages/CrmOficialChannels";
+import CrmOficialTemplates from "./pages/CrmOficialTemplates";
+import CrmOficialChatbots from "./pages/CrmOficialChatbots";
 
 import PublicCheckout from "./pages/PublicCheckout";
 import BannerGenerator from "./pages/BannerGenerator";
@@ -117,6 +119,8 @@ function AppRoutes() {
       <Route path="/evolution-instances" element={<ProtectedRoute><EvolutionInstances /></ProtectedRoute>} />
       <Route path="/chat-crm-oficial" element={<ProtectedRoute><CrmOficialChat /></ProtectedRoute>} />
       <Route path="/crm-oficial-channels" element={<ProtectedRoute><CrmOficialChannels /></ProtectedRoute>} />
+      <Route path="/crm-oficial-templates" element={<ProtectedRoute><CrmOficialTemplates /></ProtectedRoute>} />
+      <Route path="/crm-oficial-chatbots" element={<ProtectedRoute><CrmOficialChatbots /></ProtectedRoute>} />
 
       <Route path="/banner-generator" element={<ProtectedRoute><BannerGenerator /></ProtectedRoute>} />
       <Route path="/robo" element={<ProtectedRoute><RoboFlows /></ProtectedRoute>} />
