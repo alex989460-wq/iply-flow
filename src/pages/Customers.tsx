@@ -1336,6 +1336,58 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
   const sendIndividualBilling = async () => {
     if (!sendingBillingCustomer) return;
 
+    // CRM Oficial branch
+    if (billingChannel === 'crm') {
+      if (!selectedCrmTemplate) {
+        toast({ title: 'Selecione um template', variant: 'destructive' });
+        return;
+      }
+      const [tplName, tplLang] = selectedCrmTemplate.split('|');
+      const phone = sendingBillingCustomer.phone.replace(/\D/g, '');
+      const phoneWithCode = phone.startsWith('55') ? phone : `55${phone}`;
+      const firstName = (sendingBillingCustomer.name || '').trim().split(/\s+/)[0] || sendingBillingCustomer.name || '';
+      const dueDate = sendingBillingCustomer.due_date
+        ? new Date(sendingBillingCustomer.due_date + 'T12:00:00').toLocaleDateString('pt-BR')
+        : '';
+      const rawPrice = sendingBillingCustomer.custom_price ?? sendingBillingCustomer.plans?.price ?? 0;
+      const priceFormatted = (typeof rawPrice === 'number' ? rawPrice : parseFloat(String(rawPrice).replace(',', '.')) || 0).toFixed(2).replace('.', ',');
+      // Variáveis posicionais comuns: {{1}}=nome {{2}}=vencimento {{3}}=valor {{4}}=usuario {{5}}=plano
+      const params = [firstName, dueDate, `R$ ${priceFormatted}`, sendingBillingCustomer.username || '', sendingBillingCustomer.plans?.plan_name || ''];
+      setIsSendingBilling(true);
+      try {
+        const { data, error } = await supabase.functions.invoke('crm-oficial-sync', {
+          body: {
+            action: 'send-whatsapp',
+            data: {
+              phone: phoneWithCode,
+              name: sendingBillingCustomer.name,
+              template_name: tplName,
+              template_language: tplLang || 'pt_BR',
+              template_params: params,
+            },
+          },
+        });
+        if (error) throw error;
+        if (!data?.success) throw new Error(data?.error || 'Falha ao enviar');
+        const send = data?.results?.send;
+        if (send && !send.ok) throw new Error(`Status ${send.status}: ${typeof send.body === 'string' ? send.body : JSON.stringify(send.body)}`);
+        await supabase.from('billing_logs').insert({
+          customer_id: sendingBillingCustomer.id,
+          billing_type: 'D0',
+          message: `CRM Oficial - Template "${tplName}"`,
+          whatsapp_status: 'sent',
+        });
+        toast({ title: 'Cobrança enviada!', description: `Template "${tplName}" enviado via CRM Oficial.` });
+        setIsSendBillingOpen(false);
+        setSendingBillingCustomer(null);
+      } catch (err: any) {
+        toast({ title: 'Erro ao enviar via CRM Oficial', description: err.message, variant: 'destructive' });
+      } finally {
+        setIsSendingBilling(false);
+      }
+      return;
+    }
+
     // Evolution branch
     if (useEvolutionForBilling) {
       const instance = billingSettings?.evolution_instance;
