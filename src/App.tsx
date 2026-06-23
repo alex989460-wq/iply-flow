@@ -39,6 +39,11 @@ import CrmOficialChat from "./pages/CrmOficialChat";
 import CrmOficialChannels from "./pages/CrmOficialChannels";
 import CrmOficialTemplates from "./pages/CrmOficialTemplates";
 import CrmOficialChatbots from "./pages/CrmOficialChatbots";
+import CrmOficialChatEmbed from "./pages/CrmOficialChatEmbed";
+import CrmOficialTemplatesEmbed from "./pages/CrmOficialTemplatesEmbed";
+import CrmOficialChatbotsEmbed from "./pages/CrmOficialChatbotsEmbed";
+import CrmOficialBroadcastsEmbed from "./pages/CrmOficialBroadcastsEmbed";
+import CrmOficialMediaEmbed from "./pages/CrmOficialMediaEmbed";
 
 import PublicCheckout from "./pages/PublicCheckout";
 import BannerGenerator from "./pages/BannerGenerator";
@@ -117,10 +122,17 @@ function AppRoutes() {
       <Route path="/meta-chat" element={<ProtectedRoute><MetaChat /></ProtectedRoute>} />
       <Route path="/chat-evolution" element={<ProtectedRoute><EvolutionChat /></ProtectedRoute>} />
       <Route path="/evolution-instances" element={<ProtectedRoute><EvolutionInstances /></ProtectedRoute>} />
-      <Route path="/chat-crm-oficial" element={<ProtectedRoute><CrmOficialChat /></ProtectedRoute>} />
+      <Route path="/chat-crm-oficial" element={<ProtectedRoute><CrmOficialChatEmbed /></ProtectedRoute>} />
       <Route path="/crm-oficial-channels" element={<ProtectedRoute><CrmOficialChannels /></ProtectedRoute>} />
-      <Route path="/crm-oficial-templates" element={<ProtectedRoute><CrmOficialTemplates /></ProtectedRoute>} />
-      <Route path="/crm-oficial-chatbots" element={<ProtectedRoute><CrmOficialChatbots /></ProtectedRoute>} />
+      <Route path="/crm-oficial-templates" element={<ProtectedRoute><CrmOficialTemplatesEmbed /></ProtectedRoute>} />
+      <Route path="/crm-oficial-chatbots" element={<ProtectedRoute><CrmOficialChatbotsEmbed /></ProtectedRoute>} />
+      <Route path="/crm-oficial-broadcasts" element={<ProtectedRoute><CrmOficialBroadcastsEmbed /></ProtectedRoute>} />
+      <Route path="/crm-oficial-media" element={<ProtectedRoute><CrmOficialMediaEmbed /></ProtectedRoute>} />
+      {/* Modo clássico (API direta) - mantido como fallback */}
+      <Route path="/chat-crm-oficial-classico" element={<ProtectedRoute><CrmOficialChat /></ProtectedRoute>} />
+      <Route path="/crm-oficial-templates-classico" element={<ProtectedRoute><CrmOficialTemplates /></ProtectedRoute>} />
+      <Route path="/crm-oficial-chatbots-classico" element={<ProtectedRoute><CrmOficialChatbots /></ProtectedRoute>} />
+
 
       <Route path="/banner-generator" element={<ProtectedRoute><BannerGenerator /></ProtectedRoute>} />
       <Route path="/robo" element={<ProtectedRoute><RoboFlows /></ProtectedRoute>} />

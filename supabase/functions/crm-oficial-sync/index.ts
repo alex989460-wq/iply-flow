@@ -19,7 +19,8 @@ type Action =
   | "list-contacts" | "list-channels" | "create-channel" | "get-media"
   | "upload-media"
   | "list-templates" | "create-template" | "update-template" | "delete-template"
-  | "list-chatbots" | "create-chatbot" | "update-chatbot" | "delete-chatbot";
+  | "list-chatbots" | "create-chatbot" | "update-chatbot" | "delete-chatbot"
+  | "sso-token";
 
 async function crmFetch(path: string, init: RequestInit & { withAuth?: boolean; apiKey?: string } = {}) {
   const apiKey = init.apiKey || Deno.env.get("CRM_OFICIAL_API_KEY") || "";
@@ -337,6 +338,31 @@ Deno.serve(async (req) => {
       const { chatbot_id } = data as { chatbot_id?: string };
       if (!chatbot_id) throw new Error("chatbot_id é obrigatório");
       results.chatbot = await crmFetch(`/api/public/v1/chatbots/${encodeURIComponent(chatbot_id)}`, { method: "DELETE", apiKey });
+    }
+
+    if (action === "sso-token") {
+      // Tenta diferentes endpoints conhecidos para SSO.
+      // Se nenhum existir, o cliente cai em fallback (abre o login do CRM).
+      const { redirect } = data as { redirect?: string };
+      results.sso = await firstOk(
+        authKeys(apiKey).flatMap((key) => [
+          () => crmFetch("/api/public/v1/auth/sso-token", {
+            method: "POST",
+            body: JSON.stringify({ redirect: redirect || "/dashboard" }),
+            apiKey: key,
+          }),
+          () => crmFetch("/api/public/v1/sso-token", {
+            method: "POST",
+            body: JSON.stringify({ redirect: redirect || "/dashboard" }),
+            apiKey: key,
+          }),
+          () => crmFetch("/api/public/v1/auth/exchange", {
+            method: "POST",
+            body: JSON.stringify({ redirect: redirect || "/dashboard" }),
+            apiKey: key,
+          }),
+        ]),
+      );
     }
 
 
