@@ -109,35 +109,36 @@ export default function CrmOficialTemplates() {
     setSyncing(true);
     setLoadError(null);
     try {
-      // 1) Preferir a conexão oficial Meta já usada nas Configurações/Cobranças.
-      const { data: oauthRes, error: oauthErr } = await supabase.functions.invoke('meta-oauth', {
-        body: { action: 'fetch-templates' },
-      });
-      if (!oauthErr && oauthRes && !oauthRes.error && Array.isArray(oauthRes.templates)) {
+      // 1) Fonte primária: API pública do CRM Oficial (já funciona com a chave atual).
+      if (apiKey) {
+        const r = await invoke('list-templates', { limit: 250 });
+        const result = r?.templates;
+        if (result?.ok) {
+          setTemplates(normalizeTemplates(result.body));
+          return;
+        }
+        // Se 403/escopo, segue para fallback Meta; senão lança.
+        if (result && result.status !== 403) {
+          const detail = typeof result.body === 'string' ? result.body : JSON.stringify(result.body).slice(0, 180);
+          throw new Error(`CRM Oficial ${result.status}: ${detail}`);
+        }
+      }
+
+      // 2) Fallback: Meta OAuth direto.
+      const { data: oauthRes } = await supabase.functions.invoke('meta-oauth', { body: { action: 'fetch-templates' } });
+      if (oauthRes && !oauthRes.error && Array.isArray(oauthRes.templates)) {
         setTemplates(normalizeTemplates(oauthRes.templates));
         return;
       }
 
-      // 2) Fallback Meta Graph API dedicado.
-      const { data: metaRes, error: metaErr } = await supabase.functions.invoke('meta-templates', {
-        body: { action: 'list', limit: 250 },
-      });
-      if (!metaErr && metaRes && !metaRes.error && Array.isArray(metaRes.data)) {
+      // 3) Fallback: meta-templates dedicado.
+      const { data: metaRes } = await supabase.functions.invoke('meta-templates', { body: { action: 'list', limit: 250 } });
+      if (metaRes && !metaRes.error && Array.isArray(metaRes.data)) {
         setTemplates(normalizeTemplates(metaRes));
         return;
       }
 
-      // 3) Fallback: API pública do CRM Oficial (requer scope templates:read)
-      if (!apiKey) {
-        throw new Error(oauthRes?.error || metaRes?.error || oauthErr?.message || metaErr?.message || 'Meta Cloud API não configurada.');
-      }
-      const r = await invoke('list-templates', { limit: 250 });
-      const result = r?.templates;
-      if (result && !result.ok) {
-        const detail = typeof result.body === 'string' ? result.body : JSON.stringify(result.body).slice(0, 180);
-        throw new Error(`CRM Oficial ${result.status}: ${detail}`);
-      }
-      setTemplates(normalizeTemplates(result?.body));
+      throw new Error(oauthRes?.error || metaRes?.error || 'Nenhuma fonte de templates disponível.');
     } catch (e: any) {
       setLoadError(e.message);
       toast({ title: 'Erro ao carregar templates', description: e.message, variant: 'destructive' });
@@ -331,12 +332,21 @@ export default function CrmOficialTemplates() {
               <div className="text-center py-12 text-muted-foreground text-sm">Nenhum template encontrado.</div>
             ) : (
               <div className="grid lg:grid-cols-2 gap-4">
-                {filtered.map(t => (
+                {filtered.map(t => {
+                  const headerImg = (() => {
+                    const h: any = t.components.find(c => c.type === 'HEADER' && (c as any).format === 'IMAGE');
+                    return h?.example?.header_handle?.[0] || h?.example?.header_url?.[0] || null;
+                  })();
+                  return (
                   <div key={t.id} className="rounded-2xl border border-border/60 bg-card/60 overflow-hidden flex min-h-[210px]">
-                    <div className="w-36 bg-emerald-500/10 border-r border-border/50 p-4 flex flex-col items-center justify-center gap-3 text-center">
+                    <div className="w-36 bg-emerald-500/10 border-r border-border/50 p-3 flex flex-col items-center justify-center gap-2 text-center">
                       <Badge variant="outline" className={cn('text-[10px]', statusClass[t.status] || '')}>{t.status}</Badge>
-                      <div className="w-14 h-14 rounded-2xl border border-emerald-500/30 bg-emerald-500/15 flex items-center justify-center"><FileText className="w-7 h-7 text-emerald-400" /></div>
-                      <p className="text-xs font-semibold">{t.components.some(c => c.type === 'HEADER' && c.format !== 'TEXT') ? 'Com mídia' : 'Sem mídia'}</p>
+                      {headerImg ? (
+                        <img src={headerImg} alt={t.name} className="w-24 h-24 rounded-lg object-cover border border-emerald-500/30" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                      ) : (
+                        <div className="w-14 h-14 rounded-2xl border border-emerald-500/30 bg-emerald-500/15 flex items-center justify-center"><FileText className="w-7 h-7 text-emerald-400" /></div>
+                      )}
+                      <p className="text-xs font-semibold">{headerImg ? 'Com mídia' : 'Sem mídia'}</p>
                       <p className="text-[10px] text-muted-foreground">{t.language}</p>
                     </div>
                     <div className="flex-1 p-4 min-w-0 flex flex-col">
@@ -355,7 +365,8 @@ export default function CrmOficialTemplates() {
                       <Button size="sm" className="mt-3 self-end" onClick={() => openSend(t)} disabled={t.status !== 'APPROVED'}><Send className="w-3.5 h-3.5 mr-1" /> Enviar</Button>
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </CardContent>

@@ -285,56 +285,45 @@ export function CrmOficialBillingScheduleCard() {
           const composite = row.tpl;
           const tpl = templates?.find(t => `${t.name}|${t.language}` === composite);
           const bodyText = tpl?.components?.find(c => c.type === 'BODY')?.text;
+          const headerImg = (() => {
+            const h: any = tpl?.components?.find(c => c.type === 'HEADER' && (c as any).format === 'IMAGE');
+            return h?.example?.header_handle?.[0] || h?.example?.header_url?.[0] || null;
+          })();
           return (
             <div key={row.key} className="rounded-lg border border-border/60 p-3 space-y-2">
               <div className="flex items-center justify-between">
                 <Label className="font-medium">{row.label}</Label>
                 <Switch checked={row.on} onCheckedChange={(v) => { row.setOn(v); setChanged(true); }} />
               </div>
-              <Tabs defaultValue={composite ? 'template' : 'text'} className="w-full">
-                <TabsList className="grid grid-cols-2 h-8">
-                  <TabsTrigger value="text" className="text-xs">Texto livre</TabsTrigger>
-                  <TabsTrigger value="template" className="text-xs">Template Meta</TabsTrigger>
-                </TabsList>
-                <TabsContent value="text" className="mt-2">
-                  <Textarea
-                    value={row.msg}
-                    onChange={(e) => { row.setMsg(e.target.value); setChanged(true); }}
-                    rows={2}
-                    className="text-sm"
-                    placeholder="Use {{nome}}, {{vencimento}}, {{valor}}, {{usuario}}..."
-                    disabled={!row.on}
-                  />
-                </TabsContent>
-                <TabsContent value="template" className="mt-2 space-y-2">
-                  <Select value={composite} onValueChange={(v) => { row.setTpl(v); setChanged(true); }} disabled={!row.on}>
-                    <SelectTrigger><SelectValue placeholder="Selecione um template aprovado…" /></SelectTrigger>
-                    <SelectContent>
-                      {(templates || []).map(t => (
-                        <SelectItem key={`${t.name}|${t.language}`} value={`${t.name}|${t.language}`}>
-                          {t.name} <span className="text-[10px] text-muted-foreground ml-1">({t.language})</span>
-                        </SelectItem>
-                      ))}
-                      {(!templates || templates.length === 0) && (
-                        <div className="px-2 py-3 text-xs text-muted-foreground">
-                          Nenhum template aprovado encontrado. <Link to="/crm-oficial-templates" className="text-emerald-500 inline-flex items-center gap-1">Abrir biblioteca <ExternalLink className="w-3 h-3" /></Link>
-                        </div>
-                      )}
-                    </SelectContent>
-                  </Select>
-                  {bodyText && (
-                    <div className="rounded border border-emerald-500/20 bg-emerald-500/5 p-2 text-xs whitespace-pre-wrap text-muted-foreground">
-                      {bodyText}
+              <Select value={composite} onValueChange={(v) => { row.setTpl(v); setChanged(true); }} disabled={!row.on}>
+                <SelectTrigger><SelectValue placeholder="Selecione um template aprovado…" /></SelectTrigger>
+                <SelectContent>
+                  {(templates || []).map(t => (
+                    <SelectItem key={`${t.name}|${t.language}`} value={`${t.name}|${t.language}`}>
+                      {t.name} <span className="text-[10px] text-muted-foreground ml-1">({t.language})</span>
+                    </SelectItem>
+                  ))}
+                  {(!templates || templates.length === 0) && (
+                    <div className="px-2 py-3 text-xs text-muted-foreground">
+                      Nenhum template aprovado encontrado. <Link to="/crm-oficial-templates" className="text-emerald-500 inline-flex items-center gap-1">Abrir biblioteca <ExternalLink className="w-3 h-3" /></Link>
                     </div>
                   )}
-                </TabsContent>
-              </Tabs>
+                </SelectContent>
+              </Select>
+              {(headerImg || bodyText) && (
+                <div className="rounded border border-emerald-500/20 bg-emerald-500/5 p-2 text-xs space-y-2">
+                  {headerImg && (
+                    <img src={headerImg} alt={tpl?.name} className="w-full max-h-40 object-cover rounded" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                  )}
+                  {bodyText && <div className="whitespace-pre-wrap text-muted-foreground">{bodyText}</div>}
+                </div>
+              )}
             </div>
           );
         })}
 
         <p className="text-xs text-muted-foreground">
-          Texto livre: <code>{'{{nome}}'}</code>, <code>{'{{vencimento}}'}</code>, <code>{'{{valor}}'}</code>, <code>{'{{usuario}}'}</code>, <code>{'{{plano}}'}</code>. Templates CRM Oficial seguem os parâmetros aprovados pela Meta.
+          Os templates seguem os parâmetros aprovados pela Meta. Variáveis disponíveis nos parâmetros: <code>{'{{nome}}'}</code>, <code>{'{{vencimento}}'}</code>, <code>{'{{valor}}'}</code>, <code>{'{{usuario}}'}</code>, <code>{'{{plano}}'}</code>.
         </p>
 
         {schedule?.last_run_at && (
