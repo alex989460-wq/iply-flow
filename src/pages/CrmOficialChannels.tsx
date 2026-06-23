@@ -46,6 +46,44 @@ function qualityClass(q?: string) {
   return 'text-muted-foreground';
 }
 
+function pickString(...values: unknown[]) {
+  for (const value of values) {
+    if (typeof value === 'string' && value.trim()) return value.trim();
+  }
+  return '';
+}
+
+function normalizeChannelLists(body: any) {
+  const fromChannels = Array.isArray(body?.channels) ? body.channels : [];
+  const whats = fromChannels.length
+    ? fromChannels.filter((c: any) => String(c.kind || c.type || 'whatsapp_cloud').toLowerCase().includes('whatsapp') || c.primary || c.phone_number_id)
+    : Array.isArray(body?.whatsapp)
+      ? body.whatsapp
+      : body?.whatsapp
+        ? [body.whatsapp]
+        : [];
+  const webRaw = fromChannels.length
+    ? fromChannels.filter((c: any) => String(c.kind || c.type || '').toLowerCase().includes('webchat') || c.widget_key)
+    : Array.isArray(body?.webchat)
+      ? body.webchat
+      : body?.webchat
+        ? [body.webchat]
+        : [];
+  const whatsapp = whats.map((c: any, index: number) => ({
+    ...c,
+    id: String(c.id || (c.primary ? 'primary' : '') || c.phone_number_id || `whatsapp-${index}`),
+    kind: 'whatsapp_cloud' as const,
+    name: pickString(c.name, c.title, c.verified_name, c.display_name),
+    verified_name: pickString(c.verified_name, c.verifiedName, c.business_name, c.name),
+    display_phone_number: pickString(c.display_phone_number, c.displayPhoneNumber, c.phone_display),
+    phone_number: pickString(c.phone_number, c.phone, c.number),
+    avatar_url: pickString(c.avatar_url, c.profile_pic_url, c.profile_picture_url, c.picture),
+    primary: !!(c.primary || c.is_primary || c.id === 'primary'),
+    is_active: Boolean(c.is_active ?? c.active ?? c.connected ?? c.primary),
+  })) as WhatsAppChannel[];
+  return { whatsapp: whatsapp.sort((a, b) => Number(!!b.primary || !!b.is_primary) - Number(!!a.primary || !!a.is_primary)), webchat: webRaw[0] || null };
+}
+
 export default function CrmOficialChannels() {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -85,8 +123,9 @@ export default function CrmOficialChannels() {
       if (error) throw error;
       const body = data?.results?.channels?.body;
       if (data?.results?.channels?.ok && body) {
-        setWhatsapp(Array.isArray(body.whatsapp) ? body.whatsapp : []);
-        setWebchat(body.webchat || null);
+        const normalized = normalizeChannelLists(body);
+        setWhatsapp(normalized.whatsapp);
+        setWebchat(normalized.webchat);
       } else {
         toast({
           title: 'Não foi possível listar canais',
