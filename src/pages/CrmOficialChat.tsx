@@ -685,29 +685,44 @@ export default function CrmOficialChat() {
                   {loadingMsgs && messages.length === 0 && (
                     <div className="flex justify-center p-6"><Loader2 className="w-5 h-5 animate-spin text-primary" /></div>
                   )}
-                  {messages.map(m => (
-                    <div key={m.id} className={cn('flex', m.direction === 'out' ? 'justify-end' : 'justify-start')}>
-                      <div
-                        className={cn(
-                          'max-w-[75%] rounded-2xl px-3 py-2 text-sm shadow-sm break-words whitespace-pre-wrap',
-                          m.direction === 'out'
-                            ? 'bg-emerald-500 text-white rounded-br-md'
-                            : 'bg-card text-foreground border border-border/60 rounded-bl-md'
-                        )}
-                      >
-                        {renderMedia(m)}
-                        {m.body}
-                        {m.created_at && (
-                          <div className={cn(
-                            'text-[10px] mt-1 text-right',
-                            m.direction === 'out' ? 'text-white/70' : 'text-muted-foreground'
-                          )}>
-                            {new Date(m.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-                          </div>
-                        )}
+                  {messages.map(m => {
+                    const status = (m.status || '').toLowerCase();
+                    const isRead = ['read','seen','visualizado'].includes(status);
+                    const isDelivered = ['delivered','entregue'].includes(status);
+                    const isSent = ['sent','enviado'].includes(status) || (!status && m.direction === 'out');
+                    return (
+                      <div key={m.id} className={cn('flex', m.direction === 'out' ? 'justify-end' : 'justify-start')}>
+                        <div
+                          className={cn(
+                            'max-w-[75%] rounded-2xl px-3 py-2 text-sm shadow-sm break-words whitespace-pre-wrap',
+                            m.direction === 'out'
+                              ? 'bg-emerald-500 text-white rounded-br-md'
+                              : 'bg-card text-foreground border border-border/60 rounded-bl-md'
+                          )}
+                        >
+                          {renderMedia(m)}
+                          {m.body}
+                          {m.created_at && (
+                            <div className={cn(
+                              'text-[10px] mt-1 flex items-center gap-1 justify-end',
+                              m.direction === 'out' ? 'text-white/80' : 'text-muted-foreground'
+                            )}>
+                              <span>{new Date(m.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
+                              {m.direction === 'out' && (
+                                isRead
+                                  ? <CheckCheck className="w-3.5 h-3.5 text-sky-200" />
+                                  : isDelivered
+                                    ? <CheckCheck className="w-3.5 h-3.5" />
+                                    : isSent
+                                      ? <Check className="w-3.5 h-3.5" />
+                                      : null
+                              )}
+                            </div>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </ScrollArea>
 
@@ -725,42 +740,65 @@ export default function CrmOficialChat() {
                 ))}
               </div>
 
-              <div className="p-3 border-t border-border flex items-center gap-2 bg-card/30">
+              <div className="p-3 border-t border-border flex items-center gap-1.5 bg-card/30">
                 <input ref={fileRef} type="file" hidden onChange={handleFileSelect}
                   accept="image/*,video/*,audio/*,application/pdf,.doc,.docx,.xls,.xlsx,.csv,.zip" />
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button size="icon" variant="ghost" className="h-9 w-9 shrink-0" disabled={uploading || sending} title="Anexar">
-                      {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Paperclip className="w-4 h-4" />}
+
+                <Button size="icon" variant="ghost" className="h-9 w-9 shrink-0 text-muted-foreground hover:text-emerald-500" title="Emoji"
+                  onClick={() => setInput(v => v + '😊')}>
+                  <Smile className="w-4 h-4" />
+                </Button>
+
+                <Button size="icon" variant="ghost" className="h-9 w-9 shrink-0 text-muted-foreground hover:text-emerald-500" title="Documento"
+                  onClick={() => { if (fileRef.current) { fileRef.current.accept = '.pdf,.doc,.docx,.xls,.xlsx,.csv,.zip,.txt'; fileRef.current.click(); } }}>
+                  <FileText className="w-4 h-4" />
+                </Button>
+
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button size="icon" variant="ghost" className="h-9 w-9 shrink-0 text-muted-foreground hover:text-emerald-500" title="Respostas rápidas">
+                      <Zap className="w-4 h-4" />
                     </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="start" className="w-48">
-                    <DropdownMenuItem onClick={() => { if (fileRef.current) { fileRef.current.accept = 'image/*'; fileRef.current.click(); } }}>
-                      <ImageIcon className="w-4 h-4 mr-2" /> Imagem
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => { if (fileRef.current) { fileRef.current.accept = 'video/*'; fileRef.current.click(); } }}>
-                      <Video className="w-4 h-4 mr-2" /> Vídeo
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => { if (fileRef.current) { fileRef.current.accept = 'audio/*'; fileRef.current.click(); } }}>
-                      <Mic className="w-4 h-4 mr-2" /> Áudio
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => { if (fileRef.current) { fileRef.current.accept = '*/*'; fileRef.current.click(); } }}>
-                      <FileText className="w-4 h-4 mr-2" /> Documento
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-                <Button size="icon" variant="ghost" className="h-9 w-9 shrink-0"><Smile className="w-4 h-4" /></Button>
+                  </PopoverTrigger>
+                  <PopoverContent align="start" className="w-64 p-2">
+                    <div className="text-[10px] uppercase text-muted-foreground mb-1 px-2">Respostas rápidas</div>
+                    <div className="flex flex-wrap gap-1">
+                      {QUICK_REPLIES.map(q => (
+                        <button key={q} onClick={() => sendMessage(q)} className="text-xs px-2 py-1 rounded-md bg-muted hover:bg-emerald-500/15 hover:text-emerald-500 transition">
+                          {q}
+                        </button>
+                      ))}
+                    </div>
+                  </PopoverContent>
+                </Popover>
+
+                <Button size="icon" variant="ghost" className="h-9 w-9 shrink-0 text-muted-foreground hover:text-emerald-500" title="Imagem"
+                  onClick={() => { if (fileRef.current) { fileRef.current.accept = 'image/*,video/*'; fileRef.current.click(); } }}>
+                  <ImageIcon className="w-4 h-4" />
+                </Button>
+
+                <Button size="icon" variant="ghost" className="h-9 w-9 shrink-0 text-muted-foreground hover:text-emerald-500" title="Anexar arquivo"
+                  disabled={uploading}
+                  onClick={() => { if (fileRef.current) { fileRef.current.accept = '*/*'; fileRef.current.click(); } }}>
+                  {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Paperclip className="w-4 h-4" />}
+                </Button>
+
                 <Input
                   ref={inputRef}
                   value={input}
                   onChange={e => setInput(e.target.value)}
                   onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
-                  placeholder="Digite uma mensagem ou anexe um arquivo..."
-                  className="rounded-full bg-background"
+                  placeholder="Digite uma mensagem..."
+                  className="rounded-full bg-background flex-1"
                   disabled={sending}
                 />
-                <Button onClick={() => sendMessage()} disabled={sending || !input.trim()} className="rounded-full h-10 w-10 p-0 bg-emerald-500 hover:bg-emerald-600 shrink-0">
-                  {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                <Button
+                  onClick={() => input.trim() ? sendMessage() : toast({ title: 'Áudio em breve', description: 'Gravação de áudio será habilitada quando a API expor /media upload.' })}
+                  disabled={sending}
+                  className="rounded-full h-10 w-10 p-0 bg-emerald-500 hover:bg-emerald-600 shrink-0"
+                  title={input.trim() ? 'Enviar' : 'Gravar áudio'}
+                >
+                  {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : input.trim() ? <Send className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
                 </Button>
               </div>
             </>
