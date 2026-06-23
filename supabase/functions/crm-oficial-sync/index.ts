@@ -300,11 +300,70 @@ async function doSendWhatsapp(payload: {
   }
 
 
-  // Plain text / mídia: /whatsapp-send precisa de body não vazio.
-  if (!final.body || !String(final.body).trim()) {
-    if (payload.file_name) final.body = String(payload.file_name);
-    else final.body = " ";
+  // Mídia: monta payload Meta-compatível (type + nested object com link/caption/filename).
+  const mediaUrl = (final.mediaUrl as string) || (final.media_url as string) || "";
+  const mediaId = (final.mediaId as string) || (final.media_id as string) || "";
+  const kind = String((final.mediaType as string) || (final.media_type as string) || "").toLowerCase();
+  const captionText = String((final.caption as string) || "").trim() || (final.body && String(final.body).trim() && String(final.body).trim() !== String(final.fileName || final.file_name || "").trim() ? String(final.body).trim() : "");
+  const fileName = String((final.fileName as string) || (final.file_name as string) || "");
+
+  if (mediaUrl || mediaId) {
+    const resolvedKind: "image" | "video" | "audio" | "document" | "sticker" =
+      (kind as any) || (/(\.jpe?g|\.png|\.gif|\.webp)$/i.test(mediaUrl) ? "image"
+        : /(\.mp4|\.mov|\.webm)$/i.test(mediaUrl) ? "video"
+        : /(\.mp3|\.ogg|\.opus|\.m4a|\.wav)$/i.test(mediaUrl) ? "audio"
+        : "document");
+    const linkPart = mediaUrl ? { link: mediaUrl, url: mediaUrl } : { id: mediaId };
+    const nested: Record<string, unknown> =
+      resolvedKind === "image"  ? { image:    { ...linkPart, ...(captionText ? { caption: captionText } : {}) } } :
+      resolvedKind === "video"  ? { video:    { ...linkPart, ...(captionText ? { caption: captionText } : {}) } } :
+      resolvedKind === "audio"  ? { audio:    { ...linkPart } } :
+      resolvedKind === "sticker"? { sticker:  { ...linkPart } } :
+                                  { document: { ...linkPart, ...(fileName ? { filename: fileName } : {}), ...(captionText ? { caption: captionText } : {}) } };
+    const mediaPayload: Record<string, unknown> = {
+      phone: final.phone,
+      to: final.phone,
+      name: final.name,
+      channel_id: final.channel_id,
+      channelId: final.channel_id,
+      phone_number_id: final.phone_number_id || final.from_phone_number_id,
+      phoneNumberId: final.phone_number_id || final.from_phone_number_id,
+      from_phone_number_id: final.from_phone_number_id || final.phone_number_id,
+      type: resolvedKind,
+      messaging_product: "whatsapp",
+      // Aliases planos (compat com versões antigas do CRM):
+      media_url: mediaUrl || undefined,
+      mediaUrl: mediaUrl || undefined,
+      media_id: mediaId || undefined,
+      mediaId: mediaId || undefined,
+      media_type: resolvedKind,
+      mediaType: resolvedKind,
+      mime_type: final.mime_type || final.mimetype,
+      mimetype: final.mime_type || final.mimetype,
+      file_name: fileName || undefined,
+      fileName: fileName || undefined,
+      caption: captionText || undefined,
+      // Sem body de texto quando é mídia, para não duplicar como mensagem separada.
+      ...nested,
+    };
+    const mediaAttempts: Array<() => Promise<{ ok: boolean; status: number; body: unknown }>> = [
+      () => crmFetch("/api/public/v1/whatsapp-send", { method: "POST", body: JSON.stringify(mediaPayload), apiKey }),
+      () => crmFetch("/api/public/v1/whatsapp/media-send", { method: "POST", body: JSON.stringify(mediaPayload), apiKey }),
+      () => crmFetch("/api/public/v1/whatsapp-media-send", { method: "POST", body: JSON.stringify(mediaPayload), apiKey }),
+    ];
+    const mediaResult = await firstOk(mediaAttempts);
+    console.log("[crm-oficial-sync] media send", {
+      kind: resolvedKind,
+      hasUrl: !!mediaUrl,
+      hasId: !!mediaId,
+      ok: mediaResult.ok,
+      status: mediaResult.status,
+    });
+    return mediaResult;
   }
+
+  // Texto puro
+  if (!final.body || !String(final.body).trim()) final.body = " ";
   return crmFetch("/api/public/v1/whatsapp-send", {
     method: "POST",
     body: JSON.stringify(final),

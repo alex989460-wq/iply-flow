@@ -442,9 +442,27 @@ export default function Customers() {
     retry: false,
   });
 
+  const { data: crmBillingSchedule } = useQuery({
+    queryKey: ['crm-billing-schedule', user?.id],
+    queryFn: async () => {
+      if (!user?.id) return null;
+      const { data } = await (supabase as any)
+        .from('crm_oficial_billing_schedule')
+        .select('channel_id, phone_number_id')
+        .eq('user_id', user.id)
+        .maybeSingle();
+      return data as { channel_id?: string | null; phone_number_id?: string | null } | null;
+    },
+    enabled: !!user?.id,
+  });
+
   const primaryCrmChannel = useMemo(
-    () => crmChannels.find((channel) => channel.primary || channel.is_primary) || crmChannels.find((channel) => channel.is_active) || crmChannels[0] || null,
-    [crmChannels]
+    () => (crmBillingSchedule?.channel_id && crmChannels.find((channel) => channel.id === crmBillingSchedule.channel_id))
+      || crmChannels.find((channel) => channel.primary || channel.is_primary)
+      || crmChannels.find((channel) => channel.is_active)
+      || crmChannels[0]
+      || null,
+    [crmChannels, crmBillingSchedule]
   );
 
   const createMutation = useMutation({

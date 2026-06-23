@@ -122,6 +122,7 @@ export function CrmOficialBillingScheduleCard() {
   const [tplDp1, setTplDp1] = useState<string>('');
   const [minDelay, setMinDelay] = useState(15);
   const [maxDelay, setMaxDelay] = useState(30);
+  const [selectedChannelId, setSelectedChannelId] = useState<string>('');
   const [changed, setChanged] = useState(false);
 
   const { data: schedule, isLoading } = useQuery({
@@ -184,8 +185,8 @@ export function CrmOficialBillingScheduleCard() {
   });
 
   const primaryChannel = useMemo(
-    () => channels?.find((c) => c.primary || c.is_primary) || channels?.find((c) => c.is_active) || channels?.[0] || null,
-    [channels]
+    () => channels?.find((c) => c.id === selectedChannelId) || channels?.find((c) => c.primary || c.is_primary) || channels?.find((c) => c.is_active) || channels?.[0] || null,
+    [channels, selectedChannelId]
   );
 
   useEffect(() => {
@@ -206,6 +207,7 @@ export function CrmOficialBillingScheduleCard() {
       setTplDp1(composite(schedule.template_d_plus_1, schedule.template_lang_d_plus_1));
       setMinDelay(schedule.min_delay_seconds);
       setMaxDelay(schedule.max_delay_seconds);
+      setSelectedChannelId((schedule as any).channel_id || '');
       setChanged(false);
     }
   }, [schedule]);
@@ -233,6 +235,8 @@ export function CrmOficialBillingScheduleCard() {
         template_lang_d_plus_1: langOf(tplDp1),
         min_delay_seconds: minDelay,
         max_delay_seconds: maxDelay,
+        channel_id: selectedChannelId || primaryChannel?.id || null,
+        phone_number_id: (channels?.find(c => c.id === (selectedChannelId || primaryChannel?.id))?.phone_number_id) || primaryChannel?.phone_number_id || null,
       };
       const { error } = await (supabase as any)
         .from('crm_oficial_billing_schedule')
@@ -337,17 +341,34 @@ export function CrmOficialBillingScheduleCard() {
           </div>
         </div>
 
-        <div className="rounded-lg border border-border/60 bg-secondary/20 p-3 text-xs flex items-center justify-between gap-2 flex-wrap">
-          <div className="flex items-center gap-2 min-w-0">
-            <Phone className="w-4 h-4 text-emerald-500 shrink-0" />
-            <span className="truncate">
-              Canal de envio: <strong>{primaryChannel ? `${primaryChannel.verified_name || primaryChannel.name || 'WhatsApp'}${primaryChannel.display_phone_number || primaryChannel.phone_number ? ` • ${primaryChannel.display_phone_number || primaryChannel.phone_number}` : ''}` : 'nenhum canal WhatsApp encontrado'}</strong>
-              {loadingChannels && <Loader2 className="w-3 h-3 ml-2 inline animate-spin" />}
-            </span>
+        <div className="rounded-lg border border-border/60 bg-secondary/20 p-3 text-xs space-y-2">
+          <div className="flex items-center justify-between gap-2">
+            <Label className="flex items-center gap-1.5 font-semibold text-xs">
+              <Phone className="w-3.5 h-3.5 text-emerald-500" /> Canal de envio (WhatsApp)
+            </Label>
+            <Button size="sm" variant="ghost" onClick={() => refetchChannels()} disabled={loadingChannels || !crmSettings?.api_key} className="h-7 text-xs">
+              <RefreshCw className={cn('w-3 h-3 mr-1', loadingChannels && 'animate-spin')} /> Recarregar
+            </Button>
           </div>
-          <Button size="sm" variant="ghost" onClick={() => refetchChannels()} disabled={loadingChannels || !crmSettings?.api_key} className="h-7 text-xs">
-            <RefreshCw className={cn('w-3 h-3 mr-1', loadingChannels && 'animate-spin')} /> Recarregar canais
-          </Button>
+          <Select
+            value={selectedChannelId || primaryChannel?.id || ''}
+            onValueChange={(v) => { setSelectedChannelId(v); setChanged(true); }}
+            disabled={!channels || channels.length === 0}
+          >
+            <SelectTrigger className="h-9">
+              <SelectValue placeholder={loadingChannels ? 'Carregando canais…' : 'Selecione o número que envia as cobranças'} />
+            </SelectTrigger>
+            <SelectContent>
+              {(channels || []).map((c) => (
+                <SelectItem key={c.id} value={c.id}>
+                  {(c.verified_name || c.name || 'WhatsApp')}{(c.display_phone_number || c.phone_number) ? ` • ${c.display_phone_number || c.phone_number}` : ''}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {(!channels || channels.length === 0) && !loadingChannels && (
+            <p className="text-[11px] text-muted-foreground">Nenhum canal WhatsApp encontrado nessa chave do CRM Oficial.</p>
+          )}
         </div>
 
         {rows.map((row) => {

@@ -541,6 +541,7 @@ export type Database = {
       }
       crm_oficial_billing_schedule: {
         Row: {
+          channel_id: string | null
           created_at: string
           id: string
           is_enabled: boolean
@@ -551,6 +552,7 @@ export type Database = {
           message_d_plus_1: string
           message_d0: string
           min_delay_seconds: number
+          phone_number_id: string | null
           send_d_minus_1: boolean
           send_d_plus_1: boolean
           send_d0: boolean
@@ -565,6 +567,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          channel_id?: string | null
           created_at?: string
           id?: string
           is_enabled?: boolean
@@ -575,6 +578,7 @@ export type Database = {
           message_d_plus_1?: string
           message_d0?: string
           min_delay_seconds?: number
+          phone_number_id?: string | null
           send_d_minus_1?: boolean
           send_d_plus_1?: boolean
           send_d0?: boolean
@@ -589,6 +593,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          channel_id?: string | null
           created_at?: string
           id?: string
           is_enabled?: boolean
@@ -599,6 +604,7 @@ export type Database = {
           message_d_plus_1?: string
           message_d0?: string
           min_delay_seconds?: number
+          phone_number_id?: string | null
           send_d_minus_1?: boolean
           send_d_plus_1?: boolean
           send_d0?: boolean
