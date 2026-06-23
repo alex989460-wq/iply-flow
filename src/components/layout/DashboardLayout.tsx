@@ -1,4 +1,5 @@
 import { ReactNode } from 'react';
+import { useLocation } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import { cn } from '@/lib/utils';
 import { useSidebar } from '@/contexts/SidebarContext';
@@ -11,6 +12,13 @@ interface DashboardLayoutProps {
 
 export default function DashboardLayout({ children, noPadding }: DashboardLayoutProps) {
   const { collapsed } = useSidebar();
+  const location = useLocation();
+  const hidePendingFloat = [
+    '/chat-crm-oficial',
+    '/crm-oficial-channels',
+    '/crm-oficial-templates',
+    '/crm-oficial-chatbots',
+  ].some(path => location.pathname.startsWith(path));
 
   return (
     <div className="min-h-screen bg-background">
@@ -23,7 +31,7 @@ export default function DashboardLayout({ children, noPadding }: DashboardLayout
           {children}
         </div>
       </main>
-      <PendingManualRenewalsFloat />
+      {!hidePendingFloat && <PendingManualRenewalsFloat />}
     </div>
   );
 }
