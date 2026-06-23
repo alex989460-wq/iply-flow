@@ -162,6 +162,32 @@ Deno.serve(async (req) => {
       });
     }
 
+    if (action === "get-media") {
+      const { path, media_url } = data as { path?: string; media_url?: string };
+      const target = path || media_url;
+      if (!target) throw new Error("path é obrigatório");
+      // Se já é URL absoluta, devolve direto
+      if (/^https?:\/\//i.test(target)) {
+        results.media = { url: target };
+      } else {
+        // Proxy: baixa via /api/public/v1/media e devolve data URL
+        const apiKeyHere = apiKey || Deno.env.get("CRM_OFICIAL_API_KEY") || "";
+        const r = await fetch(`${CRM_BASE}/api/public/v1/media?path=${encodeURIComponent(target)}`, {
+          headers: { Authorization: `Bearer ${apiKeyHere}` },
+        });
+        if (!r.ok) {
+          const txt = await r.text();
+          throw new Error(`media ${r.status}: ${txt.slice(0, 200)}`);
+        }
+        const ct = r.headers.get("content-type") || "application/octet-stream";
+        const buf = new Uint8Array(await r.arrayBuffer());
+        let bin = "";
+        for (let i = 0; i < buf.length; i++) bin += String.fromCharCode(buf[i]);
+        const b64 = btoa(bin);
+        results.media = { url: `data:${ct};base64,${b64}`, mime: ct };
+      }
+    }
+
 
 
     return new Response(JSON.stringify({ success: true, action, results }), {
