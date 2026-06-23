@@ -143,6 +143,29 @@ Deno.serve(async (req) => {
 
     console.log("Sub-reseller renewed successfully:", sub_reseller_id);
 
+    // --- Integração CRM Oficial (não-bloqueante) ---
+    try {
+      const crmUrl = `${supabaseUrl}/functions/v1/crm-oficial-sync`;
+      const headers = { "Content-Type": "application/json", Authorization: `Bearer ${serviceRoleKey}` };
+      const fakePhone = `5500${(subReseller.user_id || "0").replace(/\D/g, "").slice(-9).padStart(9, "0")}`;
+      await fetch(crmUrl, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          action: "renew-notify",
+          data: {
+            name: subReseller.full_name || subReseller.email || "Revendedor",
+            phone: fakePhone,
+            months: creditsNeeded,
+            expiresAt: newExpiration.toISOString(),
+          },
+        }),
+      });
+    } catch (crmErr) {
+      console.error("CRM Oficial sync failed (ignored):", crmErr);
+    }
+
+
     return new Response(
       JSON.stringify({ 
         success: true, 
