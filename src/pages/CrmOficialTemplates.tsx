@@ -72,6 +72,7 @@ export default function CrmOficialTemplates() {
   const [templates, setTemplates] = useState<CrmTemplate[]>([]);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [status, setStatus] = useState('all');
   const [dialog, setDialog] = useState<'create' | 'edit' | 'view' | 'send' | null>(null);
@@ -106,8 +107,18 @@ export default function CrmOficialTemplates() {
 
   const loadTemplates = async () => {
     setSyncing(true);
+    setLoadError(null);
     try {
-      // 1) Preferir Meta Graph API (oficial) — puxa templates aprovados direto da WABA
+      // 1) Preferir a conexão oficial Meta já usada nas Configurações/Cobranças.
+      const { data: oauthRes, error: oauthErr } = await supabase.functions.invoke('meta-oauth', {
+        body: { action: 'fetch-templates' },
+      });
+      if (!oauthErr && oauthRes && !oauthRes.error && Array.isArray(oauthRes.templates)) {
+        setTemplates(normalizeTemplates(oauthRes.templates));
+        return;
+      }
+
+      // 2) Fallback Meta Graph API dedicado.
       const { data: metaRes, error: metaErr } = await supabase.functions.invoke('meta-templates', {
         body: { action: 'list', limit: 250 },
       });
@@ -115,9 +126,10 @@ export default function CrmOficialTemplates() {
         setTemplates(normalizeTemplates(metaRes));
         return;
       }
-      // 2) Fallback: API pública do CRM Oficial (requer scope templates:read)
+
+      // 3) Fallback: API pública do CRM Oficial (requer scope templates:read)
       if (!apiKey) {
-        throw new Error(metaRes?.error || metaErr?.message || 'Meta Cloud API não configurada.');
+        throw new Error(oauthRes?.error || metaRes?.error || oauthErr?.message || metaErr?.message || 'Meta Cloud API não configurada.');
       }
       const r = await invoke('list-templates', { limit: 250 });
       const result = r?.templates;
@@ -127,6 +139,7 @@ export default function CrmOficialTemplates() {
       }
       setTemplates(normalizeTemplates(result?.body));
     } catch (e: any) {
+      setLoadError(e.message);
       toast({ title: 'Erro ao carregar templates', description: e.message, variant: 'destructive' });
     } finally {
       setSyncing(false);
@@ -265,13 +278,23 @@ export default function CrmOficialTemplates() {
             <p className="text-sm text-muted-foreground mt-1">Lista, cria, edita e dispara templates pelo endpoint público do CRM Oficial.</p>
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" onClick={loadTemplates} disabled={!apiKey || syncing}>{syncing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />} Sincronizar</Button>
+            <Button variant="outline" onClick={loadTemplates} disabled={syncing}>{syncing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />} Sincronizar</Button>
             <Button onClick={openCreate} disabled={!apiKey}><Plus className="w-4 h-4 mr-2" /> Novo template</Button>
           </div>
         </div>
 
         {!apiKey && <Alert variant="destructive"><AlertCircle className="h-4 w-4" /><AlertDescription>Configure a chave em Configurações → CRM Oficial.</AlertDescription></Alert>}
         {apiKey && !enabled && <Alert><AlertCircle className="h-4 w-4" /><AlertDescription>A integração está desativada, mas a biblioteca ainda pode ser consultada pela chave salva.</AlertDescription></Alert>}
+        {loadError && (
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>
+              {loadError.includes('templates:read')
+                ? 'A chave atual do CRM Oficial não tem o escopo templates:read. Gere/cole uma chave com templates:read ou conecte a Meta Cloud em Configurações → Cobranças.'
+                : loadError}
+            </AlertDescription>
+          </Alert>
+        )}
 
         <div className="grid md:grid-cols-3 gap-3">
           {[{ label: 'Total', value: stats.total }, { label: 'Aprovados', value: stats.approved }, { label: 'Com mídia', value: stats.media }].map(s => (
