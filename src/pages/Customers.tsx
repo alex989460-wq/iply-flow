@@ -176,6 +176,19 @@ export default function Customers() {
   const [isLoadingCrmTemplates, setIsLoadingCrmTemplates] = useState(false);
   const [selectedCrmTemplate, setSelectedCrmTemplate] = useState('');
 
+  type CrmChannel = {
+    id: string;
+    kind?: string;
+    name?: string;
+    verified_name?: string;
+    display_phone_number?: string;
+    phone_number?: string;
+    phone_number_id?: string;
+    primary?: boolean;
+    is_primary?: boolean;
+    is_active?: boolean;
+  };
+
   // Server migration state
   const [isServerMigrationOpen, setIsServerMigrationOpen] = useState(false);
 
@@ -381,6 +394,58 @@ export default function Customers() {
       return data as any;
     },
   });
+
+  const { data: crmSettings } = useQuery({
+    queryKey: ['crm-oficial-settings-customers'],
+    queryFn: async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return null;
+      const { data, error } = await supabase
+        .from('crm_oficial_settings')
+        .select('enabled, api_key')
+        .eq('user_id', user.id)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const { data: crmChannels = [], refetch: refetchCrmChannels } = useQuery({
+    queryKey: ['crm-oficial-channels-customers', crmSettings?.api_key],
+    queryFn: async () => {
+      const { data, error } = await supabase.functions.invoke('crm-oficial-sync', {
+        body: { action: 'list-channels', data: { apiKey: crmSettings?.api_key } },
+      });
+      if (error) throw error;
+      const body = data?.results?.channels?.body;
+      const fromChannels = Array.isArray(body) ? body : Array.isArray(body?.channels) ? body.channels : [];
+      const whats = fromChannels.length
+        ? fromChannels.filter((channel: any) => String(channel.kind || channel.type || 'whatsapp_cloud').toLowerCase().includes('whatsapp') || channel.phone_number_id || channel.primary)
+        : Array.isArray(body?.whatsapp)
+          ? body.whatsapp
+          : body?.whatsapp
+            ? [body.whatsapp]
+            : [];
+      return whats.map((channel: any, index: number) => ({
+        ...channel,
+        id: String(channel.id || channel.phone_number_id || (channel.primary ? 'primary' : '') || `whatsapp-${index}`),
+        kind: channel.kind || channel.type || 'whatsapp_cloud',
+        name: channel.name || channel.title || channel.verified_name || channel.display_name,
+        verified_name: channel.verified_name || channel.verifiedName || channel.business_name || channel.name,
+        display_phone_number: channel.display_phone_number || channel.displayPhoneNumber || channel.phone_display,
+        phone_number: channel.phone_number || channel.phone || channel.number,
+        primary: Boolean(channel.primary || channel.is_primary || channel.id === 'primary'),
+        is_active: Boolean(channel.is_active ?? channel.active ?? channel.connected ?? channel.primary),
+      })) as CrmChannel[];
+    },
+    enabled: !!crmSettings?.api_key,
+    retry: false,
+  });
+
+  const primaryCrmChannel = useMemo(
+    () => crmChannels.find((channel) => channel.primary || channel.is_primary) || crmChannels.find((channel) => channel.is_active) || crmChannels[0] || null,
+    [crmChannels]
+  );
 
   const createMutation = useMutation({
     mutationFn: async (data: any) => {
@@ -1281,7 +1346,7 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
     setIsLoadingCrmTemplates(true);
     try {
       const { data, error } = await supabase.functions.invoke('crm-oficial-sync', {
-        body: { action: 'list-templates', data: { limit: 250 } },
+        body: { action: 'list-templates', data: { apiKey: crmSettings?.api_key, limit: 250 } },
       });
       if (error) throw error;
       const body = data?.results?.templates?.body;
@@ -1309,10 +1374,15 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
     setSelectedCrmTemplate('');
     const evoDefault = !!billingSettings?.use_evolution_billing;
     setUseEvolutionForBilling(evoDefault);
-    setBillingChannel(evoDefault ? 'evolution' : 'zap');
+    const defaultChannel = evoDefault ? 'evolution' : crmSettings?.enabled && crmSettings?.api_key ? 'crm' : 'zap';
+    setBillingChannel(defaultChannel);
     setSelectedEvoTemplateKey('D0');
     setIsSendBillingOpen(true);
-    if (!evoDefault && templates.length === 0 && zapSettings?.selected_department_id) {
+    if (defaultChannel === 'crm') {
+      refetchCrmChannels();
+      if (crmTemplates.length === 0) await fetchCrmTemplates();
+    }
+    if (defaultChannel === 'zap' && templates.length === 0 && zapSettings?.selected_department_id) {
       await fetchTemplates();
     }
   };
@@ -1498,6 +1568,8 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
             data: {
               phone: phoneWithCode,
               name: sendingBillingCustomer.name,
+              channel_id: primaryCrmChannel?.id,
+              phone_number_id: primaryCrmChannel?.phone_number_id,
               body: templatePayload.fallbackBody || tplName,
               template_name: tplName,
               template_language: tplLang || 'pt_BR',
@@ -1522,7 +1594,8 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
           message: `CRM Oficial - Template "${tplName}"`,
           whatsapp_status: 'sent',
         });
-        toast({ title: 'Cobrança enviada!', description: `Template "${tplName}" enviado via CRM Oficial.` });
+        const sender = primaryCrmChannel?.display_phone_number || primaryCrmChannel?.phone_number || primaryCrmChannel?.verified_name || primaryCrmChannel?.name || 'canal principal';
+        toast({ title: 'Cobrança enviada!', description: `Template "${tplName}" enviado via CRM Oficial por ${sender}.` });
         setIsSendBillingOpen(false);
         setSendingBillingCustomer(null);
       } catch (err: any) {
@@ -2990,7 +3063,7 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
                             className="h-8 w-8 hover:bg-primary/10"
                             title="Enviar cobrança"
                             onClick={() => openSendBillingDialog(customer)}
-                            disabled={!zapSettings?.selected_department_id && !billingSettings?.use_evolution_billing}
+                            disabled={!zapSettings?.selected_department_id && !billingSettings?.use_evolution_billing && !(crmSettings?.enabled && crmSettings?.api_key)}
                           >
                             <Send className="w-4 h-4 text-primary" />
                           </Button>
@@ -3129,9 +3202,24 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
                   <SelectContent>
                     <SelectItem value="zap">API oficial / Zap Responder</SelectItem>
                     <SelectItem value="evolution">WhatsApp (Evolution — {billingSettings?.evolution_instance || 'não configurado'})</SelectItem>
-                    <SelectItem value="crm">CRM Oficial (templates Meta)</SelectItem>
+                    <SelectItem value="crm" disabled={!crmSettings?.enabled || !crmSettings?.api_key}>
+                      CRM Oficial (templates Meta — {primaryCrmChannel?.display_phone_number || primaryCrmChannel?.phone_number || 'canal principal'})
+                    </SelectItem>
                   </SelectContent>
                 </Select>
+                {billingChannel === 'crm' && (
+                  <div className="text-[11px] text-muted-foreground leading-tight">
+                    Enviará pelo canal:{' '}
+                    <strong className="text-foreground">
+                      {primaryCrmChannel
+                        ? `${primaryCrmChannel.verified_name || primaryCrmChannel.name || 'WhatsApp'}${primaryCrmChannel.display_phone_number || primaryCrmChannel.phone_number ? ` • ${primaryCrmChannel.display_phone_number || primaryCrmChannel.phone_number}` : ''}`
+                        : 'nenhum canal WhatsApp encontrado'}
+                    </strong>
+                    <Button type="button" variant="ghost" size="sm" className="h-6 px-2 ml-1 text-[11px]" onClick={() => refetchCrmChannels()}>
+                      <RefreshCw className="w-3 h-3 mr-1" /> Recarregar
+                    </Button>
+                  </div>
+                )}
               </div>
 
               {billingChannel === 'evolution' && (
@@ -3222,6 +3310,26 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
                       <p className="text-[10px] text-muted-foreground">
                         As variáveis, imagem e botão serão enviados conforme o template aprovado selecionado.
                       </p>
+                      {selectedCrmTemplate && (() => {
+                        const [name, lang] = selectedCrmTemplate.split('|');
+                        const template = crmTemplates.find((item) => item.name === name && item.language === lang);
+                        const header = template?.components?.find((component: any) => String(component?.type || '').toUpperCase() === 'HEADER');
+                        const body = template?.components?.find((component: any) => String(component?.type || '').toUpperCase() === 'BODY');
+                        const headerFormat = String(header?.format || '').toUpperCase();
+                        const settingsImage = String((billingSettings as any)?.renewal_image_url || '').trim();
+                        const exampleImage = header?.example?.header_handle?.[0] || header?.example?.header_url?.[0] || '';
+                        const imageSrc = headerFormat === 'IMAGE' ? settingsImage || (/scontent\.whatsapp\.net|lookaside\.fbsbx\.com/i.test(exampleImage) ? '' : exampleImage) : '';
+                        return (
+                          <div className="rounded-lg border border-border/60 bg-secondary/20 p-2 space-y-2 text-xs">
+                            {headerFormat === 'IMAGE' && imageSrc ? (
+                              <img src={imageSrc} alt={name} className="w-full max-h-32 object-cover rounded" />
+                            ) : headerFormat === 'IMAGE' ? (
+                              <p className="text-amber-500">Este template exige imagem. Cadastre a imagem de cobrança pública para ela sair no envio.</p>
+                            ) : null}
+                            {body?.text && <p className="whitespace-pre-wrap text-muted-foreground line-clamp-6">{body.text}</p>}
+                          </div>
+                        );
+                      })()}
                     </>
                   )}
                 </div>

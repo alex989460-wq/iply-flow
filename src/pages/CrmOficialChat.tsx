@@ -39,6 +39,7 @@ type Message = {
   direction: 'in' | 'out';
   body: string;
   created_at?: string;
+  media_id?: string | null;
   media_url?: string | null;
   media_type?: string | null;
   mime_type?: string | null;
@@ -199,7 +200,8 @@ function normalizeMessages(body: any): Message[] {
     const rawBody = pickString(m.body, m.text, m.content, m.message, m.caption, media.caption);
     const placeholder = parsePlaceholder(rawBody);
     const bodyText = placeholder.kind ? placeholder.cleanBody : rawBody;
-    const mediaUrl = pickString(m.media_url, m.mediaUrl, m.url, media.url, media.media_url, media.path, media.id);
+    const mediaId = pickString(m.media_id, m.mediaId, media.id, media.media_id);
+    const mediaUrl = pickString(m.media_url, m.mediaUrl, m.url, media.url, media.media_url, media.path, mediaId);
     const mime = pickString(m.mime_type, m.mimetype, m.media_mime, media.mime_type, media.mimetype, media.content_type);
     const mediaType = pickString(m.media_type, m.mediaType, m.message_type, media.type, media.media_type) || placeholder.kind || '';
     return {
@@ -208,6 +210,7 @@ function normalizeMessages(body: any): Message[] {
       direction: String(m.direction || (m.from_me || m.fromMe ? 'out' : 'in')).toLowerCase().includes('out') ? 'out' : 'in',
       body: bodyText,
       created_at: m.created_at || m.timestamp || m.sent_at,
+      media_id: mediaId || null,
       media_url: mediaUrl || null,
       media_type: mediaType || null,
       mime_type: mime || null,
@@ -335,7 +338,7 @@ export default function CrmOficialChat() {
   useEffect(() => { if (selectedConvoId) loadMessages(selectedConvoId); }, [selectedConvoId]);
 
   // Resolve mídia relativa via proxy edge
-  const resolveMedia = async (rawUrl: string) => {
+  const resolveMedia = async (rawUrl: string, mediaId?: string | null) => {
     if (!rawUrl) return;
     if (mediaCache[rawUrl]) return;
     if (resolvingRef.current.has(rawUrl)) return;
@@ -345,7 +348,7 @@ export default function CrmOficialChat() {
     }
     resolvingRef.current.add(rawUrl);
     try {
-      const r = await invoke('get-media', { path: rawUrl });
+      const r = await invoke('get-media', { path: rawUrl, media_id: mediaId || undefined });
       const url = r?.media?.url;
       if (url) setMediaCache(c => ({ ...c, [rawUrl]: url }));
     } catch (e: any) {
@@ -358,7 +361,7 @@ export default function CrmOficialChat() {
   };
 
   useEffect(() => {
-    messages.forEach(m => { if (m.media_url) resolveMedia(m.media_url); });
+    messages.forEach(m => { if (m.media_url) resolveMedia(m.media_url, m.media_id); });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messages]);
 
@@ -384,7 +387,12 @@ export default function CrmOficialChat() {
     // Cria conversa enviando mensagem inicial
     try {
       setSending(true);
-      await invoke('send-whatsapp', { phone, body: 'Olá!' });
+      await invoke('send-whatsapp', {
+        phone,
+        body: 'Olá!',
+        channel_id: primaryChannel?.id,
+        phone_number_id: primaryChannel?.phone_number_id,
+      });
       toast({ title: 'Conversa iniciada', description: formatPhone(phone) });
       setNewPhone('');
       await loadConversations();
@@ -406,7 +414,13 @@ export default function CrmOficialChat() {
     setSending(true);
     if (!override) setInput('');
     try {
-      await invoke('send-whatsapp', { phone, body: text, name: selectedConvo.contacts?.name });
+      await invoke('send-whatsapp', {
+        phone,
+        body: text,
+        name: selectedConvo.contacts?.name,
+        channel_id: primaryChannel?.id,
+        phone_number_id: primaryChannel?.phone_number_id,
+      });
       setMessages(m => [...m, {
         id: `tmp-${Date.now()}`,
         conversation_id: selectedConvo.id,
@@ -473,6 +487,8 @@ export default function CrmOficialChat() {
       await invoke('send-whatsapp', {
         phone,
         name: selectedConvo.contacts?.name,
+        channel_id: primaryChannel?.id,
+        phone_number_id: primaryChannel?.phone_number_id,
         body: caption || file.name,
         caption,
         media_url: mediaUrl,
@@ -590,8 +606,7 @@ export default function CrmOficialChat() {
     if (isFailed) {
       return (
         <div className="mb-1 px-3 py-2 rounded-lg border border-amber-500/40 text-[11px] text-amber-500 bg-amber-500/10">
-          ⚠ Mídia indisponível. Sua chave do CRM Oficial precisa do escopo <code className="font-mono">media:read</code>.
-          Peça ao admin para liberar esse escopo na chave atual (ele é separado de <code>templates:read</code>).
+          ⚠ Mídia indisponível. Não foi possível baixar este anexo pelo CRM Oficial.
         </div>
       );
     }

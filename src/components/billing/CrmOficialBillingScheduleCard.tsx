@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
-import { Clock, Save, Loader2, Zap, AlertTriangle, RefreshCw, FileText, Plus, ExternalLink } from 'lucide-react';
+import { Clock, Save, Loader2, Zap, AlertTriangle, RefreshCw, FileText, Plus, ExternalLink, Phone } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Link } from 'react-router-dom';
 
@@ -47,6 +47,19 @@ interface MetaTemplate {
   components?: Array<{ type: string; text?: string; format?: string }>;
 }
 
+interface CrmChannel {
+  id: string;
+  kind?: string;
+  name?: string;
+  verified_name?: string;
+  display_phone_number?: string;
+  phone_number?: string;
+  phone_number_id?: string;
+  primary?: boolean;
+  is_primary?: boolean;
+  is_active?: boolean;
+}
+
 function normalizeTemplates(body: any): MetaTemplate[] {
   const raw = Array.isArray(body)
     ? body
@@ -65,6 +78,28 @@ function normalizeTemplates(body: any): MetaTemplate[] {
     category: String(t.category || ''),
     components: Array.isArray(t.components) ? t.components : [],
   })).filter((t: MetaTemplate) => t.name);
+}
+
+function normalizeChannels(body: any): CrmChannel[] {
+  const fromChannels = Array.isArray(body) ? body : Array.isArray(body?.channels) ? body.channels : [];
+  const raw = fromChannels.length
+    ? fromChannels.filter((c: any) => String(c.kind || c.type || 'whatsapp_cloud').toLowerCase().includes('whatsapp') || c.phone_number_id || c.primary)
+    : Array.isArray(body?.whatsapp)
+      ? body.whatsapp
+      : body?.whatsapp
+        ? [body.whatsapp]
+        : [];
+  return raw.map((c: any, index: number) => ({
+    ...c,
+    id: String(c.id || c.phone_number_id || (c.primary ? 'primary' : '') || `whatsapp-${index}`),
+    kind: c.kind || c.type || 'whatsapp_cloud',
+    name: c.name || c.title || c.verified_name || c.display_name,
+    verified_name: c.verified_name || c.verifiedName || c.business_name || c.name,
+    display_phone_number: c.display_phone_number || c.displayPhoneNumber || c.phone_display,
+    phone_number: c.phone_number || c.phone || c.number,
+    primary: Boolean(c.primary || c.is_primary || c.id === 'primary'),
+    is_active: Boolean(c.is_active ?? c.active ?? c.connected ?? c.primary),
+  }));
 }
 
 type RowKey = 'd1' | 'd0' | 'dp1';
@@ -134,6 +169,24 @@ export function CrmOficialBillingScheduleCard() {
     enabled: !!user?.id && !!crmSettings?.api_key,
     retry: false,
   });
+
+  const { data: channels, isLoading: loadingChannels, refetch: refetchChannels } = useQuery({
+    queryKey: ['crm-oficial-channels-billing', user?.id, crmSettings?.api_key],
+    queryFn: async () => {
+      const { data, error } = await supabase.functions.invoke('crm-oficial-sync', {
+        body: { action: 'list-channels', data: { apiKey: crmSettings?.api_key } },
+      });
+      if (error) throw error;
+      return normalizeChannels(data?.results?.channels?.body);
+    },
+    enabled: !!user?.id && !!crmSettings?.api_key,
+    retry: false,
+  });
+
+  const primaryChannel = useMemo(
+    () => channels?.find((c) => c.primary || c.is_primary) || channels?.find((c) => c.is_active) || channels?.[0] || null,
+    [channels]
+  );
 
   useEffect(() => {
     if (schedule) {
@@ -282,6 +335,19 @@ export function CrmOficialBillingScheduleCard() {
               <RefreshCw className={cn('w-3 h-3 mr-1', loadingTpls && 'animate-spin')} /> Recarregar
             </Button>
           </div>
+        </div>
+
+        <div className="rounded-lg border border-border/60 bg-secondary/20 p-3 text-xs flex items-center justify-between gap-2 flex-wrap">
+          <div className="flex items-center gap-2 min-w-0">
+            <Phone className="w-4 h-4 text-emerald-500 shrink-0" />
+            <span className="truncate">
+              Canal de envio: <strong>{primaryChannel ? `${primaryChannel.verified_name || primaryChannel.name || 'WhatsApp'}${primaryChannel.display_phone_number || primaryChannel.phone_number ? ` • ${primaryChannel.display_phone_number || primaryChannel.phone_number}` : ''}` : 'nenhum canal WhatsApp encontrado'}</strong>
+              {loadingChannels && <Loader2 className="w-3 h-3 ml-2 inline animate-spin" />}
+            </span>
+          </div>
+          <Button size="sm" variant="ghost" onClick={() => refetchChannels()} disabled={loadingChannels || !crmSettings?.api_key} className="h-7 text-xs">
+            <RefreshCw className={cn('w-3 h-3 mr-1', loadingChannels && 'animate-spin')} /> Recarregar canais
+          </Button>
         </div>
 
         {rows.map((row) => {
