@@ -9,7 +9,9 @@ import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
-import { AlertCircle, CheckCircle2, Eye, EyeOff, ExternalLink, Loader2, Save, XCircle, Zap } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Eye, EyeOff, ExternalLink, Loader2, MessageCircleMore, Save, XCircle, Zap } from 'lucide-react';
+import { Link } from 'react-router-dom';
+
 
 interface CrmOficialSettings {
   api_key: string;
