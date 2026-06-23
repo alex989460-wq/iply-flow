@@ -11,7 +11,7 @@ const corsHeaders = {
 
 const CRM_BASE = "https://crmapioficial.lovable.app";
 
-type Action = "signup" | "test-chat" | "renew-notify" | "ping";
+type Action = "signup" | "test-chat" | "renew-notify" | "ping" | "list-conversations" | "list-messages" | "send-whatsapp" | "list-contacts";
 
 async function crmFetch(path: string, init: RequestInit & { withAuth?: boolean; apiKey?: string } = {}) {
   const apiKey = init.apiKey || Deno.env.get("CRM_OFICIAL_API_KEY") || "";
