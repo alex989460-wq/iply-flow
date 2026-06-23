@@ -385,7 +385,7 @@ Deno.serve(async (req) => {
     if (action === "send-whatsapp") {
       const { phone, body, name, channel_id, phone_number_id, media_url, media_id, media_type, mime_type, caption, file_name, template_name, template_language, template_params, components } = data as { phone: string; body?: string; name?: string; channel_id?: string; phone_number_id?: string; media_url?: string; media_id?: string; media_type?: string; mime_type?: string; caption?: string; file_name?: string; template_name?: string; template_language?: string; template_params?: unknown[]; components?: unknown[] };
       if (!phone) throw new Error("phone é obrigatório");
-      if (!body && !media_url && !template_name) throw new Error("body, media_url ou template_name é obrigatório");
+      if (!body && !media_url && !media_id && !template_name) throw new Error("body, media_url, media_id ou template_name é obrigatório");
       results.send = await doSendWhatsapp({ phone, body, name, channel_id, phone_number_id, from_phone_number_id: phone_number_id, media_url, media_id, media_type, mime_type, caption, file_name, template_name, template_language, template_params, components }, apiKey);
     }
 
