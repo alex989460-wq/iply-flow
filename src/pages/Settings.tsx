@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { Loader2, Eye, EyeOff, Save, AlertCircle, CheckCircle2, Unplug, Phone, RefreshCw, Server, FileText, Users, UserPlus, Trash2, Target, CreditCard, Database } from 'lucide-react';
+import { Loader2, Eye, EyeOff, Save, AlertCircle, CheckCircle2, Unplug, Phone, RefreshCw, Server, FileText, Users, UserPlus, Trash2, Target, CreditCard, Database, Zap } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
@@ -19,6 +19,8 @@ import AutoRenewServersCard from '@/components/settings/AutoRenewServersCard';
 import BillingSettingsCard from '@/components/settings/BillingSettingsCard';
 import BackupManagerCard from '@/components/settings/BackupManagerCard';
 import EvolutionApiCard from '@/components/settings/EvolutionApiCard';
+import CrmOficialCard from '@/components/settings/CrmOficialCard';
+
 
 async function getFunctionsHttpErrorDetails(err: unknown): Promise<{ message?: string; raw?: any } | null> {
   // supabase-js / @supabase/functions-js throws FunctionsHttpError with `.context` as a Response
@@ -651,7 +653,7 @@ export default function Settings() {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-7 max-w-5xl">
+          <TabsList className="grid w-full grid-cols-8 max-w-6xl">
             <TabsTrigger value="cobranca" className="flex items-center gap-2">
               <CreditCard className="w-4 h-4 text-green-500" />
               <span className="hidden sm:inline">Cobrança</span>
@@ -660,6 +662,11 @@ export default function Settings() {
             <TabsTrigger value="zap_responder" className="flex items-center gap-2">
               <span className="hidden sm:inline">Zap Responder</span>
               <span className="sm:hidden">ZapResp</span>
+            </TabsTrigger>
+            <TabsTrigger value="crm_oficial" className="flex items-center gap-2">
+              <Zap className="w-4 h-4 text-emerald-500" />
+              <span className="hidden sm:inline">CRM Oficial</span>
+              <span className="sm:hidden">CRM</span>
             </TabsTrigger>
             {isAdmin && (
               <TabsTrigger value="evolution" className="flex items-center gap-2">
@@ -687,6 +694,12 @@ export default function Settings() {
               <span className="sm:hidden">Back.</span>
             </TabsTrigger>
           </TabsList>
+
+          <TabsContent value="crm_oficial" className="mt-6">
+            <CrmOficialCard />
+          </TabsContent>
+
+
 
           {isAdmin && (
             <TabsContent value="evolution" className="mt-6">

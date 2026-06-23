@@ -170,16 +170,28 @@ Deno.serve(async (req) => {
 
     console.log("Sub-reseller created successfully:", newUserId);
 
-    // --- Integração CRM Oficial (não-bloqueante) ---
+    // --- Integração CRM Oficial (não-bloqueante, respeita settings do parent) ---
     try {
-      const crmUrl = `${supabaseUrl}/functions/v1/crm-oficial-sync`;
-      const headers = { "Content-Type": "application/json", Authorization: `Bearer ${serviceRoleKey}` };
-      await fetch(crmUrl, { method: "POST", headers, body: JSON.stringify({ action: "signup", data: { email, password, full_name } }) });
-      const fakePhone = `5500${Date.now().toString().slice(-9)}`;
-      await fetch(crmUrl, { method: "POST", headers, body: JSON.stringify({ action: "test-chat", data: { name: full_name, phone: fakePhone, email } }) });
+      const { data: crmCfg } = await supabaseAdmin
+        .from('crm_oficial_settings')
+        .select('enabled, auto_signup, auto_test_chat, api_key')
+        .eq('user_id', currentUserId)
+        .maybeSingle();
+      if (crmCfg?.enabled && crmCfg.api_key) {
+        const crmUrl = `${supabaseUrl}/functions/v1/crm-oficial-sync`;
+        const headers = { "Content-Type": "application/json", Authorization: `Bearer ${serviceRoleKey}` };
+        if (crmCfg.auto_signup) {
+          await fetch(crmUrl, { method: "POST", headers, body: JSON.stringify({ action: "signup", data: { email, password, full_name, apiKey: crmCfg.api_key } }) });
+        }
+        if (crmCfg.auto_test_chat) {
+          const fakePhone = `5500${Date.now().toString().slice(-9)}`;
+          await fetch(crmUrl, { method: "POST", headers, body: JSON.stringify({ action: "test-chat", data: { name: full_name, phone: fakePhone, email, apiKey: crmCfg.api_key } }) });
+        }
+      }
     } catch (crmErr) {
       console.error("CRM Oficial sync failed (ignored):", crmErr);
     }
+
 
 
     return new Response(

@@ -143,27 +143,36 @@ Deno.serve(async (req) => {
 
     console.log("Sub-reseller renewed successfully:", sub_reseller_id);
 
-    // --- Integração CRM Oficial (não-bloqueante) ---
+    // --- Integração CRM Oficial (não-bloqueante, respeita settings do parent) ---
     try {
-      const crmUrl = `${supabaseUrl}/functions/v1/crm-oficial-sync`;
-      const headers = { "Content-Type": "application/json", Authorization: `Bearer ${serviceRoleKey}` };
-      const fakePhone = `5500${(subReseller.user_id || "0").replace(/\D/g, "").slice(-9).padStart(9, "0")}`;
-      await fetch(crmUrl, {
-        method: "POST",
-        headers,
-        body: JSON.stringify({
-          action: "renew-notify",
-          data: {
-            name: subReseller.full_name || subReseller.email || "Revendedor",
-            phone: fakePhone,
-            months: creditsNeeded,
-            expiresAt: newExpiration.toISOString(),
-          },
-        }),
-      });
+      const { data: crmCfg } = await supabaseAdmin
+        .from('crm_oficial_settings')
+        .select('enabled, auto_renew_notify, api_key')
+        .eq('user_id', currentUserId)
+        .maybeSingle();
+      if (crmCfg?.enabled && crmCfg.api_key && crmCfg.auto_renew_notify) {
+        const crmUrl = `${supabaseUrl}/functions/v1/crm-oficial-sync`;
+        const headers = { "Content-Type": "application/json", Authorization: `Bearer ${serviceRoleKey}` };
+        const fakePhone = `5500${(subReseller.user_id || "0").replace(/\D/g, "").slice(-9).padStart(9, "0")}`;
+        await fetch(crmUrl, {
+          method: "POST",
+          headers,
+          body: JSON.stringify({
+            action: "renew-notify",
+            data: {
+              name: subReseller.full_name || subReseller.email || "Revendedor",
+              phone: fakePhone,
+              months: creditsNeeded,
+              expiresAt: newExpiration.toISOString(),
+              apiKey: crmCfg.api_key,
+            },
+          }),
+        });
+      }
     } catch (crmErr) {
       console.error("CRM Oficial sync failed (ignored):", crmErr);
     }
+
 
 
     return new Response(
