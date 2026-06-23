@@ -20,10 +20,13 @@ interface WhatsAppChannel {
   kind: 'whatsapp_cloud';
   name?: string;
   phone_number?: string;
+  display_phone_number?: string;
+  verified_name?: string;
   phone_number_id?: string;
   waba_id?: string;
   quality_rating?: string;
   is_active?: boolean;
+  primary?: boolean;
   is_primary?: boolean;
   avatar_url?: string | null;
 }
