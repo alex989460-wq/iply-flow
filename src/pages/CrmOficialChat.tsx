@@ -5,6 +5,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Loader2, ExternalLink } from "lucide-react";
 import { Link } from "react-router-dom";
+import QuickRenewalPanel from "@/components/chat/QuickRenewalPanel";
 
 const CRM_BASE = "https://crmapioficial.lovable.app";
 
