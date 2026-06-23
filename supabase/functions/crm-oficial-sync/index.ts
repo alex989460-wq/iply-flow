@@ -37,6 +37,17 @@ async function crmFetch(path: string, init: RequestInit & { withAuth?: boolean; 
   return { ok: res.ok, status: res.status, body: json ?? text };
 }
 
+function authKeys(preferred?: string) {
+  const envKey = Deno.env.get("CRM_OFICIAL_API_KEY") || "";
+  return [preferred || "", envKey].map((key) => key.trim()).filter((key, index, arr) => key && arr.indexOf(key) === index);
+}
+
+async function crmFetchWithKeyFallback(path: string, init: RequestInit & { withAuth?: boolean } = {}, preferredApiKey?: string) {
+  const keys = authKeys(preferredApiKey);
+  if (!keys.length) return crmFetch(path, init);
+  return firstOk(keys.map((key) => () => crmFetch(path, { ...init, apiKey: key })));
+}
+
 async function doSignup(payload: { email: string; password: string; full_name?: string }, apiKey?: string) {
   return crmFetch("/api/public/v1/signup", {
     method: "POST",
@@ -217,15 +228,25 @@ Deno.serve(async (req) => {
       const { path, media_url } = data as { path?: string; media_url?: string };
       const target = path || media_url;
       if (!target) throw new Error("path é obrigatório");
-      const apiKeyHere = apiKey || Deno.env.get("CRM_OFICIAL_API_KEY") || "";
       const isAbsolute = /^https?:\/\//i.test(target);
-      const mediaUrl = isAbsolute ? target : `${CRM_BASE}/api/public/v1/media?path=${encodeURIComponent(target)}`;
-      let r = await fetch(mediaUrl, isAbsolute ? {} : { headers: { Authorization: `Bearer ${apiKeyHere}` } });
-      if (!r.ok && isAbsolute) {
-        r = await fetch(`${CRM_BASE}/api/public/v1/media?path=${encodeURIComponent(target)}`, {
-          headers: { Authorization: `Bearer ${apiKeyHere}` },
-        });
+      let r: Response | null = null;
+
+      if (isAbsolute) {
+        r = await fetch(target);
       }
+
+      if (!r?.ok) {
+        const attempts: string[] = [];
+        for (const key of authKeys(apiKey)) {
+          r = await fetch(`${CRM_BASE}/api/public/v1/media?path=${encodeURIComponent(target)}`, {
+            headers: { Authorization: `Bearer ${key}` },
+          });
+          if (r.ok) break;
+          attempts.push(`media ${r.status}: ${(await r.clone().text()).slice(0, 200)}`);
+        }
+        if (!r?.ok && attempts.length) throw new Error(attempts[attempts.length - 1]);
+      }
+
       if (!r.ok) {
         const txt = await r.text();
         throw new Error(`media ${r.status}: ${txt.slice(0, 200)}`);
@@ -259,7 +280,7 @@ Deno.serve(async (req) => {
 
     if (action === "list-templates") {
       const { limit } = data as { limit?: number };
-      results.templates = await crmFetch(`/api/public/v1/templates?limit=${encodeURIComponent(String(limit || 250))}`, { method: "GET", apiKey });
+      results.templates = await crmFetchWithKeyFallback(`/api/public/v1/templates?limit=${encodeURIComponent(String(limit || 250))}`, { method: "GET" }, apiKey);
     }
 
     if (action === "create-template") {
@@ -267,16 +288,18 @@ Deno.serve(async (req) => {
       if (!template?.name || !template?.language || !template?.category || !Array.isArray(template?.components)) {
         throw new Error("name, language, category e components são obrigatórios");
       }
-      results.template = await crmFetch("/api/public/v1/templates", { method: "POST", body: JSON.stringify(template), apiKey });
+      results.template = await crmFetchWithKeyFallback("/api/public/v1/templates", { method: "POST", body: JSON.stringify(template) }, apiKey);
     }
 
     if (action === "update-template") {
       const { template_name, template } = data as { template_name?: string; template?: Record<string, unknown> };
       if (!template_name || !template) throw new Error("template_name e template são obrigatórios");
       results.template = await firstOk([
-        () => crmFetch(`/api/public/v1/templates/${encodeURIComponent(template_name)}`, { method: "PATCH", body: JSON.stringify(template), apiKey }),
-        () => crmFetch(`/api/public/v1/templates/${encodeURIComponent(template_name)}`, { method: "PUT", body: JSON.stringify(template), apiKey }),
-        () => crmFetch("/api/public/v1/templates", { method: "POST", body: JSON.stringify(template), apiKey }),
+        ...authKeys(apiKey).flatMap((key) => [
+          () => crmFetch(`/api/public/v1/templates/${encodeURIComponent(template_name)}`, { method: "PATCH", body: JSON.stringify(template), apiKey: key }),
+          () => crmFetch(`/api/public/v1/templates/${encodeURIComponent(template_name)}`, { method: "PUT", body: JSON.stringify(template), apiKey: key }),
+          () => crmFetch("/api/public/v1/templates", { method: "POST", body: JSON.stringify(template), apiKey: key }),
+        ]),
       ]);
     }
 
@@ -284,7 +307,7 @@ Deno.serve(async (req) => {
       const { template_name, name } = data as { template_name?: string; name?: string };
       const target = template_name || name;
       if (!target) throw new Error("template_name é obrigatório");
-      results.template = await crmFetch(`/api/public/v1/templates/${encodeURIComponent(target)}`, { method: "DELETE", apiKey });
+      results.template = await crmFetchWithKeyFallback(`/api/public/v1/templates/${encodeURIComponent(target)}`, { method: "DELETE" }, apiKey);
     }
 
     if (action === "list-chatbots") {

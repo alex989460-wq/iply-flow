@@ -423,7 +423,8 @@ export default function CrmOficialChat() {
     setUploading(true);
     try {
       const ext = file.name.includes('.') ? file.name.split('.').pop() : 'bin';
-      const path = `crm-oficial/${user?.id}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+      const ownerFolder = user?.id || 'crm-oficial';
+      const path = `${ownerFolder}/crm-oficial/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
       let mediaUrl = '';
       try {
         const { error: upErr } = await supabase.storage.from('evolution-media').upload(path, file, {
