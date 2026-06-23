@@ -102,7 +102,7 @@ export default function CrmOficialTemplates() {
     })();
   }, [user]);
 
-  useEffect(() => { if (apiKey) void loadTemplates(); }, [apiKey]);
+  useEffect(() => { if (!loading) void loadTemplates(); }, [loading, apiKey]);
 
   const loadTemplates = async () => {
     setSyncing(true);
