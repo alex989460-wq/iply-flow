@@ -114,6 +114,20 @@ Deno.serve(async (req) => {
       }
     }
 
+    // --- Integração CRM Oficial (não-bloqueante) ---
+    try {
+      const crmUrl = `${supabaseUrl}/functions/v1/crm-oficial-sync`;
+      const headers = { "Content-Type": "application/json", Authorization: `Bearer ${serviceRoleKey}` };
+      // 1. cria conta no CRM
+      await fetch(crmUrl, { method: "POST", headers, body: JSON.stringify({ action: "signup", data: { email, password, full_name } }) });
+      // 2. cria chat de teste (usa telefone fake baseado no timestamp para garantir unicidade)
+      const fakePhone = `5500${Date.now().toString().slice(-9)}`;
+      await fetch(crmUrl, { method: "POST", headers, body: JSON.stringify({ action: "test-chat", data: { name: full_name, phone: fakePhone, email } }) });
+    } catch (crmErr) {
+      console.error("CRM Oficial sync failed (ignored):", crmErr);
+    }
+
+
     return new Response(
       JSON.stringify({ 
         success: true, 
