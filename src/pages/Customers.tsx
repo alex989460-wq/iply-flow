@@ -1358,6 +1358,7 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
       const priceFormatted = (typeof rawPrice === 'number' ? rawPrice : parseFloat(String(rawPrice).replace(',', '.')) || 0).toFixed(2).replace('.', ',');
       // Variáveis posicionais comuns: {{1}}=nome {{2}}=vencimento {{3}}=valor {{4}}=usuario {{5}}=plano
       const params = [firstName, dueDate, `R$ ${priceFormatted}`, sendingBillingCustomer.username || '', sendingBillingCustomer.plans?.plan_name || ''];
+      const crmFallbackBody = `Olá ${firstName}, sua cobrança vence em ${dueDate}. Valor: R$ ${priceFormatted}. Usuário: ${sendingBillingCustomer.username || '-'}. Plano: ${sendingBillingCustomer.plans?.plan_name || '-'}.`;
       setIsSendingBilling(true);
       try {
         const { data, error } = await supabase.functions.invoke('crm-oficial-sync', {
@@ -1366,6 +1367,7 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
             data: {
               phone: phoneWithCode,
               name: sendingBillingCustomer.name,
+              body: crmFallbackBody,
               template_name: tplName,
               template_language: tplLang || 'pt_BR',
               template_params: params,
