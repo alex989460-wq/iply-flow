@@ -654,6 +654,9 @@ export default function CrmOficialChat() {
             <>
               <div className="px-4 py-3 border-b border-border flex items-center gap-3 bg-card/30">
                 <Avatar className="h-10 w-10">
+                  {selectedConvo.contacts?.profile_pic_url && (
+                    <img src={selectedConvo.contacts.profile_pic_url} alt="" className="w-full h-full object-cover rounded-full" />
+                  )}
                   <AvatarFallback className={cn('text-xs', selectedConvo.channel === 'webchat' ? 'bg-cyan-500/15 text-cyan-500' : 'bg-emerald-500/15 text-emerald-500')}>
                     {selectedConvo.channel === 'webchat' ? <Globe className="w-4 h-4" /> : initials(selectedConvo.contacts?.name || selectedConvo.contacts?.phone || '?')}
                   </AvatarFallback>
@@ -662,10 +665,13 @@ export default function CrmOficialChat() {
                   <div className="text-sm font-semibold truncate">
                     {selectedConvo.contacts?.name || selectedConvo.contacts?.phone || 'Contato'}
                   </div>
-                  <div className="text-[11px] text-muted-foreground truncate">
-                    {formatPhone(selectedConvo.contacts?.phone) || ''}
-                    {primaryChannel?.phone_number && selectedConvo.channel === 'whatsapp' && (
-                      <span className="ml-2">• via {primaryChannel.name || formatPhone(primaryChannel.phone_number)}</span>
+                  <div className="text-[11px] text-muted-foreground truncate flex items-center gap-1.5">
+                    <span>{formatPhone(selectedConvo.contacts?.phone) || ''}</span>
+                    {primaryChannel && selectedConvo.channel === 'whatsapp' && (
+                      <>
+                        <span className="opacity-50">•</span>
+                        <span className="text-emerald-500">via {primaryChannel.verified_name || primaryChannel.name} {primaryChannel.display_phone_number || ''}</span>
+                      </>
                     )}
                   </div>
                 </div>
