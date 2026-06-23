@@ -113,7 +113,12 @@ async function doSendWhatsapp(payload: {
   if (payload.mime_type && !final.mimetype) final.mimetype = payload.mime_type;
   if (payload.template_name) final.template = { name: payload.template_name, language: payload.template_language || payload.language || "pt_BR", params: payload.template_params || [] };
   if (payload.caption && !payload.body) final.body = payload.caption;
-  if (!final.body) final.body = "";
+  // O endpoint /whatsapp-send exige body não vazio mesmo para templates/mídia.
+  if (!final.body || !String(final.body).trim()) {
+    if (payload.template_name) final.body = `[template:${payload.template_name}]`;
+    else if (payload.file_name) final.body = String(payload.file_name);
+    else final.body = " ";
+  }
   return crmFetch("/api/public/v1/whatsapp-send", {
     method: "POST",
     body: JSON.stringify(final),
