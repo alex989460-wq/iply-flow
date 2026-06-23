@@ -1416,13 +1416,23 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
     const headerComponent = components.find((component) => String(component?.type || '').toUpperCase() === 'HEADER');
     const headerFormat = String(headerComponent?.format || '').toUpperCase();
     if (headerFormat === 'IMAGE') {
-      const headerImageUrl =
+      const exampleHandle =
         headerComponent?.example?.header_handle?.[0] ||
         headerComponent?.example?.header_url?.[0] ||
-        (billingSettings as any)?.renewal_image_url ||
         '';
+      // URLs scontent.whatsapp.net / lookaside.fbsbx.com são CDN privado do Meta (assinadas e
+      // com expiração) — o Meta aceita o request (status 200), mas falha ao baixar a imagem
+      // na hora de entregar, e a mensagem nunca chega. Sempre preferir a imagem pública
+      // cadastrada em Configurações → Cobrança.
+      const settingsImage = ((billingSettings as any)?.renewal_image_url || '').toString().trim();
+      const isMetaCdn = /scontent\.whatsapp\.net|lookaside\.fbsbx\.com/i.test(exampleHandle);
+      const headerImageUrl = settingsImage || (isMetaCdn ? '' : exampleHandle);
       if (!headerImageUrl) {
-        throw new Error('Esse template tem imagem no cabeçalho, mas não encontrei a URL da imagem. Cadastre uma imagem padrão em Configurações → Cobrança.');
+        throw new Error(
+          isMetaCdn
+            ? 'A imagem desse template está no CDN privado do Meta (scontent.whatsapp.net) e não pode ser reenviada — o Meta aceita o pedido mas a mensagem não chega. Cadastre uma imagem pública em Configurações → Cobrança → Imagem de cobrança.'
+            : 'Esse template tem imagem no cabeçalho, mas não encontrei a URL da imagem. Cadastre uma imagem padrão em Configurações → Cobrança.'
+        );
       }
       outgoingComponents.unshift({
         type: 'header',
