@@ -8,20 +8,30 @@ import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import {
   AlertCircle, Loader2, MessageCircleMore, MoreVertical, RefreshCw, Search, Send,
   Settings as SettingsIcon, Zap, Phone, Smile, Paperclip, FileText, Download, X,
-  Image as ImageIcon, Mic, Video,
+  Image as ImageIcon, Mic, Video, Plus, Globe,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import QuickRenewalPanel from '@/components/chat/QuickRenewalPanel';
 
-type Contact = { id: string; name?: string | null; phone?: string | null; email?: string | null };
-type Conversation = { id: string; contact_id?: string; updated_at?: string; last_message?: string | null; contacts?: Contact | null };
+type Contact = { id?: string; name?: string | null; phone?: string | null; email?: string | null };
+type Conversation = {
+  id: string;
+  contact_id?: string;
+  updated_at?: string;
+  last_message?: string | null;
+  last_message_at?: string | null;
+  unread_count?: number;
+  channel?: string;
+  contacts?: Contact | null;
+};
 type Message = {
   id: string;
   conversation_id?: string;
@@ -32,6 +42,16 @@ type Message = {
   media_type?: string | null;
   mime_type?: string | null;
   file_name?: string | null;
+  status?: string;
+};
+type Channel = {
+  id: string;
+  kind: 'whatsapp_cloud' | 'webchat' | string;
+  name?: string;
+  phone_number?: string;
+  phone_number_id?: string;
+  primary?: boolean;
+  status?: string;
 };
 
 const QUICK_REPLIES = [
@@ -41,8 +61,17 @@ const QUICK_REPLIES = [
 ];
 
 function initials(src: string) {
-  const parts = src.trim().split(/\s+/);
-  return ((parts[0]?.[0] || '') + (parts[1]?.[0] || '')).toUpperCase() || src.slice(0, 2).toUpperCase();
+  const parts = (src || '').trim().split(/\s+/);
+  return ((parts[0]?.[0] || '') + (parts[1]?.[0] || '')).toUpperCase() || (src || '?').slice(0, 2).toUpperCase();
+}
+
+function formatPhone(p?: string | null) {
+  if (!p) return '';
+  if (p.startsWith('web-')) return 'Webchat';
+  const d = p.replace(/\D/g, '');
+  if (d.length >= 12) return `+${d.slice(0, 2)} (${d.slice(2, 4)}) ${d.slice(4, -4)}-${d.slice(-4)}`;
+  if (d.length === 11) return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
+  return p;
 }
 
 function detectMediaKind(mime?: string | null, mediaType?: string | null): 'image' | 'audio' | 'video' | 'document' {
@@ -54,6 +83,8 @@ function detectMediaKind(mime?: string | null, mediaType?: string | null): 'imag
   if (t.startsWith('video/')) return 'video';
   return 'document';
 }
+
+type FilterId = 'all' | 'unread' | 'whatsapp' | 'webchat' | 'media';
 
 export default function CrmOficialChat() {
   const { user } = useAuth();
@@ -69,11 +100,20 @@ export default function CrmOficialChat() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [loadingMsgs, setLoadingMsgs] = useState(false);
 
+  const [channels, setChannels] = useState<Channel[]>([]);
+  const [selectedChannel, setSelectedChannel] = useState<string>('all');
+  const [filter, setFilter] = useState<FilterId>('all');
+  const [newPhone, setNewPhone] = useState('');
+
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [search, setSearch] = useState('');
   const [lightbox, setLightbox] = useState<string | null>(null);
+
+  // cache: media_url path -> resolved blob/data URL
+  const [mediaCache, setMediaCache] = useState<Record<string, string>>({});
+  const resolvingRef = useRef<Set<string>>(new Set());
 
   const scrollerRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -100,6 +140,21 @@ export default function CrmOficialChat() {
     if (error) throw error;
     if (!res?.success) throw new Error(res?.error || 'Falha na chamada');
     return res.results;
+  };
+
+  const loadChannels = async () => {
+    if (!apiKey) return;
+    try {
+      const r = await invoke('list-channels');
+      const body = r?.channels?.body as { whatsapp?: any[]; webchat?: any[] } | undefined;
+      const list: Channel[] = [];
+      (body?.whatsapp || []).forEach((c: any) => list.push({ ...c, kind: 'whatsapp_cloud' }));
+      (body?.webchat || []).forEach((c: any) => list.push({ ...c, kind: 'webchat' }));
+      setChannels(list);
+    } catch (e: any) {
+      // silencioso — canais é opcional
+      console.warn('list-channels', e?.message);
+    }
   };
 
   const loadConversations = async () => {
@@ -134,13 +189,69 @@ export default function CrmOficialChat() {
     }
   };
 
-  useEffect(() => { if (apiKey) loadConversations(); }, [apiKey]);
+  useEffect(() => { if (apiKey) { loadConversations(); loadChannels(); } }, [apiKey]);
   useEffect(() => { if (selectedConvoId) loadMessages(selectedConvoId); }, [selectedConvoId]);
+
+  // Resolve mídia relativa via proxy edge
+  const resolveMedia = async (rawUrl: string) => {
+    if (!rawUrl) return;
+    if (mediaCache[rawUrl]) return;
+    if (resolvingRef.current.has(rawUrl)) return;
+    if (/^https?:\/\//i.test(rawUrl) || rawUrl.startsWith('data:') || rawUrl.startsWith('blob:')) {
+      setMediaCache(c => ({ ...c, [rawUrl]: rawUrl }));
+      return;
+    }
+    resolvingRef.current.add(rawUrl);
+    try {
+      const r = await invoke('get-media', { path: rawUrl });
+      const url = r?.media?.url;
+      if (url) setMediaCache(c => ({ ...c, [rawUrl]: url }));
+    } catch (e: any) {
+      // Marca como falha para não tentar de novo
+      setMediaCache(c => ({ ...c, [rawUrl]: '' }));
+      console.warn('get-media falhou:', rawUrl, e?.message);
+    } finally {
+      resolvingRef.current.delete(rawUrl);
+    }
+  };
+
+  useEffect(() => {
+    messages.forEach(m => { if (m.media_url) resolveMedia(m.media_url); });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages]);
 
   const selectedConvo = useMemo(
     () => conversations.find(c => c.id === selectedConvoId) || null,
     [conversations, selectedConvoId]
   );
+
+  const startConversation = async () => {
+    const digits = newPhone.replace(/\D/g, '');
+    if (digits.length < 10) {
+      toast({ title: 'Número inválido', description: 'Informe DDD + número.', variant: 'destructive' });
+      return;
+    }
+    const phone = digits.startsWith('55') ? digits : `55${digits}`;
+    // Procura conversa existente
+    const existing = conversations.find(c => (c.contacts?.phone || '').replace(/\D/g, '') === phone);
+    if (existing) {
+      setSelectedConvoId(existing.id);
+      setNewPhone('');
+      return;
+    }
+    // Cria conversa enviando mensagem inicial
+    try {
+      setSending(true);
+      await invoke('send-whatsapp', { phone, body: 'Olá!' });
+      toast({ title: 'Conversa iniciada', description: formatPhone(phone) });
+      setNewPhone('');
+      await loadConversations();
+    } catch (e: any) {
+      toast({ title: 'Falha ao iniciar', description: e.message, variant: 'destructive' });
+    } finally {
+      setSending(false);
+    }
+  };
 
   const sendMessage = async (override?: string) => {
     const text = (override ?? input).trim();
@@ -229,29 +340,48 @@ export default function CrmOficialChat() {
   const renderMedia = (m: Message) => {
     if (!m.media_url) return null;
     const kind = detectMediaKind(m.mime_type, m.media_type);
+    const resolved = mediaCache[m.media_url];
+    const isPending = resolved === undefined;
+    const isFailed = resolved === '';
+    const url = resolved || '';
+
+    if (isPending) {
+      return (
+        <div className="mb-1 px-3 py-2 rounded-lg border border-border/60 text-xs text-muted-foreground flex items-center gap-2">
+          <Loader2 className="w-3.5 h-3.5 animate-spin" /> Carregando mídia…
+        </div>
+      );
+    }
+    if (isFailed) {
+      return (
+        <div className="mb-1 px-3 py-2 rounded-lg border border-amber-500/40 text-[11px] text-amber-500 bg-amber-500/10">
+          ⚠ Mídia indisponível. Sua API key precisa do escopo <code className="font-mono">media:read</code> para abrir arquivos.
+        </div>
+      );
+    }
     if (kind === 'image') {
       return (
-        <button onClick={() => setLightbox(m.media_url!)} className="block mb-1 rounded-lg overflow-hidden hover:opacity-90 transition">
-          <img src={m.media_url} alt={m.file_name || 'image'} className="max-w-[260px] max-h-[260px] object-cover rounded-lg" />
+        <button onClick={() => setLightbox(url)} className="block mb-1 rounded-lg overflow-hidden hover:opacity-90 transition">
+          <img src={url} alt={m.file_name || 'image'} className="max-w-[260px] max-h-[260px] object-cover rounded-lg" />
         </button>
       );
     }
     if (kind === 'video') {
       return (
         <video controls preload="metadata" className="max-w-[260px] rounded-lg mb-1">
-          <source src={m.media_url} type={m.mime_type || 'video/mp4'} />
+          <source src={url} type={m.mime_type || 'video/mp4'} />
         </video>
       );
     }
     if (kind === 'audio') {
       return (
         <audio controls preload="metadata" className="mb-1 w-[240px]">
-          <source src={m.media_url} type={m.mime_type || 'audio/mpeg'} />
+          <source src={url} type={m.mime_type || 'audio/mpeg'} />
         </audio>
       );
     }
     return (
-      <a href={m.media_url} target="_blank" rel="noreferrer"
+      <a href={url} target="_blank" rel="noreferrer" download={m.file_name || true}
         className={cn('flex items-center gap-2 mb-1 px-3 py-2 rounded-lg border text-xs',
           m.direction === 'out' ? 'border-white/30 hover:bg-white/10' : 'border-border/60 hover:bg-accent/40')}>
         <FileText className="w-4 h-4 shrink-0" />
@@ -261,14 +391,39 @@ export default function CrmOficialChat() {
     );
   };
 
-  const filtered = conversations.filter(c => {
-    if (!search.trim()) return true;
-    const q = search.toLowerCase();
-    return (
-      (c.contacts?.name ?? '').toLowerCase().includes(q) ||
-      (c.contacts?.phone ?? '').toLowerCase().includes(q)
-    );
-  });
+  // Filtragem por canal + filtro + busca
+  const filtered = useMemo(() => {
+    let arr = conversations;
+    if (selectedChannel !== 'all') {
+      const ch = channels.find(c => c.id === selectedChannel);
+      if (ch?.kind === 'webchat') arr = arr.filter(c => c.channel === 'webchat');
+      else if (ch?.kind === 'whatsapp_cloud') arr = arr.filter(c => c.channel === 'whatsapp');
+    }
+    if (filter === 'unread') arr = arr.filter(c => (c.unread_count ?? 0) > 0);
+    else if (filter === 'whatsapp') arr = arr.filter(c => c.channel === 'whatsapp');
+    else if (filter === 'webchat') arr = arr.filter(c => c.channel === 'webchat');
+    else if (filter === 'media') arr = arr.filter(c => /\[(image|video|audio|imagem|vídeo|áudio|documento)\]/i.test(c.last_message || ''));
+
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      arr = arr.filter(c =>
+        (c.contacts?.name ?? '').toLowerCase().includes(q) ||
+        (c.contacts?.phone ?? '').toLowerCase().includes(q) ||
+        (c.last_message ?? '').toLowerCase().includes(q)
+      );
+    }
+    return arr;
+  }, [conversations, channels, selectedChannel, filter, search]);
+
+  const filterCounts = useMemo(() => ({
+    all: conversations.length,
+    unread: conversations.filter(c => (c.unread_count ?? 0) > 0).length,
+    whatsapp: conversations.filter(c => c.channel === 'whatsapp').length,
+    webchat: conversations.filter(c => c.channel === 'webchat').length,
+    media: conversations.filter(c => /\[(image|video|audio|imagem|vídeo|áudio|documento)\]/i.test(c.last_message || '')).length,
+  }), [conversations]);
+
+  const primaryChannel = channels.find(c => c.primary) || channels[0];
 
   if (bootLoading) {
     return (
@@ -307,6 +462,7 @@ export default function CrmOficialChat() {
       <div className="flex flex-col lg:flex-row h-[calc(100dvh-56px)] animate-fade-in bg-background">
         {/* Sidebar conversas */}
         <div className="flex flex-col border-r border-border bg-card/30 w-full lg:w-80 xl:w-96">
+          {/* Header */}
           <div className="px-3 py-2.5 border-b border-border flex items-center gap-2 bg-gradient-to-r from-emerald-600/15 via-primary/10 to-cyan-500/10">
             <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-700 flex items-center justify-center shadow-lg shadow-emerald-500/20">
               <Zap className="w-4 h-4 text-white" />
@@ -314,14 +470,14 @@ export default function CrmOficialChat() {
             <div className="flex-1 min-w-0">
               <h2 className="font-bold text-sm leading-tight flex items-center gap-1.5">
                 Chat CRM Oficial
-                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400">API</span>
+                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400">ON</span>
               </h2>
               <p className="text-[10px] text-muted-foreground leading-tight">WhatsApp Cloud + Webchat</p>
             </div>
             <Button asChild size="icon" variant="ghost" className="h-8 w-8 text-emerald-500 hover:text-emerald-400 hover:bg-emerald-500/10" title="Gerenciar canais">
               <Link to="/crm-oficial-channels"><Phone className="w-4 h-4" /></Link>
             </Button>
-            <Button size="icon" variant="ghost" className="h-8 w-8" onClick={loadConversations} title="Atualizar">
+            <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => { loadConversations(); loadChannels(); }} title="Atualizar">
               <RefreshCw className={cn('w-3.5 h-3.5', loadingConvos && 'animate-spin')} />
             </Button>
             <DropdownMenu>
@@ -341,15 +497,95 @@ export default function CrmOficialChat() {
             </DropdownMenu>
           </div>
 
-          <div className="p-2 border-b border-border">
+          {/* Toolbar: canal + busca + novo número + filtros */}
+          <div className="p-2 space-y-2 border-b border-border">
+            <div className="flex items-center gap-1.5">
+              <Phone className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+              <Select value={selectedChannel} onValueChange={setSelectedChannel} disabled={channels.length === 0}>
+                <SelectTrigger className="h-8 text-xs flex-1">
+                  <SelectValue placeholder={channels.length === 0 ? 'Nenhum canal' : 'Todos os canais'} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">
+                    <span className="flex items-center gap-2">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                      <span className="font-medium">Todos os canais</span>
+                    </span>
+                  </SelectItem>
+                  {channels.map((ch) => (
+                    <SelectItem key={ch.id} value={ch.id}>
+                      <span className="flex items-center gap-2">
+                        {ch.kind === 'webchat'
+                          ? <Globe className="w-3 h-3 text-cyan-500" />
+                          : <span className={cn('w-1.5 h-1.5 rounded-full', ch.status === 'connected' || ch.primary ? 'bg-emerald-500' : 'bg-muted-foreground')} />}
+                        <span className="font-medium">{ch.name || (ch.kind === 'webchat' ? 'Webchat' : 'WhatsApp')}</span>
+                        {ch.phone_number && <span className="text-muted-foreground text-[10px]">{formatPhone(ch.phone_number)}</span>}
+                      </span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button size="icon" variant="ghost" className="h-7 w-7" onClick={loadChannels} title="Recarregar canais">
+                <RefreshCw className="w-3 h-3" />
+              </Button>
+            </div>
+
             <div className="relative">
-              <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
               <Input
                 value={search}
                 onChange={e => setSearch(e.target.value)}
                 placeholder="Pesquisar conversa..."
-                className="pl-8 h-8 text-sm"
+                className="pl-9 h-8 text-xs rounded-full bg-background/60 border-border/60"
               />
+            </div>
+
+            <div className="flex gap-1.5">
+              <Input
+                placeholder="Novo número (DDD + nº)"
+                value={newPhone}
+                onChange={(e) => setNewPhone(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && startConversation()}
+                className="h-8 text-xs rounded-full bg-background/60 border-border/60 px-3"
+              />
+              <Button size="icon" className="h-8 w-8 shrink-0 rounded-full bg-emerald-500 hover:bg-emerald-600 text-white" onClick={startConversation} disabled={sending}>
+                <Plus className="w-4 h-4" />
+              </Button>
+            </div>
+
+            <div className="flex gap-1 flex-wrap">
+              {([
+                { id: 'all', label: 'Todas' },
+                { id: 'unread', label: 'Não lidas' },
+                { id: 'whatsapp', label: 'WhatsApp' },
+                { id: 'webchat', label: 'Webchat' },
+                { id: 'media', label: 'Mídia' },
+              ] as const).map((t) => {
+                const count = filterCounts[t.id];
+                const isActive = filter === t.id;
+                return (
+                  <button
+                    key={t.id}
+                    onClick={() => setFilter(t.id)}
+                    className={cn(
+                      'text-[11px] px-3 py-1 rounded-full border transition-all relative whitespace-nowrap inline-flex items-center gap-1',
+                      isActive
+                        ? 'bg-emerald-500/15 text-emerald-500 border-emerald-500/40'
+                        : 'bg-transparent hover:bg-accent border-border text-muted-foreground'
+                    )}
+                  >
+                    <span>{t.label}</span>
+                    {count > 0 && (
+                      <span className={cn(
+                        'inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full text-[9px] font-bold',
+                        t.id === 'unread' ? 'bg-emerald-500 text-black' : isActive ? 'bg-emerald-500/25 text-emerald-500' : 'bg-muted text-muted-foreground'
+                      )}>
+                        {count > 99 ? '99+' : count}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
             </div>
           </div>
 
@@ -365,6 +601,7 @@ export default function CrmOficialChat() {
                 const name = c.contacts?.name || c.contacts?.phone || 'Contato';
                 const phone = c.contacts?.phone || '';
                 const active = c.id === selectedConvoId;
+                const isWeb = c.channel === 'webchat';
                 return (
                   <button
                     key={c.id}
@@ -375,11 +612,22 @@ export default function CrmOficialChat() {
                     )}
                   >
                     <Avatar className="h-9 w-9">
-                      <AvatarFallback className="bg-emerald-500/15 text-emerald-500 text-xs">{initials(name)}</AvatarFallback>
+                      <AvatarFallback className={cn('text-xs', isWeb ? 'bg-cyan-500/15 text-cyan-500' : 'bg-emerald-500/15 text-emerald-500')}>
+                        {isWeb ? <Globe className="w-4 h-4" /> : initials(name)}
+                      </AvatarFallback>
                     </Avatar>
                     <div className="flex-1 min-w-0">
-                      <div className="text-sm font-medium truncate">{name}</div>
-                      <div className="text-[11px] text-muted-foreground truncate">{phone}</div>
+                      <div className="flex items-center gap-2">
+                        <div className="text-sm font-medium truncate flex-1">{name}</div>
+                        {(c.unread_count ?? 0) > 0 && (
+                          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-500 text-black">
+                            {c.unread_count}
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-[11px] text-muted-foreground truncate">
+                        {c.last_message || formatPhone(phone)}
+                      </div>
                     </div>
                   </button>
                 );
@@ -394,23 +642,30 @@ export default function CrmOficialChat() {
             <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground gap-2">
               <MessageCircleMore className="w-12 h-12 opacity-40" />
               <p className="text-sm font-medium">Selecione uma conversa</p>
-              <p className="text-xs">Escolha um contato ao lado para começar</p>
+              <p className="text-xs">Escolha um contato ao lado ou inicie uma nova conversa</p>
             </div>
           ) : (
             <>
               <div className="px-4 py-3 border-b border-border flex items-center gap-3 bg-card/30">
                 <Avatar className="h-10 w-10">
-                  <AvatarFallback className="bg-emerald-500/15 text-emerald-500 text-xs">
-                    {initials(selectedConvo.contacts?.name || selectedConvo.contacts?.phone || '?')}
+                  <AvatarFallback className={cn('text-xs', selectedConvo.channel === 'webchat' ? 'bg-cyan-500/15 text-cyan-500' : 'bg-emerald-500/15 text-emerald-500')}>
+                    {selectedConvo.channel === 'webchat' ? <Globe className="w-4 h-4" /> : initials(selectedConvo.contacts?.name || selectedConvo.contacts?.phone || '?')}
                   </AvatarFallback>
                 </Avatar>
                 <div className="flex-1 min-w-0">
                   <div className="text-sm font-semibold truncate">
                     {selectedConvo.contacts?.name || selectedConvo.contacts?.phone || 'Contato'}
                   </div>
-                  <div className="text-[11px] text-muted-foreground truncate">{selectedConvo.contacts?.phone || ''}</div>
+                  <div className="text-[11px] text-muted-foreground truncate">
+                    {formatPhone(selectedConvo.contacts?.phone) || ''}
+                    {primaryChannel?.phone_number && selectedConvo.channel === 'whatsapp' && (
+                      <span className="ml-2">• via {primaryChannel.name || formatPhone(primaryChannel.phone_number)}</span>
+                    )}
+                  </div>
                 </div>
-                <Badge variant="outline" className="text-[10px] border-emerald-500/30 text-emerald-400">CRM Oficial</Badge>
+                <Badge variant="outline" className={cn('text-[10px]', selectedConvo.channel === 'webchat' ? 'border-cyan-500/30 text-cyan-400' : 'border-emerald-500/30 text-emerald-400')}>
+                  {selectedConvo.channel === 'webchat' ? 'Webchat' : 'CRM Oficial'}
+                </Badge>
               </div>
 
               <ScrollArea className="flex-1 bg-[radial-gradient(circle_at_50%_50%,hsl(var(--muted)/0.3),transparent)]">
