@@ -235,6 +235,8 @@ export function CrmOficialBillingScheduleCard() {
         template_lang_d_plus_1: langOf(tplDp1),
         min_delay_seconds: minDelay,
         max_delay_seconds: maxDelay,
+        channel_id: selectedChannelId || primaryChannel?.id || null,
+        phone_number_id: (channels?.find(c => c.id === (selectedChannelId || primaryChannel?.id))?.phone_number_id) || primaryChannel?.phone_number_id || null,
       };
       const { error } = await (supabase as any)
         .from('crm_oficial_billing_schedule')
