@@ -122,6 +122,7 @@ export function CrmOficialBillingScheduleCard() {
   const [tplDp1, setTplDp1] = useState<string>('');
   const [minDelay, setMinDelay] = useState(15);
   const [maxDelay, setMaxDelay] = useState(30);
+  const [selectedChannelId, setSelectedChannelId] = useState<string>('');
   const [changed, setChanged] = useState(false);
 
   const { data: schedule, isLoading } = useQuery({
