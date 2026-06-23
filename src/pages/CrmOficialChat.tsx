@@ -390,8 +390,8 @@ export default function CrmOficialChat() {
       await invoke('send-whatsapp', {
         phone,
         body: 'Olá!',
-        channel_id: primaryChannel?.id,
-        phone_number_id: primaryChannel?.phone_number_id,
+        channel_id: selectedSendChannel?.id,
+        phone_number_id: selectedSendChannel?.phone_number_id,
       });
       toast({ title: 'Conversa iniciada', description: formatPhone(phone) });
       setNewPhone('');
@@ -418,8 +418,8 @@ export default function CrmOficialChat() {
         phone,
         body: text,
         name: selectedConvo.contacts?.name,
-        channel_id: primaryChannel?.id,
-        phone_number_id: primaryChannel?.phone_number_id,
+        channel_id: selectedSendChannel?.id,
+        phone_number_id: selectedSendChannel?.phone_number_id,
       });
       setMessages(m => [...m, {
         id: `tmp-${Date.now()}`,
@@ -487,8 +487,8 @@ export default function CrmOficialChat() {
       await invoke('send-whatsapp', {
         phone,
         name: selectedConvo.contacts?.name,
-        channel_id: primaryChannel?.id,
-        phone_number_id: primaryChannel?.phone_number_id,
+        channel_id: selectedSendChannel?.id,
+        phone_number_id: selectedSendChannel?.phone_number_id,
         body: caption || file.name,
         caption,
         media_url: mediaUrl,
@@ -675,6 +675,9 @@ export default function CrmOficialChat() {
   }), [conversations]);
 
   const primaryChannel = channels.find(c => c.primary) || channels[0];
+  const selectedSendChannel = selectedChannel !== 'all'
+    ? channels.find(c => c.id === selectedChannel && String(c.kind || '').includes('whatsapp')) || primaryChannel
+    : primaryChannel;
 
   if (bootLoading) {
     return (
@@ -923,10 +926,10 @@ export default function CrmOficialChat() {
                   </div>
                   <div className="text-[11px] text-muted-foreground truncate flex items-center gap-1.5">
                     <span>{formatPhone(selectedConvo.contacts?.phone) || ''}</span>
-                    {primaryChannel && selectedConvo.channel === 'whatsapp' && (
+                    {selectedSendChannel && selectedConvo.channel === 'whatsapp' && (
                       <>
                         <span className="opacity-50">•</span>
-                        <span className="text-emerald-500">via {primaryChannel.verified_name || primaryChannel.name} {primaryChannel.display_phone_number || ''}</span>
+                        <span className="text-emerald-500">via {selectedSendChannel.verified_name || selectedSendChannel.name} {selectedSendChannel.display_phone_number || ''}</span>
                       </>
                     )}
                   </div>
