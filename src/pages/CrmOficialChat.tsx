@@ -7,12 +7,14 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import {
   AlertCircle, Loader2, MessageCircleMore, MoreVertical, RefreshCw, Search, Send,
-  Settings as SettingsIcon, Zap, Phone, Smile,
+  Settings as SettingsIcon, Zap, Phone, Smile, Paperclip, FileText, Download, X,
+  Image as ImageIcon, Mic, Video,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { cn } from '@/lib/utils';
@@ -20,7 +22,17 @@ import QuickRenewalPanel from '@/components/chat/QuickRenewalPanel';
 
 type Contact = { id: string; name?: string | null; phone?: string | null; email?: string | null };
 type Conversation = { id: string; contact_id?: string; updated_at?: string; last_message?: string | null; contacts?: Contact | null };
-type Message = { id: string; conversation_id?: string; direction: 'in' | 'out'; body: string; created_at?: string };
+type Message = {
+  id: string;
+  conversation_id?: string;
+  direction: 'in' | 'out';
+  body: string;
+  created_at?: string;
+  media_url?: string | null;
+  media_type?: string | null;
+  mime_type?: string | null;
+  file_name?: string | null;
+};
 
 const QUICK_REPLIES = [
   'Bom dia! 😊', 'Boa tarde!', 'Boa noite!',
@@ -31,6 +43,16 @@ const QUICK_REPLIES = [
 function initials(src: string) {
   const parts = src.trim().split(/\s+/);
   return ((parts[0]?.[0] || '') + (parts[1]?.[0] || '')).toUpperCase() || src.slice(0, 2).toUpperCase();
+}
+
+function detectMediaKind(mime?: string | null, mediaType?: string | null): 'image' | 'audio' | 'video' | 'document' {
+  const m = (mediaType || '').toLowerCase();
+  if (m === 'image' || m === 'audio' || m === 'video' || m === 'document') return m as any;
+  const t = (mime || '').toLowerCase();
+  if (t.startsWith('image/')) return 'image';
+  if (t.startsWith('audio/')) return 'audio';
+  if (t.startsWith('video/')) return 'video';
+  return 'document';
 }
 
 export default function CrmOficialChat() {
@@ -49,10 +71,13 @@ export default function CrmOficialChat() {
 
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [search, setSearch] = useState('');
+  const [lightbox, setLightbox] = useState<string | null>(null);
 
   const scrollerRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const fileRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -146,6 +171,94 @@ export default function CrmOficialChat() {
     } finally {
       setSending(false);
     }
+  };
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file || !selectedConvo) return;
+    const phone = selectedConvo.contacts?.phone;
+    if (!phone) {
+      toast({ title: 'Sem telefone', description: 'Esse contato não tem telefone.', variant: 'destructive' });
+      return;
+    }
+    if (file.size > 16 * 1024 * 1024) {
+      toast({ title: 'Arquivo grande demais', description: 'Limite WhatsApp: 16MB.', variant: 'destructive' });
+      return;
+    }
+    setUploading(true);
+    try {
+      const ext = file.name.includes('.') ? file.name.split('.').pop() : 'bin';
+      const path = `crm-oficial/${user?.id}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+      const { error: upErr } = await supabase.storage.from('evolution-media').upload(path, file, {
+        cacheControl: '3600', upsert: false, contentType: file.type,
+      });
+      if (upErr) throw upErr;
+      const { data: signed, error: sErr } = await supabase.storage.from('evolution-media').createSignedUrl(path, 60 * 60 * 24);
+      if (sErr || !signed?.signedUrl) throw sErr || new Error('Falha ao gerar URL');
+      const kind = detectMediaKind(file.type);
+      const caption = input.trim();
+      if (caption) setInput('');
+      await invoke('send-whatsapp', {
+        phone, name: selectedConvo.contacts?.name,
+        body: caption || file.name,
+        media_url: signed.signedUrl,
+        media_type: kind,
+        file_name: file.name,
+      });
+      setMessages(m => [...m, {
+        id: `tmp-${Date.now()}`,
+        conversation_id: selectedConvo.id,
+        direction: 'out',
+        body: caption || '',
+        created_at: new Date().toISOString(),
+        media_url: signed.signedUrl,
+        media_type: kind,
+        mime_type: file.type,
+        file_name: file.name,
+      }]);
+      toast({ title: 'Enviado', description: `${kind.toUpperCase()} enviado via CRM Oficial.` });
+      setTimeout(() => loadMessages(selectedConvo.id), 2000);
+    } catch (err: any) {
+      toast({ title: 'Falha no upload', description: err.message, variant: 'destructive' });
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const renderMedia = (m: Message) => {
+    if (!m.media_url) return null;
+    const kind = detectMediaKind(m.mime_type, m.media_type);
+    if (kind === 'image') {
+      return (
+        <button onClick={() => setLightbox(m.media_url!)} className="block mb-1 rounded-lg overflow-hidden hover:opacity-90 transition">
+          <img src={m.media_url} alt={m.file_name || 'image'} className="max-w-[260px] max-h-[260px] object-cover rounded-lg" />
+        </button>
+      );
+    }
+    if (kind === 'video') {
+      return (
+        <video controls preload="metadata" className="max-w-[260px] rounded-lg mb-1">
+          <source src={m.media_url} type={m.mime_type || 'video/mp4'} />
+        </video>
+      );
+    }
+    if (kind === 'audio') {
+      return (
+        <audio controls preload="metadata" className="mb-1 w-[240px]">
+          <source src={m.media_url} type={m.mime_type || 'audio/mpeg'} />
+        </audio>
+      );
+    }
+    return (
+      <a href={m.media_url} target="_blank" rel="noreferrer"
+        className={cn('flex items-center gap-2 mb-1 px-3 py-2 rounded-lg border text-xs',
+          m.direction === 'out' ? 'border-white/30 hover:bg-white/10' : 'border-border/60 hover:bg-accent/40')}>
+        <FileText className="w-4 h-4 shrink-0" />
+        <span className="truncate flex-1">{m.file_name || 'documento'}</span>
+        <Download className="w-3.5 h-3.5 shrink-0 opacity-70" />
+      </a>
+    );
   };
 
   const filtered = conversations.filter(c => {
@@ -315,6 +428,7 @@ export default function CrmOficialChat() {
                             : 'bg-card text-foreground border border-border/60 rounded-bl-md'
                         )}
                       >
+                        {renderMedia(m)}
                         {m.body}
                         {m.created_at && (
                           <div className={cn(
@@ -345,13 +459,36 @@ export default function CrmOficialChat() {
               </div>
 
               <div className="p-3 border-t border-border flex items-center gap-2 bg-card/30">
+                <input ref={fileRef} type="file" hidden onChange={handleFileSelect}
+                  accept="image/*,video/*,audio/*,application/pdf,.doc,.docx,.xls,.xlsx,.csv,.zip" />
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button size="icon" variant="ghost" className="h-9 w-9 shrink-0" disabled={uploading || sending} title="Anexar">
+                      {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Paperclip className="w-4 h-4" />}
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" className="w-48">
+                    <DropdownMenuItem onClick={() => { if (fileRef.current) { fileRef.current.accept = 'image/*'; fileRef.current.click(); } }}>
+                      <ImageIcon className="w-4 h-4 mr-2" /> Imagem
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => { if (fileRef.current) { fileRef.current.accept = 'video/*'; fileRef.current.click(); } }}>
+                      <Video className="w-4 h-4 mr-2" /> Vídeo
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => { if (fileRef.current) { fileRef.current.accept = 'audio/*'; fileRef.current.click(); } }}>
+                      <Mic className="w-4 h-4 mr-2" /> Áudio
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => { if (fileRef.current) { fileRef.current.accept = '*/*'; fileRef.current.click(); } }}>
+                      <FileText className="w-4 h-4 mr-2" /> Documento
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
                 <Button size="icon" variant="ghost" className="h-9 w-9 shrink-0"><Smile className="w-4 h-4" /></Button>
                 <Input
                   ref={inputRef}
                   value={input}
                   onChange={e => setInput(e.target.value)}
                   onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
-                  placeholder="Digite uma mensagem..."
+                  placeholder="Digite uma mensagem ou anexe um arquivo..."
                   className="rounded-full bg-background"
                   disabled={sending}
                 />
@@ -372,6 +509,21 @@ export default function CrmOficialChat() {
           </ScrollArea>
         </div>
       </div>
+
+      <Dialog open={!!lightbox} onOpenChange={(o) => !o && setLightbox(null)}>
+        <DialogContent className="max-w-4xl p-0 bg-black/95 border-none">
+          <button onClick={() => setLightbox(null)} className="absolute top-2 right-2 z-10 p-2 rounded-full bg-black/60 hover:bg-black/80 text-white">
+            <X className="w-5 h-5" />
+          </button>
+          {lightbox && <img src={lightbox} alt="preview" className="w-full max-h-[85vh] object-contain" />}
+          {lightbox && (
+            <a href={lightbox} target="_blank" rel="noreferrer" download
+              className="absolute bottom-2 right-2 z-10 px-3 py-1.5 rounded-full bg-emerald-500 hover:bg-emerald-600 text-white text-xs flex items-center gap-1.5">
+              <Download className="w-3.5 h-3.5" /> Baixar
+            </a>
+          )}
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   );
 }
