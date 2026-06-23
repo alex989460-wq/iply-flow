@@ -49,6 +49,15 @@ async function crmFetchWithKeyFallback(path: string, init: RequestInit & { withA
   return firstOk(keys.map((key) => () => crmFetch(path, { ...init, apiKey: key })));
 }
 
+function textFromUnknown(value: unknown) {
+  return value == null ? "" : String(value);
+}
+
+function hasMissingTemplateScope(result: { status: number; body: unknown }) {
+  const body = typeof result.body === "string" ? result.body : JSON.stringify(result.body || {});
+  return result.status === 403 && body.includes("whatsapp-template-send:write");
+}
+
 async function doSignup(payload: { email: string; password: string; full_name?: string }, apiKey?: string) {
   return crmFetch("/api/public/v1/signup", {
     method: "POST",
@@ -116,12 +125,15 @@ async function doSendWhatsapp(payload: {
   if (payload.template_name) {
     const lang = payload.template_language || payload.language || "pt_BR";
     const params = Array.isArray(payload.template_params) ? payload.template_params : [];
+    const fallbackBody = textFromUnknown(payload.body).trim() || params.map(textFromUnknown).filter(Boolean).join(" ");
     const components = Array.isArray(payload.components) && payload.components.length
       ? payload.components
       : (params.length ? [{ type: "body", parameters: params.map(p => ({ type: "text", text: String(p) })) }] : []);
     const tplPayload: Record<string, unknown> = {
       phone: payload.phone,
+      to: payload.phone,
       name: payload.name,
+      body: fallbackBody || payload.template_name,
       template_name: payload.template_name,
       templateName: payload.template_name,
       template_language: lang,
@@ -132,18 +144,25 @@ async function doSendWhatsapp(payload: {
       components,
       template: { name: payload.template_name, language: { code: lang, policy: "deterministic" }, components },
     };
-    // Tenta endpoints específicos de template; cai para /whatsapp-send com payload de template como fallback.
-    const attempts: Array<() => Promise<{ ok: boolean; status: number; body: unknown }>> = [
+    // Tenta endpoints específicos de template primeiro. Se a chave não tiver o escopo correto,
+    // retorna esse erro sem cair para texto comum, evitando enviar o nome/template literal.
+    const templateAttempts: Array<() => Promise<{ ok: boolean; status: number; body: unknown }>> = [
       () => crmFetch("/api/public/v1/whatsapp-template-send", { method: "POST", body: JSON.stringify(tplPayload), apiKey }),
       () => crmFetch("/api/public/v1/whatsapp/template-send", { method: "POST", body: JSON.stringify(tplPayload), apiKey }),
       () => crmFetch("/api/public/v1/templates/send", { method: "POST", body: JSON.stringify(tplPayload), apiKey }),
+    ];
+    const templateResult = await firstOk(templateAttempts);
+    if (templateResult.ok || hasMissingTemplateScope(templateResult)) return templateResult;
+
+    // Último fallback: /whatsapp-send com body real, somente quando o endpoint de template não existir/estiver instável.
+    return firstOk([
+      () => Promise.resolve(templateResult),
       () => crmFetch("/api/public/v1/whatsapp-send", {
         method: "POST",
         body: JSON.stringify({ ...tplPayload, type: "template" }),
         apiKey,
       }),
-    ];
-    return firstOk(attempts);
+    ]);
   }
 
   // Plain text / mídia: /whatsapp-send precisa de body não vazio.
@@ -278,9 +297,14 @@ Deno.serve(async (req) => {
       if (!r?.ok) {
         const attempts: string[] = [];
         for (const key of authKeys(apiKey)) {
-          r = await fetch(`${CRM_BASE}/api/public/v1/media?path=${encodeURIComponent(target)}`, {
+          r = await fetch(`${CRM_BASE}/api/public/v1/media?id=${encodeURIComponent(target)}&redirect=1`, {
             headers: { Authorization: `Bearer ${key}` },
           });
+          if (!r.ok) {
+            r = await fetch(`${CRM_BASE}/api/public/v1/media?path=${encodeURIComponent(target)}&redirect=1`, {
+              headers: { Authorization: `Bearer ${key}` },
+            });
+          }
           if (r.ok) break;
           attempts.push(`media ${r.status}: ${(await r.clone().text()).slice(0, 200)}`);
         }
