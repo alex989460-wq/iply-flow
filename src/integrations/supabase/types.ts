@@ -539,6 +539,63 @@ export type Database = {
         }
         Relationships: []
       }
+      crm_oficial_billing_schedule: {
+        Row: {
+          created_at: string
+          id: string
+          is_enabled: boolean
+          last_run_at: string | null
+          last_run_status: string | null
+          max_delay_seconds: number
+          message_d_minus_1: string
+          message_d_plus_1: string
+          message_d0: string
+          min_delay_seconds: number
+          send_d_minus_1: boolean
+          send_d_plus_1: boolean
+          send_d0: boolean
+          send_time: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_enabled?: boolean
+          last_run_at?: string | null
+          last_run_status?: string | null
+          max_delay_seconds?: number
+          message_d_minus_1?: string
+          message_d_plus_1?: string
+          message_d0?: string
+          min_delay_seconds?: number
+          send_d_minus_1?: boolean
+          send_d_plus_1?: boolean
+          send_d0?: boolean
+          send_time?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_enabled?: boolean
+          last_run_at?: string | null
+          last_run_status?: string | null
+          max_delay_seconds?: number
+          message_d_minus_1?: string
+          message_d_plus_1?: string
+          message_d0?: string
+          min_delay_seconds?: number
+          send_d_minus_1?: boolean
+          send_d_plus_1?: boolean
+          send_d0?: boolean
+          send_time?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       crm_oficial_settings: {
         Row: {
           api_key: string | null
