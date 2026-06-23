@@ -15,13 +15,14 @@ import { supabase } from '@/integrations/supabase/client';
 import {
   AlertCircle, Loader2, MessageCircleMore, MoreVertical, RefreshCw, Search, Send,
   Settings as SettingsIcon, Zap, Phone, Smile, Paperclip, FileText, Download, X,
-  Image as ImageIcon, Mic, Video, Plus, Globe,
+  Image as ImageIcon, Mic, Video, Plus, Globe, Check, CheckCheck,
 } from 'lucide-react';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Link } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import QuickRenewalPanel from '@/components/chat/QuickRenewalPanel';
 
-type Contact = { id?: string; name?: string | null; phone?: string | null; email?: string | null };
+type Contact = { id?: string; name?: string | null; phone?: string | null; email?: string | null; profile_pic_url?: string | null };
 type Conversation = {
   id: string;
   contact_id?: string;
@@ -49,9 +50,14 @@ type Channel = {
   kind: 'whatsapp_cloud' | 'webchat' | string;
   name?: string;
   phone_number?: string;
+  display_phone_number?: string;
+  verified_name?: string;
   phone_number_id?: string;
   primary?: boolean;
+  is_primary?: boolean;
+  is_active?: boolean;
   status?: string;
+  avatar_url?: string | null;
 };
 
 const QUICK_REPLIES = [
