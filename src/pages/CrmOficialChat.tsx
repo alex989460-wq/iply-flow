@@ -1,34 +1,48 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
-import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
-import { AlertCircle, Loader2, MessageCircleMore, RefreshCw, Search, Send, Settings as SettingsIcon, Zap } from 'lucide-react';
+import {
+  AlertCircle, Loader2, MessageCircleMore, MoreVertical, RefreshCw, Search, Send,
+  Settings as SettingsIcon, Zap, Phone, Smile,
+} from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { cn } from '@/lib/utils';
+import QuickRenewalPanel from '@/components/chat/QuickRenewalPanel';
 
 type Contact = { id: string; name?: string | null; phone?: string | null; email?: string | null };
 type Conversation = { id: string; contact_id?: string; updated_at?: string; last_message?: string | null; contacts?: Contact | null };
 type Message = { id: string; conversation_id?: string; direction: 'in' | 'out'; body: string; created_at?: string };
+
+const QUICK_REPLIES = [
+  'Bom dia! 😊', 'Boa tarde!', 'Boa noite!',
+  'Pix gerado, segue: ', 'Obrigado pela preferência! 🙏',
+  'Renovação confirmada ✅', 'Em instantes te respondo',
+];
+
+function initials(src: string) {
+  const parts = src.trim().split(/\s+/);
+  return ((parts[0]?.[0] || '') + (parts[1]?.[0] || '')).toUpperCase() || src.slice(0, 2).toUpperCase();
+}
 
 export default function CrmOficialChat() {
   const { user } = useAuth();
   const { toast } = useToast();
 
   const [apiKey, setApiKey] = useState<string | null>(null);
-  const [enabled, setEnabled] = useState<boolean>(false);
+  const [enabled, setEnabled] = useState(false);
   const [bootLoading, setBootLoading] = useState(true);
 
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loadingConvos, setLoadingConvos] = useState(false);
-
   const [selectedConvoId, setSelectedConvoId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [loadingMsgs, setLoadingMsgs] = useState(false);
@@ -38,8 +52,8 @@ export default function CrmOficialChat() {
   const [search, setSearch] = useState('');
 
   const scrollerRef = useRef<HTMLDivElement | null>(null);
+  const inputRef = useRef<HTMLInputElement | null>(null);
 
-  // load saved api key
   useEffect(() => {
     if (!user) return;
     (async () => {
@@ -68,8 +82,7 @@ export default function CrmOficialChat() {
     setLoadingConvos(true);
     try {
       const r = await invoke('list-conversations');
-      const raw = r?.conversations;
-      const body = raw?.body as { conversations?: Conversation[] } | undefined;
+      const body = r?.conversations?.body as { conversations?: Conversation[] } | undefined;
       setConversations(body?.conversations ?? []);
     } catch (e: any) {
       toast({ title: 'Erro ao carregar conversas', description: e.message, variant: 'destructive' });
@@ -86,7 +99,8 @@ export default function CrmOficialChat() {
       const body = r?.messages?.body as { messages?: Message[] } | undefined;
       setMessages(body?.messages ?? []);
       requestAnimationFrame(() => {
-        scrollerRef.current?.scrollTo({ top: scrollerRef.current.scrollHeight, behavior: 'smooth' });
+        scrollerRef.current?.scrollTo({ top: scrollerRef.current.scrollHeight });
+        inputRef.current?.focus();
       });
     } catch (e: any) {
       toast({ title: 'Erro ao carregar mensagens', description: e.message, variant: 'destructive' });
@@ -103,19 +117,18 @@ export default function CrmOficialChat() {
     [conversations, selectedConvoId]
   );
 
-  const sendMessage = async () => {
-    if (!input.trim() || !selectedConvo) return;
+  const sendMessage = async (override?: string) => {
+    const text = (override ?? input).trim();
+    if (!text || !selectedConvo) return;
     const phone = selectedConvo.contacts?.phone;
     if (!phone) {
       toast({ title: 'Sem telefone', description: 'Esse contato não tem telefone válido.', variant: 'destructive' });
       return;
     }
     setSending(true);
-    const text = input.trim();
-    setInput('');
+    if (!override) setInput('');
     try {
       await invoke('send-whatsapp', { phone, body: text, name: selectedConvo.contacts?.name });
-      // optimistic append
       setMessages(m => [...m, {
         id: `tmp-${Date.now()}`,
         conversation_id: selectedConvo.id,
@@ -125,8 +138,8 @@ export default function CrmOficialChat() {
       }]);
       requestAnimationFrame(() => {
         scrollerRef.current?.scrollTo({ top: scrollerRef.current.scrollHeight, behavior: 'smooth' });
+        inputRef.current?.focus();
       });
-      // refresh in background
       setTimeout(() => loadMessages(selectedConvo.id), 1500);
     } catch (e: any) {
       toast({ title: 'Falha ao enviar', description: e.message, variant: 'destructive' });
@@ -177,42 +190,67 @@ export default function CrmOficialChat() {
   }
 
   return (
-    <DashboardLayout>
-      <div className="h-[calc(100vh-7rem)] flex gap-3">
-        {/* Conversations list */}
-        <Card className="w-80 flex flex-col overflow-hidden">
-          <div className="p-3 border-b border-border/60 flex items-center gap-2">
-            <Zap className="w-4 h-4 text-emerald-500" />
-            <span className="font-semibold text-sm">Chat CRM Oficial</span>
-            <Button size="icon" variant="ghost" className="ml-auto h-7 w-7" onClick={loadConversations} disabled={loadingConvos}>
-              {loadingConvos ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+    <DashboardLayout noPadding>
+      <div className="flex flex-col lg:flex-row h-[calc(100dvh-56px)] animate-fade-in bg-background">
+        {/* Sidebar conversas */}
+        <div className="flex flex-col border-r border-border bg-card/30 w-full lg:w-80 xl:w-96">
+          <div className="px-3 py-2.5 border-b border-border flex items-center gap-2 bg-gradient-to-r from-emerald-600/15 via-primary/10 to-cyan-500/10">
+            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-700 flex items-center justify-center shadow-lg shadow-emerald-500/20">
+              <Zap className="w-4 h-4 text-white" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <h2 className="font-bold text-sm leading-tight flex items-center gap-1.5">
+                Chat CRM Oficial
+                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400">API</span>
+              </h2>
+              <p className="text-[10px] text-muted-foreground leading-tight">WhatsApp Cloud + Webchat</p>
+            </div>
+            <Button asChild size="icon" variant="ghost" className="h-8 w-8 text-emerald-500 hover:text-emerald-400 hover:bg-emerald-500/10" title="Gerenciar canais">
+              <Link to="/crm-oficial-channels"><Phone className="w-4 h-4" /></Link>
             </Button>
+            <Button size="icon" variant="ghost" className="h-8 w-8" onClick={loadConversations} title="Atualizar">
+              <RefreshCw className={cn('w-3.5 h-3.5', loadingConvos && 'animate-spin')} />
+            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button size="icon" variant="ghost" className="h-8 w-8" title="Mais ações">
+                  <MoreVertical className="w-3.5 h-3.5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuItem asChild>
+                  <Link to="/settings"><SettingsIcon className="w-4 h-4 mr-2" /> Configurações</Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link to="/crm-oficial-channels"><Phone className="w-4 h-4 mr-2" /> Canais</Link>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
-          <div className="p-2 border-b border-border/60">
+
+          <div className="p-2 border-b border-border">
             <div className="relative">
               <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
               <Input
                 value={search}
                 onChange={e => setSearch(e.target.value)}
-                placeholder="Buscar conversa..."
-                className="pl-8 h-8 text-sm rounded-full"
+                placeholder="Pesquisar conversa..."
+                className="pl-8 h-8 text-sm"
               />
             </div>
           </div>
+
           <ScrollArea className="flex-1">
             {loadingConvos && conversations.length === 0 && (
               <div className="flex justify-center p-6"><Loader2 className="w-5 h-5 animate-spin text-primary" /></div>
             )}
             {!loadingConvos && filtered.length === 0 && (
-              <div className="p-6 text-center text-xs text-muted-foreground">
-                Nenhuma conversa encontrada.
-              </div>
+              <div className="p-6 text-center text-xs text-muted-foreground">Nenhuma conversa.</div>
             )}
             <div className="divide-y divide-border/40">
               {filtered.map(c => {
                 const name = c.contacts?.name || c.contacts?.phone || 'Contato';
                 const phone = c.contacts?.phone || '';
-                const initials = name.slice(0, 2).toUpperCase();
                 const active = c.id === selectedConvoId;
                 return (
                   <button
@@ -220,11 +258,11 @@ export default function CrmOficialChat() {
                     onClick={() => setSelectedConvoId(c.id)}
                     className={cn(
                       'w-full flex items-center gap-3 p-3 text-left hover:bg-accent/40 transition-colors',
-                      active && 'bg-accent/60'
+                      active && 'bg-emerald-500/10 border-l-2 border-l-emerald-500'
                     )}
                   >
                     <Avatar className="h-9 w-9">
-                      <AvatarFallback className="bg-emerald-500/15 text-emerald-500 text-xs">{initials}</AvatarFallback>
+                      <AvatarFallback className="bg-emerald-500/15 text-emerald-500 text-xs">{initials(name)}</AvatarFallback>
                     </Avatar>
                     <div className="flex-1 min-w-0">
                       <div className="text-sm font-medium truncate">{name}</div>
@@ -235,21 +273,22 @@ export default function CrmOficialChat() {
               })}
             </div>
           </ScrollArea>
-        </Card>
+        </div>
 
-        {/* Conversation panel */}
-        <Card className="flex-1 flex flex-col overflow-hidden">
+        {/* Conversa */}
+        <div className="flex-1 flex flex-col bg-background overflow-hidden">
           {!selectedConvo ? (
             <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground gap-2">
-              <MessageCircleMore className="w-10 h-10 opacity-50" />
-              <p className="text-sm">Selecione uma conversa para começar</p>
+              <MessageCircleMore className="w-12 h-12 opacity-40" />
+              <p className="text-sm font-medium">Selecione uma conversa</p>
+              <p className="text-xs">Escolha um contato ao lado para começar</p>
             </div>
           ) : (
             <>
-              <div className="px-4 py-3 border-b border-border/60 flex items-center gap-3">
-                <Avatar className="h-9 w-9">
+              <div className="px-4 py-3 border-b border-border flex items-center gap-3 bg-card/30">
+                <Avatar className="h-10 w-10">
                   <AvatarFallback className="bg-emerald-500/15 text-emerald-500 text-xs">
-                    {(selectedConvo.contacts?.name || selectedConvo.contacts?.phone || '?').slice(0, 2).toUpperCase()}
+                    {initials(selectedConvo.contacts?.name || selectedConvo.contacts?.phone || '?')}
                   </AvatarFallback>
                 </Avatar>
                 <div className="flex-1 min-w-0">
@@ -258,10 +297,10 @@ export default function CrmOficialChat() {
                   </div>
                   <div className="text-[11px] text-muted-foreground truncate">{selectedConvo.contacts?.phone || ''}</div>
                 </div>
-                <Badge variant="outline" className="text-[10px]">via CRM Oficial</Badge>
+                <Badge variant="outline" className="text-[10px] border-emerald-500/30 text-emerald-400">CRM Oficial</Badge>
               </div>
 
-              <ScrollArea className="flex-1 bg-muted/20">
+              <ScrollArea className="flex-1 bg-[radial-gradient(circle_at_50%_50%,hsl(var(--muted)/0.3),transparent)]">
                 <div ref={scrollerRef} className="p-4 space-y-2">
                   {loadingMsgs && messages.length === 0 && (
                     <div className="flex justify-center p-6"><Loader2 className="w-5 h-5 animate-spin text-primary" /></div>
@@ -291,22 +330,47 @@ export default function CrmOficialChat() {
                 </div>
               </ScrollArea>
 
-              <div className="p-3 border-t border-border/60 flex items-center gap-2">
+              {/* Quick replies */}
+              <div className="px-3 py-2 border-t border-border bg-card/20 flex gap-1.5 overflow-x-auto">
+                {QUICK_REPLIES.map(q => (
+                  <button
+                    key={q}
+                    onClick={() => sendMessage(q)}
+                    disabled={sending}
+                    className="text-xs whitespace-nowrap px-2.5 py-1 rounded-full bg-muted hover:bg-emerald-500/15 hover:text-emerald-400 transition disabled:opacity-50"
+                  >
+                    {q}
+                  </button>
+                ))}
+              </div>
+
+              <div className="p-3 border-t border-border flex items-center gap-2 bg-card/30">
+                <Button size="icon" variant="ghost" className="h-9 w-9 shrink-0"><Smile className="w-4 h-4" /></Button>
                 <Input
+                  ref={inputRef}
                   value={input}
                   onChange={e => setInput(e.target.value)}
                   onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
                   placeholder="Digite uma mensagem..."
-                  className="rounded-full"
+                  className="rounded-full bg-background"
                   disabled={sending}
                 />
-                <Button onClick={sendMessage} disabled={sending || !input.trim()} className="rounded-full h-10 w-10 p-0 bg-emerald-500 hover:bg-emerald-600">
+                <Button onClick={() => sendMessage()} disabled={sending || !input.trim()} className="rounded-full h-10 w-10 p-0 bg-emerald-500 hover:bg-emerald-600 shrink-0">
                   {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
                 </Button>
               </div>
             </>
           )}
-        </Card>
+        </div>
+
+        {/* Painel direito: Renovação Rápida */}
+        <div className="hidden xl:flex flex-col w-[400px] border-l border-border bg-card/20 overflow-hidden">
+          <ScrollArea className="flex-1">
+            <QuickRenewalPanel
+              initialPhone={selectedConvo?.contacts?.phone || null}
+            />
+          </ScrollArea>
+        </div>
       </div>
     </DashboardLayout>
   );
