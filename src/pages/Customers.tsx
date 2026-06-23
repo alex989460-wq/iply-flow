@@ -172,7 +172,7 @@ export default function Customers() {
   const [selectedEvoTemplateKey, setSelectedEvoTemplateKey] = useState<'D-1' | 'D0' | 'D+1'>('D0');
   // 'zap' = API oficial / Zap Responder | 'evolution' = WhatsApp não oficial | 'crm' = CRM Oficial
   const [billingChannel, setBillingChannel] = useState<'zap' | 'evolution' | 'crm'>('zap');
-  const [crmTemplates, setCrmTemplates] = useState<Array<{ name: string; language: string; status?: string; components?: any[] }>>([]);
+  const [crmTemplates, setCrmTemplates] = useState<Array<{ name: string; language: string; status?: string; parameter_format?: string; components?: any[] }>>([]);
   const [isLoadingCrmTemplates, setIsLoadingCrmTemplates] = useState(false);
   const [selectedCrmTemplate, setSelectedCrmTemplate] = useState('');
 
@@ -374,7 +374,7 @@ export default function Customers() {
       if (!user) return null;
       const { data, error } = await (supabase
         .from('billing_settings' as any)
-        .select('use_evolution_billing, evolution_instance, evolution_msg_d_minus_1, evolution_msg_d0, evolution_msg_d_plus_1, pix_key')
+        .select('use_evolution_billing, evolution_instance, evolution_msg_d_minus_1, evolution_msg_d0, evolution_msg_d_plus_1, pix_key, renewal_image_url')
         .eq('user_id', user.id)
         .maybeSingle() as any);
       if (error) throw error;
@@ -1291,6 +1291,7 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
           name: String(t.name || ''),
           language: String(t.language || 'pt_BR'),
           status: String(t.status || ''),
+          parameter_format: String(t.parameter_format || ''),
           components: Array.isArray(t.components) ? t.components : [],
         }))
         .filter((t: any) => t.name && (t.status || '').toUpperCase() === 'APPROVED');
@@ -1333,6 +1334,123 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
     return tpl.replace(/\{\{\s*(\w+)\s*\}\}/g, (_m, k) => map[k] ?? '');
   };
 
+  const getCrmTemplateCustomerValues = (c: any) => {
+    const fullName = c?.name || '';
+    const firstName = fullName.trim().split(/\s+/)[0] || fullName;
+    const rawPrice = c?.custom_price ?? c?.plans?.price ?? 0;
+    const priceFormatted = (typeof rawPrice === 'number' ? rawPrice : parseFloat(String(rawPrice).replace(',', '.')) || 0)
+      .toFixed(2).replace('.', ',');
+    const dueDate = c?.due_date ? new Date(c.due_date + 'T12:00:00').toLocaleDateString('pt-BR') : '';
+    const userName = c?.username || '';
+    const planName = c?.plans?.plan_name || '';
+    const serverName = c?.servers?.server_name || '';
+    const phone = c?.phone || '';
+    const screens = String(c?.screens || 1);
+    return {
+      fullName,
+      firstName,
+      priceFormatted,
+      dueDate,
+      userName,
+      planName,
+      serverName,
+      phone,
+      screens,
+      byKey: (key: string, index: number) => {
+        const normalized = key.toLowerCase();
+        const named: Record<string, string> = {
+          name: firstName, nome: firstName, cliente: firstName, customer: firstName,
+          user: userName, usuario: userName, username: userName, login: userName,
+          price: priceFormatted, valor: priceFormatted, preco: priceFormatted, value: priceFormatted,
+          weak: planName, plan: planName, plano: planName,
+          serv: serverName, server: serverName, servidor: serverName,
+          data: dueDate, vencimento: dueDate, due: dueDate, due_date: dueDate, date: dueDate,
+          telefone: phone, phone, telas: screens, screens,
+          pix: billingSettings?.pix_key || '',
+        };
+        const positional = [firstName, userName, priceFormatted, planName, serverName, dueDate, phone, screens];
+        return named[normalized] ?? positional[index] ?? '';
+      },
+    };
+  };
+
+  const buildCrmTemplatePayload = (template: { parameter_format?: string; components?: any[] }, customer: any) => {
+    const values = getCrmTemplateCustomerValues(customer);
+    const components = Array.isArray(template.components) ? template.components : [];
+    const bodyComponent = components.find((component) => String(component?.type || '').toUpperCase() === 'BODY');
+    const bodyText = String(bodyComponent?.text || '');
+    const parameterFormat = String(template.parameter_format || '').toUpperCase();
+    const isNamed = parameterFormat === 'NAMED' || /\{\{\s*[A-Za-z_]\w*\s*\}\}/.test(bodyText);
+
+    const namedFromExample = Array.isArray(bodyComponent?.example?.body_text_named_params)
+      ? bodyComponent.example.body_text_named_params.map((param: any) => String(param?.param_name || '').trim()).filter(Boolean)
+      : [];
+    const namedFromBody = Array.from(new Set((bodyText.match(/\{\{\s*([A-Za-z_]\w*)\s*\}\}/g) || [])
+      .map((match) => match.replace(/[{}\s]/g, ''))));
+    const positionalIndexes = Array.from(new Set((bodyText.match(/\{\{\s*\d+\s*\}\}/g) || [])
+      .map((match) => Number(match.replace(/\D/g, '')))
+      .filter((num) => Number.isFinite(num) && num > 0)))
+      .sort((a, b) => a - b);
+
+    const outgoingComponents: any[] = [];
+    let bodyParamTexts: string[] = [];
+
+    if (isNamed) {
+      const paramNames = namedFromExample.length ? namedFromExample : namedFromBody;
+      const parameters = paramNames.map((name, index) => ({
+        type: 'text',
+        parameter_name: name,
+        text: values.byKey(name, index),
+      }));
+      bodyParamTexts = parameters.map((param) => param.text);
+      if (parameters.length) outgoingComponents.push({ type: 'body', parameters });
+    } else if (positionalIndexes.length) {
+      const parameters = positionalIndexes.map((position, index) => ({
+        type: 'text',
+        text: values.byKey(String(position), index),
+      }));
+      bodyParamTexts = parameters.map((param) => param.text);
+      outgoingComponents.push({ type: 'body', parameters });
+    }
+
+    const headerComponent = components.find((component) => String(component?.type || '').toUpperCase() === 'HEADER');
+    const headerFormat = String(headerComponent?.format || '').toUpperCase();
+    if (headerFormat === 'IMAGE') {
+      const headerImageUrl =
+        headerComponent?.example?.header_handle?.[0] ||
+        headerComponent?.example?.header_url?.[0] ||
+        (billingSettings as any)?.renewal_image_url ||
+        '';
+      if (!headerImageUrl) {
+        throw new Error('Esse template tem imagem no cabeçalho, mas não encontrei a URL da imagem. Cadastre uma imagem padrão em Configurações → Cobrança.');
+      }
+      outgoingComponents.unshift({
+        type: 'header',
+        parameters: [{ type: 'image', image: { link: headerImageUrl } }],
+      });
+    } else if (headerFormat === 'TEXT' && String(headerComponent?.text || '').includes('{{')) {
+      outgoingComponents.unshift({
+        type: 'header',
+        parameters: [{ type: 'text', text: values.firstName }],
+      });
+    }
+
+    const dynamicButton = components.find((component) =>
+      String(component?.type || '').toUpperCase() === 'BUTTONS' &&
+      Array.isArray(component?.buttons) &&
+      component.buttons.some((button: any) => typeof button?.url === 'string' && button.url.includes('{{'))
+    );
+    if (dynamicButton) {
+      throw new Error('Esse template tem variável no botão. Use um template com botão fixo ou configure o link dinâmico antes de enviar.');
+    }
+
+    const fallbackBody = bodyText
+      .replace(/\{\{\s*([A-Za-z_]\w*)\s*\}\}/g, (_match, key) => values.byKey(key, 0))
+      .replace(/\{\{\s*(\d+)\s*\}\}/g, (_match, position) => values.byKey(position, Number(position) - 1));
+
+    return { components: outgoingComponents, params: bodyParamTexts, fallbackBody };
+  };
+
   const sendIndividualBilling = async () => {
     if (!sendingBillingCustomer) return;
 
@@ -1343,6 +1461,11 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
         return;
       }
       const [tplName, tplLang] = selectedCrmTemplate.split('|');
+      const selectedTemplateConfig = crmTemplates.find((template) => template.name === tplName && template.language === tplLang);
+      if (!selectedTemplateConfig) {
+        toast({ title: 'Template não encontrado', description: 'Recarregue os templates do CRM Oficial e tente novamente.', variant: 'destructive' });
+        return;
+      }
       const rawPhone = (sendingBillingCustomer.phone || '').toString();
       const phone = rawPhone.replace(/\D/g, '');
       if (!phone || phone.length < 10) {
@@ -1350,15 +1473,13 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
         return;
       }
       const phoneWithCode = phone.startsWith('55') ? phone : `55${phone}`;
-      const firstName = (sendingBillingCustomer.name || '').trim().split(/\s+/)[0] || sendingBillingCustomer.name || '';
-      const dueDate = sendingBillingCustomer.due_date
-        ? new Date(sendingBillingCustomer.due_date + 'T12:00:00').toLocaleDateString('pt-BR')
-        : '';
-      const rawPrice = sendingBillingCustomer.custom_price ?? sendingBillingCustomer.plans?.price ?? 0;
-      const priceFormatted = (typeof rawPrice === 'number' ? rawPrice : parseFloat(String(rawPrice).replace(',', '.')) || 0).toFixed(2).replace('.', ',');
-      // Variáveis posicionais comuns: {{1}}=nome {{2}}=vencimento {{3}}=valor {{4}}=usuario {{5}}=plano
-      const params = [firstName, dueDate, `R$ ${priceFormatted}`, sendingBillingCustomer.username || '', sendingBillingCustomer.plans?.plan_name || ''];
-      const crmFallbackBody = `Olá ${firstName}, sua cobrança vence em ${dueDate}. Valor: R$ ${priceFormatted}. Usuário: ${sendingBillingCustomer.username || '-'}. Plano: ${sendingBillingCustomer.plans?.plan_name || '-'}.`;
+      let templatePayload: { components: any[]; params: string[]; fallbackBody: string };
+      try {
+        templatePayload = buildCrmTemplatePayload(selectedTemplateConfig, sendingBillingCustomer);
+      } catch (payloadError: any) {
+        toast({ title: 'Template incompleto', description: payloadError.message, variant: 'destructive' });
+        return;
+      }
       setIsSendingBilling(true);
       try {
         const { data, error } = await supabase.functions.invoke('crm-oficial-sync', {
@@ -1367,17 +1488,24 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
             data: {
               phone: phoneWithCode,
               name: sendingBillingCustomer.name,
-              body: crmFallbackBody,
+              body: templatePayload.fallbackBody || tplName,
               template_name: tplName,
               template_language: tplLang || 'pt_BR',
-              template_params: params,
+              template_params: templatePayload.params,
+              components: templatePayload.components,
             },
           },
         });
         if (error) throw error;
         if (!data?.success) throw new Error(data?.error || 'Falha ao enviar');
         const send = data?.results?.send;
-        if (send && !send.ok) throw new Error(`Status ${send.status}: ${typeof send.body === 'string' ? send.body : JSON.stringify(send.body)}`);
+        if (send && !send.ok) {
+          const body = send.body || {};
+          const detail = typeof body === 'string'
+            ? body.replace(/<[^>]*>/g, ' ').slice(0, 220)
+            : (body.error || body.crm_error?.error?.message || body.crm_error?.message || JSON.stringify(body).replace(/<[^>]*>/g, ' ').slice(0, 220));
+          throw new Error(`Status ${send.status}: ${detail}`);
+        }
         await supabase.from('billing_logs').insert({
           customer_id: sendingBillingCustomer.id,
           billing_type: 'D0',
@@ -3082,8 +3210,7 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
                         </SelectContent>
                       </Select>
                       <p className="text-[10px] text-muted-foreground">
-                        Variáveis enviadas em ordem: <code>{'{{1}}'}</code> nome, <code>{'{{2}}'}</code> vencimento,{' '}
-                        <code>{'{{3}}'}</code> valor, <code>{'{{4}}'}</code> usuário, <code>{'{{5}}'}</code> plano.
+                        As variáveis, imagem e botão serão enviados conforme o template aprovado selecionado.
                       </p>
                     </>
                   )}
