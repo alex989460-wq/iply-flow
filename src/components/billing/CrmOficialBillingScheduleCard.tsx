@@ -185,8 +185,8 @@ export function CrmOficialBillingScheduleCard() {
   });
 
   const primaryChannel = useMemo(
-    () => channels?.find((c) => c.primary || c.is_primary) || channels?.find((c) => c.is_active) || channels?.[0] || null,
-    [channels]
+    () => channels?.find((c) => c.id === selectedChannelId) || channels?.find((c) => c.primary || c.is_primary) || channels?.find((c) => c.is_active) || channels?.[0] || null,
+    [channels, selectedChannelId]
   );
 
   useEffect(() => {
@@ -207,6 +207,7 @@ export function CrmOficialBillingScheduleCard() {
       setTplDp1(composite(schedule.template_d_plus_1, schedule.template_lang_d_plus_1));
       setMinDelay(schedule.min_delay_seconds);
       setMaxDelay(schedule.max_delay_seconds);
+      setSelectedChannelId((schedule as any).channel_id || '');
       setChanged(false);
     }
   }, [schedule]);
