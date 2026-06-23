@@ -141,6 +141,8 @@ Deno.serve(async (req) => {
     if (action === "list-contacts") {
       const { limit } = data as { limit?: number };
       results.contacts = await doListContacts(typeof limit === "number" ? limit : 100, apiKey);
+    }
+
     if (action === "list-channels") {
       results.channels = await crmFetch("/api/public/v1/channels", { method: "GET", apiKey });
     }
