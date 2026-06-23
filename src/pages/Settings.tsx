@@ -19,6 +19,8 @@ import AutoRenewServersCard from '@/components/settings/AutoRenewServersCard';
 import BillingSettingsCard from '@/components/settings/BillingSettingsCard';
 import BackupManagerCard from '@/components/settings/BackupManagerCard';
 import EvolutionApiCard from '@/components/settings/EvolutionApiCard';
+import CrmOficialCard from '@/components/settings/CrmOficialCard';
+
 
 async function getFunctionsHttpErrorDetails(err: unknown): Promise<{ message?: string; raw?: any } | null> {
   // supabase-js / @supabase/functions-js throws FunctionsHttpError with `.context` as a Response
