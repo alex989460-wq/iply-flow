@@ -247,6 +247,7 @@ Deno.serve(async (req) => {
         if (!r?.ok && attempts.length) throw new Error(attempts[attempts.length - 1]);
       }
 
+      if (!r) throw new Error("Não foi possível baixar a mídia");
       if (!r.ok) {
         const txt = await r.text();
         throw new Error(`media ${r.status}: ${txt.slice(0, 200)}`);
@@ -270,7 +271,7 @@ Deno.serve(async (req) => {
       const safeName = rawFilename.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 120) || `media-${Date.now()}`;
       const owner = String(user_id || "crm-oficial").replace(/[^a-zA-Z0-9_-]/g, "_");
       const bin = Uint8Array.from(atob(mediaBase64), (c) => c.charCodeAt(0));
-      const path = `crm-oficial/${owner}/${Date.now()}-${safeName}`;
+      const path = `${owner}/crm-oficial/${Date.now()}-${safeName}`;
       const { error: upErr } = await admin.storage.from("evolution-media").upload(path, bin, { contentType: mimetype || "application/octet-stream", upsert: true });
       if (upErr) throw new Error(`Upload falhou: ${upErr.message || upErr}`);
       const { data: signed, error: signErr } = await admin.storage.from("evolution-media").createSignedUrl(path, 60 * 60 * 24 * 365);
