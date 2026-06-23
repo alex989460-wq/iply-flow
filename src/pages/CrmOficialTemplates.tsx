@@ -50,6 +50,7 @@ function normalizeTemplates(body: any): CrmTemplate[] {
           : [];
   return raw.map((t: any, index: number) => ({
     id: String(t.id || `${t.name || 'template'}-${t.language || 'pt_BR'}-${index}`),
+    metaId: t.id ? String(t.id) : undefined,
     name: String(t.name || ''),
     status: String(t.status || 'PENDING').toUpperCase(),
     category: String(t.category || 'UTILITY').toUpperCase(),
