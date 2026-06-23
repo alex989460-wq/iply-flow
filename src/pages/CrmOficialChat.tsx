@@ -66,14 +66,19 @@ export default function CrmOficialChat() {
             </div>
           </Card>
         ) : (
-          <Card className="flex-1 overflow-hidden p-0">
-            <iframe
-              src={embedUrl}
-              title="CRM Oficial Inbox"
-              className="w-full h-full border-0"
-              allow="clipboard-read; clipboard-write; microphone; camera; autoplay"
-            />
-          </Card>
+          <div className="flex-1 flex gap-3 overflow-hidden">
+            <Card className="flex-1 overflow-hidden p-0">
+              <iframe
+                src={embedUrl}
+                title="CRM Oficial Inbox"
+                className="w-full h-full border-0"
+                allow="clipboard-read; clipboard-write; microphone; camera; autoplay"
+              />
+            </Card>
+            <div className="hidden lg:block w-[380px] shrink-0 overflow-y-auto">
+              <QuickRenewalPanel initialPhone={null} />
+            </div>
+          </div>
         )}
       </div>
     </DashboardLayout>
