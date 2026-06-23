@@ -25,6 +25,7 @@ interface TemplateComponent {
 
 interface CrmTemplate {
   id: string;
+  metaId?: string;
   name: string;
   status: string;
   category: string;
