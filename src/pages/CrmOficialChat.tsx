@@ -103,6 +103,15 @@ function saveReadAt(conversationId: string) {
   return next;
 }
 
+async function fileToBase64(file: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(String(reader.result).split(',')[1] || '');
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
 function pickString(...values: unknown[]) {
   for (const value of values) {
     if (typeof value === 'string' && value.trim()) return value.trim();
@@ -415,12 +424,26 @@ export default function CrmOficialChat() {
     try {
       const ext = file.name.includes('.') ? file.name.split('.').pop() : 'bin';
       const path = `crm-oficial/${user?.id}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
-      const { error: upErr } = await supabase.storage.from('evolution-media').upload(path, file, {
-        cacheControl: '3600', upsert: false, contentType: file.type || 'application/octet-stream',
-      });
-      if (upErr) throw upErr;
-      const { data: signed, error: sErr } = await supabase.storage.from('evolution-media').createSignedUrl(path, 60 * 60 * 24 * 365);
-      if (sErr || !signed?.signedUrl) throw sErr || new Error('Falha ao gerar URL');
+      let mediaUrl = '';
+      try {
+        const { error: upErr } = await supabase.storage.from('evolution-media').upload(path, file, {
+          cacheControl: '3600', upsert: false, contentType: file.type || 'application/octet-stream',
+        });
+        if (upErr) throw upErr;
+        const { data: signed, error: sErr } = await supabase.storage.from('evolution-media').createSignedUrl(path, 60 * 60 * 24 * 365);
+        if (sErr || !signed?.signedUrl) throw sErr || new Error('Falha ao gerar URL');
+        mediaUrl = signed.signedUrl;
+      } catch (directError) {
+        if (file.size > 8 * 1024 * 1024) throw directError;
+        const uploaded = await invoke('upload-media', {
+          user_id: user?.id,
+          mediaBase64: await fileToBase64(file),
+          mimetype: file.type || 'application/octet-stream',
+          filename: file.name,
+        });
+        mediaUrl = uploaded?.upload?.mediaUrl || uploaded?.upload?.url || '';
+        if (!mediaUrl) throw directError;
+      }
       const kind = explicitKind || detectMediaKind(file.type);
       const caption = captionText ?? input.trim();
       if (!captionText && caption) setInput('');
@@ -429,7 +452,7 @@ export default function CrmOficialChat() {
         name: selectedConvo.contacts?.name,
         body: caption || file.name,
         caption,
-        media_url: signed.signedUrl,
+        media_url: mediaUrl,
         media_type: kind,
         mime_type: file.type || 'application/octet-stream',
         file_name: file.name,
@@ -440,13 +463,13 @@ export default function CrmOficialChat() {
         direction: 'out',
         body: caption || '',
         created_at: new Date().toISOString(),
-        media_url: signed.signedUrl,
+        media_url: mediaUrl,
         media_type: kind,
         mime_type: file.type,
         file_name: file.name,
         status: 'sent',
       }]);
-      setMediaCache(c => ({ ...c, [signed.signedUrl]: signed.signedUrl }));
+      setMediaCache(c => ({ ...c, [mediaUrl]: mediaUrl }));
       toast({ title: 'Enviado', description: `${kind.toUpperCase()} enviado via CRM Oficial.` });
       setTimeout(() => loadMessages(selectedConvo.id), 2000);
     } catch (err: any) {
