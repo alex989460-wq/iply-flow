@@ -539,6 +539,48 @@ export type Database = {
         }
         Relationships: []
       }
+      crm_oficial_settings: {
+        Row: {
+          api_key: string | null
+          auto_renew_notify: boolean
+          auto_signup: boolean
+          auto_test_chat: boolean
+          created_at: string
+          enabled: boolean
+          id: string
+          last_test_at: string | null
+          last_test_ok: boolean | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          api_key?: string | null
+          auto_renew_notify?: boolean
+          auto_signup?: boolean
+          auto_test_chat?: boolean
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          last_test_at?: string | null
+          last_test_ok?: boolean | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          api_key?: string | null
+          auto_renew_notify?: boolean
+          auto_signup?: boolean
+          auto_test_chat?: boolean
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          last_test_at?: string | null
+          last_test_ok?: boolean | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       customer_backups: {
         Row: {
           backup_data: Json
