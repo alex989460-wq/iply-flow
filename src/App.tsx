@@ -114,6 +114,8 @@ function AppRoutes() {
       <Route path="/meta-chat" element={<ProtectedRoute><MetaChat /></ProtectedRoute>} />
       <Route path="/chat-evolution" element={<ProtectedRoute><EvolutionChat /></ProtectedRoute>} />
       <Route path="/evolution-instances" element={<ProtectedRoute><EvolutionInstances /></ProtectedRoute>} />
+      <Route path="/chat-crm-oficial" element={<ProtectedRoute><CrmOficialChat /></ProtectedRoute>} />
+
       <Route path="/banner-generator" element={<ProtectedRoute><BannerGenerator /></ProtectedRoute>} />
       <Route path="/robo" element={<ProtectedRoute><RoboFlows /></ProtectedRoute>} />
       <Route path="*" element={<NotFound />} />
