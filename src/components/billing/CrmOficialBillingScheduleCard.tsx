@@ -145,9 +145,12 @@ export function CrmOficialBillingScheduleCard() {
       setMsgD1(schedule.message_d_minus_1);
       setMsgD0(schedule.message_d0);
       setMsgDp1(schedule.message_d_plus_1);
-      setTplD1(schedule.template_d_minus_1 || '');
-      setTplD0(schedule.template_d0 || '');
-      setTplDp1(schedule.template_d_plus_1 || '');
+      // Reconstroi o composite name|language esperado pelo Select.
+      const composite = (name?: string | null, lang?: string | null) =>
+        name ? `${name}|${lang || 'pt_BR'}` : '';
+      setTplD1(composite(schedule.template_d_minus_1, schedule.template_lang_d_minus_1));
+      setTplD0(composite(schedule.template_d0, schedule.template_lang_d0));
+      setTplDp1(composite(schedule.template_d_plus_1, schedule.template_lang_d_plus_1));
       setMinDelay(schedule.min_delay_seconds);
       setMaxDelay(schedule.max_delay_seconds);
       setChanged(false);

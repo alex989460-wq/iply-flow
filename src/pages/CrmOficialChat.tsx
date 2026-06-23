@@ -170,6 +170,20 @@ function normalizeConversations(body: any): Conversation[] {
   });
 }
 
+// Detecta marcadores tipo "[image]", "[document] arquivo.pdf", "[video] file.mp4"
+const PLACEHOLDER_RX = /^\s*\[(image|imagem|video|v[ií]deo|audio|[áa]udio|document|documento|sticker|figurinha)\]\s*(.*)$/i;
+function parsePlaceholder(body: string): { kind: 'image'|'audio'|'video'|'document'|'sticker'|null; filename: string; cleanBody: string } {
+  const m = (body || '').match(PLACEHOLDER_RX);
+  if (!m) return { kind: null, filename: '', cleanBody: body };
+  const raw = m[1].toLowerCase();
+  let kind: 'image'|'audio'|'video'|'document'|'sticker' = 'document';
+  if (raw.startsWith('imag')) kind = 'image';
+  else if (raw.startsWith('vid') || raw.startsWith('vís') || raw.startsWith('víd') || raw.startsWith('víd')) kind = 'video';
+  else if (raw.includes('aud') || raw.includes('áud')) kind = 'audio';
+  else if (raw.startsWith('stick') || raw.startsWith('figur')) kind = 'sticker';
+  return { kind, filename: (m[2] || '').trim(), cleanBody: '' };
+}
+
 function normalizeMessages(body: any): Message[] {
   const raw = Array.isArray(body)
     ? body
@@ -182,10 +196,12 @@ function normalizeMessages(body: any): Message[] {
           : [];
   return raw.map((m: any, index: number) => {
     const media = m.media || m.attachment || m.attachments?.[0] || {};
-    const bodyText = pickString(m.body, m.text, m.content, m.message, m.caption, media.caption);
+    const rawBody = pickString(m.body, m.text, m.content, m.message, m.caption, media.caption);
+    const placeholder = parsePlaceholder(rawBody);
+    const bodyText = placeholder.kind ? placeholder.cleanBody : rawBody;
     const mediaUrl = pickString(m.media_url, m.mediaUrl, m.url, media.url, media.media_url, media.path, media.id);
     const mime = pickString(m.mime_type, m.mimetype, m.media_mime, media.mime_type, media.mimetype, media.content_type);
-    const mediaType = pickString(m.media_type, m.mediaType, m.message_type, media.type, media.media_type);
+    const mediaType = pickString(m.media_type, m.mediaType, m.message_type, media.type, media.media_type) || placeholder.kind || '';
     return {
       ...m,
       id: String(m.id || m.message_id || m.external_id || `message-${index}-${m.created_at || Date.now()}`),
@@ -195,9 +211,10 @@ function normalizeMessages(body: any): Message[] {
       media_url: mediaUrl || null,
       media_type: mediaType || null,
       mime_type: mime || null,
-      file_name: pickString(m.file_name, m.filename, media.file_name, media.filename) || null,
+      file_name: pickString(m.file_name, m.filename, media.file_name, media.filename, placeholder.filename) || null,
       status: pickString(m.status, m.delivery_status, m.read_status),
-    } as Message;
+      _placeholder: placeholder.kind, // hint para o renderer
+    } as Message & { _placeholder?: string | null };
   });
 }
 
@@ -424,17 +441,22 @@ export default function CrmOficialChat() {
     try {
       const ext = file.name.includes('.') ? file.name.split('.').pop() : 'bin';
       const ownerFolder = user?.id || 'crm-oficial';
-      const path = `${ownerFolder}/crm-oficial/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+      // IMPORTANTE: usamos o bucket PÚBLICO "reseller-assets" porque a Meta precisa
+      // baixar a URL publicamente. Buckets privados (signed URLs do evolution-media)
+      // são rejeitados pela Graph API em muitos casos.
+      const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 80);
+      const path = `crm-oficial-outbox/${ownerFolder}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${safeName || 'file.' + ext}`;
       let mediaUrl = '';
       try {
-        const { error: upErr } = await supabase.storage.from('evolution-media').upload(path, file, {
+        const { error: upErr } = await supabase.storage.from('reseller-assets').upload(path, file, {
           cacheControl: '3600', upsert: false, contentType: file.type || 'application/octet-stream',
         });
         if (upErr) throw upErr;
-        const { data: signed, error: sErr } = await supabase.storage.from('evolution-media').createSignedUrl(path, 60 * 60 * 24 * 365);
-        if (sErr || !signed?.signedUrl) throw sErr || new Error('Falha ao gerar URL');
-        mediaUrl = signed.signedUrl;
+        const { data: pub } = supabase.storage.from('reseller-assets').getPublicUrl(path);
+        if (!pub?.publicUrl) throw new Error('Falha ao gerar URL pública');
+        mediaUrl = pub.publicUrl;
       } catch (directError) {
+        // Fallback: tenta via edge function (que sobe e assina). Não ideal para Meta, mas funciona pra documentos pequenos.
         if (file.size > 8 * 1024 * 1024) throw directError;
         const uploaded = await invoke('upload-media', {
           user_id: user?.id,
@@ -531,7 +553,26 @@ export default function CrmOficialChat() {
     recorderRef.current = null;
   };
 
-  const renderMedia = (m: Message) => {
+  const renderMedia = (m: Message & { _placeholder?: string | null }) => {
+    // Caso 1: a mensagem tem um marcador "[document]" / "[image]" mas sem URL — exibe card amigável.
+    if (!m.media_url && m._placeholder) {
+      const labelMap: Record<string, string> = {
+        image: '📷 Imagem',
+        video: '🎬 Vídeo',
+        audio: '🎵 Áudio',
+        document: '📄 Documento',
+        sticker: '✨ Figurinha',
+      };
+      return (
+        <div className={cn(
+          'flex items-center gap-2 mb-1 px-3 py-2 rounded-lg border text-xs',
+          m.direction === 'out' ? 'border-white/30 bg-white/10' : 'border-border/60 bg-muted/30'
+        )}>
+          <span className="font-medium">{labelMap[m._placeholder] || '📎 Anexo'}</span>
+          {m.file_name && <span className="truncate opacity-80">{m.file_name}</span>}
+        </div>
+      );
+    }
     if (!m.media_url) return null;
     const kind = detectMediaKind(m.mime_type, m.media_type);
     const resolved = mediaCache[m.media_url];
@@ -729,6 +770,12 @@ export default function CrmOficialChat() {
                 <RefreshCw className="w-3 h-3" />
               </Button>
             </div>
+            {selectedChannel !== 'all' && channels.find(c => c.id === selectedChannel)?.kind !== 'webchat' && (
+              <p className="text-[10px] text-amber-500/80 leading-tight px-1">
+                ⚠ A API do CRM Oficial ainda não separa conversas por número WhatsApp — todos os números
+                compartilham o mesmo inbox. O filtro atual só separa <strong>WhatsApp</strong> de <strong>Webchat</strong>.
+              </p>
+            )}
 
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
