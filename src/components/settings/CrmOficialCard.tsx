@@ -9,7 +9,9 @@ import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
-import { AlertCircle, CheckCircle2, Eye, EyeOff, ExternalLink, Loader2, Save, XCircle, Zap } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Eye, EyeOff, ExternalLink, Loader2, MessageCircleMore, Save, XCircle, Zap } from 'lucide-react';
+import { Link } from 'react-router-dom';
+
 
 interface CrmOficialSettings {
   api_key: string;
@@ -241,6 +243,13 @@ export default function CrmOficialCard() {
         )}
 
         <div className="flex flex-wrap justify-end gap-2">
+          <Button variant="ghost" asChild>
+            <Link to="/chat-crm-oficial">
+              <MessageCircleMore className="w-4 h-4 mr-2" />
+              Abrir Chat
+            </Link>
+          </Button>
+
           <Button variant="outline" onClick={testConnection} disabled={testing || !settings.api_key}>
             {testing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <CheckCircle2 className="w-4 h-4 mr-2" />}
             Testar conexão

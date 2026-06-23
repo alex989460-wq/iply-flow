@@ -35,6 +35,8 @@ import MetaTemplates from "./pages/MetaTemplates";
 import MetaChat from "./pages/MetaChat";
 import EvolutionChat from "./pages/EvolutionChat";
 import EvolutionInstances from "./pages/EvolutionInstances";
+import CrmOficialChat from "./pages/CrmOficialChat";
+
 import PublicCheckout from "./pages/PublicCheckout";
 import BannerGenerator from "./pages/BannerGenerator";
 import RoboFlows from "./pages/RoboFlows";
@@ -112,6 +114,8 @@ function AppRoutes() {
       <Route path="/meta-chat" element={<ProtectedRoute><MetaChat /></ProtectedRoute>} />
       <Route path="/chat-evolution" element={<ProtectedRoute><EvolutionChat /></ProtectedRoute>} />
       <Route path="/evolution-instances" element={<ProtectedRoute><EvolutionInstances /></ProtectedRoute>} />
+      <Route path="/chat-crm-oficial" element={<ProtectedRoute><CrmOficialChat /></ProtectedRoute>} />
+
       <Route path="/banner-generator" element={<ProtectedRoute><BannerGenerator /></ProtectedRoute>} />
       <Route path="/robo" element={<ProtectedRoute><RoboFlows /></ProtectedRoute>} />
       <Route path="*" element={<NotFound />} />

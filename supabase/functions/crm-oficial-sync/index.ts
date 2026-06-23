@@ -11,7 +11,7 @@ const corsHeaders = {
 
 const CRM_BASE = "https://crmapioficial.lovable.app";
 
-type Action = "signup" | "test-chat" | "renew-notify" | "ping";
+type Action = "signup" | "test-chat" | "renew-notify" | "ping" | "list-conversations" | "list-messages" | "send-whatsapp" | "list-contacts";
 
 async function crmFetch(path: string, init: RequestInit & { withAuth?: boolean; apiKey?: string } = {}) {
   const apiKey = init.apiKey || Deno.env.get("CRM_OFICIAL_API_KEY") || "";
@@ -55,9 +55,29 @@ async function doMessage(payload: { phone: string; name?: string; body: string; 
 }
 
 async function doPing(apiKey?: string) {
-  // /contacts?limit=1 é a chamada GET autenticada mais barata para validar a chave
   return crmFetch("/api/public/v1/contacts?limit=1", { method: "GET", apiKey });
 }
+
+async function doListConversations(apiKey?: string) {
+  return crmFetch("/api/public/v1/conversations", { method: "GET", apiKey });
+}
+
+async function doListMessages(conversation_id: string, apiKey?: string) {
+  return crmFetch(`/api/public/v1/messages?conversation_id=${encodeURIComponent(conversation_id)}`, { method: "GET", apiKey });
+}
+
+async function doSendWhatsapp(payload: { phone: string; body: string; name?: string }, apiKey?: string) {
+  return crmFetch("/api/public/v1/whatsapp-send", {
+    method: "POST",
+    body: JSON.stringify(payload),
+    apiKey,
+  });
+}
+
+async function doListContacts(limit: number, apiKey?: string) {
+  return crmFetch(`/api/public/v1/contacts?limit=${limit}`, { method: "GET", apiKey });
+}
+
 
 
 Deno.serve(async (req) => {
@@ -101,6 +121,28 @@ Deno.serve(async (req) => {
         body: `✅ Renovação confirmada${months ? ` (${months} mês${months > 1 ? "es" : ""})` : ""}. Nova validade: ${exp}.`,
       }, apiKey);
     }
+
+    if (action === "list-conversations") {
+      results.conversations = await doListConversations(apiKey);
+    }
+
+    if (action === "list-messages") {
+      const { conversation_id } = data as { conversation_id: string };
+      if (!conversation_id) throw new Error("conversation_id é obrigatório");
+      results.messages = await doListMessages(conversation_id, apiKey);
+    }
+
+    if (action === "send-whatsapp") {
+      const { phone, body, name } = data as { phone: string; body: string; name?: string };
+      if (!phone || !body) throw new Error("phone e body são obrigatórios");
+      results.send = await doSendWhatsapp({ phone, body, name }, apiKey);
+    }
+
+    if (action === "list-contacts") {
+      const { limit } = data as { limit?: number };
+      results.contacts = await doListContacts(typeof limit === "number" ? limit : 100, apiKey);
+    }
+
 
 
     return new Response(JSON.stringify({ success: true, action, results }), {

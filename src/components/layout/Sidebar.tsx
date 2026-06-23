@@ -53,7 +53,9 @@ const menuItems: Array<{
   { icon: Trophy, label: 'Disparo Janela 24h', path: '/bolao-broadcast', adminOnly: false },
   { icon: MessageCircleMore, label: 'Chat Api', path: '/chat', adminOnly: false },
   { icon: MessageCircleMore, label: 'Chat WhatsApp', path: '/chat-evolution', adminOnly: false, badgeKey: 'evolution' },
+  { icon: MessageCircleMore, label: 'Chat CRM Oficial', path: '/chat-crm-oficial', adminOnly: false },
   { icon: QrCode, label: 'Conexões WhatsApp', path: '/evolution-instances', adminOnly: false },
+
   { icon: ImagePlus, label: 'Gerador de Banner', path: '/banner-generator', adminOnly: false },
   { icon: Bot, label: 'Gatilhos de Bot', path: '/bot-triggers', adminOnly: false },
   { icon: Bot, label: 'Robô', path: '/robo', adminOnly: false },
