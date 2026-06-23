@@ -61,6 +61,14 @@ function hasMissingTemplateScope(result: { status: number; body: unknown }) {
   });
 }
 
+function missingTemplateScopeResult(result: { ok: boolean; status: number; body: unknown }) {
+  const results = [result, ...(((result as { attempts?: Array<{ ok?: boolean; status: number; body: unknown }> }).attempts) || [])];
+  return results.find((item) => {
+    const body = typeof item.body === "string" ? item.body : JSON.stringify(item.body || {});
+    return item.status === 403 && body.includes("whatsapp-template-send:write");
+  });
+}
+
 async function doSignup(payload: { email: string; password: string; full_name?: string }, apiKey?: string) {
   return crmFetch("/api/public/v1/signup", {
     method: "POST",
@@ -155,7 +163,19 @@ async function doSendWhatsapp(payload: {
       () => crmFetch("/api/public/v1/templates/send", { method: "POST", body: JSON.stringify(tplPayload), apiKey }),
     ];
     const templateResult = await firstOk(templateAttempts);
-    if (templateResult.ok || hasMissingTemplateScope(templateResult)) return templateResult;
+    if (templateResult.ok) return templateResult;
+    if (hasMissingTemplateScope(templateResult)) {
+      const scopeError = missingTemplateScopeResult(templateResult);
+      return {
+        ok: false,
+        status: 403,
+        body: {
+          error: "CRM Oficial precisa liberar o escopo whatsapp-template-send:write para esta chave API.",
+          crm_error: scopeError?.body,
+        },
+        attempts: templateResult.attempts,
+      };
+    }
 
     // Último fallback: /whatsapp-send com body real, somente quando o endpoint de template não existir/estiver instável.
     return firstOk([
