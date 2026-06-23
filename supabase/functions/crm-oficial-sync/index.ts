@@ -53,6 +53,27 @@ function textFromUnknown(value: unknown) {
   return value == null ? "" : String(value);
 }
 
+function cleanErrorPreview(value: unknown, max = 500) {
+  const text = typeof value === "string" ? value : JSON.stringify(value || {});
+  return text
+    .replace(/<!DOCTYPE[\s\S]*$/i, "Resposta HTML do endpoint")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, max);
+}
+
+function imageHeaderFromComponents(components: unknown[]) {
+  for (const component of components) {
+    const c = component as { type?: string; parameters?: Array<{ type?: string; image?: { link?: string; url?: string } }> };
+    if (String(c?.type || "").toLowerCase() !== "header") continue;
+    const image = c.parameters?.find((p) => String(p?.type || "").toLowerCase() === "image")?.image;
+    const link = image?.link || image?.url;
+    if (link) return link;
+  }
+  return undefined;
+}
+
 function hasMissingTemplateScope(result: { status: number; body: unknown }) {
   const results = [result, ...(((result as { attempts?: Array<{ status: number; body: unknown }> }).attempts) || [])];
   return results.some((item) => {
@@ -140,7 +161,20 @@ async function doSendWhatsapp(payload: {
     const components = Array.isArray(payload.components) && payload.components.length
       ? payload.components
       : (params.length ? [{ type: "body", parameters: params.map(p => ({ type: "text", text: String(p) })) }] : []);
-    const tplPayload: Record<string, unknown> = {
+    const headerImageUrl = imageHeaderFromComponents(components);
+    const officialPayload: Record<string, unknown> = {
+      phone: payload.phone,
+      to: payload.phone,
+      name: payload.name,
+      template_name: payload.template_name,
+      templateName: payload.template_name,
+      template_language: lang,
+      templateLanguage: lang,
+      language: lang,
+      ...(components.length ? { components } : {}),
+      ...(headerImageUrl ? { header_image_url: headerImageUrl, headerImageUrl } : {}),
+    };
+    const legacyPayload: Record<string, unknown> = {
       phone: payload.phone,
       to: payload.phone,
       name: payload.name,
@@ -153,14 +187,28 @@ async function doSendWhatsapp(payload: {
       template_params: params,
       templateParams: params,
       components,
+      ...(headerImageUrl ? { header_image_url: headerImageUrl, headerImageUrl } : {}),
       template: { name: payload.template_name, language: { code: lang, policy: "deterministic" }, components },
+    };
+    const variablePayload: Record<string, unknown> = {
+      phone: payload.phone,
+      to: payload.phone,
+      name: payload.name,
+      body: fallbackBody || payload.template_name,
+      template_name: payload.template_name,
+      language: lang,
+      parameters: params,
+      variables: { body_text: params.map(textFromUnknown).filter(Boolean) },
+      ...(headerImageUrl ? { header_image_url: headerImageUrl, headerImageUrl } : {}),
     };
     // Tenta endpoints específicos de template. NÃO faz fallback para /whatsapp-send (texto puro),
     // pois isso enviaria sem imagem/botões/formatação do template — exatamente o bug que estamos corrigindo.
     const templateAttempts: Array<() => Promise<{ ok: boolean; status: number; body: unknown }>> = [
-      () => crmFetch("/api/public/v1/whatsapp-template-send", { method: "POST", body: JSON.stringify(tplPayload), apiKey }),
-      () => crmFetch("/api/public/v1/whatsapp/template-send", { method: "POST", body: JSON.stringify(tplPayload), apiKey }),
-      () => crmFetch("/api/public/v1/templates/send", { method: "POST", body: JSON.stringify(tplPayload), apiKey }),
+      () => crmFetch("/api/public/v1/whatsapp-template-send", { method: "POST", body: JSON.stringify(officialPayload), apiKey }),
+      () => crmFetch("/api/public/v1/whatsapp-template-send", { method: "POST", body: JSON.stringify(legacyPayload), apiKey }),
+      () => crmFetch("/api/public/v1/whatsapp-template-send", { method: "POST", body: JSON.stringify(variablePayload), apiKey }),
+      () => crmFetch("/api/public/v1/whatsapp/template-send", { method: "POST", body: JSON.stringify(officialPayload), apiKey }),
+      () => crmFetch("/api/public/v1/templates/send", { method: "POST", body: JSON.stringify(officialPayload), apiKey }),
     ];
     const templateResult = await firstOk(templateAttempts);
     console.log("[crm-oficial-sync] template send", {
@@ -188,7 +236,7 @@ async function doSendWhatsapp(payload: {
     // Todos os endpoints de template falharam — devolve erro claro em vez de degradar para texto puro.
     const attemptsSummary = ((templateResult as { attempts?: Array<{ status: number; body: unknown }> }).attempts || []).map((a) => ({
       status: a.status,
-      body: typeof a.body === "string" ? a.body.slice(0, 400) : a.body,
+      body: cleanErrorPreview(a.body),
     }));
     return {
       ok: false,
