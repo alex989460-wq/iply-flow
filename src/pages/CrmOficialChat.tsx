@@ -441,17 +441,22 @@ export default function CrmOficialChat() {
     try {
       const ext = file.name.includes('.') ? file.name.split('.').pop() : 'bin';
       const ownerFolder = user?.id || 'crm-oficial';
-      const path = `${ownerFolder}/crm-oficial/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+      // IMPORTANTE: usamos o bucket PÚBLICO "reseller-assets" porque a Meta precisa
+      // baixar a URL publicamente. Buckets privados (signed URLs do evolution-media)
+      // são rejeitados pela Graph API em muitos casos.
+      const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 80);
+      const path = `crm-oficial-outbox/${ownerFolder}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${safeName || 'file.' + ext}`;
       let mediaUrl = '';
       try {
-        const { error: upErr } = await supabase.storage.from('evolution-media').upload(path, file, {
+        const { error: upErr } = await supabase.storage.from('reseller-assets').upload(path, file, {
           cacheControl: '3600', upsert: false, contentType: file.type || 'application/octet-stream',
         });
         if (upErr) throw upErr;
-        const { data: signed, error: sErr } = await supabase.storage.from('evolution-media').createSignedUrl(path, 60 * 60 * 24 * 365);
-        if (sErr || !signed?.signedUrl) throw sErr || new Error('Falha ao gerar URL');
-        mediaUrl = signed.signedUrl;
+        const { data: pub } = supabase.storage.from('reseller-assets').getPublicUrl(path);
+        if (!pub?.publicUrl) throw new Error('Falha ao gerar URL pública');
+        mediaUrl = pub.publicUrl;
       } catch (directError) {
+        // Fallback: tenta via edge function (que sobe e assina). Não ideal para Meta, mas funciona pra documentos pequenos.
         if (file.size > 8 * 1024 * 1024) throw directError;
         const uploaded = await invoke('upload-media', {
           user_id: user?.id,
