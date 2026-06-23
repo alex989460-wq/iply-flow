@@ -54,8 +54,11 @@ function textFromUnknown(value: unknown) {
 }
 
 function hasMissingTemplateScope(result: { status: number; body: unknown }) {
-  const body = typeof result.body === "string" ? result.body : JSON.stringify(result.body || {});
-  return result.status === 403 && body.includes("whatsapp-template-send:write");
+  const results = [result, ...(((result as { attempts?: Array<{ status: number; body: unknown }> }).attempts) || [])];
+  return results.some((item) => {
+    const body = typeof item.body === "string" ? item.body : JSON.stringify(item.body || {});
+    return item.status === 403 && body.includes("whatsapp-template-send:write");
+  });
 }
 
 async function doSignup(payload: { email: string; password: string; full_name?: string }, apiKey?: string) {
