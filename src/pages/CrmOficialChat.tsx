@@ -523,9 +523,9 @@ export default function CrmOficialChat() {
                       <span className="flex items-center gap-2">
                         {ch.kind === 'webchat'
                           ? <Globe className="w-3 h-3 text-cyan-500" />
-                          : <span className={cn('w-1.5 h-1.5 rounded-full', ch.status === 'connected' || ch.primary ? 'bg-emerald-500' : 'bg-muted-foreground')} />}
-                        <span className="font-medium">{ch.name || (ch.kind === 'webchat' ? 'Webchat' : 'WhatsApp')}</span>
-                        {ch.phone_number && <span className="text-muted-foreground text-[10px]">{formatPhone(ch.phone_number)}</span>}
+                          : <span className={cn('w-1.5 h-1.5 rounded-full', ch.is_active || ch.status === 'connected' || ch.primary || ch.is_primary ? 'bg-emerald-500' : 'bg-muted-foreground')} />}
+                        <span className="font-medium">{ch.verified_name || ch.name || (ch.kind === 'webchat' ? 'Webchat' : 'WhatsApp')}</span>
+                        {(ch.display_phone_number || ch.phone_number) && <span className="text-muted-foreground text-[10px]">{ch.display_phone_number || formatPhone(ch.phone_number)}</span>}
                       </span>
                     </SelectItem>
                   ))}
