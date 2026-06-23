@@ -35,6 +35,8 @@ import MetaTemplates from "./pages/MetaTemplates";
 import MetaChat from "./pages/MetaChat";
 import EvolutionChat from "./pages/EvolutionChat";
 import EvolutionInstances from "./pages/EvolutionInstances";
+import CrmOficialChat from "./pages/CrmOficialChat";
+
 import PublicCheckout from "./pages/PublicCheckout";
 import BannerGenerator from "./pages/BannerGenerator";
 import RoboFlows from "./pages/RoboFlows";
