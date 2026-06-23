@@ -141,6 +141,18 @@ Deno.serve(async (req) => {
     if (action === "list-contacts") {
       const { limit } = data as { limit?: number };
       results.contacts = await doListContacts(typeof limit === "number" ? limit : 100, apiKey);
+    if (action === "list-channels") {
+      results.channels = await crmFetch("/api/public/v1/channels", { method: "GET", apiKey });
+    }
+
+    if (action === "create-channel") {
+      const payload = (data?.channel as Record<string, unknown>) || {};
+      if (!payload.kind) throw new Error("kind é obrigatório (whatsapp_cloud | webchat)");
+      results.channel = await crmFetch("/api/public/v1/channels", {
+        method: "POST",
+        body: JSON.stringify(payload),
+        apiKey,
+      });
     }
 
 
