@@ -4,6 +4,8 @@
 //   - test-chat    : cria contato + mensagem (in) no inbox da conta master, simulando chat de teste
 //   - renew-notify : registra renovação no inbox master via /messages (direction=in)
 
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -15,6 +17,7 @@ type Action =
   | "signup" | "test-chat" | "renew-notify" | "ping"
   | "list-conversations" | "list-messages" | "send-whatsapp" | "mark-read"
   | "list-contacts" | "list-channels" | "create-channel" | "get-media"
+  | "upload-media"
   | "list-templates" | "create-template" | "update-template" | "delete-template"
   | "list-chatbots" | "create-chatbot" | "update-chatbot" | "delete-chatbot";
 
@@ -233,6 +236,25 @@ Deno.serve(async (req) => {
       for (let i = 0; i < buf.length; i++) bin += String.fromCharCode(buf[i]);
       const b64 = btoa(bin);
       results.media = { url: `data:${ct};base64,${b64}`, mime: ct };
+    }
+
+    if (action === "upload-media") {
+      const { mediaBase64, mimetype, filename, user_id } = data as { mediaBase64?: string; mimetype?: string; filename?: string; user_id?: string };
+      if (!mediaBase64) throw new Error("mediaBase64 obrigatório");
+      const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
+      const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+      if (!supabaseUrl || !serviceKey) throw new Error("Storage indisponível no servidor");
+      const admin = createClient(supabaseUrl, serviceKey);
+      const rawFilename = String(filename || `media-${Date.now()}`);
+      const safeName = rawFilename.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 120) || `media-${Date.now()}`;
+      const owner = String(user_id || "crm-oficial").replace(/[^a-zA-Z0-9_-]/g, "_");
+      const bin = Uint8Array.from(atob(mediaBase64), (c) => c.charCodeAt(0));
+      const path = `crm-oficial/${owner}/${Date.now()}-${safeName}`;
+      const { error: upErr } = await admin.storage.from("evolution-media").upload(path, bin, { contentType: mimetype || "application/octet-stream", upsert: true });
+      if (upErr) throw new Error(`Upload falhou: ${upErr.message || upErr}`);
+      const { data: signed, error: signErr } = await admin.storage.from("evolution-media").createSignedUrl(path, 60 * 60 * 24 * 365);
+      if (signErr || !signed?.signedUrl) throw new Error(signErr?.message || "Falha ao assinar mídia");
+      results.upload = { url: signed.signedUrl, mediaUrl: signed.signedUrl, path };
     }
 
     if (action === "list-templates") {
