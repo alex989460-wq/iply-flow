@@ -243,6 +243,13 @@ export default function CrmOficialCard() {
         )}
 
         <div className="flex flex-wrap justify-end gap-2">
+          <Button variant="ghost" asChild>
+            <Link to="/chat-crm-oficial">
+              <MessageCircleMore className="w-4 h-4 mr-2" />
+              Abrir Chat
+            </Link>
+          </Button>
+
           <Button variant="outline" onClick={testConnection} disabled={testing || !settings.api_key}>
             {testing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <CheckCircle2 className="w-4 h-4 mr-2" />}
             Testar conexão
