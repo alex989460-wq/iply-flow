@@ -140,7 +140,9 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { action, data } = (await req.json()) as { action: Action; data: Record<string, unknown> };
+    const parsed = (await req.json().catch(() => ({}))) as { action: Action; data?: Record<string, unknown> };
+    const { action } = parsed;
+    const data = parsed.data ?? {};
     if (!action) throw new Error("action é obrigatório");
 
     const apiKey = (data?.apiKey as string | undefined) || undefined;
