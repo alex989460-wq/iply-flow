@@ -55,9 +55,29 @@ async function doMessage(payload: { phone: string; name?: string; body: string; 
 }
 
 async function doPing(apiKey?: string) {
-  // /contacts?limit=1 é a chamada GET autenticada mais barata para validar a chave
   return crmFetch("/api/public/v1/contacts?limit=1", { method: "GET", apiKey });
 }
+
+async function doListConversations(apiKey?: string) {
+  return crmFetch("/api/public/v1/conversations", { method: "GET", apiKey });
+}
+
+async function doListMessages(conversation_id: string, apiKey?: string) {
+  return crmFetch(`/api/public/v1/messages?conversation_id=${encodeURIComponent(conversation_id)}`, { method: "GET", apiKey });
+}
+
+async function doSendWhatsapp(payload: { phone: string; body: string; name?: string }, apiKey?: string) {
+  return crmFetch("/api/public/v1/whatsapp-send", {
+    method: "POST",
+    body: JSON.stringify(payload),
+    apiKey,
+  });
+}
+
+async function doListContacts(limit: number, apiKey?: string) {
+  return crmFetch(`/api/public/v1/contacts?limit=${limit}`, { method: "GET", apiKey });
+}
+
 
 
 Deno.serve(async (req) => {
