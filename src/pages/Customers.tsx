@@ -1491,17 +1491,13 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
         headerComponent?.example?.header_url?.[0] ||
         '';
       // URLs scontent.whatsapp.net / lookaside.fbsbx.com são CDN privado do Meta (assinadas e
-      // com expiração) — o Meta aceita o request (status 200), mas falha ao baixar a imagem
-      // na hora de entregar, e a mensagem nunca chega. Sempre preferir a imagem pública
-      // cadastrada em Configurações → Cobrança.
+      // com expiração). Sempre preferir a imagem pública cadastrada em Configurações → Cobrança;
+      // se não houver, a função backend baixa essa imagem e republica em URL pública antes de enviar.
       const settingsImage = ((billingSettings as any)?.renewal_image_url || '').toString().trim();
-      const isMetaCdn = /scontent\.whatsapp\.net|lookaside\.fbsbx\.com/i.test(exampleHandle);
-      const headerImageUrl = settingsImage || (isMetaCdn ? '' : exampleHandle);
+      const headerImageUrl = settingsImage || exampleHandle;
       if (!headerImageUrl) {
         throw new Error(
-          isMetaCdn
-            ? 'A imagem desse template está no CDN privado do Meta (scontent.whatsapp.net) e não pode ser reenviada — o Meta aceita o pedido mas a mensagem não chega. Cadastre uma imagem pública em Configurações → Cobrança → Imagem de cobrança.'
-            : 'Esse template tem imagem no cabeçalho, mas não encontrei a URL da imagem. Cadastre uma imagem padrão em Configurações → Cobrança.'
+          'Esse template tem imagem no cabeçalho, mas não encontrei a URL da imagem. Cadastre uma imagem padrão em Configurações → Cobrança.'
         );
       }
       outgoingComponents.unshift({
@@ -3318,7 +3314,7 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
                         const headerFormat = String(header?.format || '').toUpperCase();
                         const settingsImage = String((billingSettings as any)?.renewal_image_url || '').trim();
                         const exampleImage = header?.example?.header_handle?.[0] || header?.example?.header_url?.[0] || '';
-                        const imageSrc = headerFormat === 'IMAGE' ? settingsImage || (/scontent\.whatsapp\.net|lookaside\.fbsbx\.com/i.test(exampleImage) ? '' : exampleImage) : '';
+                        const imageSrc = headerFormat === 'IMAGE' ? settingsImage || exampleImage : '';
                         return (
                           <div className="rounded-lg border border-border/60 bg-secondary/20 p-2 space-y-2 text-xs">
                             {headerFormat === 'IMAGE' && imageSrc ? (
