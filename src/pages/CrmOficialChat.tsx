@@ -111,7 +111,7 @@ function pickString(...values: unknown[]) {
 }
 
 function normalizeChannels(body: any): Channel[] {
-  const fromChannels = Array.isArray(body?.channels) ? body.channels : [];
+  const fromChannels = Array.isArray(body) ? body : Array.isArray(body?.channels) ? body.channels : [];
   const whats = Array.isArray(body?.whatsapp) ? body.whatsapp : body?.whatsapp ? [body.whatsapp] : [];
   const web = Array.isArray(body?.webchat) ? body.webchat : body?.webchat ? [body.webchat] : [];
   const list = fromChannels.length ? fromChannels : [...whats, ...web];
