@@ -170,6 +170,20 @@ function normalizeConversations(body: any): Conversation[] {
   });
 }
 
+// Detecta marcadores tipo "[image]", "[document] arquivo.pdf", "[video] file.mp4"
+const PLACEHOLDER_RX = /^\s*\[(image|imagem|video|v[ií]deo|audio|[áa]udio|document|documento|sticker|figurinha)\]\s*(.*)$/i;
+function parsePlaceholder(body: string): { kind: 'image'|'audio'|'video'|'document'|'sticker'|null; filename: string; cleanBody: string } {
+  const m = (body || '').match(PLACEHOLDER_RX);
+  if (!m) return { kind: null, filename: '', cleanBody: body };
+  const raw = m[1].toLowerCase();
+  let kind: 'image'|'audio'|'video'|'document'|'sticker' = 'document';
+  if (raw.startsWith('imag')) kind = 'image';
+  else if (raw.startsWith('vid') || raw.startsWith('vís') || raw.startsWith('víd') || raw.startsWith('víd')) kind = 'video';
+  else if (raw.includes('aud') || raw.includes('áud')) kind = 'audio';
+  else if (raw.startsWith('stick') || raw.startsWith('figur')) kind = 'sticker';
+  return { kind, filename: (m[2] || '').trim(), cleanBody: '' };
+}
+
 function normalizeMessages(body: any): Message[] {
   const raw = Array.isArray(body)
     ? body
@@ -182,10 +196,12 @@ function normalizeMessages(body: any): Message[] {
           : [];
   return raw.map((m: any, index: number) => {
     const media = m.media || m.attachment || m.attachments?.[0] || {};
-    const bodyText = pickString(m.body, m.text, m.content, m.message, m.caption, media.caption);
+    const rawBody = pickString(m.body, m.text, m.content, m.message, m.caption, media.caption);
+    const placeholder = parsePlaceholder(rawBody);
+    const bodyText = placeholder.kind ? placeholder.cleanBody : rawBody;
     const mediaUrl = pickString(m.media_url, m.mediaUrl, m.url, media.url, media.media_url, media.path, media.id);
     const mime = pickString(m.mime_type, m.mimetype, m.media_mime, media.mime_type, media.mimetype, media.content_type);
-    const mediaType = pickString(m.media_type, m.mediaType, m.message_type, media.type, media.media_type);
+    const mediaType = pickString(m.media_type, m.mediaType, m.message_type, media.type, media.media_type) || placeholder.kind || '';
     return {
       ...m,
       id: String(m.id || m.message_id || m.external_id || `message-${index}-${m.created_at || Date.now()}`),
@@ -195,9 +211,10 @@ function normalizeMessages(body: any): Message[] {
       media_url: mediaUrl || null,
       media_type: mediaType || null,
       mime_type: mime || null,
-      file_name: pickString(m.file_name, m.filename, media.file_name, media.filename) || null,
+      file_name: pickString(m.file_name, m.filename, media.file_name, media.filename, placeholder.filename) || null,
       status: pickString(m.status, m.delivery_status, m.read_status),
-    } as Message;
+      _placeholder: placeholder.kind, // hint para o renderer
+    } as Message & { _placeholder?: string | null };
   });
 }
 
