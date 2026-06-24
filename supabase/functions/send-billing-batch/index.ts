@@ -989,7 +989,25 @@ Deno.serve(async (req) => {
         // Also send to extra_phone if configured
         if (customer.extra_phone && String(customer.extra_phone).replace(/\D/g, '').length >= 10) {
           try {
-            if (isEvolution) {
+            if (isCrmOficial) {
+              const lang = crmTemplateLang[billingType] || 'pt_BR';
+              const params = buildTemplateVars(customer).map(v => v.value);
+              await supabase.functions.invoke('crm-oficial-sync', {
+                body: {
+                  action: 'send-whatsapp',
+                  data: {
+                    apiKey: (crmSettings as any).api_key,
+                    phone: customer.extra_phone,
+                    name: customer.name,
+                    channel_id: (crmSchedule as any)?.channel_id || undefined,
+                    phone_number_id: (crmSchedule as any)?.phone_number_id || undefined,
+                    template_name: templateName,
+                    template_language: lang,
+                    template_params: params,
+                  },
+                },
+              });
+            } else if (isEvolution) {
               const tpl = evoMsgMap[billingType];
               const text = renderEvolutionTemplate(tpl, customer, { pix: (billSettings as any)?.pix_key || '' });
               await sendEvolutionText(evoSettings.base_url, evoSettings.api_key, evoInstance, customer.extra_phone, text);
