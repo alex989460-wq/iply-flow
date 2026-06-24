@@ -111,7 +111,7 @@ function getCrmTemplateCustomerValues(customer: any, pixKey = '') {
   };
 }
 
-function buildCrmTemplatePayload(template: any, customer: any, pixKey = '', fallbackHeaderImageUrl?: string) {
+function buildCrmTemplatePayload(template: any, customer: any, pixKey = '') {
   const values = getCrmTemplateCustomerValues(customer, pixKey);
   const components = Array.isArray(template?.components) ? template.components : [];
   const bodyComponent = components.find((component: any) => String(component?.type || '').toUpperCase() === 'BODY');
@@ -153,7 +153,7 @@ function buildCrmTemplatePayload(template: any, customer: any, pixKey = '', fall
   const headerComponent = components.find((component: any) => String(component?.type || '').toUpperCase() === 'HEADER');
   const headerFormat = String(headerComponent?.format || '').toUpperCase();
   if (headerFormat === 'IMAGE') {
-    const headerImageUrl = fallbackHeaderImageUrl || extractHeaderImageUrl(template);
+    const headerImageUrl = extractHeaderImageUrl(template);
     if (headerImageUrl) {
       outgoingComponents.unshift({
         type: 'header',
@@ -1059,7 +1059,6 @@ Deno.serve(async (req) => {
             templateConfig,
             customer,
             (billSettings as any)?.pix_key || '',
-            headerImageUrl || ((billSettings as any)?.renewal_image_url || '').toString().trim() || undefined,
           );
           const params = crmPayload.params.length ? crmPayload.params : templateVars.map(v => v.value);
           outboundLabel = `crm:${templateName}`;
@@ -1135,7 +1134,6 @@ Deno.serve(async (req) => {
                 templateConfig,
                 customer,
                 (billSettings as any)?.pix_key || '',
-                headerImageUrl || ((billSettings as any)?.renewal_image_url || '').toString().trim() || undefined,
               );
               const params = crmPayload.params.length ? crmPayload.params : templateVars.map(v => v.value);
               await supabase.functions.invoke('crm-oficial-sync', {
