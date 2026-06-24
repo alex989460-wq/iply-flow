@@ -823,6 +823,11 @@ Deno.serve(async (req) => {
         } catch (e) {
           console.error('[Billing Batch] Error fetching Meta templates:', e);
         }
+      } else if (isCrmOficial) {
+        // CRM Oficial: use the languages defined in crm_oficial_billing_schedule
+        for (const [bt, name] of Object.entries(TEMPLATE_MAPPING)) {
+          if (name) templateLangMap[name] = crmTemplateLang[bt] || 'pt_BR';
+        }
       } else if (!isEvolution) {
         try {
           const zapToken = zapSettings?.zap_api_token || Deno.env.get('ZAP_RESPONDER_TOKEN');
