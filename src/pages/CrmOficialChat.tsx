@@ -1,9 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import DashboardLayout from "@/components/layout/DashboardLayout";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Loader2, ExternalLink } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { Link } from "react-router-dom";
 import QuickRenewalPanel from "@/components/chat/QuickRenewalPanel";
 
@@ -12,6 +12,7 @@ const CRM_BASE = "https://crmapioficial.lovable.app";
 export default function CrmOficialChat() {
   const [apiKey, setApiKey] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
 
   useEffect(() => {
     (async () => {
@@ -27,35 +28,22 @@ export default function CrmOficialChat() {
     })();
   }, []);
 
-  const embedUrl = apiKey
-    ? `${CRM_BASE}/embed/inbox?token=${encodeURIComponent(apiKey)}`
-    : null;
+  // Inject the URL via ref so the API key never appears in JSX/HTML source.
+  useEffect(() => {
+    if (!apiKey || !iframeRef.current) return;
+    const url = `${CRM_BASE}/embed/inbox?token=${encodeURIComponent(apiKey)}`;
+    iframeRef.current.src = url;
+  }, [apiKey]);
 
   return (
     <DashboardLayout>
-      <div className="h-[calc(100vh-4rem)] flex flex-col gap-3 p-3">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-xl font-semibold">Chat CRM Oficial</h1>
-            <p className="text-xs text-muted-foreground">
-              Incorporado via iframe do CRM Oficial usando sua API key
-            </p>
-          </div>
-          {embedUrl && (
-            <Button variant="outline" size="sm" asChild>
-              <a href={embedUrl} target="_blank" rel="noreferrer">
-                <ExternalLink className="h-4 w-4 mr-2" /> Abrir em nova aba
-              </a>
-            </Button>
-          )}
-        </div>
-
+      <div className="h-[calc(100vh-4rem)] flex p-0 gap-0 overflow-hidden">
         {loading ? (
           <div className="flex-1 flex items-center justify-center">
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
           </div>
-        ) : !embedUrl ? (
-          <Card className="flex-1 flex items-center justify-center p-6">
+        ) : !apiKey ? (
+          <Card className="flex-1 flex items-center justify-center p-6 m-3">
             <div className="text-center max-w-md space-y-3">
               <p className="text-sm text-muted-foreground">
                 Configure sua API key do CRM Oficial em Configurações para carregar o chat.
@@ -66,19 +54,20 @@ export default function CrmOficialChat() {
             </div>
           </Card>
         ) : (
-          <div className="flex-1 flex gap-3 overflow-hidden">
-            <Card className="flex-1 overflow-hidden p-0">
+          <>
+            <div className="flex-1 overflow-hidden bg-background">
               <iframe
-                src={embedUrl}
-                title="CRM Oficial Inbox"
-                className="w-full h-full border-0"
-                allow="clipboard-read; clipboard-write; microphone; camera; autoplay"
+                ref={iframeRef}
+                title="Chat"
+                className="w-full h-full border-0 block"
+                referrerPolicy="no-referrer"
+                allow="clipboard-read; clipboard-write; microphone; camera; autoplay; fullscreen"
               />
-            </Card>
-            <div className="hidden lg:block w-[380px] shrink-0 overflow-y-auto">
+            </div>
+            <div className="hidden xl:block w-[340px] shrink-0 overflow-y-auto border-l bg-background">
               <QuickRenewalPanel initialPhone={null} />
             </div>
-          </div>
+          </>
         )}
       </div>
     </DashboardLayout>
