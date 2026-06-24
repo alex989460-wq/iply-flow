@@ -85,7 +85,6 @@ export default function CrmOficialTemplates() {
   const [selected, setSelected] = useState<CrmTemplate | null>(null);
   const [saving, setSaving] = useState(false);
 
-  const [form, setForm] = useState({ name: '', category: 'UTILITY', language: 'pt_BR', header: '', body: '', footer: '' });
   const [sendForm, setSendForm] = useState({ phone: '', params: '', body: '' });
 
   const invoke = async (action: string, data: Record<string, unknown> = {}) => {
