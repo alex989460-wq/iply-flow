@@ -79,6 +79,101 @@ function extractHeaderImageUrl(template: any): string | undefined {
   return header?.example?.header_handle?.[0] || header?.example?.header_url?.[0] || undefined;
 }
 
+function getCrmTemplateCustomerValues(customer: any, pixKey = '') {
+  const fullName = String(customer?.name || '');
+  const firstName = fullName.trim().split(/\s+/)[0] || fullName;
+  const rawPrice = customer?.custom_price ?? customer?.plan?.price ?? 0;
+  const priceFormatted = formatBRL(rawPrice);
+  const dueDate = formatBRDate(customer?.due_date || '');
+  const userName = String(customer?.username || '');
+  const planName = String(customer?.plan?.plan_name || '');
+  const serverName = String(customer?.server?.server_name || '');
+  const phone = String(customer?.phone || '');
+  const screens = String(customer?.screens || 1);
+
+  return {
+    firstName,
+    byKey: (key: string, index: number) => {
+      const normalized = String(key || '').toLowerCase();
+      const named: Record<string, string> = {
+        name: firstName, nome: firstName, cliente: firstName, customer: firstName,
+        user: userName, usuario: userName, username: userName, login: userName,
+        price: priceFormatted, valor: priceFormatted, preco: priceFormatted, value: priceFormatted,
+        weak: planName, plan: planName, plano: planName,
+        serv: serverName, server: serverName, servidor: serverName,
+        data: dueDate, vencimento: dueDate, due: dueDate, due_date: dueDate, date: dueDate,
+        telefone: phone, phone, telas: screens, screens,
+        pix: pixKey || '',
+      };
+      const positional = [firstName, userName, priceFormatted, planName, serverName, dueDate, phone, screens];
+      return named[normalized] ?? positional[index] ?? '';
+    },
+  };
+}
+
+function buildCrmTemplatePayload(template: any, customer: any, pixKey = '', fallbackHeaderImageUrl?: string) {
+  const values = getCrmTemplateCustomerValues(customer, pixKey);
+  const components = Array.isArray(template?.components) ? template.components : [];
+  const bodyComponent = components.find((component: any) => String(component?.type || '').toUpperCase() === 'BODY');
+  const bodyText = String(bodyComponent?.text || '');
+  const parameterFormat = String(template?.parameter_format || '').toUpperCase();
+  const isNamed = parameterFormat === 'NAMED' || /\{\{\s*[A-Za-z_]\w*\s*\}\}/.test(bodyText);
+
+  const namedFromExample = Array.isArray(bodyComponent?.example?.body_text_named_params)
+    ? bodyComponent.example.body_text_named_params.map((param: any) => String(param?.param_name || '').trim()).filter(Boolean)
+    : [];
+  const namedFromBody = Array.from(new Set((bodyText.match(/\{\{\s*([A-Za-z_]\w*)\s*\}\}/g) || [])
+    .map((match) => match.replace(/[{}\s]/g, ''))));
+  const positionalIndexes = Array.from(new Set((bodyText.match(/\{\{\s*\d+\s*\}\}/g) || [])
+    .map((match) => Number(match.replace(/\D/g, '')))
+    .filter((num) => Number.isFinite(num) && num > 0)))
+    .sort((a, b) => a - b);
+
+  const outgoingComponents: any[] = [];
+  let bodyParamTexts: string[] = [];
+
+  if (isNamed) {
+    const paramNames = namedFromExample.length ? namedFromExample : namedFromBody;
+    const parameters = paramNames.map((name, index) => ({
+      type: 'text',
+      parameter_name: name,
+      text: values.byKey(name, index),
+    }));
+    bodyParamTexts = parameters.map((param) => param.text);
+    if (parameters.length) outgoingComponents.push({ type: 'body', parameters });
+  } else if (positionalIndexes.length) {
+    const parameters = positionalIndexes.map((position, index) => ({
+      type: 'text',
+      text: values.byKey(String(position), index),
+    }));
+    bodyParamTexts = parameters.map((param) => param.text);
+    outgoingComponents.push({ type: 'body', parameters });
+  }
+
+  const headerComponent = components.find((component: any) => String(component?.type || '').toUpperCase() === 'HEADER');
+  const headerFormat = String(headerComponent?.format || '').toUpperCase();
+  if (headerFormat === 'IMAGE') {
+    const headerImageUrl = fallbackHeaderImageUrl || extractHeaderImageUrl(template);
+    if (headerImageUrl) {
+      outgoingComponents.unshift({
+        type: 'header',
+        parameters: [{ type: 'image', image: { link: headerImageUrl } }],
+      });
+    }
+  } else if (headerFormat === 'TEXT' && String(headerComponent?.text || '').includes('{{')) {
+    outgoingComponents.unshift({
+      type: 'header',
+      parameters: [{ type: 'text', text: values.firstName }],
+    });
+  }
+
+  const fallbackBody = bodyText
+    .replace(/\{\{\s*([A-Za-z_]\w*)\s*\}\}/g, (_match, key) => values.byKey(key, 0))
+    .replace(/\{\{\s*(\d+)\s*\}\}/g, (_match, position) => values.byKey(position, Number(position) - 1));
+
+  return { components: outgoingComponents, params: bodyParamTexts, fallbackBody };
+}
+
 // Filter vars to only those actually used by the template body (avoids Meta #132000).
 function filterVarsForTemplate(
   template: any,
@@ -537,7 +632,7 @@ Deno.serve(async (req) => {
     // Load billing_settings to check whether Evolution should be the channel
     const { data: billSettings } = await supabase
       .from('billing_settings')
-      .select('use_evolution_billing, evolution_instance, evolution_msg_d_minus_1, evolution_msg_d0, evolution_msg_d_plus_1, pix_key')
+      .select('use_evolution_billing, evolution_instance, evolution_msg_d_minus_1, evolution_msg_d0, evolution_msg_d_plus_1, pix_key, renewal_image_url')
       .eq('user_id', userId)
       .maybeSingle();
 
@@ -834,10 +929,15 @@ Deno.serve(async (req) => {
             body: { action: 'list-templates', data: { apiKey: (crmSettings as any).api_key, limit: 250 } },
           });
           const raw: any = invokeRes.data?.results?.templates;
+          const body = raw?.body;
           const list: any[] = Array.isArray(raw) ? raw
+            : Array.isArray(body) ? body
             : Array.isArray(raw?.data) ? raw.data
             : Array.isArray(raw?.templates) ? raw.templates
-            : Array.isArray(raw?.body?.data) ? raw.body.data
+            : Array.isArray(raw?.items) ? raw.items
+            : Array.isArray(body?.data) ? body.data
+            : Array.isArray(body?.templates) ? body.templates
+            : Array.isArray(body?.items) ? body.items
             : [];
           for (const t of list) {
             const name = t?.name || t?.template_name;
@@ -955,7 +1055,13 @@ Deno.serve(async (req) => {
 
         if (isCrmOficial) {
           const lang = templateLangMap[templateName] || crmTemplateLang[billingType] || 'pt_BR';
-          const params = templateVars.map(v => v.value);
+          const crmPayload = buildCrmTemplatePayload(
+            templateConfig,
+            customer,
+            (billSettings as any)?.pix_key || '',
+            ((billSettings as any)?.renewal_image_url || '').toString().trim() || headerImageUrl,
+          );
+          const params = crmPayload.params.length ? crmPayload.params : templateVars.map(v => v.value);
           outboundLabel = `crm:${templateName}`;
           console.log(`[CRM Oficial] Sending ${templateName} to ${normalizedPhone} via channel ${(crmSchedule as any)?.channel_id || 'auto'}`);
           try {
@@ -968,9 +1074,11 @@ Deno.serve(async (req) => {
                   name: customer.name,
                   channel_id: (crmSchedule as any)?.channel_id || undefined,
                   phone_number_id: (crmSchedule as any)?.phone_number_id || undefined,
+                  body: crmPayload.fallbackBody || templateName,
                   template_name: templateName,
                   template_language: lang,
                   template_params: params,
+                  components: crmPayload.components,
                 },
               },
             });
@@ -1023,7 +1131,13 @@ Deno.serve(async (req) => {
           try {
             if (isCrmOficial) {
               const lang = templateLangMap[templateName] || crmTemplateLang[billingType] || 'pt_BR';
-              const params = templateVars.map(v => v.value);
+              const crmPayload = buildCrmTemplatePayload(
+                templateConfig,
+                customer,
+                (billSettings as any)?.pix_key || '',
+                ((billSettings as any)?.renewal_image_url || '').toString().trim() || headerImageUrl,
+              );
+              const params = crmPayload.params.length ? crmPayload.params : templateVars.map(v => v.value);
               await supabase.functions.invoke('crm-oficial-sync', {
                 body: {
                   action: 'send-whatsapp',
@@ -1033,9 +1147,11 @@ Deno.serve(async (req) => {
                     name: customer.name,
                     channel_id: (crmSchedule as any)?.channel_id || undefined,
                     phone_number_id: (crmSchedule as any)?.phone_number_id || undefined,
+                    body: crmPayload.fallbackBody || templateName,
                     template_name: templateName,
                     template_language: lang,
                     template_params: params,
+                    components: crmPayload.components,
                   },
                 },
               });
