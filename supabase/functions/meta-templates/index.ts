@@ -169,8 +169,63 @@ serve(async (req) => {
         });
       }
 
+      case "upload-media": {
+        // Resumable upload to obtain a header_handle ("h") for media templates.
+        const { file_base64, file_name, file_size, mime_type } = body;
+        const appId = Deno.env.get("META_APP_ID");
+        if (!appId) {
+          return new Response(JSON.stringify({ error: "META_APP_ID não configurado" }), {
+            status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+        if (!file_base64 || !file_size || !mime_type) {
+          return new Response(JSON.stringify({ error: "Dados de upload incompletos" }), {
+            status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+        try {
+          const sessionUrl = `https://graph.facebook.com/${GRAPH_API_VERSION}/${appId}/uploads?file_name=${encodeURIComponent(file_name || "upload")}&file_length=${file_size}&file_type=${encodeURIComponent(mime_type)}&access_token=${accessToken}${proofParam.replace('&','&')}`;
+          const sessRes = await fetch(sessionUrl, { method: "POST" });
+          const sessData = await sessRes.json();
+          if (!sessRes.ok || !sessData?.id) {
+            return new Response(JSON.stringify({ error: sessData?.error?.message || "Falha ao iniciar upload" }), {
+              status: sessRes.status, headers: { ...corsHeaders, "Content-Type": "application/json" },
+            });
+          }
+          // Decode base64 to bytes
+          const binStr = atob(file_base64);
+          const bytes = new Uint8Array(binStr.length);
+          for (let i = 0; i < binStr.length; i++) bytes[i] = binStr.charCodeAt(i);
+
+          const upRes = await fetch(`https://graph.facebook.com/${GRAPH_API_VERSION}/${sessData.id}`, {
+            method: "POST",
+            headers: {
+              Authorization: `OAuth ${accessToken}`,
+              file_offset: "0",
+            },
+            body: bytes,
+          });
+          const upData = await upRes.json();
+          if (!upRes.ok || !upData?.h) {
+            return new Response(JSON.stringify({ error: upData?.error?.message || "Falha ao enviar arquivo" }), {
+              status: upRes.status, headers: { ...corsHeaders, "Content-Type": "application/json" },
+            });
+          }
+          return new Response(JSON.stringify({ header_handle: upData.h }), {
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        } catch (e: any) {
+          return new Response(JSON.stringify({ error: e?.message || "Erro no upload" }), {
+            status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+      }
+
       case "create": {
-        const { name, category, language, components } = body;
+        const { name, category, language, components, allow_category_change } = body;
+
+        const payload: any = { name, category, language, components };
+        if (allow_category_change) payload.allow_category_change = true;
 
         const res = await fetch(
           `https://graph.facebook.com/${GRAPH_API_VERSION}/${wabaId}/message_templates?x=1${proofParam}`,
@@ -180,7 +235,7 @@ serve(async (req) => {
               Authorization: `Bearer ${accessToken}`,
               "Content-Type": "application/json",
             },
-            body: JSON.stringify({ name, category, language, components }),
+            body: JSON.stringify(payload),
           }
         );
         const data = await res.json();
