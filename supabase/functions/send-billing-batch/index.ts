@@ -824,9 +824,41 @@ Deno.serve(async (req) => {
           console.error('[Billing Batch] Error fetching Meta templates:', e);
         }
       } else if (isCrmOficial) {
-        // CRM Oficial: use the languages defined in crm_oficial_billing_schedule
+        // Default language map from schedule
         for (const [bt, name] of Object.entries(TEMPLATE_MAPPING)) {
           if (name) templateLangMap[name] = crmTemplateLang[bt] || 'pt_BR';
+        }
+        // Fetch real templates from CRM so we can slice params to the exact count Meta expects (#132000 fix)
+        try {
+          const invokeRes = await supabase.functions.invoke('crm-oficial-sync', {
+            body: { action: 'list-templates', data: { apiKey: (crmSettings as any).api_key, limit: 250 } },
+          });
+          const raw: any = invokeRes.data?.results?.templates;
+          const list: any[] = Array.isArray(raw) ? raw
+            : Array.isArray(raw?.data) ? raw.data
+            : Array.isArray(raw?.templates) ? raw.templates
+            : Array.isArray(raw?.body?.data) ? raw.body.data
+            : [];
+          for (const t of list) {
+            const name = t?.name || t?.template_name;
+            if (!name) continue;
+            const lang = t?.language || t?.language_code || t?.lang;
+            const status = String(t?.status || '').toUpperCase();
+            let components = Array.isArray(t?.components) ? t.components : [];
+            // Normalize CRM-shape (body_text / body / variables) to Meta shape if needed
+            if (components.length === 0) {
+              const bodyText = t?.body_text || t?.body || t?.content || '';
+              if (bodyText) components = [{ type: 'BODY', text: String(bodyText) }];
+            }
+            const existing = templateConfigMap[name];
+            if (!existing || status === 'APPROVED') {
+              if (lang) templateLangMap[name] = lang;
+              templateConfigMap[name] = { ...t, components };
+            }
+          }
+          console.log(`[Billing Batch] Loaded ${Object.keys(templateConfigMap).length} CRM Oficial templates`);
+        } catch (e) {
+          console.error('[Billing Batch] Error fetching CRM Oficial templates:', e);
         }
       } else if (!isEvolution) {
         try {
