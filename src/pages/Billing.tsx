@@ -277,8 +277,9 @@ export default function Billing() {
 
   // CRM Oficial schedule + settings (if active, it's the primary channel for manual dispatch)
   const { data: crmOficialActive } = useQuery({
-    queryKey: ['crm-oficial-active', user?.id],
+    queryKey: ['crm-oficial-active'],
     queryFn: async () => {
+      const { data: { user } } = await supabase.auth.getUser();
       if (!user?.id) return false;
       const [{ data: s }, { data: sc }] = await Promise.all([
         supabase.from('crm_oficial_settings').select('enabled, api_key').eq('user_id', user.id).maybeSingle(),
@@ -286,7 +287,6 @@ export default function Billing() {
       ]);
       return !!(s?.enabled && s?.api_key && sc?.is_enabled);
     },
-    enabled: !!user?.id,
   });
 
   // Check if using Meta Cloud API
