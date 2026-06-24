@@ -96,6 +96,10 @@ function extractOfficialTemplateHeaderImage(template: any): string | undefined {
   return header?.example?.header_handle?.[0] || header?.example?.header_url?.[0] || undefined;
 }
 
+function isMetaTemplateMediaUrl(url?: string) {
+  return !!url && /scontent\.whatsapp\.net|lookaside\.fbsbx\.com/i.test(url);
+}
+
 async function fetchOfficialTemplateHeaderImage(templateName: string, language: string, apiKey?: string) {
   const result = await crmFetchWithKeyFallback("/api/public/v1/templates?limit=250", { method: "GET" }, apiKey);
   const templates = normalizeListTemplatesBody(result.body);
@@ -250,7 +254,11 @@ async function doSendWhatsapp(payload: {
       ? payload.components
       : (params.length ? [{ type: "body", parameters: params.map(p => ({ type: "text", text: String(p) })) }] : []);
     const officialHeaderImageUrl = await fetchOfficialTemplateHeaderImage(String(payload.template_name), String(lang), apiKey).catch(() => undefined);
-    const rawHeaderImageUrl = officialHeaderImageUrl || imageHeaderFromComponents(components);
+    const requestHeaderImageUrl = imageHeaderFromComponents(components);
+    const rawHeaderImageUrl = officialHeaderImageUrl || (isMetaTemplateMediaUrl(requestHeaderImageUrl) ? requestHeaderImageUrl : undefined);
+    if (requestHeaderImageUrl && !rawHeaderImageUrl) {
+      throw new Error("Template com imagem recebeu uma URL que não é a mídia oficial do Meta. Sincronize o template oficial antes de enviar.");
+    }
     const headerImageUrl = rawHeaderImageUrl ? await ensurePublicMediaUrl(rawHeaderImageUrl, String(payload.template_name)) : undefined;
     const templateComponents = replaceHeaderImageInComponents(components, headerImageUrl);
     const officialPayload: Record<string, unknown> = {
@@ -325,7 +333,7 @@ async function doSendWhatsapp(payload: {
       template: payload.template_name,
       lang,
       params,
-      header_source: officialHeaderImageUrl ? "official_template" : (headerImageUrl ? "request_payload" : "none"),
+      header_source: officialHeaderImageUrl ? "official_template" : (headerImageUrl ? "meta_request_payload" : "none"),
       ok: templateResult.ok,
       status: templateResult.status,
       attempts: (templateResult as { attempts?: Array<{ status: number; body: unknown }> }).attempts?.map((a) => ({ status: a.status, body: a.body })),
