@@ -1059,7 +1059,7 @@ Deno.serve(async (req) => {
             templateConfig,
             customer,
             (billSettings as any)?.pix_key || '',
-            ((billSettings as any)?.renewal_image_url || '').toString().trim() || headerImageUrl,
+            headerImageUrl || ((billSettings as any)?.renewal_image_url || '').toString().trim() || undefined,
           );
           const params = crmPayload.params.length ? crmPayload.params : templateVars.map(v => v.value);
           outboundLabel = `crm:${templateName}`;
@@ -1135,7 +1135,7 @@ Deno.serve(async (req) => {
                 templateConfig,
                 customer,
                 (billSettings as any)?.pix_key || '',
-                ((billSettings as any)?.renewal_image_url || '').toString().trim() || headerImageUrl,
+                headerImageUrl || ((billSettings as any)?.renewal_image_url || '').toString().trim() || undefined,
               );
               const params = crmPayload.params.length ? crmPayload.params : templateVars.map(v => v.value);
               await supabase.functions.invoke('crm-oficial-sync', {
