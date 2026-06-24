@@ -74,6 +74,22 @@ function imageHeaderFromComponents(components: unknown[]) {
   return undefined;
 }
 
+function replaceHeaderImageInComponents(components: unknown[], publicUrl?: string) {
+  if (!publicUrl) return components;
+  return components.map((component) => {
+    const c = component as { type?: string; parameters?: Array<Record<string, unknown>> };
+    if (String(c?.type || "").toLowerCase() !== "header" || !Array.isArray(c?.parameters)) return component;
+
+    return {
+      ...c,
+      parameters: c.parameters.map((parameter) => {
+        if (String(parameter?.type || "").toLowerCase() !== "image") return parameter;
+        return { ...parameter, image: { link: publicUrl } };
+      }),
+    };
+  });
+}
+
 function pickString(...values: unknown[]) {
   for (const value of values) {
     if (typeof value === "string" && value.trim()) return value.trim();
@@ -198,6 +214,7 @@ async function doSendWhatsapp(payload: {
       : (params.length ? [{ type: "body", parameters: params.map(p => ({ type: "text", text: String(p) })) }] : []);
     const rawHeaderImageUrl = imageHeaderFromComponents(components);
     const headerImageUrl = rawHeaderImageUrl ? await ensurePublicMediaUrl(rawHeaderImageUrl, String(payload.template_name)) : undefined;
+    const templateComponents = replaceHeaderImageInComponents(components, headerImageUrl);
     const officialPayload: Record<string, unknown> = {
       phone: payload.phone,
       to: payload.phone,
@@ -213,7 +230,7 @@ async function doSendWhatsapp(payload: {
       templateLanguage: lang,
       language: lang,
       ...(fallbackBody ? { body: fallbackBody } : {}),
-      ...(components.length ? { components } : {}),
+      ...(templateComponents.length ? { components: templateComponents } : {}),
       ...(params.length ? { template_params: params, templateParams: params, parameters: params } : {}),
       ...(headerImageUrl ? { header_image_url: headerImageUrl, headerImageUrl } : {}),
     };
@@ -234,9 +251,9 @@ async function doSendWhatsapp(payload: {
       language: lang,
       template_params: params,
       templateParams: params,
-      components,
+      components: templateComponents,
       ...(headerImageUrl ? { header_image_url: headerImageUrl, headerImageUrl } : {}),
-      template: { name: payload.template_name, language: { code: lang, policy: "deterministic" }, components },
+      template: { name: payload.template_name, language: { code: lang, policy: "deterministic" }, components: templateComponents },
     };
     const variablePayload: Record<string, unknown> = {
       phone: payload.phone,
@@ -252,6 +269,7 @@ async function doSendWhatsapp(payload: {
       language: lang,
       parameters: params,
       variables: { body_text: params.map(textFromUnknown).filter(Boolean) },
+      ...(templateComponents.length ? { components: templateComponents } : {}),
       ...(headerImageUrl ? { header_image_url: headerImageUrl, headerImageUrl } : {}),
     };
     // Tenta endpoints específicos de template. NÃO faz fallback para /whatsapp-send (texto puro),
