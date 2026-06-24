@@ -74,12 +74,49 @@ function imageHeaderFromComponents(components: unknown[]) {
   return undefined;
 }
 
+function normalizeListTemplatesBody(body: unknown): any[] {
+  const value = body as any;
+  return Array.isArray(value)
+    ? value
+    : Array.isArray(value?.templates)
+      ? value.templates
+      : Array.isArray(value?.data)
+        ? value.data
+        : Array.isArray(value?.items)
+          ? value.items
+          : [];
+}
+
+function extractOfficialTemplateHeaderImage(template: any): string | undefined {
+  const components = Array.isArray(template?.components) ? template.components : [];
+  const header = components.find((component: any) =>
+    String(component?.type || "").toUpperCase() === "HEADER" &&
+    String(component?.format || "").toUpperCase() === "IMAGE"
+  );
+  return header?.example?.header_handle?.[0] || header?.example?.header_url?.[0] || undefined;
+}
+
+async function fetchOfficialTemplateHeaderImage(templateName: string, language: string, apiKey?: string) {
+  const result = await crmFetchWithKeyFallback("/api/public/v1/templates?limit=250", { method: "GET" }, apiKey);
+  const templates = normalizeListTemplatesBody(result.body);
+  const matches = templates.filter((template: any) => {
+    const name = String(template?.name || template?.template_name || "");
+    if (name !== templateName) return false;
+    const lang = String(template?.language || template?.language_code || template?.lang || "");
+    return !lang || !language || lang === language;
+  });
+  const selected = matches.find((template: any) => String(template?.status || "").toUpperCase() === "APPROVED") || matches[0];
+  return extractOfficialTemplateHeaderImage(selected);
+}
+
 function replaceHeaderImageInComponents(components: unknown[], publicUrl?: string) {
   if (!publicUrl) return components;
+  let replaced = false;
   return components.map((component) => {
     const c = component as { type?: string; parameters?: Array<Record<string, unknown>> };
     if (String(c?.type || "").toLowerCase() !== "header" || !Array.isArray(c?.parameters)) return component;
 
+    replaced = true;
     return {
       ...c,
       parameters: c.parameters.map((parameter) => {
@@ -87,7 +124,7 @@ function replaceHeaderImageInComponents(components: unknown[], publicUrl?: strin
         return { ...parameter, image: { link: publicUrl } };
       }),
     };
-  });
+  }).concat(replaced ? [] : [{ type: "header", parameters: [{ type: "image", image: { link: publicUrl } }] }]);
 }
 
 function pickString(...values: unknown[]) {
@@ -212,7 +249,8 @@ async function doSendWhatsapp(payload: {
     const components = Array.isArray(payload.components) && payload.components.length
       ? payload.components
       : (params.length ? [{ type: "body", parameters: params.map(p => ({ type: "text", text: String(p) })) }] : []);
-    const rawHeaderImageUrl = imageHeaderFromComponents(components);
+    const officialHeaderImageUrl = await fetchOfficialTemplateHeaderImage(String(payload.template_name), String(lang), apiKey).catch(() => undefined);
+    const rawHeaderImageUrl = officialHeaderImageUrl || imageHeaderFromComponents(components);
     const headerImageUrl = rawHeaderImageUrl ? await ensurePublicMediaUrl(rawHeaderImageUrl, String(payload.template_name)) : undefined;
     const templateComponents = replaceHeaderImageInComponents(components, headerImageUrl);
     const officialPayload: Record<string, unknown> = {
@@ -287,6 +325,7 @@ async function doSendWhatsapp(payload: {
       template: payload.template_name,
       lang,
       params,
+      header_source: officialHeaderImageUrl ? "official_template" : (headerImageUrl ? "request_payload" : "none"),
       ok: templateResult.ok,
       status: templateResult.status,
       attempts: (templateResult as { attempts?: Array<{ status: number; body: unknown }> }).attempts?.map((a) => ({ status: a.status, body: a.body })),
