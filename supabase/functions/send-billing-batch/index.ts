@@ -921,7 +921,37 @@ Deno.serve(async (req) => {
         let sendResult: { success: boolean; error?: string };
         let outboundLabel = templateName;
 
-        if (isEvolution) {
+        if (isCrmOficial) {
+          const lang = crmTemplateLang[billingType] || 'pt_BR';
+          const params = buildTemplateVars(customer).map(v => v.value);
+          outboundLabel = `crm:${templateName}`;
+          console.log(`[CRM Oficial] Sending ${templateName} to ${normalizedPhone} via channel ${(crmSchedule as any)?.channel_id || 'auto'}`);
+          try {
+            const invokeRes = await supabase.functions.invoke('crm-oficial-sync', {
+              body: {
+                action: 'send-whatsapp',
+                data: {
+                  apiKey: (crmSettings as any).api_key,
+                  phone: customer.phone,
+                  name: customer.name,
+                  channel_id: (crmSchedule as any)?.channel_id || undefined,
+                  phone_number_id: (crmSchedule as any)?.phone_number_id || undefined,
+                  template_name: templateName,
+                  template_language: lang,
+                  template_params: params,
+                },
+              },
+            });
+            const data: any = invokeRes.data;
+            const send: any = data?.results?.send;
+            const ok = !invokeRes.error && data?.success !== false && (send?.ok !== false);
+            sendResult = ok
+              ? { success: true }
+              : { success: false, error: invokeRes.error?.message || data?.error || (send && typeof send.body === 'object' ? JSON.stringify(send.body).slice(0, 240) : `CRM status ${send?.status || '?'}`) };
+          } catch (e: any) {
+            sendResult = { success: false, error: `CRM Oficial: ${e?.message || e}` };
+          }
+        } else if (isEvolution) {
           const tpl = evoMsgMap[billingType];
           const text = renderEvolutionTemplate(tpl, customer, { pix: (billSettings as any)?.pix_key || '' });
           outboundLabel = `evo:${billingType}`;
