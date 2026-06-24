@@ -15,6 +15,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { AlertCircle, Edit, Eye, FileText, Loader2, Plus, RefreshCw, Search, Send, ShieldCheck, Trash2, Zap } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import TemplateBuilderDialog from '@/components/crm/TemplateBuilderDialog';
 
 interface TemplateComponent {
   type: string;
