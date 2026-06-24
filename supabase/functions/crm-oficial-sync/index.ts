@@ -84,7 +84,7 @@ function replaceHeaderImageInComponents(components: unknown[], publicUrl?: strin
       ...c,
       parameters: c.parameters.map((parameter) => {
         if (String(parameter?.type || "").toLowerCase() !== "image") return parameter;
-        return { ...parameter, image: { link: publicUrl, url: publicUrl } };
+        return { ...parameter, image: { link: publicUrl } };
       }),
     };
   });
