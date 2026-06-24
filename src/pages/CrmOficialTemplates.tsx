@@ -348,22 +348,14 @@ export default function CrmOficialTemplates() {
           </CardContent>
         </Card>
 
-        <Dialog open={dialog === 'create' || dialog === 'edit'} onOpenChange={o => !o && setDialog(null)}>
-          <DialogContent className="max-w-2xl">
-            <DialogHeader><DialogTitle>{dialog === 'edit' ? 'Editar template' : 'Criar template'}</DialogTitle><DialogDescription>POST/PATCH /api/public/v1/templates com components oficiais da Meta.</DialogDescription></DialogHeader>
-            <div className="grid gap-4">
-              <div className="grid md:grid-cols-3 gap-3">
-                <div className="space-y-1.5"><Label>Nome</Label><Input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="boas_vindas" disabled={dialog === 'edit'} /></div>
-                <div className="space-y-1.5"><Label>Categoria</Label><Select value={form.category} onValueChange={v => setForm(f => ({ ...f, category: v }))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="UTILITY">UTILITY</SelectItem><SelectItem value="MARKETING">MARKETING</SelectItem><SelectItem value="AUTHENTICATION">AUTHENTICATION</SelectItem></SelectContent></Select></div>
-                <div className="space-y-1.5"><Label>Idioma</Label><Select value={form.language} onValueChange={v => setForm(f => ({ ...f, language: v }))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="pt_BR">pt_BR</SelectItem><SelectItem value="en_US">en_US</SelectItem><SelectItem value="es">es</SelectItem></SelectContent></Select></div>
-              </div>
-              <div className="space-y-1.5"><Label>Cabeçalho</Label><Input value={form.header} onChange={e => setForm(f => ({ ...f, header: e.target.value }))} /></div>
-              <div className="space-y-1.5"><Label>Corpo</Label><Textarea rows={6} value={form.body} onChange={e => setForm(f => ({ ...f, body: e.target.value }))} placeholder="Olá {{1}}, sua assinatura vence em {{2}}." /></div>
-              <div className="space-y-1.5"><Label>Rodapé</Label><Input value={form.footer} onChange={e => setForm(f => ({ ...f, footer: e.target.value }))} /></div>
-            </div>
-            <DialogFooter><Button variant="outline" onClick={() => setDialog(null)}>Cancelar</Button><Button onClick={saveTemplate} disabled={saving}>{saving && <Loader2 className="w-4 h-4 mr-2 animate-spin" />} Salvar</Button></DialogFooter>
-          </DialogContent>
-        </Dialog>
+        <TemplateBuilderDialog
+          open={dialog === 'create' || dialog === 'edit'}
+          mode={dialog === 'edit' ? 'edit' : 'create'}
+          initial={builderInitial || undefined}
+          onOpenChange={o => !o && setDialog(null)}
+          onSaved={() => loadTemplates()}
+        />
+
 
         <Dialog open={dialog === 'view'} onOpenChange={o => !o && setDialog(null)}>
           <DialogContent className="max-w-2xl">
