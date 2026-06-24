@@ -954,8 +954,8 @@ Deno.serve(async (req) => {
         let outboundLabel = templateName;
 
         if (isCrmOficial) {
-          const lang = crmTemplateLang[billingType] || 'pt_BR';
-          const params = buildTemplateVars(customer).map(v => v.value);
+          const lang = templateLangMap[templateName] || crmTemplateLang[billingType] || 'pt_BR';
+          const params = templateVars.map(v => v.value);
           outboundLabel = `crm:${templateName}`;
           console.log(`[CRM Oficial] Sending ${templateName} to ${normalizedPhone} via channel ${(crmSchedule as any)?.channel_id || 'auto'}`);
           try {
