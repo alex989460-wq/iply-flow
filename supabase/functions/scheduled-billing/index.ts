@@ -974,7 +974,7 @@ Deno.serve(async (req) => {
           templateConfig,
           customer,
           billSettings?.pix_key || '',
-          (billSettings?.renewal_image_url || '').toString().trim() || headerImageUrl,
+          headerImageUrl || (billSettings?.renewal_image_url || '').toString().trim() || undefined,
         );
         const params = crmPayload.params.length ? crmPayload.params : templateVars.map((v) => v.value);
         const lang = templateLangMap[templateName] || 'pt_BR';
