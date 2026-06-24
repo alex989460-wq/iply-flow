@@ -541,18 +541,44 @@ Deno.serve(async (req) => {
       .eq('user_id', userId)
       .maybeSingle();
 
-    // Load custom template names from billing_schedule (overrides defaults)
-    const { data: scheduleCfg } = await supabase
-      .from('billing_schedule')
-      .select('template_d_minus_1, template_d0, template_d_plus_1')
+    // Load CRM Oficial settings + schedule (highest priority channel when enabled)
+    const { data: crmSettings } = await supabase
+      .from('crm_oficial_settings')
+      .select('enabled, api_key')
       .eq('user_id', userId)
       .maybeSingle();
-    if (scheduleCfg?.template_d_minus_1) TEMPLATE_MAPPING['D-1'] = scheduleCfg.template_d_minus_1;
-    if (scheduleCfg?.template_d0) TEMPLATE_MAPPING['D0'] = scheduleCfg.template_d0;
-    if (scheduleCfg?.template_d_plus_1) TEMPLATE_MAPPING['D+1'] = scheduleCfg.template_d_plus_1;
-    console.log('[Billing Batch] Active template mapping:', TEMPLATE_MAPPING);
+    const { data: crmSchedule } = await supabase
+      .from('crm_oficial_billing_schedule')
+      .select('is_enabled, template_d_minus_1, template_d0, template_d_plus_1, template_lang_d_minus_1, template_lang_d0, template_lang_d_plus_1, channel_id, phone_number_id')
+      .eq('user_id', userId)
+      .maybeSingle();
 
-    const useEvolution = !!(billSettings as any)?.use_evolution_billing;
+    const isCrmOficial = !!(crmSettings?.enabled && crmSettings?.api_key && crmSchedule?.is_enabled);
+    const crmTemplateLang: Record<string, string> = {
+      'D-1': (crmSchedule as any)?.template_lang_d_minus_1 || 'pt_BR',
+      'D0': (crmSchedule as any)?.template_lang_d0 || 'pt_BR',
+      'D+1': (crmSchedule as any)?.template_lang_d_plus_1 || 'pt_BR',
+    };
+
+    if (isCrmOficial) {
+      if ((crmSchedule as any)?.template_d_minus_1) TEMPLATE_MAPPING['D-1'] = (crmSchedule as any).template_d_minus_1;
+      if ((crmSchedule as any)?.template_d0) TEMPLATE_MAPPING['D0'] = (crmSchedule as any).template_d0;
+      if ((crmSchedule as any)?.template_d_plus_1) TEMPLATE_MAPPING['D+1'] = (crmSchedule as any).template_d_plus_1;
+      console.log('[Billing Batch] CRM Oficial channel ACTIVE — templates:', TEMPLATE_MAPPING);
+    } else {
+      // Load custom template names from billing_schedule (overrides defaults)
+      const { data: scheduleCfg } = await supabase
+        .from('billing_schedule')
+        .select('template_d_minus_1, template_d0, template_d_plus_1')
+        .eq('user_id', userId)
+        .maybeSingle();
+      if (scheduleCfg?.template_d_minus_1) TEMPLATE_MAPPING['D-1'] = scheduleCfg.template_d_minus_1;
+      if (scheduleCfg?.template_d0) TEMPLATE_MAPPING['D0'] = scheduleCfg.template_d0;
+      if (scheduleCfg?.template_d_plus_1) TEMPLATE_MAPPING['D+1'] = scheduleCfg.template_d_plus_1;
+      console.log('[Billing Batch] Active template mapping:', TEMPLATE_MAPPING);
+    }
+
+    const useEvolution = !isCrmOficial && !!(billSettings as any)?.use_evolution_billing;
     let evoSettings: any = null;
     if (useEvolution) {
       const { data: evo } = await supabase
@@ -563,12 +589,12 @@ Deno.serve(async (req) => {
       evoSettings = evo;
     }
 
-    // Detect API type - Evolution > Meta Cloud > Zap Responder
-    const apiType = useEvolution ? 'evolution' : (zapSettings?.api_type || 'zap_responder');
-    const isMetaCloud = !useEvolution && apiType === 'meta_cloud' && !!zapSettings?.meta_connected_at;
+    // Detect API type - CRM Oficial > Evolution > Meta Cloud > Zap Responder
+    const apiType = isCrmOficial ? 'crm_oficial' : (useEvolution ? 'evolution' : (zapSettings?.api_type || 'zap_responder'));
+    const isMetaCloud = !isCrmOficial && !useEvolution && apiType === 'meta_cloud' && !!zapSettings?.meta_connected_at;
     const isEvolution = useEvolution;
 
-    console.log(`[Billing Batch] API detection: apiType=${apiType}, isEvolution=${isEvolution}, isMetaCloud=${isMetaCloud}`);
+    console.log(`[Billing Batch] API detection: apiType=${apiType}, isCrmOficial=${isCrmOficial}, isEvolution=${isEvolution}, isMetaCloud=${isMetaCloud}`);
 
     // Validate configuration based on API type
     if (isEvolution) {
