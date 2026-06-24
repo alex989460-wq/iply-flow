@@ -15,6 +15,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { AlertCircle, Edit, Eye, FileText, Loader2, Plus, RefreshCw, Search, Send, ShieldCheck, Trash2, Zap } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import TemplateBuilderDialog from '@/components/crm/TemplateBuilderDialog';
 
 interface TemplateComponent {
   type: string;
@@ -84,7 +85,6 @@ export default function CrmOficialTemplates() {
   const [selected, setSelected] = useState<CrmTemplate | null>(null);
   const [saving, setSaving] = useState(false);
 
-  const [form, setForm] = useState({ name: '', category: 'UTILITY', language: 'pt_BR', header: '', body: '', footer: '' });
   const [sendForm, setSendForm] = useState({ phone: '', params: '', body: '' });
 
   const invoke = async (action: string, data: Record<string, unknown> = {}) => {
@@ -152,64 +152,34 @@ export default function CrmOficialTemplates() {
     }
   };
 
-  const resetForm = () => setForm({ name: '', category: 'UTILITY', language: 'pt_BR', header: '', body: '', footer: '' });
+  const [builderInitial, setBuilderInitial] = useState<any>(null);
 
-  const openCreate = () => { resetForm(); setSelected(null); setDialog('create'); };
+  const openCreate = () => { setBuilderInitial(null); setSelected(null); setDialog('create'); };
   const openEdit = (t: CrmTemplate) => {
     setSelected(t);
-    setForm({
+    const header = t.components.find(c => c.type === 'HEADER') as any;
+    const buttons = (t.components.find(c => c.type === 'BUTTONS') as any)?.buttons || [];
+    setBuilderInitial({
+      metaId: (t as any).metaId,
       name: t.name,
       category: t.category || 'UTILITY',
       language: t.language || 'pt_BR',
-      header: t.components.find(c => c.type === 'HEADER')?.text || '',
+      headerType: header ? (header.format || 'TEXT') : 'NONE',
+      headerText: header?.format === 'TEXT' ? (header.text || '') : '',
+      headerHandle: header?.example?.header_handle?.[0] || '',
+      headerMediaUrl: header?.example?.header_url?.[0] || header?.example?.header_handle?.[0] || '',
       body: bodyOf(t),
       footer: t.components.find(c => c.type === 'FOOTER')?.text || '',
+      buttons: buttons.map((b: any, i: number) => ({
+        id: `${i}-${b.type}`,
+        type: b.type,
+        text: b.text || '',
+        url: b.url,
+        phone: b.phone_number,
+      })),
+      allowCategoryChange: false,
     });
     setDialog('edit');
-  };
-
-  const payloadFromForm = () => {
-    const components: TemplateComponent[] = [];
-    if (form.header.trim()) components.push({ type: 'HEADER', format: 'TEXT', text: form.header.trim() });
-    components.push({ type: 'BODY', text: form.body.trim() });
-    if (form.footer.trim()) components.push({ type: 'FOOTER', text: form.footer.trim() });
-    return {
-      name: form.name.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, ''),
-      category: form.category,
-      language: form.language,
-      components,
-    };
-  };
-
-  const saveTemplate = async () => {
-    if (!form.name.trim() || !form.body.trim()) {
-      toast({ title: 'Campos obrigatórios', description: 'Nome e corpo são obrigatórios.', variant: 'destructive' });
-      return;
-    }
-    setSaving(true);
-    try {
-      const template = payloadFromForm();
-      // Preferir Meta Graph (oficial). Update via meta-templates requer template_id; sem ele, usa CRM Oficial.
-      const useMeta = dialog === 'create' || (dialog === 'edit' && (selected as any)?.metaId);
-      if (useMeta) {
-        const body = dialog === 'edit'
-          ? { action: 'update', template_id: (selected as any).metaId, components: template.components }
-          : { action: 'create', name: template.name, category: template.category, language: template.language, components: template.components };
-        const { data: res, error: err } = await supabase.functions.invoke('meta-templates', { body });
-        if (err || res?.error) throw new Error(res?.error || err?.message || 'Falha na Meta API');
-      } else {
-        const r = await invoke(dialog === 'edit' ? 'update-template' : 'create-template', dialog === 'edit' ? { template_name: selected?.name, template } : { template });
-        const result = r?.template;
-        if (result && !result.ok) throw new Error(`Status ${result.status}: ${JSON.stringify(result.body).slice(0, 180)}`);
-      }
-      toast({ title: dialog === 'edit' ? 'Template atualizado' : 'Template enviado', description: 'Sincronizado com a Meta.' });
-      setDialog(null);
-      await loadTemplates();
-    } catch (e: any) {
-      toast({ title: 'Erro ao salvar template', description: e.message, variant: 'destructive' });
-    } finally {
-      setSaving(false);
-    }
   };
 
   const deleteTemplate = async (t: CrmTemplate) => {
@@ -377,22 +347,14 @@ export default function CrmOficialTemplates() {
           </CardContent>
         </Card>
 
-        <Dialog open={dialog === 'create' || dialog === 'edit'} onOpenChange={o => !o && setDialog(null)}>
-          <DialogContent className="max-w-2xl">
-            <DialogHeader><DialogTitle>{dialog === 'edit' ? 'Editar template' : 'Criar template'}</DialogTitle><DialogDescription>POST/PATCH /api/public/v1/templates com components oficiais da Meta.</DialogDescription></DialogHeader>
-            <div className="grid gap-4">
-              <div className="grid md:grid-cols-3 gap-3">
-                <div className="space-y-1.5"><Label>Nome</Label><Input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="boas_vindas" disabled={dialog === 'edit'} /></div>
-                <div className="space-y-1.5"><Label>Categoria</Label><Select value={form.category} onValueChange={v => setForm(f => ({ ...f, category: v }))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="UTILITY">UTILITY</SelectItem><SelectItem value="MARKETING">MARKETING</SelectItem><SelectItem value="AUTHENTICATION">AUTHENTICATION</SelectItem></SelectContent></Select></div>
-                <div className="space-y-1.5"><Label>Idioma</Label><Select value={form.language} onValueChange={v => setForm(f => ({ ...f, language: v }))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="pt_BR">pt_BR</SelectItem><SelectItem value="en_US">en_US</SelectItem><SelectItem value="es">es</SelectItem></SelectContent></Select></div>
-              </div>
-              <div className="space-y-1.5"><Label>Cabeçalho</Label><Input value={form.header} onChange={e => setForm(f => ({ ...f, header: e.target.value }))} /></div>
-              <div className="space-y-1.5"><Label>Corpo</Label><Textarea rows={6} value={form.body} onChange={e => setForm(f => ({ ...f, body: e.target.value }))} placeholder="Olá {{1}}, sua assinatura vence em {{2}}." /></div>
-              <div className="space-y-1.5"><Label>Rodapé</Label><Input value={form.footer} onChange={e => setForm(f => ({ ...f, footer: e.target.value }))} /></div>
-            </div>
-            <DialogFooter><Button variant="outline" onClick={() => setDialog(null)}>Cancelar</Button><Button onClick={saveTemplate} disabled={saving}>{saving && <Loader2 className="w-4 h-4 mr-2 animate-spin" />} Salvar</Button></DialogFooter>
-          </DialogContent>
-        </Dialog>
+        <TemplateBuilderDialog
+          open={dialog === 'create' || dialog === 'edit'}
+          mode={dialog === 'edit' ? 'edit' : 'create'}
+          initial={builderInitial || undefined}
+          onOpenChange={o => !o && setDialog(null)}
+          onSaved={() => loadTemplates()}
+        />
+
 
         <Dialog open={dialog === 'view'} onOpenChange={o => !o && setDialog(null)}>
           <DialogContent className="max-w-2xl">
