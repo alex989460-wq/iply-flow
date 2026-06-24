@@ -153,64 +153,34 @@ export default function CrmOficialTemplates() {
     }
   };
 
-  const resetForm = () => setForm({ name: '', category: 'UTILITY', language: 'pt_BR', header: '', body: '', footer: '' });
+  const [builderInitial, setBuilderInitial] = useState<any>(null);
 
-  const openCreate = () => { resetForm(); setSelected(null); setDialog('create'); };
+  const openCreate = () => { setBuilderInitial(null); setSelected(null); setDialog('create'); };
   const openEdit = (t: CrmTemplate) => {
     setSelected(t);
-    setForm({
+    const header = t.components.find(c => c.type === 'HEADER') as any;
+    const buttons = (t.components.find(c => c.type === 'BUTTONS') as any)?.buttons || [];
+    setBuilderInitial({
+      metaId: (t as any).metaId,
       name: t.name,
       category: t.category || 'UTILITY',
       language: t.language || 'pt_BR',
-      header: t.components.find(c => c.type === 'HEADER')?.text || '',
+      headerType: header ? (header.format || 'TEXT') : 'NONE',
+      headerText: header?.format === 'TEXT' ? (header.text || '') : '',
+      headerHandle: header?.example?.header_handle?.[0] || '',
+      headerMediaUrl: header?.example?.header_url?.[0] || header?.example?.header_handle?.[0] || '',
       body: bodyOf(t),
       footer: t.components.find(c => c.type === 'FOOTER')?.text || '',
+      buttons: buttons.map((b: any, i: number) => ({
+        id: `${i}-${b.type}`,
+        type: b.type,
+        text: b.text || '',
+        url: b.url,
+        phone: b.phone_number,
+      })),
+      allowCategoryChange: false,
     });
     setDialog('edit');
-  };
-
-  const payloadFromForm = () => {
-    const components: TemplateComponent[] = [];
-    if (form.header.trim()) components.push({ type: 'HEADER', format: 'TEXT', text: form.header.trim() });
-    components.push({ type: 'BODY', text: form.body.trim() });
-    if (form.footer.trim()) components.push({ type: 'FOOTER', text: form.footer.trim() });
-    return {
-      name: form.name.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, ''),
-      category: form.category,
-      language: form.language,
-      components,
-    };
-  };
-
-  const saveTemplate = async () => {
-    if (!form.name.trim() || !form.body.trim()) {
-      toast({ title: 'Campos obrigatórios', description: 'Nome e corpo são obrigatórios.', variant: 'destructive' });
-      return;
-    }
-    setSaving(true);
-    try {
-      const template = payloadFromForm();
-      // Preferir Meta Graph (oficial). Update via meta-templates requer template_id; sem ele, usa CRM Oficial.
-      const useMeta = dialog === 'create' || (dialog === 'edit' && (selected as any)?.metaId);
-      if (useMeta) {
-        const body = dialog === 'edit'
-          ? { action: 'update', template_id: (selected as any).metaId, components: template.components }
-          : { action: 'create', name: template.name, category: template.category, language: template.language, components: template.components };
-        const { data: res, error: err } = await supabase.functions.invoke('meta-templates', { body });
-        if (err || res?.error) throw new Error(res?.error || err?.message || 'Falha na Meta API');
-      } else {
-        const r = await invoke(dialog === 'edit' ? 'update-template' : 'create-template', dialog === 'edit' ? { template_name: selected?.name, template } : { template });
-        const result = r?.template;
-        if (result && !result.ok) throw new Error(`Status ${result.status}: ${JSON.stringify(result.body).slice(0, 180)}`);
-      }
-      toast({ title: dialog === 'edit' ? 'Template atualizado' : 'Template enviado', description: 'Sincronizado com a Meta.' });
-      setDialog(null);
-      await loadTemplates();
-    } catch (e: any) {
-      toast({ title: 'Erro ao salvar template', description: e.message, variant: 'destructive' });
-    } finally {
-      setSaving(false);
-    }
   };
 
   const deleteTemplate = async (t: CrmTemplate) => {
