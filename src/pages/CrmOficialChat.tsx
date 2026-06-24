@@ -5,7 +5,6 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
 import { Link } from "react-router-dom";
-import QuickRenewalPanel from "@/components/chat/QuickRenewalPanel";
 
 const CRM_BASE = "https://crmapioficial.lovable.app";
 
@@ -35,9 +34,19 @@ export default function CrmOficialChat() {
     iframeRef.current.src = url;
   }, [apiKey]);
 
+  // Lock body scroll while chat is mounted (improves mobile iframe UX).
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = prev; };
+  }, []);
+
   return (
-    <DashboardLayout>
-      <div className="h-[calc(100vh-4rem)] flex p-0 gap-0 overflow-hidden">
+    <DashboardLayout noPadding>
+      <div
+        className="w-full flex overflow-hidden bg-background"
+        style={{ height: "calc(100dvh - 4rem)" }}
+      >
         {loading ? (
           <div className="flex-1 flex items-center justify-center">
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -54,22 +63,16 @@ export default function CrmOficialChat() {
             </div>
           </Card>
         ) : (
-          <>
-            <div className="flex-1 overflow-hidden bg-background">
-              <iframe
-                ref={iframeRef}
-                title="Chat"
-                className="w-full h-full border-0 block"
-                referrerPolicy="no-referrer"
-                allow="clipboard-read; clipboard-write; microphone; camera; autoplay; fullscreen"
-              />
-            </div>
-            <div className="hidden xl:block w-[340px] shrink-0 overflow-y-auto border-l bg-background">
-              <QuickRenewalPanel initialPhone={null} />
-            </div>
-          </>
+          <iframe
+            ref={iframeRef}
+            title="Chat"
+            className="w-full h-full border-0 block"
+            referrerPolicy="no-referrer"
+            allow="clipboard-read; clipboard-write; microphone; camera; autoplay; fullscreen; geolocation"
+          />
         )}
       </div>
     </DashboardLayout>
   );
 }
+
