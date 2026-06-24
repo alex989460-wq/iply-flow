@@ -20,6 +20,11 @@ interface TemplateComponent {
   type: string;
   text?: string;
   format?: string;
+  example?: {
+    header_handle?: string[];
+    header_url?: string[];
+    body_text_named_params?: Array<{ param_name?: string; example?: string }>;
+  };
   buttons?: Array<{ type: string; text: string; url?: string; phone_number?: string }>;
 }
 

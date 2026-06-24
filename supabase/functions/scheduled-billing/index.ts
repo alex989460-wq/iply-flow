@@ -169,7 +169,7 @@ function getCrmTemplateCustomerValues(customer: any, pixKey = '') {
   };
 }
 
-function buildCrmTemplatePayload(template: any, customer: any, pixKey = '', fallbackHeaderImageUrl?: string) {
+function buildCrmTemplatePayload(template: any, customer: any, pixKey = '') {
   const values = getCrmTemplateCustomerValues(customer, pixKey);
   const components = Array.isArray(template?.components) ? template.components : [];
   const bodyComponent = components.find((component: any) => String(component?.type || '').toUpperCase() === 'BODY');
@@ -211,7 +211,7 @@ function buildCrmTemplatePayload(template: any, customer: any, pixKey = '', fall
   const headerComponent = components.find((component: any) => String(component?.type || '').toUpperCase() === 'HEADER');
   const headerFormat = String(headerComponent?.format || '').toUpperCase();
   if (headerFormat === 'IMAGE') {
-    const headerImageUrl = fallbackHeaderImageUrl || extractHeaderImageUrl(template);
+    const headerImageUrl = extractHeaderImageUrl(template);
     if (headerImageUrl) {
       outgoingComponents.unshift({
         type: 'header',
@@ -858,7 +858,7 @@ Deno.serve(async (req) => {
 
       const { data: billSettings } = await supabase
         .from('billing_settings')
-        .select('pix_key, renewal_image_url')
+        .select('pix_key')
         .eq('user_id', schedule.user_id)
         .maybeSingle();
 
@@ -974,7 +974,6 @@ Deno.serve(async (req) => {
           templateConfig,
           customer,
           billSettings?.pix_key || '',
-          headerImageUrl || (billSettings?.renewal_image_url || '').toString().trim() || undefined,
         );
         const params = crmPayload.params.length ? crmPayload.params : templateVars.map((v) => v.value);
         const lang = templateLangMap[templateName] || 'pt_BR';

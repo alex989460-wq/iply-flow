@@ -1508,14 +1508,10 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
         headerComponent?.example?.header_handle?.[0] ||
         headerComponent?.example?.header_url?.[0] ||
         '';
-      // URLs scontent.whatsapp.net / lookaside.fbsbx.com são CDN privado do Meta (assinadas e
-      // com expiração). Sempre preferir a imagem pública cadastrada em Configurações → Cobrança;
-      // se não houver, a função backend baixa essa imagem e republica em URL pública antes de enviar.
-      const settingsImage = ((billingSettings as any)?.renewal_image_url || '').toString().trim();
-      const headerImageUrl = settingsImage || exampleHandle;
+      const headerImageUrl = exampleHandle;
       if (!headerImageUrl) {
         throw new Error(
-          'Esse template tem imagem no cabeçalho, mas não encontrei a URL da imagem. Cadastre uma imagem padrão em Configurações → Cobrança.'
+          'Esse template tem imagem no cabeçalho, mas não encontrei a mídia oficial do template. Sincronize os templates do CRM Oficial e tente novamente.'
         );
       }
       outgoingComponents.unshift({
@@ -1680,12 +1676,11 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
       const headerImageUrl: string | undefined =
         headerComponent?.example?.header_handle?.[0] ||
         headerComponent?.example?.header_url?.[0] ||
-        (billingSettings as any)?.renewal_image_url ||
         undefined;
       if (headerComponent && !headerImageUrl) {
         toast({
           title: 'Template exige imagem no cabeçalho',
-          description: 'Não foi possível obter a URL da imagem do template. Cadastre uma imagem padrão em Configurações → Cobrança.',
+          description: 'Não foi possível obter a mídia oficial do template. Sincronize os templates do CRM Oficial e tente novamente.',
           variant: 'destructive',
         });
         return;
@@ -3330,15 +3325,14 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
                         const header = template?.components?.find((component: any) => String(component?.type || '').toUpperCase() === 'HEADER');
                         const body = template?.components?.find((component: any) => String(component?.type || '').toUpperCase() === 'BODY');
                         const headerFormat = String(header?.format || '').toUpperCase();
-                        const settingsImage = String((billingSettings as any)?.renewal_image_url || '').trim();
                         const exampleImage = header?.example?.header_handle?.[0] || header?.example?.header_url?.[0] || '';
-                        const imageSrc = headerFormat === 'IMAGE' ? settingsImage || exampleImage : '';
+                        const imageSrc = headerFormat === 'IMAGE' ? exampleImage : '';
                         return (
                           <div className="rounded-lg border border-border/60 bg-secondary/20 p-2 space-y-2 text-xs">
                             {headerFormat === 'IMAGE' && imageSrc ? (
                               <img src={imageSrc} alt={name} className="w-full max-h-32 object-cover rounded" />
                             ) : headerFormat === 'IMAGE' ? (
-                              <p className="text-amber-500">Este template exige imagem. Cadastre a imagem de cobrança pública para ela sair no envio.</p>
+                              <p className="text-amber-500">Este template exige imagem, mas a mídia oficial não veio na sincronização.</p>
                             ) : null}
                             {body?.text && <p className="whitespace-pre-wrap text-muted-foreground line-clamp-6">{body.text}</p>}
                           </div>
