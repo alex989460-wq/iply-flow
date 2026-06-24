@@ -597,7 +597,9 @@ Deno.serve(async (req) => {
     console.log(`[Billing Batch] API detection: apiType=${apiType}, isCrmOficial=${isCrmOficial}, isEvolution=${isEvolution}, isMetaCloud=${isMetaCloud}`);
 
     // Validate configuration based on API type
-    if (isEvolution) {
+    if (isCrmOficial) {
+      console.log('[Billing Batch] CRM Oficial configured — channel:', (crmSchedule as any)?.channel_id || 'auto');
+    } else if (isEvolution) {
       if (!evoSettings?.base_url || !evoSettings?.api_key) {
         return new Response(
           JSON.stringify({ success: false, error: 'Evolution não configurada. Configure URL e API Key em Conexões WhatsApp.' }),
