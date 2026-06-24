@@ -25,6 +25,26 @@ interface BillingSchedule {
   template_d_plus_1: string | null;
 }
 
+interface CrmBillingSchedule {
+  id: string;
+  user_id: string;
+  is_enabled: boolean;
+  send_time: string;
+  send_d_minus_1: boolean;
+  send_d0: boolean;
+  send_d_plus_1: boolean;
+  template_d_minus_1: string | null;
+  template_d0: string | null;
+  template_d_plus_1: string | null;
+  template_lang_d_minus_1: string | null;
+  template_lang_d0: string | null;
+  template_lang_d_plus_1: string | null;
+  min_delay_seconds: number | null;
+  max_delay_seconds: number | null;
+  channel_id: string | null;
+  phone_number_id: string | null;
+}
+
 // Format YYYY-MM-DD in America/Sao_Paulo
 function formatDateSaoPaulo(date: Date): string {
   const parts = new Intl.DateTimeFormat('en-US', {
@@ -115,6 +135,174 @@ function buildTemplateVars(customer: any): Array<{ name: string; value: string }
 function extractHeaderImageUrl(template: any): string | undefined {
   const header = template?.components?.find((c: any) => c?.type === 'HEADER' && c?.format === 'IMAGE');
   return header?.example?.header_handle?.[0] || header?.example?.header_url?.[0] || undefined;
+}
+
+function getCrmTemplateCustomerValues(customer: any, pixKey = '') {
+  const fullName = String(customer?.name || '');
+  const firstName = fullName.trim().split(/\s+/)[0] || fullName;
+  const rawPrice = customer?.custom_price ?? customer?.plan?.price ?? 0;
+  const priceFormatted = formatBRL(rawPrice);
+  const dueDate = formatBRDate(customer?.due_date || '');
+  const userName = String(customer?.username || '');
+  const planName = String(customer?.plan?.plan_name || '');
+  const serverName = String(customer?.server?.server_name || '');
+  const phone = String(customer?.phone || '');
+  const screens = String(customer?.screens || 1);
+
+  return {
+    firstName,
+    byKey: (key: string, index: number) => {
+      const normalized = String(key || '').toLowerCase();
+      const named: Record<string, string> = {
+        name: firstName, nome: firstName, cliente: firstName, customer: firstName,
+        user: userName, usuario: userName, username: userName, login: userName,
+        price: priceFormatted, valor: priceFormatted, preco: priceFormatted, value: priceFormatted,
+        weak: planName, plan: planName, plano: planName,
+        serv: serverName, server: serverName, servidor: serverName,
+        data: dueDate, vencimento: dueDate, due: dueDate, due_date: dueDate, date: dueDate,
+        telefone: phone, phone, telas: screens, screens,
+        pix: pixKey || '',
+      };
+      const positional = [firstName, userName, priceFormatted, planName, serverName, dueDate, phone, screens];
+      return named[normalized] ?? positional[index] ?? '';
+    },
+  };
+}
+
+function buildCrmTemplatePayload(template: any, customer: any, pixKey = '', fallbackHeaderImageUrl?: string) {
+  const values = getCrmTemplateCustomerValues(customer, pixKey);
+  const components = Array.isArray(template?.components) ? template.components : [];
+  const bodyComponent = components.find((component: any) => String(component?.type || '').toUpperCase() === 'BODY');
+  const bodyText = String(bodyComponent?.text || '');
+  const parameterFormat = String(template?.parameter_format || '').toUpperCase();
+  const isNamed = parameterFormat === 'NAMED' || /\{\{\s*[A-Za-z_]\w*\s*\}\}/.test(bodyText);
+
+  const namedFromExample = Array.isArray(bodyComponent?.example?.body_text_named_params)
+    ? bodyComponent.example.body_text_named_params.map((param: any) => String(param?.param_name || '').trim()).filter(Boolean)
+    : [];
+  const namedFromBody = Array.from(new Set((bodyText.match(/\{\{\s*([A-Za-z_]\w*)\s*\}\}/g) || [])
+    .map((match) => match.replace(/[{}\s]/g, ''))));
+  const positionalIndexes = Array.from(new Set((bodyText.match(/\{\{\s*\d+\s*\}\}/g) || [])
+    .map((match) => Number(match.replace(/\D/g, '')))
+    .filter((num) => Number.isFinite(num) && num > 0)))
+    .sort((a, b) => a - b);
+
+  const outgoingComponents: any[] = [];
+  let bodyParamTexts: string[] = [];
+
+  if (isNamed) {
+    const paramNames = namedFromExample.length ? namedFromExample : namedFromBody;
+    const parameters = paramNames.map((name, index) => ({
+      type: 'text',
+      parameter_name: name,
+      text: values.byKey(name, index),
+    }));
+    bodyParamTexts = parameters.map((param) => param.text);
+    if (parameters.length) outgoingComponents.push({ type: 'body', parameters });
+  } else if (positionalIndexes.length) {
+    const parameters = positionalIndexes.map((position, index) => ({
+      type: 'text',
+      text: values.byKey(String(position), index),
+    }));
+    bodyParamTexts = parameters.map((param) => param.text);
+    outgoingComponents.push({ type: 'body', parameters });
+  }
+
+  const headerComponent = components.find((component: any) => String(component?.type || '').toUpperCase() === 'HEADER');
+  const headerFormat = String(headerComponent?.format || '').toUpperCase();
+  if (headerFormat === 'IMAGE') {
+    const headerImageUrl = fallbackHeaderImageUrl || extractHeaderImageUrl(template);
+    if (headerImageUrl) {
+      outgoingComponents.unshift({
+        type: 'header',
+        parameters: [{ type: 'image', image: { link: headerImageUrl } }],
+      });
+    }
+  } else if (headerFormat === 'TEXT' && String(headerComponent?.text || '').includes('{{')) {
+    outgoingComponents.unshift({
+      type: 'header',
+      parameters: [{ type: 'text', text: values.firstName }],
+    });
+  }
+
+  const fallbackBody = bodyText
+    .replace(/\{\{\s*([A-Za-z_]\w*)\s*\}\}/g, (_match, key) => values.byKey(key, 0))
+    .replace(/\{\{\s*(\d+)\s*\}\}/g, (_match, position) => values.byKey(position, Number(position) - 1));
+
+  return { components: outgoingComponents, params: bodyParamTexts, fallbackBody };
+}
+
+function shouldRunSchedule(schedule: any, currentMinutes: number, todayStrSP: string): boolean {
+  const [sh, sm] = String(schedule.send_time || '00:00').substring(0, 5).split(':').map(Number);
+  const sendMinutes = sh * 60 + sm;
+  if (currentMinutes < sendMinutes) return false;
+  if (currentMinutes > sendMinutes + 360) return false;
+  const lastRunAt = schedule.last_run_at as string | null;
+  const lastStatus = schedule.last_run_status as string | null;
+  if (lastRunAt && (lastStatus?.startsWith('completed:') || lastStatus?.startsWith('success:') || lastStatus?.startsWith('error:'))) {
+    const lastDateSP = formatDateSaoPaulo(new Date(lastRunAt));
+    const updatedAt = schedule.updated_at as string | null;
+    const changedAfterError = !!updatedAt && (new Date(updatedAt).getTime() - new Date(lastRunAt).getTime()) > 30_000;
+    if (lastDateSP === todayStrSP && !changedAfterError) return false;
+  }
+  return true;
+}
+
+async function loadCrmTemplateMetadata(supabase: any, apiKey: string, schedule: CrmBillingSchedule) {
+  const templateLangMap: Record<string, string> = {};
+  const templateConfigMap: Record<string, any> = {};
+  const templateNames = {
+    'D-1': schedule.template_d_minus_1 || DEFAULT_TEMPLATE_MAPPING['D-1'],
+    D0: schedule.template_d0 || DEFAULT_TEMPLATE_MAPPING['D0'],
+    'D+1': schedule.template_d_plus_1 || DEFAULT_TEMPLATE_MAPPING['D+1'],
+  } as Record<'D-1' | 'D0' | 'D+1', string>;
+  const langFallbacks = {
+    'D-1': schedule.template_lang_d_minus_1 || 'pt_BR',
+    D0: schedule.template_lang_d0 || 'pt_BR',
+    'D+1': schedule.template_lang_d_plus_1 || 'pt_BR',
+  } as Record<'D-1' | 'D0' | 'D+1', string>;
+
+  for (const [type, name] of Object.entries(templateNames)) {
+    templateLangMap[name] = langFallbacks[type as 'D-1' | 'D0' | 'D+1'];
+  }
+
+  try {
+    const invokeRes = await supabase.functions.invoke('crm-oficial-sync', {
+      body: { action: 'list-templates', data: { apiKey, limit: 250 } },
+    });
+    const raw: any = invokeRes.data?.results?.templates;
+    const body = raw?.body;
+    const list: any[] = Array.isArray(raw) ? raw
+      : Array.isArray(body) ? body
+      : Array.isArray(raw?.data) ? raw.data
+      : Array.isArray(raw?.templates) ? raw.templates
+      : Array.isArray(raw?.items) ? raw.items
+      : Array.isArray(body?.data) ? body.data
+      : Array.isArray(body?.templates) ? body.templates
+      : Array.isArray(body?.items) ? body.items
+      : [];
+    for (const t of list) {
+      const name = t?.name || t?.template_name;
+      if (!name) continue;
+      const lang = t?.language || t?.language_code || t?.lang;
+      const status = String(t?.status || '').toUpperCase();
+      let components = Array.isArray(t?.components) ? t.components : [];
+      if (components.length === 0) {
+        const bodyText = t?.body_text || t?.body || t?.content || '';
+        if (bodyText) components = [{ type: 'BODY', text: String(bodyText) }];
+      }
+      const existing = templateConfigMap[name];
+      if (!existing || status === 'APPROVED') {
+        if (lang) templateLangMap[name] = lang;
+        templateConfigMap[name] = { ...t, components };
+      }
+    }
+    console.log(`[Scheduled CRM Oficial] Loaded ${Object.keys(templateConfigMap).length} templates`);
+  } catch (e) {
+    console.error('[Scheduled CRM Oficial] Error fetching templates:', e);
+  }
+
+  return { templateNames, templateLangMap, templateConfigMap };
 }
 
 // Filter vars to only those actually used by the template body (avoids Meta #132000).
@@ -294,29 +482,28 @@ Deno.serve(async (req) => {
 
     console.log(`[Scheduled Billing] Found ${schedules?.length || 0} enabled schedules`);
 
+    const { data: crmSchedules, error: crmSchedulesError } = await supabase
+      .from('crm_oficial_billing_schedule')
+      .select('*')
+      .eq('is_enabled', true);
+
+    if (crmSchedulesError) {
+      console.error('[Scheduled CRM Oficial] Error fetching schedules:', crmSchedulesError);
+    }
+
+    console.log(`[Scheduled CRM Oficial] Found ${crmSchedules?.length || 0} enabled schedules`);
+
     // Run schedule if: current time >= send_time, within 6h window, and not completed today.
     // This lets cron resume the same schedule across multiple minutes until all customers are sent.
     const todayStrSP = getRelativeDateSaoPaulo(0);
     const currentMinutes = hour * 60 + minute;
-    const schedulesToRun = (schedules || []).filter((s: BillingSchedule) => {
-      const [sh, sm] = s.send_time.substring(0, 5).split(':').map(Number);
-      const sendMinutes = sh * 60 + sm;
-      if (currentMinutes < sendMinutes) return false;
-      if (currentMinutes > sendMinutes + 360) return false;
-      const lastRunAt = (s as any).last_run_at as string | null;
-      const lastStatus = (s as any).last_run_status as string | null;
-      if (lastRunAt && (lastStatus?.startsWith('completed:') || lastStatus?.startsWith('error:'))) {
-        const lastDateSP = formatDateSaoPaulo(new Date(lastRunAt));
-        const updatedAt = (s as any).updated_at as string | null;
-        const changedAfterError = !!updatedAt && (new Date(updatedAt).getTime() - new Date(lastRunAt).getTime()) > 30_000;
-        if (lastDateSP === todayStrSP && !changedAfterError) return false;
-      }
-      return true;
-    });
+    const schedulesToRun = (schedules || []).filter((s: BillingSchedule) => shouldRunSchedule(s, currentMinutes, todayStrSP));
+    const crmSchedulesToRun = (crmSchedules || []).filter((s: CrmBillingSchedule) => shouldRunSchedule(s, currentMinutes, todayStrSP));
 
     console.log(`[Scheduled Billing] Schedules to run now: ${schedulesToRun.length}`);
+    console.log(`[Scheduled CRM Oficial] Schedules to run now: ${crmSchedulesToRun.length}`);
 
-    if (schedulesToRun.length === 0) {
+    if (schedulesToRun.length === 0 && crmSchedulesToRun.length === 0) {
       return new Response(
         JSON.stringify({ success: true, message: 'No schedules to run at this time', processed: 0 }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -646,6 +833,263 @@ Deno.serve(async (req) => {
       });
 
       console.log(`[Scheduled Billing] User ${schedule.user_id}: sent=${sent}, errors=${errors}, remaining=${remaining}`);
+    }
+
+    for (const schedule of crmSchedulesToRun) {
+      console.log(`[Scheduled CRM Oficial] Processing schedule for user: ${schedule.user_id}`);
+
+      const { data: crmSettings } = await supabase
+        .from('crm_oficial_settings')
+        .select('enabled, api_key')
+        .eq('user_id', schedule.user_id)
+        .maybeSingle();
+
+      if (!crmSettings?.enabled || !crmSettings?.api_key) {
+        console.log(`[Scheduled CRM Oficial] User ${schedule.user_id} missing CRM settings`);
+        await supabase
+          .from('crm_oficial_billing_schedule')
+          .update({
+            last_run_at: new Date().toISOString(),
+            last_run_status: 'error: CRM Oficial não configurado',
+          })
+          .eq('id', schedule.id);
+        continue;
+      }
+
+      const { data: billSettings } = await supabase
+        .from('billing_settings')
+        .select('pix_key, renewal_image_url')
+        .eq('user_id', schedule.user_id)
+        .maybeSingle();
+
+      const { templateNames, templateLangMap, templateConfigMap } = await loadCrmTemplateMetadata(
+        supabase,
+        crmSettings.api_key,
+        schedule,
+      );
+
+      const today = getRelativeDateSaoPaulo(0);
+      const yesterday = getRelativeDateSaoPaulo(-1);
+      const tomorrow = getRelativeDateSaoPaulo(1);
+
+      const billingTypesToSend: string[] = [];
+      if (schedule.send_d_minus_1) billingTypesToSend.push('D-1');
+      if (schedule.send_d0) billingTypesToSend.push('D0');
+      if (schedule.send_d_plus_1) billingTypesToSend.push('D+1');
+
+      const { data: customers, error: customersError } = await supabase
+        .from('customers')
+        .select('id, name, phone, extra_phone, due_date, status, username, custom_price, screens, plan:plans(plan_name, price), server:servers(server_name)')
+        .in('status', ['ativa', 'inativa'])
+        .eq('created_by', schedule.user_id)
+        .in('due_date', [yesterday, today, tomorrow]);
+
+      if (customersError) {
+        console.error('[Scheduled CRM Oficial] Error fetching customers:', customersError);
+        await supabase
+          .from('crm_oficial_billing_schedule')
+          .update({
+            last_run_at: new Date().toISOString(),
+            last_run_status: 'error: erro ao buscar clientes',
+          })
+          .eq('id', schedule.id);
+        continue;
+      }
+
+      console.log(`[Scheduled CRM Oficial] Found ${customers?.length || 0} customers for user ${schedule.user_id}`);
+
+      const { data: existingLogs } = await supabase
+        .from('billing_logs')
+        .select('customer_id, billing_type, message, whatsapp_status')
+        .gte('sent_at', `${today}T00:00:00`)
+        .lte('sent_at', `${today}T23:59:59`);
+
+      const processedByType: Record<string, { customerIds: Set<string>; phones: Set<string> }> = {
+        'D-1': { customerIds: new Set(), phones: new Set() },
+        'D0': { customerIds: new Set(), phones: new Set() },
+        'D+1': { customerIds: new Set(), phones: new Set() },
+      };
+
+      for (const log of existingLogs || []) {
+        if (log.whatsapp_status !== 'sent') continue;
+        const type = log.billing_type as string;
+        if (processedByType[type]) {
+          processedByType[type].customerIds.add(log.customer_id);
+          const phoneMatch = log.message?.match(/\[(\d+)\]/);
+          if (phoneMatch) processedByType[type].phones.add(normalizePhone(phoneMatch[1]));
+        }
+      }
+
+      const customersToProcess: any[] = [];
+      let skipped = 0;
+
+      for (const customer of customers || []) {
+        let billingType: 'D-1' | 'D0' | 'D+1' | null = null;
+        if (customer.due_date === tomorrow) billingType = 'D-1';
+        else if (customer.due_date === today) billingType = 'D0';
+        else if (customer.due_date === yesterday) billingType = 'D+1';
+
+        if (!billingType || !billingTypesToSend.includes(billingType)) {
+          skipped++;
+          continue;
+        }
+
+        const normalizedPhone = normalizePhone(customer.phone);
+        if (processedByType[billingType].customerIds.has(customer.id) || processedByType[billingType].phones.has(normalizedPhone)) {
+          skipped++;
+          continue;
+        }
+
+        processedByType[billingType].customerIds.add(customer.id);
+        processedByType[billingType].phones.add(normalizedPhone);
+        customersToProcess.push({ ...customer, billingType });
+      }
+
+      const totalPending = customersToProcess.length;
+      const batch = customersToProcess.slice(0, BATCH_SIZE);
+      console.log(`[Scheduled CRM Oficial] Customers pending today: ${totalPending}. Processing batch of ${batch.length}.`);
+
+      await supabase
+        .from('crm_oficial_billing_schedule')
+        .update({
+          last_run_at: new Date().toISOString(),
+          last_run_status: `in_progress: ${totalPending} pendentes`,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', schedule.id);
+
+      let sent = 0;
+      let errors = 0;
+      const minDelay = Math.max(1, Number(schedule.min_delay_seconds || 1)) * 1000;
+      const maxDelay = Math.max(minDelay, Number(schedule.max_delay_seconds || 2) * 1000);
+
+      for (let i = 0; i < batch.length; i++) {
+        const customer = batch[i];
+        const billingType = customer.billingType as 'D-1' | 'D0' | 'D+1';
+        const templateName = templateNames[billingType];
+        const templateConfig = templateConfigMap[templateName];
+        const templateVars = filterVarsForTemplate(templateConfig, buildTemplateVars(customer));
+        const headerImageUrl = extractHeaderImageUrl(templateConfig);
+        const crmPayload = buildCrmTemplatePayload(
+          templateConfig,
+          customer,
+          billSettings?.pix_key || '',
+          (billSettings?.renewal_image_url || '').toString().trim() || headerImageUrl,
+        );
+        const params = crmPayload.params.length ? crmPayload.params : templateVars.map((v) => v.value);
+        const lang = templateLangMap[templateName] || 'pt_BR';
+        const phone = normalizePhone(customer.phone);
+
+        console.log(`[Scheduled CRM Oficial] (${i + 1}/${batch.length}) Template "${templateName}" -> ${customer.name} (${phone})`);
+
+        const { data: reservation, error: reserveError } = await supabase
+          .from('billing_logs')
+          .insert({
+            customer_id: customer.id,
+            billing_type: billingType,
+            message: `[Agendado CRM] [${phone}] reservando envio...`,
+            whatsapp_status: 'pending',
+          })
+          .select('id')
+          .single();
+
+        if (reserveError) {
+          console.log(`[Scheduled CRM Oficial] SKIP duplicate ${customer.name} (${billingType}): ${reserveError.message}`);
+          skipped++;
+          continue;
+        }
+
+        let sendResult: { success: boolean; error?: string };
+        try {
+          const invokeRes = await supabase.functions.invoke('crm-oficial-sync', {
+            body: {
+              action: 'send-whatsapp',
+              data: {
+                apiKey: crmSettings.api_key,
+                phone: customer.phone,
+                name: customer.name,
+                channel_id: schedule.channel_id || undefined,
+                phone_number_id: schedule.phone_number_id || undefined,
+                body: crmPayload.fallbackBody || templateName,
+                template_name: templateName,
+                template_language: lang,
+                template_params: params,
+                components: crmPayload.components,
+              },
+            },
+          });
+          const data: any = invokeRes.data;
+          const send: any = data?.results?.send;
+          const ok = !invokeRes.error && data?.success !== false && (send?.ok !== false);
+          sendResult = ok
+            ? { success: true }
+            : { success: false, error: invokeRes.error?.message || data?.error || (send && typeof send.body === 'object' ? JSON.stringify(send.body).slice(0, 240) : `CRM status ${send?.status || '?'}`) };
+        } catch (e: any) {
+          sendResult = { success: false, error: `CRM Oficial: ${e?.message || e}` };
+        }
+
+        if (customer.extra_phone && String(customer.extra_phone).replace(/\D/g, '').length >= 10) {
+          try {
+            await supabase.functions.invoke('crm-oficial-sync', {
+              body: {
+                action: 'send-whatsapp',
+                data: {
+                  apiKey: crmSettings.api_key,
+                  phone: customer.extra_phone,
+                  name: customer.name,
+                  channel_id: schedule.channel_id || undefined,
+                  phone_number_id: schedule.phone_number_id || undefined,
+                  body: crmPayload.fallbackBody || templateName,
+                  template_name: templateName,
+                  template_language: lang,
+                  template_params: params,
+                  components: crmPayload.components,
+                },
+              },
+            });
+          } catch (e) {
+            console.error(`[Scheduled CRM Oficial] Extra phone send failed for ${customer.name}:`, e);
+          }
+        }
+
+        await supabase.from('billing_logs').update({
+          message: `[Agendado CRM] [${phone}] Template: crm:${templateName}`,
+          whatsapp_status: sendResult.success ? 'sent' : `error: ${sendResult.error}`,
+        }).eq('id', reservation.id);
+
+        if (sendResult.success) sent++; else errors++;
+
+        if (i < batch.length - 1) {
+          const delay = Math.floor(Math.random() * (maxDelay - minDelay + 1)) + minDelay;
+          console.log(`[Scheduled CRM Oficial] Waiting ${(delay / 1000).toFixed(1)}s before next send...`);
+          await new Promise((r) => setTimeout(r, delay));
+        }
+      }
+
+      const remaining = totalPending - batch.length;
+      const statusMessage = remaining > 0
+        ? `in_progress: lote ${sent} enviados / ${remaining} restantes`
+        : `completed: ${sent} enviados, ${errors} erros nesta execução`;
+
+      await supabase
+        .from('crm_oficial_billing_schedule')
+        .update({
+          last_run_at: new Date().toISOString(),
+          last_run_status: statusMessage,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', schedule.id);
+
+      results.push({
+        user_id: schedule.user_id,
+        channel: 'crm_oficial',
+        sent,
+        errors,
+        skipped,
+        remaining,
+      });
+
+      console.log(`[Scheduled CRM Oficial] User ${schedule.user_id}: sent=${sent}, errors=${errors}, remaining=${remaining}`);
     }
 
     return new Response(
