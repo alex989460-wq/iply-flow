@@ -212,7 +212,9 @@ async function doSendWhatsapp(payload: {
       template_language: lang,
       templateLanguage: lang,
       language: lang,
+      ...(fallbackBody ? { body: fallbackBody } : {}),
       ...(components.length ? { components } : {}),
+      ...(params.length ? { template_params: params, templateParams: params, parameters: params } : {}),
       ...(headerImageUrl ? { header_image_url: headerImageUrl, headerImageUrl } : {}),
     };
     const legacyPayload: Record<string, unknown> = {
@@ -256,6 +258,7 @@ async function doSendWhatsapp(payload: {
     // pois isso enviaria sem imagem/botões/formatação do template — exatamente o bug que estamos corrigindo.
     const templateAttempts: Array<() => Promise<{ ok: boolean; status: number; body: unknown }>> = [
       () => crmFetch("/api/public/v1/whatsapp-template-send", { method: "POST", body: JSON.stringify(officialPayload), apiKey }),
+      () => crmFetch("/api/public/v1/whatsapp/message", { method: "POST", body: JSON.stringify(officialPayload), apiKey }),
       () => crmFetch("/api/public/v1/whatsapp-template-send", { method: "POST", body: JSON.stringify(legacyPayload), apiKey }),
       () => crmFetch("/api/public/v1/whatsapp-template-send", { method: "POST", body: JSON.stringify(variablePayload), apiKey }),
       () => crmFetch("/api/public/v1/whatsapp/template-send", { method: "POST", body: JSON.stringify(officialPayload), apiKey }),
