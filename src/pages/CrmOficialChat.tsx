@@ -43,10 +43,8 @@ export default function CrmOficialChat() {
 
   return (
     <DashboardLayout noPadding>
-      <div
-        className="w-full flex overflow-hidden bg-background"
-        style={{ height: "calc(100dvh - 4rem)" }}
-      >
+      <div className="w-full flex overflow-hidden bg-background h-[calc(100dvh-4rem)] lg:h-[100dvh]">
+
         {loading ? (
           <div className="flex-1 flex items-center justify-center">
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
