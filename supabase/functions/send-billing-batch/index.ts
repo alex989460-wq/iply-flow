@@ -1022,8 +1022,8 @@ Deno.serve(async (req) => {
         if (customer.extra_phone && String(customer.extra_phone).replace(/\D/g, '').length >= 10) {
           try {
             if (isCrmOficial) {
-              const lang = crmTemplateLang[billingType] || 'pt_BR';
-              const params = buildTemplateVars(customer).map(v => v.value);
+              const lang = templateLangMap[templateName] || crmTemplateLang[billingType] || 'pt_BR';
+              const params = templateVars.map(v => v.value);
               await supabase.functions.invoke('crm-oficial-sync', {
                 body: {
                   action: 'send-whatsapp',
