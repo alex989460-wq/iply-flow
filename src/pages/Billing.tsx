@@ -275,11 +275,27 @@ export default function Billing() {
     },
   });
 
+  // CRM Oficial schedule + settings (if active, it's the primary channel for manual dispatch)
+  const { data: crmOficialActive } = useQuery({
+    queryKey: ['crm-oficial-active'],
+    queryFn: async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user?.id) return false;
+      const [{ data: s }, { data: sc }] = await Promise.all([
+        supabase.from('crm_oficial_settings').select('enabled, api_key').eq('user_id', user.id).maybeSingle(),
+        (supabase as any).from('crm_oficial_billing_schedule').select('is_enabled').eq('user_id', user.id).maybeSingle(),
+      ]);
+      return !!(s?.enabled && s?.api_key && sc?.is_enabled);
+    },
+  });
+
   // Check if using Meta Cloud API
   const isMetaCloudApi = zapSettings?.api_type === 'meta_cloud' && zapSettings?.meta_connected_at;
-  const hasValidSession = isMetaCloudApi 
-    ? !!zapSettings?.meta_phone_number_id 
-    : !!zapSettings?.selected_session_id;
+  const hasValidSession = crmOficialActive
+    ? true
+    : isMetaCloudApi 
+      ? !!zapSettings?.meta_phone_number_id 
+      : !!zapSettings?.selected_session_id;
 
   // Auto-load sessions and departments on mount
   useEffect(() => {

@@ -541,18 +541,44 @@ Deno.serve(async (req) => {
       .eq('user_id', userId)
       .maybeSingle();
 
-    // Load custom template names from billing_schedule (overrides defaults)
-    const { data: scheduleCfg } = await supabase
-      .from('billing_schedule')
-      .select('template_d_minus_1, template_d0, template_d_plus_1')
+    // Load CRM Oficial settings + schedule (highest priority channel when enabled)
+    const { data: crmSettings } = await supabase
+      .from('crm_oficial_settings')
+      .select('enabled, api_key')
       .eq('user_id', userId)
       .maybeSingle();
-    if (scheduleCfg?.template_d_minus_1) TEMPLATE_MAPPING['D-1'] = scheduleCfg.template_d_minus_1;
-    if (scheduleCfg?.template_d0) TEMPLATE_MAPPING['D0'] = scheduleCfg.template_d0;
-    if (scheduleCfg?.template_d_plus_1) TEMPLATE_MAPPING['D+1'] = scheduleCfg.template_d_plus_1;
-    console.log('[Billing Batch] Active template mapping:', TEMPLATE_MAPPING);
+    const { data: crmSchedule } = await supabase
+      .from('crm_oficial_billing_schedule')
+      .select('is_enabled, template_d_minus_1, template_d0, template_d_plus_1, template_lang_d_minus_1, template_lang_d0, template_lang_d_plus_1, channel_id, phone_number_id')
+      .eq('user_id', userId)
+      .maybeSingle();
 
-    const useEvolution = !!(billSettings as any)?.use_evolution_billing;
+    const isCrmOficial = !!(crmSettings?.enabled && crmSettings?.api_key && crmSchedule?.is_enabled);
+    const crmTemplateLang: Record<string, string> = {
+      'D-1': (crmSchedule as any)?.template_lang_d_minus_1 || 'pt_BR',
+      'D0': (crmSchedule as any)?.template_lang_d0 || 'pt_BR',
+      'D+1': (crmSchedule as any)?.template_lang_d_plus_1 || 'pt_BR',
+    };
+
+    if (isCrmOficial) {
+      if ((crmSchedule as any)?.template_d_minus_1) TEMPLATE_MAPPING['D-1'] = (crmSchedule as any).template_d_minus_1;
+      if ((crmSchedule as any)?.template_d0) TEMPLATE_MAPPING['D0'] = (crmSchedule as any).template_d0;
+      if ((crmSchedule as any)?.template_d_plus_1) TEMPLATE_MAPPING['D+1'] = (crmSchedule as any).template_d_plus_1;
+      console.log('[Billing Batch] CRM Oficial channel ACTIVE — templates:', TEMPLATE_MAPPING);
+    } else {
+      // Load custom template names from billing_schedule (overrides defaults)
+      const { data: scheduleCfg } = await supabase
+        .from('billing_schedule')
+        .select('template_d_minus_1, template_d0, template_d_plus_1')
+        .eq('user_id', userId)
+        .maybeSingle();
+      if (scheduleCfg?.template_d_minus_1) TEMPLATE_MAPPING['D-1'] = scheduleCfg.template_d_minus_1;
+      if (scheduleCfg?.template_d0) TEMPLATE_MAPPING['D0'] = scheduleCfg.template_d0;
+      if (scheduleCfg?.template_d_plus_1) TEMPLATE_MAPPING['D+1'] = scheduleCfg.template_d_plus_1;
+      console.log('[Billing Batch] Active template mapping:', TEMPLATE_MAPPING);
+    }
+
+    const useEvolution = !isCrmOficial && !!(billSettings as any)?.use_evolution_billing;
     let evoSettings: any = null;
     if (useEvolution) {
       const { data: evo } = await supabase
@@ -563,15 +589,17 @@ Deno.serve(async (req) => {
       evoSettings = evo;
     }
 
-    // Detect API type - Evolution > Meta Cloud > Zap Responder
-    const apiType = useEvolution ? 'evolution' : (zapSettings?.api_type || 'zap_responder');
-    const isMetaCloud = !useEvolution && apiType === 'meta_cloud' && !!zapSettings?.meta_connected_at;
+    // Detect API type - CRM Oficial > Evolution > Meta Cloud > Zap Responder
+    const apiType = isCrmOficial ? 'crm_oficial' : (useEvolution ? 'evolution' : (zapSettings?.api_type || 'zap_responder'));
+    const isMetaCloud = !isCrmOficial && !useEvolution && apiType === 'meta_cloud' && !!zapSettings?.meta_connected_at;
     const isEvolution = useEvolution;
 
-    console.log(`[Billing Batch] API detection: apiType=${apiType}, isEvolution=${isEvolution}, isMetaCloud=${isMetaCloud}`);
+    console.log(`[Billing Batch] API detection: apiType=${apiType}, isCrmOficial=${isCrmOficial}, isEvolution=${isEvolution}, isMetaCloud=${isMetaCloud}`);
 
     // Validate configuration based on API type
-    if (isEvolution) {
+    if (isCrmOficial) {
+      console.log('[Billing Batch] CRM Oficial configured — channel:', (crmSchedule as any)?.channel_id || 'auto');
+    } else if (isEvolution) {
       if (!evoSettings?.base_url || !evoSettings?.api_key) {
         return new Response(
           JSON.stringify({ success: false, error: 'Evolution não configurada. Configure URL e API Key em Conexões WhatsApp.' }),
@@ -741,7 +769,7 @@ Deno.serve(async (req) => {
     if (action === 'batch') {
       const batch: Customer[] = body?.batch || [];
       const forceResend = body?.force === true;
-      const effectiveApiType = isEvolution ? 'evolution' : (isMetaCloud ? 'meta_cloud' : 'zap_responder');
+      const effectiveApiType = isCrmOficial ? 'crm_oficial' : (isEvolution ? 'evolution' : (isMetaCloud ? 'meta_cloud' : 'zap_responder'));
       console.log(`[Billing Batch] Processing batch of ${batch.length} customers via ${effectiveApiType} (force=${forceResend})`);
 
       const results: any[] = [];
@@ -794,6 +822,11 @@ Deno.serve(async (req) => {
           console.log(`[Billing Batch] Loaded ${Object.keys(templateConfigMap).length} Meta templates`);
         } catch (e) {
           console.error('[Billing Batch] Error fetching Meta templates:', e);
+        }
+      } else if (isCrmOficial) {
+        // CRM Oficial: use the languages defined in crm_oficial_billing_schedule
+        for (const [bt, name] of Object.entries(TEMPLATE_MAPPING)) {
+          if (name) templateLangMap[name] = crmTemplateLang[bt] || 'pt_BR';
         }
       } else if (!isEvolution) {
         try {
@@ -888,7 +921,37 @@ Deno.serve(async (req) => {
         let sendResult: { success: boolean; error?: string };
         let outboundLabel = templateName;
 
-        if (isEvolution) {
+        if (isCrmOficial) {
+          const lang = crmTemplateLang[billingType] || 'pt_BR';
+          const params = buildTemplateVars(customer).map(v => v.value);
+          outboundLabel = `crm:${templateName}`;
+          console.log(`[CRM Oficial] Sending ${templateName} to ${normalizedPhone} via channel ${(crmSchedule as any)?.channel_id || 'auto'}`);
+          try {
+            const invokeRes = await supabase.functions.invoke('crm-oficial-sync', {
+              body: {
+                action: 'send-whatsapp',
+                data: {
+                  apiKey: (crmSettings as any).api_key,
+                  phone: customer.phone,
+                  name: customer.name,
+                  channel_id: (crmSchedule as any)?.channel_id || undefined,
+                  phone_number_id: (crmSchedule as any)?.phone_number_id || undefined,
+                  template_name: templateName,
+                  template_language: lang,
+                  template_params: params,
+                },
+              },
+            });
+            const data: any = invokeRes.data;
+            const send: any = data?.results?.send;
+            const ok = !invokeRes.error && data?.success !== false && (send?.ok !== false);
+            sendResult = ok
+              ? { success: true }
+              : { success: false, error: invokeRes.error?.message || data?.error || (send && typeof send.body === 'object' ? JSON.stringify(send.body).slice(0, 240) : `CRM status ${send?.status || '?'}`) };
+          } catch (e: any) {
+            sendResult = { success: false, error: `CRM Oficial: ${e?.message || e}` };
+          }
+        } else if (isEvolution) {
           const tpl = evoMsgMap[billingType];
           const text = renderEvolutionTemplate(tpl, customer, { pix: (billSettings as any)?.pix_key || '' });
           outboundLabel = `evo:${billingType}`;
@@ -926,7 +989,25 @@ Deno.serve(async (req) => {
         // Also send to extra_phone if configured
         if (customer.extra_phone && String(customer.extra_phone).replace(/\D/g, '').length >= 10) {
           try {
-            if (isEvolution) {
+            if (isCrmOficial) {
+              const lang = crmTemplateLang[billingType] || 'pt_BR';
+              const params = buildTemplateVars(customer).map(v => v.value);
+              await supabase.functions.invoke('crm-oficial-sync', {
+                body: {
+                  action: 'send-whatsapp',
+                  data: {
+                    apiKey: (crmSettings as any).api_key,
+                    phone: customer.extra_phone,
+                    name: customer.name,
+                    channel_id: (crmSchedule as any)?.channel_id || undefined,
+                    phone_number_id: (crmSchedule as any)?.phone_number_id || undefined,
+                    template_name: templateName,
+                    template_language: lang,
+                    template_params: params,
+                  },
+                },
+              });
+            } else if (isEvolution) {
               const tpl = evoMsgMap[billingType];
               const text = renderEvolutionTemplate(tpl, customer, { pix: (billSettings as any)?.pix_key || '' });
               await sendEvolutionText(evoSettings.base_url, evoSettings.api_key, evoInstance, customer.extra_phone, text);
