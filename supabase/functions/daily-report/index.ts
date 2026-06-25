@@ -116,15 +116,15 @@ Deno.serve(async (req) => {
       });
     }
 
-    const { data: zapSettings } = await supabaseAdmin
-      .from('zap_responder_settings')
-      .select('selected_department_id')
+    const { data: crmSettings } = await supabaseAdmin
+      .from('crm_oficial_settings')
+      .select('enabled, api_key')
       .eq('user_id', adminRole.user_id)
       .maybeSingle();
 
-    if (!zapSettings?.selected_department_id) {
-      console.log('[DailyReport] No department configured');
-      return new Response(JSON.stringify({ error: 'No department configured' }), {
+    if (!crmSettings?.enabled || !crmSettings?.api_key) {
+      console.log('[DailyReport] CRM Oficial not configured for admin');
+      return new Response(JSON.stringify({ error: 'CRM Oficial not configured' }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 400,
       });
@@ -139,7 +139,7 @@ Deno.serve(async (req) => {
     const adminPhone = bSettings?.notification_phone || '5541991758392';
 
     const sendResp = await fetch(
-      `${Deno.env.get('SUPABASE_URL')}/functions/v1/zap-responder`,
+      `${Deno.env.get('SUPABASE_URL')}/functions/v1/crm-oficial-sync`,
       {
         method: 'POST',
         headers: {
@@ -147,8 +147,7 @@ Deno.serve(async (req) => {
           'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
         },
         body: JSON.stringify({
-          action: 'enviar-mensagem',
-          department_id: zapSettings.selected_department_id,
+          action: 'sendText',
           number: adminPhone,
           text: reportMsg,
           user_id: adminRole.user_id,
@@ -158,6 +157,7 @@ Deno.serve(async (req) => {
 
     const sendResult = await sendResp.json();
     console.log(`[DailyReport] WhatsApp send result:`, JSON.stringify(sendResult));
+
 
     return new Response(JSON.stringify({ success: true, report: reportMsg }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
