@@ -308,7 +308,7 @@ serve(async (req) => {
             (matchedInfo ? `\n📋 *Conta(s) vinculada(s):*\n${matchedInfo}\n` : '\n⚠️ Nenhuma conta vinculada encontrada para este telefone.\n') +
             `\n🔒 *Ação recomendada:* bloquear o acesso e entrar em contato com o cliente.`;
 
-          await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/zap-responder`, {
+          await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/crm-oficial-sync`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -568,7 +568,7 @@ serve(async (req) => {
 
           try {
             const custResp = await fetch(
-              `${Deno.env.get('SUPABASE_URL')}/functions/v1/zap-responder`,
+              `${Deno.env.get('SUPABASE_URL')}/functions/v1/crm-oficial-sync`,
               {
                 method: 'POST',
                 headers: {
@@ -589,7 +589,7 @@ serve(async (req) => {
             if (!custResp.ok) {
               const tplName = ownerBillingSettings?.meta_template_name || 'pedido_aprovado';
               await fetch(
-                `${Deno.env.get('SUPABASE_URL')}/functions/v1/zap-responder`,
+                `${Deno.env.get('SUPABASE_URL')}/functions/v1/crm-oficial-sync`,
                 {
                   method: 'POST',
                   headers: {
@@ -615,7 +615,7 @@ serve(async (req) => {
 
           try {
             const notifResp = await fetch(
-              `${Deno.env.get('SUPABASE_URL')}/functions/v1/zap-responder`,
+              `${Deno.env.get('SUPABASE_URL')}/functions/v1/crm-oficial-sync`,
               {
                 method: 'POST',
                 headers: {
@@ -636,7 +636,7 @@ serve(async (req) => {
             if (!notifResp.ok) {
               const tplName = ownerBillingSettings?.meta_template_name || 'pedido_aprovado';
               await fetch(
-                `${Deno.env.get('SUPABASE_URL')}/functions/v1/zap-responder`,
+                `${Deno.env.get('SUPABASE_URL')}/functions/v1/crm-oficial-sync`,
                 {
                   method: 'POST',
                   headers: {
@@ -1165,7 +1165,7 @@ serve(async (req) => {
               sendPayload.caption = msgText;
             }
 
-            const msgResp = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/zap-responder`, {
+            const msgResp = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/crm-oficial-sync`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}` },
               body: JSON.stringify(sendPayload),
@@ -1174,7 +1174,7 @@ serve(async (req) => {
 
             if (!msgResp.ok) {
               const tplName = billingSettings?.meta_template_name || 'pedido_aprovado';
-              await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/zap-responder`, {
+              await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/crm-oficial-sync`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}` },
                 body: JSON.stringify({
@@ -1191,7 +1191,7 @@ serve(async (req) => {
             // Notify admin
             if (billingSettings?.notification_phone) {
               const adminMsg = `🆕 *Novo Cliente via Checkout*\n\n👤 Nome: *${newCustomer.name}*\n📞 Tel: *${custPhone}*\n👤 Usuário: *${newCustomer.username}*\n📦 Plano: *${newPlan?.plan_name || '-'}*\n💰 Valor: *R$ ${amountNumeric.toFixed(2)}*\n📅 Vencimento: *${newDueDateStr.split('-').reverse().join('/')}*`;
-              await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/zap-responder`, {
+              await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/crm-oficial-sync`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}` },
                 body: JSON.stringify({
@@ -1988,7 +1988,7 @@ serve(async (req) => {
           let buttonsSent = false;
           try {
             const interactiveRes = await fetch(
-              `${supabaseUrl}/functions/v1/zap-responder`,
+              `${supabaseUrl}/functions/v1/crm-oficial-sync`,
               {
                 method: 'POST',
                 headers: {
@@ -2022,7 +2022,7 @@ serve(async (req) => {
             const adminMsg = `⚠️ *Atenção: Pagamento requer decisão manual*\n\n📞 Telefone: ${phoneDigits}\n💰 Valor: *R$ ${amountNumeric.toFixed(2)}*\n📦 Plano: *${matchedPlanName || '-'}*\n🧩 Motivo: *${conflictReason}*\n\n${customerLinks}\n\n👆 *Clique no link do cliente que deseja renovar*\n⏳ Pagamento registrado mas *NÃO confirmado*.`;
 
             await fetch(
-              `${supabaseUrl}/functions/v1/zap-responder`,
+              `${supabaseUrl}/functions/v1/crm-oficial-sync`,
               {
                 method: 'POST',
                 headers: {
@@ -2260,7 +2260,7 @@ serve(async (req) => {
         for (let attempt = 1; attempt <= 2; attempt++) {
           try {
             const msgResp = await fetchWithTimeout(
-              `${Deno.env.get('SUPABASE_URL')}/functions/v1/zap-responder`,
+              `${Deno.env.get('SUPABASE_URL')}/functions/v1/crm-oficial-sync`,
               {
                 method: 'POST',
                 headers: {
@@ -2317,7 +2317,7 @@ serve(async (req) => {
           const templateName = billingSettings?.meta_template_name || 'pedido_aprovado';
           try {
             const templateResp = await fetchWithTimeout(
-              `${Deno.env.get('SUPABASE_URL')}/functions/v1/zap-responder`,
+              `${Deno.env.get('SUPABASE_URL')}/functions/v1/crm-oficial-sync`,
               {
                 method: 'POST',
                 headers: {
@@ -2369,7 +2369,7 @@ serve(async (req) => {
             let extraPhone = String(extraPhoneRaw).replace(/\D/g, '');
             if (!extraPhone.startsWith('55')) extraPhone = '55' + extraPhone;
             await fetchWithTimeout(
-              `${Deno.env.get('SUPABASE_URL')}/functions/v1/zap-responder`,
+              `${Deno.env.get('SUPABASE_URL')}/functions/v1/crm-oficial-sync`,
               {
                 method: 'POST',
                 headers: {
@@ -2430,7 +2430,7 @@ serve(async (req) => {
           const adminMsg = `🔔 *Renovação Automática (Cakto)*\n\n👤 Cliente: *${matchedCustomer.name}*\n📞 Tel: ${adminMetaPhone}\n👤 Usuário(s): *${allUsernamesDisplay}*\n🖥️ Telas: *${customersToRenew.length}*\n💰 Valor: *R$ ${amountNumeric.toFixed(2)}*\n📦 Plano: *${matchedPlanName || '-'}*\n🖥️ Servidor: *${adminServerName}*\n📅 Novo vencimento: *${fmtDue}*\n✅ Status: Renovado`;
 
           const adminResp = await fetchWithTimeout(
-            `${Deno.env.get('SUPABASE_URL')}/functions/v1/zap-responder`,
+            `${Deno.env.get('SUPABASE_URL')}/functions/v1/crm-oficial-sync`,
             {
               method: 'POST',
               headers: {
@@ -2457,7 +2457,7 @@ serve(async (req) => {
             const adminTemplateName = billingSettings?.meta_template_name || 'pedido_aprovado';
             try {
               const adminTemplateResp = await fetchWithTimeout(
-                `${Deno.env.get('SUPABASE_URL')}/functions/v1/zap-responder`,
+                `${Deno.env.get('SUPABASE_URL')}/functions/v1/crm-oficial-sync`,
                 {
                   method: 'POST',
                   headers: {
@@ -2969,7 +2969,7 @@ serve(async (req) => {
             const failedUsernames = failedRenewals.map(r => r.username).join(', ');
             const alertMsg = `🚨 *ALERTA: Falha na Renovação do Servidor*\n\n👤 Cliente: *${matchedCustomer.name}*\n📞 Tel: ${matchedCustomer.phone}\n👤 Usuário(s): *${failedUsernames}*\n🖥️ Servidor: *${serverName}*\n📦 Plano: *${matchedPlanName || '-'}*\n📅 Vencimento atualizado: *${newDueDate}*\n\n⚠️ O vencimento foi atualizado no gestor, mas a renovação NO PAINEL DO SERVIDOR falhou mesmo após retry.\n\n🔧 Ação necessária: Renovar manualmente no painel.`;
 
-            await fetchWithTimeout(`${Deno.env.get('SUPABASE_URL')}/functions/v1/zap-responder`, {
+            await fetchWithTimeout(`${Deno.env.get('SUPABASE_URL')}/functions/v1/crm-oficial-sync`, {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
