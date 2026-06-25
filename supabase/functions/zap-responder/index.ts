@@ -1782,6 +1782,79 @@ Deno.serve(async (req) => {
       );
     }
 
+    // ============================================================
+    // CRM OFICIAL ROUTING SHIM
+    // If the reseller has CRM Oficial configured AND the action is an
+    // outbound message/template, forward to crm-oficial-sync. This lets
+    // the entire legacy frontend (Billing, Customers, BotTriggers, Chat,
+    // MassBroadcast, etc.) keep calling 'zap-responder' while we migrate.
+    // ============================================================
+    try {
+      const action = body.action || '';
+      const isOutbound = action === 'enviar-mensagem' || action === 'enviar-template';
+      if (isOutbound) {
+        const { data: crmCfg } = await supabase
+          .from('crm_oficial_settings')
+          .select('api_key, enabled')
+          .eq('user_id', userId)
+          .maybeSingle();
+
+        if (crmCfg?.enabled && crmCfg?.api_key) {
+          console.log(`[ZapResponder→CRM] Routing '${action}' for user ${userId} to crm-oficial-sync`);
+
+          const number: string = body.number || body.phone || '';
+          let shimAction: string;
+          let shimPayload: Record<string, unknown> = { user_id: userId, number };
+
+          if (action === 'enviar-template') {
+            shimAction = 'sendTemplate';
+            shimPayload = {
+              ...shimPayload,
+              template_name: body.template_name,
+              language: body.language || 'pt_BR',
+              header_image_url: body.header_image_url || null,
+              variables: body.variables || [],
+            };
+          } else {
+            shimAction = 'sendText';
+            shimPayload = {
+              ...shimPayload,
+              text: body.text || '',
+              image_url: body.image_url || null,
+            };
+          }
+
+          const forwardResp = await fetch(`${supabaseUrl}/functions/v1/crm-oficial-sync`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${supabaseServiceKey}`,
+              'Content-Type': 'application/json',
+              'apikey': supabaseServiceKey,
+            },
+            body: JSON.stringify({ action: shimAction, ...shimPayload }),
+          });
+
+          const forwardText = await forwardResp.text();
+          let forwardJson: any;
+          try { forwardJson = JSON.parse(forwardText); } catch { forwardJson = { raw: forwardText }; }
+
+          console.log(`[ZapResponder→CRM] Forward status=${forwardResp.status} body=${forwardText.substring(0, 300)}`);
+
+          return new Response(
+            JSON.stringify({
+              success: forwardResp.ok && (forwardJson?.success !== false),
+              data: forwardJson?.data ?? forwardJson,
+              error: forwardJson?.error,
+              routed_via: 'crm-oficial-sync',
+            }),
+            { status: forwardResp.ok ? 200 : 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+      }
+    } catch (shimErr) {
+      console.error('[ZapResponder→CRM] Shim error, falling back to legacy Zap Responder:', shimErr);
+    }
+
     // Check if user is admin
     const { data: adminRows } = await supabase
       .from('user_roles')
