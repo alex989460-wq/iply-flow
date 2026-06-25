@@ -266,53 +266,24 @@ async function processBroadcastBatch(args: {
 }) {
   const supabase = createClient(args.supabaseUrl, args.supabaseServiceKey);
 
-  // Fetch user-specific settings
-  let zapSettings: any = null;
-  if (args.userId) {
-    const { data } = await supabase
-      .from('zap_responder_settings')
-      .select('*')
-      .eq('user_id', args.userId)
-      .maybeSingle();
-    zapSettings = data;
+  // Gate on CRM Oficial settings
+  if (!args.userId) {
+    return { ok: false as const, status: 400, body: { error: 'Usuário não identificado para o envio.' } };
   }
 
-  // Admin-only fallback to global settings (backwards compatibility)
-  if (!zapSettings) {
-    if (args.isAdmin) {
-      const { data, error: zapSettingsError } = await supabase
-        .from('zap_responder_settings')
-        .select('*')
-        .is('user_id', null)
-        .limit(1)
-        .maybeSingle();
+  const { data: crmSettings, error: crmErr } = await supabase
+    .from('crm_oficial_settings')
+    .select('enabled, api_key')
+    .eq('user_id', args.userId)
+    .maybeSingle();
 
-    if (zapSettingsError) {
-      console.error('Error fetching zap settings:', zapSettingsError);
-      return { ok: false as const, status: 500, body: { error: 'Não foi possível processar o envio' } };
-    }
-
-      zapSettings = data;
-  } else {
-    return { ok: false as const, status: 400, body: { error: 'Configuração incompleta. Verifique suas configurações.' } };
-  }
+  if (crmErr) {
+    console.error('Error fetching crm_oficial_settings:', crmErr);
+    return { ok: false as const, status: 500, body: { error: 'Não foi possível processar o envio' } };
   }
 
-  // Token MUST be user-configured for non-admin users
-  const effectiveToken = zapSettings?.zap_api_token || (args.isAdmin ? args.zapToken : null);
-  if (!effectiveToken) {
-    return { ok: false as const, status: 400, body: { error: 'Configuração incompleta. Verifique suas configurações.' } };
-  }
-
-  const apiBaseUrl = zapSettings?.api_base_url || 'https://api.zapresponder.com.br/api';
-  const departmentId = zapSettings?.selected_department_id;
-
-  if (!departmentId) {
-    return {
-      ok: false as const,
-      status: 400,
-      body: { error: 'Configuração incompleta. Selecione um departamento.' },
-    };
+  if (!crmSettings?.enabled || !crmSettings?.api_key) {
+    return { ok: false as const, status: 400, body: { error: 'CRM Oficial não configurado. Acesse Configurações e habilite o CRM Oficial.' } };
   }
 
   // Customers
@@ -327,15 +298,16 @@ async function processBroadcastBatch(args: {
   }
 
   console.log(
-    `Processing batch: size=${customers.length}, template=${args.templateName}, department=${departmentId}, apiBaseUrl=${apiBaseUrl}`
+    `Processing batch: size=${customers.length}, template=${args.templateName}, provider=crm-oficial`
   );
 
   const nowIso = new Date().toISOString();
 
   const results = await Promise.all(
     (customers as any[]).map(async (customer) => {
-      const sendResult = await sendWhatsAppTemplate(customer.phone, args.templateName, effectiveToken, apiBaseUrl, departmentId);
+      const sendResult = await sendWhatsAppTemplate(customer.phone, args.templateName, '', '', args.userId!);
       return {
+
         customer,
         normalizedPhone: normalizePhone(customer.phone),
         sendResult,
