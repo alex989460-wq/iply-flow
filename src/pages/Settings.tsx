@@ -704,9 +704,8 @@ export default function Settings() {
             <CrmOficialCard />
           </TabsContent>
 
-          <TabsContent value="crm_oficial" className="mt-6">
-            <CrmOficialCard />
-          </TabsContent>
+
+
 
 
           <TabsContent value="aparencia" className="mt-6">
