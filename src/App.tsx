@@ -39,6 +39,7 @@ import CrmOficialChat from "./pages/CrmOficialChat";
 import CrmOficialChannels from "./pages/CrmOficialChannels";
 import CrmOficialTemplates from "./pages/CrmOficialTemplates";
 import CrmOficialChatbots from "./pages/CrmOficialChatbots";
+import Atendimentos from "./pages/Atendimentos";
 
 import PublicCheckout from "./pages/PublicCheckout";
 import BannerGenerator from "./pages/BannerGenerator";
