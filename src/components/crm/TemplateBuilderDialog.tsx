@@ -31,13 +31,23 @@ interface FormState {
   footer: string;
   buttons: BtnDef[];
   allowCategoryChange: boolean;
+  bodyExamples: string[];
 }
 
 const empty: FormState = {
   name: '', category: 'UTILITY', language: 'pt_BR',
   headerType: 'NONE', headerText: '', headerMediaUrl: '', headerHandle: '',
   body: '', footer: '', buttons: [], allowCategoryChange: false,
+  bodyExamples: [],
 };
+
+function extractVarIndexes(text: string): number[] {
+  const set = new Set<number>();
+  const re = /\{\{\s*(\d+)\s*\}\}/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(text)) !== null) set.add(Number(m[1]));
+  return Array.from(set).sort((a, b) => a - b);
+}
 
 function slugify(s: string) {
   return s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
@@ -143,7 +153,13 @@ export default function TemplateBuilderDialog({ open, onOpenChange, mode, initia
       if (!form.headerHandle) throw new Error(`Envie o arquivo do cabeçalho (${fmt.toLowerCase()}).`);
       comps.push({ type: 'HEADER', format: fmt, example: { header_handle: [form.headerHandle] } });
     }
-    comps.push({ type: 'BODY', text: form.body.trim() });
+    const bodyVars = extractVarIndexes(form.body);
+    const bodyComp: any = { type: 'BODY', text: form.body.trim() };
+    if (bodyVars.length) {
+      const examples = bodyVars.map((_, i) => (form.bodyExamples[i] || '').trim() || `exemplo${i + 1}`);
+      bodyComp.example = { body_text: [examples] };
+    }
+    comps.push(bodyComp);
     if (form.footer.trim()) comps.push({ type: 'FOOTER', text: form.footer.trim() });
     if (form.buttons.length) {
       comps.push({
@@ -157,6 +173,8 @@ export default function TemplateBuilderDialog({ open, onOpenChange, mode, initia
     }
     return comps;
   };
+
+  const bodyVars = extractVarIndexes(form.body);
 
   const save = async () => {
     if (!form.name.trim() || !form.body.trim()) {
