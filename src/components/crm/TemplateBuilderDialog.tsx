@@ -313,6 +313,33 @@ export default function TemplateBuilderDialog({ open, onOpenChange, mode, initia
                 </p>
               </div>
 
+              {bodyVars.length > 0 && (
+                <div className="space-y-2 rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-3">
+                  <Label className="text-sm font-semibold flex items-center gap-2">
+                    <Hash className="w-4 h-4 text-emerald-500" />
+                    Exemplos das variáveis
+                    <span className="text-[10px] font-normal text-muted-foreground">(obrigatório pela Meta para aprovar)</span>
+                  </Label>
+                  <div className="grid sm:grid-cols-2 gap-2">
+                    {bodyVars.map((n, i) => (
+                      <div key={n} className="space-y-1">
+                        <Label className="text-xs font-mono text-emerald-500">{`{{${n}}}`}</Label>
+                        <Input
+                          placeholder={`Exemplo para a variável ${n}`}
+                          value={form.bodyExamples[i] || ''}
+                          onChange={e => {
+                            const next = [...form.bodyExamples];
+                            next[i] = e.target.value;
+                            update({ bodyExamples: next });
+                          }}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
                   <Label className="text-sm font-semibold">Rodapé <span className="text-muted-foreground font-normal">opcional</span></Label>
