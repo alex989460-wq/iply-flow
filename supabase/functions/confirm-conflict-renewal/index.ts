@@ -275,9 +275,9 @@ serve(async (req) => {
 
     // 8. Send WhatsApp confirmation to customer
     try {
-      const { data: zapSettings } = await supabase
-        .from('zap_responder_settings')
-        .select('selected_department_id')
+      const { data: crmSettings } = await supabase
+        .from('crm_oficial_settings')
+        .select('enabled, api_key')
         .eq('user_id', customer.created_by)
         .maybeSingle();
 
@@ -287,7 +287,7 @@ serve(async (req) => {
         .eq('user_id', customer.created_by)
         .maybeSingle();
 
-      if (zapSettings?.selected_department_id) {
+      if (crmSettings?.enabled && crmSettings?.api_key) {
         let serverName = '-';
         if (customer.server_id) {
           const { data: srvData } = await supabase
@@ -322,7 +322,7 @@ serve(async (req) => {
           .replace(/\{\{status\}\}/g, customer.status || '-');
 
         await fetch(
-          `${Deno.env.get('SUPABASE_URL')}/functions/v1/zap-responder`,
+          `${Deno.env.get('SUPABASE_URL')}/functions/v1/crm-oficial-sync`,
           {
             method: 'POST',
             headers: {
@@ -330,8 +330,7 @@ serve(async (req) => {
               'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
             },
             body: JSON.stringify({
-              action: 'enviar-mensagem',
-              department_id: zapSettings.selected_department_id,
+              action: 'sendText',
               number: metaPhone,
               text: whatsappMessage,
               user_id: customer.created_by,
@@ -348,7 +347,7 @@ serve(async (req) => {
           const adminMsg = `✅ *Conflito Resolvido*\n\n👤 Cliente: *${customer.name}*\n👤 Usuário: *${customer.username || '-'}*\n💰 Valor: *R$ ${amountNumeric.toFixed(2)}*\n📦 Plano: *${matchedPlanName || '-'}*\n🖥️ Servidor: *${serverName}*\n📅 Novo vencimento: *${fmtDue}*\n✅ Renovado com sucesso`;
 
           await fetch(
-            `${Deno.env.get('SUPABASE_URL')}/functions/v1/zap-responder`,
+            `${Deno.env.get('SUPABASE_URL')}/functions/v1/crm-oficial-sync`,
             {
               method: 'POST',
               headers: {
@@ -356,8 +355,7 @@ serve(async (req) => {
                 'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
               },
               body: JSON.stringify({
-                action: 'enviar-mensagem',
-                department_id: zapSettings.selected_department_id,
+                action: 'sendText',
                 number: notificationPhone,
                 text: adminMsg,
                 user_id: customer.created_by,

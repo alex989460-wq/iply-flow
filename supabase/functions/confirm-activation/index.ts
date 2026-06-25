@@ -46,13 +46,13 @@ serve(async (req) => {
 
     // Send WhatsApp message to customer
     if (request.customer_phone && request.user_id) {
-      const { data: zapSettings } = await supabaseAdmin
-        .from('zap_responder_settings')
-        .select('selected_department_id')
+      const { data: crmSettings } = await supabaseAdmin
+        .from('crm_oficial_settings')
+        .select('enabled, api_key')
         .eq('user_id', request.user_id)
         .maybeSingle();
 
-      if (zapSettings?.selected_department_id) {
+      if (crmSettings?.enabled && crmSettings?.api_key) {
         let customerPhone = String(request.customer_phone).replace(/\D/g, '');
         if (!customerPhone.startsWith('55')) customerPhone = '55' + customerPhone;
 
@@ -65,7 +65,7 @@ serve(async (req) => {
 
         try {
           const resp = await fetch(
-            `${Deno.env.get('SUPABASE_URL')}/functions/v1/zap-responder`,
+            `${Deno.env.get('SUPABASE_URL')}/functions/v1/crm-oficial-sync`,
             {
               method: 'POST',
               headers: {
@@ -73,8 +73,7 @@ serve(async (req) => {
                 'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
               },
               body: JSON.stringify({
-                action: 'enviar-mensagem',
-                department_id: zapSettings.selected_department_id,
+                action: 'sendText',
                 number: customerPhone,
                 text: message,
                 user_id: request.user_id,
@@ -82,34 +81,6 @@ serve(async (req) => {
             },
           );
           console.log(`[ActivationAction] Mensagem ${action} enviada para ${customerPhone}: ok=${resp.ok}`);
-
-          // Fallback to template if failed
-          if (!resp.ok) {
-            const { data: billingSettings } = await supabaseAdmin
-              .from('billing_settings')
-              .select('meta_template_name')
-              .eq('user_id', request.user_id)
-              .maybeSingle();
-            const tplName = billingSettings?.meta_template_name || 'pedido_aprovado';
-            await fetch(
-              `${Deno.env.get('SUPABASE_URL')}/functions/v1/zap-responder`,
-              {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
-                },
-                body: JSON.stringify({
-                  action: 'enviar-template',
-                  department_id: zapSettings.selected_department_id,
-                  template_name: tplName,
-                  number: customerPhone,
-                  language: 'pt_BR',
-                  user_id: request.user_id,
-                }),
-              },
-            );
-          }
         } catch (msgErr) {
           console.error('[ActivationAction] Erro ao enviar mensagem:', msgErr);
         }
