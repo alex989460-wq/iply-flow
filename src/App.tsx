@@ -105,8 +105,8 @@ function AppRoutes() {
       <Route path="/mass-broadcast" element={<ProtectedRoute><MassBroadcast /></ProtectedRoute>} />
       <Route path="/bolao-broadcast" element={<ProtectedRoute><BolaoBroadcast /></ProtectedRoute>} />
       <Route path="/chat" element={<ProtectedRoute><Chat /></ProtectedRoute>} />
-      <Route path="/bot-triggers" element={<ProtectedRoute><BotTriggers /></ProtectedRoute>} />
-      <Route path="/tutorial" element={<ProtectedRoute><Tutorial /></ProtectedRoute>} />
+
+
       <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
       <Route path="/resellers" element={<ProtectedRoute><Resellers /></ProtectedRoute>} />
       <Route path="/sub-resellers" element={<Navigate to="/resellers" replace />} />
