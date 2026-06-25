@@ -16,7 +16,7 @@ const CRM_BASE = "https://crmapioficial.lovable.app";
 type Action =
   | "signup" | "test-chat" | "renew-notify" | "ping"
   | "list-conversations" | "list-messages" | "send-whatsapp" | "mark-read"
-  | "list-contacts" | "list-channels" | "create-channel" | "get-media"
+  | "list-contacts" | "list-channels" | "create-channel" | "embedded-signup" | "get-media"
   | "upload-media"
   | "list-templates" | "create-template" | "update-template" | "delete-template"
   | "list-chatbots" | "create-chatbot" | "update-chatbot" | "delete-chatbot"
