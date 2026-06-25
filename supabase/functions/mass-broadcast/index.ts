@@ -590,40 +590,22 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Fetch user-specific settings or fall back to global settings
-    let zapSettingsLegacy: any = null;
-    if (userId) {
-      const { data } = await supabase
-        .from('zap_responder_settings')
-        .select('*')
-        .eq('user_id', userId)
-        .maybeSingle();
-      zapSettingsLegacy = data;
-    }
-    
-    if (!zapSettingsLegacy) {
-      const { data } = await supabase
-        .from('zap_responder_settings')
-        .select('*')
-        .is('user_id', null)
-        .limit(1)
-        .maybeSingle();
-      zapSettingsLegacy = data;
-    }
-
-    const effectiveLegacyToken = zapSettingsLegacy?.zap_api_token || zapTokenEnv;
-    if (!effectiveLegacyToken) {
-      return new Response(JSON.stringify({ error: 'Configuração incompleta. Verifique suas configurações.' }), {
+    // Gate on CRM Oficial settings (replaces legacy zap)
+    if (!userId) {
+      return new Response(JSON.stringify({ error: 'Usuário não identificado para o envio.' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    const apiBaseUrl = zapSettingsLegacy?.api_base_url || 'https://api.zapresponder.com.br/api';
-    const departmentId = zapSettingsLegacy?.selected_department_id;
+    const { data: crmSettings } = await supabase
+      .from('crm_oficial_settings')
+      .select('enabled, api_key')
+      .eq('user_id', userId)
+      .maybeSingle();
 
-    if (!departmentId) {
-      return new Response(JSON.stringify({ error: 'Configuração incompleta. Selecione um departamento.' }), {
+    if (!crmSettings?.enabled || !crmSettings?.api_key) {
+      return new Response(JSON.stringify({ error: 'CRM Oficial não configurado. Acesse Configurações e habilite o CRM Oficial.' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
@@ -640,11 +622,12 @@ Deno.serve(async (req) => {
         delayMaxSeconds: delay_max_seconds,
         supabaseUrl,
         supabaseServiceKey,
-        zapToken: effectiveLegacyToken,
-        apiBaseUrl,
-        departmentId,
+        zapToken: '',
+        apiBaseUrl: '',
+        departmentId: userId,
       })
     );
+
 
     const initialResults: InitialResult[] = [
       ...alreadySentCustomers.map((c) => ({
