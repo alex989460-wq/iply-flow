@@ -193,8 +193,8 @@ export function EvolutionBillingScheduleCard() {
         <div className="flex items-center justify-between">
           <div>
             <CardTitle className="text-lg flex items-center gap-2">
-              <Zap className="w-5 h-5 text-emerald-500" />
-              Cobrança Automática via Evolution
+              <Zap className="w-5 h-5 text-amber-500" />
+              Cobrança Automática via API Não Oficial
             </CardTitle>
             <CardDescription className="mt-1">
               Envia mensagens (com imagem e botão de renovação) pela sua instância Evolution
