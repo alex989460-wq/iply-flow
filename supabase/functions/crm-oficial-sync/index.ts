@@ -596,6 +596,9 @@ Deno.serve(async (req) => {
         }),
         apiKey,
       });
+    }
+
+
 
     if (action === "get-media") {
       const { path, media_url, media_id } = data as { path?: string; media_url?: string; media_id?: string };
