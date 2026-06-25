@@ -311,31 +311,6 @@ export default function CrmOficialChannels() {
             </div>
           ))}
 
-          {/* Webchat card */}
-          <div className="rounded-2xl border border-border/60 bg-card/50 backdrop-blur-sm p-5 space-y-4 hover:border-blue-500/40 transition flex flex-col">
-            <div className="flex items-start gap-3">
-              <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500/20 to-blue-600/30 flex items-center justify-center">
-                <Globe className="w-6 h-6 text-blue-400" />
-              </div>
-              <div>
-                <h3 className="font-semibold">{webchat?.title || 'Webchat'}</h3>
-                <p className="text-xs text-muted-foreground">Widget para o seu site</p>
-              </div>
-              {webchat?.enabled && (
-                <span className="ml-auto text-xs font-medium flex items-center gap-1.5 text-emerald-400">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" /> Ativo
-                </span>
-              )}
-            </div>
-            <Button
-              variant="ghost"
-              className="justify-start text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10 mt-auto -ml-3"
-              onClick={() => openCreate('webchat')}
-            >
-              Configurar →
-            </Button>
-          </div>
-
           {/* Add new channel tile */}
           <button
             type="button"
@@ -380,94 +355,6 @@ export default function CrmOficialChannels() {
                 </div>
               </div>
             </div>
-
-            <div className="flex justify-end gap-2 pt-2">
-              <Button variant="ghost" onClick={() => setModalOpen(false)}>Cancelar</Button>
-              <Button onClick={submit} disabled={saving || !apiKey} className="bg-emerald-500 hover:bg-emerald-600">
-                {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Plus className="w-4 h-4 mr-2" />}
-                Salvar canal
-              </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
-      </div>
-    </DashboardLayout>
-  );
-}
-
-        {/* Create/edit modal */}
-        <Dialog open={modalOpen} onOpenChange={setModalOpen}>
-          <DialogContent className="max-w-2xl">
-            <DialogHeader>
-              <DialogTitle>Adicionar canal</DialogTitle>
-              <DialogDescription>POST /api/public/v1/channels — escopo channels:write</DialogDescription>
-            </DialogHeader>
-
-            <Tabs value={modalKind} onValueChange={(v) => setModalKind(v as any)}>
-              <TabsList className="grid grid-cols-2">
-                <TabsTrigger value="whatsapp_cloud">WhatsApp Cloud</TabsTrigger>
-                <TabsTrigger value="webchat">Webchat</TabsTrigger>
-              </TabsList>
-
-              <TabsContent value="whatsapp_cloud" className="space-y-3 pt-4">
-                <div className="grid md:grid-cols-2 gap-3">
-                  <div className="space-y-1.5">
-                    <Label>Nome do canal *</Label>
-                    <Input value={wa.name} onChange={(e) => setWa({ ...wa, name: e.target.value })} placeholder="Atendimento Comercial" />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label>Phone Number ID *</Label>
-                    <Input value={wa.phone_number_id} onChange={(e) => setWa({ ...wa, phone_number_id: e.target.value })} placeholder="123456789012345" />
-                  </div>
-                  <div className="space-y-1.5 md:col-span-2">
-                    <Label>System User Token *</Label>
-                    <Input type="password" value={wa.system_user_token} onChange={(e) => setWa({ ...wa, system_user_token: e.target.value })} placeholder="EAAG..." className="font-mono text-xs" />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label>WABA ID</Label>
-                    <Input value={wa.waba_id} onChange={(e) => setWa({ ...wa, waba_id: e.target.value })} placeholder="987654321" />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label>Verify Token</Label>
-                    <Input value={wa.verify_token} onChange={(e) => setWa({ ...wa, verify_token: e.target.value })} placeholder="meu_token_webhook" />
-                  </div>
-                </div>
-              </TabsContent>
-
-              <TabsContent value="webchat" className="space-y-3 pt-4">
-                <div className="grid md:grid-cols-2 gap-3">
-                  <div className="space-y-1.5">
-                    <Label>Título</Label>
-                    <Input value={wc.title} onChange={(e) => setWc({ ...wc, title: e.target.value })} />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label>Cor</Label>
-                    <div className="flex gap-2">
-                      <Input type="color" value={wc.brand_color} onChange={(e) => setWc({ ...wc, brand_color: e.target.value })} className="w-16 p-1" />
-                      <Input value={wc.brand_color} onChange={(e) => setWc({ ...wc, brand_color: e.target.value })} placeholder="#10b981" />
-                    </div>
-                  </div>
-                  <div className="space-y-1.5 md:col-span-2">
-                    <Label>Mensagem de boas-vindas</Label>
-                    <Textarea value={wc.welcome_message} onChange={(e) => setWc({ ...wc, welcome_message: e.target.value })} rows={2} />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label>Posição</Label>
-                    <Select value={wc.position} onValueChange={(v) => setWc({ ...wc, position: v })}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="bottom-right">Inferior direito</SelectItem>
-                        <SelectItem value="bottom-left">Inferior esquerdo</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="flex items-center justify-between rounded-lg border border-border/40 p-3">
-                    <Label>Widget ativo</Label>
-                    <Switch checked={wc.enabled} onCheckedChange={(v) => setWc({ ...wc, enabled: v })} />
-                  </div>
-                </div>
-              </TabsContent>
-            </Tabs>
 
             <div className="flex justify-end gap-2 pt-2">
               <Button variant="ghost" onClick={() => setModalOpen(false)}>Cancelar</Button>
