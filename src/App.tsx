@@ -21,8 +21,8 @@ import Chat from "./pages/Chat";
 import Settings from "./pages/Settings";
 import Resellers from "./pages/Resellers";
 
-import Tutorial from "./pages/Tutorial";
-import BotTriggers from "./pages/BotTriggers";
+
+
 import Expenses from "./pages/Expenses";
 import MessageLogs from "./pages/MessageLogs";
 import NotFound from "./pages/NotFound";
