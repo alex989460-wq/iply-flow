@@ -59,13 +59,11 @@ const menuItems: Array<{
   { icon: QrCode, label: 'Conexões WhatsApp', path: '/evolution-instances', adminOnly: false },
 
   { icon: ImagePlus, label: 'Gerador de Banner', path: '/banner-generator', adminOnly: false },
-  { icon: Bot, label: 'Gatilhos de Bot', path: '/bot-triggers', adminOnly: false },
   { icon: Bot, label: 'Robô', path: '/robo', adminOnly: false },
   { icon: Smartphone, label: 'Ativação de Apps', path: '/activation-apps', adminOnly: false },
-  
-  
-  { icon: GraduationCap, label: 'Tutorial', path: '/tutorial', adminOnly: false },
+
   { icon: PiggyBank, label: 'Despesas', path: '/expenses', adminOnly: true },
+
   { icon: ScrollText, label: 'Logs de Mensagens', path: '/message-logs', adminOnly: true },
   { icon: UserCog, label: 'Revendas', path: '/resellers', adminOnly: false },
   { icon: Cog, label: 'Configurações', path: '/settings', adminOnly: false },
