@@ -352,6 +352,53 @@ export default function CrmOficialChannels() {
         <Dialog open={modalOpen} onOpenChange={setModalOpen}>
           <DialogContent className="max-w-2xl">
             <DialogHeader>
+              <DialogTitle>Adicionar canal WhatsApp Cloud</DialogTitle>
+              <DialogDescription>POST /api/public/v1/channels — escopo channels:write</DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-3 pt-4">
+              <div className="grid md:grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label>Nome do canal *</Label>
+                  <Input value={wa.name} onChange={(e) => setWa({ ...wa, name: e.target.value })} placeholder="Atendimento Comercial" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Phone Number ID *</Label>
+                  <Input value={wa.phone_number_id} onChange={(e) => setWa({ ...wa, phone_number_id: e.target.value })} placeholder="123456789012345" />
+                </div>
+                <div className="space-y-1.5 md:col-span-2">
+                  <Label>System User Token *</Label>
+                  <Input type="password" value={wa.system_user_token} onChange={(e) => setWa({ ...wa, system_user_token: e.target.value })} placeholder="EAAG..." className="font-mono text-xs" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>WABA ID</Label>
+                  <Input value={wa.waba_id} onChange={(e) => setWa({ ...wa, waba_id: e.target.value })} placeholder="987654321" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Verify Token</Label>
+                  <Input value={wa.verify_token} onChange={(e) => setWa({ ...wa, verify_token: e.target.value })} placeholder="meu_token_webhook" />
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="ghost" onClick={() => setModalOpen(false)}>Cancelar</Button>
+              <Button onClick={submit} disabled={saving || !apiKey} className="bg-emerald-500 hover:bg-emerald-600">
+                {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Plus className="w-4 h-4 mr-2" />}
+                Salvar canal
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      </div>
+    </DashboardLayout>
+  );
+}
+
+        {/* Create/edit modal */}
+        <Dialog open={modalOpen} onOpenChange={setModalOpen}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
               <DialogTitle>Adicionar canal</DialogTitle>
               <DialogDescription>POST /api/public/v1/channels — escopo channels:write</DialogDescription>
             </DialogHeader>
