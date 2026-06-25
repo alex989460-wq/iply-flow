@@ -1,29 +1,57 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { Users, Clock, Check, AlertTriangle, Loader2 } from 'lucide-react';
+import { Users, Clock, Check, AlertTriangle, FileCheck, Send, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 
-// Aggregate today's broadcast metrics from message_logs (status: queued/sent/delivered/read/failed)
-export function BroadcastMetricsCards() {
+type Summary = {
+  broadcasts_count?: number;
+  recipients_total?: number;
+  sent?: number;
+  delivered?: number;
+  read?: number;
+  failed?: number;
+  pending?: number;
+  templates_approved?: number;
+};
+
+// Aggregated broadcast metrics from the CRM Oficial endpoint
+// GET /api/public/v1/broadcasts-stats, with fallback to local message_logs.
+export function BroadcastMetricsCards({ broadcastId }: { broadcastId?: string } = {}) {
   const { user } = useAuth();
 
   const { data, isLoading } = useQuery({
-    queryKey: ['broadcast-metrics-today', user?.id],
-    queryFn: async () => {
+    queryKey: ['broadcast-metrics-today', user?.id, broadcastId],
+    queryFn: async (): Promise<Summary> => {
+      // 1) Try CRM Oficial aggregated endpoint
+      try {
+        const { data: res, error } = await supabase.functions.invoke('crm-oficial-sync', {
+          body: { action: 'broadcasts-stats', broadcast_id: broadcastId },
+        });
+        if (!error) {
+          const summary =
+            (res?.broadcasts_stats?.summary ?? res?.summary ?? res?.broadcasts_stats) as Summary | undefined;
+          if (summary && typeof summary === 'object') return summary;
+        }
+      } catch (_) { /* fallback below */ }
+
+      // 2) Local fallback: aggregate today's message_logs
       const today = format(new Date(), 'yyyy-MM-dd');
-      const { data: rows, error } = await supabase
+      const { data: rows } = await supabase
         .from('message_logs')
         .select('status')
         .gte('created_at', `${today}T00:00:00`)
         .lte('created_at', `${today}T23:59:59`);
-      if (error) throw error;
       const r = rows || [];
-      const recipients = r.length;
-      const accepted = r.filter(x => ['sent', 'accepted', 'queued', 'delivered', 'read'].includes((x.status || '').toLowerCase())).length;
-      const deliveredOrRead = r.filter(x => ['delivered', 'read'].includes((x.status || '').toLowerCase())).length;
-      const failed = r.filter(x => ['failed', 'error'].includes((x.status || '').toLowerCase())).length;
-      return { recipients, accepted, deliveredOrRead, failed };
+      const norm = (s: string) => (s || '').toLowerCase();
+      return {
+        recipients_total: r.length,
+        sent: r.filter(x => ['sent', 'accepted', 'queued', 'delivered', 'read'].includes(norm(x.status))).length,
+        delivered: r.filter(x => ['delivered', 'read'].includes(norm(x.status))).length,
+        read: r.filter(x => norm(x.status) === 'read').length,
+        failed: r.filter(x => ['failed', 'error'].includes(norm(x.status))).length,
+        pending: r.filter(x => ['pending', 'queued'].includes(norm(x.status))).length,
+      };
     },
     enabled: !!user?.id,
     refetchInterval: 30_000,
@@ -38,10 +66,14 @@ export function BroadcastMetricsCards() {
   }
 
   const items = [
-    { label: 'Destinatários', value: data?.recipients ?? 0, icon: Users, color: 'text-emerald-400' },
-    { label: 'Aceitas Meta', value: data?.accepted ?? 0, icon: Clock, color: 'text-emerald-400' },
-    { label: 'Entregues/Lidas', value: data?.deliveredOrRead ?? 0, icon: Check, color: 'text-emerald-400' },
+    { label: 'Disparos', value: data?.broadcasts_count ?? 0, icon: Send, color: 'text-sky-400' },
+    { label: 'Destinatários', value: data?.recipients_total ?? 0, icon: Users, color: 'text-emerald-400' },
+    { label: 'Enviadas', value: data?.sent ?? 0, icon: Clock, color: 'text-emerald-400' },
+    { label: 'Entregues', value: data?.delivered ?? 0, icon: Check, color: 'text-emerald-400' },
+    { label: 'Lidas', value: data?.read ?? 0, icon: Check, color: 'text-emerald-500' },
     { label: 'Falhas', value: data?.failed ?? 0, icon: AlertTriangle, color: 'text-amber-400' },
+    { label: 'Pendentes', value: data?.pending ?? 0, icon: Clock, color: 'text-zinc-400' },
+    { label: 'Templates OK', value: data?.templates_approved ?? 0, icon: FileCheck, color: 'text-emerald-400' },
   ];
 
   return (
