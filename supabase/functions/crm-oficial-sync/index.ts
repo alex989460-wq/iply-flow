@@ -496,6 +496,46 @@ Deno.serve(async (req) => {
       });
     }
 
+    // ── COMPAT: sendTemplate { number/phone, template_name, language?, user_id?, header_image_url?, parameters? }
+    if (rawBody?.action === "sendTemplate" && (rawBody.number || rawBody.phone) && rawBody.template_name) {
+      const phone = String(rawBody.number || rawBody.phone || "");
+      const templateName = String(rawBody.template_name || "");
+      const language = (rawBody.language as string) || "pt_BR";
+      const userId = (rawBody.user_id as string | undefined) || undefined;
+      const headerImageUrl = (rawBody.header_image_url || rawBody.image_url || rawBody.media_url) as string | undefined;
+      const parameters = Array.isArray(rawBody.parameters) ? rawBody.parameters : [];
+      let resellerApiKey: string | undefined;
+      if (userId) {
+        try {
+          const supaUrl = Deno.env.get("SUPABASE_URL")!;
+          const svc = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+          const supa = createClient(supaUrl, svc);
+          const { data: s } = await supa
+            .from("crm_oficial_settings")
+            .select("api_key, enabled")
+            .eq("user_id", userId)
+            .maybeSingle();
+          if (s?.enabled && s?.api_key) resellerApiKey = s.api_key as string;
+        } catch (e) {
+          console.error("[crm-oficial-sync sendTemplate] erro lookup api_key:", e);
+        }
+      }
+      const sendResult = await doSendWhatsapp({
+        phone,
+        template_name: templateName,
+        language,
+        template_params: parameters,
+        ...(headerImageUrl ? { components: [{ type: "header", parameters: [{ type: "image", image: { link: headerImageUrl } }] }] } : {}),
+      }, resellerApiKey);
+
+      const ok = (sendResult as any)?.ok === true;
+      return new Response(JSON.stringify({ success: ok, send: sendResult, provider: "crm-oficial" }), {
+        status: ok ? 200 : 502,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+
     const parsed = rawBody as { action: Action; data?: Record<string, unknown> };
     const { action } = parsed;
     const data = parsed.data ?? {};

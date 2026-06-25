@@ -37,50 +37,47 @@ function normalizePhone(phone: string): string {
   return phone.replace(/\D/g, '');
 }
 
-// Send WhatsApp template message via Zap Responder API
+// Send WhatsApp template message via CRM Oficial (crm-oficial-sync shim)
 async function sendWhatsAppTemplate(
   phone: string,
   templateName: string,
-  token: string,
-  apiBaseUrl: string,
-  departmentId: string
+  _token: string,
+  _apiBaseUrl: string,
+  userIdOrDept: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    // Format phone number (remove non-digits and ensure country code)
     let formattedPhone = phone.replace(/\D/g, '');
-
-    // Ensure phone has country code (Brazil = 55)
     if (!formattedPhone.startsWith('55') && formattedPhone.length <= 11) {
       formattedPhone = '55' + formattedPhone;
     }
 
-    console.log(`Sending WhatsApp template "${templateName}" to ${formattedPhone} via department ${departmentId}`);
+    console.log(`[CRM Oficial] Sending template "${templateName}" to ${formattedPhone}`);
 
-    const body = {
-      type: 'template',
-      template_name: templateName,
-      number: formattedPhone,
-      language: 'pt_BR',
-    };
+    const response = await fetch(
+      `${Deno.env.get('SUPABASE_URL')}/functions/v1/crm-oficial-sync`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+        },
+        body: JSON.stringify({
+          action: 'sendTemplate',
+          number: formattedPhone,
+          template_name: templateName,
+          language: 'pt_BR',
+          user_id: userIdOrDept,
+        }),
+      }
+    );
 
-    const response = await fetch(`${apiBaseUrl}/whatsapp/message/${departmentId}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Accept: 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify(body),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`Zap Responder API error (template): ${response.status} - ${errorText}`);
-      return { success: false, error: 'Falha ao enviar mensagem' };
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok || result?.success === false) {
+      console.error(`[CRM Oficial] template error: ${response.status}`, result);
+      return { success: false, error: (result?.send?.body?.error || result?.error || 'Falha ao enviar template') as string };
     }
 
-    const result = await response.json();
-    console.log(`Template "${templateName}" sent successfully to ${formattedPhone}`, result);
+    console.log(`[CRM Oficial] template "${templateName}" sent to ${formattedPhone}`);
     return { success: true };
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -88,6 +85,7 @@ async function sendWhatsAppTemplate(
     return { success: false, error: errorMessage };
   }
 }
+
 
 function clampInt(value: unknown, fallback: number, min: number, max?: number) {
   const raw = typeof value === 'number' && Number.isFinite(value) ? value : fallback;
@@ -268,53 +266,24 @@ async function processBroadcastBatch(args: {
 }) {
   const supabase = createClient(args.supabaseUrl, args.supabaseServiceKey);
 
-  // Fetch user-specific settings
-  let zapSettings: any = null;
-  if (args.userId) {
-    const { data } = await supabase
-      .from('zap_responder_settings')
-      .select('*')
-      .eq('user_id', args.userId)
-      .maybeSingle();
-    zapSettings = data;
+  // Gate on CRM Oficial settings
+  if (!args.userId) {
+    return { ok: false as const, status: 400, body: { error: 'Usuário não identificado para o envio.' } };
   }
 
-  // Admin-only fallback to global settings (backwards compatibility)
-  if (!zapSettings) {
-    if (args.isAdmin) {
-      const { data, error: zapSettingsError } = await supabase
-        .from('zap_responder_settings')
-        .select('*')
-        .is('user_id', null)
-        .limit(1)
-        .maybeSingle();
+  const { data: crmSettings, error: crmErr } = await supabase
+    .from('crm_oficial_settings')
+    .select('enabled, api_key')
+    .eq('user_id', args.userId)
+    .maybeSingle();
 
-    if (zapSettingsError) {
-      console.error('Error fetching zap settings:', zapSettingsError);
-      return { ok: false as const, status: 500, body: { error: 'Não foi possível processar o envio' } };
-    }
-
-      zapSettings = data;
-  } else {
-    return { ok: false as const, status: 400, body: { error: 'Configuração incompleta. Verifique suas configurações.' } };
-  }
+  if (crmErr) {
+    console.error('Error fetching crm_oficial_settings:', crmErr);
+    return { ok: false as const, status: 500, body: { error: 'Não foi possível processar o envio' } };
   }
 
-  // Token MUST be user-configured for non-admin users
-  const effectiveToken = zapSettings?.zap_api_token || (args.isAdmin ? args.zapToken : null);
-  if (!effectiveToken) {
-    return { ok: false as const, status: 400, body: { error: 'Configuração incompleta. Verifique suas configurações.' } };
-  }
-
-  const apiBaseUrl = zapSettings?.api_base_url || 'https://api.zapresponder.com.br/api';
-  const departmentId = zapSettings?.selected_department_id;
-
-  if (!departmentId) {
-    return {
-      ok: false as const,
-      status: 400,
-      body: { error: 'Configuração incompleta. Selecione um departamento.' },
-    };
+  if (!crmSettings?.enabled || !crmSettings?.api_key) {
+    return { ok: false as const, status: 400, body: { error: 'CRM Oficial não configurado. Acesse Configurações e habilite o CRM Oficial.' } };
   }
 
   // Customers
@@ -329,15 +298,16 @@ async function processBroadcastBatch(args: {
   }
 
   console.log(
-    `Processing batch: size=${customers.length}, template=${args.templateName}, department=${departmentId}, apiBaseUrl=${apiBaseUrl}`
+    `Processing batch: size=${customers.length}, template=${args.templateName}, provider=crm-oficial`
   );
 
   const nowIso = new Date().toISOString();
 
   const results = await Promise.all(
     (customers as any[]).map(async (customer) => {
-      const sendResult = await sendWhatsAppTemplate(customer.phone, args.templateName, effectiveToken, apiBaseUrl, departmentId);
+      const sendResult = await sendWhatsAppTemplate(customer.phone, args.templateName, '', '', args.userId!);
       return {
+
         customer,
         normalizedPhone: normalizePhone(customer.phone),
         sendResult,
@@ -620,40 +590,22 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Fetch user-specific settings or fall back to global settings
-    let zapSettingsLegacy: any = null;
-    if (userId) {
-      const { data } = await supabase
-        .from('zap_responder_settings')
-        .select('*')
-        .eq('user_id', userId)
-        .maybeSingle();
-      zapSettingsLegacy = data;
-    }
-    
-    if (!zapSettingsLegacy) {
-      const { data } = await supabase
-        .from('zap_responder_settings')
-        .select('*')
-        .is('user_id', null)
-        .limit(1)
-        .maybeSingle();
-      zapSettingsLegacy = data;
-    }
-
-    const effectiveLegacyToken = zapSettingsLegacy?.zap_api_token || zapTokenEnv;
-    if (!effectiveLegacyToken) {
-      return new Response(JSON.stringify({ error: 'Configuração incompleta. Verifique suas configurações.' }), {
+    // Gate on CRM Oficial settings (replaces legacy zap)
+    if (!userId) {
+      return new Response(JSON.stringify({ error: 'Usuário não identificado para o envio.' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    const apiBaseUrl = zapSettingsLegacy?.api_base_url || 'https://api.zapresponder.com.br/api';
-    const departmentId = zapSettingsLegacy?.selected_department_id;
+    const { data: crmSettings } = await supabase
+      .from('crm_oficial_settings')
+      .select('enabled, api_key')
+      .eq('user_id', userId)
+      .maybeSingle();
 
-    if (!departmentId) {
-      return new Response(JSON.stringify({ error: 'Configuração incompleta. Selecione um departamento.' }), {
+    if (!crmSettings?.enabled || !crmSettings?.api_key) {
+      return new Response(JSON.stringify({ error: 'CRM Oficial não configurado. Acesse Configurações e habilite o CRM Oficial.' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
@@ -670,11 +622,12 @@ Deno.serve(async (req) => {
         delayMaxSeconds: delay_max_seconds,
         supabaseUrl,
         supabaseServiceKey,
-        zapToken: effectiveLegacyToken,
-        apiBaseUrl,
-        departmentId,
+        zapToken: '',
+        apiBaseUrl: '',
+        departmentId: userId,
       })
     );
+
 
     const initialResults: InitialResult[] = [
       ...alreadySentCustomers.map((c) => ({
