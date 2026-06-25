@@ -67,9 +67,10 @@ import { cn } from '@/lib/utils';
 import type { Database } from '@/integrations/supabase/types';
 import { SendProgressModal } from '@/components/billing/SendProgressModal';
 import { BillingReportsTab } from '@/components/billing/BillingReportsTab';
-import { BillingScheduleCard } from '@/components/billing/BillingScheduleCard';
 import { EvolutionBillingScheduleCard } from '@/components/billing/EvolutionBillingScheduleCard';
 import { CrmOficialBillingScheduleCard } from '@/components/billing/CrmOficialBillingScheduleCard';
+import CrmChannelsInline from '@/components/crm/CrmChannelsInline';
+
 import { Link } from 'react-router-dom';
 
 type BillingType = Database['public']['Enums']['billing_type'];
