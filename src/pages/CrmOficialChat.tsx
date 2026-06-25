@@ -8,15 +8,17 @@ import { Loader2, Zap, X } from "lucide-react";
 import { Link } from "react-router-dom";
 import QuickRenewalPanel from "@/components/chat/QuickRenewalPanel";
 import { useIsMobile } from "@/hooks/use-mobile";
+import PendingManualRenewalsFloat from "@/components/PendingManualRenewalsFloat";
 
 const CRM_BASE = "https://crmapioficial.lovable.app";
 
 export default function CrmOficialChat() {
   const [apiKey, setApiKey] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const isMobile = useIsMobile();
   const [panelOpen, setPanelOpen] = useState(false);
   const iframeRef = useRef<HTMLIFrameElement>(null);
-  const isMobile = useIsMobile();
+
 
   useEffect(() => {
     (async () => {
