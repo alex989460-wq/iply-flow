@@ -545,6 +545,24 @@ Deno.serve(async (req) => {
       });
     }
 
+    if (action === "embedded-signup") {
+      const { code, phone_number_id, waba_id, config_id, app_id } = (data || {}) as {
+        code?: string; phone_number_id?: string; waba_id?: string; config_id?: string; app_id?: string;
+      };
+      if (!code) throw new Error("code é obrigatório");
+      results.embedded = await crmFetch("/api/public/v1/channels/embedded-signup", {
+        method: "POST",
+        body: JSON.stringify({
+          code,
+          phone_number_id,
+          waba_id,
+          config_id,
+          app_id,
+          source: "supergestor",
+        }),
+        apiKey,
+      });
+
     if (action === "get-media") {
       const { path, media_url, media_id } = data as { path?: string; media_url?: string; media_id?: string };
       const target = pickString(media_id, path, media_url);
