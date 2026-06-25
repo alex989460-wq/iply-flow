@@ -668,11 +668,6 @@ export default function Settings() {
               <span className="hidden sm:inline">CRM Oficial</span>
               <span className="sm:hidden">CRM</span>
             </TabsTrigger>
-            <TabsTrigger value="atendimentos" className="flex items-center gap-2">
-              <MessageSquare className="w-4 h-4 text-emerald-500" />
-              <span className="hidden sm:inline">Atendimentos</span>
-              <span className="sm:hidden">Atend.</span>
-            </TabsTrigger>
             <TabsTrigger value="aparencia" className="flex items-center gap-2">
               <Palette className="w-4 h-4 text-pink-500" />
               <span className="hidden sm:inline">Aparência</span>
@@ -709,9 +704,9 @@ export default function Settings() {
             <CrmOficialCard />
           </TabsContent>
 
-          <TabsContent value="atendimentos" className="mt-6">
-            <AttendancesStatsCard />
-          </TabsContent>
+
+
+
 
           <TabsContent value="aparencia" className="mt-6">
             <PanelThemeCard />

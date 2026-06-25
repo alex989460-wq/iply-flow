@@ -39,6 +39,7 @@ import CrmOficialChat from "./pages/CrmOficialChat";
 import CrmOficialChannels from "./pages/CrmOficialChannels";
 import CrmOficialTemplates from "./pages/CrmOficialTemplates";
 import CrmOficialChatbots from "./pages/CrmOficialChatbots";
+import Atendimentos from "./pages/Atendimentos";
 
 import PublicCheckout from "./pages/PublicCheckout";
 import BannerGenerator from "./pages/BannerGenerator";
@@ -121,6 +122,7 @@ function AppRoutes() {
       <Route path="/crm-oficial-channels" element={<ProtectedRoute><CrmOficialChannels /></ProtectedRoute>} />
       <Route path="/crm-oficial-templates" element={<ProtectedRoute><CrmOficialTemplates /></ProtectedRoute>} />
       <Route path="/crm-oficial-chatbots" element={<ProtectedRoute><CrmOficialChatbots /></ProtectedRoute>} />
+      <Route path="/atendimentos" element={<ProtectedRoute><Atendimentos /></ProtectedRoute>} />
 
 
 
