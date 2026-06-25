@@ -34,6 +34,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
+import { BroadcastMetricsCards } from './BroadcastMetricsCards';
 
 interface SendResult {
   customer: string;
@@ -194,6 +195,9 @@ export function BillingReportsTab() {
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
+        {/* Broadcast metrics (API Oficial / Não Oficial) */}
+        <BroadcastMetricsCards />
+
         {/* Error Alert */}
         {errorCount > 0 && (
           <div className="p-4 rounded-lg bg-destructive/15 border border-destructive/30 flex items-start gap-3">

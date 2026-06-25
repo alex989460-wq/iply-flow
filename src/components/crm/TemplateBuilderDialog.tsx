@@ -31,13 +31,23 @@ interface FormState {
   footer: string;
   buttons: BtnDef[];
   allowCategoryChange: boolean;
+  bodyExamples: string[];
 }
 
 const empty: FormState = {
   name: '', category: 'UTILITY', language: 'pt_BR',
   headerType: 'NONE', headerText: '', headerMediaUrl: '', headerHandle: '',
   body: '', footer: '', buttons: [], allowCategoryChange: false,
+  bodyExamples: [],
 };
+
+function extractVarIndexes(text: string): number[] {
+  const set = new Set<number>();
+  const re = /\{\{\s*(\d+)\s*\}\}/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(text)) !== null) set.add(Number(m[1]));
+  return Array.from(set).sort((a, b) => a - b);
+}
 
 function slugify(s: string) {
   return s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
@@ -143,7 +153,13 @@ export default function TemplateBuilderDialog({ open, onOpenChange, mode, initia
       if (!form.headerHandle) throw new Error(`Envie o arquivo do cabeçalho (${fmt.toLowerCase()}).`);
       comps.push({ type: 'HEADER', format: fmt, example: { header_handle: [form.headerHandle] } });
     }
-    comps.push({ type: 'BODY', text: form.body.trim() });
+    const bodyVars = extractVarIndexes(form.body);
+    const bodyComp: any = { type: 'BODY', text: form.body.trim() };
+    if (bodyVars.length) {
+      const examples = bodyVars.map((_, i) => (form.bodyExamples[i] || '').trim() || `exemplo${i + 1}`);
+      bodyComp.example = { body_text: [examples] };
+    }
+    comps.push(bodyComp);
     if (form.footer.trim()) comps.push({ type: 'FOOTER', text: form.footer.trim() });
     if (form.buttons.length) {
       comps.push({
@@ -157,6 +173,8 @@ export default function TemplateBuilderDialog({ open, onOpenChange, mode, initia
     }
     return comps;
   };
+
+  const bodyVars = extractVarIndexes(form.body);
 
   const save = async () => {
     if (!form.name.trim() || !form.body.trim()) {
@@ -294,6 +312,33 @@ export default function TemplateBuilderDialog({ open, onOpenChange, mode, initia
                   Use <code className="font-mono text-emerald-500">{`{{1}}`}</code> pra variáveis. Formatação: <code>*negrito*</code>, <code>_itálico_</code>, <code>~tachado~</code>, <code>`código`</code>.
                 </p>
               </div>
+
+              {bodyVars.length > 0 && (
+                <div className="space-y-2 rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-3">
+                  <Label className="text-sm font-semibold flex items-center gap-2">
+                    <Hash className="w-4 h-4 text-emerald-500" />
+                    Exemplos das variáveis
+                    <span className="text-[10px] font-normal text-muted-foreground">(obrigatório pela Meta para aprovar)</span>
+                  </Label>
+                  <div className="grid sm:grid-cols-2 gap-2">
+                    {bodyVars.map((n, i) => (
+                      <div key={n} className="space-y-1">
+                        <Label className="text-xs font-mono text-emerald-500">{`{{${n}}}`}</Label>
+                        <Input
+                          placeholder={`Exemplo para a variável ${n}`}
+                          value={form.bodyExamples[i] || ''}
+                          onChange={e => {
+                            const next = [...form.bodyExamples];
+                            next[i] = e.target.value;
+                            update({ bodyExamples: next });
+                          }}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
 
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between">

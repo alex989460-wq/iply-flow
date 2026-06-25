@@ -12,6 +12,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { Clock, Save, Loader2, Zap, AlertTriangle, RefreshCw, FileText, Plus, ExternalLink, Phone } from 'lucide-react';
+import { MetaLogo } from '@/components/ui/meta-logo';
 import { cn } from '@/lib/utils';
 import { Link } from 'react-router-dom';
 
@@ -273,8 +274,8 @@ export function CrmOficialBillingScheduleCard() {
     <Card className="border-emerald-500/30">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <Zap className="w-5 h-5 text-emerald-500" />
-          Cobrança via CRM Oficial
+          <MetaLogo className="w-6 h-5" />
+          Cobrança Automática via API Oficial
           {enabled && integrationActive && (
             <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-500 border border-emerald-500/30 ml-2">
               ATIVO
@@ -282,7 +283,7 @@ export function CrmOficialBillingScheduleCard() {
           )}
         </CardTitle>
         <CardDescription>
-          Envia cobranças automáticas via <code className="text-xs">/whatsapp-send</code> usando templates oficiais Meta ou texto livre.
+          Envia cobranças automáticas pela API Oficial Meta usando templates aprovados.
         </CardDescription>
       </CardHeader>
 
