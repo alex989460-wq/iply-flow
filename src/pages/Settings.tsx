@@ -654,15 +654,11 @@ export default function Settings() {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-8 max-w-6xl">
+          <TabsList className="grid w-full grid-cols-7 max-w-6xl">
             <TabsTrigger value="cobranca" className="flex items-center gap-2">
               <CreditCard className="w-4 h-4 text-green-500" />
               <span className="hidden sm:inline">Cobrança</span>
               <span className="sm:hidden">Cobr.</span>
-            </TabsTrigger>
-            <TabsTrigger value="zap_responder" className="flex items-center gap-2">
-              <span className="hidden sm:inline">Zap Responder</span>
-              <span className="sm:hidden">ZapResp</span>
             </TabsTrigger>
             <TabsTrigger value="crm_oficial" className="flex items-center gap-2">
               <Zap className="w-4 h-4 text-emerald-500" />
@@ -713,131 +709,6 @@ export default function Settings() {
             <BillingSettingsCard />
           </TabsContent>
 
-          {/* Zap Responder Tab */}
-          <TabsContent value="zap_responder" className="mt-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <span>Integração Zap Responder</span>
-                  {settings.zap_api_token && (
-                    <CheckCircle2 className="w-5 h-5 text-green-500" />
-                  )}
-                </CardTitle>
-                <CardDescription>
-                  Configure seu token de API para enviar mensagens via Zap Responder
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <Alert>
-                  <AlertCircle className="h-4 w-4" />
-                  <AlertDescription>
-                    Você pode obter seu token de API no painel do Zap Responder em Configurações &gt; API.
-                  </AlertDescription>
-                </Alert>
-
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="space-y-2 md:col-span-2">
-                    <Label htmlFor="api_token">Token da API *</Label>
-                    <div className="relative">
-                      <Input
-                        id="api_token"
-                        type={showToken ? 'text' : 'password'}
-                        value={settings.zap_api_token}
-                        onChange={(e) => setSettings({ ...settings, zap_api_token: e.target.value })}
-                        placeholder="Cole seu token de API aqui"
-                        className="pr-10"
-                      />
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="absolute right-0 top-0 h-full"
-                        onClick={() => setShowToken(!showToken)}
-                      >
-                        {showToken ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                      </Button>
-                    </div>
-                  </div>
-
-                  <div className="space-y-2 md:col-span-2">
-                    <Label htmlFor="api_base_url">URL Base da API</Label>
-                    <Input
-                      id="api_base_url"
-                      value={settings.api_base_url}
-                      onChange={(e) => setSettings({ ...settings, api_base_url: e.target.value })}
-                      placeholder="https://api.zapresponder.com.br/api"
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      Deixe o valor padrão a menos que você tenha uma URL personalizada
-                    </p>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="session_id">ID da Sessão</Label>
-                    <Input
-                      id="session_id"
-                      value={settings.selected_session_id}
-                      onChange={(e) => setSettings({ ...settings, selected_session_id: e.target.value })}
-                      placeholder="ID da sessão selecionada"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="session_name">Nome da Sessão</Label>
-                    <Input
-                      id="session_name"
-                      value={settings.selected_session_name}
-                      onChange={(e) => setSettings({ ...settings, selected_session_name: e.target.value })}
-                      placeholder="Nome para identificação"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="session_phone">Telefone da Sessão</Label>
-                    <Input
-                      id="session_phone"
-                      value={settings.selected_session_phone}
-                      onChange={(e) => setSettings({ ...settings, selected_session_phone: e.target.value })}
-                      placeholder="Número do WhatsApp"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="department_id">ID do Departamento</Label>
-                    <Input
-                      id="department_id"
-                      value={settings.selected_department_id}
-                      onChange={(e) => setSettings({ ...settings, selected_department_id: e.target.value })}
-                      placeholder="ID do departamento"
-                    />
-                  </div>
-
-                  <div className="space-y-2 md:col-span-2">
-                    <Label htmlFor="department_name">Nome do Departamento</Label>
-                    <Input
-                      id="department_name"
-                      value={settings.selected_department_name}
-                      onChange={(e) => setSettings({ ...settings, selected_department_name: e.target.value })}
-                      placeholder="Nome do departamento"
-                    />
-                  </div>
-                </div>
-
-                <div className="flex justify-end">
-                  <Button onClick={handleSave} disabled={saving}>
-                    {saving ? (
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    ) : (
-                      <Save className="w-4 h-4 mr-2" />
-                    )}
-                    Salvar Configurações
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* Meta Cloud API tab removida - mantida apenas Zap Responder + Evolution */}
 
           {/* APIs Externas Tab */}
           <TabsContent value="apis_externas" className="mt-6 space-y-6">
