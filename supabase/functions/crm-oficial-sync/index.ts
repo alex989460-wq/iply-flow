@@ -459,7 +459,39 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const parsed = (await req.json().catch(() => ({}))) as { action: Action; data?: Record<string, unknown> };
+    const rawBody = (await req.json().catch(() => ({}))) as Record<string, unknown>;
+
+    // ── COMPAT: aceita o mesmo shape do zap-responder { action: 'sendText', number, text, user_id }
+    // Resolve a api_key da revenda (crm_oficial_settings.user_id) e despacha como send-whatsapp.
+    if (rawBody?.action === "sendText" && (rawBody.number || rawBody.phone) && (rawBody.text || rawBody.body)) {
+      const phone = String(rawBody.number || rawBody.phone || "");
+      const body = String(rawBody.text || rawBody.body || "");
+      const userId = (rawBody.user_id as string | undefined) || undefined;
+      let resellerApiKey: string | undefined;
+      if (userId) {
+        try {
+          const supaUrl = Deno.env.get("SUPABASE_URL")!;
+          const svc = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+          const supa = createClient(supaUrl, svc);
+          const { data: s } = await supa
+            .from("crm_oficial_settings")
+            .select("api_key, enabled")
+            .eq("user_id", userId)
+            .maybeSingle();
+          if (s?.enabled && s?.api_key) resellerApiKey = s.api_key as string;
+        } catch (e) {
+          console.error("[crm-oficial-sync sendText] erro lookup api_key:", e);
+        }
+      }
+      const sendResult = await doSendWhatsapp({ phone, body }, resellerApiKey);
+      const ok = (sendResult as any)?.ok === true;
+      return new Response(JSON.stringify({ success: ok, send: sendResult, provider: "crm-oficial" }), {
+        status: ok ? 200 : 502,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const parsed = rawBody as { action: Action; data?: Record<string, unknown> };
     const { action } = parsed;
     const data = parsed.data ?? {};
     if (!action) throw new Error("action é obrigatório");
@@ -470,6 +502,8 @@ Deno.serve(async (req) => {
     if (action === "ping") {
       results.ping = await doPing(apiKey);
     }
+
+
 
     if (action === "signup") {
       const { email, password, full_name } = data as { email: string; password: string; full_name?: string };
@@ -562,6 +596,9 @@ Deno.serve(async (req) => {
         }),
         apiKey,
       });
+    }
+
+
 
     if (action === "get-media") {
       const { path, media_url, media_id } = data as { path?: string; media_url?: string; media_id?: string };

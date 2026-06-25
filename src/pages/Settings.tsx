@@ -48,10 +48,11 @@ async function getFunctionsHttpErrorDetails(err: unknown): Promise<{ message?: s
 
 declare global {
   interface Window {
-    FB: any;
-    fbAsyncInit: () => void;
+    FB?: any;
+    fbAsyncInit?: () => void;
   }
 }
+
 
 const META_APP_ID = '1499507967794395';
 
