@@ -10,8 +10,8 @@ const GRAPH_VERSION = 'v21.0';
 
 declare global {
   interface Window {
-    FB?: any;
-    fbAsyncInit?: () => void;
+    FB: any;
+    fbAsyncInit: () => void;
   }
 }
 
