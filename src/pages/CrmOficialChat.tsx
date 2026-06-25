@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-import { Loader2, Zap, X } from "lucide-react";
+import { Loader2, Zap } from "lucide-react";
 import { Link } from "react-router-dom";
 import QuickRenewalPanel from "@/components/chat/QuickRenewalPanel";
 import { useIsMobile } from "@/hooks/use-mobile";
