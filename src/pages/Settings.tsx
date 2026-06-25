@@ -20,6 +20,9 @@ import BillingSettingsCard from '@/components/settings/BillingSettingsCard';
 import BackupManagerCard from '@/components/settings/BackupManagerCard';
 import EvolutionApiCard from '@/components/settings/EvolutionApiCard';
 import CrmOficialCard from '@/components/settings/CrmOficialCard';
+import PanelThemeCard from '@/components/settings/PanelThemeCard';
+import AttendancesStatsCard from '@/components/settings/AttendancesStatsCard';
+import { Palette, MessageSquare } from 'lucide-react';
 
 
 async function getFunctionsHttpErrorDetails(err: unknown): Promise<{ message?: string; raw?: any } | null> {
@@ -654,7 +657,7 @@ export default function Settings() {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-7 max-w-6xl">
+          <TabsList className="grid w-full grid-cols-9 max-w-6xl">
             <TabsTrigger value="cobranca" className="flex items-center gap-2">
               <CreditCard className="w-4 h-4 text-green-500" />
               <span className="hidden sm:inline">Cobrança</span>
@@ -664,6 +667,16 @@ export default function Settings() {
               <Zap className="w-4 h-4 text-emerald-500" />
               <span className="hidden sm:inline">CRM Oficial</span>
               <span className="sm:hidden">CRM</span>
+            </TabsTrigger>
+            <TabsTrigger value="atendimentos" className="flex items-center gap-2">
+              <MessageSquare className="w-4 h-4 text-emerald-500" />
+              <span className="hidden sm:inline">Atendimentos</span>
+              <span className="sm:hidden">Atend.</span>
+            </TabsTrigger>
+            <TabsTrigger value="aparencia" className="flex items-center gap-2">
+              <Palette className="w-4 h-4 text-pink-500" />
+              <span className="hidden sm:inline">Aparência</span>
+              <span className="sm:hidden">Cores</span>
             </TabsTrigger>
             {isAdmin && (
               <TabsTrigger value="evolution" className="flex items-center gap-2">
@@ -696,7 +709,13 @@ export default function Settings() {
             <CrmOficialCard />
           </TabsContent>
 
+          <TabsContent value="atendimentos" className="mt-6">
+            <AttendancesStatsCard />
+          </TabsContent>
 
+          <TabsContent value="aparencia" className="mt-6">
+            <PanelThemeCard />
+          </TabsContent>
 
           {isAdmin && (
             <TabsContent value="evolution" className="mt-6">
