@@ -1363,28 +1363,70 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
   const fetchCrmTemplates = async () => {
     setIsLoadingCrmTemplates(true);
     try {
-      const { data, error } = await supabase.functions.invoke('crm-oficial-sync', {
-        body: { action: 'list-templates', data: { apiKey: crmSettings?.api_key, limit: 250 } },
-      });
-      if (error) throw error;
-      const body = data?.results?.templates?.body;
-      const raw = Array.isArray(body) ? body : (body?.data || body?.templates || body?.items || []);
-      const approved = raw
-        .map((t: any) => ({
+      const normalize = (body: any) => {
+        const raw = Array.isArray(body)
+          ? body
+          : (body?.data || body?.templates || body?.items || []);
+        return (Array.isArray(raw) ? raw : []).map((t: any) => ({
           name: String(t.name || ''),
           language: String(t.language || 'pt_BR'),
-          status: String(t.status || ''),
+          status: String(t.status || 'APPROVED').toUpperCase(),
           parameter_format: String(t.parameter_format || ''),
           components: Array.isArray(t.components) ? t.components : [],
-        }))
-        .filter((t: any) => t.name && (t.status || '').toUpperCase() === 'APPROVED');
-      setCrmTemplates(approved);
+        })).filter((t: any) => t.name);
+      };
+
+      let list: any[] = [];
+
+      // 1) Fonte primária: API do CRM Oficial
+      if (crmSettings?.api_key) {
+        try {
+          const { data, error } = await supabase.functions.invoke('crm-oficial-sync', {
+            body: { action: 'list-templates', data: { apiKey: crmSettings.api_key, limit: 250 } },
+          });
+          if (!error) {
+            const tpls = data?.results?.templates;
+            if (tpls?.ok) list = normalize(tpls.body);
+            else if (Array.isArray(tpls)) list = normalize(tpls);
+          }
+        } catch (e) {
+          console.warn('[CRM templates] primary fetch failed', e);
+        }
+      }
+
+      // 2) Fallback: meta-oauth fetch-templates
+      if (list.length === 0) {
+        try {
+          const { data: oauthRes } = await supabase.functions.invoke('meta-oauth', { body: { action: 'fetch-templates' } });
+          if (oauthRes && !oauthRes.error && Array.isArray(oauthRes.templates)) {
+            list = normalize(oauthRes.templates);
+          }
+        } catch (e) {
+          console.warn('[CRM templates] meta-oauth fallback failed', e);
+        }
+      }
+
+      // 3) Fallback: meta-templates dedicado
+      if (list.length === 0) {
+        try {
+          const { data: metaRes } = await supabase.functions.invoke('meta-templates', { body: { action: 'list', limit: 250 } });
+          if (metaRes && !metaRes.error) {
+            list = normalize(metaRes.data ?? metaRes);
+          }
+        } catch (e) {
+          console.warn('[CRM templates] meta-templates fallback failed', e);
+        }
+      }
+
+      const approved = list.filter((t: any) => (t.status || '').toUpperCase() === 'APPROVED');
+      setCrmTemplates(approved.length ? approved : list);
     } catch (err: any) {
       toast({ title: 'Erro ao carregar templates CRM Oficial', description: err.message, variant: 'destructive' });
     } finally {
       setIsLoadingCrmTemplates(false);
     }
   };
+
 
   const openSendBillingDialog = async (customer: any) => {
     setSendingBillingCustomer(customer);
