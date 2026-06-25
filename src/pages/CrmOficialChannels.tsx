@@ -14,6 +14,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { AlertCircle, ArrowRight, Globe, Loader2, Plus, RefreshCw, Star, Zap } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import EmbeddedSignupButton from '@/components/crm/EmbeddedSignupButton';
 
 interface WhatsAppChannel {
   id: string;
@@ -222,10 +223,13 @@ export default function CrmOficialChannels() {
               Gerencie seus canais WhatsApp Cloud e Webchat sincronizados com o CRM Oficial.
             </p>
           </div>
-          <Button variant="outline" size="sm" onClick={() => loadChannels(apiKey)} disabled={!apiKey || refreshing}>
-            {refreshing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />}
-            Atualizar
-          </Button>
+          <div className="flex items-center gap-2">
+            <EmbeddedSignupButton apiKey={apiKey} onCreated={() => loadChannels(apiKey)} />
+            <Button variant="outline" size="sm" onClick={() => loadChannels(apiKey)} disabled={!apiKey || refreshing}>
+              {refreshing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />}
+              Atualizar
+            </Button>
+          </div>
         </div>
 
         {!apiKey && (

@@ -16,7 +16,7 @@ const CRM_BASE = "https://crmapioficial.lovable.app";
 type Action =
   | "signup" | "test-chat" | "renew-notify" | "ping"
   | "list-conversations" | "list-messages" | "send-whatsapp" | "mark-read"
-  | "list-contacts" | "list-channels" | "create-channel" | "get-media"
+  | "list-contacts" | "list-channels" | "create-channel" | "embedded-signup" | "get-media"
   | "upload-media"
   | "list-templates" | "create-template" | "update-template" | "delete-template"
   | "list-chatbots" | "create-chatbot" | "update-chatbot" | "delete-chatbot"
@@ -544,6 +544,24 @@ Deno.serve(async (req) => {
         apiKey,
       });
     }
+
+    if (action === "embedded-signup") {
+      const { code, phone_number_id, waba_id, config_id, app_id } = (data || {}) as {
+        code?: string; phone_number_id?: string; waba_id?: string; config_id?: string; app_id?: string;
+      };
+      if (!code) throw new Error("code é obrigatório");
+      results.embedded = await crmFetch("/api/public/v1/channels/embedded-signup", {
+        method: "POST",
+        body: JSON.stringify({
+          code,
+          phone_number_id,
+          waba_id,
+          config_id,
+          app_id,
+          source: "supergestor",
+        }),
+        apiKey,
+      });
 
     if (action === "get-media") {
       const { path, media_url, media_id } = data as { path?: string; media_url?: string; media_id?: string };
