@@ -46,13 +46,13 @@ serve(async (req) => {
 
     // Send WhatsApp message to customer
     if (request.customer_phone && request.user_id) {
-      const { data: zapSettings } = await supabaseAdmin
-        .from('zap_responder_settings')
-        .select('selected_department_id')
+      const { data: crmSettings } = await supabaseAdmin
+        .from('crm_oficial_settings')
+        .select('enabled, api_key')
         .eq('user_id', request.user_id)
         .maybeSingle();
 
-      if (zapSettings?.selected_department_id) {
+      if (crmSettings?.enabled && crmSettings?.api_key) {
         let customerPhone = String(request.customer_phone).replace(/\D/g, '');
         if (!customerPhone.startsWith('55')) customerPhone = '55' + customerPhone;
 
