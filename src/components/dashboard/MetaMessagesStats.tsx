@@ -39,21 +39,35 @@ export default function MetaMessagesStats() {
       try {
         const monthStart = format(startOfMonth(new Date()), 'yyyy-MM-dd');
 
-        // Buscar mensagens de cobrança (utility) do mês
+        // Utilitário (cobranças/confirmações enviadas) — vem do message_logs
         const { count: utilityCount } = await supabase
-          .from('billing_logs')
+          .from('message_logs')
           .select('*', { count: 'exact', head: true })
-          .gte('sent_at', monthStart);
+          .eq('status', 'success')
+          .gte('created_at', `${monthStart}T00:00:00`);
 
-        // Buscar mensagens de broadcast (marketing) do mês
-        const { count: marketingCount } = await supabase
-          .from('broadcast_logs')
-          .select('*', { count: 'exact', head: true })
-          .eq('last_status', 'sent')
-          .gte('last_sent_at', monthStart);
+        // Marketing (disparos) — tenta endpoint agregado do CRM Oficial; fallback p/ broadcast_logs
+        let marketing = 0;
+        try {
+          const { data: res } = await supabase.functions.invoke('crm-oficial-sync', {
+            body: { action: 'broadcasts-stats' },
+          });
+          const summary = res?.broadcasts_stats?.summary ?? res?.summary ?? res?.broadcasts_stats;
+          if (summary && typeof summary === 'object' && typeof summary.sent === 'number') {
+            marketing = summary.sent;
+          }
+        } catch (_) { /* fallback */ }
+
+        if (!marketing) {
+          const { count: marketingCount } = await supabase
+            .from('broadcast_logs')
+            .select('*', { count: 'exact', head: true })
+            .eq('last_status', 'sent')
+            .gte('last_sent_at', `${monthStart}T00:00:00`);
+          marketing = marketingCount || 0;
+        }
 
         const utility = utilityCount || 0;
-        const marketing = marketingCount || 0;
         const utilityCost = utility * META_PRICES.utility;
         const marketingCost = marketing * META_PRICES.marketing;
 

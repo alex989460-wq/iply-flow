@@ -657,7 +657,7 @@ export default function Settings() {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-9 max-w-6xl">
+          <TabsList className="flex w-full flex-wrap gap-1 h-auto justify-start">
             <TabsTrigger value="cobranca" className="flex items-center gap-2">
               <CreditCard className="w-4 h-4 text-green-500" />
               <span className="hidden sm:inline">Cobrança</span>
