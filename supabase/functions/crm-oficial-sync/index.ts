@@ -463,9 +463,10 @@ Deno.serve(async (req) => {
 
     // ── COMPAT: aceita o mesmo shape do zap-responder { action: 'sendText', number, text, user_id }
     // Resolve a api_key da revenda (crm_oficial_settings.user_id) e despacha como send-whatsapp.
-    if (rawBody?.action === "sendText" && (rawBody.number || rawBody.phone) && (rawBody.text || rawBody.body)) {
+    if (rawBody?.action === "sendText" && (rawBody.number || rawBody.phone) && (rawBody.text || rawBody.body || rawBody.image_url || rawBody.media_url)) {
       const phone = String(rawBody.number || rawBody.phone || "");
       const body = String(rawBody.text || rawBody.body || "");
+      const mediaUrl = (rawBody.image_url || rawBody.media_url) as string | undefined;
       const userId = (rawBody.user_id as string | undefined) || undefined;
       let resellerApiKey: string | undefined;
       if (userId) {
@@ -483,7 +484,11 @@ Deno.serve(async (req) => {
           console.error("[crm-oficial-sync sendText] erro lookup api_key:", e);
         }
       }
-      const sendResult = await doSendWhatsapp({ phone, body }, resellerApiKey);
+      const sendResult = await doSendWhatsapp({
+        phone,
+        body,
+        ...(mediaUrl ? { media_url: mediaUrl, media_type: "image", caption: body } : {}),
+      }, resellerApiKey);
       const ok = (sendResult as any)?.ok === true;
       return new Response(JSON.stringify({ success: ok, send: sendResult, provider: "crm-oficial" }), {
         status: ok ? 200 : 502,
