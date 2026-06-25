@@ -33,18 +33,29 @@ function normalize(body: any): WAChannel[] {
   const list = Array.isArray(body) ? body : Array.isArray(body?.channels) ? body.channels : Array.isArray(body?.whatsapp) ? body.whatsapp : body?.whatsapp ? [body.whatsapp] : [];
   return list
     .filter((c: any) => String(c.kind || c.type || 'whatsapp_cloud').toLowerCase().includes('whatsapp') || c.primary || c.phone_number_id)
-    .map((c: any, i: number) => ({
-      id: String(c.id || c.phone_number_id || `wa-${i}`),
-      name: pick(c.name, c.title, c.verified_name),
-      verified_name: pick(c.verified_name, c.business_name, c.name),
-      display_phone_number: pick(c.display_phone_number, c.displayPhoneNumber, c.phone_display),
-      phone_number: pick(c.phone_number, c.phone, c.number),
-      phone_number_id: pick(c.phone_number_id, c.phoneNumberId),
-      quality_rating: pick(c.quality_rating, c.qualityRating),
-      avatar_url: pick(c.avatar_url, c.profile_pic_url, c.profile_picture_url, c.picture),
-      primary: !!(c.primary || c.is_primary || c.id === 'primary'),
-      is_active: Boolean(c.is_active ?? c.active ?? c.connected ?? c.primary),
-    }))
+    .map((c: any, i: number) => {
+      const phoneId = pick(c.phone_number_id, c.phoneNumberId);
+      const rawPhone = pick(
+        c.display_phone_number, c.displayPhoneNumber, c.phone_display,
+        c.phone_number, c.phoneNumber, c.phone, c.number, c.msisdn,
+        c.wa_id, c.waId, c.from, c.phone_e164,
+        c?.profile?.phone, c?.business?.phone_number,
+      );
+      // Se o "número" veio igual ao phone_number_id (15-17 dígitos), ignora — não é telefone real
+      const phone = rawPhone && rawPhone.replace(/\D/g, '').length <= 15 && rawPhone !== phoneId ? rawPhone : '';
+      return {
+        id: String(c.id || phoneId || `wa-${i}`),
+        name: pick(c.name, c.title, c.verified_name),
+        verified_name: pick(c.verified_name, c.business_name, c.name),
+        display_phone_number: phone,
+        phone_number: phone,
+        phone_number_id: phoneId,
+        quality_rating: pick(c.quality_rating, c.qualityRating),
+        avatar_url: pick(c.avatar_url, c.profile_pic_url, c.profile_picture_url, c.picture),
+        primary: !!(c.primary || c.is_primary || c.id === 'primary'),
+        is_active: Boolean(c.is_active ?? c.active ?? c.connected ?? c.primary),
+      };
+    })
     .sort((a: WAChannel, b: WAChannel) => Number(!!b.primary) - Number(!!a.primary));
 }
 
