@@ -67,9 +67,10 @@ import { cn } from '@/lib/utils';
 import type { Database } from '@/integrations/supabase/types';
 import { SendProgressModal } from '@/components/billing/SendProgressModal';
 import { BillingReportsTab } from '@/components/billing/BillingReportsTab';
-import { BillingScheduleCard } from '@/components/billing/BillingScheduleCard';
 import { EvolutionBillingScheduleCard } from '@/components/billing/EvolutionBillingScheduleCard';
 import { CrmOficialBillingScheduleCard } from '@/components/billing/CrmOficialBillingScheduleCard';
+import CrmChannelsInline from '@/components/crm/CrmChannelsInline';
+
 import { Link } from 'react-router-dom';
 
 type BillingType = Database['public']['Enums']['billing_type'];
@@ -1130,7 +1131,6 @@ export default function Billing() {
           {/* Tab: Configuração */}
           <TabsContent value="config" className="space-y-4">
             {/* Billing Schedule Cards */}
-            <BillingScheduleCard />
             <EvolutionBillingScheduleCard />
             <CrmOficialBillingScheduleCard />
             <div className="flex flex-wrap gap-2 rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-3">
@@ -1141,162 +1141,20 @@ export default function Billing() {
                 <Link to="/crm-oficial-chatbots"><Bot className="w-4 h-4 mr-2" /> Chatbots CRM Oficial</Link>
               </Button>
             </div>
-            
-            
-            {/* Meta Cloud API Configuration */}
-            {isMetaCloudApi ? (
-              <Card className="glass-card border-border/50">
-                <CardHeader>
-                  <CardTitle className="text-lg flex items-center gap-2">
-                    <Phone className="w-5 h-5 text-green-500" />
-                    WhatsApp Oficial (Meta Cloud API)
-                    <span className="ml-2 px-2 py-0.5 text-xs bg-green-500/10 text-green-500 rounded-full border border-green-500/30">
-                      Conectado
-                    </span>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex flex-col sm:flex-row gap-4">
-                    <div className="flex-1">
-                      <p className="text-sm text-muted-foreground mb-2">Número Selecionado:</p>
-                      {zapSettings?.meta_phone_number_id ? (
-                        <div className="flex items-center gap-2 p-3 bg-success/10 border border-success/20 rounded-lg">
-                          <CheckCircle className="w-4 h-4 text-success" />
-                          <span className="font-medium">{zapSettings.meta_display_phone}</span>
-                        </div>
-                      ) : (
-                        <div className="flex items-center gap-2 p-3 bg-destructive/10 border border-destructive/20 rounded-lg">
-                          <AlertCircle className="w-4 h-4 text-destructive" />
-                          <span>Nenhum número selecionado</span>
-                        </div>
-                      )}
-                    </div>
-                    <Button 
-                      variant="outline" 
-                      onClick={fetchMetaPhoneNumbers}
-                      disabled={isLoadingMetaPhones}
-                    >
-                      {isLoadingMetaPhones ? (
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      ) : (
-                        <RefreshCw className="w-4 h-4 mr-2" />
-                      )}
-                      Carregar Números
-                    </Button>
-                  </div>
 
-                  {metaPhoneNumbers.length > 0 && (
-                    <div className="space-y-2">
-                      <p className="text-sm font-medium">Selecione um número:</p>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                        {metaPhoneNumbers.map((phone) => (
-                          <button
-                            key={phone.id}
-                            onClick={() => selectMetaPhoneNumber(phone)}
-                            className={cn(
-                              'p-3 rounded-lg border text-left transition-all hover:border-primary',
-                              zapSettings?.meta_phone_number_id === phone.id
-                                ? 'border-primary bg-primary/10'
-                                : 'border-border bg-secondary/50'
-                            )}
-                          >
-                            <p className="font-medium">{phone.display_phone_number}</p>
-                            {phone.verified_name && (
-                              <p className="text-sm text-muted-foreground">{phone.verified_name}</p>
-                            )}
-                            {phone.quality_rating && (
-                              <span className={cn(
-                                'text-xs px-2 py-0.5 rounded-full mt-1 inline-block',
-                                phone.quality_rating === 'GREEN' 
-                                  ? 'bg-success/10 text-success' 
-                                  : phone.quality_rating === 'YELLOW'
-                                  ? 'bg-warning/10 text-warning'
-                                  : 'bg-muted text-muted-foreground'
-                              )}>
-                                {phone.quality_rating}
-                              </span>
-                            )}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            ) : (
-              /* Zap Responder Configuration */
-              <Card className="glass-card border-border/50">
-                <CardHeader>
-                  <CardTitle className="text-lg flex items-center gap-2">
-                    <Phone className="w-5 h-5 text-primary" />
-                    Configuração do Zap Responder
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex flex-col sm:flex-row gap-4">
-                    <div className="flex-1">
-                      <p className="text-sm text-muted-foreground mb-2">Atendente Selecionado:</p>
-                      {zapSettings?.selected_session_id ? (
-                        <div className="flex items-center gap-2 p-3 bg-success/10 border border-success/20 rounded-lg">
-                          <CheckCircle className="w-4 h-4 text-success" />
-                          <span className="font-medium">{zapSettings.selected_session_name}</span>
-                          <span className="text-muted-foreground">({zapSettings.selected_session_phone})</span>
-                        </div>
-                      ) : (
-                        <div className="flex items-center gap-2 p-3 bg-destructive/10 border border-destructive/20 rounded-lg">
-                          <AlertCircle className="w-4 h-4 text-destructive" />
-                          <span>Nenhum atendente selecionado</span>
-                        </div>
-                      )}
-                    </div>
-                    <Button 
-                      variant="outline" 
-                      onClick={() => fetchSessions(true)}
-                      disabled={isLoadingSessions}
-                    >
-                      {isLoadingSessions ? (
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      ) : (
-                        <RefreshCw className="w-4 h-4 mr-2" />
-                      )}
-                      Carregar Atendentes
-                    </Button>
-                  </div>
+            {/* Canais Oficiais CRM (foto, número, qualidade) */}
+            <Card className="glass-card border-border/50">
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Phone className="w-5 h-5 text-emerald-500" />
+                  Canais de envio (CRM Oficial)
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <CrmChannelsInline />
+              </CardContent>
+            </Card>
 
-                  {sessions.length > 0 && (
-                    <div className="space-y-2">
-                      <p className="text-sm font-medium">Selecione um atendente:</p>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                        {sessions.map((session) => (
-                          <button
-                            key={session.id}
-                            onClick={() => selectSessionMutation.mutate(session)}
-                            disabled={selectSessionMutation.isPending}
-                            className={cn(
-                              'p-3 rounded-lg border text-left transition-all hover:border-primary',
-                              zapSettings?.selected_session_id === session.id
-                                ? 'border-primary bg-primary/10'
-                                : 'border-border bg-secondary/50'
-                            )}
-                          >
-                            <p className="font-medium">{session.name}</p>
-                            <p className="text-sm text-muted-foreground">{session.phone}</p>
-                            <span className={cn(
-                              'text-xs px-2 py-0.5 rounded-full mt-1 inline-block',
-                              session.status === 'connected' || session.status === 'active'
-                                ? 'bg-success/10 text-success' 
-                                : 'bg-muted text-muted-foreground'
-                            )}>
-                              {session.status}
-                            </span>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            )}
 
             {/* Pending Billings Summary */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
