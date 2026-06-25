@@ -387,7 +387,7 @@ export default function Settings() {
         meta_business_id: null,
       });
       setPhoneNumbers([]);
-      setActiveTab('zap_responder');
+      setActiveTab('cobranca');
     } catch (err: any) {
       console.error('[Settings] Disconnect error:', err);
       toast({
