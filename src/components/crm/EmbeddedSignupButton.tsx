@@ -8,12 +8,8 @@ const FB_APP_ID = '1499507967794395';
 const CONFIG_ID = '1225471016210896';
 const GRAPH_VERSION = 'v21.0';
 
-declare global {
-  interface Window {
-    FB: any;
-    fbAsyncInit: () => void;
-  }
-}
+// Window.FB / Window.fbAsyncInit are declared globally in src/pages/Settings.tsx
+
 
 interface Props {
   apiKey: string;
