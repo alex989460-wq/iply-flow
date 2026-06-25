@@ -17,6 +17,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import logoSg from '@/assets/logo-sg.png';
 import whatsappBg from '@/assets/whatsapp-bg.jpg';
+import CrmChannelsInline from '@/components/crm/CrmChannelsInline';
 
 
 
@@ -456,6 +457,11 @@ export default function EvolutionInstances() {
             })}
           </div>
         )}
+
+        {/* CRM Oficial channels inline */}
+        <div className="pt-2">
+          <CrmChannelsInline />
+        </div>
       </div>
 
       {/* QR Dialog */}
