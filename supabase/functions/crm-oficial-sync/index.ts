@@ -524,9 +524,10 @@ Deno.serve(async (req) => {
         phone,
         template_name: templateName,
         language,
-        parameters,
-        ...(headerImageUrl ? { header_image_url: headerImageUrl } : {}),
+        template_params: parameters,
+        ...(headerImageUrl ? { components: [{ type: "header", parameters: [{ type: "image", image: { link: headerImageUrl } }] }] } : {}),
       }, resellerApiKey);
+
       const ok = (sendResult as any)?.ok === true;
       return new Response(JSON.stringify({ success: ok, send: sendResult, provider: "crm-oficial" }), {
         status: ok ? 200 : 502,
