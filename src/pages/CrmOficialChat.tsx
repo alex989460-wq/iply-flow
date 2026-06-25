@@ -119,6 +119,7 @@ export default function CrmOficialChat() {
           </>
         )}
       </div>
+      <PendingManualRenewalsFloat />
     </DashboardLayout>
   );
 }
