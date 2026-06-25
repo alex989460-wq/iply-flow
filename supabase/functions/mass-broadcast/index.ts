@@ -37,50 +37,47 @@ function normalizePhone(phone: string): string {
   return phone.replace(/\D/g, '');
 }
 
-// Send WhatsApp template message via Zap Responder API
+// Send WhatsApp template message via CRM Oficial (crm-oficial-sync shim)
 async function sendWhatsAppTemplate(
   phone: string,
   templateName: string,
-  token: string,
-  apiBaseUrl: string,
-  departmentId: string
+  _token: string,
+  _apiBaseUrl: string,
+  userIdOrDept: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    // Format phone number (remove non-digits and ensure country code)
     let formattedPhone = phone.replace(/\D/g, '');
-
-    // Ensure phone has country code (Brazil = 55)
     if (!formattedPhone.startsWith('55') && formattedPhone.length <= 11) {
       formattedPhone = '55' + formattedPhone;
     }
 
-    console.log(`Sending WhatsApp template "${templateName}" to ${formattedPhone} via department ${departmentId}`);
+    console.log(`[CRM Oficial] Sending template "${templateName}" to ${formattedPhone}`);
 
-    const body = {
-      type: 'template',
-      template_name: templateName,
-      number: formattedPhone,
-      language: 'pt_BR',
-    };
+    const response = await fetch(
+      `${Deno.env.get('SUPABASE_URL')}/functions/v1/crm-oficial-sync`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+        },
+        body: JSON.stringify({
+          action: 'sendTemplate',
+          number: formattedPhone,
+          template_name: templateName,
+          language: 'pt_BR',
+          user_id: userIdOrDept,
+        }),
+      }
+    );
 
-    const response = await fetch(`${apiBaseUrl}/whatsapp/message/${departmentId}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Accept: 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify(body),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`Zap Responder API error (template): ${response.status} - ${errorText}`);
-      return { success: false, error: 'Falha ao enviar mensagem' };
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok || result?.success === false) {
+      console.error(`[CRM Oficial] template error: ${response.status}`, result);
+      return { success: false, error: (result?.send?.body?.error || result?.error || 'Falha ao enviar template') as string };
     }
 
-    const result = await response.json();
-    console.log(`Template "${templateName}" sent successfully to ${formattedPhone}`, result);
+    console.log(`[CRM Oficial] template "${templateName}" sent to ${formattedPhone}`);
     return { success: true };
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -88,6 +85,7 @@ async function sendWhatsAppTemplate(
     return { success: false, error: errorMessage };
   }
 }
+
 
 function clampInt(value: unknown, fallback: number, min: number, max?: number) {
   const raw = typeof value === 'number' && Number.isFinite(value) ? value : fallback;
