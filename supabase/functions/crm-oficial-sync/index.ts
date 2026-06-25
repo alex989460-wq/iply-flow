@@ -746,6 +746,12 @@ Deno.serve(async (req) => {
       results.template = await crmFetchWithKeyFallback(`/api/public/v1/templates/${encodeURIComponent(target)}`, { method: "DELETE" }, apiKey);
     }
 
+    if (action === "broadcasts-stats") {
+      const { broadcast_id } = data as { broadcast_id?: string };
+      const qs = broadcast_id ? `?broadcast_id=${encodeURIComponent(broadcast_id)}` : "";
+      results.broadcasts_stats = await crmFetchWithKeyFallback(`/api/public/v1/broadcasts-stats${qs}`, { method: "GET" }, apiKey);
+    }
+
     if (action === "list-chatbots") {
       const { limit } = data as { limit?: number };
       results.chatbots = await crmFetch(`/api/public/v1/chatbots?limit=${encodeURIComponent(String(limit || 100))}`, { method: "GET", apiKey });
