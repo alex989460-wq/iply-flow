@@ -457,6 +457,11 @@ export default function EvolutionInstances() {
             })}
           </div>
         )}
+
+        {/* CRM Oficial channels inline */}
+        <div className="pt-2">
+          <CrmChannelsInline />
+        </div>
       </div>
 
       {/* QR Dialog */}
