@@ -88,6 +88,44 @@ export default function LeadCapture() {
   const [logs, setLogs] = useState<{ phone: string; ok: boolean; error?: string }[]>([]);
   const cancelRef = useRef(false);
 
+  const [validating, setValidating] = useState(false);
+  const [validateProgress, setValidateProgress] = useState({ done: 0, total: 0 });
+  const [realCheck, setRealCheck] = useState<{ total: number; valid: number; removed: number } | null>(null);
+
+  async function validateRealWhatsapp() {
+    if (phones.length === 0) return;
+    setValidating(true);
+    setRealCheck(null);
+    const chunkSize = 50;
+    const allValid: string[] = [];
+    const allInvalid: string[] = [];
+    setValidateProgress({ done: 0, total: phones.length });
+    try {
+      for (let i = 0; i < phones.length; i += chunkSize) {
+        const chunk = phones.slice(i, i + chunkSize);
+        const { data, error } = await supabase.functions.invoke('whatsapp-validate', { body: { numbers: chunk } });
+        if (error) throw new Error(error.message);
+        if ((data as any)?.error) throw new Error((data as any).error);
+        allValid.push(...((data as any)?.valid || []));
+        allInvalid.push(...((data as any)?.invalid || []));
+        setValidateProgress({ done: Math.min(i + chunkSize, phones.length), total: phones.length });
+      }
+      const before = phones.length;
+      const kept = Array.from(new Set(allValid));
+      setPhones(kept);
+      setRealCheck({ total: before, valid: kept.length, removed: before - kept.length });
+      toast({
+        title: 'Validação concluída',
+        description: `${kept.length} com WhatsApp ativo · ${before - kept.length} removidos`,
+      });
+    } catch (e: any) {
+      toast({ title: 'Erro na validação', description: e.message, variant: 'destructive' });
+    } finally {
+      setValidating(false);
+    }
+  }
+
+
   // Gerador de leads (números próximos do telefone semente)
   const [seedPhone, setSeedPhone] = useState('');
   const [seedCount, setSeedCount] = useState(1000);
