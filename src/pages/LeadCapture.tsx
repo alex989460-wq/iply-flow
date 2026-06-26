@@ -324,6 +324,7 @@ export default function LeadCapture() {
       const number = toSend[i];
       let ok = false; let errMsg: string | undefined;
       try {
+        const selCh = channels.find((c) => c.id === channelId);
         const { data, error } = await supabase.functions.invoke('crm-oficial-sync', {
           body: {
             action: 'sendTemplate',
@@ -331,6 +332,8 @@ export default function LeadCapture() {
             template_name: templateName,
             language: selectedTpl?.language || 'pt_BR',
             user_id: user?.id,
+            channel_id: selCh?.id,
+            phone_number_id: selCh?.phone_number_id,
           },
         });
         ok = !error && (data?.success !== false);
