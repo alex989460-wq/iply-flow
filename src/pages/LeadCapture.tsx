@@ -76,6 +76,9 @@ export default function LeadCapture() {
   const [templateName, setTemplateName] = useState('');
   const [loadingTpl, setLoadingTpl] = useState(false);
   const [usdBrl, setUsdBrl] = useState(FALLBACK_USD_BRL);
+  const [channels, setChannels] = useState<{ id: string; phone_number_id: string; display_phone_number?: string; verified_name?: string }[]>([]);
+  const [channelId, setChannelId] = useState<string>('');
+  const [loadingChannels, setLoadingChannels] = useState(false);
   const [consent, setConsent] = useState(false);
 
   const [todaySent, setTodaySent] = useState(0);
