@@ -343,21 +343,39 @@ export default function TemplateBuilderDialog({ open, onOpenChange, mode, initia
               </div>
 
               <div className="space-y-2">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between flex-wrap gap-2">
                   <Label className="text-sm font-semibold">Corpo</Label>
-                  <span className="text-xs text-muted-foreground">{form.body.length}/1024</span>
+                  <div className="flex items-center gap-2">
+                    <Label className="text-xs text-muted-foreground">Tipo de variável:</Label>
+                    <Select value={form.varType} onValueChange={(v: VarType) => update({ varType: v })}>
+                      <SelectTrigger className="h-8 w-[130px]"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="NAME">Nome</SelectItem>
+                        <SelectItem value="NUMBER">Número</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <span className="text-xs text-muted-foreground">{form.body.length}/1024</span>
+                  </div>
                 </div>
-                <div className="flex gap-1 mb-1">
+                <div className="flex gap-1 mb-1 flex-wrap">
                   <Button type="button" size="icon" variant="ghost" className="h-8 w-8" onClick={() => wrapSelection('*')}><Bold className="w-4 h-4" /></Button>
                   <Button type="button" size="icon" variant="ghost" className="h-8 w-8" onClick={() => wrapSelection('_')}><Italic className="w-4 h-4" /></Button>
                   <Button type="button" size="icon" variant="ghost" className="h-8 w-8" onClick={() => wrapSelection('~')}><Strikethrough className="w-4 h-4" /></Button>
                   <Button type="button" size="icon" variant="ghost" className="h-8 w-8" onClick={() => wrapSelection('`')}><Code className="w-4 h-4" /></Button>
+                  <Button type="button" size="sm" variant="outline" className="h-8 ml-auto" onClick={addVariable}>
+                    <Plus className="w-3.5 h-3.5 mr-1" /> Adicionar variável
+                  </Button>
                 </div>
                 <Textarea ref={bodyRef} rows={7} maxLength={1024} value={form.body}
                   onChange={e => update({ body: e.target.value })}
-                  placeholder={`Ex: Olá {{name}}, seu plano {{plan}} vence em {{data}}.\n\nObrigado!`} />
+                  placeholder={form.varType === 'NAME'
+                    ? `Ex: Olá {{name}}, seu plano {{plan}} vence em {{data}}.\n\nObrigado!`
+                    : `Ex: Olá {{1}}, seu plano {{2}} vence em {{3}}.\n\nObrigado!`} />
                 <p className="text-xs text-muted-foreground">
-                  Use variáveis nomeadas como <code className="font-mono text-emerald-500">{`{{name}}`}</code>, <code className="font-mono text-emerald-500">{`{{user}}`}</code>, <code className="font-mono text-emerald-500">{`{{price}}`}</code>, <code className="font-mono text-emerald-500">{`{{data}}`}</code>. Formatação: <code>*negrito*</code>, <code>_itálico_</code>, <code>~tachado~</code>, <code>`código`</code>.
+                  {form.varType === 'NAME'
+                    ? <>Use variáveis nomeadas: <code className="font-mono text-emerald-500">{`{{name}}`}</code>, <code className="font-mono text-emerald-500">{`{{user}}`}</code>, <code className="font-mono text-emerald-500">{`{{price}}`}</code>.</>
+                    : <>Use variáveis numeradas em ordem: <code className="font-mono text-emerald-500">{`{{1}}`}</code>, <code className="font-mono text-emerald-500">{`{{2}}`}</code>, <code className="font-mono text-emerald-500">{`{{3}}`}</code>.</>}
+                  {' '}Formatação: <code>*negrito*</code>, <code>_itálico_</code>, <code>~tachado~</code>, <code>`código`</code>.
                 </p>
               </div>
 
