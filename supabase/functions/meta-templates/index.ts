@@ -114,7 +114,7 @@ async function resolveCrmOfficialMetaCredentials(supabase: any, userId: string, 
     wabaId = phoneData?.whatsapp_business_account?.id ? String(phoneData.whatsapp_business_account.id) : "";
   }
   if (!wabaId) return null;
-  return { accessToken: String(creds.system_user_token), wabaId, source: "crm_oficial" };
+  return { accessToken: String(creds.system_user_token), wabaId, source: "crm_oficial", skipAppSecretProof: true };
 }
 
 serve(async (req) => {
@@ -170,6 +170,7 @@ serve(async (req) => {
 
     let accessToken = zapSettings?.meta_access_token ? String(zapSettings.meta_access_token) : "";
     let wabaId = zapSettings?.meta_business_id ? String(zapSettings.meta_business_id) : "";
+    let skipAppSecretProof = false;
 
     if (!accessToken || !wabaId) {
       try {
@@ -177,6 +178,7 @@ serve(async (req) => {
         if (crmCreds?.accessToken && crmCreds?.wabaId) {
           accessToken = crmCreds.accessToken;
           wabaId = crmCreds.wabaId;
+          skipAppSecretProof = !!crmCreds.skipAppSecretProof;
           console.log(`[MetaTemplates] Using CRM Oficial channel credentials (${crmCreds.source})`);
         }
       } catch (e) {
@@ -212,7 +214,7 @@ serve(async (req) => {
     // Generate appsecret_proof
     const appSecret = Deno.env.get("META_APP_SECRET");
     let appsecretProof = "";
-    if (appSecret) {
+    if (appSecret && !skipAppSecretProof) {
       const encoder = new TextEncoder();
       const key = await crypto.subtle.importKey(
         "raw", encoder.encode(appSecret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]
