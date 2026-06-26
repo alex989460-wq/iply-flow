@@ -3,6 +3,8 @@ import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
+import { Input } from '@/components/ui/input';
+
 import { Label } from '@/components/ui/label';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
@@ -18,7 +20,8 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import {
   Loader2, Send, UserPlus, ShieldCheck, AlertTriangle, CheckCircle, XCircle, Upload,
-  ShieldAlert, Crown, Search,
+  ShieldAlert, Crown, Search, Sparkles, Wand2,
+
 } from 'lucide-react';
 
 // Estimativa Meta (USD aprox.) — categoria BR utility/marketing 2026
@@ -85,6 +88,53 @@ export default function LeadCapture() {
   const [logs, setLogs] = useState<{ phone: string; ok: boolean; error?: string }[]>([]);
   const cancelRef = useRef(false);
 
+  // Gerador de leads (números próximos do telefone semente)
+  const [seedPhone, setSeedPhone] = useState('');
+  const [seedCount, setSeedCount] = useState(1000);
+  const [seedMode, setSeedMode] = useState<'sequencial' | 'aleatorio'>('aleatorio');
+
+  function generateFromSeed() {
+    const digits = seedPhone.replace(/\D/g, '');
+    const { phone } = normalize(digits);
+    if (!phone || !phone.startsWith('55') || phone.length !== 13) {
+      toast({ title: 'Semente inválida', description: 'Use um celular brasileiro completo, ex.: 5541991758392', variant: 'destructive' });
+      return;
+    }
+    const ddd = phone.slice(2, 4);
+    // Mantém prefixo de 5 dígitos (9 + 4 dígitos da operadora) e varia os 4 últimos
+    const prefix = phone.slice(0, 9); // 55 + DDD + 9 + XXXX
+    const baseTail = parseInt(phone.slice(9), 10); // últimos 4 dígitos
+    const max = Math.min(Math.max(seedCount, 1), isAdmin ? 50000 : 2000);
+    const set = new Set<string>();
+    set.add(phone);
+    if (seedMode === 'sequencial') {
+      // espalha ±max/2 em torno da semente
+      const half = Math.floor(max / 2);
+      for (let i = 1; set.size < max && i <= max * 2; i++) {
+        const delta = i % 2 === 0 ? i / 2 : -((i + 1) / 2);
+        const tail = baseTail + delta;
+        if (tail < 0 || tail > 9999) continue;
+        set.add(prefix + String(tail).padStart(4, '0'));
+      }
+    } else {
+      // aleatório dentro do mesmo prefixo de operadora
+      let guard = 0;
+      while (set.size < max && guard < max * 10) {
+        const tail = Math.floor(Math.random() * 10000);
+        set.add(prefix + String(tail).padStart(4, '0'));
+        guard++;
+      }
+    }
+    const arr = Array.from(set);
+    setRaw(arr.join('\n'));
+    toast({
+      title: `${arr.length} números gerados`,
+      description: `DDD ${ddd} · prefixo ${prefix.slice(4)}-XXXX. Use Validar lista para conferir.`,
+    });
+    setTimeout(parsePhones, 50);
+  }
+
+
   // Carrega cotação USD→BRL automática
   useEffect(() => {
     fetch('https://economia.awesomeapi.com.br/json/last/USD-BRL')
@@ -132,8 +182,12 @@ export default function LeadCapture() {
         body: { action: 'list-templates', data: { apiKey, limit: 250 } },
       });
       if (error) throw error;
-      const root = data?.results?.templates ?? data?.results ?? data;
-      const list = (Array.isArray(root) ? root : root?.data ?? root?.templates ?? []) as any[];
+      // Response: { results: { templates: { ok, status, body: { data:[...] } } } }
+      const node = data?.results?.templates ?? data?.results ?? data;
+      const body = node?.body ?? node;
+      const list: any[] = Array.isArray(body)
+        ? body
+        : (body?.data ?? body?.templates ?? body?.results ?? []);
       const tpls = list
         .filter((t) => (t.status || '').toUpperCase() === 'APPROVED')
         .map((t) => ({
@@ -147,6 +201,7 @@ export default function LeadCapture() {
       if (tpls.length === 0) {
         toast({ title: 'Nenhum template aprovado', description: 'Crie/aprove um template na aba Templates.', variant: 'destructive' });
       }
+
     } catch (e: any) {
       toast({ title: 'Erro ao carregar templates', description: e.message, variant: 'destructive' });
     } finally { setLoadingTpl(false); }
@@ -270,7 +325,53 @@ export default function LeadCapture() {
           </AlertDescription>
         </Alert>
 
+        <Card className="border-primary/30">
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Wand2 className="w-4 h-4 text-primary" /> Gerador de leads por DDD/prefixo
+            </CardTitle>
+            <CardDescription>
+              Informe um telefone semente (ex.: <code>5541991758392</code>) e o sistema gera centenas/milhares de números
+              com o <strong>mesmo DDD e mesmo prefixo de operadora</strong>, variando apenas os últimos 4 dígitos. Validação real
+              de existência no WhatsApp é feita no primeiro envio (sem custo de conversa quando o número não existe).
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="grid sm:grid-cols-[1fr_140px_160px_auto] gap-2 items-end">
+              <div className="space-y-1">
+                <Label className="text-xs">Telefone semente</Label>
+                <Input value={seedPhone} onChange={(e) => setSeedPhone(e.target.value)} placeholder="5541991758392" />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Quantidade</Label>
+                <Input type="number" min={1} max={isAdmin ? 50000 : 2000} value={seedCount}
+                  onChange={(e) => setSeedCount(parseInt(e.target.value) || 0)} />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Modo</Label>
+                <Select value={seedMode} onValueChange={(v: any) => setSeedMode(v)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="aleatorio">Aleatório (mesmo prefixo)</SelectItem>
+                    <SelectItem value="sequencial">Sequencial (em torno da semente)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <Button onClick={generateFromSeed} className="sm:self-end">
+                <Sparkles className="w-4 h-4 mr-1" /> Gerar
+              </Button>
+            </div>
+            <p className="text-[11px] text-muted-foreground">
+              Limite: {isAdmin ? '50.000 (admin)' : '2.000 por geração'}. Os números gerados são preenchidos no campo abaixo
+              e validados (DDD + formato celular brasileiro). Para checagem real de existência sem usar a API Oficial,
+              não existe método público gratuito da Meta — a validação efetiva acontece quando você dispara o template
+              (números inexistentes falham no envio sem gerar custo de conversa cobrada).
+            </p>
+          </CardContent>
+        </Card>
+
         <Card>
+
           <CardHeader>
             <CardTitle className="text-base">1. Importar números</CardTitle>
             <CardDescription>Cole os números (qualquer formato) ou faça upload de CSV/TXT. Validamos DDD e formato celular brasileiro.</CardDescription>

@@ -114,28 +114,15 @@ export default function MassBroadcast() {
   const [isLoadingTemplates, setIsLoadingTemplates] = useState(false);
   const [templatesLoaded, setTemplatesLoaded] = useState(false);
 
-  // Departments from API (Zap Responder) or local DB (Meta Cloud)
-  interface Department {
-    id: string;
-    name: string;
-    isActive?: boolean;
-    is_default?: boolean;
-  }
-  const [departments, setDepartments] = useState<Department[]>([]);
-  const [isLoadingDepartments, setIsLoadingDepartments] = useState(false);
-  const [showDepartmentSelector, setShowDepartmentSelector] = useState(false);
-  const [selectedLocalDepartment, setSelectedLocalDepartment] = useState<string>('');
-
-  // Fetch zap settings for department
-  const { data: zapSettings, refetch: refetchZapSettings } = useQuery({
-    queryKey: ['zap-responder-settings'],
+  // CRM Oficial settings (replaces Zap Responder department flow)
+  const { data: crmSettings } = useQuery({
+    queryKey: ['crm-oficial-settings-broadcast'],
     queryFn: async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return null;
-      
       const { data, error } = await supabase
-        .from('zap_responder_settings')
-        .select('*')
+        .from('crm_oficial_settings')
+        .select('api_key, enabled')
         .eq('user_id', user.id)
         .maybeSingle();
       if (error) throw error;
@@ -143,104 +130,8 @@ export default function MassBroadcast() {
     },
   });
 
-  // Detect if using Meta Cloud API
-  const isMetaCloudApi = zapSettings?.api_type === 'meta_cloud' && zapSettings?.meta_connected_at;
-  const hasValidMetaSession = isMetaCloudApi && !!zapSettings?.meta_phone_number_id;
-  const hasValidZapSession = !isMetaCloudApi && !!zapSettings?.selected_department_id;
+  const crmEnabled = !!(crmSettings?.enabled && crmSettings?.api_key);
 
-  // Fetch departments from API (Zap Responder) or local DB (Meta Cloud)
-  const fetchDepartments = async () => {
-    setIsLoadingDepartments(true);
-    try {
-      if (isMetaCloudApi) {
-        // Fetch from local departments table
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) throw new Error('Usuário não autenticado');
-
-        const { data, error } = await supabase
-          .from('departments')
-          .select('*')
-          .eq('user_id', user.id)
-          .order('created_at');
-
-        if (error) throw error;
-
-        if (data && data.length > 0) {
-          setDepartments(data.map(d => ({
-            id: d.id,
-            name: d.name,
-            isActive: true,
-            is_default: d.is_default,
-          })));
-          // Auto-select default department
-          const defaultDept = data.find(d => d.is_default);
-          if (defaultDept) {
-            setSelectedLocalDepartment(defaultDept.id);
-          }
-          setShowDepartmentSelector(true);
-        } else {
-          setDepartments([]);
-          toast({ 
-            title: 'Nenhum departamento', 
-            description: 'Crie departamentos em Configurações > WhatsApp Oficial',
-            variant: 'destructive' 
-          });
-        }
-      } else {
-        // Fetch from Zap Responder API
-        const { data, error } = await supabase.functions.invoke('zap-responder', {
-          body: { action: 'departamentos' },
-        });
-
-        if (error) throw error;
-
-        if (data?.success && data?.data) {
-          setDepartments(data.data);
-          setShowDepartmentSelector(true);
-        } else {
-          toast({ 
-            title: 'Erro ao carregar departamentos', 
-            description: data?.error || 'Resposta inválida da API',
-            variant: 'destructive' 
-          });
-        }
-      }
-    } catch (error: any) {
-      toast({
-        title: 'Erro ao carregar departamentos',
-        description: error.message || 'Não foi possível conectar',
-        variant: 'destructive',
-      });
-    } finally {
-      setIsLoadingDepartments(false);
-    }
-  };
-
-  // Select department mutation
-  const selectDepartmentMutation = useMutation({
-    mutationFn: async (department: Department) => {
-      const { data, error } = await supabase.functions.invoke('zap-responder', {
-        body: { 
-          action: 'selecionar-departamento',
-          department_id: department.id,
-          department_name: department.name
-        },
-      });
-
-      if (error) throw error;
-      if (!data?.success) throw new Error(data?.error || 'Erro ao selecionar departamento');
-      return department;
-    },
-    onSuccess: (department) => {
-      toast({ title: 'Departamento selecionado!', description: department.name });
-      setShowDepartmentSelector(false);
-      setTemplatesLoaded(false); // Force reload templates for new department
-      refetchZapSettings();
-    },
-    onError: (error: Error) => {
-      toast({ title: 'Erro ao selecionar departamento', description: error.message, variant: 'destructive' });
-    }
-  });
 
   // Fetch all customers with pagination to overcome 1000 row limit
   const { data: customers = [], isLoading: customersLoading } = useQuery({
@@ -294,74 +185,13 @@ export default function MassBroadcast() {
     },
   });
 
-  // Fetch templates when department is available
+  // Fetch templates from CRM Oficial
   const fetchTemplates = async (showToast = true) => {
-    // For Meta Cloud API - check if connected
-    if (isMetaCloudApi) {
-      if (!hasValidMetaSession) {
-        if (showToast) {
-          toast({
-            title: 'WhatsApp não configurado',
-            description: 'Configure seu número em Configurações > WhatsApp Oficial.',
-            variant: 'destructive',
-          });
-        }
-        return;
-      }
-
-      setIsLoadingTemplates(true);
-      try {
-        const { data, error } = await supabase.functions.invoke('meta-oauth', {
-          body: { action: 'fetch-templates' },
-        });
-
-        if (error) throw error;
-
-        if (data?.templates) {
-          // Filter only approved templates
-          const approvedTemplates = data.templates.filter((t: any) => 
-            t.status?.toUpperCase() === 'APPROVED'
-          );
-          setTemplates(approvedTemplates.map((t: any) => ({
-            id: t.name,
-            name: t.name,
-            language: t.language,
-            status: t.status,
-            category: t.category,
-          })));
-          setTemplatesLoaded(true);
-          if (showToast) {
-            toast({ title: 'Templates carregados!', description: `${approvedTemplates.length} templates aprovados encontrados.` });
-          }
-        } else {
-          if (showToast) {
-            toast({ 
-              title: 'Erro ao carregar templates', 
-              description: data?.error || 'Nenhum template encontrado',
-              variant: 'destructive' 
-            });
-          }
-        }
-      } catch (error: any) {
-        if (showToast) {
-          toast({
-            title: 'Erro ao carregar templates',
-            description: error.message,
-            variant: 'destructive',
-          });
-        }
-      } finally {
-        setIsLoadingTemplates(false);
-      }
-      return;
-    }
-
-    // For Zap Responder - check department
-    if (!zapSettings?.selected_department_id) {
+    if (!crmEnabled) {
       if (showToast) {
         toast({
-          title: 'Departamento não configurado',
-          description: 'Configure um departamento na página de cobrança primeiro.',
+          title: 'API Oficial não configurada',
+          description: 'Habilite a API Oficial em Configurações.',
           variant: 'destructive',
         });
       }
@@ -370,30 +200,35 @@ export default function MassBroadcast() {
 
     setIsLoadingTemplates(true);
     try {
-      const { data, error } = await supabase.functions.invoke('zap-responder', {
-        body: { action: 'buscar-templates', department_id: zapSettings.selected_department_id },
+      const { data, error } = await supabase.functions.invoke('crm-oficial-sync', {
+        body: { action: 'list-templates', data: { apiKey: crmSettings!.api_key, limit: 250 } },
       });
-
       if (error) throw error;
 
-      if (data?.success && data?.data) {
-        // Filter only approved templates
-        const approvedTemplates = data.data.filter((t: any) => 
-          t.status?.toLowerCase() === 'approved' || !t.status
-        );
-        setTemplates(approvedTemplates);
-        setTemplatesLoaded(true);
-        if (showToast) {
-          toast({ title: 'Templates carregados!', description: `${approvedTemplates.length} templates aprovados encontrados.` });
-        }
-      } else {
-        if (showToast) {
-          toast({ 
-            title: 'Erro ao carregar templates', 
-            description: data?.error || 'Resposta inválida da API',
-            variant: 'destructive' 
-          });
-        }
+      // Response shape: { results: { templates: { ok, status, body: { data: [...] } } } }
+      const tplsNode = data?.results?.templates ?? data?.results ?? data;
+      const body = tplsNode?.body ?? tplsNode;
+      const list: any[] = Array.isArray(body)
+        ? body
+        : (body?.data ?? body?.templates ?? body?.results ?? []);
+
+      const approved = list
+        .filter((t: any) => (t.status || '').toUpperCase() === 'APPROVED')
+        .map((t: any) => ({
+          id: String(t.id || t.name),
+          name: String(t.name),
+          language: t.language || 'pt_BR',
+          status: t.status,
+          category: (t.category || 'UTILITY').toUpperCase(),
+        }));
+
+      setTemplates(approved);
+      setTemplatesLoaded(true);
+      if (showToast) {
+        toast({
+          title: 'Templates carregados!',
+          description: `${approved.length} templates aprovados encontrados.`,
+        });
       }
     } catch (error: any) {
       if (showToast) {
@@ -408,21 +243,12 @@ export default function MassBroadcast() {
     }
   };
 
-  // Auto-load templates when appropriate
+  // Auto-load templates when CRM is enabled
   useEffect(() => {
     if (templatesLoaded) return;
-    
-    // For Meta Cloud API
-    if (isMetaCloudApi && hasValidMetaSession) {
-      fetchTemplates(false);
-      return;
-    }
-    
-    // For Zap Responder
-    if (!isMetaCloudApi && zapSettings?.selected_department_id) {
-      fetchTemplates(false);
-    }
-  }, [isMetaCloudApi, hasValidMetaSession, zapSettings?.selected_department_id, templatesLoaded]);
+    if (crmEnabled) fetchTemplates(false);
+  }, [crmEnabled, templatesLoaded]);
+
 
   // Filter customers based on status and search
   const filteredCustomers = useMemo(() => {
@@ -1005,118 +831,36 @@ export default function MassBroadcast() {
           </div>
         </div>
 
-        {/* Department Selector Card */}
+        {/* API Oficial Status Card */}
         <Card className="border-primary/30">
           <CardHeader className="pb-3">
             <CardTitle className="text-lg flex items-center gap-2">
               <Phone className="w-5 h-5" />
-              {isMetaCloudApi ? 'WhatsApp Oficial' : 'Departamento de Envio'}
+              API Oficial — WhatsApp Cloud
             </CardTitle>
             <CardDescription>
-              {isMetaCloudApi 
-                ? 'Conexão Meta Cloud API para envio de mensagens'
-                : 'Selecione qual departamento será usado para enviar as mensagens'}
+              Disparos enviados via API Oficial (Meta Cloud) integrada ao CRM.
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
-            {/* Current Department Display */}
-            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
-              {/* Meta Cloud API - show phone and local departments */}
-              {isMetaCloudApi ? (
-                hasValidMetaSession ? (
-                  <div className="flex items-center gap-3 px-4 py-3 rounded-lg bg-success/10 border border-success/30 flex-1">
-                    <CheckCircle className="w-5 h-5 text-success flex-shrink-0" />
-                    <div className="flex-1">
-                      <p className="font-medium text-foreground">{zapSettings?.meta_display_phone || 'WhatsApp Oficial'}</p>
-                      <p className="text-sm text-muted-foreground">Meta Cloud API</p>
-                    </div>
-                    <Badge className="bg-success/20 text-success border-success/30">Conectado</Badge>
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-3 px-4 py-3 rounded-lg bg-destructive/10 border border-destructive/30 flex-1">
-                    <AlertTriangle className="w-5 h-5 text-destructive flex-shrink-0" />
-                    <p className="text-destructive-foreground">Configure o WhatsApp Oficial em Configurações</p>
-                  </div>
-                )
-              ) : (
-                // Zap Responder - show department
-                zapSettings?.selected_department_id ? (
-                  <div className="flex items-center gap-3 px-4 py-3 rounded-lg bg-success/10 border border-success/30 flex-1">
-                    <CheckCircle className="w-5 h-5 text-success flex-shrink-0" />
-                    <div className="flex-1">
-                      <p className="font-medium text-foreground">{zapSettings.selected_department_name || 'Departamento Selecionado'}</p>
-                      <p className="text-sm text-muted-foreground">ID: {zapSettings.selected_department_id}</p>
-                    </div>
-                    <Badge className="bg-success/20 text-success border-success/30">Selecionado</Badge>
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-3 px-4 py-3 rounded-lg bg-warning/10 border border-warning/30 flex-1">
-                    <AlertTriangle className="w-5 h-5 text-warning flex-shrink-0" />
-                    <p className="text-warning-foreground">Nenhum departamento selecionado para envio</p>
-                  </div>
-                )
-              )}
-              
-              {/* Only show department selector button for Zap Responder */}
-              {!isMetaCloudApi && (
-                <Button 
-                  onClick={fetchDepartments}
-                  disabled={isLoadingDepartments}
-                  variant="outline"
-                  className="shrink-0"
-                >
-                  {isLoadingDepartments ? (
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  ) : (
-                    <RefreshCw className="w-4 h-4 mr-2" />
-                  )}
-                  {zapSettings?.selected_department_id ? 'Alterar' : 'Selecionar'}
-                </Button>
-              )}
-            </div>
-
-            {/* Department Selection Grid (Zap Responder only) */}
-            {!isMetaCloudApi && showDepartmentSelector && departments.length > 0 && (
-              <div className="space-y-3 pt-2 border-t">
-                <p className="text-sm font-medium text-muted-foreground">Selecione um departamento:</p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                  {departments.map((department) => (
-                    <button
-                      key={department.id}
-                      onClick={() => selectDepartmentMutation.mutate(department)}
-                      disabled={selectDepartmentMutation.isPending}
-                      className={cn(
-                        'p-3 rounded-lg border text-left transition-all hover:border-primary',
-                        zapSettings?.selected_department_id === department.id
-                          ? 'border-primary bg-primary/10'
-                          : 'border-border bg-secondary/50'
-                      )}
-                    >
-                      <p className="font-medium text-foreground">{department.name}</p>
-                      <span className={cn(
-                        'text-xs px-2 py-0.5 rounded-full mt-1 inline-block',
-                        department.isActive
-                          ? 'bg-success/10 text-success' 
-                          : 'bg-muted text-muted-foreground'
-                      )}>
-                        {department.isActive ? 'Ativo' : 'Inativo'}
-                      </span>
-                    </button>
-                  ))}
+          <CardContent>
+            {crmEnabled ? (
+              <div className="flex items-center gap-3 px-4 py-3 rounded-lg bg-success/10 border border-success/30">
+                <CheckCircle className="w-5 h-5 text-success flex-shrink-0" />
+                <div className="flex-1">
+                  <p className="font-medium text-foreground">API Oficial conectada</p>
+                  <p className="text-sm text-muted-foreground">Todos os envios usarão o canal oficial configurado.</p>
                 </div>
+                <Badge className="bg-success/20 text-success border-success/30">Ativa</Badge>
               </div>
-            )}
-
-            {/* Empty State (Zap Responder only) */}
-            {!isMetaCloudApi && showDepartmentSelector && departments.length === 0 && !isLoadingDepartments && (
-              <div className="pt-2 border-t">
-                <p className="text-sm text-muted-foreground text-center py-4">
-                  Nenhum departamento encontrado. Configure os departamentos no painel do Zap Responder.
-                </p>
+            ) : (
+              <div className="flex items-center gap-3 px-4 py-3 rounded-lg bg-destructive/10 border border-destructive/30">
+                <AlertTriangle className="w-5 h-5 text-destructive flex-shrink-0" />
+                <p className="text-sm">Habilite a <strong>API Oficial</strong> em Configurações para realizar disparos.</p>
               </div>
             )}
           </CardContent>
         </Card>
+
 
         {/* Anti-blocking warning */}
         <Card className="border-warning/50 bg-warning/5">
