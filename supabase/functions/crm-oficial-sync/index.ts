@@ -820,31 +820,39 @@ Deno.serve(async (req) => {
           console.error("[crm-oficial-sync sendTemplate] erro lookup api_key:", e);
         }
       }
-      // Auto-fill body parameters if caller didn't supply enough — common for
-      // cold-lead disparo where we have no customer data. We default missing
-      // placeholders to "Cliente" so Meta accepts the message.
-      let finalParams = parameters.slice();
-      try {
-        const expected = await countTemplateBodyParams(templateName, language, resellerApiKey);
-        if (expected > 0 && finalParams.length < expected) {
-          while (finalParams.length < expected) finalParams.push("Cliente");
-        }
-      } catch (e) {
-        console.warn("[crm-oficial-sync sendTemplate] count params failed", (e as Error).message);
-      }
+      // Fetch the official template so we can build the correct body component
+      // (positional OR named params, depending on parameter_format).
+      const officialTemplate = await fetchOfficialTemplate(templateName, language, resellerApiKey);
+      const paramNames = officialTemplate ? getTemplateBodyParamNames(officialTemplate) : [];
+      const isNamed = String(officialTemplate?.parameter_format || "").toUpperCase() === "NAMED"
+        || (paramNames.length > 0 && paramNames.every((n) => n));
 
-      const buildSendPayload = (params: unknown[]) => ({
+      let finalParams = parameters.slice();
+      while (finalParams.length < paramNames.length) finalParams.push("Cliente");
+
+      // Build body component explicitly so doSendWhatsapp uses our shape
+      // (named -> { type:'text', parameter_name, text }, positional -> { type:'text', text }).
+      const bodyParameters = paramNames.length
+        ? paramNames.map((name, i) => isNamed && name
+            ? { type: "text", parameter_name: name, text: String(finalParams[i] ?? "Cliente") }
+            : { type: "text", text: String(finalParams[i] ?? "Cliente") })
+        : finalParams.map((p) => ({ type: "text", text: String(p) }));
+
+      const components: any[] = [];
+      if (headerImageUrl) components.push({ type: "header", parameters: [{ type: "image", image: { link: headerImageUrl } }] });
+      if (bodyParameters.length) components.push({ type: "body", parameters: bodyParameters });
+
+      const buildSendPayload = (comps: any[]) => ({
         phone,
         template_name: templateName,
         language,
-        template_params: params,
-        ...(headerImageUrl ? { components: [{ type: "header", parameters: [{ type: "image", image: { link: headerImageUrl } }] }] } : {}),
+        template_params: finalParams,
+        ...(comps.length ? { components: comps } : {}),
       });
 
-      let sendResult = await doSendWhatsapp(buildSendPayload(finalParams), resellerApiKey);
+      let sendResult = await doSendWhatsapp(buildSendPayload(components), resellerApiKey);
 
-      // Self-heal: if Meta complains about a parameter count mismatch (#132000),
-      // parse the expected count from the error and retry with safe defaults.
+      // Self-heal: if Meta still complains about parameter count, parse expected N and retry.
       const extractExpectedParams = (result: any): number | null => {
         const inspect = [result, ...(((result as any)?.attempts) || [])];
         for (const item of inspect) {
@@ -854,17 +862,21 @@ Deno.serve(async (req) => {
         }
         return null;
       };
-
       if ((sendResult as any)?.ok !== true) {
         const expected = extractExpectedParams(sendResult);
-        if (expected && expected > finalParams.length) {
-          const padded = finalParams.slice();
-          while (padded.length < expected) padded.push("Cliente");
-          console.log(`[crm-oficial-sync sendTemplate] retry com ${expected} params auto-preenchidos`);
-          sendResult = await doSendWhatsapp(buildSendPayload(padded), resellerApiKey);
-          if ((sendResult as any)?.ok === true) finalParams = padded;
+        if (expected && expected > bodyParameters.length) {
+          const padded = bodyParameters.slice();
+          while (padded.length < expected) {
+            const idx = padded.length;
+            const name = paramNames[idx] || `p${idx + 1}`;
+            padded.push(isNamed ? { type: "text", parameter_name: name, text: "Cliente" } : { type: "text", text: "Cliente" });
+          }
+          const retryComps = components.filter((c) => String(c?.type).toLowerCase() !== "body").concat([{ type: "body", parameters: padded }]);
+          console.log(`[crm-oficial-sync sendTemplate] retry com ${expected} params (${isNamed ? "named" : "positional"})`);
+          sendResult = await doSendWhatsapp(buildSendPayload(retryComps), resellerApiKey);
         }
       }
+
 
       const ok = (sendResult as any)?.ok === true;
       return new Response(JSON.stringify({ success: ok, send: sendResult, provider: "crm-oficial" }), {
