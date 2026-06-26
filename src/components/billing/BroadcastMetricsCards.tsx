@@ -3,17 +3,9 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { Users, Clock, Check, AlertTriangle, FileCheck, Send, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
+import { extractCrmBroadcastSummary, type CrmBroadcastSummary } from '@/lib/crm-stats';
 
-type Summary = {
-  broadcasts_count?: number;
-  recipients_total?: number;
-  sent?: number;
-  delivered?: number;
-  read?: number;
-  failed?: number;
-  pending?: number;
-  templates_approved?: number;
-};
+type Summary = Partial<CrmBroadcastSummary>;
 
 // Aggregated broadcast metrics from the CRM Oficial endpoint
 // GET /api/public/v1/broadcasts-stats, with fallback to local message_logs.
@@ -29,9 +21,8 @@ export function BroadcastMetricsCards({ broadcastId }: { broadcastId?: string } 
           body: { action: 'broadcasts-stats', broadcast_id: broadcastId },
         });
         if (!error) {
-          const summary =
-            (res?.broadcasts_stats?.summary ?? res?.summary ?? res?.broadcasts_stats) as Summary | undefined;
-          if (summary && typeof summary === 'object') return summary;
+          const summary = extractCrmBroadcastSummary(res);
+          if (Object.values(summary).some((value) => value > 0)) return summary;
         }
       } catch (_) { /* fallback below */ }
 
