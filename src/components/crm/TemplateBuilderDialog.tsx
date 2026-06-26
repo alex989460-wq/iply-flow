@@ -161,11 +161,21 @@ export default function TemplateBuilderDialog({ open, onOpenChange, mode, initia
       if (!form.headerHandle) throw new Error(`Envie o arquivo do cabeçalho (${fmt.toLowerCase()}).`);
       comps.push({ type: 'HEADER', format: fmt, example: { header_handle: [form.headerHandle] } });
     }
-    const bodyVars = extractVarIndexes(form.body);
+    const bodyVars = extractVarTokens(form.body);
     const bodyComp: any = { type: 'BODY', text: form.body.trim() };
     if (bodyVars.length) {
-      const examples = bodyVars.map((_, i) => (form.bodyExamples[i] || '').trim() || `exemplo${i + 1}`);
-      bodyComp.example = { body_text: [examples] };
+      const allNumeric = bodyVars.every(v => /^\d+$/.test(v));
+      if (allNumeric) {
+        const examples = bodyVars.map((v, i) => (form.bodyExamples[v] || '').trim() || `exemplo${i + 1}`);
+        bodyComp.example = { body_text: [examples] };
+      } else {
+        bodyComp.example = {
+          body_text_named_params: bodyVars.map(v => ({
+            param_name: v,
+            example: (form.bodyExamples[v] || '').trim() || v,
+          })),
+        };
+      }
     }
     comps.push(bodyComp);
     if (form.footer.trim()) comps.push({ type: 'FOOTER', text: form.footer.trim() });
@@ -182,7 +192,7 @@ export default function TemplateBuilderDialog({ open, onOpenChange, mode, initia
     return comps;
   };
 
-  const bodyVars = extractVarIndexes(form.body);
+  const bodyVars = extractVarTokens(form.body);
 
   const save = async () => {
     if (!form.name.trim() || !form.body.trim()) {
