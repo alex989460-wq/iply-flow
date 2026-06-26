@@ -1,6 +1,6 @@
 // Validate WhatsApp number existence using the user's Evolution (Baileys) instance.
-// This replicates how tools like umnico.com check numbers: via the WhatsApp Web
-// protocol's `onWhatsApp` lookup. No cost, no Meta conversation opened.
+// Replicates the umnico.com technique via the WhatsApp Web protocol (`onWhatsApp`).
+// No cost, no Meta conversation opened.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
 const cors = {
@@ -11,52 +11,55 @@ const cors = {
 
 interface CheckResult { phone: string; exists: boolean; jid?: string; error?: string }
 
+function digitsOnly(s: string) { return String(s || "").replace(/\D/g, ""); }
+
 function normalizeDigits(raw: string): string {
-  const d = String(raw || "").replace(/\D/g, "");
+  const d = digitsOnly(raw);
   if (!d) return "";
-  if (d.length === 10 || d.length === 11) return "55" + d; // BR sem DDI
+  if (d.length === 10 || d.length === 11) return "55" + d;
   return d;
 }
 
-async function evolutionCheck(baseUrl: string, apiKey: string, instance: string, numbers: string[]): Promise<CheckResult[]> {
-  const base = baseUrl.replace(/\/$/, "");
-  const url = `${base}/chat/whatsappNumbers/${encodeURIComponent(instance)}`;
-  const headers = { "Content-Type": "application/json", apikey: apiKey };
-
-  const r = await fetch(url, { method: "POST", headers, body: JSON.stringify({ numbers }) });
-  if (r.ok) {
-    const data = await r.json().catch(() => null);
-    const arr: any[] = Array.isArray(data) ? data : (data?.numbers || data?.data || []);
-    if (Array.isArray(arr) && arr.length) {
-      return numbers.map((n) => {
-        const hit = arr.find((x: any) => {
-          const num = String(x?.number || x?.jid || "").replace(/\D/g, "");
-          return num === n || num.endsWith(n) || n.endsWith(num);
-        });
-        if (!hit) return { phone: n, exists: false };
-        const exists = hit?.exists === true || hit?.isInWhatsapp === true || !!hit?.jid;
-        return { phone: n, exists, jid: hit?.jid };
-      });
-    }
+// BR numbers sometimes come back without the leading 9 (old format).
+// Build candidate variants so we can match the response back to the input.
+function brVariants(phone: string): string[] {
+  const set = new Set<string>([phone]);
+  if (phone.startsWith("55") && phone.length === 13 && phone[4] === "9") {
+    set.add("55" + phone.slice(2, 4) + phone.slice(5)); // drop the 9
   }
-
-  // Fallback: Evolution Go / user/check (one by one).
-  const out: CheckResult[] = [];
-  for (const n of numbers) {
-    try {
-      const res = await fetch(`${base}/user/check`, {
-        method: "POST", headers, body: JSON.stringify({ number: [n], formatJid: true }),
-      });
-      const j = await res.json().catch(() => null);
-      const list: any[] = j?.data || j?.results || j || [];
-      const hit = Array.isArray(list) ? list[0] : list;
-      const jid = String(hit?.jid || hit?.JID || "");
-      out.push({ phone: n, exists: !!jid && jid.includes("@"), jid: jid || undefined });
-    } catch (e) {
-      out.push({ phone: n, exists: false, error: (e as Error).message });
-    }
+  if (phone.startsWith("55") && phone.length === 12) {
+    set.add("55" + phone.slice(2, 4) + "9" + phone.slice(4)); // add the 9
   }
-  return out;
+  return [...set];
+}
+
+async function resolveInstance(baseUrl: string, apiKey: string, instanceName: string): Promise<{ token: string; jid?: string } | null> {
+  const r = await fetch(`${baseUrl}/instance/all`, { headers: { apikey: apiKey } });
+  if (!r.ok) return null;
+  const j = await r.json().catch(() => null);
+  const list: any[] = j?.data || j || [];
+  const hit = list.find((x: any) => x?.name === instanceName || x?.id === instanceName);
+  if (!hit) return null;
+  return { token: String(hit.token || hit.apiKey || ""), jid: hit.jid };
+}
+
+async function checkOne(baseUrl: string, instanceToken: string, phone: string): Promise<CheckResult> {
+  const variants = brVariants(phone);
+  try {
+    const r = await fetch(`${baseUrl}/user/check`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", apikey: instanceToken },
+      body: JSON.stringify({ number: variants, formatJid: true }),
+    });
+    if (!r.ok) return { phone, exists: false, error: `HTTP ${r.status}` };
+    const j = await r.json().catch(() => null);
+    const users: any[] = j?.data?.Users || j?.data || j?.Users || [];
+    const hit = Array.isArray(users) ? users.find((u: any) => u?.IsInWhatsapp === true || u?.isInWhatsapp === true || u?.exists === true || u?.JID || u?.jid) : null;
+    if (!hit) return { phone, exists: false };
+    return { phone, exists: true, jid: String(hit.JID || hit.jid || "") || undefined };
+  } catch (e) {
+    return { phone, exists: false, error: (e as Error).message };
+  }
 }
 
 Deno.serve(async (req) => {
@@ -78,7 +81,7 @@ Deno.serve(async (req) => {
     const admin = createClient(supabaseUrl, service);
     const { data: s } = await admin
       .from("evolution_settings")
-      .select("base_url, api_key, instance_name, is_enabled")
+      .select("base_url, api_key, instance_name")
       .eq("user_id", u.user.id)
       .maybeSingle();
 
@@ -88,27 +91,36 @@ Deno.serve(async (req) => {
       }), { status: 400, headers: { ...cors, "Content-Type": "application/json" } });
     }
 
-    // Normalize and dedupe.
+    const baseUrl = String(s.base_url).replace(/\/$/, "");
+    const inst = await resolveInstance(baseUrl, s.api_key, s.instance_name);
+    if (!inst?.token) {
+      return new Response(JSON.stringify({
+        error: `Instância "${s.instance_name}" não encontrada na Evolution. Reconecte em Conexões.`,
+      }), { status: 400, headers: { ...cors, "Content-Type": "application/json" } });
+    }
+
     const norm = Array.from(new Set(numbers.map(normalizeDigits).filter(Boolean)));
 
-    // Process in chunks of 50 to be safe.
+    // Run in parallel batches of 10 to avoid overloading Evolution.
     const results: CheckResult[] = [];
-    for (let i = 0; i < norm.length; i += 50) {
-      const chunk = norm.slice(i, i + 50);
-      try {
-        const part = await evolutionCheck(s.base_url, s.api_key, s.instance_name, chunk);
-        results.push(...part);
-      } catch (e) {
-        for (const n of chunk) results.push({ phone: n, exists: false, error: (e as Error).message });
-      }
+    const BATCH = 10;
+    for (let i = 0; i < norm.length; i += BATCH) {
+      const chunk = norm.slice(i, i + BATCH);
+      const part = await Promise.all(chunk.map((n) => checkOne(baseUrl, inst.token, n)));
+      results.push(...part);
     }
 
     const valid = results.filter((r) => r.exists).map((r) => r.phone);
     const invalid = results.filter((r) => !r.exists).map((r) => r.phone);
 
-    return new Response(JSON.stringify({ total: results.length, valid_count: valid.length, invalid_count: invalid.length, valid, invalid, results }), {
-      headers: { ...cors, "Content-Type": "application/json" },
-    });
+    return new Response(JSON.stringify({
+      total: results.length,
+      valid_count: valid.length,
+      invalid_count: invalid.length,
+      valid,
+      invalid,
+      results,
+    }), { headers: { ...cors, "Content-Type": "application/json" } });
   } catch (e) {
     return new Response(JSON.stringify({ error: (e as Error).message }), { status: 500, headers: { ...cors, "Content-Type": "application/json" } });
   }

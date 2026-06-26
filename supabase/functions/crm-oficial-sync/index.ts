@@ -288,6 +288,39 @@ async function fetchOfficialTemplateHeaderImage(templateName: string, language: 
   return extractOfficialTemplateHeaderImage(selected);
 }
 
+// Returns the full template definition (components + parameter_format) so we
+// can build correct body params (positional vs named) for sendTemplate.
+async function fetchOfficialTemplate(templateName: string, language: string, apiKey?: string): Promise<any | null> {
+  try {
+    const result = await crmFetchWithKeyFallback("/api/public/v1/templates?limit=250", { method: "GET" }, apiKey);
+    const templates = normalizeListTemplatesBody(result.body);
+    const matches = templates.filter((t: any) => String(t?.name || t?.template_name || "") === templateName);
+    if (matches.length === 0) return null;
+    const langHit = matches.find((t: any) => {
+      const lang = String(t?.language || t?.language_code || t?.lang || "");
+      return !language || lang === language;
+    }) || matches[0];
+    return matches.find((t: any) => t === langHit && String(t?.status || "").toUpperCase() === "APPROVED") || langHit;
+  } catch {
+    return null;
+  }
+}
+
+function getTemplateBodyParamNames(template: any): string[] {
+  const components = Array.isArray(template?.components) ? template.components : [];
+  const body = components.find((c: any) => String(c?.type || "").toUpperCase() === "BODY");
+  if (!body) return [];
+  const named: any[] = body?.example?.body_text_named_params || [];
+  if (Array.isArray(named) && named.length) return named.map((p: any) => String(p?.param_name || p?.parameter_name || ""));
+  // Positional fallback: count {{N}} placeholders.
+  const text = String(body?.text || "");
+  const placeholders = text.match(/\{\{\s*\d+\s*\}\}/g) || [];
+  const distinct = new Set(placeholders.map((m) => m.replace(/\D/g, "")));
+  return Array.from(distinct).map(() => "");
+}
+
+
+
 function replaceHeaderImageInComponents(components: unknown[], publicUrl?: string) {
   if (!publicUrl) return components;
   let replaced = false;
@@ -787,13 +820,63 @@ Deno.serve(async (req) => {
           console.error("[crm-oficial-sync sendTemplate] erro lookup api_key:", e);
         }
       }
-      const sendResult = await doSendWhatsapp({
+      // Fetch the official template so we can build the correct body component
+      // (positional OR named params, depending on parameter_format).
+      const officialTemplate = await fetchOfficialTemplate(templateName, language, resellerApiKey);
+      const paramNames = officialTemplate ? getTemplateBodyParamNames(officialTemplate) : [];
+      const isNamed = String(officialTemplate?.parameter_format || "").toUpperCase() === "NAMED"
+        || (paramNames.length > 0 && paramNames.every((n) => n));
+
+      let finalParams = parameters.slice();
+      while (finalParams.length < paramNames.length) finalParams.push("Cliente");
+
+      // Build body component explicitly so doSendWhatsapp uses our shape
+      // (named -> { type:'text', parameter_name, text }, positional -> { type:'text', text }).
+      const bodyParameters = paramNames.length
+        ? paramNames.map((name, i) => isNamed && name
+            ? { type: "text", parameter_name: name, text: String(finalParams[i] ?? "Cliente") }
+            : { type: "text", text: String(finalParams[i] ?? "Cliente") })
+        : finalParams.map((p) => ({ type: "text", text: String(p) }));
+
+      const components: any[] = [];
+      if (headerImageUrl) components.push({ type: "header", parameters: [{ type: "image", image: { link: headerImageUrl } }] });
+      if (bodyParameters.length) components.push({ type: "body", parameters: bodyParameters });
+
+      const buildSendPayload = (comps: any[]) => ({
         phone,
         template_name: templateName,
         language,
-        template_params: parameters,
-        ...(headerImageUrl ? { components: [{ type: "header", parameters: [{ type: "image", image: { link: headerImageUrl } }] }] } : {}),
-      }, resellerApiKey);
+        template_params: finalParams,
+        ...(comps.length ? { components: comps } : {}),
+      });
+
+      let sendResult = await doSendWhatsapp(buildSendPayload(components), resellerApiKey);
+
+      // Self-heal: if Meta still complains about parameter count, parse expected N and retry.
+      const extractExpectedParams = (result: any): number | null => {
+        const inspect = [result, ...(((result as any)?.attempts) || [])];
+        for (const item of inspect) {
+          const text = typeof item?.body === "string" ? item.body : JSON.stringify(item?.body || {});
+          const m = text.match(/expected number of params\s*\((\d+)\)/i) || text.match(/expected\s*(\d+)\s*params/i);
+          if (m) return parseInt(m[1], 10);
+        }
+        return null;
+      };
+      if ((sendResult as any)?.ok !== true) {
+        const expected = extractExpectedParams(sendResult);
+        if (expected && expected > bodyParameters.length) {
+          const padded = bodyParameters.slice();
+          while (padded.length < expected) {
+            const idx = padded.length;
+            const name = paramNames[idx] || `p${idx + 1}`;
+            padded.push(isNamed ? { type: "text", parameter_name: name, text: "Cliente" } : { type: "text", text: "Cliente" });
+          }
+          const retryComps = components.filter((c) => String(c?.type).toLowerCase() !== "body").concat([{ type: "body", parameters: padded }]);
+          console.log(`[crm-oficial-sync sendTemplate] retry com ${expected} params (${isNamed ? "named" : "positional"})`);
+          sendResult = await doSendWhatsapp(buildSendPayload(retryComps), resellerApiKey);
+        }
+      }
+
 
       const ok = (sendResult as any)?.ok === true;
       return new Response(JSON.stringify({ success: ok, send: sendResult, provider: "crm-oficial" }), {
