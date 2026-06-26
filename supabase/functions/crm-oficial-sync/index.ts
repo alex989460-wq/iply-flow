@@ -310,10 +310,12 @@ function getTemplateBodyParamNames(template: any): string[] {
   const components = Array.isArray(template?.components) ? template.components : [];
   const body = components.find((c: any) => String(c?.type || "").toUpperCase() === "BODY");
   if (!body) return [];
+  const text = String(body?.text || "");
+  const namedTextMatches = Array.from(text.matchAll(/\{\{\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}/g)).map((m) => m[1]);
+  if (namedTextMatches.length) return Array.from(new Set(namedTextMatches));
   const named: any[] = body?.example?.body_text_named_params || [];
   if (Array.isArray(named) && named.length) return named.map((p: any) => String(p?.param_name || p?.parameter_name || ""));
   // Positional fallback: count {{N}} placeholders.
-  const text = String(body?.text || "");
   const placeholders = text.match(/\{\{\s*\d+\s*\}\}/g) || [];
   const distinct = new Set(placeholders.map((m) => m.replace(/\D/g, "")));
   return Array.from(distinct).map(() => "");

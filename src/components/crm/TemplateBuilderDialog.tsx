@@ -254,6 +254,12 @@ export default function TemplateBuilderDialog({ open, onOpenChange, mode, initia
 
   const bodyVars = extractVarTokens(form.body);
 
+  const getParameterFormat = () => {
+    const vars = extractVarTokens(form.body);
+    if (!vars.length) return undefined;
+    return vars.every(v => /^\d+$/.test(v)) ? 'POSITIONAL' : 'NAMED';
+  };
+
   const save = async () => {
     if (!form.name.trim() || !form.body.trim()) {
       toast({ title: 'Campos obrigatórios', description: 'Nome e corpo são obrigatórios.', variant: 'destructive' });
@@ -262,9 +268,10 @@ export default function TemplateBuilderDialog({ open, onOpenChange, mode, initia
     setSaving(true);
     try {
       const components = buildComponents();
+      const parameterFormat = getParameterFormat();
       const payload: any = mode === 'edit' && (initial as any)?.metaId
-        ? { action: 'update', template_id: (initial as any).metaId, components }
-        : { action: 'create', name: slug, category: form.category, language: form.language, components, allow_category_change: form.allowCategoryChange };
+        ? { action: 'update', template_id: (initial as any).metaId, components, parameter_format: parameterFormat }
+        : { action: 'create', name: slug, category: form.category, language: form.language, components, parameter_format: parameterFormat, allow_category_change: form.allowCategoryChange };
       const { data: res, error } = await supabase.functions.invoke('meta-templates', { body: payload });
       if (error || res?.error) throw new Error(res?.error || error?.message || 'Falha na Meta API');
       toast({ title: mode === 'edit' ? 'Template atualizado' : 'Template enviado', description: 'Aguarde validação da Meta.' });

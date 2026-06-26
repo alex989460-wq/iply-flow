@@ -247,7 +247,7 @@ serve(async (req) => {
     switch (action) {
       case "list": {
         const { limit = 100 } = body;
-        const fields = "id,name,status,category,language,components,quality_score,message_send_ttl_seconds";
+        const fields = "id,name,status,category,language,parameter_format,components,quality_score,message_send_ttl_seconds";
 
         // Discover ALL accessible WABAs (same approach billing uses)
         const wabaIds = new Set<string>();
@@ -386,9 +386,10 @@ serve(async (req) => {
 
 
       case "create": {
-        const { name, category, language, components, allow_category_change } = body;
+        const { name, category, language, components, allow_category_change, parameter_format } = body;
 
         const payload: any = { name, category, language, components };
+        if (parameter_format === "NAMED" || parameter_format === "POSITIONAL") payload.parameter_format = parameter_format;
         if (allow_category_change) payload.allow_category_change = true;
 
         const res = await fetch(
@@ -418,7 +419,9 @@ serve(async (req) => {
       }
 
       case "update": {
-        const { template_id, components: updateComponents } = body;
+        const { template_id, components: updateComponents, parameter_format } = body;
+        const updatePayload: Record<string, unknown> = { components: updateComponents };
+        if (parameter_format === "NAMED" || parameter_format === "POSITIONAL") updatePayload.parameter_format = parameter_format;
 
         const res = await fetch(
           `https://graph.facebook.com/${GRAPH_API_VERSION}/${template_id}?x=1${proofParam}`,
@@ -428,7 +431,7 @@ serve(async (req) => {
               Authorization: `Bearer ${accessToken}`,
               "Content-Type": "application/json",
             },
-            body: JSON.stringify({ components: updateComponents }),
+            body: JSON.stringify(updatePayload),
           }
         );
         const data = await res.json();
