@@ -225,7 +225,7 @@ export default function LeadCapture() {
           is_active: c.is_active ?? c.active ?? c.connected ?? true,
         }))
         .filter((c) => c.phone_number_id && (c.kind.includes('whatsapp') || c.kind === 'whatsapp_cloud'));
-      setChannels(chs);
+      setChannels(chs.map(({ id, phone_number_id, display_phone_number, verified_name }) => ({ id, phone_number_id, display_phone_number, verified_name })));
       if (chs.length && !channelId) setChannelId(chs[0].id);
     } catch (e: any) {
       toast({ title: 'Erro ao carregar canais', description: e.message, variant: 'destructive' });
