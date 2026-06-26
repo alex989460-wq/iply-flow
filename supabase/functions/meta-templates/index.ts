@@ -184,12 +184,16 @@ serve(async (req) => {
           });
         }
         try {
-          const sessionUrl = `https://graph.facebook.com/${GRAPH_API_VERSION}/${appId}/uploads?file_name=${encodeURIComponent(file_name || "upload")}&file_length=${file_size}&file_type=${encodeURIComponent(mime_type)}&access_token=${accessToken}${proofParam.replace('&','&')}`;
+          // App access token (more reliable for /APP_ID/uploads than user token)
+          const appAccessToken = appSecret ? `${appId}|${appSecret}` : accessToken;
+          const sessionUrl = `https://graph.facebook.com/${GRAPH_API_VERSION}/${appId}/uploads?file_name=${encodeURIComponent(file_name || "upload")}&file_length=${file_size}&file_type=${encodeURIComponent(mime_type)}&access_token=${encodeURIComponent(appAccessToken)}`;
           const sessRes = await fetch(sessionUrl, { method: "POST" });
           const sessData = await sessRes.json();
+          console.log("[MetaTemplates] Upload session:", sessRes.status, JSON.stringify(sessData).slice(0, 400));
           if (!sessRes.ok || !sessData?.id) {
-            return new Response(JSON.stringify({ error: sessData?.error?.message || "Falha ao iniciar upload" }), {
-              status: sessRes.status, headers: { ...corsHeaders, "Content-Type": "application/json" },
+            const msg = sessData?.error?.message || sessData?.error?.error_user_msg || `Falha ao iniciar upload (status ${sessRes.status})`;
+            return new Response(JSON.stringify({ error: msg, details: sessData?.error }), {
+              status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
             });
           }
           // Decode base64 to bytes
@@ -202,19 +206,25 @@ serve(async (req) => {
             headers: {
               Authorization: `OAuth ${accessToken}`,
               file_offset: "0",
+              "Content-Type": mime_type,
             },
             body: bytes,
           });
-          const upData = await upRes.json();
+          const upText = await upRes.text();
+          let upData: any = {};
+          try { upData = JSON.parse(upText); } catch { /* not json */ }
+          console.log("[MetaTemplates] Upload result:", upRes.status, upText.slice(0, 400));
           if (!upRes.ok || !upData?.h) {
-            return new Response(JSON.stringify({ error: upData?.error?.message || "Falha ao enviar arquivo" }), {
-              status: upRes.status, headers: { ...corsHeaders, "Content-Type": "application/json" },
+            const msg = upData?.error?.message || upData?.error?.error_user_msg || `Falha ao enviar arquivo (status ${upRes.status})`;
+            return new Response(JSON.stringify({ error: msg, details: upData?.error || upText.slice(0, 300) }), {
+              status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
             });
           }
           return new Response(JSON.stringify({ header_handle: upData.h }), {
             headers: { ...corsHeaders, "Content-Type": "application/json" },
           });
         } catch (e: any) {
+          console.error("[MetaTemplates] Upload exception:", e);
           return new Response(JSON.stringify({ error: e?.message || "Erro no upload" }), {
             status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
           });
