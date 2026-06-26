@@ -10,6 +10,23 @@ const corsHeaders = {
 
 const GRAPH_API_VERSION = "v21.0";
 
+async function fetchWithTimeout(input: string, init: RequestInit = {}, timeoutMs = 30_000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(input, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function json(data: unknown, status = 200) {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -106,7 +123,17 @@ serve(async (req) => {
       console.log(`[MetaTemplates] Could not resolve WABA ID, using as-is: ${wabaId}`);
     }
 
-    const body = await req.json();
+    const reqContentType = req.headers.get("content-type") || "";
+    let body: any = {};
+    let uploadFile: File | null = null;
+    if (reqContentType.includes("multipart/form-data")) {
+      const form = await req.formData();
+      body = Object.fromEntries(form.entries());
+      const file = form.get("file");
+      if (file && typeof (file as File).arrayBuffer === "function") uploadFile = file as File;
+    } else {
+      body = await req.json();
+    }
     const { action } = body;
 
     switch (action) {
@@ -178,56 +205,62 @@ serve(async (req) => {
             status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
           });
         }
-        if (!file_base64 || !file_size || !mime_type) {
-          return new Response(JSON.stringify({ error: "Dados de upload incompletos" }), {
-            status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
-          });
-        }
+        if (!uploadFile && (!file_base64 || !file_size || !mime_type)) return json({ error: "Dados de upload incompletos" }, 400);
         try {
+          const resolvedName = uploadFile?.name || file_name || "upload";
+          const resolvedSize = uploadFile?.size || Number(file_size || 0);
+          const resolvedMime = uploadFile?.type || mime_type || "application/octet-stream";
+          const headerType = String(body.header_type || "").toUpperCase();
+          const maxSize = headerType === "IMAGE" || resolvedMime.startsWith("image/")
+            ? 5 * 1024 * 1024
+            : headerType === "VIDEO" || resolvedMime.startsWith("video/")
+              ? 16 * 1024 * 1024
+              : 20 * 1024 * 1024;
+          if (!resolvedSize || resolvedSize > maxSize) {
+            return json({ error: `Arquivo inválido ou acima do limite de ${Math.round(maxSize / 1024 / 1024)}MB` }, 400);
+          }
+
           // App access token (more reliable for /APP_ID/uploads than user token)
           const appAccessToken = appSecret ? `${appId}|${appSecret}` : accessToken;
-          const sessionUrl = `https://graph.facebook.com/${GRAPH_API_VERSION}/${appId}/uploads?file_name=${encodeURIComponent(file_name || "upload")}&file_length=${file_size}&file_type=${encodeURIComponent(mime_type)}&access_token=${encodeURIComponent(appAccessToken)}`;
-          const sessRes = await fetch(sessionUrl, { method: "POST" });
+          const sessionUrl = `https://graph.facebook.com/${GRAPH_API_VERSION}/${appId}/uploads?file_name=${encodeURIComponent(resolvedName)}&file_length=${resolvedSize}&file_type=${encodeURIComponent(resolvedMime)}&access_token=${encodeURIComponent(appAccessToken)}`;
+          const sessRes = await fetchWithTimeout(sessionUrl, { method: "POST" }, 25_000);
           const sessData = await sessRes.json();
           console.log("[MetaTemplates] Upload session:", sessRes.status, JSON.stringify(sessData).slice(0, 400));
           if (!sessRes.ok || !sessData?.id) {
             const msg = sessData?.error?.message || sessData?.error?.error_user_msg || `Falha ao iniciar upload (status ${sessRes.status})`;
-            return new Response(JSON.stringify({ error: msg, details: sessData?.error }), {
-              status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
-            });
+            return json({ error: msg, details: sessData?.error }, 400);
           }
-          // Decode base64 to bytes
-          const binStr = atob(file_base64);
-          const bytes = new Uint8Array(binStr.length);
-          for (let i = 0; i < binStr.length; i++) bytes[i] = binStr.charCodeAt(i);
+          let bytes: Uint8Array;
+          if (uploadFile) {
+            bytes = new Uint8Array(await uploadFile.arrayBuffer());
+          } else {
+            const binStr = atob(file_base64);
+            bytes = new Uint8Array(binStr.length);
+            for (let i = 0; i < binStr.length; i++) bytes[i] = binStr.charCodeAt(i);
+          }
 
-          const upRes = await fetch(`https://graph.facebook.com/${GRAPH_API_VERSION}/${sessData.id}`, {
+          const upRes = await fetchWithTimeout(`https://graph.facebook.com/${GRAPH_API_VERSION}/${sessData.id}`, {
             method: "POST",
             headers: {
-              Authorization: `OAuth ${accessToken}`,
+              Authorization: `OAuth ${appAccessToken}`,
               file_offset: "0",
-              "Content-Type": mime_type,
+              "Content-Type": resolvedMime,
             },
             body: bytes,
-          });
+          }, 35_000);
           const upText = await upRes.text();
           let upData: any = {};
           try { upData = JSON.parse(upText); } catch { /* not json */ }
           console.log("[MetaTemplates] Upload result:", upRes.status, upText.slice(0, 400));
           if (!upRes.ok || !upData?.h) {
             const msg = upData?.error?.message || upData?.error?.error_user_msg || `Falha ao enviar arquivo (status ${upRes.status})`;
-            return new Response(JSON.stringify({ error: msg, details: upData?.error || upText.slice(0, 300) }), {
-              status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
-            });
+            return json({ error: msg, details: upData?.error || upText.slice(0, 300) }, 400);
           }
-          return new Response(JSON.stringify({ header_handle: upData.h }), {
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          });
+          return json({ header_handle: upData.h });
         } catch (e: any) {
           console.error("[MetaTemplates] Upload exception:", e);
-          return new Response(JSON.stringify({ error: e?.message || "Erro no upload" }), {
-            status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
-          });
+          const isAbort = e?.name === "AbortError";
+          return json({ error: isAbort ? "Tempo esgotado ao enviar mídia para a Meta. Tente um arquivo menor." : e?.message || "Erro no upload" }, isAbort ? 504 : 500);
         }
       }
 

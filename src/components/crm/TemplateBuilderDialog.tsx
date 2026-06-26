@@ -122,26 +122,35 @@ export default function TemplateBuilderDialog({ open, onOpenChange, mode, initia
 
   const onPickFile = async (file: File) => {
     if (!file) return;
+    const maxByType: Record<HeaderType, number> = {
+      NONE: 0,
+      TEXT: 0,
+      IMAGE: 5 * 1024 * 1024,
+      VIDEO: 16 * 1024 * 1024,
+      DOCUMENT: 20 * 1024 * 1024,
+    };
+    const maxSize = maxByType[form.headerType] || 20 * 1024 * 1024;
+    if (file.size > maxSize) {
+      toast({
+        title: 'Arquivo muito grande',
+        description: `Limite para ${form.headerType === 'IMAGE' ? 'imagem' : form.headerType === 'VIDEO' ? 'vídeo' : 'PDF'}: ${Math.round(maxSize / 1024 / 1024)}MB.`,
+        variant: 'destructive',
+      });
+      if (fileRef.current) fileRef.current.value = '';
+      return;
+    }
     setUploading(true);
     try {
-      const buf = await file.arrayBuffer();
-      // Convert to base64 in chunks to avoid stack overflow
-      let bin = '';
-      const bytes = new Uint8Array(buf);
-      const chunk = 0x8000;
-      for (let i = 0; i < bytes.length; i += chunk) {
-        bin += String.fromCharCode.apply(null, Array.from(bytes.subarray(i, i + chunk)) as any);
-      }
-      const b64 = btoa(bin);
-      const { data: res, error } = await supabase.functions.invoke('meta-templates', {
-        body: {
-          action: 'upload-media',
-          file_base64: b64,
-          file_name: file.name,
-          file_size: file.size,
-          mime_type: file.type,
-        },
+      const body = new FormData();
+      body.append('action', 'upload-media');
+      body.append('header_type', form.headerType);
+      body.append('file', file, file.name);
+
+      const uploadPromise = supabase.functions.invoke('meta-templates', { body });
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        window.setTimeout(() => reject(new Error('Upload demorou demais. Tente um arquivo menor ou tente novamente.')), 55_000);
       });
+      const { data: res, error } = await Promise.race([uploadPromise, timeoutPromise]);
       if (error || res?.error) throw new Error(res?.error || error?.message);
       update({ headerHandle: res.header_handle, headerMediaUrl: URL.createObjectURL(file) });
       toast({ title: 'Mídia enviada à Meta', description: 'Handle pronto para o template.' });
@@ -149,6 +158,7 @@ export default function TemplateBuilderDialog({ open, onOpenChange, mode, initia
       toast({ title: 'Falha no upload', description: e.message, variant: 'destructive' });
     } finally {
       setUploading(false);
+      if (fileRef.current) fileRef.current.value = '';
     }
   };
 
