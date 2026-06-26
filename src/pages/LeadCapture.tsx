@@ -384,19 +384,37 @@ export default function LeadCapture() {
                 <input type="file" accept=".csv,.txt" className="hidden" onChange={(e) => e.target.files && handleFile(e.target.files[0])} />
                 <Button asChild variant="outline" size="sm"><span><Upload className="w-4 h-4 mr-1" />Upload CSV/TXT</span></Button>
               </label>
+              <Button
+                onClick={validateRealWhatsapp}
+                variant="outline"
+                size="sm"
+                disabled={validating || phones.length === 0}
+                title="Usa a Evolution API (API Não Oficial) para conferir quais números realmente têm WhatsApp ativo — sem custo de conversa pela Meta."
+              >
+                {validating
+                  ? <><Loader2 className="w-4 h-4 mr-1 animate-spin" />Checando {validateProgress.done}/{validateProgress.total}</>
+                  : <><ShieldCheck className="w-4 h-4 mr-1" />Checar WhatsApp real</>}
+              </Button>
               {phones.length > 0 && (
                 <>
                   <Badge variant="secondary"><CheckCircle className="w-3 h-3 mr-1" />{phones.length} válidos</Badge>
                   {invalid.length > 0 && <Badge variant="destructive"><AlertTriangle className="w-3 h-3 mr-1" />{invalid.length} inválidos</Badge>}
                   {duplicates > 0 && <Badge variant="outline">{duplicates} duplicados removidos</Badge>}
+                  {realCheck && (
+                    <Badge className="bg-emerald-500/15 text-emerald-400 border-emerald-500/30">
+                      WhatsApp real: {realCheck.valid}/{realCheck.total} · {realCheck.removed} removidos
+                    </Badge>
+                  )}
                 </>
               )}
             </div>
             <p className="text-[11px] text-muted-foreground">
               <ShieldCheck className="inline w-3 h-3 mr-1" />
-              Validação real de WhatsApp não é fornecida gratuitamente pela Meta desde 2022. Aqui filtramos formato + DDD brasileiro;
-              números sem WhatsApp falham no primeiro envio (sem custo de conversa).
+              "Checar WhatsApp real" usa sua Evolution conectada (protocolo WhatsApp Web / Baileys — mesma técnica usada por
+              ferramentas como umnico.com) para confirmar quem realmente tem conta ativa. Não gera custo de conversa pela Meta
+              e remove automaticamente os números inválidos antes do disparo.
             </p>
+
           </CardContent>
         </Card>
 
