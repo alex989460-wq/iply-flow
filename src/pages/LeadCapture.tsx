@@ -132,8 +132,12 @@ export default function LeadCapture() {
         body: { action: 'list-templates', data: { apiKey, limit: 250 } },
       });
       if (error) throw error;
-      const root = data?.results?.templates ?? data?.results ?? data;
-      const list = (Array.isArray(root) ? root : root?.data ?? root?.templates ?? []) as any[];
+      // Response: { results: { templates: { ok, status, body: { data:[...] } } } }
+      const node = data?.results?.templates ?? data?.results ?? data;
+      const body = node?.body ?? node;
+      const list: any[] = Array.isArray(body)
+        ? body
+        : (body?.data ?? body?.templates ?? body?.results ?? []);
       const tpls = list
         .filter((t) => (t.status || '').toUpperCase() === 'APPROVED')
         .map((t) => ({
@@ -147,6 +151,7 @@ export default function LeadCapture() {
       if (tpls.length === 0) {
         toast({ title: 'Nenhum template aprovado', description: 'Crie/aprove um template na aba Templates.', variant: 'destructive' });
       }
+
     } catch (e: any) {
       toast({ title: 'Erro ao carregar templates', description: e.message, variant: 'destructive' });
     } finally { setLoadingTpl(false); }
