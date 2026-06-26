@@ -54,7 +54,12 @@ async function checkOne(baseUrl: string, instanceToken: string, phone: string): 
     if (!r.ok) return { phone, exists: false, error: `HTTP ${r.status}` };
     const j = await r.json().catch(() => null);
     const users: any[] = j?.data?.Users || j?.data || j?.Users || [];
-    const hit = Array.isArray(users) ? users.find((u: any) => u?.IsInWhatsapp === true || u?.isInWhatsapp === true || u?.exists === true || u?.JID || u?.jid) : null;
+    // STRICT: only consider a hit when Evolution explicitly says IsInWhatsapp === true.
+    // Evolution sometimes returns a JID even for invalid numbers (it just normalizes the
+    // queried number); using JID as a fallback caused every number to appear valid.
+    const hit = Array.isArray(users)
+      ? users.find((u: any) => u?.IsInWhatsapp === true || u?.isInWhatsapp === true || u?.exists === true)
+      : null;
     if (!hit) return { phone, exists: false };
     return { phone, exists: true, jid: String(hit.JID || hit.jid || "") || undefined };
   } catch (e) {
