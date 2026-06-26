@@ -452,15 +452,16 @@ export default function LeadCapture() {
                   </SelectContent>
                 </Select>
               </div>
-              <Button onClick={generateFromSeed} className="sm:self-end">
-                <Sparkles className="w-4 h-4 mr-1" /> Gerar
+              <Button onClick={generateFromSeed} className="sm:self-end" disabled={validating}>
+                {validating
+                  ? <><Loader2 className="w-4 h-4 mr-1 animate-spin" />Validando {validateProgress.done}/{validateProgress.total}</>
+                  : <><Sparkles className="w-4 h-4 mr-1" /> Gerar válidos</>}
               </Button>
             </div>
             <p className="text-[11px] text-muted-foreground">
-              Limite: {isAdmin ? '50.000 (admin)' : '2.000 por geração'}. Os números gerados são preenchidos no campo abaixo
-              e validados (DDD + formato celular brasileiro). Para checagem real de existência sem usar a API Oficial,
-              não existe método público gratuito da Meta — a validação efetiva acontece quando você dispara o template
-              (números inexistentes falham no envio sem gerar custo de conversa cobrada).
+              Limite: {isAdmin ? '50.000 (admin)' : '2.000 por geração'}. O sistema gera candidatos no mesmo DDD/prefixo e
+              valida em tempo real pela Evolution (WhatsApp Web/Baileys) — só os números com conta ativa entram na lista.
+              Sem custo de conversa pela Meta.
             </p>
           </CardContent>
         </Card>
