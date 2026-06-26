@@ -325,7 +325,53 @@ export default function LeadCapture() {
           </AlertDescription>
         </Alert>
 
+        <Card className="border-primary/30">
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Wand2 className="w-4 h-4 text-primary" /> Gerador de leads por DDD/prefixo
+            </CardTitle>
+            <CardDescription>
+              Informe um telefone semente (ex.: <code>5541991758392</code>) e o sistema gera centenas/milhares de números
+              com o <strong>mesmo DDD e mesmo prefixo de operadora</strong>, variando apenas os últimos 4 dígitos. Validação real
+              de existência no WhatsApp é feita no primeiro envio (sem custo de conversa quando o número não existe).
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="grid sm:grid-cols-[1fr_140px_160px_auto] gap-2 items-end">
+              <div className="space-y-1">
+                <Label className="text-xs">Telefone semente</Label>
+                <Input value={seedPhone} onChange={(e) => setSeedPhone(e.target.value)} placeholder="5541991758392" />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Quantidade</Label>
+                <Input type="number" min={1} max={isAdmin ? 50000 : 2000} value={seedCount}
+                  onChange={(e) => setSeedCount(parseInt(e.target.value) || 0)} />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Modo</Label>
+                <Select value={seedMode} onValueChange={(v: any) => setSeedMode(v)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="aleatorio">Aleatório (mesmo prefixo)</SelectItem>
+                    <SelectItem value="sequencial">Sequencial (em torno da semente)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <Button onClick={generateFromSeed} className="sm:self-end">
+                <Sparkles className="w-4 h-4 mr-1" /> Gerar
+              </Button>
+            </div>
+            <p className="text-[11px] text-muted-foreground">
+              Limite: {isAdmin ? '50.000 (admin)' : '2.000 por geração'}. Os números gerados são preenchidos no campo abaixo
+              e validados (DDD + formato celular brasileiro). Para checagem real de existência sem usar a API Oficial,
+              não existe método público gratuito da Meta — a validação efetiva acontece quando você dispara o template
+              (números inexistentes falham no envio sem gerar custo de conversa cobrada).
+            </p>
+          </CardContent>
+        </Card>
+
         <Card>
+
           <CardHeader>
             <CardTitle className="text-base">1. Importar números</CardTitle>
             <CardDescription>Cole os números (qualquer formato) ou faça upload de CSV/TXT. Validamos DDD e formato celular brasileiro.</CardDescription>
