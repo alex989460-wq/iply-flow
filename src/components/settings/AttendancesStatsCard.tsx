@@ -4,6 +4,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Send, CheckCheck, Eye, XCircle, Loader2, MessageCircleMore, Megaphone, FileCheck2, Clock } from 'lucide-react';
 import { MetaLogo } from '@/components/ui/meta-logo';
+import { extractCrmBroadcastSummary } from '@/lib/crm-stats';
 
 export default function AttendancesStatsCard() {
   const { user } = useAuth();
@@ -15,18 +16,7 @@ export default function AttendancesStatsCard() {
         body: { action: 'broadcasts-stats' },
       });
       if (error) throw error;
-      const s = data?.broadcasts_stats ?? data ?? {};
-      // normalize keys (CRM may return snake_case or camelCase)
-      return {
-        broadcasts: s.broadcasts ?? s.total_broadcasts ?? 0,
-        recipients: s.recipients ?? s.total_recipients ?? 0,
-        sent: s.sent ?? s.total_sent ?? 0,
-        delivered: s.delivered ?? s.total_delivered ?? 0,
-        read: s.read ?? s.total_read ?? 0,
-        failed: s.failed ?? s.total_failed ?? 0,
-        pending: s.pending ?? s.total_pending ?? 0,
-        templates_approved: s.templates_approved ?? s.approved_templates ?? 0,
-      };
+      return extractCrmBroadcastSummary(data);
     },
     enabled: !!user?.id,
     refetchInterval: 60_000,
@@ -53,8 +43,8 @@ export default function AttendancesStatsCard() {
           </div>
         ) : (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <StatCard label="Disparos" value={data?.broadcasts ?? 0} icon={Megaphone} accent="text-primary" />
-            <StatCard label="Destinatários" value={data?.recipients ?? 0} icon={MessageCircleMore} accent="text-blue-400" />
+            <StatCard label="Disparos" value={data?.broadcasts_count ?? 0} icon={Megaphone} accent="text-primary" />
+            <StatCard label="Destinatários" value={data?.recipients_total ?? 0} icon={MessageCircleMore} accent="text-blue-400" />
             <StatCard label="Enviadas" value={data?.sent ?? 0} icon={Send} accent="text-cyan-400" />
             <StatCard label="Entregues" value={data?.delivered ?? 0} icon={CheckCheck} accent="text-emerald-400" />
             <StatCard label="Lidas" value={data?.read ?? 0} icon={Eye} accent="text-violet-400" />

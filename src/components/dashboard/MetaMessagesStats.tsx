@@ -6,6 +6,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { Skeleton } from '@/components/ui/skeleton';
 import { startOfMonth, format } from 'date-fns';
+import { extractCrmBroadcastSummary } from '@/lib/crm-stats';
 
 // Preços aproximados da Meta Cloud API (Brasil - BRL)
 const META_PRICES = {
@@ -52,10 +53,7 @@ export default function MetaMessagesStats() {
           const { data: res } = await supabase.functions.invoke('crm-oficial-sync', {
             body: { action: 'broadcasts-stats' },
           });
-          const summary = res?.broadcasts_stats?.summary ?? res?.summary ?? res?.broadcasts_stats;
-          if (summary && typeof summary === 'object' && typeof summary.sent === 'number') {
-            marketing = summary.sent;
-          }
+          marketing = extractCrmBroadcastSummary(res).sent;
         } catch (_) { /* fallback */ }
 
         if (!marketing) {
