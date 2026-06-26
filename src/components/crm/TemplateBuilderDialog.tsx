@@ -31,22 +31,30 @@ interface FormState {
   footer: string;
   buttons: BtnDef[];
   allowCategoryChange: boolean;
-  bodyExamples: string[];
+  bodyExamples: Record<string, string>;
 }
 
 const empty: FormState = {
   name: '', category: 'UTILITY', language: 'pt_BR',
   headerType: 'NONE', headerText: '', headerMediaUrl: '', headerHandle: '',
   body: '', footer: '', buttons: [], allowCategoryChange: false,
-  bodyExamples: [],
+  bodyExamples: {},
 };
 
-function extractVarIndexes(text: string): number[] {
-  const set = new Set<number>();
-  const re = /\{\{\s*(\d+)\s*\}\}/g;
+// Extracts variable tokens — supports both numeric ({{1}}) and named ({{name}}) parameters.
+function extractVarTokens(text: string): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  const re = /\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g;
   let m: RegExpExecArray | null;
-  while ((m = re.exec(text)) !== null) set.add(Number(m[1]));
-  return Array.from(set).sort((a, b) => a - b);
+  while ((m = re.exec(text)) !== null) {
+    const v = m[1];
+    if (!seen.has(v)) { seen.add(v); out.push(v); }
+  }
+  // Numeric tokens sorted; named keep insertion order after.
+  const nums = out.filter(v => /^\d+$/.test(v)).sort((a, b) => Number(a) - Number(b));
+  const names = out.filter(v => !/^\d+$/.test(v));
+  return [...nums, ...names];
 }
 
 function slugify(s: string) {
