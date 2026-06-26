@@ -411,7 +411,8 @@ async function doSendWhatsapp(payload: {
       file_name: fileName || undefined,
       fileName: fileName || undefined,
       caption: captionText || undefined,
-      // Sem body de texto quando é mídia, para não duplicar como mensagem separada.
+      // CRM exige campo body — usa caption como body quando houver, senão espaço para não falhar validação.
+      body: captionText || " ",
       ...nested,
     };
     const mediaAttempts: Array<() => Promise<{ ok: boolean; status: number; body: unknown }>> = [
