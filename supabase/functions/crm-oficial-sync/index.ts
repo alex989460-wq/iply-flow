@@ -318,21 +318,36 @@ async function ensurePublicMediaUrl(url: string, label = "media") {
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+  // Meta accepts its own CDN URLs for short-lived sends; fall back to the
+  // original URL whenever we can't (or fail to) rehost it.
   if (!supabaseUrl || !serviceKey) return url;
 
-  const response = await fetch(url);
-  if (!response.ok) throw new Error(`Não foi possível baixar a imagem do template (${response.status}). Cadastre uma imagem pública em Configurações → Cobrança.`);
-
-  const contentType = response.headers.get("content-type") || "image/jpeg";
-  const ext = contentType.includes("png") ? "png" : contentType.includes("webp") ? "webp" : "jpg";
-  const bytes = new Uint8Array(await response.arrayBuffer());
-  const admin = createClient(supabaseUrl, serviceKey);
-  const path = `crm-oficial-template-headers/${Date.now()}-${label.replace(/[^a-zA-Z0-9_-]/g, "_")}.${ext}`;
-  const { error } = await admin.storage.from("reseller-assets").upload(path, bytes, { contentType, upsert: true });
-  if (error) throw new Error(`Falha ao publicar imagem do template: ${error.message || error}`);
-  const { data } = admin.storage.from("reseller-assets").getPublicUrl(path);
-  if (!data?.publicUrl) throw new Error("Falha ao gerar URL pública da imagem do template");
-  return data.publicUrl;
+  try {
+    const response = await fetch(url);
+    if (!response.ok) return url;
+    const contentType = response.headers.get("content-type") || "image/jpeg";
+    const ext = contentType.includes("png") ? "png" : contentType.includes("webp") ? "webp" : "jpg";
+    const bytes = new Uint8Array(await response.arrayBuffer());
+    const admin = createClient(supabaseUrl, serviceKey);
+    const path = `crm-oficial-template-headers/${Date.now()}-${label.replace(/[^a-zA-Z0-9_-]/g, "_")}.${ext}`;
+    // Retry up to 3x on transient storage errors (Service Unavailable etc).
+    let lastErr: any = null;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const { error } = await admin.storage.from("reseller-assets").upload(path, bytes, { contentType, upsert: true });
+      if (!error) {
+        const { data } = admin.storage.from("reseller-assets").getPublicUrl(path);
+        if (data?.publicUrl) return data.publicUrl;
+        break;
+      }
+      lastErr = error;
+      await new Promise((r) => setTimeout(r, 400 * (attempt + 1)));
+    }
+    console.warn("[ensurePublicMediaUrl] storage upload failed, falling back to CDN URL", lastErr?.message || lastErr);
+    return url;
+  } catch (e) {
+    console.warn("[ensurePublicMediaUrl] exception, falling back to CDN URL", (e as Error).message);
+    return url;
+  }
 }
 
 function hasMissingTemplateScope(result: { status: number; body: unknown }) {
