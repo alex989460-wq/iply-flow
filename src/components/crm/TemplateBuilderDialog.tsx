@@ -124,6 +124,36 @@ export default function TemplateBuilderDialog({ open, onOpenChange, mode, initia
     });
   };
 
+  const addVariable = () => {
+    const ta = bodyRef.current;
+    const txt = form.body;
+    let token = '';
+    if (form.varType === 'NUMBER') {
+      // Next available numeric index based on existing tokens
+      const existing = extractVarTokens(txt).filter(v => /^\d+$/.test(v)).map(Number);
+      const next = (existing.length ? Math.max(...existing) : 0) + 1;
+      token = `{{${next}}}`;
+    } else {
+      // Suggest a default name and let user rename later
+      const used = new Set(extractVarTokens(txt));
+      const candidates = ['name', 'user', 'price', 'plan', 'data', 'server', 'var1', 'var2', 'var3'];
+      const pick = candidates.find(c => !used.has(c)) || `var${used.size + 1}`;
+      token = `{{${pick}}}`;
+    }
+    if (ta) {
+      const start = ta.selectionStart, end = ta.selectionEnd;
+      const next = txt.slice(0, start) + token + txt.slice(end);
+      update({ body: next });
+      requestAnimationFrame(() => {
+        ta.focus();
+        ta.setSelectionRange(start + token.length, start + token.length);
+      });
+    } else {
+      update({ body: txt + token });
+    }
+  };
+
+
   const onPickFile = async (file: File) => {
     if (!file) return;
     const maxByType: Record<HeaderType, number> = {
