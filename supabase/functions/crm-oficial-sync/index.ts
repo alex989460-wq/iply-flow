@@ -288,28 +288,38 @@ async function fetchOfficialTemplateHeaderImage(templateName: string, language: 
   return extractOfficialTemplateHeaderImage(selected);
 }
 
-// Count {{N}} placeholders inside the BODY component of a template so
-// we can auto-fill defaults when caller did not provide parameters
-// (e.g. cold-lead disparo). Returns 0 if no body or no placeholders.
-async function countTemplateBodyParams(templateName: string, language: string, apiKey?: string): Promise<number> {
+// Returns the full template definition (components + parameter_format) so we
+// can build correct body params (positional vs named) for sendTemplate.
+async function fetchOfficialTemplate(templateName: string, language: string, apiKey?: string): Promise<any | null> {
   try {
     const result = await crmFetchWithKeyFallback("/api/public/v1/templates?limit=250", { method: "GET" }, apiKey);
     const templates = normalizeListTemplatesBody(result.body);
-    const match = templates.find((t: any) => {
-      const name = String(t?.name || t?.template_name || "");
-      if (name !== templateName) return false;
+    const matches = templates.filter((t: any) => String(t?.name || t?.template_name || "") === templateName);
+    if (matches.length === 0) return null;
+    const langHit = matches.find((t: any) => {
       const lang = String(t?.language || t?.language_code || t?.lang || "");
-      return !lang || !language || lang === language;
-    }) || templates.find((t: any) => String(t?.name || t?.template_name || "") === templateName);
-    const components = Array.isArray(match?.components) ? match.components : [];
-    const body = components.find((c: any) => String(c?.type || "").toUpperCase() === "BODY");
-    const text = String(body?.text || "");
-    const matches = text.match(/\{\{\s*\d+\s*\}\}/g);
-    return matches ? new Set(matches.map((m) => m.replace(/\D/g, ""))).size : 0;
+      return !language || lang === language;
+    }) || matches[0];
+    return matches.find((t: any) => t === langHit && String(t?.status || "").toUpperCase() === "APPROVED") || langHit;
   } catch {
-    return 0;
+    return null;
   }
 }
+
+function getTemplateBodyParamNames(template: any): string[] {
+  const components = Array.isArray(template?.components) ? template.components : [];
+  const body = components.find((c: any) => String(c?.type || "").toUpperCase() === "BODY");
+  if (!body) return [];
+  const named: any[] = body?.example?.body_text_named_params || [];
+  if (Array.isArray(named) && named.length) return named.map((p: any) => String(p?.param_name || p?.parameter_name || ""));
+  // Positional fallback: count {{N}} placeholders.
+  const text = String(body?.text || "");
+  const placeholders = text.match(/\{\{\s*\d+\s*\}\}/g) || [];
+  const distinct = new Set(placeholders.map((m) => m.replace(/\D/g, "")));
+  return Array.from(distinct).map(() => "");
+}
+
+
 
 function replaceHeaderImageInComponents(components: unknown[], publicUrl?: string) {
   if (!publicUrl) return components;
