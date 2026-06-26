@@ -415,10 +415,39 @@ async function doSendWhatsapp(payload: {
       body: captionText || " ",
       ...nested,
     };
+    const compactMediaPayload: Record<string, unknown> = {
+      phone: final.phone,
+      to: final.phone,
+      name: final.name,
+      channel_id: final.channel_id,
+      channelId: final.channel_id,
+      phone_number_id: final.phone_number_id || final.from_phone_number_id,
+      phoneNumberId: final.phone_number_id || final.from_phone_number_id,
+      from_phone_number_id: final.from_phone_number_id || final.phone_number_id,
+      body: captionText || " ",
+      caption: captionText || undefined,
+      media_url: mediaUrl || undefined,
+      mediaUrl: mediaUrl || undefined,
+      image_url: resolvedKind === "image" ? mediaUrl || undefined : undefined,
+      media_id: mediaId || undefined,
+      mediaId: mediaId || undefined,
+      type: resolvedKind,
+      media_type: resolvedKind,
+      mediaType: resolvedKind,
+      mime_type: final.mime_type || final.mimetype,
+      mimetype: final.mime_type || final.mimetype,
+      file_name: fileName || undefined,
+      fileName: fileName || undefined,
+    };
     const mediaAttempts: Array<() => Promise<{ ok: boolean; status: number; body: unknown }>> = [
-      () => crmFetch("/api/public/v1/whatsapp-send", { method: "POST", body: JSON.stringify(mediaPayload), apiKey }),
+      // Endpoints dedicados primeiro. /whatsapp-send aceita o payload, mas em algumas versões envia só texto.
       () => crmFetch("/api/public/v1/whatsapp/media-send", { method: "POST", body: JSON.stringify(mediaPayload), apiKey }),
       () => crmFetch("/api/public/v1/whatsapp-media-send", { method: "POST", body: JSON.stringify(mediaPayload), apiKey }),
+      () => crmFetch("/api/public/v1/whatsapp/send-media", { method: "POST", body: JSON.stringify(mediaPayload), apiKey }),
+      () => crmFetch("/api/public/v1/media/send", { method: "POST", body: JSON.stringify(mediaPayload), apiKey }),
+      () => crmFetch("/api/public/v1/whatsapp/media-send", { method: "POST", body: JSON.stringify(compactMediaPayload), apiKey }),
+      () => crmFetch("/api/public/v1/whatsapp-media-send", { method: "POST", body: JSON.stringify(compactMediaPayload), apiKey }),
+      () => crmFetch("/api/public/v1/whatsapp-send", { method: "POST", body: JSON.stringify(mediaPayload), apiKey }),
     ];
     const mediaResult = await firstOk(mediaAttempts);
     console.log("[crm-oficial-sync] media send", {
@@ -464,7 +493,8 @@ Deno.serve(async (req) => {
 
     // ── COMPAT: aceita o mesmo shape do zap-responder { action: 'sendText', number, text, user_id }
     // Resolve a api_key da revenda (crm_oficial_settings.user_id) e despacha como send-whatsapp.
-    if (rawBody?.action === "sendText" && (rawBody.number || rawBody.phone) && (rawBody.text || rawBody.body || rawBody.image_url || rawBody.media_url)) {
+    const isTextOrMediaAction = ["sendText", "enviar-mensagem", "enviar-imagem"].includes(String(rawBody?.action || ""));
+    if (isTextOrMediaAction && (rawBody.number || rawBody.phone) && (rawBody.text || rawBody.body || rawBody.image_url || rawBody.media_url)) {
       const phone = String(rawBody.number || rawBody.phone || "");
       const body = String(rawBody.text || rawBody.body || "");
       const mediaUrl = (rawBody.image_url || rawBody.media_url) as string | undefined;
@@ -498,7 +528,8 @@ Deno.serve(async (req) => {
         const status = Number((sendResult as any)?.status || 0);
         const errStr = JSON.stringify((sendResult as any)?.body || "").toLowerCase();
         const scopeIssue = status === 403 || errStr.includes("scope") || errStr.includes("media");
-        if (scopeIssue) {
+        const requireMedia = rawBody.require_media === true || rawBody.action === "enviar-imagem";
+        if (scopeIssue && !requireMedia) {
           console.warn("[crm-oficial-sync sendText] media falhou, fallback para texto puro:", status);
           const textOnly = await doSendWhatsapp({ phone, body }, resellerApiKey);
           if ((textOnly as any)?.ok === true) {
