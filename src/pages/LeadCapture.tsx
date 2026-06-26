@@ -480,17 +480,6 @@ export default function LeadCapture() {
                 <input type="file" accept=".csv,.txt" className="hidden" onChange={(e) => e.target.files && handleFile(e.target.files[0])} />
                 <Button asChild variant="outline" size="sm"><span><Upload className="w-4 h-4 mr-1" />Upload CSV/TXT</span></Button>
               </label>
-              <Button
-                onClick={validateRealWhatsapp}
-                variant="outline"
-                size="sm"
-                disabled={validating || phones.length === 0}
-                title="Usa a Evolution API (API Não Oficial) para conferir quais números realmente têm WhatsApp ativo — sem custo de conversa pela Meta."
-              >
-                {validating
-                  ? <><Loader2 className="w-4 h-4 mr-1 animate-spin" />Checando {validateProgress.done}/{validateProgress.total}</>
-                  : <><ShieldCheck className="w-4 h-4 mr-1" />Checar WhatsApp real</>}
-              </Button>
               {phones.length > 0 && (
                 <>
                   <Badge variant="secondary"><CheckCircle className="w-3 h-3 mr-1" />{phones.length} válidos</Badge>
