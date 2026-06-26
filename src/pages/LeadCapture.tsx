@@ -76,6 +76,9 @@ export default function LeadCapture() {
   const [templateName, setTemplateName] = useState('');
   const [loadingTpl, setLoadingTpl] = useState(false);
   const [usdBrl, setUsdBrl] = useState(FALLBACK_USD_BRL);
+  const [channels, setChannels] = useState<{ id: string; phone_number_id: string; display_phone_number?: string; verified_name?: string }[]>([]);
+  const [channelId, setChannelId] = useState<string>('');
+  const [loadingChannels, setLoadingChannels] = useState(false);
   const [consent, setConsent] = useState(false);
 
   const [todaySent, setTodaySent] = useState(0);
@@ -198,7 +201,33 @@ export default function LeadCapture() {
     })();
   }, [user]);
 
-  useEffect(() => { if (apiKey) void loadTemplates(); }, [apiKey]);
+  useEffect(() => { if (apiKey) { void loadTemplates(); void loadChannels(); } }, [apiKey]);
+
+  async function loadChannels() {
+    setLoadingChannels(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('crm-oficial-sync', {
+        body: { action: 'list-channels', data: { apiKey } },
+      });
+      if (error) throw error;
+      const node = data?.results?.channels ?? data?.results ?? data;
+      const body = node?.body ?? node;
+      const list: any[] = Array.isArray(body) ? body : (body?.data ?? body?.channels ?? []);
+      const chs = list
+        .filter((c) => (c.kind || 'whatsapp_cloud') === 'whatsapp_cloud' && (c.is_active ?? true))
+        .map((c) => ({
+          id: String(c.id),
+          phone_number_id: String(c.phone_number_id || ''),
+          display_phone_number: c.display_phone_number || c.phone || '',
+          verified_name: c.verified_name || c.name || '',
+        }))
+        .filter((c) => c.phone_number_id);
+      setChannels(chs);
+      if (chs.length && !channelId) setChannelId(chs[0].id);
+    } catch (e: any) {
+      toast({ title: 'Erro ao carregar canais', description: e.message, variant: 'destructive' });
+    } finally { setLoadingChannels(false); }
+  }
 
   async function refreshTodayCount() {
     if (!user) return;
@@ -278,6 +307,7 @@ export default function LeadCapture() {
 
   function openConfirm() {
     if (!templateName) return toast({ title: 'Selecione um template', variant: 'destructive' });
+    if (!channelId) return toast({ title: 'Selecione o canal (número) que vai disparar', variant: 'destructive' });
     if (phones.length === 0) return toast({ title: 'Sem números válidos', variant: 'destructive' });
     if (!consent) return toast({ title: 'Confirme a consciência sobre disparo frio', variant: 'destructive' });
     if (allowedCount === 0) return toast({ title: 'Limite diário atingido', description: `${todaySent}/${DAILY_LIMIT_NON_ADMIN} envios hoje.`, variant: 'destructive' });
@@ -295,6 +325,7 @@ export default function LeadCapture() {
       const number = toSend[i];
       let ok = false; let errMsg: string | undefined;
       try {
+        const selCh = channels.find((c) => c.id === channelId);
         const { data, error } = await supabase.functions.invoke('crm-oficial-sync', {
           body: {
             action: 'sendTemplate',
@@ -302,6 +333,8 @@ export default function LeadCapture() {
             template_name: templateName,
             language: selectedTpl?.language || 'pt_BR',
             user_id: user?.id,
+            channel_id: selCh?.id,
+            phone_number_id: selCh?.phone_number_id,
           },
         });
         ok = !error && (data?.success !== false);
@@ -462,6 +495,24 @@ export default function LeadCapture() {
             <CardDescription>A imagem/vídeo do header é a que está cadastrada no template oficial da Meta (não editável aqui).</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
+            <div className="space-y-2">
+              <Label>Canal de envio (número WhatsApp)</Label>
+              <Select value={channelId} onValueChange={setChannelId} disabled={loadingChannels || channels.length === 0}>
+                <SelectTrigger>
+                  <SelectValue placeholder={loadingChannels ? 'Carregando canais...' : (channels.length ? 'Selecione o número' : 'Nenhum canal ativo')} />
+                </SelectTrigger>
+                <SelectContent>
+                  {channels.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.verified_name ? `${c.verified_name} · ` : ''}{c.display_phone_number || c.phone_number_id}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-[11px] text-muted-foreground">
+                Esse é o número da API Oficial que vai disparar as mensagens. Cadastre mais canais em Conexões.
+              </p>
+            </div>
             <div className="grid sm:grid-cols-2 gap-3">
               <div className="space-y-2">
                 <Label>Template</Label>
