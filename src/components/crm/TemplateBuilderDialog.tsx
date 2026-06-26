@@ -19,6 +19,8 @@ type ButtonType = 'QUICK_REPLY' | 'URL' | 'PHONE_NUMBER';
 
 interface BtnDef { id: string; type: ButtonType; text: string; url?: string; phone?: string }
 
+type VarType = 'NUMBER' | 'NAME';
+
 interface FormState {
   name: string;
   category: string;
@@ -32,6 +34,7 @@ interface FormState {
   buttons: BtnDef[];
   allowCategoryChange: boolean;
   bodyExamples: Record<string, string>;
+  varType: VarType;
 }
 
 const empty: FormState = {
@@ -39,6 +42,7 @@ const empty: FormState = {
   headerType: 'NONE', headerText: '', headerMediaUrl: '', headerHandle: '',
   body: '', footer: '', buttons: [], allowCategoryChange: false,
   bodyExamples: {},
+  varType: 'NAME',
 };
 
 // Extracts variable tokens — supports both numeric ({{1}}) and named ({{name}}) parameters.
