@@ -201,7 +201,33 @@ export default function LeadCapture() {
     })();
   }, [user]);
 
-  useEffect(() => { if (apiKey) void loadTemplates(); }, [apiKey]);
+  useEffect(() => { if (apiKey) { void loadTemplates(); void loadChannels(); } }, [apiKey]);
+
+  async function loadChannels() {
+    setLoadingChannels(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('crm-oficial-sync', {
+        body: { action: 'list-channels', data: { apiKey } },
+      });
+      if (error) throw error;
+      const node = data?.results?.channels ?? data?.results ?? data;
+      const body = node?.body ?? node;
+      const list: any[] = Array.isArray(body) ? body : (body?.data ?? body?.channels ?? []);
+      const chs = list
+        .filter((c) => (c.kind || 'whatsapp_cloud') === 'whatsapp_cloud' && (c.is_active ?? true))
+        .map((c) => ({
+          id: String(c.id),
+          phone_number_id: String(c.phone_number_id || ''),
+          display_phone_number: c.display_phone_number || c.phone || '',
+          verified_name: c.verified_name || c.name || '',
+        }))
+        .filter((c) => c.phone_number_id);
+      setChannels(chs);
+      if (chs.length && !channelId) setChannelId(chs[0].id);
+    } catch (e: any) {
+      toast({ title: 'Erro ao carregar canais', description: e.message, variant: 'destructive' });
+    } finally { setLoadingChannels(false); }
+  }
 
   async function refreshTodayCount() {
     if (!user) return;
