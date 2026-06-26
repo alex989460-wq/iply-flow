@@ -411,6 +411,7 @@ async function doSendWhatsapp(payload: {
   language?: string;
   template_params?: unknown[];
   components?: unknown[];
+  require_media?: boolean;
 }, apiKey?: string) {
   const final: Record<string, unknown> = { ...payload };
   if (payload.media_url && !final.mediaUrl) final.mediaUrl = payload.media_url;
@@ -556,6 +557,31 @@ async function doSendWhatsapp(payload: {
         : /(\.mp4|\.mov|\.webm)$/i.test(mediaUrl) ? "video"
         : /(\.mp3|\.ogg|\.opus|\.m4a|\.wav)$/i.test(mediaUrl) ? "audio"
         : "document");
+    const requireMedia = final.require_media === true;
+
+    // Caminho confiável: envia a mídia direto pela Graph API com o token do canal do CRM Oficial.
+    // O endpoint público /whatsapp-send do CRM estava retornando ok:true, mas entregando só texto.
+    if (mediaUrl) {
+      try {
+        return await directMetaMediaSend({
+          apiKey,
+          phone: String(final.phone || ""),
+          name: final.name,
+          body: captionText || String(final.body || ""),
+          mediaUrl,
+          mediaType: resolvedKind,
+          mimeType: final.mime_type || final.mimetype,
+          fileName: fileName || undefined,
+          channelId: final.channel_id,
+          phoneNumberId: final.phone_number_id || final.from_phone_number_id,
+        });
+      } catch (directError) {
+        const message = directError instanceof Error ? directError.message : String(directError);
+        console.error("[crm-oficial-sync] direct Meta media falhou:", message);
+        if (requireMedia) return { ok: false, status: 502, body: { error: message, direct_meta_media: true } };
+      }
+    }
+
     const linkPart = mediaUrl ? { link: mediaUrl, url: mediaUrl } : { id: mediaId };
     const nested: Record<string, unknown> =
       resolvedKind === "image"  ? { image:    { ...linkPart, ...(captionText ? { caption: captionText } : {}) } } :
