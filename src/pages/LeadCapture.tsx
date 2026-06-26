@@ -134,7 +134,7 @@ export default function LeadCapture() {
   const [seedCount, setSeedCount] = useState(1000);
   const [seedMode, setSeedMode] = useState<'sequencial' | 'aleatorio'>('aleatorio');
 
-  function generateFromSeed() {
+  async function generateFromSeed() {
     const digits = seedPhone.replace(/\D/g, '');
     const { phone } = normalize(digits);
     if (!phone || !phone.startsWith('55') || phone.length !== 13) {
@@ -142,38 +142,59 @@ export default function LeadCapture() {
       return;
     }
     const ddd = phone.slice(2, 4);
-    // Mantém prefixo de 5 dígitos (9 + 4 dígitos da operadora) e varia os 4 últimos
     const prefix = phone.slice(0, 9); // 55 + DDD + 9 + XXXX
-    const baseTail = parseInt(phone.slice(9), 10); // últimos 4 dígitos
-    const max = Math.min(Math.max(seedCount, 1), isAdmin ? 50000 : 2000);
-    const set = new Set<string>();
-    set.add(phone);
+    const baseTail = parseInt(phone.slice(9), 10);
+    const target = Math.min(Math.max(seedCount, 1), isAdmin ? 50000 : 2000);
+    // Gera pool de candidatos (até 5x do alvo) e valida via Evolution; só mantém os reais.
+    const poolMax = Math.min(10000, target * 5);
+    const candidates = new Set<string>();
+    candidates.add(phone);
     if (seedMode === 'sequencial') {
-      // espalha ±max/2 em torno da semente
-      const half = Math.floor(max / 2);
-      for (let i = 1; set.size < max && i <= max * 2; i++) {
+      for (let i = 1; candidates.size < poolMax && i <= poolMax * 2; i++) {
         const delta = i % 2 === 0 ? i / 2 : -((i + 1) / 2);
         const tail = baseTail + delta;
         if (tail < 0 || tail > 9999) continue;
-        set.add(prefix + String(tail).padStart(4, '0'));
+        candidates.add(prefix + String(tail).padStart(4, '0'));
       }
     } else {
-      // aleatório dentro do mesmo prefixo de operadora
       let guard = 0;
-      while (set.size < max && guard < max * 10) {
+      while (candidates.size < poolMax && guard < poolMax * 10) {
         const tail = Math.floor(Math.random() * 10000);
-        set.add(prefix + String(tail).padStart(4, '0'));
+        candidates.add(prefix + String(tail).padStart(4, '0'));
         guard++;
       }
     }
-    const arr = Array.from(set);
-    setRaw(arr.join('\n'));
-    toast({
-      title: `${arr.length} números gerados`,
-      description: `DDD ${ddd} · prefixo ${prefix.slice(4)}-XXXX. Use Validar lista para conferir.`,
-    });
-    setTimeout(parsePhones, 50);
+    const all = Array.from(candidates);
+    setValidating(true);
+    setRealCheck(null);
+    setValidateProgress({ done: 0, total: target });
+    const validated: string[] = [];
+    try {
+      const BATCH = 50;
+      for (let i = 0; i < all.length && validated.length < target; i += BATCH) {
+        const chunk = all.slice(i, i + BATCH);
+        const { data, error } = await supabase.functions.invoke('whatsapp-validate', { body: { numbers: chunk } });
+        if (error) throw new Error(error.message);
+        if ((data as any)?.error) throw new Error((data as any).error);
+        const valid: string[] = (data as any)?.valid || [];
+        for (const v of valid) { if (validated.length < target) validated.push(v); }
+        setValidateProgress({ done: validated.length, total: target });
+      }
+      const out = Array.from(new Set(validated));
+      setRaw(out.join('\n'));
+      setRealCheck({ total: all.length, valid: out.length, removed: all.length - out.length });
+      toast({
+        title: `${out.length} números válidos no WhatsApp`,
+        description: `DDD ${ddd} · prefixo ${prefix.slice(4)}-XXXX · ${all.length - out.length} descartados sem conta`,
+      });
+      setTimeout(parsePhones, 50);
+    } catch (e: any) {
+      toast({ title: 'Erro ao gerar/validar', description: e.message, variant: 'destructive' });
+    } finally {
+      setValidating(false);
+    }
   }
+
 
 
   // Carrega cotação USD→BRL automática
@@ -212,17 +233,20 @@ export default function LeadCapture() {
       if (error) throw error;
       const node = data?.results?.channels ?? data?.results ?? data;
       const body = node?.body ?? node;
-      const list: any[] = Array.isArray(body) ? body : (body?.data ?? body?.channels ?? []);
+      const list: any[] = Array.isArray(body)
+        ? body
+        : (body?.data ?? body?.channels ?? body?.whatsapp ?? (body?.whatsapp ? [body.whatsapp] : []));
       const chs = list
-        .filter((c) => (c.kind || 'whatsapp_cloud') === 'whatsapp_cloud' && (c.is_active ?? true))
-        .map((c) => ({
-          id: String(c.id),
-          phone_number_id: String(c.phone_number_id || ''),
-          display_phone_number: c.display_phone_number || c.phone || '',
-          verified_name: c.verified_name || c.name || '',
+        .map((c: any) => ({
+          id: String(c.id || c.phone_number_id || ''),
+          phone_number_id: String(c.phone_number_id || c.phoneNumberId || ''),
+          display_phone_number: c.display_phone_number || c.displayPhoneNumber || c.phone_number || c.phone || '',
+          verified_name: c.verified_name || c.business_name || c.name || '',
+          kind: String(c.kind || c.type || 'whatsapp_cloud').toLowerCase(),
+          is_active: c.is_active ?? c.active ?? c.connected ?? true,
         }))
-        .filter((c) => c.phone_number_id);
-      setChannels(chs);
+        .filter((c) => c.phone_number_id && (c.kind.includes('whatsapp') || c.kind === 'whatsapp_cloud'));
+      setChannels(chs.map(({ id, phone_number_id, display_phone_number, verified_name }) => ({ id, phone_number_id, display_phone_number, verified_name })));
       if (chs.length && !channelId) setChannelId(chs[0].id);
     } catch (e: any) {
       toast({ title: 'Erro ao carregar canais', description: e.message, variant: 'destructive' });
@@ -428,15 +452,16 @@ export default function LeadCapture() {
                   </SelectContent>
                 </Select>
               </div>
-              <Button onClick={generateFromSeed} className="sm:self-end">
-                <Sparkles className="w-4 h-4 mr-1" /> Gerar
+              <Button onClick={generateFromSeed} className="sm:self-end" disabled={validating}>
+                {validating
+                  ? <><Loader2 className="w-4 h-4 mr-1 animate-spin" />Validando {validateProgress.done}/{validateProgress.total}</>
+                  : <><Sparkles className="w-4 h-4 mr-1" /> Gerar válidos</>}
               </Button>
             </div>
             <p className="text-[11px] text-muted-foreground">
-              Limite: {isAdmin ? '50.000 (admin)' : '2.000 por geração'}. Os números gerados são preenchidos no campo abaixo
-              e validados (DDD + formato celular brasileiro). Para checagem real de existência sem usar a API Oficial,
-              não existe método público gratuito da Meta — a validação efetiva acontece quando você dispara o template
-              (números inexistentes falham no envio sem gerar custo de conversa cobrada).
+              Limite: {isAdmin ? '50.000 (admin)' : '2.000 por geração'}. O sistema gera candidatos no mesmo DDD/prefixo e
+              valida em tempo real pela Evolution (WhatsApp Web/Baileys) — só os números com conta ativa entram na lista.
+              Sem custo de conversa pela Meta.
             </p>
           </CardContent>
         </Card>
@@ -455,17 +480,6 @@ export default function LeadCapture() {
                 <input type="file" accept=".csv,.txt" className="hidden" onChange={(e) => e.target.files && handleFile(e.target.files[0])} />
                 <Button asChild variant="outline" size="sm"><span><Upload className="w-4 h-4 mr-1" />Upload CSV/TXT</span></Button>
               </label>
-              <Button
-                onClick={validateRealWhatsapp}
-                variant="outline"
-                size="sm"
-                disabled={validating || phones.length === 0}
-                title="Usa a Evolution API (API Não Oficial) para conferir quais números realmente têm WhatsApp ativo — sem custo de conversa pela Meta."
-              >
-                {validating
-                  ? <><Loader2 className="w-4 h-4 mr-1 animate-spin" />Checando {validateProgress.done}/{validateProgress.total}</>
-                  : <><ShieldCheck className="w-4 h-4 mr-1" />Checar WhatsApp real</>}
-              </Button>
               {phones.length > 0 && (
                 <>
                   <Badge variant="secondary"><CheckCircle className="w-3 h-3 mr-1" />{phones.length} válidos</Badge>
