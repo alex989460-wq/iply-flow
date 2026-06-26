@@ -2305,6 +2305,7 @@ serve(async (req) => {
                   text: whatsappMessage,
                   user_id: matchedCustomer.created_by,
                   image_url: billingSettings?.renewal_image_url || undefined,
+                  require_media: !!billingSettings?.renewal_image_url,
                 }),
               },
               MESSAGE_SEND_TIMEOUT_MS,
@@ -2341,7 +2342,7 @@ serve(async (req) => {
           metadata: { amount: amountNumeric, plan: matchedPlanName, server: serverName },
         });
 
-        if (!msgSuccess) {
+        if (!msgSuccess && !billingSettings?.renewal_image_url) {
           console.error(`[Cakto] FALHA texto plano para ${matchedCustomer.name} (${metaPhone}). Tentando fallback via template...`);
           
           // Fallback: try sending via approved Meta template (works outside 24h window)
@@ -2408,12 +2409,13 @@ serve(async (req) => {
                   'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
                 },
                 body: JSON.stringify({
-                  action: 'enviar-mensagem',
+                  action: 'sendText',
                   department_id: zapSettings.selected_department_id,
                   number: extraPhone,
                   text: whatsappMessage,
                   user_id: matchedCustomer.created_by,
                   image_url: billingSettings?.renewal_image_url || undefined,
+                  require_media: !!billingSettings?.renewal_image_url,
                 }),
               },
               MESSAGE_SEND_TIMEOUT_MS,
