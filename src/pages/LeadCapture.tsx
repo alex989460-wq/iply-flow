@@ -307,6 +307,7 @@ export default function LeadCapture() {
 
   function openConfirm() {
     if (!templateName) return toast({ title: 'Selecione um template', variant: 'destructive' });
+    if (!channelId) return toast({ title: 'Selecione o canal (número) que vai disparar', variant: 'destructive' });
     if (phones.length === 0) return toast({ title: 'Sem números válidos', variant: 'destructive' });
     if (!consent) return toast({ title: 'Confirme a consciência sobre disparo frio', variant: 'destructive' });
     if (allowedCount === 0) return toast({ title: 'Limite diário atingido', description: `${todaySent}/${DAILY_LIMIT_NON_ADMIN} envios hoje.`, variant: 'destructive' });
