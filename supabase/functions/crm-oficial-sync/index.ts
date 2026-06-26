@@ -12,6 +12,8 @@ const corsHeaders = {
 };
 
 const CRM_BASE = "https://crmapioficial.lovable.app";
+const CRM_SUPABASE_URL = "https://qoijgbmbwcmnmvixsbrv.supabase.co";
+const CRM_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFvaWpnYm1id2Ntbm12aXhzYnJ2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE3MjI3MTIsImV4cCI6MjA5NzI5ODcxMn0.IgBFtqw8O2bwmOFU3iWIwkvUZ2_KWOK_-CGWt2P1buw";
 
 type Action =
   | "signup" | "test-chat" | "renew-notify" | "ping"
@@ -47,6 +49,179 @@ async function crmFetchWithKeyFallback(path: string, init: RequestInit & { withA
   const keys = authKeys(preferredApiKey);
   if (!keys.length) return crmFetch(path, init);
   return firstOk(keys.map((key) => () => crmFetch(path, { ...init, apiKey: key })));
+}
+
+function normalizeWhatsappPhone(value: unknown) {
+  const digits = String(value || "").replace(/\D/g, "");
+  if (digits.startsWith("55") && digits.length === 12) return `${digits.slice(0, 4)}9${digits.slice(4)}`;
+  return digits;
+}
+
+function cleanMimeType(value?: string | null, fallback = "application/octet-stream") {
+  return (value || fallback).split(";")[0].trim().toLowerCase() || fallback;
+}
+
+function inferMimeFromUrl(url: string, fallback = "application/octet-stream") {
+  const clean = url.split("?")[0].toLowerCase();
+  if (/\.jpe?g$/.test(clean)) return "image/jpeg";
+  if (/\.png$/.test(clean)) return "image/png";
+  if (/\.webp$/.test(clean)) return "image/webp";
+  if (/\.gif$/.test(clean)) return "image/gif";
+  if (/\.mp4$/.test(clean)) return "video/mp4";
+  if (/\.pdf$/.test(clean)) return "application/pdf";
+  return fallback;
+}
+
+async function getCrmOwnerSession(apiKey?: string) {
+  const key = (apiKey || Deno.env.get("CRM_OFICIAL_API_KEY") || "").trim();
+  if (!key) throw new Error("CRM Oficial API key não configurada");
+
+  const embed = await crmFetch("/api/public/v1/embed-session", {
+    method: "POST",
+    body: JSON.stringify({ redirect: "/app/inbox" }),
+    apiKey: key,
+  });
+  const tokenHash = (embed.body as any)?.token_hash;
+  if (!embed.ok || !tokenHash) throw new Error(`Não foi possível abrir sessão do CRM Oficial (${embed.status})`);
+
+  const verify = await fetch(`${CRM_SUPABASE_URL}/auth/v1/verify`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", apikey: CRM_SUPABASE_ANON_KEY },
+    body: JSON.stringify({ type: "magiclink", token_hash: tokenHash }),
+  });
+  const session = await verify.json().catch(() => ({}));
+  if (!verify.ok || !session?.access_token || !session?.user?.id) throw new Error("Sessão do CRM Oficial inválida");
+  return { accessToken: String(session.access_token), ownerId: String(session.user.id) };
+}
+
+async function crmRest(path: string, accessToken: string, init: RequestInit = {}) {
+  const headers = {
+    apikey: CRM_SUPABASE_ANON_KEY,
+    Authorization: `Bearer ${accessToken}`,
+    "Content-Type": "application/json",
+    Prefer: "return=representation",
+    ...(init.headers as Record<string, string> | undefined),
+  };
+  const res = await fetch(`${CRM_SUPABASE_URL}/rest/v1/${path}`, { ...init, headers });
+  const text = await res.text();
+  let body: any = null;
+  try { body = text ? JSON.parse(text) : null; } catch { body = text; }
+  if (!res.ok) throw new Error(typeof body === "string" ? body : JSON.stringify(body));
+  return body;
+}
+
+async function directMetaMediaSend(args: {
+  apiKey?: string;
+  phone: string;
+  name?: unknown;
+  body?: string;
+  mediaUrl: string;
+  mediaType: "image" | "video" | "audio" | "document" | "sticker";
+  mimeType?: unknown;
+  fileName?: string;
+  channelId?: unknown;
+  phoneNumberId?: unknown;
+}) {
+  const { accessToken, ownerId } = await getCrmOwnerSession(args.apiKey);
+  const selectorPhone = args.phoneNumberId ? String(args.phoneNumberId) : "";
+  const selectorChannel = args.channelId ? String(args.channelId) : "";
+
+  let channels = await crmRest(
+    `channels?select=id,phone_number_id,system_user_token,waba_id,is_active,created_at&kind=eq.whatsapp_cloud&is_active=eq.true&order=created_at.desc`,
+    accessToken,
+  ) as any[];
+  if (selectorPhone) channels = channels.filter((c) => String(c.phone_number_id) === selectorPhone);
+  if (selectorChannel) channels = channels.filter((c) => String(c.id) === selectorChannel || String(c.phone_number_id) === selectorChannel);
+
+  let creds = channels.find((c) => c?.phone_number_id && c?.system_user_token);
+  if (!creds && !selectorChannel && !selectorPhone) {
+    const legacy = await crmRest(`whatsapp_settings?select=phone_number_id,system_user_token,waba_id&limit=1`, accessToken) as any[];
+    creds = legacy.find((c) => c?.phone_number_id && c?.system_user_token);
+  }
+  if (!creds?.phone_number_id || !creds?.system_user_token) throw new Error("Canal WhatsApp Oficial não configurado no CRM");
+
+  const mediaResponse = await fetch(args.mediaUrl);
+  if (!mediaResponse.ok) throw new Error(`Não consegui baixar a imagem configurada (${mediaResponse.status})`);
+  const contentType = cleanMimeType(String(args.mimeType || mediaResponse.headers.get("content-type") || inferMimeFromUrl(args.mediaUrl)));
+  const fileName = args.fileName || args.mediaUrl.split("?")[0].split("/").pop() || `media-${Date.now()}`;
+  const bytes = await mediaResponse.arrayBuffer();
+
+  const form = new FormData();
+  form.append("messaging_product", "whatsapp");
+  form.append("type", contentType);
+  form.append("file", new Blob([bytes], { type: contentType }), fileName);
+  const upload = await fetch(`https://graph.facebook.com/v21.0/${creds.phone_number_id}/media`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${creds.system_user_token}` },
+    body: form,
+  });
+  const uploadJson = await upload.json().catch(() => ({}));
+  if (!upload.ok || !uploadJson?.id) throw new Error(uploadJson?.error?.message || `Upload mídia Meta HTTP ${upload.status}`);
+
+  const to = normalizeWhatsappPhone(args.phone);
+  const type = args.mediaType === "sticker" ? "image" : args.mediaType;
+  const mediaNode: Record<string, unknown> = { id: uploadJson.id };
+  if (type !== "audio" && args.body) mediaNode.caption = args.body;
+  if (type === "document") mediaNode.filename = fileName;
+  const payload = { messaging_product: "whatsapp", to, type, [type]: mediaNode };
+  const send = await fetch(`https://graph.facebook.com/v21.0/${creds.phone_number_id}/messages`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${creds.system_user_token}`, "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  const graph = await send.json().catch(() => ({}));
+  if (!send.ok) throw new Error(graph?.error?.message || `Meta send HTTP ${send.status}`);
+
+  // Persistência best-effort no inbox do CRM Oficial para aparecer igual ao chat oficial.
+  try {
+    const contactRows = await crmRest(`contacts?select=id,name,phone&phone=eq.${encodeURIComponent(to)}&limit=1`, accessToken) as any[];
+    let contact = contactRows?.[0];
+    if (!contact) {
+      const created = await crmRest(`contacts?select=id,name,phone`, accessToken, {
+        method: "POST",
+        body: JSON.stringify({ owner_id: ownerId, phone: to, name: String(args.name || to), stage: "new" }),
+      }) as any[];
+      contact = created?.[0];
+    }
+    if (contact?.id) {
+      let convRows = await crmRest(`conversations?select=id,unread_count&contact_id=eq.${contact.id}&phone_number_id=eq.${encodeURIComponent(String(creds.phone_number_id))}&limit=1`, accessToken) as any[];
+      let conv = convRows?.[0];
+      if (!conv) {
+        const createdConv = await crmRest(`conversations?select=id,unread_count`, accessToken, {
+          method: "POST",
+          body: JSON.stringify({ owner_id: ownerId, contact_id: contact.id, channel: "whatsapp", channel_id: creds.id ?? null, phone_number_id: creds.phone_number_id, status: "open" }),
+        }) as any[];
+        conv = createdConv?.[0];
+      }
+      if (conv?.id) {
+        const now = new Date().toISOString();
+        await crmRest(`messages`, accessToken, {
+          method: "POST",
+          body: JSON.stringify({
+            conversation_id: conv.id,
+            owner_id: ownerId,
+            direction: "out",
+            body: args.body || `[${type}] ${fileName}`,
+            status: graph?.messages?.[0]?.message_status || "accepted",
+            wa_message_id: graph?.messages?.[0]?.id ?? null,
+            media_type: type,
+            media_url: args.mediaUrl,
+            mime_type: contentType,
+            file_name: fileName,
+            phone_number_id: creds.phone_number_id,
+          }),
+        });
+        await crmRest(`conversations?id=eq.${conv.id}`, accessToken, {
+          method: "PATCH",
+          body: JSON.stringify({ last_message: args.body || `[${type}] ${fileName}`, last_message_at: now, unread_count: 0, status: "open", phone_number_id: creds.phone_number_id }),
+        });
+      }
+    }
+  } catch (persistError) {
+    console.warn("[crm-oficial-sync] mídia enviada, mas não persistiu no inbox:", persistError instanceof Error ? persistError.message : persistError);
+  }
+
+  return { ok: true, status: 200, body: { ok: true, whatsapp: graph, direct_meta_media: true, phone_number_id: creds.phone_number_id } };
 }
 
 function textFromUnknown(value: unknown) {
