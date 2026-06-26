@@ -212,16 +212,19 @@ export default function LeadCapture() {
       if (error) throw error;
       const node = data?.results?.channels ?? data?.results ?? data;
       const body = node?.body ?? node;
-      const list: any[] = Array.isArray(body) ? body : (body?.data ?? body?.channels ?? []);
+      const list: any[] = Array.isArray(body)
+        ? body
+        : (body?.data ?? body?.channels ?? body?.whatsapp ?? (body?.whatsapp ? [body.whatsapp] : []));
       const chs = list
-        .filter((c) => (c.kind || 'whatsapp_cloud') === 'whatsapp_cloud' && (c.is_active ?? true))
-        .map((c) => ({
-          id: String(c.id),
-          phone_number_id: String(c.phone_number_id || ''),
-          display_phone_number: c.display_phone_number || c.phone || '',
-          verified_name: c.verified_name || c.name || '',
+        .map((c: any) => ({
+          id: String(c.id || c.phone_number_id || ''),
+          phone_number_id: String(c.phone_number_id || c.phoneNumberId || ''),
+          display_phone_number: c.display_phone_number || c.displayPhoneNumber || c.phone_number || c.phone || '',
+          verified_name: c.verified_name || c.business_name || c.name || '',
+          kind: String(c.kind || c.type || 'whatsapp_cloud').toLowerCase(),
+          is_active: c.is_active ?? c.active ?? c.connected ?? true,
         }))
-        .filter((c) => c.phone_number_id);
+        .filter((c) => c.phone_number_id && (c.kind.includes('whatsapp') || c.kind === 'whatsapp_cloud'));
       setChannels(chs);
       if (chs.length && !channelId) setChannelId(chs[0].id);
     } catch (e: any) {
