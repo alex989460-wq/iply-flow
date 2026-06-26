@@ -28,6 +28,8 @@ import {
   QrCode,
   ImagePlus,
   Trophy,
+  Calculator,
+  UserPlus,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -51,9 +53,10 @@ const menuItems: Array<{
   { icon: Receipt, label: 'Cobranças', path: '/billing', adminOnly: false },
   { icon: Megaphone, label: 'Disparo em Massa', path: '/mass-broadcast', adminOnly: false },
   { icon: Trophy, label: 'Disparo Janela 24h', path: '/bolao-broadcast', adminOnly: false },
-  { icon: MessageCircleMore, label: 'Chat Api', path: '/chat', adminOnly: false },
-  { icon: MessageCircleMore, label: 'Chat WhatsApp', path: '/chat-evolution', adminOnly: false, badgeKey: 'evolution' },
-  { icon: MessageCircleMore, label: 'Chat CRM Oficial', path: '/chat-crm-oficial', adminOnly: false },
+  { icon: UserPlus, label: 'Captura de Leads', path: '/lead-capture', adminOnly: false },
+  { icon: Calculator, label: 'Calculadora de Custo', path: '/cost-calculator', adminOnly: false },
+  { icon: MessageCircleMore, label: 'Chat', path: '/chat-evolution', adminOnly: false, badgeKey: 'evolution' },
+  { icon: MessageCircleMore, label: 'Chat Api Oficial', path: '/chat-crm-oficial', adminOnly: false },
   { icon: FileText, label: 'Templates CRM Oficial', path: '/crm-oficial-templates', adminOnly: false },
   { icon: Bot, label: 'Chatbots CRM Oficial', path: '/crm-oficial-chatbots', adminOnly: false },
   { icon: MessageCircleMore, label: 'Atendimentos', path: '/atendimentos', adminOnly: false },

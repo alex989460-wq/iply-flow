@@ -207,9 +207,9 @@ export default function BolaoBroadcast() {
                 {loading ? '...' : targets.length} destinatários
               </Badge>
               {departmentId ? (
-                <span className="text-xs text-muted-foreground">Departamento Zap Responder ✓</span>
+                <span className="text-xs text-emerald-500">✓ Envio via API Oficial (CRM Oficial)</span>
               ) : (
-                <span className="text-xs text-destructive">⚠ Sem departamento configurado</span>
+                <span className="text-xs text-destructive">⚠ Configure o canal em Configurações → CRM Oficial</span>
               )}
             </div>
           </CardContent>

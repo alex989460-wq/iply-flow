@@ -648,6 +648,18 @@ export default function MassBroadcast() {
     const templateName = selectedTemplate;
     const allCustomerIds = customersToSend.map((c) => c.id);
 
+    // Estimativa de custo (categoria do template)
+    const tplObj = templates.find((t) => t.name === templateName);
+    const isMarketing = (tplObj?.category || '').toUpperCase() === 'MARKETING';
+    const perMsg = isMarketing ? COST_MARKETING : COST_UTILITY;
+    const totalCost = perMsg * customersToSend.length;
+    const confirmMsg =
+      `Confirmar disparo do template "${templateName}" para ${customersToSend.length} clientes?\n\n` +
+      `Categoria: ${isMarketing ? 'Marketing' : 'Utilidade'}\n` +
+      `Custo por mensagem: ${formatCurrency(perMsg)}\n` +
+      `Custo total estimado: ${formatCurrency(totalCost)}`;
+    if (!confirm(confirmMsg)) return;
+
     const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
     const startedAt = new Date();

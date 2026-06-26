@@ -44,6 +44,8 @@ import Atendimentos from "./pages/Atendimentos";
 import PublicCheckout from "./pages/PublicCheckout";
 import BannerGenerator from "./pages/BannerGenerator";
 import RoboFlows from "./pages/RoboFlows";
+import CostCalculator from "./pages/CostCalculator";
+import LeadCapture from "./pages/LeadCapture";
 import { Loader2 } from "lucide-react";
 
 const queryClient = new QueryClient();
@@ -105,7 +107,10 @@ function AppRoutes() {
       <Route path="/billing" element={<ProtectedRoute><Billing /></ProtectedRoute>} />
       <Route path="/mass-broadcast" element={<ProtectedRoute><MassBroadcast /></ProtectedRoute>} />
       <Route path="/bolao-broadcast" element={<ProtectedRoute><BolaoBroadcast /></ProtectedRoute>} />
-      <Route path="/chat" element={<ProtectedRoute><Chat /></ProtectedRoute>} />
+      <Route path="/chat" element={<Navigate to="/chat-evolution" replace />} />
+      <Route path="/cost-calculator" element={<ProtectedRoute><CostCalculator /></ProtectedRoute>} />
+      <Route path="/lead-capture" element={<ProtectedRoute><LeadCapture /></ProtectedRoute>} />
+
 
 
       <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
