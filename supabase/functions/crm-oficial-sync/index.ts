@@ -810,11 +810,24 @@ Deno.serve(async (req) => {
           console.error("[crm-oficial-sync sendTemplate] erro lookup api_key:", e);
         }
       }
+      // Auto-fill body parameters if caller didn't supply enough — common for
+      // cold-lead disparo where we have no customer data. We default missing
+      // placeholders to "Cliente" so Meta accepts the message.
+      let finalParams = parameters.slice();
+      try {
+        const expected = await countTemplateBodyParams(templateName, language, resellerApiKey);
+        if (expected > 0 && finalParams.length < expected) {
+          while (finalParams.length < expected) finalParams.push("Cliente");
+        }
+      } catch (e) {
+        console.warn("[crm-oficial-sync sendTemplate] count params failed", (e as Error).message);
+      }
+
       const sendResult = await doSendWhatsapp({
         phone,
         template_name: templateName,
         language,
-        template_params: parameters,
+        template_params: finalParams,
         ...(headerImageUrl ? { components: [{ type: "header", parameters: [{ type: "image", image: { link: headerImageUrl } }] }] } : {}),
       }, resellerApiKey);
 
