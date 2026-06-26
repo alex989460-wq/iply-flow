@@ -310,10 +310,12 @@ function getTemplateBodyParamNames(template: any): string[] {
   const components = Array.isArray(template?.components) ? template.components : [];
   const body = components.find((c: any) => String(c?.type || "").toUpperCase() === "BODY");
   if (!body) return [];
+  const text = String(body?.text || "");
+  const namedTextMatches = Array.from(text.matchAll(/\{\{\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}/g)).map((m) => m[1]);
+  if (namedTextMatches.length) return Array.from(new Set(namedTextMatches));
   const named: any[] = body?.example?.body_text_named_params || [];
   if (Array.isArray(named) && named.length) return named.map((p: any) => String(p?.param_name || p?.parameter_name || ""));
   // Positional fallback: count {{N}} placeholders.
-  const text = String(body?.text || "");
   const placeholders = text.match(/\{\{\s*\d+\s*\}\}/g) || [];
   const distinct = new Set(placeholders.map((m) => m.replace(/\D/g, "")));
   return Array.from(distinct).map(() => "");
@@ -474,10 +476,20 @@ async function doSendWhatsapp(payload: {
     const lang = payload.template_language || payload.language || "pt_BR";
     const params = Array.isArray(payload.template_params) ? payload.template_params : [];
     const fallbackBody = textFromUnknown(payload.body).trim() || params.map(textFromUnknown).filter(Boolean).join(" ");
+    const officialTemplate = await fetchOfficialTemplate(String(payload.template_name), String(lang), apiKey).catch(() => null);
+    const paramNames = officialTemplate ? getTemplateBodyParamNames(officialTemplate) : [];
+    const isNamed = String(officialTemplate?.parameter_format || "").toUpperCase() === "NAMED"
+      || (paramNames.length > 0 && paramNames.every((n) => n));
+    const inferredBodyParameters = paramNames.length
+      ? paramNames.map((name, i) => isNamed && name
+        ? { type: "text", parameter_name: name, text: String(params[i] ?? "Cliente") }
+        : { type: "text", text: String(params[i] ?? "Cliente") })
+      : params.map((p) => ({ type: "text", text: String(p) }));
     const components = Array.isArray(payload.components) && payload.components.length
       ? payload.components
-      : (params.length ? [{ type: "body", parameters: params.map(p => ({ type: "text", text: String(p) })) }] : []);
-    const officialHeaderImageUrl = await fetchOfficialTemplateHeaderImage(String(payload.template_name), String(lang), apiKey).catch(() => undefined);
+      : (inferredBodyParameters.length ? [{ type: "body", parameters: inferredBodyParameters }] : []);
+    const officialHeaderImageUrl = extractOfficialTemplateHeaderImage(officialTemplate)
+      || await fetchOfficialTemplateHeaderImage(String(payload.template_name), String(lang), apiKey).catch(() => undefined);
     const requestHeaderImageUrl = imageHeaderFromComponents(components);
     const rawHeaderImageUrl = officialHeaderImageUrl || (isMetaTemplateMediaUrl(requestHeaderImageUrl) ? requestHeaderImageUrl : undefined);
     if (requestHeaderImageUrl && !rawHeaderImageUrl) {
@@ -499,6 +511,7 @@ async function doSendWhatsapp(payload: {
       template_language: lang,
       templateLanguage: lang,
       language: lang,
+      parameter_format: isNamed ? "NAMED" : "POSITIONAL",
       ...(fallbackBody ? { body: fallbackBody } : {}),
       ...(templateComponents.length ? { components: templateComponents } : {}),
       ...(params.length ? { template_params: params, templateParams: params, parameters: params } : {}),
@@ -519,6 +532,7 @@ async function doSendWhatsapp(payload: {
       template_language: lang,
       templateLanguage: lang,
       language: lang,
+      parameter_format: isNamed ? "NAMED" : "POSITIONAL",
       template_params: params,
       templateParams: params,
       components: templateComponents,
@@ -537,8 +551,11 @@ async function doSendWhatsapp(payload: {
       body: fallbackBody || payload.template_name,
       template_name: payload.template_name,
       language: lang,
+      parameter_format: isNamed ? "NAMED" : "POSITIONAL",
       parameters: params,
-      variables: { body_text: params.map(textFromUnknown).filter(Boolean) },
+      variables: isNamed && paramNames.length
+        ? Object.fromEntries(paramNames.map((name, i) => [name, textFromUnknown(params[i] ?? "Cliente")]))
+        : { body_text: params.map(textFromUnknown).filter(Boolean) },
       ...(templateComponents.length ? { components: templateComponents } : {}),
       ...(headerImageUrl ? { header_image_url: headerImageUrl, headerImageUrl } : {}),
     };
