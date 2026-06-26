@@ -494,6 +494,24 @@ export default function LeadCapture() {
             <CardDescription>A imagem/vídeo do header é a que está cadastrada no template oficial da Meta (não editável aqui).</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
+            <div className="space-y-2">
+              <Label>Canal de envio (número WhatsApp)</Label>
+              <Select value={channelId} onValueChange={setChannelId} disabled={loadingChannels || channels.length === 0}>
+                <SelectTrigger>
+                  <SelectValue placeholder={loadingChannels ? 'Carregando canais...' : (channels.length ? 'Selecione o número' : 'Nenhum canal ativo')} />
+                </SelectTrigger>
+                <SelectContent>
+                  {channels.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.verified_name ? `${c.verified_name} · ` : ''}{c.display_phone_number || c.phone_number_id}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-[11px] text-muted-foreground">
+                Esse é o número da API Oficial que vai disparar as mensagens. Cadastre mais canais em Conexões.
+              </p>
+            </div>
             <div className="grid sm:grid-cols-2 gap-3">
               <div className="space-y-2">
                 <Label>Template</Label>
