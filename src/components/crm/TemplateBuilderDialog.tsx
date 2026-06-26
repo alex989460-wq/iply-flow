@@ -141,18 +141,33 @@ export default function TemplateBuilderDialog({ open, onOpenChange, mode, initia
     }
     setUploading(true);
     try {
-      const body = new FormData();
-      body.append('action', 'upload-media');
-      body.append('header_type', form.headerType);
-      body.append('file', file, file.name);
+      // 1) Upload to storage to get a stable URL (avoids multipart issues in edge invoke)
+      const ext = (file.name.split('.').pop() || 'bin').toLowerCase();
+      const path = `meta-template-uploads/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+      const { error: upErr } = await supabase.storage
+        .from('reseller-assets')
+        .upload(path, file, { contentType: file.type || 'application/octet-stream', upsert: true });
+      if (upErr) throw new Error(upErr.message);
+      const { data: pub } = supabase.storage.from('reseller-assets').getPublicUrl(path);
+      const fileUrl = pub.publicUrl;
 
-      const uploadPromise = supabase.functions.invoke('meta-templates', { body });
-      const timeoutPromise = new Promise<never>((_, reject) => {
-        window.setTimeout(() => reject(new Error('Upload demorou demais. Tente um arquivo menor ou tente novamente.')), 55_000);
+      // 2) Ask edge function to fetch the URL and run resumable upload to Meta
+      const uploadPromise = supabase.functions.invoke('meta-templates', {
+        body: {
+          action: 'upload-media',
+          file_url: fileUrl,
+          file_name: file.name,
+          file_size: file.size,
+          mime_type: file.type || 'application/octet-stream',
+          header_type: form.headerType,
+        },
       });
-      const { data: res, error } = await Promise.race([uploadPromise, timeoutPromise]);
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        window.setTimeout(() => reject(new Error('Upload demorou demais. Tente um arquivo menor.')), 90_000);
+      });
+      const { data: res, error } = await Promise.race([uploadPromise, timeoutPromise]) as any;
       if (error || res?.error) throw new Error(res?.error || error?.message);
-      update({ headerHandle: res.header_handle, headerMediaUrl: URL.createObjectURL(file) });
+      update({ headerHandle: res.header_handle, headerMediaUrl: fileUrl });
       toast({ title: 'Mídia enviada à Meta', description: 'Handle pronto para o template.' });
     } catch (e: any) {
       toast({ title: 'Falha no upload', description: e.message, variant: 'destructive' });
@@ -161,6 +176,7 @@ export default function TemplateBuilderDialog({ open, onOpenChange, mode, initia
       if (fileRef.current) fileRef.current.value = '';
     }
   };
+
 
   const buildComponents = () => {
     const comps: any[] = [];
