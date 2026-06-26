@@ -122,7 +122,7 @@ export default function MassBroadcast() {
       if (!user) return null;
       const { data, error } = await supabase
         .from('crm_oficial_settings')
-        .select('api_key, enabled, channel_display_phone, channel_id')
+        .select('api_key, enabled')
         .eq('user_id', user.id)
         .maybeSingle();
       if (error) throw error;
