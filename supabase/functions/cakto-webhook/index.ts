@@ -2300,8 +2300,7 @@ serve(async (req) => {
                   'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
                 },
                 body: JSON.stringify({
-                  action: 'enviar-mensagem',
-                  department_id: zapSettings.selected_department_id,
+                  action: 'sendText',
                   number: metaPhone,
                   text: whatsappMessage,
                   user_id: matchedCustomer.created_by,
