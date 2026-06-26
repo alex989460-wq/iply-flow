@@ -325,9 +325,9 @@ export default function TemplateBuilderDialog({ open, onOpenChange, mode, initia
                 </div>
                 <Textarea ref={bodyRef} rows={7} maxLength={1024} value={form.body}
                   onChange={e => update({ body: e.target.value })}
-                  placeholder={`Ex: Olá {{1}}, seu pedido #{{2}} foi confirmado!\n\nObrigado pela compra.`} />
+                  placeholder={`Ex: Olá {{name}}, seu plano {{plan}} vence em {{data}}.\n\nObrigado!`} />
                 <p className="text-xs text-muted-foreground">
-                  Use <code className="font-mono text-emerald-500">{`{{1}}`}</code> pra variáveis. Formatação: <code>*negrito*</code>, <code>_itálico_</code>, <code>~tachado~</code>, <code>`código`</code>.
+                  Use variáveis nomeadas como <code className="font-mono text-emerald-500">{`{{name}}`}</code>, <code className="font-mono text-emerald-500">{`{{user}}`}</code>, <code className="font-mono text-emerald-500">{`{{price}}`}</code>, <code className="font-mono text-emerald-500">{`{{data}}`}</code>. Formatação: <code>*negrito*</code>, <code>_itálico_</code>, <code>~tachado~</code>, <code>`código`</code>.
                 </p>
               </div>
 
@@ -335,20 +335,18 @@ export default function TemplateBuilderDialog({ open, onOpenChange, mode, initia
                 <div className="space-y-2 rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-3">
                   <Label className="text-sm font-semibold flex items-center gap-2">
                     <Hash className="w-4 h-4 text-emerald-500" />
-                    Exemplos das variáveis
+                    Amostras das variáveis
                     <span className="text-[10px] font-normal text-muted-foreground">(obrigatório pela Meta para aprovar)</span>
                   </Label>
                   <div className="grid sm:grid-cols-2 gap-2">
-                    {bodyVars.map((n, i) => (
+                    {bodyVars.map((n) => (
                       <div key={n} className="space-y-1">
                         <Label className="text-xs font-mono text-emerald-500">{`{{${n}}}`}</Label>
                         <Input
-                          placeholder={`Exemplo para a variável ${n}`}
-                          value={form.bodyExamples[i] || ''}
+                          placeholder={`Exemplo para ${n}`}
+                          value={form.bodyExamples[n] || ''}
                           onChange={e => {
-                            const next = [...form.bodyExamples];
-                            next[i] = e.target.value;
-                            update({ bodyExamples: next });
+                            update({ bodyExamples: { ...form.bodyExamples, [n]: e.target.value } });
                           }}
                         />
                       </div>
