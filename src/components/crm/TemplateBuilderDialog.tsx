@@ -31,22 +31,30 @@ interface FormState {
   footer: string;
   buttons: BtnDef[];
   allowCategoryChange: boolean;
-  bodyExamples: string[];
+  bodyExamples: Record<string, string>;
 }
 
 const empty: FormState = {
   name: '', category: 'UTILITY', language: 'pt_BR',
   headerType: 'NONE', headerText: '', headerMediaUrl: '', headerHandle: '',
   body: '', footer: '', buttons: [], allowCategoryChange: false,
-  bodyExamples: [],
+  bodyExamples: {},
 };
 
-function extractVarIndexes(text: string): number[] {
-  const set = new Set<number>();
-  const re = /\{\{\s*(\d+)\s*\}\}/g;
+// Extracts variable tokens — supports both numeric ({{1}}) and named ({{name}}) parameters.
+function extractVarTokens(text: string): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  const re = /\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g;
   let m: RegExpExecArray | null;
-  while ((m = re.exec(text)) !== null) set.add(Number(m[1]));
-  return Array.from(set).sort((a, b) => a - b);
+  while ((m = re.exec(text)) !== null) {
+    const v = m[1];
+    if (!seen.has(v)) { seen.add(v); out.push(v); }
+  }
+  // Numeric tokens sorted; named keep insertion order after.
+  const nums = out.filter(v => /^\d+$/.test(v)).sort((a, b) => Number(a) - Number(b));
+  const names = out.filter(v => !/^\d+$/.test(v));
+  return [...nums, ...names];
 }
 
 function slugify(s: string) {
@@ -153,11 +161,21 @@ export default function TemplateBuilderDialog({ open, onOpenChange, mode, initia
       if (!form.headerHandle) throw new Error(`Envie o arquivo do cabeçalho (${fmt.toLowerCase()}).`);
       comps.push({ type: 'HEADER', format: fmt, example: { header_handle: [form.headerHandle] } });
     }
-    const bodyVars = extractVarIndexes(form.body);
+    const bodyVars = extractVarTokens(form.body);
     const bodyComp: any = { type: 'BODY', text: form.body.trim() };
     if (bodyVars.length) {
-      const examples = bodyVars.map((_, i) => (form.bodyExamples[i] || '').trim() || `exemplo${i + 1}`);
-      bodyComp.example = { body_text: [examples] };
+      const allNumeric = bodyVars.every(v => /^\d+$/.test(v));
+      if (allNumeric) {
+        const examples = bodyVars.map((v, i) => (form.bodyExamples[v] || '').trim() || `exemplo${i + 1}`);
+        bodyComp.example = { body_text: [examples] };
+      } else {
+        bodyComp.example = {
+          body_text_named_params: bodyVars.map(v => ({
+            param_name: v,
+            example: (form.bodyExamples[v] || '').trim() || v,
+          })),
+        };
+      }
     }
     comps.push(bodyComp);
     if (form.footer.trim()) comps.push({ type: 'FOOTER', text: form.footer.trim() });
@@ -174,7 +192,7 @@ export default function TemplateBuilderDialog({ open, onOpenChange, mode, initia
     return comps;
   };
 
-  const bodyVars = extractVarIndexes(form.body);
+  const bodyVars = extractVarTokens(form.body);
 
   const save = async () => {
     if (!form.name.trim() || !form.body.trim()) {
@@ -307,9 +325,9 @@ export default function TemplateBuilderDialog({ open, onOpenChange, mode, initia
                 </div>
                 <Textarea ref={bodyRef} rows={7} maxLength={1024} value={form.body}
                   onChange={e => update({ body: e.target.value })}
-                  placeholder={`Ex: Olá {{1}}, seu pedido #{{2}} foi confirmado!\n\nObrigado pela compra.`} />
+                  placeholder={`Ex: Olá {{name}}, seu plano {{plan}} vence em {{data}}.\n\nObrigado!`} />
                 <p className="text-xs text-muted-foreground">
-                  Use <code className="font-mono text-emerald-500">{`{{1}}`}</code> pra variáveis. Formatação: <code>*negrito*</code>, <code>_itálico_</code>, <code>~tachado~</code>, <code>`código`</code>.
+                  Use variáveis nomeadas como <code className="font-mono text-emerald-500">{`{{name}}`}</code>, <code className="font-mono text-emerald-500">{`{{user}}`}</code>, <code className="font-mono text-emerald-500">{`{{price}}`}</code>, <code className="font-mono text-emerald-500">{`{{data}}`}</code>. Formatação: <code>*negrito*</code>, <code>_itálico_</code>, <code>~tachado~</code>, <code>`código`</code>.
                 </p>
               </div>
 
@@ -317,20 +335,18 @@ export default function TemplateBuilderDialog({ open, onOpenChange, mode, initia
                 <div className="space-y-2 rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-3">
                   <Label className="text-sm font-semibold flex items-center gap-2">
                     <Hash className="w-4 h-4 text-emerald-500" />
-                    Exemplos das variáveis
+                    Amostras das variáveis
                     <span className="text-[10px] font-normal text-muted-foreground">(obrigatório pela Meta para aprovar)</span>
                   </Label>
                   <div className="grid sm:grid-cols-2 gap-2">
-                    {bodyVars.map((n, i) => (
+                    {bodyVars.map((n) => (
                       <div key={n} className="space-y-1">
                         <Label className="text-xs font-mono text-emerald-500">{`{{${n}}}`}</Label>
                         <Input
-                          placeholder={`Exemplo para a variável ${n}`}
-                          value={form.bodyExamples[i] || ''}
+                          placeholder={`Exemplo para ${n}`}
+                          value={form.bodyExamples[n] || ''}
                           onChange={e => {
-                            const next = [...form.bodyExamples];
-                            next[i] = e.target.value;
-                            update({ bodyExamples: next });
+                            update({ bodyExamples: { ...form.bodyExamples, [n]: e.target.value } });
                           }}
                         />
                       </div>
