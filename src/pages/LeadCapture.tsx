@@ -20,7 +20,8 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import {
   Loader2, Send, UserPlus, ShieldCheck, AlertTriangle, CheckCircle, XCircle, Upload,
-  ShieldAlert, Crown, Search,
+  ShieldAlert, Crown, Search, Sparkles, Wand2,
+
 } from 'lucide-react';
 
 // Estimativa Meta (USD aprox.) — categoria BR utility/marketing 2026
