@@ -9,6 +9,9 @@ const corsHeaders = {
 };
 
 const GRAPH_API_VERSION = "v21.0";
+const CRM_BASE = "https://crmapioficial.lovable.app";
+const CRM_SUPABASE_URL = "https://qoijgbmbwcmnmvixsbrv.supabase.co";
+const CRM_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXAiOiJxbyIsInJlZiI6InFvaWpnYm1id2Ntbm12aXhzYnJ2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE3MjI3MTIsImV4cCI6MjA5NzI5ODcxMn0.IgBFtqw8O2bwmOFU3iWIwkvUZ2_KWOK_-CGWt2P1buw".replace('"sup":"qo"', '"iss":"supabase"');
 
 async function fetchWithTimeout(input: string, init: RequestInit = {}, timeoutMs = 30_000) {
   const controller = new AbortController();
@@ -25,6 +28,93 @@ function json(data: unknown, status = 200) {
     status,
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
+}
+
+async function crmFetch(path: string, init: RequestInit & { apiKey?: string } = {}) {
+  const apiKey = (init.apiKey || Deno.env.get("CRM_OFICIAL_API_KEY") || "").trim();
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...(init.headers as Record<string, string> | undefined),
+  };
+  if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
+  const res = await fetch(`${CRM_BASE}${path}`, { ...init, headers });
+  const text = await res.text();
+  let body: any = null;
+  try { body = text ? JSON.parse(text) : null; } catch { body = text; }
+  if (!res.ok) throw new Error(typeof body === "string" ? body : (body?.error || JSON.stringify(body)));
+  return body;
+}
+
+async function getCrmOwnerSession(apiKey: string) {
+  const embed = await crmFetch("/api/public/v1/embed-session", {
+    method: "POST",
+    body: JSON.stringify({ redirect: "/app/inbox" }),
+    apiKey,
+  });
+  const tokenHash = embed?.token_hash;
+  if (!tokenHash) throw new Error("CRM Oficial não retornou sessão segura");
+
+  const verify = await fetch(`${CRM_SUPABASE_URL}/auth/v1/verify`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", apikey: CRM_SUPABASE_ANON_KEY },
+    body: JSON.stringify({ type: "magiclink", token_hash: tokenHash }),
+  });
+  const session = await verify.json().catch(() => ({}));
+  if (!verify.ok || !session?.access_token || !session?.user?.id) throw new Error("Sessão do CRM Oficial inválida");
+  return { accessToken: String(session.access_token), ownerId: String(session.user.id) };
+}
+
+async function crmRest(path: string, accessToken: string, init: RequestInit = {}) {
+  const headers = {
+    apikey: CRM_SUPABASE_ANON_KEY,
+    Authorization: `Bearer ${accessToken}`,
+    "Content-Type": "application/json",
+    Prefer: "return=representation",
+    ...(init.headers as Record<string, string> | undefined),
+  };
+  const res = await fetch(`${CRM_SUPABASE_URL}/rest/v1/${path}`, { ...init, headers });
+  const text = await res.text();
+  let body: any = null;
+  try { body = text ? JSON.parse(text) : null; } catch { body = text; }
+  if (!res.ok) throw new Error(typeof body === "string" ? body : JSON.stringify(body));
+  return body;
+}
+
+async function resolveCrmOfficialMetaCredentials(supabase: any, userId: string, preferredApiKey?: string) {
+  let apiKey = (preferredApiKey || "").trim();
+  if (!apiKey) {
+    const { data } = await supabase
+      .from("crm_oficial_settings")
+      .select("api_key, enabled")
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (data?.enabled && data?.api_key) apiKey = String(data.api_key);
+  }
+  if (!apiKey) apiKey = (Deno.env.get("CRM_OFICIAL_API_KEY") || "").trim();
+  if (!apiKey) return null;
+
+  const { accessToken } = await getCrmOwnerSession(apiKey);
+  let channels = await crmRest(
+    `channels?select=id,phone_number_id,system_user_token,waba_id,is_active,created_at&kind=eq.whatsapp_cloud&is_active=eq.true&order=created_at.desc`,
+    accessToken,
+  ).catch(() => []) as any[];
+  if (!Array.isArray(channels)) channels = [];
+
+  let creds = channels.find((c) => c?.system_user_token && (c?.waba_id || c?.phone_number_id));
+  if (!creds) {
+    const legacy = await crmRest(`whatsapp_settings?select=phone_number_id,system_user_token,waba_id&limit=1`, accessToken).catch(() => []) as any[];
+    creds = Array.isArray(legacy) ? legacy.find((c) => c?.system_user_token && (c?.waba_id || c?.phone_number_id)) : null;
+  }
+  if (!creds?.system_user_token) return null;
+
+  let wabaId = creds.waba_id ? String(creds.waba_id) : "";
+  if (!wabaId && creds.phone_number_id) {
+    const phoneRes = await fetch(`https://graph.facebook.com/${GRAPH_API_VERSION}/${creds.phone_number_id}?fields=whatsapp_business_account{id}&access_token=${encodeURIComponent(String(creds.system_user_token))}`);
+    const phoneData = await phoneRes.json().catch(() => ({}));
+    wabaId = phoneData?.whatsapp_business_account?.id ? String(phoneData.whatsapp_business_account.id) : "";
+  }
+  if (!wabaId) return null;
+  return { accessToken: String(creds.system_user_token), wabaId, source: "crm_oficial" };
 }
 
 serve(async (req) => {
@@ -55,17 +145,47 @@ serve(async (req) => {
       });
     }
 
-    // Get Meta credentials - first try user's own settings, then any meta_cloud settings
+    const reqContentType = req.headers.get("content-type") || "";
+    let body: any = {};
+    let uploadFile: File | null = null;
+    if (reqContentType.includes("multipart/form-data")) {
+      const form = await req.formData();
+      body = Object.fromEntries(form.entries());
+      const file = form.get("file");
+      if (file && typeof (file as File).arrayBuffer === "function") uploadFile = file as File;
+    } else {
+      body = await req.json();
+    }
+    const { action } = body;
+    const requestApiKey = String(body?.apiKey || body?.data?.apiKey || "").trim();
+
+    // Get Meta credentials - first try legacy local Meta settings, then CRM Oficial connected channels.
     let { data: zapSettings } = await supabase
       .from("zap_responder_settings")
       .select("meta_access_token, meta_business_id")
       .eq("user_id", user.id)
       .not("meta_access_token", "is", null)
       .not("meta_business_id", "is", null)
-      .single();
+      .maybeSingle();
+
+    let accessToken = zapSettings?.meta_access_token ? String(zapSettings.meta_access_token) : "";
+    let wabaId = zapSettings?.meta_business_id ? String(zapSettings.meta_business_id) : "";
+
+    if (!accessToken || !wabaId) {
+      try {
+        const crmCreds = await resolveCrmOfficialMetaCredentials(supabase, user.id, requestApiKey);
+        if (crmCreds?.accessToken && crmCreds?.wabaId) {
+          accessToken = crmCreds.accessToken;
+          wabaId = crmCreds.wabaId;
+          console.log(`[MetaTemplates] Using CRM Oficial channel credentials (${crmCreds.source})`);
+        }
+      } catch (e) {
+        console.warn("[MetaTemplates] CRM Oficial credential fallback failed:", e instanceof Error ? e.message : e);
+      }
+    }
 
     // If user doesn't have Meta credentials, find any account that does (admin scenario)
-    if (!zapSettings?.meta_access_token || !zapSettings?.meta_business_id) {
+    if (!accessToken || !wabaId) {
       const { data: anyMeta } = await supabase
         .from("zap_responder_settings")
         .select("meta_access_token, meta_business_id")
@@ -77,18 +197,17 @@ serve(async (req) => {
 
       if (anyMeta) {
         zapSettings = anyMeta;
+        accessToken = zapSettings?.meta_access_token ? String(zapSettings.meta_access_token) : "";
+        wabaId = zapSettings?.meta_business_id ? String(zapSettings.meta_business_id) : "";
       }
     }
 
-    if (!zapSettings?.meta_access_token || !zapSettings?.meta_business_id) {
+    if (!accessToken || !wabaId) {
       return new Response(
-        JSON.stringify({ error: "Meta Cloud API não configurada. Conecte sua conta Meta primeiro." }),
+        JSON.stringify({ error: "API Oficial não configurada. Conecte um canal oficial Meta em Conexões antes de criar templates com mídia." }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
-
-    const accessToken = zapSettings.meta_access_token;
-    let wabaId = zapSettings.meta_business_id;
 
     // Generate appsecret_proof
     const appSecret = Deno.env.get("META_APP_SECRET");
@@ -122,19 +241,6 @@ serve(async (req) => {
     } catch (e) {
       console.log(`[MetaTemplates] Could not resolve WABA ID, using as-is: ${wabaId}`);
     }
-
-    const reqContentType = req.headers.get("content-type") || "";
-    let body: any = {};
-    let uploadFile: File | null = null;
-    if (reqContentType.includes("multipart/form-data")) {
-      const form = await req.formData();
-      body = Object.fromEntries(form.entries());
-      const file = form.get("file");
-      if (file && typeof (file as File).arrayBuffer === "function") uploadFile = file as File;
-    } else {
-      body = await req.json();
-    }
-    const { action } = body;
 
     switch (action) {
       case "list": {
