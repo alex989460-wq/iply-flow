@@ -516,7 +516,7 @@ Deno.serve(async (req) => {
     }
 
     // ── COMPAT: sendTemplate { number/phone, template_name, language?, user_id?, header_image_url?, parameters? }
-    if (rawBody?.action === "sendTemplate" && (rawBody.number || rawBody.phone) && rawBody.template_name) {
+    if ((rawBody?.action === "sendTemplate" || rawBody?.action === "enviar-template") && (rawBody.number || rawBody.phone) && rawBody.template_name) {
       const phone = String(rawBody.number || rawBody.phone || "");
       const templateName = String(rawBody.template_name || "");
       const language = (rawBody.language as string) || "pt_BR";
