@@ -484,16 +484,35 @@ Deno.serve(async (req) => {
           console.error("[crm-oficial-sync sendText] erro lookup api_key:", e);
         }
       }
-      const sendResult = await doSendWhatsapp({
+      let sendResult = await doSendWhatsapp({
         phone,
         body,
         ...(mediaUrl ? { media_url: mediaUrl, media_type: "image", caption: body } : {}),
       }, resellerApiKey);
-      const ok = (sendResult as any)?.ok === true;
+      let ok = (sendResult as any)?.ok === true;
+
+      // Fallback: se enviou com imagem e falhou (403 missing scope ou similar),
+      // reenvia apenas o texto para o cliente não ficar sem a mensagem.
+      if (!ok && mediaUrl && body && body.trim()) {
+        const status = Number((sendResult as any)?.status || 0);
+        const errStr = JSON.stringify((sendResult as any)?.body || "").toLowerCase();
+        const scopeIssue = status === 403 || errStr.includes("scope") || errStr.includes("media");
+        if (scopeIssue) {
+          console.warn("[crm-oficial-sync sendText] media falhou, fallback para texto puro:", status);
+          const textOnly = await doSendWhatsapp({ phone, body }, resellerApiKey);
+          if ((textOnly as any)?.ok === true) {
+            sendResult = textOnly;
+            ok = true;
+            (sendResult as any).fallback = "text-only-after-media-scope-error";
+          }
+        }
+      }
+
       return new Response(JSON.stringify({ success: ok, send: sendResult, provider: "crm-oficial" }), {
         status: ok ? 200 : 502,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
+
     }
 
     // ── COMPAT: sendTemplate { number/phone, template_name, language?, user_id?, header_image_url?, parameters? }
