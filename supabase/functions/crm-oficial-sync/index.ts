@@ -823,13 +823,38 @@ Deno.serve(async (req) => {
         console.warn("[crm-oficial-sync sendTemplate] count params failed", (e as Error).message);
       }
 
-      const sendResult = await doSendWhatsapp({
+      const buildSendPayload = (params: unknown[]) => ({
         phone,
         template_name: templateName,
         language,
-        template_params: finalParams,
+        template_params: params,
         ...(headerImageUrl ? { components: [{ type: "header", parameters: [{ type: "image", image: { link: headerImageUrl } }] }] } : {}),
-      }, resellerApiKey);
+      });
+
+      let sendResult = await doSendWhatsapp(buildSendPayload(finalParams), resellerApiKey);
+
+      // Self-heal: if Meta complains about a parameter count mismatch (#132000),
+      // parse the expected count from the error and retry with safe defaults.
+      const extractExpectedParams = (result: any): number | null => {
+        const inspect = [result, ...(((result as any)?.attempts) || [])];
+        for (const item of inspect) {
+          const text = typeof item?.body === "string" ? item.body : JSON.stringify(item?.body || {});
+          const m = text.match(/expected number of params\s*\((\d+)\)/i) || text.match(/expected\s*(\d+)\s*params/i);
+          if (m) return parseInt(m[1], 10);
+        }
+        return null;
+      };
+
+      if ((sendResult as any)?.ok !== true) {
+        const expected = extractExpectedParams(sendResult);
+        if (expected && expected > finalParams.length) {
+          const padded = finalParams.slice();
+          while (padded.length < expected) padded.push("Cliente");
+          console.log(`[crm-oficial-sync sendTemplate] retry com ${expected} params auto-preenchidos`);
+          sendResult = await doSendWhatsapp(buildSendPayload(padded), resellerApiKey);
+          if ((sendResult as any)?.ok === true) finalParams = padded;
+        }
+      }
 
       const ok = (sendResult as any)?.ok === true;
       return new Response(JSON.stringify({ success: ok, send: sendResult, provider: "crm-oficial" }), {
