@@ -2251,7 +2251,39 @@ serve(async (req) => {
           .replace(/\{\{inicio\}\}/g, matchedCustomer.start_date ? new Date(matchedCustomer.start_date + 'T12:00:00').toLocaleDateString('pt-BR') : '-')
           .replace(/\{\{status\}\}/g, matchedCustomer.status || '-');
 
-        console.log(`[Cakto] Enviando mensagem texto plano para ${metaPhone}`);
+        // ── PRIMEIRO: dispara template aprovado (imagem oficial Meta) — abre janela 24h ──
+        try {
+          const tplName = billingSettings?.meta_template_name || 'aprovado';
+          const tplResp = await fetchWithTimeout(
+            `${Deno.env.get('SUPABASE_URL')}/functions/v1/crm-oficial-sync`,
+            {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+              },
+              body: JSON.stringify({
+                action: 'enviar-template',
+                template_name: tplName,
+                number: metaPhone,
+                language: 'pt_BR',
+                user_id: matchedCustomer.created_by,
+                parameters: [],
+              }),
+            },
+            MESSAGE_SEND_TIMEOUT_MS,
+          );
+          const tplJson = await tplResp.json().catch(() => ({}));
+          console.log(`[Cakto] Template "${tplName}" prévio: status=${tplResp.status} ok=${tplJson?.success}`);
+          // pequena pausa para garantir ordem de chegada no celular
+          await new Promise(r => setTimeout(r, 1500));
+        } catch (tplErr) {
+          console.error('[Cakto] Erro template prévio (não crítico):', tplErr);
+        }
+
+        console.log(`[Cakto] Enviando mensagem texto dinâmica para ${metaPhone}`);
+
+
 
         // Send with retry (up to 2 attempts) to handle transient failures
         let msgSuccess = false;
