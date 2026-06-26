@@ -373,7 +373,8 @@ serve(async (req) => {
             const msg = upData?.error?.message || upData?.error?.error_user_msg || `Falha ao enviar arquivo (status ${upRes.status})`;
             return json({ error: msg, details: upData?.error || upText.slice(0, 300) }, 400);
           }
-          return json({ header_handle: upData.h });
+          const headerHandle = String(upData.h || "").split(/\s+/).find(Boolean) || String(upData.h || "");
+          return json({ header_handle: headerHandle });
         } catch (e: any) {
           console.error("[MetaTemplates] Upload exception:", e);
           const isAbort = e?.name === "AbortError";
