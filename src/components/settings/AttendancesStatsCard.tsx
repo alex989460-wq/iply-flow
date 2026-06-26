@@ -16,15 +16,12 @@ export default function AttendancesStatsCard() {
       const monthStart = new Date(today.getFullYear(), today.getMonth(), 1).toISOString();
       const dayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate()).toISOString();
 
+      const base = () => supabase.from('message_logs').select('id', { count: 'exact', head: true }).eq('user_id', user.id);
       const [{ count: totalAll }, { count: totalMonth }, { count: totalToday }, { count: failed }] = await Promise.all([
-        supabase.from('message_logs').select('id', { count: 'exact', head: true })
-          .eq('user_id', user.id).eq('source', 'crm_oficial'),
-        supabase.from('message_logs').select('id', { count: 'exact', head: true })
-          .eq('user_id', user.id).eq('source', 'crm_oficial').gte('created_at', monthStart),
-        supabase.from('message_logs').select('id', { count: 'exact', head: true })
-          .eq('user_id', user.id).eq('source', 'crm_oficial').gte('created_at', dayStart),
-        supabase.from('message_logs').select('id', { count: 'exact', head: true })
-          .eq('user_id', user.id).eq('source', 'crm_oficial').eq('status', 'failed'),
+        base(),
+        base().gte('created_at', monthStart),
+        base().gte('created_at', dayStart),
+        base().in('status', ['failed', 'error']),
       ]);
       return {
         totalAll: totalAll || 0,
