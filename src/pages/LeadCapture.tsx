@@ -85,6 +85,53 @@ export default function LeadCapture() {
   const [logs, setLogs] = useState<{ phone: string; ok: boolean; error?: string }[]>([]);
   const cancelRef = useRef(false);
 
+  // Gerador de leads (números próximos do telefone semente)
+  const [seedPhone, setSeedPhone] = useState('');
+  const [seedCount, setSeedCount] = useState(1000);
+  const [seedMode, setSeedMode] = useState<'sequencial' | 'aleatorio'>('aleatorio');
+
+  function generateFromSeed() {
+    const digits = seedPhone.replace(/\D/g, '');
+    const { phone } = normalize(digits);
+    if (!phone || !phone.startsWith('55') || phone.length !== 13) {
+      toast({ title: 'Semente inválida', description: 'Use um celular brasileiro completo, ex.: 5541991758392', variant: 'destructive' });
+      return;
+    }
+    const ddd = phone.slice(2, 4);
+    // Mantém prefixo de 5 dígitos (9 + 4 dígitos da operadora) e varia os 4 últimos
+    const prefix = phone.slice(0, 9); // 55 + DDD + 9 + XXXX
+    const baseTail = parseInt(phone.slice(9), 10); // últimos 4 dígitos
+    const max = Math.min(Math.max(seedCount, 1), isAdmin ? 50000 : 2000);
+    const set = new Set<string>();
+    set.add(phone);
+    if (seedMode === 'sequencial') {
+      // espalha ±max/2 em torno da semente
+      const half = Math.floor(max / 2);
+      for (let i = 1; set.size < max && i <= max * 2; i++) {
+        const delta = i % 2 === 0 ? i / 2 : -((i + 1) / 2);
+        const tail = baseTail + delta;
+        if (tail < 0 || tail > 9999) continue;
+        set.add(prefix + String(tail).padStart(4, '0'));
+      }
+    } else {
+      // aleatório dentro do mesmo prefixo de operadora
+      let guard = 0;
+      while (set.size < max && guard < max * 10) {
+        const tail = Math.floor(Math.random() * 10000);
+        set.add(prefix + String(tail).padStart(4, '0'));
+        guard++;
+      }
+    }
+    const arr = Array.from(set);
+    setRaw(arr.join('\n'));
+    toast({
+      title: `${arr.length} números gerados`,
+      description: `DDD ${ddd} · prefixo ${prefix.slice(4)}-XXXX. Use Validar lista para conferir.`,
+    });
+    setTimeout(parsePhones, 50);
+  }
+
+
   // Carrega cotação USD→BRL automática
   useEffect(() => {
     fetch('https://economia.awesomeapi.com.br/json/last/USD-BRL')
