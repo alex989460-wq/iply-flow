@@ -831,118 +831,36 @@ export default function MassBroadcast() {
           </div>
         </div>
 
-        {/* Department Selector Card */}
+        {/* API Oficial Status Card */}
         <Card className="border-primary/30">
           <CardHeader className="pb-3">
             <CardTitle className="text-lg flex items-center gap-2">
               <Phone className="w-5 h-5" />
-              {isMetaCloudApi ? 'WhatsApp Oficial' : 'Departamento de Envio'}
+              API Oficial — WhatsApp Cloud
             </CardTitle>
             <CardDescription>
-              {isMetaCloudApi 
-                ? 'Conexão Meta Cloud API para envio de mensagens'
-                : 'Selecione qual departamento será usado para enviar as mensagens'}
+              Disparos enviados via API Oficial (Meta Cloud) integrada ao CRM.
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
-            {/* Current Department Display */}
-            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
-              {/* Meta Cloud API - show phone and local departments */}
-              {isMetaCloudApi ? (
-                hasValidMetaSession ? (
-                  <div className="flex items-center gap-3 px-4 py-3 rounded-lg bg-success/10 border border-success/30 flex-1">
-                    <CheckCircle className="w-5 h-5 text-success flex-shrink-0" />
-                    <div className="flex-1">
-                      <p className="font-medium text-foreground">{zapSettings?.meta_display_phone || 'WhatsApp Oficial'}</p>
-                      <p className="text-sm text-muted-foreground">Meta Cloud API</p>
-                    </div>
-                    <Badge className="bg-success/20 text-success border-success/30">Conectado</Badge>
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-3 px-4 py-3 rounded-lg bg-destructive/10 border border-destructive/30 flex-1">
-                    <AlertTriangle className="w-5 h-5 text-destructive flex-shrink-0" />
-                    <p className="text-destructive-foreground">Configure o WhatsApp Oficial em Configurações</p>
-                  </div>
-                )
-              ) : (
-                // Zap Responder - show department
-                zapSettings?.selected_department_id ? (
-                  <div className="flex items-center gap-3 px-4 py-3 rounded-lg bg-success/10 border border-success/30 flex-1">
-                    <CheckCircle className="w-5 h-5 text-success flex-shrink-0" />
-                    <div className="flex-1">
-                      <p className="font-medium text-foreground">{zapSettings.selected_department_name || 'Departamento Selecionado'}</p>
-                      <p className="text-sm text-muted-foreground">ID: {zapSettings.selected_department_id}</p>
-                    </div>
-                    <Badge className="bg-success/20 text-success border-success/30">Selecionado</Badge>
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-3 px-4 py-3 rounded-lg bg-warning/10 border border-warning/30 flex-1">
-                    <AlertTriangle className="w-5 h-5 text-warning flex-shrink-0" />
-                    <p className="text-warning-foreground">Nenhum departamento selecionado para envio</p>
-                  </div>
-                )
-              )}
-              
-              {/* Only show department selector button for Zap Responder */}
-              {!isMetaCloudApi && (
-                <Button 
-                  onClick={fetchDepartments}
-                  disabled={isLoadingDepartments}
-                  variant="outline"
-                  className="shrink-0"
-                >
-                  {isLoadingDepartments ? (
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  ) : (
-                    <RefreshCw className="w-4 h-4 mr-2" />
-                  )}
-                  {zapSettings?.selected_department_id ? 'Alterar' : 'Selecionar'}
-                </Button>
-              )}
-            </div>
-
-            {/* Department Selection Grid (Zap Responder only) */}
-            {!isMetaCloudApi && showDepartmentSelector && departments.length > 0 && (
-              <div className="space-y-3 pt-2 border-t">
-                <p className="text-sm font-medium text-muted-foreground">Selecione um departamento:</p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                  {departments.map((department) => (
-                    <button
-                      key={department.id}
-                      onClick={() => selectDepartmentMutation.mutate(department)}
-                      disabled={selectDepartmentMutation.isPending}
-                      className={cn(
-                        'p-3 rounded-lg border text-left transition-all hover:border-primary',
-                        zapSettings?.selected_department_id === department.id
-                          ? 'border-primary bg-primary/10'
-                          : 'border-border bg-secondary/50'
-                      )}
-                    >
-                      <p className="font-medium text-foreground">{department.name}</p>
-                      <span className={cn(
-                        'text-xs px-2 py-0.5 rounded-full mt-1 inline-block',
-                        department.isActive
-                          ? 'bg-success/10 text-success' 
-                          : 'bg-muted text-muted-foreground'
-                      )}>
-                        {department.isActive ? 'Ativo' : 'Inativo'}
-                      </span>
-                    </button>
-                  ))}
+          <CardContent>
+            {crmEnabled ? (
+              <div className="flex items-center gap-3 px-4 py-3 rounded-lg bg-success/10 border border-success/30">
+                <CheckCircle className="w-5 h-5 text-success flex-shrink-0" />
+                <div className="flex-1">
+                  <p className="font-medium text-foreground">API Oficial conectada</p>
+                  <p className="text-sm text-muted-foreground">Todos os envios usarão o canal oficial configurado.</p>
                 </div>
+                <Badge className="bg-success/20 text-success border-success/30">Ativa</Badge>
               </div>
-            )}
-
-            {/* Empty State (Zap Responder only) */}
-            {!isMetaCloudApi && showDepartmentSelector && departments.length === 0 && !isLoadingDepartments && (
-              <div className="pt-2 border-t">
-                <p className="text-sm text-muted-foreground text-center py-4">
-                  Nenhum departamento encontrado. Configure os departamentos no painel do Zap Responder.
-                </p>
+            ) : (
+              <div className="flex items-center gap-3 px-4 py-3 rounded-lg bg-destructive/10 border border-destructive/30">
+                <AlertTriangle className="w-5 h-5 text-destructive flex-shrink-0" />
+                <p className="text-sm">Habilite a <strong>API Oficial</strong> em Configurações para realizar disparos.</p>
               </div>
             )}
           </CardContent>
         </Card>
+
 
         {/* Anti-blocking warning */}
         <Card className="border-warning/50 bg-warning/5">
