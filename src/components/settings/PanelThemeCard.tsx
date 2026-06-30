@@ -92,23 +92,35 @@ export default function PanelThemeCard() {
         </div>
 
         <div className="space-y-2">
-          <Label className="text-xs uppercase tracking-wide text-muted-foreground">Presets</Label>
-          <div className="flex flex-wrap gap-2">
-            {PRESETS.map((p) => (
-              <button
-                key={p.name}
-                type="button"
-                onClick={() => preview(p.theme)}
-                className="px-3 py-2 rounded-lg border border-border/60 hover:border-primary/50 text-xs font-medium flex items-center gap-2 transition"
-              >
-                <span className="flex gap-0.5">
-                  <span className="w-3 h-3 rounded-full" style={{ background: p.theme.primary }} />
-                  <span className="w-3 h-3 rounded-full" style={{ background: p.theme.background }} />
-                  <span className="w-3 h-3 rounded-full" style={{ background: p.theme.accent }} />
-                </span>
-                {p.name}
-              </button>
-            ))}
+          <Label className="text-xs uppercase tracking-wide text-muted-foreground">Temas prontos</Label>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5">
+            {PRESETS.map((p) => {
+              const active =
+                theme.primary.toLowerCase() === p.theme.primary.toLowerCase() &&
+                theme.background.toLowerCase() === p.theme.background.toLowerCase();
+              return (
+                <button
+                  key={p.name}
+                  type="button"
+                  onClick={() => preview(p.theme)}
+                  className={`group relative overflow-hidden rounded-xl border text-left transition-all hover:scale-[1.02] hover:shadow-lg ${
+                    active ? 'border-primary ring-2 ring-primary/40' : 'border-border/60 hover:border-primary/40'
+                  }`}
+                  style={{ background: p.theme.background }}
+                >
+                  <div className="h-12 w-full" style={{ background: `linear-gradient(135deg, ${p.theme.primary} 0%, ${p.theme.accent} 100%)` }} />
+                  <div className="p-2 flex items-center justify-between">
+                    <span className="text-[11px] font-semibold" style={{ color: p.theme.background === '#f8f8f8' || p.theme.background === '#f3f4f6' || p.theme.background === '#faf5ee' ? '#111' : '#fff' }}>
+                      {p.name}
+                    </span>
+                    <span className="flex gap-1">
+                      <span className="w-2.5 h-2.5 rounded-full border border-white/20" style={{ background: p.theme.primary }} />
+                      <span className="w-2.5 h-2.5 rounded-full border border-white/20" style={{ background: p.theme.accent }} />
+                    </span>
+                  </div>
+                </button>
+              );
+            })}
           </div>
         </div>
 
@@ -120,6 +132,7 @@ export default function PanelThemeCard() {
             <Save className="w-4 h-4 mr-2" /> Salvar cores
           </Button>
         </div>
+
       </CardContent>
     </Card>
   );
