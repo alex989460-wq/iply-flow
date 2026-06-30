@@ -40,7 +40,7 @@ export default function UnifiedChat() {
 
   return (
     <DashboardLayout noPadding>
-      <div className="flex flex-col h-[100dvh] bg-background">
+      <div className="flex flex-col h-[calc(100dvh-4rem)] lg:h-[100dvh] bg-background">
         {/* Premium segmented switcher */}
         <div className="px-3 sm:px-5 pt-3 pb-3 border-b border-border/40 bg-gradient-to-b from-background to-background/60 backdrop-blur-xl shrink-0">
           <div className="inline-flex p-1.5 rounded-2xl bg-muted/40 border border-border/60 shadow-inner gap-1">
