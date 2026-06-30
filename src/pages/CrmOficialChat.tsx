@@ -12,7 +12,7 @@ import PendingManualRenewalsFloat from "@/components/PendingManualRenewalsFloat"
 
 const CRM_BASE = "https://crmapioficial.lovable.app";
 
-export default function CrmOficialChat() {
+export default function CrmOficialChat({ embed = false }: { embed?: boolean } = {}) {
   const [apiKey, setApiKey] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const isMobile = useIsMobile();
@@ -48,8 +48,9 @@ export default function CrmOficialChat() {
     return () => { document.body.style.overflow = prev; };
   }, []);
 
-  return (
-    <DashboardLayout noPadding>
+  const __content = (
+    <>
+
       <div className="w-full flex overflow-hidden bg-background h-[calc(100dvh-4rem)] lg:h-[100dvh] relative">
 
         {loading ? (
@@ -120,6 +121,8 @@ export default function CrmOficialChat() {
         )}
       </div>
       <PendingManualRenewalsFloat />
-    </DashboardLayout>
+    </>
   );
+  return embed ? __content : <DashboardLayout noPadding>{__content}</DashboardLayout>;
 }
+

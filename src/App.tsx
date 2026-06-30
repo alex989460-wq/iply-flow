@@ -36,6 +36,7 @@ import MetaChat from "./pages/MetaChat";
 import EvolutionChat from "./pages/EvolutionChat";
 import EvolutionInstances from "./pages/EvolutionInstances";
 import CrmOficialChat from "./pages/CrmOficialChat";
+import UnifiedChat from "./pages/UnifiedChat";
 import CrmOficialChannels from "./pages/CrmOficialChannels";
 import CrmOficialTemplates from "./pages/CrmOficialTemplates";
 import CrmOficialChatbots from "./pages/CrmOficialChatbots";
@@ -107,7 +108,7 @@ function AppRoutes() {
       <Route path="/billing" element={<ProtectedRoute><Billing /></ProtectedRoute>} />
       <Route path="/mass-broadcast" element={<ProtectedRoute><MassBroadcast /></ProtectedRoute>} />
       <Route path="/bolao-broadcast" element={<ProtectedRoute><BolaoBroadcast /></ProtectedRoute>} />
-      <Route path="/chat" element={<Navigate to="/chat-evolution" replace />} />
+      <Route path="/chat" element={<ProtectedRoute><UnifiedChat /></ProtectedRoute>} />
       <Route path="/cost-calculator" element={<ProtectedRoute><CostCalculator /></ProtectedRoute>} />
       <Route path="/lead-capture" element={<ProtectedRoute><LeadCapture /></ProtectedRoute>} />
 
@@ -121,9 +122,9 @@ function AppRoutes() {
       <Route path="/activation-apps" element={<ProtectedRoute><ActivationApps /></ProtectedRoute>} />
       <Route path="/meta-templates" element={<ProtectedRoute><MetaTemplates /></ProtectedRoute>} />
       <Route path="/meta-chat" element={<ProtectedRoute><MetaChat /></ProtectedRoute>} />
-      <Route path="/chat-evolution" element={<ProtectedRoute><EvolutionChat /></ProtectedRoute>} />
+      <Route path="/chat-evolution" element={<Navigate to="/chat?tab=evolution" replace />} />
       <Route path="/evolution-instances" element={<ProtectedRoute><EvolutionInstances /></ProtectedRoute>} />
-      <Route path="/chat-crm-oficial" element={<ProtectedRoute><CrmOficialChat /></ProtectedRoute>} />
+      <Route path="/chat-crm-oficial" element={<Navigate to="/chat?tab=oficial" replace />} />
       <Route path="/crm-oficial-channels" element={<ProtectedRoute><CrmOficialChannels /></ProtectedRoute>} />
       <Route path="/crm-oficial-templates" element={<ProtectedRoute><CrmOficialTemplates /></ProtectedRoute>} />
       <Route path="/crm-oficial-chatbots" element={<ProtectedRoute><CrmOficialChatbots /></ProtectedRoute>} />

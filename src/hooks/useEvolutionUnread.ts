@@ -16,7 +16,7 @@ export function useEvolutionUnread() {
 
   // Reset when entering the chat page
   useEffect(() => {
-    if (location.pathname === '/chat-evolution') {
+    if (location.pathname === '/chat-evolution' || location.pathname === '/chat') {
       localStorage.setItem(KEY, new Date().toISOString());
       setCount(0);
     }
@@ -47,7 +47,7 @@ export function useEvolutionUnread() {
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'evolution_messages', filter: `user_id=eq.${user.id}` }, (payload) => {
         const m = payload.new as { direction?: string; created_at?: string };
         if (m.direction !== 'in') return;
-        if (location.pathname === '/chat-evolution') return;
+        if (location.pathname === '/chat-evolution' || location.pathname === '/chat') return;
         setCount((c) => c + 1);
       })
       .subscribe();

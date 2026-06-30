@@ -14,6 +14,7 @@ export default function DashboardLayout({ children, noPadding }: DashboardLayout
   const { collapsed } = useSidebar();
   const location = useLocation();
   const hidePendingFloat = [
+    '/chat',
     '/chat-crm-oficial',
     '/crm-oficial-channels',
     '/crm-oficial-templates',

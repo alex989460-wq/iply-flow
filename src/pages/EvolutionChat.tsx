@@ -259,7 +259,7 @@ async function fileToBase64(file: Blob): Promise<string> {
   });
 }
 
-export default function EvolutionChat() {
+export default function EvolutionChat({ embed = false }: { embed?: boolean } = {}) {
   const { user, session } = useAuth();
   const { toast } = useToast();
   const isMobile = useIsMobile();
@@ -1961,8 +1961,9 @@ export default function EvolutionChat() {
   };
 
 
-  return (
-    <DashboardLayout noPadding>
+  const __content = (
+    <>
+
       <div className="flex flex-col md:flex-row h-[calc(100dvh-56px)] animate-fade-in bg-background">
         {/* Conversations sidebar */}
         <div className={cn(
@@ -3345,6 +3346,8 @@ export default function EvolutionChat() {
       </Dialog>
 
       <KnowledgeBaseDialog open={showKbDialog} onOpenChange={setShowKbDialog} />
-    </DashboardLayout>
+    </>
   );
+  return embed ? __content : <DashboardLayout noPadding>{__content}</DashboardLayout>;
 }
+
