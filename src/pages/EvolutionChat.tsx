@@ -259,7 +259,7 @@ async function fileToBase64(file: Blob): Promise<string> {
   });
 }
 
-export default function EvolutionChat() {
+export default function EvolutionChat({ embed = false }: { embed?: boolean } = {}) {
   const { user, session } = useAuth();
   const { toast } = useToast();
   const isMobile = useIsMobile();
