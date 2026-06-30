@@ -2,13 +2,14 @@ import { useCallback, useEffect, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Loader2, RefreshCw, ShieldCheck, Star, Wifi, WifiOff, Lock, Server, Sparkles, ExternalLink } from 'lucide-react';
+import { Loader2, RefreshCw, Star, Wifi, WifiOff, ExternalLink } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { Link } from 'react-router-dom';
 import EmbeddedSignupButton from '@/components/crm/EmbeddedSignupButton';
-import logoSg from '@/assets/logo-sg.png';
+import { MetaLogo } from '@/components/ui/meta-logo';
+
 
 interface WAChannel {
   id: string;
@@ -103,79 +104,78 @@ export default function CrmChannelsInline() {
   if (!apiKey) return null;
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
       <div className="flex items-center justify-between flex-wrap gap-2">
-        <div>
-          <div className="flex items-center gap-2 text-xs font-semibold text-blue-400">
-            <Sparkles className="w-3.5 h-3.5" /> CANAIS OFICIAIS WHATSAPP BUSINESS
+        <div className="flex items-center gap-2.5">
+          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#0064E0] to-[#19AFFF] flex items-center justify-center shadow-md shadow-blue-500/20">
+            <MetaLogo className="w-5 h-5 [&_path]:!fill-white" />
           </div>
-          <p className="text-xs text-muted-foreground mt-0.5">Conectados via API oficial Meta — usados para templates aprovados e cobranças automáticas.</p>
+          <div>
+            <div className="text-sm font-semibold text-foreground">WhatsApp Business API</div>
+            <p className="text-[11px] text-muted-foreground">Canais oficiais conectados via Meta</p>
+          </div>
         </div>
         <div className="flex gap-2">
           <EmbeddedSignupButton apiKey={apiKey} onCreated={() => load(apiKey)} />
-          <Button variant="outline" size="sm" onClick={() => load(apiKey)} disabled={refreshing} className="bg-background/60 backdrop-blur">
+          <Button variant="outline" size="sm" onClick={() => load(apiKey)} disabled={refreshing} className="rounded-full">
             {refreshing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />}
             Atualizar
           </Button>
-          <Button asChild size="sm" variant="ghost">
+          <Button asChild size="sm" variant="ghost" className="rounded-full">
             <Link to="/crm-oficial-channels"><ExternalLink className="w-4 h-4 mr-1" /> Avançado</Link>
           </Button>
         </div>
       </div>
 
       {channels.length === 0 ? (
-        <Card className="border-dashed border-blue-500/30 bg-background/40">
-          <CardContent className="py-6 text-center text-xs text-muted-foreground">
-            Nenhum canal oficial conectado. Use <b>Conectar com Facebook</b> acima para vincular um número.
+        <Card className="border-dashed border-border/60 bg-muted/20">
+          <CardContent className="py-8 text-center text-xs text-muted-foreground">
+            Nenhum canal oficial conectado. Use <b>Conectar com Facebook</b> para vincular um número.
           </CardContent>
         </Card>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {channels.map((ch) => {
             const connected = !!ch.is_active;
             const Icon = connected ? Wifi : WifiOff;
             return (
               <Card
                 key={ch.id}
-                className={`relative overflow-hidden border bg-background/55 backdrop-blur-xl transition-all hover:shadow-2xl hover:shadow-blue-500/20 hover:-translate-y-1 ${
-                  ch.primary ? 'ring-2 ring-blue-500/50 border-blue-500/40' : 'border-white/10'
+                className={`relative overflow-hidden border bg-card transition-all hover:shadow-lg hover:-translate-y-0.5 ${
+                  ch.primary ? 'ring-1 ring-primary/40 border-primary/30' : 'border-border/60'
                 }`}
               >
-                {ch.primary && (
-                  <div className="absolute top-2 right-2 z-10 bg-blue-500/90 text-white text-[10px] font-bold px-2 py-0.5 rounded-md flex items-center gap-1">
-                    <Star className="w-3 h-3 fill-white" /> PRINCIPAL
+                <CardContent className="p-4 flex items-center gap-3">
+                  <div className="relative shrink-0">
+                    {ch.avatar_url ? (
+                      <img src={ch.avatar_url} alt={ch.verified_name || 'WhatsApp'} className="w-14 h-14 rounded-full object-cover ring-2 ring-background" />
+                    ) : (
+                      <div className="w-14 h-14 rounded-full bg-gradient-to-br from-[#0064E0]/15 to-[#19AFFF]/15 flex items-center justify-center">
+                        <MetaLogo className="w-7 h-7" />
+                      </div>
+                    )}
+                    <div className="absolute -bottom-0.5 -right-0.5 bg-background rounded-full p-0.5 border border-border/60">
+                      <MetaLogo className="w-3.5 h-3.5" />
+                    </div>
                   </div>
-                )}
-                <div className="relative w-full aspect-square overflow-hidden flex items-center justify-center bg-gradient-to-br from-blue-500/10 to-emerald-500/10">
-                  {ch.avatar_url ? (
-                    <img src={ch.avatar_url} alt={ch.verified_name || 'WhatsApp'} className="w-40 h-40 object-cover rounded-full" />
-                  ) : (
-                    <img src={logoSg} className="w-40 h-40 object-contain opacity-80" alt="WA Oficial" />
-                  )}
-                  <div className="absolute bottom-2 left-2 bg-blue-600/90 text-white text-[10px] font-bold px-2 py-0.5 rounded">
-                    <ShieldCheck className="w-3 h-3 inline mr-1" /> OFICIAL META
-                  </div>
-                </div>
-                <CardContent className="p-4 space-y-3">
-                  <div>
-                    <div className="font-bold text-lg leading-tight truncate">{ch.verified_name || ch.name || 'WhatsApp Oficial'}</div>
-                    <div className="flex items-center justify-between mt-2">
-                      <Badge className={`gap-1 text-[10px] border-0 ${connected ? 'bg-emerald-500/15 text-emerald-400' : 'bg-rose-500/15 text-rose-400'}`}>
-                        <Icon className="w-3 h-3" /> {connected ? 'Conectado' : 'Inativo'}
+
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5 mb-0.5">
+                      <span className="text-sm font-semibold truncate">{ch.verified_name || ch.name || 'WhatsApp Oficial'}</span>
+                      {ch.primary && (
+                        <Star className="w-3 h-3 fill-amber-400 text-amber-400 shrink-0" />
+                      )}
+                    </div>
+                    <div className="text-xs text-muted-foreground truncate">
+                      {ch.display_phone_number || (ch.phone_number ? `+${ch.phone_number}` : '—')}
+                    </div>
+                    <div className="flex items-center gap-1.5 mt-1.5">
+                      <Badge className={`gap-1 text-[10px] border-0 px-1.5 py-0 h-4 ${connected ? 'bg-emerald-500/15 text-emerald-500' : 'bg-rose-500/15 text-rose-500'}`}>
+                        <Icon className="w-2.5 h-2.5" /> {connected ? 'Conectado' : 'Inativo'}
                       </Badge>
-                      <span className="text-xs text-muted-foreground">
-                        {ch.display_phone_number || (ch.phone_number ? `+${ch.phone_number}` : '—')}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="space-y-1 text-xs text-muted-foreground">
-                    <div className="flex items-center gap-1.5">
-                      <Lock className="w-3 h-3 shrink-0" />
-                      <span className="truncate font-mono">{ch.phone_number_id || '—'}</span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <Server className="w-3 h-3 shrink-0" />
-                      <span className="truncate">Qualidade: {(ch.quality_rating || '—').toUpperCase()}</span>
+                      {ch.quality_rating && (
+                        <span className="text-[10px] text-muted-foreground uppercase">{ch.quality_rating}</span>
+                      )}
                     </div>
                   </div>
                 </CardContent>
@@ -187,3 +187,4 @@ export default function CrmChannelsInline() {
     </div>
   );
 }
+
