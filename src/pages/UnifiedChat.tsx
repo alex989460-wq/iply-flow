@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import DashboardLayout from "@/components/layout/DashboardLayout";
 import { MetaLogo } from "@/components/ui/meta-logo";
-import { MessageCircleMore } from "lucide-react";
+import { WhatsAppLogo } from "@/components/ui/whatsapp-logo";
 import { cn } from "@/lib/utils";
 import EvolutionChat from "./EvolutionChat";
 import CrmOficialChat from "./CrmOficialChat";
@@ -23,17 +23,27 @@ export default function UnifiedChat() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab]);
 
-  const tabs: Array<{ key: TabKey; label: string; icon: JSX.Element }> = [
-    { key: "oficial", label: "API Oficial", icon: <MetaLogo className="w-4 h-4" /> },
-    { key: "evolution", label: "API Não Oficial", icon: <MessageCircleMore className="w-4 h-4" /> },
+  const tabs: Array<{ key: TabKey; label: string; icon: JSX.Element; activeRing: string }> = [
+    {
+      key: "oficial",
+      label: "API Oficial",
+      icon: <MetaLogo className="w-5 h-5" />,
+      activeRing: "ring-blue-500/40 shadow-blue-500/20",
+    },
+    {
+      key: "evolution",
+      label: "WhatsApp",
+      icon: <WhatsAppLogo className="w-5 h-5" />,
+      activeRing: "ring-emerald-500/40 shadow-emerald-500/20",
+    },
   ];
 
   return (
     <DashboardLayout noPadding>
       <div className="flex flex-col h-[100dvh] bg-background">
-        {/* Sleek segmented switcher */}
-        <div className="px-3 sm:px-4 pt-2 pb-2 border-b border-border/40 bg-background/80 backdrop-blur-md shrink-0">
-          <div className="inline-flex p-1 rounded-full bg-muted/60 border border-border/50 shadow-sm relative">
+        {/* Premium segmented switcher */}
+        <div className="px-3 sm:px-5 pt-3 pb-3 border-b border-border/40 bg-gradient-to-b from-background to-background/60 backdrop-blur-xl shrink-0">
+          <div className="inline-flex p-1.5 rounded-2xl bg-muted/40 border border-border/60 shadow-inner gap-1">
             {tabs.map((t) => {
               const active = tab === t.key;
               return (
@@ -41,14 +51,17 @@ export default function UnifiedChat() {
                   key={t.key}
                   onClick={() => setTab(t.key)}
                   className={cn(
-                    "relative z-10 inline-flex items-center gap-2 px-4 sm:px-5 py-1.5 text-xs sm:text-sm font-medium rounded-full transition-all duration-300",
+                    "relative inline-flex items-center gap-2.5 px-5 sm:px-6 py-2 text-sm font-semibold rounded-xl transition-all duration-300 ease-out",
                     active
-                      ? "bg-background text-foreground shadow-md ring-1 ring-border/60"
-                      : "text-muted-foreground hover:text-foreground"
+                      ? cn(
+                          "bg-card text-foreground shadow-lg ring-1",
+                          t.activeRing
+                        )
+                      : "text-muted-foreground hover:text-foreground hover:bg-card/40"
                   )}
                 >
-                  <span className={cn("transition-transform", active && "scale-110")}>{t.icon}</span>
-                  {t.label}
+                  <span className={cn("transition-transform duration-300", active && "scale-110")}>{t.icon}</span>
+                  <span className="tracking-tight">{t.label}</span>
                 </button>
               );
             })}
