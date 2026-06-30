@@ -1,9 +1,10 @@
-import { ReactNode } from 'react';
+import { ReactNode, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import { cn } from '@/lib/utils';
 import { useSidebar } from '@/contexts/SidebarContext';
 import PendingManualRenewalsFloat from '@/components/PendingManualRenewalsFloat';
+import { applyTheme, clearTheme, loadTheme } from '@/lib/panel-theme';
 
 interface DashboardLayoutProps {
   children: ReactNode;
@@ -13,6 +14,15 @@ interface DashboardLayoutProps {
 export default function DashboardLayout({ children, noPadding }: DashboardLayoutProps) {
   const { collapsed } = useSidebar();
   const location = useLocation();
+
+  // Apply the per-user panel theme ONLY inside the authenticated dashboard,
+  // so the public landing page keeps its original brand colors.
+  useEffect(() => {
+    const t = loadTheme();
+    if (t) applyTheme(t);
+    return () => clearTheme();
+  }, []);
+
   const hidePendingFloat = [
     '/chat',
     '/chat-crm-oficial',
