@@ -108,7 +108,7 @@ function AppRoutes() {
       <Route path="/billing" element={<ProtectedRoute><Billing /></ProtectedRoute>} />
       <Route path="/mass-broadcast" element={<ProtectedRoute><MassBroadcast /></ProtectedRoute>} />
       <Route path="/bolao-broadcast" element={<ProtectedRoute><BolaoBroadcast /></ProtectedRoute>} />
-      <Route path="/chat" element={<Navigate to="/chat-evolution" replace />} />
+      <Route path="/chat" element={<ProtectedRoute><UnifiedChat /></ProtectedRoute>} />
       <Route path="/cost-calculator" element={<ProtectedRoute><CostCalculator /></ProtectedRoute>} />
       <Route path="/lead-capture" element={<ProtectedRoute><LeadCapture /></ProtectedRoute>} />
 
