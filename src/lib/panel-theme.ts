@@ -31,8 +31,14 @@ export function saveTheme(t: PanelTheme) {
 }
 
 export function clearTheme() {
+  // Removes the saved theme AND resets the runtime CSS vars (used by "Restaurar padrão").
   localStorage.removeItem(STORAGE_KEY);
-  // Reload to restore default CSS vars
+  resetThemeVars();
+}
+
+export function resetThemeVars() {
+  // Only clears the runtime CSS vars; does NOT touch localStorage.
+  // Use this for layout cleanup so the saved theme survives navigation.
   document.documentElement.style.removeProperty('--primary');
   document.documentElement.style.removeProperty('--background');
   document.documentElement.style.removeProperty('--accent');

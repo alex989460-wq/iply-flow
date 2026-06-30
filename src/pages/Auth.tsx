@@ -152,11 +152,13 @@ export default function Auth() {
       <div className="w-full max-w-md px-4 z-10">
         {/* Logo and Title */}
         <div className="text-center mb-8 animate-fade-in">
-          <div className="mx-auto w-20 h-20 mb-6 relative">
-            <div className="absolute inset-0 bg-gradient-to-br from-amber-400 to-amber-600 rounded-2xl blur-lg opacity-50" />
-            <div className="relative w-full h-full bg-gradient-to-br from-amber-400 to-amber-600 rounded-2xl flex items-center justify-center shadow-lg shadow-amber-500/25">
-              <Shield className="w-10 h-10 text-background" />
-            </div>
+          <div className="mx-auto w-24 h-24 mb-6 relative">
+            <div className="absolute inset-0 bg-gradient-to-br from-amber-400/40 to-amber-600/40 rounded-2xl blur-xl opacity-70" />
+            <img
+              src={logoSg}
+              alt="Super Gestor"
+              className="relative w-full h-full object-contain drop-shadow-[0_4px_20px_rgba(251,191,36,0.35)]"
+            />
           </div>
           <h1 className="text-3xl font-bold text-foreground mb-2">
             {isLogin ? 'Bem-vindo de volta' : 'Criar sua conta'}

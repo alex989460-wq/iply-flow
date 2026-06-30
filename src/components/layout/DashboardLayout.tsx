@@ -4,7 +4,7 @@ import Sidebar from './Sidebar';
 import { cn } from '@/lib/utils';
 import { useSidebar } from '@/contexts/SidebarContext';
 import PendingManualRenewalsFloat from '@/components/PendingManualRenewalsFloat';
-import { applyTheme, clearTheme, loadTheme } from '@/lib/panel-theme';
+import { applyTheme, resetThemeVars, loadTheme } from '@/lib/panel-theme';
 
 interface DashboardLayoutProps {
   children: ReactNode;
@@ -20,7 +20,8 @@ export default function DashboardLayout({ children, noPadding }: DashboardLayout
   useEffect(() => {
     const t = loadTheme();
     if (t) applyTheme(t);
-    return () => clearTheme();
+    // Only reset runtime vars on unmount — keep the saved theme intact.
+    return () => resetThemeVars();
   }, []);
 
   const hidePendingFloat = [
