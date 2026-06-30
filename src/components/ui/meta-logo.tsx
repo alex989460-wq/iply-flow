@@ -1,23 +1,28 @@
 import { cn } from '@/lib/utils';
 
+/**
+ * Official Meta infinity logo (gradient blue).
+ * Single-path SVG approximating the official mark — works at any size.
+ */
 export function MetaLogo({ className }: { className?: string }) {
   return (
-    <svg viewBox="0 0 287.5 191" className={cn('inline-block', className)} aria-label="Meta">
+    <svg
+      viewBox="0 0 256 168"
+      className={cn('inline-block', className)}
+      aria-label="Meta"
+      xmlns="http://www.w3.org/2000/svg"
+    >
       <defs>
-        <linearGradient id="metaG1" x1="62.3" y1="139.7" x2="260.4" y2="129.8" gradientUnits="userSpaceOnUse">
-          <stop offset="0" stopColor="#0064e1" />
-          <stop offset=".4" stopColor="#0064e1" />
-          <stop offset=".83" stopColor="#0073ee" />
-          <stop offset="1" stopColor="#0082fb" />
-        </linearGradient>
-        <linearGradient id="metaG2" x1="41.4" y1="153.3" x2="41.4" y2="80.4" gradientUnits="userSpaceOnUse">
-          <stop offset="0" stopColor="#0082fb" />
-          <stop offset="1" stopColor="#0064e0" />
+        <linearGradient id="metaInfinity" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stopColor="#0064E0" />
+          <stop offset="50%" stopColor="#0082FB" />
+          <stop offset="100%" stopColor="#19AFFF" />
         </linearGradient>
       </defs>
-      <path d="M31.1 126c0 11 2.4 19.5 5.6 24.6 4.1 6.7 10.3 9.5 16.6 9.5 8.1 0 15.5-2 29.8-21.8 11.5-15.9 25-38.2 34.1-52.2l15.4-23.7c10.7-16.5 23.1-34.8 37.3-47.2C181.5 5.1 194.4 0 207.4 0c21.8 0 42.5 12.6 58.4 36.3 17.4 25.9 25.8 58.6 25.8 92.3 0 20-3.9 34.7-10.6 46.3C274.6 186 261.7 191 247 191v-31c12.6 0 15.7-11.6 15.7-24.8 0-18.9-4.4-39.9-14.1-54.8-6.9-10.6-15.8-17.1-25.6-17.1-10.6 0-19.2 8-28.8 22.3-5.1 7.6-10.4 16.8-16.3 27.2l-9.1 16.1c-18.3 32.4-22.9 39.8-32 51.9C120.8 183 107.4 191 92.1 191c-22 0-35.9-9.5-44.5-23.9C40.4 155.4 37 139.8 37 122.1l-5.9 3.9z" fill="#0081fb" />
-      <path d="M24.5 38.5c14.7-22.7 36-38.5 60.3-38.5 14.1 0 28 4.2 42.6 16.1 16 13 33 34.5 54.2 69.9l7.6 12.7c18.4 30.6 28.8 46.4 34.9 53.8 7.9 9.6 13.4 12.4 20.6 12.4 14.7 0 17.8-13.5 17.8-23.7l27.4-.9c0 14.6-2.4 26.9-9.1 35.4-7.2 9.1-19.1 13.4-32.2 13.4-16.4 0-30.9-7.7-46.6-25.8-12-13.9-25.6-37.6-38.1-58.6L168 73.6c-18.7-31.2-35.8-54.3-45.7-65.1C112 8.5 99 0 84.5 0 73 0 63 8 54.7 18.8L24.5 38.5z" fill="url(#metaG2)" />
-      <path d="M84.5 31c-11.5 0-21.5 8-29.8 18.8C43 64.9 35.5 87.5 35.5 109.2c0 8.5 1.9 15 4.4 18.1l-27.5 17.9C7.3 134.3.5 119.4.5 110.5.5 89.4 6.3 67.7 17.7 51.5 27.1 38.1 38.5 31 51.7 31z" fill="#0081fb" opacity="0" />
+      <path
+        fill="url(#metaInfinity)"
+        d="M27.5 84c0-26 14.5-50 38-50 13 0 23.7 6 36 22 12 16 25 39 35 56 7 12 14 17 22 17 9 0 14-7 14-19 0-13-6-32-15-44-7-9-14-13-23-13-7 0-13 3-19 9l-15-19c10-10 22-16 35-16 26 0 47 26 47 67 0 26-11 44-32 44-15 0-26-7-39-26-9-13-19-30-28-46-8-14-15-21-23-21-11 0-20 12-20 33 0 8 2 14 5 19l-22 14c-6-9-9-19-9-37z"
+      />
     </svg>
   );
 }

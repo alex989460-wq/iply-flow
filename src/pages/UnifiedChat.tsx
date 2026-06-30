@@ -1,9 +1,9 @@
 import { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import DashboardLayout from "@/components/layout/DashboardLayout";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { MetaLogo } from "@/components/ui/meta-logo";
 import { MessageCircleMore } from "lucide-react";
+import { cn } from "@/lib/utils";
 import EvolutionChat from "./EvolutionChat";
 import CrmOficialChat from "./CrmOficialChat";
 
@@ -23,29 +23,46 @@ export default function UnifiedChat() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab]);
 
+  const tabs: Array<{ key: TabKey; label: string; icon: JSX.Element }> = [
+    { key: "oficial", label: "API Oficial", icon: <MetaLogo className="w-4 h-4" /> },
+    { key: "evolution", label: "API Não Oficial", icon: <MessageCircleMore className="w-4 h-4" /> },
+  ];
+
   return (
     <DashboardLayout noPadding>
-      <div className="flex flex-col h-[100dvh]">
-        <Tabs value={tab} onValueChange={(v) => setTab(v as TabKey)} className="flex flex-col flex-1 min-h-0">
-          <div className="px-2 sm:px-3 pt-2 pb-1 border-b border-border bg-background/60 backdrop-blur shrink-0">
-            <TabsList className="h-9">
-              <TabsTrigger value="oficial" className="gap-2 text-xs sm:text-sm">
-                <MetaLogo className="w-3.5 h-3.5" />
-                API Oficial
-              </TabsTrigger>
-              <TabsTrigger value="evolution" className="gap-2 text-xs sm:text-sm">
-                <MessageCircleMore className="w-3.5 h-3.5" />
-                API Não Oficial
-              </TabsTrigger>
-            </TabsList>
+      <div className="flex flex-col h-[100dvh] bg-background">
+        {/* Sleek segmented switcher */}
+        <div className="px-3 sm:px-4 pt-2 pb-2 border-b border-border/40 bg-background/80 backdrop-blur-md shrink-0">
+          <div className="inline-flex p-1 rounded-full bg-muted/60 border border-border/50 shadow-sm relative">
+            {tabs.map((t) => {
+              const active = tab === t.key;
+              return (
+                <button
+                  key={t.key}
+                  onClick={() => setTab(t.key)}
+                  className={cn(
+                    "relative z-10 inline-flex items-center gap-2 px-4 sm:px-5 py-1.5 text-xs sm:text-sm font-medium rounded-full transition-all duration-300",
+                    active
+                      ? "bg-background text-foreground shadow-md ring-1 ring-border/60"
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  <span className={cn("transition-transform", active && "scale-110")}>{t.icon}</span>
+                  {t.label}
+                </button>
+              );
+            })}
           </div>
-          <TabsContent value="oficial" className="flex-1 min-h-0 mt-0 outline-none">
-            {tab === "oficial" && <CrmOficialChat embed />}
-          </TabsContent>
-          <TabsContent value="evolution" className="flex-1 min-h-0 mt-0 outline-none">
-            {tab === "evolution" && <EvolutionChat embed />}
-          </TabsContent>
-        </Tabs>
+        </div>
+
+        <div className="flex-1 min-h-0 relative">
+          <div
+            key={tab}
+            className="absolute inset-0 animate-in fade-in-50 slide-in-from-bottom-1 duration-300"
+          >
+            {tab === "oficial" ? <CrmOficialChat embed /> : <EvolutionChat embed />}
+          </div>
+        </div>
       </div>
     </DashboardLayout>
   );

@@ -1142,18 +1142,9 @@ export default function Billing() {
               </Button>
             </div>
 
-            {/* Canais Oficiais CRM (foto, número, qualidade) */}
-            <Card className="glass-card border-border/50">
-              <CardHeader>
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <Phone className="w-5 h-5 text-emerald-500" />
-                  Canais de envio (CRM Oficial)
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <CrmChannelsInline />
-              </CardContent>
-            </Card>
+            {/* Canais de envio foram movidos para Configurações → Conexões para evitar duplicidade */}
+
+
 
 
             {/* Pending Billings Summary */}
