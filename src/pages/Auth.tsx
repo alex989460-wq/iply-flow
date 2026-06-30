@@ -152,7 +152,7 @@ export default function Auth() {
       <div className="w-full max-w-md px-4 z-10">
         {/* Logo and Title */}
         <div className="text-center mb-8 animate-fade-in">
-          <div className="mx-auto w-20 h-20 mb-6 relative">
+          <div className="mx-auto w-36 h-36 sm:w-40 sm:h-40 mb-6 relative">
             <div className="absolute inset-0 bg-gradient-to-br from-amber-400/50 to-amber-600/50 rounded-2xl blur-lg opacity-70" />
             <img
               src={logoSg}
