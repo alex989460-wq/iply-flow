@@ -16,7 +16,7 @@ export function useEvolutionUnread() {
 
   // Reset when entering the chat page
   useEffect(() => {
-    if (location.pathname === '/chat-evolution') {
+    if (location.pathname === '/chat-evolution' || location.pathname === '/chat') {
       localStorage.setItem(KEY, new Date().toISOString());
       setCount(0);
     }
