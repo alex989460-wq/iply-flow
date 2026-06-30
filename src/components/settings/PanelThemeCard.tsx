@@ -8,13 +8,26 @@ import { useToast } from '@/hooks/use-toast';
 import { DEFAULT_THEME, PanelTheme, applyTheme, clearTheme, loadTheme, saveTheme } from '@/lib/panel-theme';
 
 const PRESETS: Array<{ name: string; theme: PanelTheme }> = [
-  { name: 'Laranja (padrão)', theme: { primary: '#e8590c', background: '#0a0a0a', accent: '#fde68a' } },
-  { name: 'Verde', theme: { primary: '#10b981', background: '#0a0a0a', accent: '#a7f3d0' } },
-  { name: 'Azul', theme: { primary: '#3b82f6', background: '#0a0f1e', accent: '#bfdbfe' } },
-  { name: 'Roxo', theme: { primary: '#8b5cf6', background: '#0f0a1e', accent: '#ddd6fe' } },
-  { name: 'Rosa', theme: { primary: '#ec4899', background: '#1a0a14', accent: '#fbcfe8' } },
-  { name: 'Claro', theme: { primary: '#e8590c', background: '#f8f8f8', accent: '#fde68a' } },
+  { name: 'Laranja Clássico', theme: { primary: '#e8590c', background: '#0a0a0a', accent: '#fde68a' } },
+  { name: 'Esmeralda', theme: { primary: '#10b981', background: '#06120e', accent: '#a7f3d0' } },
+  { name: 'Azul Royal', theme: { primary: '#3b82f6', background: '#0a0f1e', accent: '#bfdbfe' } },
+  { name: 'Roxo Neon', theme: { primary: '#8b5cf6', background: '#0f0a1e', accent: '#ddd6fe' } },
+  { name: 'Rosa Magenta', theme: { primary: '#ec4899', background: '#1a0a14', accent: '#fbcfe8' } },
+  { name: 'Ciano Aqua', theme: { primary: '#06b6d4', background: '#04141a', accent: '#a5f3fc' } },
+  { name: 'Âmbar Dourado', theme: { primary: '#f59e0b', background: '#100a04', accent: '#fde68a' } },
+  { name: 'Vermelho Carmim', theme: { primary: '#ef4444', background: '#150606', accent: '#fecaca' } },
+  { name: 'Indigo Profundo', theme: { primary: '#6366f1', background: '#0a0a18', accent: '#c7d2fe' } },
+  { name: 'Lima Vibrante', theme: { primary: '#84cc16', background: '#0a1004', accent: '#d9f99d' } },
+  { name: 'Slate Corporativo', theme: { primary: '#64748b', background: '#0b1220', accent: '#cbd5e1' } },
+  { name: 'Teal Sereno', theme: { primary: '#14b8a6', background: '#06141a', accent: '#99f6e4' } },
+  { name: 'Coral', theme: { primary: '#fb7185', background: '#180a0d', accent: '#fecdd3' } },
+  { name: 'Verde Floresta', theme: { primary: '#15803d', background: '#04140a', accent: '#bbf7d0' } },
+  { name: 'Midnight', theme: { primary: '#7c3aed', background: '#050514', accent: '#a5b4fc' } },
+  { name: 'Branco Claro', theme: { primary: '#e8590c', background: '#f8f8f8', accent: '#fde68a' } },
+  { name: 'Cinza Suave', theme: { primary: '#3b82f6', background: '#f3f4f6', accent: '#dbeafe' } },
+  { name: 'Bege Premium', theme: { primary: '#9a3412', background: '#faf5ee', accent: '#fed7aa' } },
 ];
+
 
 export default function PanelThemeCard() {
   const { toast } = useToast();
@@ -79,23 +92,35 @@ export default function PanelThemeCard() {
         </div>
 
         <div className="space-y-2">
-          <Label className="text-xs uppercase tracking-wide text-muted-foreground">Presets</Label>
-          <div className="flex flex-wrap gap-2">
-            {PRESETS.map((p) => (
-              <button
-                key={p.name}
-                type="button"
-                onClick={() => preview(p.theme)}
-                className="px-3 py-2 rounded-lg border border-border/60 hover:border-primary/50 text-xs font-medium flex items-center gap-2 transition"
-              >
-                <span className="flex gap-0.5">
-                  <span className="w-3 h-3 rounded-full" style={{ background: p.theme.primary }} />
-                  <span className="w-3 h-3 rounded-full" style={{ background: p.theme.background }} />
-                  <span className="w-3 h-3 rounded-full" style={{ background: p.theme.accent }} />
-                </span>
-                {p.name}
-              </button>
-            ))}
+          <Label className="text-xs uppercase tracking-wide text-muted-foreground">Temas prontos</Label>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5">
+            {PRESETS.map((p) => {
+              const active =
+                theme.primary.toLowerCase() === p.theme.primary.toLowerCase() &&
+                theme.background.toLowerCase() === p.theme.background.toLowerCase();
+              return (
+                <button
+                  key={p.name}
+                  type="button"
+                  onClick={() => preview(p.theme)}
+                  className={`group relative overflow-hidden rounded-xl border text-left transition-all hover:scale-[1.02] hover:shadow-lg ${
+                    active ? 'border-primary ring-2 ring-primary/40' : 'border-border/60 hover:border-primary/40'
+                  }`}
+                  style={{ background: p.theme.background }}
+                >
+                  <div className="h-12 w-full" style={{ background: `linear-gradient(135deg, ${p.theme.primary} 0%, ${p.theme.accent} 100%)` }} />
+                  <div className="p-2 flex items-center justify-between">
+                    <span className="text-[11px] font-semibold" style={{ color: p.theme.background === '#f8f8f8' || p.theme.background === '#f3f4f6' || p.theme.background === '#faf5ee' ? '#111' : '#fff' }}>
+                      {p.name}
+                    </span>
+                    <span className="flex gap-1">
+                      <span className="w-2.5 h-2.5 rounded-full border border-white/20" style={{ background: p.theme.primary }} />
+                      <span className="w-2.5 h-2.5 rounded-full border border-white/20" style={{ background: p.theme.accent }} />
+                    </span>
+                  </div>
+                </button>
+              );
+            })}
           </div>
         </div>
 
@@ -107,6 +132,7 @@ export default function PanelThemeCard() {
             <Save className="w-4 h-4 mr-2" /> Salvar cores
           </Button>
         </div>
+
       </CardContent>
     </Card>
   );

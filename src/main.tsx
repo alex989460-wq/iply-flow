@@ -1,8 +1,8 @@
 import { createRoot } from "react-dom/client";
 import App from "./App.tsx";
 import "./index.css";
-import { bootstrapTheme } from "./lib/panel-theme";
 
-bootstrapTheme();
+// NOTE: Painel theme is applied only inside DashboardLayout (authenticated panel),
+// never globally — so the public landing page keeps its original brand identity.
 
 createRoot(document.getElementById("root")!).render(<App />);
