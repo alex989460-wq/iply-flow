@@ -3346,6 +3346,8 @@ export default function EvolutionChat({ embed = false }: { embed?: boolean } = {
       </Dialog>
 
       <KnowledgeBaseDialog open={showKbDialog} onOpenChange={setShowKbDialog} />
-    </DashboardLayout>
+    </>
   );
+  return embed ? __content : <DashboardLayout noPadding>{__content}</DashboardLayout>;
 }
+
