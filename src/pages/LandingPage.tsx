@@ -246,6 +246,12 @@ export default function LandingPage() {
                 <Lock className="w-4 h-4 mr-2" />
                 Segurança Garantida
               </Badge>
+              <div className="flex items-center gap-3 mb-5">
+                <MetaLogo className="w-10 h-10" />
+                <Badge className="bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/30 px-3 py-1 text-sm">
+                  Parceiro Oficial da META
+                </Badge>
+              </div>
               <h2 className="text-3xl md:text-4xl font-bold mb-6">
                 API Oficial META:
                 <span className="block text-emerald-500">Zero Risco de Banimentos</span>
@@ -263,14 +269,19 @@ export default function LandingPage() {
               </ul>
             </div>
             <div className="relative">
-              <div className="absolute inset-0 bg-gradient-to-r from-emerald-500/20 to-teal-500/20 rounded-3xl blur-3xl" />
+              <div className="absolute inset-0 bg-gradient-to-r from-blue-500/20 to-emerald-500/20 rounded-3xl blur-3xl" />
               <Card className="relative p-8 bg-card/80 backdrop-blur border-emerald-500/20">
-                <div className="flex items-center justify-center mb-6">
-                  <div className="w-24 h-24 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-500 flex items-center justify-center shadow-xl shadow-emerald-500/25">
-                    <Shield className="w-12 h-12 text-white" />
+                <div className="flex items-center justify-center mb-4">
+                  <div className="w-28 h-28 rounded-2xl bg-gradient-to-br from-blue-500/10 to-emerald-500/10 flex items-center justify-center shadow-xl shadow-blue-500/10 ring-1 ring-blue-500/20">
+                    <MetaLogo className="w-20 h-20" />
                   </div>
                 </div>
-                <h3 className="text-2xl font-bold text-center mb-4">WhatsApp Business API</h3>
+                <div className="flex justify-center mb-3">
+                  <Badge className="bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/30">
+                    Parceiro Oficial da META
+                  </Badge>
+                </div>
+                <h3 className="text-2xl font-bold text-center mb-2">WhatsApp Business API</h3>
                 <p className="text-center text-muted-foreground mb-6">
                   Integração oficial com a plataforma de negócios da META
                 </p>
