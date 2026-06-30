@@ -1,15 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Card, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Loader2, RefreshCw, Star, Wifi, WifiOff, ExternalLink } from 'lucide-react';
+import { Loader2, RefreshCw, Star, ExternalLink, Plus, Zap } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { Link } from 'react-router-dom';
 import EmbeddedSignupButton from '@/components/crm/EmbeddedSignupButton';
-import { MetaLogo } from '@/components/ui/meta-logo';
-
+import { cn } from '@/lib/utils';
 
 interface WAChannel {
   id: string;
@@ -30,6 +27,14 @@ function pick(...values: unknown[]) {
   return '';
 }
 
+function qualityClass(q?: string) {
+  const v = (q || '').toUpperCase();
+  if (v === 'GREEN') return 'text-emerald-400';
+  if (v === 'YELLOW') return 'text-amber-400';
+  if (v === 'RED') return 'text-red-400';
+  return 'text-muted-foreground';
+}
+
 function normalize(body: any): WAChannel[] {
   const list = Array.isArray(body) ? body : Array.isArray(body?.channels) ? body.channels : Array.isArray(body?.whatsapp) ? body.whatsapp : body?.whatsapp ? [body.whatsapp] : [];
   return list
@@ -42,7 +47,6 @@ function normalize(body: any): WAChannel[] {
         c.wa_id, c.waId, c.from, c.phone_e164,
         c?.profile?.phone, c?.business?.phone_number,
       );
-      // Se o "número" veio igual ao phone_number_id (15-17 dígitos), ignora — não é telefone real
       const phone = rawPhone && rawPhone.replace(/\D/g, '').length <= 15 && rawPhone !== phoneId ? rawPhone : '';
       return {
         id: String(c.id || phoneId || `wa-${i}`),
@@ -106,85 +110,89 @@ export default function CrmChannelsInline() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between flex-wrap gap-2">
-        <div className="flex items-center gap-2.5">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#0064E0] to-[#19AFFF] flex items-center justify-center shadow-md shadow-blue-500/20">
-            <MetaLogo className="w-5 h-5 [&_path]:!fill-white" />
-          </div>
+        <div className="flex items-center gap-2">
+          <Zap className="w-5 h-5 text-emerald-500" />
           <div>
-            <div className="text-sm font-semibold text-foreground">WhatsApp Business API</div>
-            <p className="text-[11px] text-muted-foreground">Canais oficiais conectados via Meta</p>
+            <h3 className="text-base font-semibold">Canais oficiais (API Oficial)</h3>
+            <p className="text-xs text-muted-foreground">WhatsApp Cloud sincronizados com seu CRM Oficial.</p>
           </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex items-center gap-2">
           <EmbeddedSignupButton apiKey={apiKey} onCreated={() => load(apiKey)} />
-          <Button variant="outline" size="sm" onClick={() => load(apiKey)} disabled={refreshing} className="rounded-full">
+          <Button variant="outline" size="sm" onClick={() => load(apiKey)} disabled={refreshing}>
             {refreshing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />}
             Atualizar
           </Button>
-          <Button asChild size="sm" variant="ghost" className="rounded-full">
+          <Button asChild size="sm" variant="ghost">
             <Link to="/crm-oficial-channels"><ExternalLink className="w-4 h-4 mr-1" /> Avançado</Link>
           </Button>
         </div>
       </div>
 
-      {channels.length === 0 ? (
-        <Card className="border-dashed border-border/60 bg-muted/20">
-          <CardContent className="py-8 text-center text-xs text-muted-foreground">
-            Nenhum canal oficial conectado. Use <b>Conectar com Facebook</b> para vincular um número.
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {channels.map((ch) => {
-            const connected = !!ch.is_active;
-            const Icon = connected ? Wifi : WifiOff;
-            return (
-              <Card
-                key={ch.id}
-                className={`relative overflow-hidden border bg-card transition-all hover:shadow-lg hover:-translate-y-0.5 ${
-                  ch.primary ? 'ring-1 ring-primary/40 border-primary/30' : 'border-border/60'
-                }`}
-              >
-                <CardContent className="p-4 flex items-center gap-3">
-                  <div className="relative shrink-0">
-                    {ch.avatar_url ? (
-                      <img src={ch.avatar_url} alt={ch.verified_name || 'WhatsApp'} className="w-14 h-14 rounded-full object-cover ring-2 ring-background" />
-                    ) : (
-                      <div className="w-14 h-14 rounded-full bg-gradient-to-br from-[#0064E0]/15 to-[#19AFFF]/15 flex items-center justify-center">
-                        <MetaLogo className="w-7 h-7" />
-                      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {channels.map((ch) => (
+          <div
+            key={ch.id}
+            className="rounded-2xl border border-border/60 bg-card/50 backdrop-blur-sm p-5 space-y-4 hover:border-emerald-500/40 transition"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="relative shrink-0">
+                  {ch.avatar_url ? (
+                    <img src={ch.avatar_url} alt={ch.verified_name || ch.name || 'WhatsApp'} className="w-12 h-12 rounded-full object-cover" />
+                  ) : (
+                    <div className="w-12 h-12 rounded-full bg-gradient-to-br from-emerald-500/30 to-emerald-600/40 flex items-center justify-center text-emerald-300 font-bold text-lg">
+                      {(ch.verified_name || ch.name || 'W').slice(0, 1).toUpperCase()}
+                    </div>
+                  )}
+                  <span className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-emerald-500 border-2 border-card flex items-center justify-center">
+                    <Zap className="w-2 h-2 text-white" />
+                  </span>
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="font-semibold truncate">{ch.verified_name || ch.name || 'WhatsApp'}</h3>
+                    {ch.primary && (
+                      <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-400">
+                        <Star className="w-2.5 h-2.5 fill-amber-400" /> Principal
+                      </span>
                     )}
-                    <div className="absolute -bottom-0.5 -right-0.5 bg-background rounded-full p-0.5 border border-border/60">
-                      <MetaLogo className="w-3.5 h-3.5" />
-                    </div>
                   </div>
+                  <p className="text-xs text-emerald-400 font-mono truncate">{ch.display_phone_number || ch.phone_number || '—'}</p>
+                </div>
+              </div>
+              <span className={cn(
+                'text-xs font-medium flex items-center gap-1.5 shrink-0',
+                ch.is_active ? 'text-emerald-400' : 'text-muted-foreground'
+              )}>
+                <span className={cn('w-1.5 h-1.5 rounded-full', ch.is_active ? 'bg-emerald-400 animate-pulse' : 'bg-muted-foreground')} />
+                {ch.is_active ? 'Conectado' : 'Inativo'}
+              </span>
+            </div>
 
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-1.5 mb-0.5">
-                      <span className="text-sm font-semibold truncate">{ch.verified_name || ch.name || 'WhatsApp Oficial'}</span>
-                      {ch.primary && (
-                        <Star className="w-3 h-3 fill-amber-400 text-amber-400 shrink-0" />
-                      )}
-                    </div>
-                    <div className="text-xs text-muted-foreground truncate">
-                      {ch.display_phone_number || (ch.phone_number ? `+${ch.phone_number}` : '—')}
-                    </div>
-                    <div className="flex items-center gap-1.5 mt-1.5">
-                      <Badge className={`gap-1 text-[10px] border-0 px-1.5 py-0 h-4 ${connected ? 'bg-emerald-500/15 text-emerald-500' : 'bg-rose-500/15 text-rose-500'}`}>
-                        <Icon className="w-2.5 h-2.5" /> {connected ? 'Conectado' : 'Inativo'}
-                      </Badge>
-                      {ch.quality_rating && (
-                        <span className="text-[10px] text-muted-foreground uppercase">{ch.quality_rating}</span>
-                      )}
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
-      )}
+            <div className="grid grid-cols-2 gap-2">
+              <div className="rounded-lg border border-border/40 bg-background/40 p-3">
+                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Phone ID</p>
+                <p className="font-mono text-xs truncate">{ch.phone_number_id || '—'}</p>
+              </div>
+              <div className="rounded-lg border border-border/40 bg-background/40 p-3">
+                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Qualidade</p>
+                <p className={cn('font-bold text-sm', qualityClass(ch.quality_rating))}>
+                  {(ch.quality_rating || '—').toUpperCase()}
+                </p>
+              </div>
+            </div>
+          </div>
+        ))}
+
+        <Link
+          to="/crm-oficial-channels"
+          className="rounded-2xl border-2 border-dashed border-border/60 bg-card/20 p-8 flex flex-col items-center justify-center gap-2 text-muted-foreground hover:border-emerald-500/50 hover:text-emerald-400 hover:bg-emerald-500/5 transition min-h-[180px]"
+        >
+          <Plus className="w-8 h-8" />
+          <span className="font-medium">Adicionar novo canal</span>
+        </Link>
+      </div>
     </div>
   );
 }
-
