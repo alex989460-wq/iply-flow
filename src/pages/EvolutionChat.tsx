@@ -1961,8 +1961,9 @@ export default function EvolutionChat({ embed = false }: { embed?: boolean } = {
   };
 
 
-  return (
-    <DashboardLayout noPadding>
+  const __content = (
+    <>
+
       <div className="flex flex-col md:flex-row h-[calc(100dvh-56px)] animate-fade-in bg-background">
         {/* Conversations sidebar */}
         <div className={cn(
