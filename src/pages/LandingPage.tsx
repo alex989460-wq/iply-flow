@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { MetaLogo } from '@/components/ui/meta-logo';
 import { Shield, Zap, Users, MessageSquare, BarChart3, Clock, CheckCircle2, ArrowRight, Star, ChevronDown, Smartphone, Lock, Server, CreditCard, Send, FileText, Bot, Sparkles, Play, Menu, X } from 'lucide-react';
 import logoSg from '@/assets/logo-sg.png';
 const features = [{
