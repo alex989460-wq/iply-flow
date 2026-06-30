@@ -1,37 +1,17 @@
 import { cn } from '@/lib/utils';
+import metaLogo from '@/assets/meta-logo.webp.asset.json';
 
 /**
- * Official Meta "infinity" mark.
- * Accurate two-loop infinity glyph with the official Meta blue gradient.
+ * Official Meta infinity logo (image from Meta press kit).
+ * Use this everywhere the app references the official WhatsApp Cloud / Meta API.
  */
 export function MetaLogo({ className }: { className?: string }) {
   return (
-    <svg
-      viewBox="0 0 287.5 191.7"
-      className={cn('inline-block', className)}
-      aria-label="Meta"
-      xmlns="http://www.w3.org/2000/svg"
-    >
-      <defs>
-        <linearGradient id="metaGrad" x1="0%" y1="100%" x2="100%" y2="0%">
-          <stop offset="0%" stopColor="#0064E1" />
-          <stop offset="40%" stopColor="#0082FB" />
-          <stop offset="83%" stopColor="#19AFFF" />
-          <stop offset="100%" stopColor="#7BD5FF" />
-        </linearGradient>
-      </defs>
-      <path
-        fill="url(#metaGrad)"
-        d="M31.06 126c0 11 2.41 19.41 5.56 24.51A19 19 0 0 0 53.19 160c8.1 0 15.51-2 29.79-21.76 11.44-15.83 24.92-38 34-51.95l15.36-23.6c10.67-16.39 23-34.61 37.18-46.96C181.07 5.6 193.54 0 206.09 0c21.07 0 41.14 12.21 56.5 35.11 16.81 25.08 25 56.67 25 89.27 0 19.38-3.82 33.62-10.32 44.87-6.28 10.88-18.52 21.75-39.11 21.75v-31c17.63 0 22.03-16.2 22.03-34.74 0-26.42-6.16-55.74-19.73-76.69-9.63-14.86-22.11-23.94-35.84-23.94-14.85 0-26.8 11.2-40.23 31.17-7.14 10.61-14.47 23.54-22.7 38.13l-9.06 16.05c-18.2 32.27-22.81 39.62-31.91 51.75C84.74 183 71.12 191.74 53.19 191.74c-21.27 0-34.72-9.21-43.05-23.09C3.34 157.21 0 142.11 0 124.91Z"
-      />
-      <path
-        fill="url(#metaGrad)"
-        d="M24.49 37.3C38.73 15.35 59.28 0 82.85 0c13.65 0 27.22 4.04 41.39 15.61 15.5 12.65 32.02 33.48 52.63 67.81l7.39 12.32c17.84 29.72 27.99 45.01 33.93 52.22 7.64 9.26 12.99 12.02 19.94 12.02 17.63 0 22.03-16.2 22.03-34.74l27.4-.86c0 19.38-3.82 33.62-10.32 44.87-6.28 10.88-18.52 21.75-39.11 21.75-12.8 0-24.14-2.78-36.68-14.61-9.64-9.08-20.91-25.21-29.58-39.71L177.49 99.6c-12.93-21.62-24.79-37.74-31.65-45.04-7.36-7.85-16.82-17.33-31.93-17.33-12.23 0-22.61 8.58-31.3 21.71Z"
-      />
-      <path
-        fill="url(#metaGrad)"
-        d="M114.21 37.23c-12.23 0-22.61 8.58-31.3 21.71-12.28 18.56-19.79 46.21-19.79 72.69 0 10.93 2.4 19.32 5.55 24.42l-26.79 17.6C34.55 157.21 31.06 142.11 31.06 124.91 31.06 94.31 39.46 62.41 55.61 37.79 69.85 15.84 90.4.49 113.97.49Z"
-      />
-    </svg>
+    <img
+      src={metaLogo.url}
+      alt="Meta"
+      className={cn('inline-block object-contain select-none', className)}
+      draggable={false}
+    />
   );
 }
