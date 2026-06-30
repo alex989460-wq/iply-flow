@@ -97,12 +97,13 @@ export default function CrmOficialChat({ embed = false }: { embed?: boolean } = 
               <Sheet open={panelOpen} onOpenChange={setPanelOpen}>
                 <SheetTrigger asChild>
                   <Button
-                    className="fixed bottom-4 right-4 z-30 shadow-xl gap-2 bg-emerald-600 hover:bg-emerald-700 rounded-full h-12 px-4"
+                    className="fixed top-20 right-3 z-30 shadow-xl gap-2 bg-emerald-600 hover:bg-emerald-700 rounded-full h-10 px-3"
                     size="sm"
                   >
                     <Zap className="h-4 w-4" />
                     Renovar
                   </Button>
+
                 </SheetTrigger>
                 <SheetContent side="bottom" className="h-[92dvh] p-0 flex flex-col">
                   <div className="flex items-center justify-between px-3 py-2 border-b shrink-0">
