@@ -48,8 +48,9 @@ export default function CrmOficialChat({ embed = false }: { embed?: boolean } = 
     return () => { document.body.style.overflow = prev; };
   }, []);
 
-  return (
-    <DashboardLayout noPadding>
+  const __content = (
+    <>
+
       <div className="w-full flex overflow-hidden bg-background h-[calc(100dvh-4rem)] lg:h-[100dvh] relative">
 
         {loading ? (
