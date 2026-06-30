@@ -51,7 +51,7 @@ export default function CrmOficialChat({ embed = false }: { embed?: boolean } = 
   const __content = (
     <>
 
-      <div className="w-full flex overflow-hidden bg-background h-[calc(100dvh-4rem)] lg:h-[100dvh] relative">
+      <div className={`w-full flex overflow-hidden bg-background relative ${embed ? "h-full" : "h-[calc(100dvh-4rem)] lg:h-[100dvh]"}`}>
 
         {loading ? (
           <div className="flex-1 flex items-center justify-center">
