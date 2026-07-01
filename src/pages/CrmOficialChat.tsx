@@ -41,11 +41,22 @@ export default function CrmOficialChat({ embed = false }: { embed?: boolean } = 
     iframeRef.current.src = url;
   }, [apiKey]);
 
-  // Lock body scroll while chat is mounted (improves mobile iframe UX).
+  // Lock body scroll and disable overscroll to prevent flicker when scrolling inside iframe.
   useEffect(() => {
-    const prev = document.body.style.overflow;
+    const prevBodyOverflow = document.body.style.overflow;
+    const prevHtmlOverflow = document.documentElement.style.overflow;
+    const prevBodyOverscroll = document.body.style.overscrollBehavior;
+    const prevHtmlOverscroll = document.documentElement.style.overscrollBehavior;
     document.body.style.overflow = "hidden";
-    return () => { document.body.style.overflow = prev; };
+    document.documentElement.style.overflow = "hidden";
+    document.body.style.overscrollBehavior = "none";
+    document.documentElement.style.overscrollBehavior = "none";
+    return () => {
+      document.body.style.overflow = prevBodyOverflow;
+      document.documentElement.style.overflow = prevHtmlOverflow;
+      document.body.style.overscrollBehavior = prevBodyOverscroll;
+      document.documentElement.style.overscrollBehavior = prevHtmlOverscroll;
+    };
   }, []);
 
   const __content = (
