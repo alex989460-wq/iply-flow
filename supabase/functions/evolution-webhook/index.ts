@@ -421,6 +421,46 @@ Deno.serve(async (req) => {
     // Backwards-compat shim so the rest of the handler attributes rows to the owner
     settings.user_id = ownerUserId;
 
+    // Capture instance owner's own avatar/name/phone from any event that carries it
+    // (connection.update, contacts.upsert, Connected, or any Message with own JID).
+    // The other manager confirmed this is how avatar gets saved: via the webhook.
+    try {
+      const lower = String(event).toLowerCase();
+      const ownerJid = String(
+        data?.owner || data?.Owner || data?.wuid || data?.wid || data?.jid ||
+        data?.me?.id || data?.Me?.id || data?.instance?.owner || ''
+      );
+      const ownerPhone = jidToPhone(ownerJid);
+      const ownerName =
+        data?.profileName || data?.ProfileName || data?.pushName ||
+        data?.instance?.profileName || data?.me?.name || null;
+      const ownerPic = profilePicFrom(
+        data,
+        data?.instance,
+        data?.profile,
+        data?.me,
+        Array.isArray(data?.contacts) ? data.contacts.find((c: any) =>
+          String(c?.id || c?.remoteJid || '').includes(ownerPhone || '_no_')) : null,
+        body,
+      );
+      const isConnEvt = /connection|connect|contacts?\.upsert|contact\.upsert/.test(lower);
+      if (instanceName && (ownerPic || (isConnEvt && (ownerName || ownerPhone)))) {
+        const patch: Record<string, unknown> = { profile_updated_at: new Date().toISOString() };
+        if (ownerPic) patch.profile_pic_url = ownerPic;
+        if (ownerName) patch.profile_name = ownerName;
+        if (ownerPhone) patch.owner_phone = ownerPhone;
+        await admin
+          .from('user_evolution_instances')
+          .update(patch)
+          .ilike('instance_name', String(instanceName));
+        console.log(`[evolution-webhook] owner profile saved for ${instanceName}: pic=${!!ownerPic} name=${ownerName || '-'} phone=${ownerPhone || '-'}`);
+      }
+    } catch (e) {
+      console.error('[evolution-webhook] owner profile capture failed', e);
+    }
+
+
+
     // Presence (digitando…, online, visto por último) — Evolution Go: 'PresenceUpdate' / classic: 'presence.update'
     {
       const lower = String(event).toLowerCase();
