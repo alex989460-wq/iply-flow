@@ -357,6 +357,54 @@ export default function EvolutionInstances() {
           </div>
         </div>
 
+        {/* Disconnected warning */}
+        {disconnectedInstances.length > 0 && (
+          <Alert className="border-rose-500/40 bg-rose-500/10">
+            <AlertTriangle className="w-4 h-4 text-rose-400" />
+            <AlertTitle className="text-rose-300">
+              {disconnectedInstances.length === 1
+                ? `A instância "${disconnectedInstances[0].name}" está desconectada`
+                : `${disconnectedInstances.length} instâncias estão desconectadas`}
+            </AlertTitle>
+            <AlertDescription className="text-xs text-rose-200/90 space-y-1 mt-1">
+              <div>
+                O WhatsApp derrubou a sessão (geralmente por 14+ dias sem uso ou "sair" pelos Aparelhos Conectados).
+                Clique no <b>QR</b> na instância abaixo para reconectar escaneando pelo celular.
+              </div>
+              <div>
+                Se o QR não gerar, <b>exclua</b> a instância e <b>recrie com o mesmo nome</b> — o histórico do sistema é preservado.
+              </div>
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {/* Missing-name warning (deleted instance not yet recreated) */}
+        {missingNames.length > 0 && (
+          <Alert className="border-amber-500/40 bg-amber-500/10">
+            <AlertTriangle className="w-4 h-4 text-amber-400" />
+            <AlertTitle className="text-amber-300">Reutilize o nome anterior</AlertTitle>
+            <AlertDescription className="text-xs text-amber-100/90 space-y-2 mt-1">
+              <div>
+                Você excluiu instâncias que ainda não foram recriadas. Para não perder o vínculo com o histórico,
+                recrie usando exatamente o mesmo nome:
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {missingNames.map((n) => (
+                  <Button
+                    key={n}
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-xs border-amber-500/50 bg-amber-500/10 hover:bg-amber-500/20"
+                    onClick={() => { setNewName(n); createInstance(n); }}
+                  >
+                    <Plus className="w-3 h-3 mr-1" /> Recriar "{n}"
+                  </Button>
+                ))}
+              </div>
+            </AlertDescription>
+          </Alert>
+        )}
+
         {/* Create */}
         <Card className="border-emerald-500/15 bg-background/50 backdrop-blur-xl shadow-xl">
           <CardHeader className="pb-3">
