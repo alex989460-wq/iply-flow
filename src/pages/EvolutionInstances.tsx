@@ -58,6 +58,8 @@ export default function EvolutionInstances() {
   const [qrMsg, setQrMsg] = useState<string | null>(null);
   const pollRef = useRef<number | null>(null);
   const [knownNames, setKnownNames] = useState<string[]>([]);
+  const avatarFetchRef = useRef<Set<string>>(new Set());
+  const [brokenAvatars, setBrokenAvatars] = useState<Set<string>>(new Set());
 
   const KNOWN_KEY = user?.id ? `evo_known_instances_${user.id}` : '';
 
@@ -175,6 +177,35 @@ export default function EvolutionInstances() {
       toast({ title: 'Atenção', description: data.error });
     }
   }, [toast]);
+
+  const refreshInstanceAvatar = useCallback(async (inst: InstanceRow, force = false) => {
+    const phone = String(inst.phone || '').replace(/\D/g, '');
+    if (!phone || phone === 'me' || phone === 'unknown') return;
+    const key = `${inst.name}:${phone}`;
+    if (!force && avatarFetchRef.current.has(key)) return;
+    avatarFetchRef.current.add(key);
+
+    const { data } = await supabase.functions.invoke('evolution-send', {
+      body: { action: 'fetch-profile-pic', instance: inst.name, phone },
+    });
+    if (!data?.url) return;
+
+    setBrokenAvatars((prev) => {
+      const next = new Set(prev);
+      next.delete(inst.name);
+      return next;
+    });
+    setInstances((prev) => prev.map((row) => (
+      row.name === inst.name ? { ...row, profile_pic: data.url, profile_name: row.profile_name || data.name || row.profile_name } : row
+    )));
+  }, []);
+
+  useEffect(() => {
+    instances
+      .filter((inst) => inst.phone && (!inst.profile_pic || brokenAvatars.has(inst.name)))
+      .slice(0, 3)
+      .forEach((inst) => refreshInstanceAvatar(inst, brokenAvatars.has(inst.name)));
+  }, [instances, brokenAvatars, refreshInstanceAvatar]);
 
   useEffect(() => {
     (async () => {
@@ -467,13 +498,15 @@ export default function EvolutionInstances() {
                   )}
                   {/* Avatar do WhatsApp (com fallback para Super Gestor) */}
                   <div className="relative w-full aspect-square bg-gradient-to-br from-muted to-muted/50 overflow-hidden flex items-center justify-center">
-                    {inst.profile_pic ? (
+                    {inst.profile_pic && !brokenAvatars.has(inst.name) ? (
                       <img
                         src={inst.profile_pic}
                         alt={inst.profile_name || inst.name}
                         className="w-full h-full object-cover"
                         onError={(e) => {
                           (e.currentTarget as HTMLImageElement).style.display = 'none';
+                          setBrokenAvatars((prev) => new Set(prev).add(inst.name));
+                          refreshInstanceAvatar(inst, true);
                         }}
                       />
                     ) : (

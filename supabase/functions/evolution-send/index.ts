@@ -24,6 +24,15 @@ function normalizeChatPhone(p: string) {
   return normalizePhone(digits);
 }
 
+function whatsappPhoneCandidates(phone: string | null | undefined) {
+  const d = String(phone || '').replace(/\D/g, '');
+  const candidates = new Set<string>();
+  if (d) candidates.add(d);
+  if (d.startsWith('55') && d.length === 13 && d[4] === '9') candidates.add(`${d.slice(0, 4)}${d.slice(5)}`);
+  if (d.startsWith('55') && d.length === 12) candidates.add(`${d.slice(0, 4)}9${d.slice(4)}`);
+  return Array.from(candidates).filter(Boolean);
+}
+
 function jsonResponse(payload: unknown, status = 200) {
   return new Response(JSON.stringify(payload), {
     status,
@@ -889,27 +898,31 @@ Deno.serve(async (req) => {
       if (!instance) return jsonResponse({ error: 'Escolha uma instância em Conexões WhatsApp.' }, 200);
       const phone = normalizePhone(body.phone);
       if (!phone) return jsonResponse({ error: 'phone obrigatório' }, 400);
-      const number = `${phone}@s.whatsapp.net`;
+      const candidates = whatsappPhoneCandidates(phone);
       const instAuth = await resolveInstanceAuth(baseUrl, apiKey, instance);
-      const tries = [
-        { url: `${baseUrl}/user/avatar`, method: 'POST', headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: phone, preview: false } },
-        { url: `${baseUrl}/user/avatar`, method: 'POST', headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number, preview: false } },
-        { url: `${baseUrl}/user/info`, method: 'POST', headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: [phone] } },
-        { url: `${baseUrl}/user/info`, method: 'POST', headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: [number] } },
-        { url: `${baseUrl}/chat/fetchProfilePictureUrl/${encodeURIComponent(instance)}`, method: 'POST', headers: evolutionHeaders(apiKey, true), body: { number: phone } },
-        { url: `${baseUrl}/chat/fetchProfilePictureUrl/${encodeURIComponent(instance)}`, method: 'POST', headers: evolutionHeaders(apiKey, true), body: { number } },
-        { url: `${baseUrl}/chat/getProfilePicture`, method: 'POST', headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: phone } },
-        { url: `${baseUrl}/chat/whatsappProfile/${encodeURIComponent(instance)}`, method: 'POST', headers: evolutionHeaders(apiKey, true), body: { number: phone } },
-      ];
+      const tries = candidates.flatMap((candidate) => {
+        const jid = `${candidate}@s.whatsapp.net`;
+        return [
+          { url: `${baseUrl}/user/avatar`, method: 'POST', headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: candidate, preview: false }, phone: candidate },
+          { url: `${baseUrl}/user/avatar`, method: 'POST', headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: jid, preview: false }, phone: candidate },
+          { url: `${baseUrl}/user/info`, method: 'POST', headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: [candidate] }, phone: candidate },
+          { url: `${baseUrl}/user/info`, method: 'POST', headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: [jid] }, phone: candidate },
+          { url: `${baseUrl}/chat/fetchProfilePictureUrl/${encodeURIComponent(instance)}`, method: 'POST', headers: evolutionHeaders(instAuth.apiKey, true), body: { number: candidate }, phone: candidate },
+          { url: `${baseUrl}/chat/fetchProfilePictureUrl/${encodeURIComponent(instance)}`, method: 'POST', headers: evolutionHeaders(instAuth.apiKey, true), body: { number: jid }, phone: candidate },
+          { url: `${baseUrl}/chat/getProfilePicture`, method: 'POST', headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number: candidate }, phone: candidate },
+          { url: `${baseUrl}/chat/whatsappProfile/${encodeURIComponent(instance)}`, method: 'POST', headers: evolutionHeaders(instAuth.apiKey, true), body: { number: candidate }, phone: candidate },
+        ];
+      });
       for (const t of tries) {
         const r = await fetchJson(t.url, { method: t.method, headers: t.headers, body: JSON.stringify(t.body) }, 3000)
           .catch(() => ({ ok: false, status: 0, data: {} as any }));
         const url = findUrlDeep(r?.data);
+        const name = r?.data?.name || r?.data?.pushName || r?.data?.profileName || r?.data?.data?.name || r?.data?.data?.pushName || null;
         if (url) {
           await admin.from('evolution_contacts').upsert({
-            user_id: user.id, phone, profile_pic_url: url, updated_at: new Date().toISOString(),
+            user_id: user.id, phone: t.phone || phone, name: name || undefined, profile_pic_url: url, updated_at: new Date().toISOString(),
           }, { onConflict: 'user_id,phone' });
-          return jsonResponse({ ok: true, url });
+          return jsonResponse({ ok: true, url, name, phone: t.phone || phone });
         }
       }
       return jsonResponse({ ok: false, url: null });
@@ -1255,12 +1268,7 @@ Deno.serve(async (req) => {
 
           if (!profilePic && phone && instanceName) {
             // BR: tentar com e sem o 9º dígito
-            const d = String(phone).replace(/\D/g, '');
-            const candidates = Array.from(new Set([
-              d,
-              d.startsWith('55') && d.length === 13 && d[4] === '9' ? `${d.slice(0,4)}${d.slice(5)}` : '',
-              d.startsWith('55') && d.length === 12 ? `${d.slice(0,4)}9${d.slice(4)}` : '',
-            ])).filter(Boolean);
+            const candidates = whatsappPhoneCandidates(phone);
 
             const authKey = token || apiKey;
             const encInst = encodeURIComponent(instanceName);
@@ -1324,15 +1332,23 @@ Deno.serve(async (req) => {
         // because chat messages (fromMe) upsert a contact row keyed by the owner's phone.
         const stillMissing = list.filter(x => (!x.profile_pic || !x.profile_name) && x.phone);
         if (stillMissing.length) {
-          const phones = stillMissing.map(x => String(x.phone));
+          const phones = Array.from(new Set(stillMissing.flatMap(x => whatsappPhoneCandidates(String(x.phone)))));
           const { data: contacts } = await admin
             .from('evolution_contacts')
             .select('phone, profile_pic_url, name, user_id')
             .eq('user_id', user.id)
             .in('phone', phones);
-          const byPhone = new Map((contacts || []).map((r: any) => [String(r.phone), r]));
+          const byPhone = new Map<string, any>();
+          for (const r of contacts || []) {
+            const keys = whatsappPhoneCandidates(String(r.phone));
+            for (const key of keys) {
+              const cur = byPhone.get(key);
+              if (!cur || (!cur.profile_pic_url && r.profile_pic_url) || (!cur.name && r.name)) byPhone.set(key, r);
+            }
+          }
           for (const x of stillMissing) {
-            const c = byPhone.get(String(x.phone));
+            const c = whatsappPhoneCandidates(String(x.phone)).map((p) => byPhone.get(p)).find((row) => row?.profile_pic_url) ||
+              whatsappPhoneCandidates(String(x.phone)).map((p) => byPhone.get(p)).find(Boolean);
             if (!c) continue;
             if (!x.profile_pic && c.profile_pic_url) x.profile_pic = c.profile_pic_url;
             if (!x.profile_name && c.name) x.profile_name = c.name;
