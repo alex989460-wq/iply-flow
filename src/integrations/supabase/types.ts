@@ -1842,6 +1842,10 @@ export type Database = {
           id: string
           instance_id: string | null
           instance_name: string
+          owner_phone: string | null
+          profile_name: string | null
+          profile_pic_url: string | null
+          profile_updated_at: string | null
           settings_updated_at: string | null
           user_id: string
           webhook_enabled: boolean
@@ -1853,6 +1857,10 @@ export type Database = {
           id?: string
           instance_id?: string | null
           instance_name: string
+          owner_phone?: string | null
+          profile_name?: string | null
+          profile_pic_url?: string | null
+          profile_updated_at?: string | null
           settings_updated_at?: string | null
           user_id: string
           webhook_enabled?: boolean
@@ -1864,6 +1872,10 @@ export type Database = {
           id?: string
           instance_id?: string | null
           instance_name?: string
+          owner_phone?: string | null
+          profile_name?: string | null
+          profile_pic_url?: string | null
+          profile_updated_at?: string | null
           settings_updated_at?: string | null
           user_id?: string
           webhook_enabled?: boolean
