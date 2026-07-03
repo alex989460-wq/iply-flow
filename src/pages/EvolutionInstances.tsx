@@ -45,6 +45,7 @@ function stateBadge(state: string) {
 
 export default function EvolutionInstances() {
   const { toast } = useToast();
+  const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [instances, setInstances] = useState<InstanceRow[]>([]);
   const [current, setCurrent] = useState<string>('');
@@ -56,6 +57,34 @@ export default function EvolutionInstances() {
   const [qrInstance, setQrInstance] = useState<string | null>(null);
   const [qrMsg, setQrMsg] = useState<string | null>(null);
   const pollRef = useRef<number | null>(null);
+  const [knownNames, setKnownNames] = useState<string[]>([]);
+
+  const KNOWN_KEY = user?.id ? `evo_known_instances_${user.id}` : '';
+
+  // Load known names from localStorage
+  useEffect(() => {
+    if (!KNOWN_KEY) return;
+    try {
+      const raw = localStorage.getItem(KNOWN_KEY);
+      if (raw) setKnownNames(JSON.parse(raw));
+    } catch {}
+  }, [KNOWN_KEY]);
+
+  // Merge current live instance names into known list (persist forever)
+  useEffect(() => {
+    if (!KNOWN_KEY || instances.length === 0) return;
+    setKnownNames((prev) => {
+      const merged = Array.from(new Set([...prev, ...instances.map((i) => i.name)]));
+      if (merged.length !== prev.length) {
+        try { localStorage.setItem(KNOWN_KEY, JSON.stringify(merged)); } catch {}
+      }
+      return merged;
+    });
+  }, [instances, KNOWN_KEY]);
+
+  const missingNames = knownNames.filter((n) => !instances.some((i) => i.name === n));
+  const disconnectedInstances = instances.filter((i) => !/open|connected|online/i.test(i.state));
+
 
   const WEBHOOK_EVENTS = ['ALL','MESSAGE','SEND_MESSAGE','READ_RECEIPT','PRESENCE','HISTORY_SYNC','CHAT_PRESENCE','CALL','CONNECTION','QRCODE','CONTACTS','CHATS','GROUPS'];
   const DEFAULT_WEBHOOK_EVENTS = ['MESSAGE','SEND_MESSAGE','CONNECTION','PRESENCE','CHAT_PRESENCE'];
