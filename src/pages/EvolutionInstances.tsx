@@ -20,6 +20,7 @@ import { useToast } from '@/hooks/use-toast';
 import logoSg from '@/assets/logo-sg.png';
 import whatsappBg from '@/assets/whatsapp-bg.jpg';
 import CrmChannelsInline from '@/components/crm/CrmChannelsInline';
+import { ProviderBadge } from '@/components/ui/provider-badge';
 
 
 
