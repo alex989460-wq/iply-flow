@@ -1320,6 +1320,26 @@ Deno.serve(async (req) => {
           }
         }
 
+        // Second fallback: evolution_contacts already has the owner's avatar/name
+        // because chat messages (fromMe) upsert a contact row keyed by the owner's phone.
+        const stillMissing = list.filter(x => (!x.profile_pic || !x.profile_name) && x.phone);
+        if (stillMissing.length) {
+          const phones = stillMissing.map(x => String(x.phone));
+          const { data: contacts } = await admin
+            .from('evolution_contacts')
+            .select('phone, profile_pic_url, name, user_id')
+            .eq('user_id', user.id)
+            .in('phone', phones);
+          const byPhone = new Map((contacts || []).map((r: any) => [String(r.phone), r]));
+          for (const x of stillMissing) {
+            const c = byPhone.get(String(x.phone));
+            if (!c) continue;
+            if (!x.profile_pic && c.profile_pic_url) x.profile_pic = c.profile_pic_url;
+            if (!x.profile_name && c.name) x.profile_name = c.name;
+          }
+        }
+
+
         return jsonResponse({ ok: true, instances: list, current: instance, adminMode: isAdminUser });
       }
 
