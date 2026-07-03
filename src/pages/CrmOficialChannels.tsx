@@ -15,6 +15,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { AlertCircle, ArrowRight, Globe, Loader2, Plus, RefreshCw, Star, Zap } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import EmbeddedSignupButton from '@/components/crm/EmbeddedSignupButton';
+import { ProviderBadge } from '@/components/ui/provider-badge';
 
 interface WhatsAppChannel {
   id: string;
@@ -279,7 +280,10 @@ export default function CrmOficialChannels() {
                         </span>
                       )}
                     </div>
-                    <p className="text-xs text-emerald-400 font-mono truncate">{ch.display_phone_number || ch.phone_number || '—'}</p>
+                    <div className="mt-1">
+                      <ProviderBadge provider="meta" />
+                    </div>
+                    <p className="text-xs text-emerald-400 font-mono truncate mt-1">{ch.display_phone_number || ch.phone_number || '—'}</p>
                   </div>
                 </div>
                 <span className={cn(
