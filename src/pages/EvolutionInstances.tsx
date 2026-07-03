@@ -377,7 +377,7 @@ export default function EvolutionInstances() {
                   onKeyDown={(e) => { if (e.key === 'Enter') createInstance(); }}
                 />
               </div>
-              <Button onClick={createInstance} disabled={creating} className="sm:self-end gap-2 bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700">
+              <Button onClick={() => createInstance()} disabled={creating} className="sm:self-end gap-2 bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700">
                 {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
                 Criar e conectar
               </Button>
