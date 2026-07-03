@@ -465,17 +465,33 @@ export default function EvolutionInstances() {
                       <ShieldCheck className="w-3 h-3" /> EM USO
                     </div>
                   )}
-                  {/* Logo Super Gestor grande */}
+                  {/* Avatar do WhatsApp (com fallback para Super Gestor) */}
                   <div className="relative w-full aspect-square bg-gradient-to-br from-muted to-muted/50 overflow-hidden flex items-center justify-center">
-                    <div className="absolute inset-0 w-full h-full flex items-center justify-center bg-gradient-to-br from-emerald-500/10 to-primary/10">
-                      <img src={logoSg} className="w-40 h-40 object-contain opacity-80" alt="Super Gestor" />
-                    </div>
+                    {inst.profile_pic ? (
+                      <img
+                        src={inst.profile_pic}
+                        alt={inst.profile_name || inst.name}
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          (e.currentTarget as HTMLImageElement).style.display = 'none';
+                        }}
+                      />
+                    ) : (
+                      <div className="absolute inset-0 w-full h-full flex items-center justify-center bg-gradient-to-br from-emerald-500/10 to-primary/10">
+                        <img src={logoSg} className="w-40 h-40 object-contain opacity-80" alt="Super Gestor" />
+                      </div>
+                    )}
                   </div>
 
                   <CardContent className="p-4 space-y-3">
-                    {/* Nome e status/telefone */}
+                    {/* Nome oficial do WhatsApp + apelido da instância */}
                     <div>
-                      <div className="font-bold text-lg leading-tight truncate">{inst.name}</div>
+                      <div className="font-bold text-lg leading-tight truncate">
+                        {inst.profile_name || inst.name}
+                      </div>
+                      {inst.profile_name && (
+                        <div className="text-[11px] text-muted-foreground truncate">{inst.name}</div>
+                      )}
                       <div className="flex items-center justify-between mt-2">
                         <Badge className={`gap-1 text-[10px] border-0 ${b.cls}`}>
                           <Icon className="w-3 h-3" /> {b.label}
