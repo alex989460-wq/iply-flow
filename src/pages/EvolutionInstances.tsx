@@ -11,8 +11,10 @@ import { Checkbox } from '@/components/ui/checkbox';
 import {
   Loader2, QrCode, Plus, RefreshCw, LogOut, CheckCircle2, Smartphone,
   Wifi, WifiOff, Zap, ShieldCheck, Sparkles, Settings as SettingsIcon, Save, Trash2,
-  Lock, Server,
+  Lock, Server, AlertTriangle,
 } from 'lucide-react';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import logoSg from '@/assets/logo-sg.png';
@@ -43,6 +45,7 @@ function stateBadge(state: string) {
 
 export default function EvolutionInstances() {
   const { toast } = useToast();
+  const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [instances, setInstances] = useState<InstanceRow[]>([]);
   const [current, setCurrent] = useState<string>('');
@@ -54,6 +57,34 @@ export default function EvolutionInstances() {
   const [qrInstance, setQrInstance] = useState<string | null>(null);
   const [qrMsg, setQrMsg] = useState<string | null>(null);
   const pollRef = useRef<number | null>(null);
+  const [knownNames, setKnownNames] = useState<string[]>([]);
+
+  const KNOWN_KEY = user?.id ? `evo_known_instances_${user.id}` : '';
+
+  // Load known names from localStorage
+  useEffect(() => {
+    if (!KNOWN_KEY) return;
+    try {
+      const raw = localStorage.getItem(KNOWN_KEY);
+      if (raw) setKnownNames(JSON.parse(raw));
+    } catch {}
+  }, [KNOWN_KEY]);
+
+  // Merge current live instance names into known list (persist forever)
+  useEffect(() => {
+    if (!KNOWN_KEY || instances.length === 0) return;
+    setKnownNames((prev) => {
+      const merged = Array.from(new Set([...prev, ...instances.map((i) => i.name)]));
+      if (merged.length !== prev.length) {
+        try { localStorage.setItem(KNOWN_KEY, JSON.stringify(merged)); } catch {}
+      }
+      return merged;
+    });
+  }, [instances, KNOWN_KEY]);
+
+  const missingNames = knownNames.filter((n) => !instances.some((i) => i.name === n));
+  const disconnectedInstances = instances.filter((i) => !/open|connected|online/i.test(i.state));
+
 
   const WEBHOOK_EVENTS = ['ALL','MESSAGE','SEND_MESSAGE','READ_RECEIPT','PRESENCE','HISTORY_SYNC','CHAT_PRESENCE','CALL','CONNECTION','QRCODE','CONTACTS','CHATS','GROUPS'];
   const DEFAULT_WEBHOOK_EVENTS = ['MESSAGE','SEND_MESSAGE','CONNECTION','PRESENCE','CHAT_PRESENCE'];
@@ -205,15 +236,24 @@ export default function EvolutionInstances() {
 
   useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current); }, []);
 
-  const createInstance = async () => {
-    const name = newName.trim().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
-    if (!name) {
+  const createInstance = async (overrideName?: string) => {
+    const raw = (overrideName ?? newName).trim().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+    if (!raw) {
       toast({ title: 'Nome obrigatório', description: 'Informe um nome para a instância.', variant: 'destructive' });
+      return;
+    }
+    // If reseller has previously-used names that are now missing, force reuse of one of them.
+    if (missingNames.length > 0 && !missingNames.includes(raw) && !knownNames.includes(raw)) {
+      toast({
+        title: 'Use um nome existente',
+        description: `Para preservar seu histórico, reutilize um dos nomes já usados antes: ${missingNames.join(', ')}.`,
+        variant: 'destructive',
+      });
       return;
     }
     setCreating(true);
     const { data, error } = await supabase.functions.invoke('evolution-send', {
-      body: { action: 'create-instance', name },
+      body: { action: 'create-instance', name: raw },
     });
     setCreating(false);
     if (error || !data?.ok) {
@@ -224,11 +264,18 @@ export default function EvolutionInstances() {
       });
       return;
     }
-    toast({ title: 'Instância criada', description: `${name} pronta para conectar.` });
+    // Persist the name into known list
+    if (KNOWN_KEY) {
+      const merged = Array.from(new Set([...knownNames, raw]));
+      setKnownNames(merged);
+      try { localStorage.setItem(KNOWN_KEY, JSON.stringify(merged)); } catch {}
+    }
+    toast({ title: 'Instância criada', description: `${raw} pronta para conectar.` });
     setNewName('');
     await fetchInstances();
-    openQr(name);
+    openQr(raw);
   };
+
 
   const setActive = async (name: string) => {
     const { data, error } = await supabase.functions.invoke('evolution-send', {
@@ -310,6 +357,54 @@ export default function EvolutionInstances() {
           </div>
         </div>
 
+        {/* Disconnected warning */}
+        {disconnectedInstances.length > 0 && (
+          <Alert className="border-rose-500/40 bg-rose-500/10">
+            <AlertTriangle className="w-4 h-4 text-rose-400" />
+            <AlertTitle className="text-rose-300">
+              {disconnectedInstances.length === 1
+                ? `A instância "${disconnectedInstances[0].name}" está desconectada`
+                : `${disconnectedInstances.length} instâncias estão desconectadas`}
+            </AlertTitle>
+            <AlertDescription className="text-xs text-rose-200/90 space-y-1 mt-1">
+              <div>
+                O WhatsApp derrubou a sessão (geralmente por 14+ dias sem uso ou "sair" pelos Aparelhos Conectados).
+                Clique no <b>QR</b> na instância abaixo para reconectar escaneando pelo celular.
+              </div>
+              <div>
+                Se o QR não gerar, <b>exclua</b> a instância e <b>recrie com o mesmo nome</b> — o histórico do sistema é preservado.
+              </div>
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {/* Missing-name warning (deleted instance not yet recreated) */}
+        {missingNames.length > 0 && (
+          <Alert className="border-amber-500/40 bg-amber-500/10">
+            <AlertTriangle className="w-4 h-4 text-amber-400" />
+            <AlertTitle className="text-amber-300">Reutilize o nome anterior</AlertTitle>
+            <AlertDescription className="text-xs text-amber-100/90 space-y-2 mt-1">
+              <div>
+                Você excluiu instâncias que ainda não foram recriadas. Para não perder o vínculo com o histórico,
+                recrie usando exatamente o mesmo nome:
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {missingNames.map((n) => (
+                  <Button
+                    key={n}
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-xs border-amber-500/50 bg-amber-500/10 hover:bg-amber-500/20"
+                    onClick={() => { setNewName(n); createInstance(n); }}
+                  >
+                    <Plus className="w-3 h-3 mr-1" /> Recriar "{n}"
+                  </Button>
+                ))}
+              </div>
+            </AlertDescription>
+          </Alert>
+        )}
+
         {/* Create */}
         <Card className="border-emerald-500/15 bg-background/50 backdrop-blur-xl shadow-xl">
           <CardHeader className="pb-3">
@@ -330,7 +425,7 @@ export default function EvolutionInstances() {
                   onKeyDown={(e) => { if (e.key === 'Enter') createInstance(); }}
                 />
               </div>
-              <Button onClick={createInstance} disabled={creating} className="sm:self-end gap-2 bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700">
+              <Button onClick={() => createInstance()} disabled={creating} className="sm:self-end gap-2 bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700">
                 {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
                 Criar e conectar
               </Button>
