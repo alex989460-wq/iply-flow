@@ -1247,36 +1247,48 @@ Deno.serve(async (req) => {
           let profilePic: string | null =
             item?.profilePictureUrl || item?.profilePicUrl || item?.profilePicture ||
             item?.profile?.picture || item?.profile?.pictureUrl ||
+            item?.Instance?.profilePicUrl || item?.instance?.profilePicUrl ||
             statusData?.profilePictureUrl || statusData?.profilePicUrl || null;
           if (!profilePic) profilePic = findUrlDeep(item) || findUrlDeep(statusData);
+
+          console.log(`[list-instances] ${instanceName}: phone=${phone} initial_pic=${profilePic ? 'yes' : 'no'} item_keys=${Object.keys(item || {}).join(',')}`);
+
           if (!profilePic && phone && instanceName) {
-            // BR: tentar com e sem o 9º dígito (WhatsApp pode ter registrado em qualquer forma)
+            // BR: tentar com e sem o 9º dígito
             const d = String(phone).replace(/\D/g, '');
             const candidates = Array.from(new Set([
               d,
               d.startsWith('55') && d.length === 13 && d[4] === '9' ? `${d.slice(0,4)}${d.slice(5)}` : '',
               d.startsWith('55') && d.length === 12 ? `${d.slice(0,4)}9${d.slice(4)}` : '',
             ])).filter(Boolean);
-            for (const number of candidates) {
-              // 1) fetchProfilePictureUrl — retorna { profilePictureUrl } quando o contato existe
-              const pic = await fetchJson(
-                `${baseUrl}/chat/fetchProfilePictureUrl/${encodeURIComponent(instanceName)}`,
-                { method: 'POST', headers: evolutionHeaders(token || apiKey, true), body: JSON.stringify({ number }) },
-                5000,
-              ).catch(() => null);
-              const url1 = pic?.data?.profilePictureUrl || pic?.data?.profilePicUrl || pic?.data?.url
-                || pic?.data?.profilePicture || findUrlDeep(pic?.data) || findUrlDeep(pic);
-              if (url1) { profilePic = url1; break; }
 
-              // 2) fetchProfile — para o próprio dono da instância retorna { picture }
-              const prof = await fetchJson(
-                `${baseUrl}/chat/fetchProfile/${encodeURIComponent(instanceName)}`,
-                { method: 'POST', headers: evolutionHeaders(token || apiKey, true), body: JSON.stringify({ number }) },
-                5000,
-              ).catch(() => null);
-              const url2 = prof?.data?.picture || prof?.data?.profilePictureUrl || prof?.data?.profilePicUrl
-                || findUrlDeep(prof?.data) || findUrlDeep(prof);
-              if (url2) { profilePic = url2; break; }
+            const authKey = token || apiKey;
+            const encInst = encodeURIComponent(instanceName);
+
+            for (const number of candidates) {
+              const attempts: Array<{ label: string; url: string; init: RequestInit }> = [
+                // v2 POST
+                { label: 'POST fetchProfilePictureUrl', url: `${baseUrl}/chat/fetchProfilePictureUrl/${encInst}`,
+                  init: { method: 'POST', headers: evolutionHeaders(authKey, true), body: JSON.stringify({ number }) } },
+                // v1 GET com query
+                { label: 'GET fetchProfilePictureUrl?number', url: `${baseUrl}/chat/fetchProfilePictureUrl/${encInst}?number=${number}`,
+                  init: { method: 'GET', headers: evolutionHeaders(authKey) } },
+                // fetchProfile (dono da instância)
+                { label: 'POST fetchProfile', url: `${baseUrl}/chat/fetchProfile/${encInst}`,
+                  init: { method: 'POST', headers: evolutionHeaders(authKey, true), body: JSON.stringify({ number }) } },
+                // Go fork
+                { label: 'GET getProfilePicture', url: `${baseUrl}/chat/getProfilePicture/${encInst}?number=${number}`,
+                  init: { method: 'GET', headers: evolutionHeaders(authKey) } },
+              ];
+
+              for (const a of attempts) {
+                const res = await fetchJson(a.url, a.init, 5000).catch((e) => ({ ok: false, status: 0, data: { err: String(e) } }));
+                const url = res?.data?.profilePictureUrl || res?.data?.profilePicUrl || res?.data?.picture
+                  || res?.data?.url || res?.data?.data?.profilePictureUrl || findUrlDeep(res?.data);
+                console.log(`[list-instances]   ${a.label} n=${number} status=${res?.status} url=${url ? 'HIT' : 'miss'} body=${JSON.stringify(res?.data).slice(0, 200)}`);
+                if (url) { profilePic = url; break; }
+              }
+              if (profilePic) break;
             }
           }
           return {
