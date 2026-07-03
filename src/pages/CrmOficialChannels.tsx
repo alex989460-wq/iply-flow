@@ -203,6 +203,42 @@ export default function CrmOficialChannels() {
     }
   };
 
+  const setPrimary = async (ch: WhatsAppChannel) => {
+    try {
+      const { data, error } = await supabase.functions.invoke('crm-oficial-sync', {
+        body: { action: 'set-primary-channel', data: { apiKey, channel_id: ch.id, phone_number_id: ch.phone_number_id } },
+      });
+      if (error) throw error;
+      const ok = !!data?.results?.channel?.ok;
+      toast({
+        title: ok ? 'Canal principal atualizado' : 'Não foi possível definir como principal',
+        description: ok ? `${ch.verified_name || ch.name} agora é o número principal.` : `Status ${data?.results?.channel?.status ?? '?'}`,
+        variant: ok ? 'default' : 'destructive',
+      });
+      if (ok) loadChannels(apiKey);
+    } catch (e: any) {
+      toast({ title: 'Erro', description: e.message, variant: 'destructive' });
+    }
+  };
+
+  const deleteChannel = async (ch: WhatsAppChannel) => {
+    if (!confirm(`Remover o canal "${ch.verified_name || ch.name}"?`)) return;
+    try {
+      const { data, error } = await supabase.functions.invoke('crm-oficial-sync', {
+        body: { action: 'delete-channel', data: { apiKey, channel_id: ch.id } },
+      });
+      if (error) throw error;
+      const ok = !!data?.results?.channel?.ok;
+      toast({
+        title: ok ? 'Canal removido' : 'Falha ao remover',
+        variant: ok ? 'default' : 'destructive',
+      });
+      if (ok) loadChannels(apiKey);
+    } catch (e: any) {
+      toast({ title: 'Erro', description: e.message, variant: 'destructive' });
+    }
+  };
+
   if (loading) {
     return (
       <DashboardLayout>
