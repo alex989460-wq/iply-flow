@@ -12,10 +12,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
-import { AlertCircle, ArrowRight, Globe, Loader2, Plus, RefreshCw, Star, Zap } from 'lucide-react';
+import { AlertCircle, ArrowRight, Globe, Loader2, Plus, RefreshCw, Star, Zap, Trash2, ShieldCheck, Power } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import EmbeddedSignupButton from '@/components/crm/EmbeddedSignupButton';
 import { ProviderBadge } from '@/components/ui/provider-badge';
+import { MetaLogo } from '@/components/ui/meta-logo';
+import logoSg from '@/assets/logo-sg.png';
 
 interface WhatsAppChannel {
   id: string;
@@ -201,6 +203,42 @@ export default function CrmOficialChannels() {
     }
   };
 
+  const setPrimary = async (ch: WhatsAppChannel) => {
+    try {
+      const { data, error } = await supabase.functions.invoke('crm-oficial-sync', {
+        body: { action: 'set-primary-channel', data: { apiKey, channel_id: ch.id, phone_number_id: ch.phone_number_id } },
+      });
+      if (error) throw error;
+      const ok = !!data?.results?.channel?.ok;
+      toast({
+        title: ok ? 'Canal principal atualizado' : 'Não foi possível definir como principal',
+        description: ok ? `${ch.verified_name || ch.name} agora é o número principal.` : `Status ${data?.results?.channel?.status ?? '?'}`,
+        variant: ok ? 'default' : 'destructive',
+      });
+      if (ok) loadChannels(apiKey);
+    } catch (e: any) {
+      toast({ title: 'Erro', description: e.message, variant: 'destructive' });
+    }
+  };
+
+  const deleteChannel = async (ch: WhatsAppChannel) => {
+    if (!confirm(`Remover o canal "${ch.verified_name || ch.name}"?`)) return;
+    try {
+      const { data, error } = await supabase.functions.invoke('crm-oficial-sync', {
+        body: { action: 'delete-channel', data: { apiKey, channel_id: ch.id } },
+      });
+      if (error) throw error;
+      const ok = !!data?.results?.channel?.ok;
+      toast({
+        title: ok ? 'Canal removido' : 'Falha ao remover',
+        variant: ok ? 'default' : 'destructive',
+      });
+      if (ok) loadChannels(apiKey);
+    } catch (e: any) {
+      toast({ title: 'Erro', description: e.message, variant: 'destructive' });
+    }
+  };
+
   if (loading) {
     return (
       <DashboardLayout>
@@ -251,76 +289,118 @@ export default function CrmOficialChannels() {
           </Alert>
         )}
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {whatsapp.map((ch) => (
-            <div
-              key={ch.id}
-              className="rounded-2xl border border-border/60 bg-card/50 backdrop-blur-sm p-5 space-y-4 hover:border-emerald-500/40 transition"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="relative shrink-0">
-                    {ch.avatar_url ? (
-                      <img src={ch.avatar_url} alt={ch.verified_name || ch.name || 'WhatsApp'} className="w-12 h-12 rounded-full object-cover" />
-                    ) : (
-                      <div className="w-12 h-12 rounded-full bg-gradient-to-br from-emerald-500/30 to-emerald-600/40 flex items-center justify-center text-emerald-300 font-bold text-lg">
-                        {(ch.verified_name || ch.name || 'W').slice(0, 1).toUpperCase()}
-                      </div>
-                    )}
-                    <span className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-emerald-500 border-2 border-card flex items-center justify-center">
-                      <Zap className="w-2 h-2 text-white" />
-                    </span>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {whatsapp.map((ch) => {
+            const isPrimary = !!(ch.is_primary || ch.primary);
+            return (
+              <div
+                key={ch.id}
+                className={cn(
+                  'relative overflow-hidden rounded-2xl border bg-background/55 backdrop-blur-xl transition-all hover:shadow-2xl hover:shadow-blue-500/20 hover:-translate-y-1',
+                  isPrimary ? 'ring-2 ring-blue-500/50 border-blue-500/40' : 'border-white/10',
+                )}
+              >
+                {isPrimary && (
+                  <div className="absolute top-2 right-2 z-10 bg-amber-500/90 text-white text-[10px] font-bold px-2 py-0.5 rounded-md flex items-center gap-1 shadow-lg">
+                    <Star className="w-3 h-3 fill-white" /> PRINCIPAL
                   </div>
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <h3 className="font-semibold truncate">{ch.verified_name || ch.name || 'WhatsApp'}</h3>
-                      {(ch.is_primary || ch.primary) && (
-                        <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-400">
-                          <Star className="w-2.5 h-2.5 fill-amber-400" /> Principal
-                        </span>
-                      )}
+                )}
+
+                {/* Avatar quadrado grande com watermark Meta */}
+                <div className="relative w-full aspect-square bg-gradient-to-br from-muted to-muted/50 overflow-hidden flex items-center justify-center">
+                  {ch.avatar_url ? (
+                    <img
+                      src={ch.avatar_url}
+                      alt={ch.verified_name || ch.name || 'WhatsApp'}
+                      className="w-full h-full object-cover"
+                      onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+                    />
+                  ) : (
+                    <div className="absolute inset-0 w-full h-full flex items-center justify-center bg-gradient-to-br from-blue-500/10 to-primary/10">
+                      <img src={logoSg} className="w-40 h-40 object-contain opacity-80" alt="Super Gestor" />
                     </div>
-                    <div className="mt-1">
+                  )}
+                  {/* Meta logo em destaque no canto */}
+                  <div className="absolute bottom-2 left-2 flex items-center gap-1.5 bg-black/60 backdrop-blur-md rounded-full px-2 py-1 border border-white/10">
+                    <MetaLogo className="w-4 h-4" />
+                    <span className="text-[10px] font-semibold text-white/90">Meta API</span>
+                  </div>
+                </div>
+
+                <div className="p-4 space-y-3">
+                  <div>
+                    <div className="font-bold text-lg leading-tight truncate">
+                      {ch.verified_name || ch.name || 'WhatsApp'}
+                    </div>
+                    <div className="mt-1.5">
                       <ProviderBadge provider="meta" />
                     </div>
-                    <p className="text-xs text-emerald-400 font-mono truncate mt-1">{ch.display_phone_number || ch.phone_number || '—'}</p>
+                    <div className="flex items-center justify-between mt-2">
+                      <span className={cn(
+                        'text-xs font-medium flex items-center gap-1.5',
+                        ch.is_active ? 'text-emerald-400' : 'text-muted-foreground'
+                      )}>
+                        <span className={cn('w-1.5 h-1.5 rounded-full', ch.is_active ? 'bg-emerald-400 animate-pulse' : 'bg-muted-foreground')} />
+                        {ch.is_active ? 'Conectado' : 'Inativo'}
+                      </span>
+                      <span className="text-xs text-emerald-400 font-mono truncate">
+                        {ch.display_phone_number || ch.phone_number || '—'}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="rounded-lg border border-border/40 bg-background/40 p-2">
+                      <p className="text-[9px] uppercase tracking-wide text-muted-foreground">Phone ID</p>
+                      <p className="font-mono text-[11px] truncate">{ch.phone_number_id || '—'}</p>
+                    </div>
+                    <div className="rounded-lg border border-border/40 bg-background/40 p-2">
+                      <p className="text-[9px] uppercase tracking-wide text-muted-foreground">Qualidade</p>
+                      <p className={cn('font-bold text-xs', qualityClass(ch.quality_rating))}>
+                        {(ch.quality_rating || '—').toUpperCase()}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 pt-1">
+                    {!isPrimary && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="flex-1 gap-1.5 border-amber-500/40 text-amber-400 hover:bg-amber-500/10 hover:text-amber-300"
+                        onClick={() => setPrimary(ch)}
+                      >
+                        <Star className="w-3.5 h-3.5" />
+                        Definir principal
+                      </Button>
+                    )}
+                    {isPrimary && (
+                      <Button size="sm" variant="outline" className="flex-1 gap-1.5" disabled>
+                        <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+                        Em uso
+                      </Button>
+                    )}
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="h-9 w-9 text-red-400 hover:text-red-300 hover:bg-red-500/10"
+                      onClick={() => deleteChannel(ch)}
+                      title="Remover canal"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
                   </div>
                 </div>
-                <span className={cn(
-                  'text-xs font-medium flex items-center gap-1.5 shrink-0',
-                  ch.is_active ? 'text-emerald-400' : 'text-muted-foreground'
-                )}>
-                  <span className={cn('w-1.5 h-1.5 rounded-full', ch.is_active ? 'bg-emerald-400 animate-pulse' : 'bg-muted-foreground')} />
-                  {ch.is_active ? 'Conectado' : 'Inativo'}
-                </span>
               </div>
-
-              <div className="grid grid-cols-2 gap-2">
-                <div className="rounded-lg border border-border/40 bg-background/40 p-3">
-                  <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Phone ID</p>
-                  <p className="font-mono text-xs truncate">{ch.phone_number_id || '—'}</p>
-                </div>
-                <div className="rounded-lg border border-border/40 bg-background/40 p-3">
-                  <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Qualidade</p>
-                  <p className={cn('font-bold text-sm', qualityClass(ch.quality_rating))}>
-                    {(ch.quality_rating || '—').toUpperCase()}
-                  </p>
-                </div>
-              </div>
-
-              <Button variant="outline" className="w-full justify-between" onClick={() => openCreate('whatsapp_cloud')}>
-                Gerenciar acima
-                <ArrowRight className="w-4 h-4" />
-              </Button>
-            </div>
-          ))}
+            );
+          })}
 
           {/* Add new channel tile */}
           <button
             type="button"
             onClick={() => openCreate('whatsapp_cloud')}
             disabled={!apiKey}
-            className="rounded-2xl border-2 border-dashed border-border/60 bg-card/20 p-8 flex flex-col items-center justify-center gap-2 text-muted-foreground hover:border-emerald-500/50 hover:text-emerald-400 hover:bg-emerald-500/5 transition min-h-[180px] disabled:opacity-50 disabled:cursor-not-allowed"
+            className="rounded-2xl border-2 border-dashed border-border/60 bg-card/20 p-8 flex flex-col items-center justify-center gap-2 text-muted-foreground hover:border-blue-500/50 hover:text-blue-400 hover:bg-blue-500/5 transition min-h-[280px] disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Plus className="w-8 h-8" />
             <span className="font-medium">Adicionar novo canal</span>

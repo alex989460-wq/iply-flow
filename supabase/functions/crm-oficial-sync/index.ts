@@ -18,7 +18,7 @@ const CRM_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJz
 type Action =
   | "signup" | "test-chat" | "renew-notify" | "ping"
   | "list-conversations" | "list-messages" | "send-whatsapp" | "mark-read"
-  | "list-contacts" | "list-channels" | "create-channel" | "embedded-signup" | "get-media"
+  | "list-contacts" | "list-channels" | "create-channel" | "set-primary-channel" | "delete-channel" | "embedded-signup" | "get-media"
   | "upload-media"
   | "list-templates" | "create-template" | "update-template" | "delete-template"
   | "list-chatbots" | "create-chatbot" | "update-chatbot" | "delete-chatbot"
@@ -987,6 +987,33 @@ Deno.serve(async (req) => {
       results.channel = await crmFetch("/api/public/v1/channels", {
         method: "POST",
         body: JSON.stringify(payload),
+        apiKey,
+      });
+    }
+
+    if (action === "set-primary-channel") {
+      const channelId = String((data as any)?.channel_id || (data as any)?.id || "");
+      if (!channelId) throw new Error("channel_id é obrigatório");
+      // Tenta PATCH; se a API não aceitar, cai para POST /primary
+      try {
+        results.channel = await crmFetch(`/api/public/v1/channels/${channelId}`, {
+          method: "PATCH",
+          body: JSON.stringify({ primary: true, is_primary: true }),
+          apiKey,
+        });
+      } catch {
+        results.channel = await crmFetch(`/api/public/v1/channels/${channelId}/primary`, {
+          method: "POST",
+          apiKey,
+        });
+      }
+    }
+
+    if (action === "delete-channel") {
+      const channelId = String((data as any)?.channel_id || (data as any)?.id || "");
+      if (!channelId) throw new Error("channel_id é obrigatório");
+      results.channel = await crmFetch(`/api/public/v1/channels/${channelId}`, {
+        method: "DELETE",
         apiKey,
       });
     }
