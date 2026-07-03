@@ -1250,13 +1250,23 @@ Deno.serve(async (req) => {
             statusData?.profilePictureUrl || statusData?.profilePicUrl || null;
           if (!profilePic) profilePic = findUrlDeep(item) || findUrlDeep(statusData);
           if (!profilePic && phone && instanceName) {
-            const pic = await fetchJson(
-              `${baseUrl}/chat/fetchProfilePictureUrl/${encodeURIComponent(instanceName)}`,
-              { method: 'POST', headers: evolutionHeaders(token || apiKey, true), body: JSON.stringify({ number: phone }) },
-              5000,
-            ).catch(() => null);
-            const url = pic?.data?.profilePictureUrl || pic?.data?.profilePicUrl || pic?.data?.url || findUrlDeep(pic?.data);
-            if (url) profilePic = url;
+            // BR: tentar com e sem o 9º dígito (WhatsApp pode ter registrado em qualquer forma)
+            const d = String(phone).replace(/\D/g, '');
+            const candidates = Array.from(new Set([
+              d,
+              d.startsWith('55') && d.length === 13 && d[4] === '9' ? `${d.slice(0,4)}${d.slice(5)}` : '',
+              d.startsWith('55') && d.length === 12 ? `${d.slice(0,4)}9${d.slice(4)}` : '',
+            ])).filter(Boolean);
+            for (const number of candidates) {
+              const pic = await fetchJson(
+                `${baseUrl}/chat/fetchProfilePictureUrl/${encodeURIComponent(instanceName)}`,
+                { method: 'POST', headers: evolutionHeaders(token || apiKey, true), body: JSON.stringify({ number }) },
+                5000,
+              ).catch(() => null);
+              const url = pic?.data?.profilePictureUrl || pic?.data?.profilePicUrl || pic?.data?.url
+                || pic?.profilePictureUrl || findUrlDeep(pic?.data) || findUrlDeep(pic);
+              if (url) { profilePic = url; break; }
+            }
           }
           return {
             id,
