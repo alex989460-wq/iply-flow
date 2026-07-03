@@ -15,6 +15,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { AlertCircle, ArrowRight, Globe, Loader2, Plus, RefreshCw, Star, Zap } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import EmbeddedSignupButton from '@/components/crm/EmbeddedSignupButton';
+import { ProviderBadge } from '@/components/ui/provider-badge';
 
 interface WhatsAppChannel {
   id: string;
