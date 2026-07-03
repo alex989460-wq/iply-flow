@@ -526,6 +526,9 @@ export default function EvolutionInstances() {
                       {inst.profile_name && (
                         <div className="text-[11px] text-muted-foreground truncate">{inst.name}</div>
                       )}
+                      <div className="mt-1.5">
+                        <ProviderBadge provider="evolution" />
+                      </div>
                       <div className="flex items-center justify-between mt-2">
                         <Badge className={`gap-1 text-[10px] border-0 ${b.cls}`}>
                           <Icon className="w-3 h-3" /> {b.label}
