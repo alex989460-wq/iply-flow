@@ -1301,8 +1301,28 @@ Deno.serve(async (req) => {
             token,
           };
         }));
+
+        // Fill in profile_pic/profile_name from DB cache (populated by evolution-webhook)
+        // whenever the live API didn't return them.
+        const missingNames = list.filter(x => !x.profile_pic || !x.profile_name).map(x => x.name).filter(Boolean);
+        if (missingNames.length) {
+          const { data: cached } = await admin
+            .from('user_evolution_instances')
+            .select('instance_name, profile_pic_url, profile_name, owner_phone')
+            .in('instance_name', missingNames);
+          const byName = new Map((cached || []).map((r: any) => [String(r.instance_name).toLowerCase(), r]));
+          for (const x of list) {
+            const c = byName.get(String(x.name).toLowerCase());
+            if (!c) continue;
+            if (!x.profile_pic && c.profile_pic_url) x.profile_pic = c.profile_pic_url;
+            if (!x.profile_name && c.profile_name) x.profile_name = c.profile_name;
+            if (!x.phone && c.owner_phone) x.phone = c.owner_phone;
+          }
+        }
+
         return jsonResponse({ ok: true, instances: list, current: instance, adminMode: isAdminUser });
       }
+
 
       // Fallback: build a single entry from the instance-scoped /instance/status endpoint
       const status = await fetchJson(`${baseUrl}/instance/status`, {
