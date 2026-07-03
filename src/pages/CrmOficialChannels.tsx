@@ -12,10 +12,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
-import { AlertCircle, ArrowRight, Globe, Loader2, Plus, RefreshCw, Star, Zap } from 'lucide-react';
+import { AlertCircle, ArrowRight, Globe, Loader2, Plus, RefreshCw, Star, Zap, Trash2, ShieldCheck, Power } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import EmbeddedSignupButton from '@/components/crm/EmbeddedSignupButton';
 import { ProviderBadge } from '@/components/ui/provider-badge';
+import { MetaLogo } from '@/components/ui/meta-logo';
+import logoSg from '@/assets/logo-sg.png';
 
 interface WhatsAppChannel {
   id: string;
