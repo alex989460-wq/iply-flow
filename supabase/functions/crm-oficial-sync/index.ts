@@ -991,6 +991,33 @@ Deno.serve(async (req) => {
       });
     }
 
+    if (action === "set-primary-channel") {
+      const channelId = String((data as any)?.channel_id || (data as any)?.id || "");
+      if (!channelId) throw new Error("channel_id é obrigatório");
+      // Tenta PATCH; se a API não aceitar, cai para POST /primary
+      try {
+        results.channel = await crmFetch(`/api/public/v1/channels/${channelId}`, {
+          method: "PATCH",
+          body: JSON.stringify({ primary: true, is_primary: true }),
+          apiKey,
+        });
+      } catch {
+        results.channel = await crmFetch(`/api/public/v1/channels/${channelId}/primary`, {
+          method: "POST",
+          apiKey,
+        });
+      }
+    }
+
+    if (action === "delete-channel") {
+      const channelId = String((data as any)?.channel_id || (data as any)?.id || "");
+      if (!channelId) throw new Error("channel_id é obrigatório");
+      results.channel = await crmFetch(`/api/public/v1/channels/${channelId}`, {
+        method: "DELETE",
+        apiKey,
+      });
+    }
+
     if (action === "embedded-signup") {
       const { code, phone_number_id, waba_id, config_id, app_id } = (data || {}) as {
         code?: string; phone_number_id?: string; waba_id?: string; config_id?: string; app_id?: string;
