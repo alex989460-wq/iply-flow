@@ -1344,6 +1344,20 @@ Deno.serve(async (req) => {
       const name = String(body.name || '').trim();
       if (!name) return jsonResponse({ error: 'name obrigatório' }, 400);
 
+      // Global uniqueness: no two resellers may share the same instance name
+      const { data: existingName } = await admin
+        .from('user_evolution_instances')
+        .select('user_id')
+        .eq('instance_name', name)
+        .maybeSingle();
+      if (existingName && existingName.user_id !== user.id) {
+        return jsonResponse({
+          ok: false,
+          error: `O nome "${name}" já está em uso por outra revenda. Escolha outro nome (ex: ${name}-2, ${name}-vendas).`,
+        }, 200);
+      }
+
+
       // Enforce per-reseller limit (admins are unlimited)
       if (!isAdminUser) {
         const { data: owned } = await admin
