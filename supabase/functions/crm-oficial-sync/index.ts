@@ -18,7 +18,7 @@ const CRM_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJz
 type Action =
   | "signup" | "test-chat" | "renew-notify" | "ping"
   | "list-conversations" | "list-messages" | "send-whatsapp" | "mark-read"
-  | "list-contacts" | "list-channels" | "create-channel" | "embedded-signup" | "get-media"
+  | "list-contacts" | "list-channels" | "create-channel" | "set-primary-channel" | "delete-channel" | "embedded-signup" | "get-media"
   | "upload-media"
   | "list-templates" | "create-template" | "update-template" | "delete-template"
   | "list-chatbots" | "create-chatbot" | "update-chatbot" | "delete-chatbot"
