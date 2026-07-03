@@ -168,12 +168,28 @@ export default function EvolutionApiCard() {
           </div>
           <div className="space-y-1">
             <Label>API Key global</Label>
-            <Input
-              type="password"
-              placeholder="API Key global do painel Evolution"
-              value={form.api_key}
-              onChange={(e) => setForm((f) => ({ ...f, api_key: e.target.value }))}
-            />
+            <div className="flex gap-2">
+              <Input
+                type="password"
+                placeholder="API Key global do painel Evolution"
+                value={form.api_key}
+                onChange={(e) => setForm((f) => ({ ...f, api_key: e.target.value }))}
+                className="flex-1"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                disabled={!form.api_key}
+                onClick={async () => {
+                  await navigator.clipboard.writeText(form.api_key);
+                  toast({ title: 'Copiado', description: 'GLOBAL_API_KEY copiada para a área de transferência.' });
+                }}
+                title="Copiar API Key"
+              >
+                <Copy className="w-4 h-4" />
+              </Button>
+            </div>
             <p className="text-[11px] text-muted-foreground">
               Esta tela salva o login do painel. Para criar ou conectar número por QR, use <a href="/evolution-instances" className="underline text-primary">Conexões WhatsApp</a>.
             </p>
