@@ -236,15 +236,24 @@ export default function EvolutionInstances() {
 
   useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current); }, []);
 
-  const createInstance = async () => {
-    const name = newName.trim().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
-    if (!name) {
+  const createInstance = async (overrideName?: string) => {
+    const raw = (overrideName ?? newName).trim().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+    if (!raw) {
       toast({ title: 'Nome obrigatório', description: 'Informe um nome para a instância.', variant: 'destructive' });
+      return;
+    }
+    // If reseller has previously-used names that are now missing, force reuse of one of them.
+    if (missingNames.length > 0 && !missingNames.includes(raw) && !knownNames.includes(raw)) {
+      toast({
+        title: 'Use um nome existente',
+        description: `Para preservar seu histórico, reutilize um dos nomes já usados antes: ${missingNames.join(', ')}.`,
+        variant: 'destructive',
+      });
       return;
     }
     setCreating(true);
     const { data, error } = await supabase.functions.invoke('evolution-send', {
-      body: { action: 'create-instance', name },
+      body: { action: 'create-instance', name: raw },
     });
     setCreating(false);
     if (error || !data?.ok) {
@@ -255,11 +264,18 @@ export default function EvolutionInstances() {
       });
       return;
     }
-    toast({ title: 'Instância criada', description: `${name} pronta para conectar.` });
+    // Persist the name into known list
+    if (KNOWN_KEY) {
+      const merged = Array.from(new Set([...knownNames, raw]));
+      setKnownNames(merged);
+      try { localStorage.setItem(KNOWN_KEY, JSON.stringify(merged)); } catch {}
+    }
+    toast({ title: 'Instância criada', description: `${raw} pronta para conectar.` });
     setNewName('');
     await fetchInstances();
-    openQr(name);
+    openQr(raw);
   };
+
 
   const setActive = async (name: string) => {
     const { data, error } = await supabase.functions.invoke('evolution-send', {
