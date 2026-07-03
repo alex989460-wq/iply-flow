@@ -1258,14 +1258,25 @@ Deno.serve(async (req) => {
               d.startsWith('55') && d.length === 12 ? `${d.slice(0,4)}9${d.slice(4)}` : '',
             ])).filter(Boolean);
             for (const number of candidates) {
+              // 1) fetchProfilePictureUrl — retorna { profilePictureUrl } quando o contato existe
               const pic = await fetchJson(
                 `${baseUrl}/chat/fetchProfilePictureUrl/${encodeURIComponent(instanceName)}`,
                 { method: 'POST', headers: evolutionHeaders(token || apiKey, true), body: JSON.stringify({ number }) },
                 5000,
               ).catch(() => null);
-              const url = pic?.data?.profilePictureUrl || pic?.data?.profilePicUrl || pic?.data?.url
-                || pic?.profilePictureUrl || findUrlDeep(pic?.data) || findUrlDeep(pic);
-              if (url) { profilePic = url; break; }
+              const url1 = pic?.data?.profilePictureUrl || pic?.data?.profilePicUrl || pic?.data?.url
+                || pic?.data?.profilePicture || findUrlDeep(pic?.data) || findUrlDeep(pic);
+              if (url1) { profilePic = url1; break; }
+
+              // 2) fetchProfile — para o próprio dono da instância retorna { picture }
+              const prof = await fetchJson(
+                `${baseUrl}/chat/fetchProfile/${encodeURIComponent(instanceName)}`,
+                { method: 'POST', headers: evolutionHeaders(token || apiKey, true), body: JSON.stringify({ number }) },
+                5000,
+              ).catch(() => null);
+              const url2 = prof?.data?.picture || prof?.data?.profilePictureUrl || prof?.data?.profilePicUrl
+                || findUrlDeep(prof?.data) || findUrlDeep(prof);
+              if (url2) { profilePic = url2; break; }
             }
           }
           return {
