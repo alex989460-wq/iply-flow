@@ -130,6 +130,21 @@ export default function AiTraining() {
     setCandidates(prev => prev.filter(x => x.id !== c.id));
   };
 
+  const cancelJob = async (jobId: string) => {
+    await supabase.from('ai_training_jobs' as any).update({ status: 'cancelled' }).eq('id', jobId);
+    toast({ title: 'Cancelando...', description: 'O processo será interrompido no próximo lote.' });
+    reload();
+  };
+
+  const forceKillStuck = async () => {
+    if (!user) return;
+    await supabase.from('ai_training_jobs' as any)
+      .update({ status: 'failed', message: 'Marcado como falho manualmente' })
+      .eq('user_id', user.id).eq('status', 'running');
+    toast({ title: 'Jobs presos liberados' });
+    reload();
+  };
+
   return (
     <DashboardLayout>
       <div className="container max-w-6xl py-6 space-y-6">
@@ -143,9 +158,14 @@ export default function AiTraining() {
             </h1>
             <p className="text-sm text-muted-foreground mt-1">Transforma o histórico dos seus atendimentos em respostas prontas para o robô — nada é publicado sem sua aprovação.</p>
           </div>
-          <Button variant="outline" size="sm" onClick={reload} disabled={loading}>
-            <RefreshCw className={`w-3.5 h-3.5 mr-1 ${loading ? 'animate-spin' : ''}`} /> Atualizar
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={forceKillStuck}>
+              <X className="w-3.5 h-3.5 mr-1" /> Liberar jobs presos
+            </Button>
+            <Button variant="outline" size="sm" onClick={reload} disabled={loading}>
+              <RefreshCw className={`w-3.5 h-3.5 mr-1 ${loading ? 'animate-spin' : ''}`} /> Atualizar
+            </Button>
+          </div>
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -156,20 +176,26 @@ export default function AiTraining() {
         </div>
 
         {runningJob && (
-          <Card className="p-4 border-primary/40 bg-primary/5">
-            <div className="flex items-center justify-between text-sm mb-2">
+          <Card className="p-4 border-l-4 border-l-primary bg-primary/5 shadow-lg">
+            <div className="flex items-center justify-between text-sm mb-2 gap-2 flex-wrap">
               <div className="flex items-center gap-2 font-medium">
                 <Loader2 className="w-4 h-4 animate-spin text-primary" />
                 {runningJob.kind === 'import' ? 'Importando histórico' : 'Analisando conversas'}...
               </div>
-              <div className="text-xs text-muted-foreground tabular-nums">
-                {runningJob.processed.toLocaleString('pt-BR')} / {runningJob.total.toLocaleString('pt-BR')} ({runningPct}%)
+              <div className="flex items-center gap-3">
+                <div className="text-xs text-muted-foreground tabular-nums">
+                  {runningJob.processed.toLocaleString('pt-BR')} / {runningJob.total.toLocaleString('pt-BR')} ({runningPct}%)
+                </div>
+                <Button size="sm" variant="destructive" onClick={() => cancelJob(runningJob.id)}>
+                  <X className="w-3.5 h-3.5 mr-1" /> Parar
+                </Button>
               </div>
             </div>
             <Progress value={runningPct} className="h-2" />
             <p className="text-xs text-muted-foreground mt-2">{runningJob.message ?? 'Processando...'}</p>
           </Card>
         )}
+
 
         <Tabs value={tab} onValueChange={setTab}>
           <TabsList>
@@ -317,19 +343,21 @@ export default function AiTraining() {
 }
 
 function StatCard({ label, value, icon, tone = 'primary' }: { label: string; value: number; icon?: React.ReactNode; tone?: 'primary' | 'info' | 'warn' | 'success' }) {
-  const tones: Record<string, string> = {
-    primary: 'bg-primary/10 text-primary',
-    info: 'bg-sky-500/10 text-sky-500',
-    warn: 'bg-amber-500/10 text-amber-500',
-    success: 'bg-emerald-500/10 text-emerald-500',
+  const tones: Record<string, { bar: string; iconBg: string; iconColor: string; label: string; glow: string }> = {
+    primary: { bar: 'bg-violet-500', iconBg: 'bg-violet-500/15', iconColor: 'text-violet-400', label: 'text-violet-300/80', glow: 'shadow-[0_0_24px_-8px_rgba(139,92,246,0.5)]' },
+    info: { bar: 'bg-emerald-500', iconBg: 'bg-emerald-500/15', iconColor: 'text-emerald-400', label: 'text-emerald-300/80', glow: 'shadow-[0_0_24px_-8px_rgba(16,185,129,0.5)]' },
+    warn: { bar: 'bg-amber-500', iconBg: 'bg-amber-500/15', iconColor: 'text-amber-400', label: 'text-amber-300/80', glow: 'shadow-[0_0_24px_-8px_rgba(245,158,11,0.5)]' },
+    success: { bar: 'bg-rose-500', iconBg: 'bg-rose-500/15', iconColor: 'text-rose-400', label: 'text-rose-300/80', glow: 'shadow-[0_0_24px_-8px_rgba(244,63,94,0.5)]' },
   };
+  const t = tones[tone];
   return (
-    <Card className="p-4 flex items-center gap-3">
-      {icon && <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${tones[tone]}`}>{icon}</div>}
-      <div className="min-w-0">
-        <div className="text-[11px] text-muted-foreground truncate">{label}</div>
-        <div className="text-2xl font-bold tabular-nums">{value.toLocaleString('pt-BR')}</div>
+    <Card className={`relative overflow-hidden p-4 flex items-center gap-3 border-border/50 hover:border-border transition ${t.glow}`}>
+      <span className={`absolute left-0 top-0 h-full w-1 ${t.bar}`} />
+      <div className="flex-1 min-w-0">
+        <div className={`text-[10px] uppercase tracking-wider font-semibold ${t.label} truncate`}>{label}</div>
+        <div className="text-2xl font-bold tabular-nums mt-1">{value.toLocaleString('pt-BR')}</div>
       </div>
+      {icon && <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${t.iconBg} ${t.iconColor}`}>{icon}</div>}
     </Card>
   );
 }
