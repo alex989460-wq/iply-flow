@@ -196,14 +196,21 @@ export default function Customers() {
   const { toast } = useToast();
   const { user } = useAuth();
 
-  // Handle URL params for filtering from dashboard
+  // Handle URL params for filtering from dashboard / pending panel
   useEffect(() => {
     const filter = searchParams.get('filter');
+    const search = searchParams.get('search');
+    let touched = false;
     if (filter) {
       setDueDateFilter(filter);
-      // Clear the URL param after setting the filter
-      setSearchParams({});
+      touched = true;
     }
+    if (search) {
+      setSearchTerm(search);
+      setDebouncedSearch(search);
+      touched = true;
+    }
+    if (touched) setSearchParams({});
   }, [searchParams, setSearchParams]);
 
   const { data: customersResult, isLoading } = useQuery({

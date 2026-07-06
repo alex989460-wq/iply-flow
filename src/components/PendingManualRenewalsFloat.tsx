@@ -1,9 +1,10 @@
 import { useEffect, useState, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { AlertTriangle, CheckCircle2, ChevronDown, ChevronUp, X, Phone, Server, User as UserIcon, Calendar } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, ChevronDown, ChevronUp, X, Phone, Server, User as UserIcon, Calendar, Search, Smartphone } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 
@@ -30,6 +31,7 @@ const REASON_LABEL: Record<string, string> = {
   expired_over_90d: 'Vencido +90 dias',
   status_blocked: 'Status bloqueado',
   phone_not_found: 'Telefone não encontrado',
+  app_activation: 'Ativação de App',
 };
 
 const REASON_COLOR: Record<string, string> = {
@@ -40,10 +42,12 @@ const REASON_COLOR: Record<string, string> = {
   expired_over_90d: 'bg-orange-500',
   status_blocked: 'bg-purple-500',
   phone_not_found: 'bg-pink-500',
+  app_activation: 'bg-emerald-600',
 };
 
 export default function PendingManualRenewalsFloat() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [items, setItems] = useState<PendingItem[]>([]);
   const [expanded, setExpanded] = useState(false);
   const [hidden, setHidden] = useState(false);
@@ -147,16 +151,31 @@ export default function PendingManualRenewalsFloat() {
                     </Badge>
                   </div>
                 </div>
-                <Button
-                  size="sm"
-                  variant="default"
-                  onClick={() => resolve(it.id)}
-                  disabled={resolving === it.id}
-                  className="h-7 px-2 text-xs gap-1"
-                >
-                  <CheckCircle2 className="h-3.5 w-3.5" />
-                  Dar baixa
-                </Button>
+                <div className="flex items-center gap-1 shrink-0">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      const term = (it.customer_phone || it.username || it.customer_name || '').toString().replace(/\D/g, '') || (it.username || it.customer_name || '');
+                      navigate(`/customers?search=${encodeURIComponent(term)}`);
+                    }}
+                    className="h-7 px-2 text-xs gap-1"
+                    title="Buscar cliente na página de clientes"
+                  >
+                    <Search className="h-3.5 w-3.5" />
+                    Verificar
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="default"
+                    onClick={() => resolve(it.id)}
+                    disabled={resolving === it.id}
+                    className="h-7 px-2 text-xs gap-1"
+                  >
+                    <CheckCircle2 className="h-3.5 w-3.5" />
+                    Dar baixa
+                  </Button>
+                </div>
               </div>
 
               <div className="grid gap-1 text-xs text-muted-foreground">
@@ -173,6 +192,15 @@ export default function PendingManualRenewalsFloat() {
                   <div className="flex items-center gap-1.5"><Calendar className="h-3 w-3" />Novo venc.: {new Date(it.new_due_date + 'T00:00:00').toLocaleDateString('pt-BR')}</div>
                 )}
                 {it.plan_name && <div className="text-[11px]">📦 {it.plan_name}{it.amount ? ` • R$ ${Number(it.amount).toFixed(2)}` : ''}</div>}
+                {it.error_details?.app_name && (
+                  <div className="flex items-center gap-1.5"><Smartphone className="h-3 w-3" />App: <span className="font-semibold">{it.error_details.app_name}</span></div>
+                )}
+                {it.error_details?.mac_address && (
+                  <div className="text-[11px]">🖥 MAC: <span className="font-mono">{it.error_details.mac_address}</span></div>
+                )}
+                {it.error_details?.email && (
+                  <div className="text-[11px]">📧 {it.error_details.email}</div>
+                )}
                 {it.error_details?.conflict_reason && (
                   <div className="text-[11px] text-amber-600 dark:text-amber-400">🧩 {it.error_details.conflict_reason}</div>
                 )}
