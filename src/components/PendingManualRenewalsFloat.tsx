@@ -192,6 +192,15 @@ export default function PendingManualRenewalsFloat() {
                   <div className="flex items-center gap-1.5"><Calendar className="h-3 w-3" />Novo venc.: {new Date(it.new_due_date + 'T00:00:00').toLocaleDateString('pt-BR')}</div>
                 )}
                 {it.plan_name && <div className="text-[11px]">📦 {it.plan_name}{it.amount ? ` • R$ ${Number(it.amount).toFixed(2)}` : ''}</div>}
+                {it.error_details?.app_name && (
+                  <div className="flex items-center gap-1.5"><Smartphone className="h-3 w-3" />App: <span className="font-semibold">{it.error_details.app_name}</span></div>
+                )}
+                {it.error_details?.mac_address && (
+                  <div className="text-[11px]">🖥 MAC: <span className="font-mono">{it.error_details.mac_address}</span></div>
+                )}
+                {it.error_details?.email && (
+                  <div className="text-[11px]">📧 {it.error_details.email}</div>
+                )}
                 {it.error_details?.conflict_reason && (
                   <div className="text-[11px] text-amber-600 dark:text-amber-400">🧩 {it.error_details.conflict_reason}</div>
                 )}
