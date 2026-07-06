@@ -104,10 +104,75 @@ export type Database = {
         }
         Relationships: []
       }
+      ai_knowledge_candidates: {
+        Row: {
+          best_answer: string
+          canonical_question: string
+          category: string | null
+          confidence: number | null
+          created_at: string
+          embedding: string | null
+          id: string
+          keywords: string[] | null
+          last_used_at: string | null
+          similar_questions: string[] | null
+          source_conversation_ids: string[] | null
+          status: string
+          success_count: number | null
+          success_rate: number | null
+          tags: string[] | null
+          updated_at: string
+          usage_count: number | null
+          user_id: string
+        }
+        Insert: {
+          best_answer: string
+          canonical_question: string
+          category?: string | null
+          confidence?: number | null
+          created_at?: string
+          embedding?: string | null
+          id?: string
+          keywords?: string[] | null
+          last_used_at?: string | null
+          similar_questions?: string[] | null
+          source_conversation_ids?: string[] | null
+          status?: string
+          success_count?: number | null
+          success_rate?: number | null
+          tags?: string[] | null
+          updated_at?: string
+          usage_count?: number | null
+          user_id: string
+        }
+        Update: {
+          best_answer?: string
+          canonical_question?: string
+          category?: string | null
+          confidence?: number | null
+          created_at?: string
+          embedding?: string | null
+          id?: string
+          keywords?: string[] | null
+          last_used_at?: string | null
+          similar_questions?: string[] | null
+          source_conversation_ids?: string[] | null
+          status?: string
+          success_count?: number | null
+          success_rate?: number | null
+          tags?: string[] | null
+          updated_at?: string
+          usage_count?: number | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       ai_knowledge_entries: {
         Row: {
+          canonical_question: string | null
           category: string
           created_at: string
+          embedding: string | null
           id: string
           is_enabled: boolean
           keywords: string[]
@@ -118,13 +183,17 @@ export type Database = {
           requires_human: boolean
           response_template: string
           sort_order: number
+          success_rate: number | null
           title: string
           updated_at: string
+          usage_count: number | null
           user_id: string
         }
         Insert: {
+          canonical_question?: string | null
           category?: string
           created_at?: string
+          embedding?: string | null
           id?: string
           is_enabled?: boolean
           keywords?: string[]
@@ -135,13 +204,17 @@ export type Database = {
           requires_human?: boolean
           response_template: string
           sort_order?: number
+          success_rate?: number | null
           title: string
           updated_at?: string
+          usage_count?: number | null
           user_id: string
         }
         Update: {
+          canonical_question?: string | null
           category?: string
           created_at?: string
+          embedding?: string | null
           id?: string
           is_enabled?: boolean
           keywords?: string[]
@@ -152,8 +225,115 @@ export type Database = {
           requires_human?: boolean
           response_template?: string
           sort_order?: number
+          success_rate?: number | null
           title?: string
           updated_at?: string
+          usage_count?: number | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      ai_training_conversations: {
+        Row: {
+          analyzed_at: string | null
+          contact_name: string | null
+          contact_phone: string | null
+          created_at: string
+          duration_seconds: number | null
+          ended_at: string | null
+          id: string
+          message_count: number | null
+          operator_id: string | null
+          outcome: string | null
+          raw: Json
+          source: string
+          started_at: string | null
+          status: string | null
+          tags: string[] | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          analyzed_at?: string | null
+          contact_name?: string | null
+          contact_phone?: string | null
+          created_at?: string
+          duration_seconds?: number | null
+          ended_at?: string | null
+          id?: string
+          message_count?: number | null
+          operator_id?: string | null
+          outcome?: string | null
+          raw?: Json
+          source: string
+          started_at?: string | null
+          status?: string | null
+          tags?: string[] | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          analyzed_at?: string | null
+          contact_name?: string | null
+          contact_phone?: string | null
+          created_at?: string
+          duration_seconds?: number | null
+          ended_at?: string | null
+          id?: string
+          message_count?: number | null
+          operator_id?: string | null
+          outcome?: string | null
+          raw?: Json
+          source?: string
+          started_at?: string | null
+          status?: string | null
+          tags?: string[] | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      ai_training_jobs: {
+        Row: {
+          created_at: string
+          errors: number | null
+          finished_at: string | null
+          id: string
+          kind: string
+          message: string | null
+          processed: number | null
+          source: string | null
+          started_at: string
+          status: string
+          total: number | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          errors?: number | null
+          finished_at?: string | null
+          id?: string
+          kind: string
+          message?: string | null
+          processed?: number | null
+          source?: string | null
+          started_at?: string
+          status?: string
+          total?: number | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          errors?: number | null
+          finished_at?: string | null
+          id?: string
+          kind?: string
+          message?: string | null
+          processed?: number | null
+          source?: string | null
+          started_at?: string
+          status?: string
+          total?: number | null
           user_id?: string
         }
         Relationships: []
@@ -2107,6 +2287,39 @@ export type Database = {
         Returns: boolean
       }
       is_admin: { Args: never; Returns: boolean }
+      match_ai_knowledge_candidates: {
+        Args: {
+          _user_id: string
+          match_count?: number
+          match_threshold?: number
+          query_embedding: string
+        }
+        Returns: {
+          canonical_question: string
+          id: string
+          similarity: number
+        }[]
+      }
+      match_ai_knowledge_entries: {
+        Args: {
+          _user_id: string
+          match_count?: number
+          match_threshold?: number
+          query_embedding: string
+        }
+        Returns: {
+          category: string
+          id: string
+          media_filename: string
+          media_mime: string
+          media_type: string
+          media_url: string
+          requires_human: boolean
+          response_template: string
+          similarity: number
+          title: string
+        }[]
+      }
     }
     Enums: {
       app_role: "admin" | "user"

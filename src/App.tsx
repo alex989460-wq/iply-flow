@@ -47,6 +47,7 @@ import BannerGenerator from "./pages/BannerGenerator";
 import RoboFlows from "./pages/RoboFlows";
 import CostCalculator from "./pages/CostCalculator";
 import LeadCapture from "./pages/LeadCapture";
+import AiTraining from "./pages/AiTraining";
 import { Loader2 } from "lucide-react";
 
 const queryClient = new QueryClient();
@@ -134,6 +135,7 @@ function AppRoutes() {
 
       <Route path="/banner-generator" element={<ProtectedRoute><BannerGenerator /></ProtectedRoute>} />
       <Route path="/robo" element={<ProtectedRoute><RoboFlows /></ProtectedRoute>} />
+      <Route path="/ai-training" element={<ProtectedRoute><AiTraining /></ProtectedRoute>} />
       <Route path="*" element={<NotFound />} />
     </Routes>
   );
