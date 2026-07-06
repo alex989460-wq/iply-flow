@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -6,8 +6,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { Loader2, Play, RefreshCw, Check, X, Sparkles, BookOpen, BarChart3 } from 'lucide-react';
+import { Loader2, Play, RefreshCw, Check, X, Sparkles, BookOpen, BarChart3, MessageSquare, Database, CheckCircle2, Clock } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 interface Candidate {
@@ -38,6 +39,8 @@ export default function AiTraining() {
   const [stats, setStats] = useState({ conversations: 0, analyzed: 0, candidates: 0, approved: 0 });
   const [loading, setLoading] = useState(false);
 
+  const pollRef = useRef<number | null>(null);
+
   const reload = async () => {
     if (!user) return;
     setLoading(true);
@@ -57,6 +60,17 @@ export default function AiTraining() {
 
   useEffect(() => { reload(); }, [user]);
 
+  // Poll enquanto houver job em execução para atualizar a barra em tempo real
+  useEffect(() => {
+    const hasRunning = jobs.some(j => j.status === 'running');
+    if (hasRunning && !pollRef.current) {
+      pollRef.current = window.setInterval(reload, 1500);
+    } else if (!hasRunning && pollRef.current) {
+      clearInterval(pollRef.current); pollRef.current = null;
+    }
+    return () => { if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; } };
+  }, [jobs]);
+
   const runImport = async () => {
     setImporting(true);
     try {
@@ -64,12 +78,12 @@ export default function AiTraining() {
       if (error) throw error;
       toast({
         title: 'Importação concluída',
-        description: `${data?.conversations_created ?? 0} novas conversas de ${data?.messages_read ?? 0} mensagens. Puladas: ${data?.skippedOneSided ?? 0} sem ida+volta, ${data?.skippedDuplicate ?? 0} duplicadas.`,
+        description: `${data?.conversations_created ?? 0} novas conversas de ${data?.messages_read ?? 0} mensagens.`,
       });
       await reload();
     } catch (e) {
       toast({ title: 'Erro na importação', description: String((e as Error).message), variant: 'destructive' });
-    } finally { setImporting(false); }
+    } finally { setImporting(false); await reload(); }
   };
 
   const runAnalyze = async () => {
@@ -83,6 +97,9 @@ export default function AiTraining() {
       toast({ title: 'Erro na análise', description: String((e as Error).message), variant: 'destructive' });
     } finally { setAnalyzing(false); }
   };
+
+  const runningJob = jobs.find(j => j.status === 'running');
+  const runningPct = runningJob && runningJob.total > 0 ? Math.min(100, Math.round((runningJob.processed / runningJob.total) * 100)) : 0;
 
   const updateCandidate = (id: string, patch: Partial<Candidate>) => {
     setCandidates(prev => prev.map(c => c.id === id ? { ...c, ...patch } : c));
@@ -116,17 +133,43 @@ export default function AiTraining() {
   return (
     <DashboardLayout>
       <div className="container max-w-6xl py-6 space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2"><Sparkles className="w-6 h-6 text-primary" /> Treinamento da IA</h1>
-          <p className="text-sm text-muted-foreground">Transforma o histórico dos seus atendimentos em respostas prontas para o robô — nada é publicado sem sua aprovação.</p>
+        <div className="flex items-start justify-between gap-4 flex-wrap">
+          <div>
+            <h1 className="text-2xl font-bold flex items-center gap-2">
+              <span className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center">
+                <Sparkles className="w-5 h-5 text-primary" />
+              </span>
+              Treinamento da IA
+            </h1>
+            <p className="text-sm text-muted-foreground mt-1">Transforma o histórico dos seus atendimentos em respostas prontas para o robô — nada é publicado sem sua aprovação.</p>
+          </div>
+          <Button variant="outline" size="sm" onClick={reload} disabled={loading}>
+            <RefreshCw className={`w-3.5 h-3.5 mr-1 ${loading ? 'animate-spin' : ''}`} /> Atualizar
+          </Button>
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <StatCard label="Conversas importadas" value={stats.conversations} />
-          <StatCard label="Já analisadas" value={stats.analyzed} />
-          <StatCard label="Aguardando aprovação" value={stats.candidates} />
-          <StatCard label="Aprovadas" value={stats.approved} />
+          <StatCard label="Conversas importadas" value={stats.conversations} icon={<MessageSquare className="w-4 h-4" />} tone="primary" />
+          <StatCard label="Já analisadas" value={stats.analyzed} icon={<Database className="w-4 h-4" />} tone="info" />
+          <StatCard label="Aguardando aprovação" value={stats.candidates} icon={<Clock className="w-4 h-4" />} tone="warn" />
+          <StatCard label="Aprovadas" value={stats.approved} icon={<CheckCircle2 className="w-4 h-4" />} tone="success" />
         </div>
+
+        {runningJob && (
+          <Card className="p-4 border-primary/40 bg-primary/5">
+            <div className="flex items-center justify-between text-sm mb-2">
+              <div className="flex items-center gap-2 font-medium">
+                <Loader2 className="w-4 h-4 animate-spin text-primary" />
+                {runningJob.kind === 'import' ? 'Importando histórico' : 'Analisando conversas'}...
+              </div>
+              <div className="text-xs text-muted-foreground tabular-nums">
+                {runningJob.processed.toLocaleString('pt-BR')} / {runningJob.total.toLocaleString('pt-BR')} ({runningPct}%)
+              </div>
+            </div>
+            <Progress value={runningPct} className="h-2" />
+            <p className="text-xs text-muted-foreground mt-2">{runningJob.message ?? 'Processando...'}</p>
+          </Card>
+        )}
 
         <Tabs value={tab} onValueChange={setTab}>
           <TabsList>
@@ -136,36 +179,73 @@ export default function AiTraining() {
           </TabsList>
 
           <TabsContent value="import" className="space-y-4 mt-4">
-            <Card className="p-4 space-y-3">
-              <div className="flex gap-2 flex-wrap">
-                <Button onClick={runImport} disabled={importing}>
-                  {importing ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Play className="w-4 h-4 mr-1" />}
-                  Importar histórico do WhatsApp (Evolution)
-                </Button>
-                <Button variant="secondary" onClick={runAnalyze} disabled={analyzing}>
-                  {analyzing ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Sparkles className="w-4 h-4 mr-1" />}
-                  Analisar próximas 10 conversas
-                </Button>
-                <Button variant="outline" onClick={reload} disabled={loading}>Atualizar</Button>
+            <Card className="p-5 space-y-4 bg-gradient-to-br from-card to-muted/20">
+              <div className="grid md:grid-cols-2 gap-3">
+                <button
+                  onClick={runImport}
+                  disabled={importing || !!runningJob}
+                  className="group text-left p-4 rounded-xl border border-border hover:border-primary/60 bg-background transition disabled:opacity-60"
+                >
+                  <div className="flex items-center gap-2 mb-1">
+                    <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center group-hover:bg-primary/20">
+                      {importing ? <Loader2 className="w-4 h-4 animate-spin text-primary" /> : <Play className="w-4 h-4 text-primary" />}
+                    </div>
+                    <span className="font-semibold text-sm">Importar histórico (Evolution)</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">Lê todas as mensagens do WhatsApp e agrupa em conversas. Processamento em lotes com barra de progresso ao vivo.</p>
+                </button>
+
+                <button
+                  onClick={runAnalyze}
+                  disabled={analyzing || !!runningJob}
+                  className="group text-left p-4 rounded-xl border border-border hover:border-primary/60 bg-background transition disabled:opacity-60"
+                >
+                  <div className="flex items-center gap-2 mb-1">
+                    <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center group-hover:bg-primary/20">
+                      {analyzing ? <Loader2 className="w-4 h-4 animate-spin text-primary" /> : <Sparkles className="w-4 h-4 text-primary" />}
+                    </div>
+                    <span className="font-semibold text-sm">Analisar próximas 10 conversas</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">A IA extrai perguntas e respostas, deduplica por similaridade e gera candidatos para você aprovar.</p>
+                </button>
               </div>
-              <p className="text-xs text-muted-foreground">A importação é incremental: só cria conversas novas, reconhece direções in/out e ignora mensagens sem ida+volta para não treinar a IA com monólogos ou duplicidades.</p>
+              <p className="text-xs text-muted-foreground">100% seguro: apenas leitura no seu banco. Nada é enviado ao WhatsApp — sem risco de bloqueio.</p>
             </Card>
 
             <Card className="p-4">
-              <h3 className="text-sm font-semibold mb-2">Últimos jobs</h3>
+              <h3 className="text-sm font-semibold mb-3 flex items-center gap-2"><Clock className="w-4 h-4" /> Últimos jobs</h3>
               <div className="space-y-2">
                 {jobs.length === 0 && <p className="text-xs text-muted-foreground">Nenhum job ainda.</p>}
-                {jobs.map(j => (
-                  <div key={j.id} className="flex items-center justify-between text-xs border border-border rounded p-2">
-                    <div>
-                      <b>{j.kind}</b> • {j.status} • {j.message ?? '-'}
+                {jobs.map(j => {
+                  const pct = j.total > 0 ? Math.min(100, Math.round((j.processed / j.total) * 100)) : (j.status === 'done' ? 100 : 0);
+                  const statusColor = j.status === 'done' ? 'bg-emerald-500/15 text-emerald-500 border-emerald-500/30'
+                    : j.status === 'running' ? 'bg-primary/15 text-primary border-primary/30'
+                    : 'bg-destructive/15 text-destructive border-destructive/30';
+                  return (
+                    <div key={j.id} className="border border-border rounded-lg p-3 space-y-2">
+                      <div className="flex items-center justify-between text-xs flex-wrap gap-2">
+                        <div className="flex items-center gap-2">
+                          <Badge variant="outline" className={statusColor}>{j.status}</Badge>
+                          <span className="font-medium capitalize">{j.kind}</span>
+                          <span className="text-muted-foreground">{j.message ?? '-'}</span>
+                        </div>
+                        <span className="text-muted-foreground tabular-nums">{new Date(j.created_at).toLocaleString('pt-BR')}</span>
+                      </div>
+                      {j.total > 0 && (
+                        <div className="flex items-center gap-2">
+                          <Progress value={pct} className="h-1.5 flex-1" />
+                          <span className="text-[10px] text-muted-foreground tabular-nums w-24 text-right">
+                            {j.processed.toLocaleString('pt-BR')}/{j.total.toLocaleString('pt-BR')} ({pct}%)
+                          </span>
+                        </div>
+                      )}
                     </div>
-                    <div className="text-muted-foreground">{new Date(j.created_at).toLocaleString('pt-BR')}</div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </Card>
           </TabsContent>
+
 
           <TabsContent value="approve" className="space-y-3 mt-4">
             {candidates.length === 0 && <p className="text-sm text-muted-foreground">Nenhum candidato pendente. Rode "Analisar" para gerar novos.</p>}
@@ -236,11 +316,20 @@ export default function AiTraining() {
   );
 }
 
-function StatCard({ label, value }: { label: string; value: number }) {
+function StatCard({ label, value, icon, tone = 'primary' }: { label: string; value: number; icon?: React.ReactNode; tone?: 'primary' | 'info' | 'warn' | 'success' }) {
+  const tones: Record<string, string> = {
+    primary: 'bg-primary/10 text-primary',
+    info: 'bg-sky-500/10 text-sky-500',
+    warn: 'bg-amber-500/10 text-amber-500',
+    success: 'bg-emerald-500/10 text-emerald-500',
+  };
   return (
-    <Card className="p-3">
-      <div className="text-xs text-muted-foreground">{label}</div>
-      <div className="text-2xl font-bold">{value.toLocaleString('pt-BR')}</div>
+    <Card className="p-4 flex items-center gap-3">
+      {icon && <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${tones[tone]}`}>{icon}</div>}
+      <div className="min-w-0">
+        <div className="text-[11px] text-muted-foreground truncate">{label}</div>
+        <div className="text-2xl font-bold tabular-nums">{value.toLocaleString('pt-BR')}</div>
+      </div>
     </Card>
   );
 }
