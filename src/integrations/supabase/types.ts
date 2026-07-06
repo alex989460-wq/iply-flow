@@ -233,19 +233,129 @@ export type Database = {
         }
         Relationships: []
       }
+      ai_knowledge_items: {
+        Row: {
+          approved_at: string | null
+          approved_by: string | null
+          apps: string[]
+          category: string
+          confidence: number
+          created_at: string
+          devices: string[]
+          embedding: string | null
+          flow_nodes: Json | null
+          id: string
+          keywords: string[]
+          kind: Database["public"]["Enums"]["ai_knowledge_kind"]
+          knowledge_entry_id: string | null
+          last_used_at: string | null
+          merged_into_id: string | null
+          operators: Json
+          problem: string | null
+          resolved_count: number
+          solution: string | null
+          source_conversation_ids: string[]
+          status: Database["public"]["Enums"]["ai_knowledge_item_status"]
+          steps: Json | null
+          subject: string
+          success_rate: number
+          tags: string[]
+          updated_at: string
+          usage_count: number
+          user_id: string
+        }
+        Insert: {
+          approved_at?: string | null
+          approved_by?: string | null
+          apps?: string[]
+          category?: string
+          confidence?: number
+          created_at?: string
+          devices?: string[]
+          embedding?: string | null
+          flow_nodes?: Json | null
+          id?: string
+          keywords?: string[]
+          kind: Database["public"]["Enums"]["ai_knowledge_kind"]
+          knowledge_entry_id?: string | null
+          last_used_at?: string | null
+          merged_into_id?: string | null
+          operators?: Json
+          problem?: string | null
+          resolved_count?: number
+          solution?: string | null
+          source_conversation_ids?: string[]
+          status?: Database["public"]["Enums"]["ai_knowledge_item_status"]
+          steps?: Json | null
+          subject: string
+          success_rate?: number
+          tags?: string[]
+          updated_at?: string
+          usage_count?: number
+          user_id: string
+        }
+        Update: {
+          approved_at?: string | null
+          approved_by?: string | null
+          apps?: string[]
+          category?: string
+          confidence?: number
+          created_at?: string
+          devices?: string[]
+          embedding?: string | null
+          flow_nodes?: Json | null
+          id?: string
+          keywords?: string[]
+          kind?: Database["public"]["Enums"]["ai_knowledge_kind"]
+          knowledge_entry_id?: string | null
+          last_used_at?: string | null
+          merged_into_id?: string | null
+          operators?: Json
+          problem?: string | null
+          resolved_count?: number
+          solution?: string | null
+          source_conversation_ids?: string[]
+          status?: Database["public"]["Enums"]["ai_knowledge_item_status"]
+          steps?: Json | null
+          subject?: string
+          success_rate?: number
+          tags?: string[]
+          updated_at?: string
+          usage_count?: number
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_knowledge_items_merged_into_id_fkey"
+            columns: ["merged_into_id"]
+            isOneToOne: false
+            referencedRelation: "ai_knowledge_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ai_training_conversations: {
         Row: {
+          analysis_version: number | null
           analyzed_at: string | null
+          app: string | null
+          category: string | null
           contact_name: string | null
           contact_phone: string | null
           created_at: string
+          device: string | null
           duration_seconds: number | null
           ended_at: string | null
           id: string
           message_count: number | null
           operator_id: string | null
+          operator_name: string | null
           outcome: string | null
+          problem_summary: string | null
           raw: Json
+          resolved: boolean | null
+          signal_quality: string | null
+          solution_summary: string | null
           source: string
           started_at: string | null
           status: string | null
@@ -254,17 +364,26 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          analysis_version?: number | null
           analyzed_at?: string | null
+          app?: string | null
+          category?: string | null
           contact_name?: string | null
           contact_phone?: string | null
           created_at?: string
+          device?: string | null
           duration_seconds?: number | null
           ended_at?: string | null
           id?: string
           message_count?: number | null
           operator_id?: string | null
+          operator_name?: string | null
           outcome?: string | null
+          problem_summary?: string | null
           raw?: Json
+          resolved?: boolean | null
+          signal_quality?: string | null
+          solution_summary?: string | null
           source: string
           started_at?: string | null
           status?: string | null
@@ -273,17 +392,26 @@ export type Database = {
           user_id: string
         }
         Update: {
+          analysis_version?: number | null
           analyzed_at?: string | null
+          app?: string | null
+          category?: string | null
           contact_name?: string | null
           contact_phone?: string | null
           created_at?: string
+          device?: string | null
           duration_seconds?: number | null
           ended_at?: string | null
           id?: string
           message_count?: number | null
           operator_id?: string | null
+          operator_name?: string | null
           outcome?: string | null
+          problem_summary?: string | null
           raw?: Json
+          resolved?: boolean | null
+          signal_quality?: string | null
+          solution_summary?: string | null
           source?: string
           started_at?: string | null
           status?: string | null
@@ -2320,8 +2448,31 @@ export type Database = {
           title: string
         }[]
       }
+      match_ai_knowledge_items: {
+        Args: {
+          _category: string
+          _kind: Database["public"]["Enums"]["ai_knowledge_kind"]
+          _user_id: string
+          match_count?: number
+          match_threshold?: number
+          query_embedding: string
+        }
+        Returns: {
+          id: string
+          similarity: number
+          subject: string
+        }[]
+      }
     }
     Enums: {
+      ai_knowledge_item_status: "pending" | "approved" | "rejected" | "merged"
+      ai_knowledge_kind:
+        | "procedure"
+        | "flow"
+        | "intent"
+        | "official_answer"
+        | "business_rule"
+        | "tutorial"
       app_role: "admin" | "user"
       billing_type: "D-1" | "D0" | "D+1"
       customer_status: "ativa" | "inativa" | "suspensa" | "bloqueado"
@@ -2454,6 +2605,15 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      ai_knowledge_item_status: ["pending", "approved", "rejected", "merged"],
+      ai_knowledge_kind: [
+        "procedure",
+        "flow",
+        "intent",
+        "official_answer",
+        "business_rule",
+        "tutorial",
+      ],
       app_role: ["admin", "user"],
       billing_type: ["D-1", "D0", "D+1"],
       customer_status: ["ativa", "inativa", "suspensa", "bloqueado"],

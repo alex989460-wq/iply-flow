@@ -1,66 +1,167 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { Loader2, Play, RefreshCw, Check, X, Sparkles, BookOpen, BarChart3, MessageSquare, Database, CheckCircle2, Clock } from 'lucide-react';
+import { Textarea } from '@/components/ui/textarea';
+import { Input } from '@/components/ui/input';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import {
+  Loader2, Play, RefreshCw, Check, X, Sparkles, BookOpen, BarChart3,
+  MessageSquare, Database, CheckCircle2, Clock, Brain, Workflow, Target,
+  FileText, ShieldCheck, Lightbulb, Edit3, Trash2, GitMerge, StopCircle,
+  Zap, TrendingUp, Users,
+} from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
-interface Candidate {
+// ================= TYPES =================
+type Kind = 'procedure' | 'flow' | 'intent' | 'official_answer' | 'business_rule' | 'tutorial';
+
+interface KItem {
   id: string;
-  canonical_question: string;
-  similar_questions: string[];
-  best_answer: string;
+  kind: Kind;
+  subject: string;
+  problem: string | null;
+  solution: string | null;
+  steps: string[];
   category: string;
+  devices: string[];
+  apps: string[];
   keywords: string[];
   usage_count: number;
+  resolved_count: number;
   success_rate: number;
-  status: string;
+  confidence: number;
+  operators: { name: string; count: number }[];
   source_conversation_ids: string[];
+  status: string;
+  last_used_at: string | null;
 }
 
 interface Job { id: string; kind: string; status: string; total: number; processed: number; message: string | null; created_at: string; }
 
-const CATEGORIES = ['instalacao','configuracao','login','ativacao','renovacao','pagamento','pix','teste','suporte','compatibilidade','atualizacao','financeiro','revendedor','outros'];
+// ================= META =================
+const KIND_META: Record<Kind, { label: string; icon: any; color: string; border: string; badge: string }> = {
+  procedure: { label: 'Procedimento', icon: Workflow, color: 'text-violet-500', border: 'border-l-violet-500', badge: 'bg-violet-500/15 text-violet-500 border-violet-500/30' },
+  flow: { label: 'Fluxo', icon: GitMerge, color: 'text-blue-500', border: 'border-l-blue-500', badge: 'bg-blue-500/15 text-blue-500 border-blue-500/30' },
+  intent: { label: 'Intenção', icon: Target, color: 'text-emerald-500', border: 'border-l-emerald-500', badge: 'bg-emerald-500/15 text-emerald-500 border-emerald-500/30' },
+  official_answer: { label: 'Resposta Oficial', icon: ShieldCheck, color: 'text-amber-500', border: 'border-l-amber-500', badge: 'bg-amber-500/15 text-amber-500 border-amber-500/30' },
+  business_rule: { label: 'Regra de Negócio', icon: Lightbulb, color: 'text-rose-500', border: 'border-l-rose-500', badge: 'bg-rose-500/15 text-rose-500 border-rose-500/30' },
+  tutorial: { label: 'Tutorial', icon: FileText, color: 'text-cyan-500', border: 'border-l-cyan-500', badge: 'bg-cyan-500/15 text-cyan-500 border-cyan-500/30' },
+};
 
+// ================= STAT CARD =================
+function StatCard({ label, value, icon: Icon, tone = 'violet', hint }: { label: string; value: string | number; icon: any; tone?: 'violet'|'emerald'|'amber'|'rose'|'blue'|'cyan'; hint?: string }) {
+  const tones: Record<string, { border: string; bg: string; text: string; glow: string }> = {
+    violet: { border: 'border-l-violet-500', bg: 'bg-violet-500/10', text: 'text-violet-500', glow: 'hover:shadow-[0_0_24px_-12px_rgba(139,92,246,0.5)]' },
+    emerald: { border: 'border-l-emerald-500', bg: 'bg-emerald-500/10', text: 'text-emerald-500', glow: 'hover:shadow-[0_0_24px_-12px_rgba(16,185,129,0.5)]' },
+    amber: { border: 'border-l-amber-500', bg: 'bg-amber-500/10', text: 'text-amber-500', glow: 'hover:shadow-[0_0_24px_-12px_rgba(245,158,11,0.5)]' },
+    rose: { border: 'border-l-rose-500', bg: 'bg-rose-500/10', text: 'text-rose-500', glow: 'hover:shadow-[0_0_24px_-12px_rgba(244,63,94,0.5)]' },
+    blue: { border: 'border-l-blue-500', bg: 'bg-blue-500/10', text: 'text-blue-500', glow: 'hover:shadow-[0_0_24px_-12px_rgba(59,130,246,0.5)]' },
+    cyan: { border: 'border-l-cyan-500', bg: 'bg-cyan-500/10', text: 'text-cyan-500', glow: 'hover:shadow-[0_0_24px_-12px_rgba(6,182,212,0.5)]' },
+  };
+  const t = tones[tone];
+  return (
+    <Card className={`p-4 border-l-4 ${t.border} ${t.glow} transition-shadow`}>
+      <div className="flex items-start justify-between">
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{label}</p>
+          <p className="text-2xl font-bold mt-1">{value}</p>
+          {hint && <p className="text-xs text-muted-foreground mt-1">{hint}</p>}
+        </div>
+        <div className={`p-2 rounded-lg ${t.bg} ${t.text}`}><Icon className="h-5 w-5" /></div>
+      </div>
+    </Card>
+  );
+}
+
+// ================= PAGE =================
 export default function AiTraining() {
   const { user } = useAuth();
   const { toast } = useToast();
-  const [tab, setTab] = useState('import');
+  const [tab, setTab] = useState('dashboard');
   const [importing, setImporting] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
   const [jobs, setJobs] = useState<Job[]>([]);
-  const [candidates, setCandidates] = useState<Candidate[]>([]);
-  const [stats, setStats] = useState({ conversations: 0, analyzed: 0, candidates: 0, approved: 0 });
-  const [loading, setLoading] = useState(false);
-
+  const [items, setItems] = useState<KItem[]>([]);
+  const [stats, setStats] = useState({
+    conversations: 0, analyzed: 0, withSignal: 0,
+    pending: 0, approved: 0,
+    byKind: {} as Record<string, number>,
+    topDevices: [] as { name: string; count: number }[],
+    topApps: [] as { name: string; count: number }[],
+    topOperators: [] as { name: string; count: number; rate: number }[],
+  });
+  const [filterKind, setFilterKind] = useState<Kind | 'all'>('all');
+  const [editItem, setEditItem] = useState<KItem | null>(null);
+  const [showSourceOf, setShowSourceOf] = useState<KItem | null>(null);
+  const [sourceMessages, setSourceMessages] = useState<any[]>([]);
   const pollRef = useRef<number | null>(null);
 
   const reload = async () => {
     if (!user) return;
-    setLoading(true);
-    const [{ data: jobsData }, { data: candsData }, { count: cConv }, { count: cAnalyzed }, { count: cCands }, { count: cApproved }] = await Promise.all([
+    const [
+      { data: jobsData },
+      { data: itemsData },
+      { count: cConv },
+      { count: cAnalyzed },
+      { count: cSignal },
+      { count: cPending },
+      { count: cApproved },
+      { data: convsForStats },
+    ] = await Promise.all([
       supabase.from('ai_training_jobs' as any).select('*').eq('user_id', user.id).order('created_at', { ascending: false }).limit(10),
-      supabase.from('ai_knowledge_candidates' as any).select('*').eq('user_id', user.id).eq('status', 'pending').order('usage_count', { ascending: false }).limit(100),
+      supabase.from('ai_knowledge_items' as any).select('*').eq('user_id', user.id).in('status', ['pending','approved']).order('usage_count', { ascending: false }).limit(200),
       supabase.from('ai_training_conversations' as any).select('*', { count: 'exact', head: true }).eq('user_id', user.id),
       supabase.from('ai_training_conversations' as any).select('*', { count: 'exact', head: true }).eq('user_id', user.id).not('analyzed_at', 'is', null),
-      supabase.from('ai_knowledge_candidates' as any).select('*', { count: 'exact', head: true }).eq('user_id', user.id).eq('status', 'pending'),
-      supabase.from('ai_knowledge_candidates' as any).select('*', { count: 'exact', head: true }).eq('user_id', user.id).eq('status', 'approved'),
+      supabase.from('ai_training_conversations' as any).select('*', { count: 'exact', head: true }).eq('user_id', user.id).in('signal_quality', ['high','medium']),
+      supabase.from('ai_knowledge_items' as any).select('*', { count: 'exact', head: true }).eq('user_id', user.id).eq('status','pending'),
+      supabase.from('ai_knowledge_items' as any).select('*', { count: 'exact', head: true }).eq('user_id', user.id).eq('status','approved'),
+      supabase.from('ai_training_conversations' as any).select('device,app,operator_name,resolved').eq('user_id', user.id).not('analyzed_at','is',null).limit(2000),
     ]);
+
     setJobs((jobsData ?? []) as unknown as Job[]);
-    setCandidates((candsData ?? []) as unknown as Candidate[]);
-    setStats({ conversations: cConv ?? 0, analyzed: cAnalyzed ?? 0, candidates: cCands ?? 0, approved: cApproved ?? 0 });
-    setLoading(false);
+    const list = (itemsData ?? []) as unknown as KItem[];
+    setItems(list);
+
+    const byKind: Record<string, number> = {};
+    list.forEach((i) => { byKind[i.kind] = (byKind[i.kind] || 0) + 1; });
+
+    const devCount: Record<string, number> = {};
+    const appCount: Record<string, number> = {};
+    const opCount: Record<string, { total: number; resolved: number }> = {};
+    (convsForStats ?? []).forEach((c: any) => {
+      if (c.device) devCount[c.device] = (devCount[c.device] || 0) + 1;
+      if (c.app) appCount[c.app] = (appCount[c.app] || 0) + 1;
+      if (c.operator_name && c.operator_name !== 'desconhecido') {
+        const o = opCount[c.operator_name] || { total: 0, resolved: 0 };
+        o.total++; if (c.resolved) o.resolved++;
+        opCount[c.operator_name] = o;
+      }
+    });
+    const rank = (obj: Record<string, number>) => Object.entries(obj).map(([name, count]) => ({ name, count })).sort((a,b)=>b.count-a.count).slice(0,5);
+
+    setStats({
+      conversations: cConv ?? 0,
+      analyzed: cAnalyzed ?? 0,
+      withSignal: cSignal ?? 0,
+      pending: cPending ?? 0,
+      approved: cApproved ?? 0,
+      byKind,
+      topDevices: rank(devCount),
+      topApps: rank(appCount),
+      topOperators: Object.entries(opCount)
+        .map(([name, o]) => ({ name, count: o.total, rate: o.total > 0 ? o.resolved/o.total : 0 }))
+        .sort((a,b)=>b.rate-a.rate || b.count-a.count).slice(0,5),
+    });
   };
 
   useEffect(() => { reload(); }, [user]);
 
-  // Poll enquanto houver job em execução para atualizar a barra em tempo real
   useEffect(() => {
     const hasRunning = jobs.some(j => j.status === 'running');
     if (hasRunning && !pollRef.current) {
@@ -74,299 +175,372 @@ export default function AiTraining() {
   const runImport = async () => {
     setImporting(true);
     try {
-      const { data, error } = await supabase.functions.invoke('ai-training-import', { body: { source: 'evolution' } });
+      const { error } = await supabase.functions.invoke('ai-training-import', { body: { source: 'evolution' } });
       if (error) throw error;
-      toast({
-        title: 'Importação iniciada',
-        description: `Processando ${data?.total ?? 0} mensagens em segundo plano. Acompanhe o progresso na barra abaixo.`,
-      });
-      // Não espera terminar: polling assume daqui em diante
-      setTimeout(() => reload(), 800);
-    } catch (e) {
-      toast({ title: 'Erro ao iniciar', description: String((e as Error).message), variant: 'destructive' });
+      toast({ title: 'Importação iniciada', description: 'Rodando em segundo plano...' });
+      setTimeout(reload, 800);
+    } catch (e: any) {
+      toast({ title: 'Erro', description: e.message, variant: 'destructive' });
     } finally { setImporting(false); }
   };
-
 
   const runAnalyze = async () => {
     setAnalyzing(true);
     try {
-      const { data, error } = await supabase.functions.invoke('ai-training-analyze', { body: { batch: 10 } });
+      const { error } = await supabase.functions.invoke('ai-training-analyze', { body: { batch: 15 } });
       if (error) throw error;
-      toast({ title: 'Análise concluída', description: `Processadas: ${data?.processed ?? 0} • Novos: ${data?.intentsCreated ?? 0} • Agrupados: ${data?.intentsMerged ?? 0}` });
-      await reload();
-    } catch (e) {
-      toast({ title: 'Erro na análise', description: String((e as Error).message), variant: 'destructive' });
+      toast({ title: 'Análise iniciada', description: 'Extraindo conhecimento inteligente...' });
+      setTimeout(reload, 800);
+    } catch (e: any) {
+      toast({ title: 'Erro', description: e.message, variant: 'destructive' });
     } finally { setAnalyzing(false); }
-  };
-
-  const runningJob = jobs.find(j => j.status === 'running');
-  const runningPct = runningJob && runningJob.total > 0 ? Math.min(100, Math.round((runningJob.processed / runningJob.total) * 100)) : 0;
-
-  const updateCandidate = (id: string, patch: Partial<Candidate>) => {
-    setCandidates(prev => prev.map(c => c.id === id ? { ...c, ...patch } : c));
-  };
-
-  const approve = async (c: Candidate) => {
-    const { error } = await supabase.functions.invoke('ai-training-approve', {
-      body: {
-        candidate_id: c.id,
-        action: 'approve',
-        patch: {
-          canonical_question: c.canonical_question,
-          best_answer: c.best_answer,
-          category: c.category,
-          keywords: c.keywords,
-        },
-      },
-    });
-    if (error) { toast({ title: 'Erro ao aprovar', description: error.message, variant: 'destructive' }); return; }
-    toast({ title: '✅ Conhecimento aprovado', description: 'O robô já pode usar esta resposta.' });
-    setCandidates(prev => prev.filter(x => x.id !== c.id));
-    reload();
-  };
-
-  const reject = async (c: Candidate) => {
-    const { error } = await supabase.functions.invoke('ai-training-approve', { body: { candidate_id: c.id, action: 'reject' } });
-    if (error) { toast({ title: 'Erro ao rejeitar', description: error.message, variant: 'destructive' }); return; }
-    setCandidates(prev => prev.filter(x => x.id !== c.id));
   };
 
   const cancelJob = async (jobId: string) => {
     await supabase.from('ai_training_jobs' as any).update({ status: 'cancelled' }).eq('id', jobId);
-    toast({ title: 'Cancelando...', description: 'O processo será interrompido no próximo lote.' });
-    reload();
+    setTimeout(reload, 500);
   };
-
   const forceKillStuck = async () => {
     if (!user) return;
     await supabase.from('ai_training_jobs' as any)
-      .update({ status: 'failed', message: 'Marcado como falho manualmente' })
+      .update({ status: 'failed', message: 'Liberado manualmente' })
       .eq('user_id', user.id).eq('status', 'running');
-    toast({ title: 'Jobs presos liberados' });
     reload();
   };
 
+  const act = async (item_id: string, action: string, extra: any = {}) => {
+    const { error } = await supabase.functions.invoke('ai-training-approve', { body: { item_id, action, ...extra } });
+    if (error) return toast({ title: 'Erro', description: error.message, variant: 'destructive' });
+    toast({ title: 'OK', description: `Ação: ${action}` });
+    reload();
+    setEditItem(null);
+  };
+
+  const openSource = async (item: KItem) => {
+    setShowSourceOf(item);
+    const { data } = await supabase.from('ai_training_conversations' as any)
+      .select('id,contact_phone,contact_name,started_at,problem_summary,solution_summary,resolved')
+      .in('id', item.source_conversation_ids.slice(0, 20));
+    setSourceMessages(data || []);
+  };
+
+  const runningJob = jobs.find(j => j.status === 'running');
+  const filtered = useMemo(() => filterKind === 'all' ? items : items.filter(i => i.kind === filterKind), [items, filterKind]);
+  const pendingList = filtered.filter(i => i.status === 'pending');
+
   return (
     <DashboardLayout>
-      <div className="container max-w-6xl py-6 space-y-6">
-        <div className="flex items-start justify-between gap-4 flex-wrap">
+      <div className="space-y-6 p-4 md:p-6">
+        {/* HEADER */}
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-bold flex items-center gap-2">
-              <span className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center">
-                <Sparkles className="w-5 h-5 text-primary" />
-              </span>
-              Treinamento da IA
+            <h1 className="text-2xl md:text-3xl font-bold flex items-center gap-2">
+              <Brain className="h-7 w-7 text-violet-500" />
+              Central de Conhecimento IA
             </h1>
-            <p className="text-sm text-muted-foreground mt-1">Transforma o histórico dos seus atendimentos em respostas prontas para o robô — nada é publicado sem sua aprovação.</p>
+            <p className="text-sm text-muted-foreground mt-1">Aprende com seus atendimentos reais — nada é publicado sem sua aprovação.</p>
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={forceKillStuck}>
-              <X className="w-3.5 h-3.5 mr-1" /> Liberar jobs presos
-            </Button>
-            <Button variant="outline" size="sm" onClick={reload} disabled={loading}>
-              <RefreshCw className={`w-3.5 h-3.5 mr-1 ${loading ? 'animate-spin' : ''}`} /> Atualizar
+            <Button variant="outline" size="sm" onClick={reload}><RefreshCw className="h-4 w-4 mr-1" />Atualizar</Button>
+            <Button variant="outline" size="sm" onClick={forceKillStuck} className="text-rose-500 border-rose-500/30 hover:bg-rose-500/10">
+              <StopCircle className="h-4 w-4 mr-1" />Liberar jobs presos
             </Button>
           </div>
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <StatCard label="Conversas importadas" value={stats.conversations} icon={<MessageSquare className="w-4 h-4" />} tone="primary" />
-          <StatCard label="Já analisadas" value={stats.analyzed} icon={<Database className="w-4 h-4" />} tone="info" />
-          <StatCard label="Aguardando aprovação" value={stats.candidates} icon={<Clock className="w-4 h-4" />} tone="warn" />
-          <StatCard label="Aprovadas" value={stats.approved} icon={<CheckCircle2 className="w-4 h-4" />} tone="success" />
-        </div>
-
+        {/* RUNNING JOB PROGRESS */}
         {runningJob && (
-          <Card className="p-4 border-l-4 border-l-primary bg-primary/5 shadow-lg">
-            <div className="flex items-center justify-between text-sm mb-2 gap-2 flex-wrap">
-              <div className="flex items-center gap-2 font-medium">
-                <Loader2 className="w-4 h-4 animate-spin text-primary" />
-                {runningJob.kind === 'import' ? 'Importando histórico' : 'Analisando conversas'}...
-              </div>
-              <div className="flex items-center gap-3">
-                <div className="text-xs text-muted-foreground tabular-nums">
-                  {runningJob.processed.toLocaleString('pt-BR')} / {runningJob.total.toLocaleString('pt-BR')} ({runningPct}%)
+          <Card className="p-4 border-l-4 border-l-violet-500 bg-violet-500/5 shadow-[0_0_30px_-12px_rgba(139,92,246,0.4)]">
+            <div className="flex items-center justify-between gap-3 mb-2">
+              <div className="flex items-center gap-2">
+                <Loader2 className="h-5 w-5 animate-spin text-violet-500" />
+                <div>
+                  <p className="font-semibold">{runningJob.kind === 'import' ? 'Importando histórico' : 'Analisando conversas'}</p>
+                  <p className="text-xs text-muted-foreground">{runningJob.message ?? '...'}</p>
                 </div>
-                <Button size="sm" variant="destructive" onClick={() => cancelJob(runningJob.id)}>
-                  <X className="w-3.5 h-3.5 mr-1" /> Parar
-                </Button>
               </div>
+              <Button size="sm" variant="destructive" onClick={() => cancelJob(runningJob.id)}>
+                <StopCircle className="h-4 w-4 mr-1" />Parar
+              </Button>
             </div>
-            <Progress value={runningPct} className="h-2" />
-            <p className="text-xs text-muted-foreground mt-2">{runningJob.message ?? 'Processando...'}</p>
+            <Progress value={runningJob.total > 0 ? (runningJob.processed / runningJob.total) * 100 : 0} className="h-2" />
+            <p className="text-xs text-muted-foreground mt-1 text-right">
+              {runningJob.processed.toLocaleString()} / {runningJob.total.toLocaleString()}
+            </p>
           </Card>
         )}
 
-
         <Tabs value={tab} onValueChange={setTab}>
-          <TabsList>
-            <TabsTrigger value="import"><RefreshCw className="w-4 h-4 mr-1" /> Importar / Analisar</TabsTrigger>
-            <TabsTrigger value="approve"><BookOpen className="w-4 h-4 mr-1" /> Aprovação ({candidates.length})</TabsTrigger>
-            <TabsTrigger value="stats"><BarChart3 className="w-4 h-4 mr-1" /> Estatísticas</TabsTrigger>
+          <TabsList className="grid w-full grid-cols-4">
+            <TabsTrigger value="dashboard"><BarChart3 className="h-4 w-4 mr-1" />Dashboard</TabsTrigger>
+            <TabsTrigger value="import"><Database className="h-4 w-4 mr-1" />Importar</TabsTrigger>
+            <TabsTrigger value="approve">
+              <CheckCircle2 className="h-4 w-4 mr-1" />Aprovação
+              {stats.pending > 0 && <Badge className="ml-2 bg-violet-500 text-white">{stats.pending}</Badge>}
+            </TabsTrigger>
+            <TabsTrigger value="approved"><BookOpen className="h-4 w-4 mr-1" />Base ({stats.approved})</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="import" className="space-y-4 mt-4">
-            <Card className="p-5 space-y-4 bg-gradient-to-br from-card to-muted/20">
-              <div className="grid md:grid-cols-2 gap-3">
-                <button
-                  onClick={runImport}
-                  disabled={importing || !!runningJob}
-                  className="group text-left p-4 rounded-xl border border-border hover:border-primary/60 bg-background transition disabled:opacity-60"
-                >
-                  <div className="flex items-center gap-2 mb-1">
-                    <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center group-hover:bg-primary/20">
-                      {importing ? <Loader2 className="w-4 h-4 animate-spin text-primary" /> : <Play className="w-4 h-4 text-primary" />}
-                    </div>
-                    <span className="font-semibold text-sm">Importar histórico (Evolution)</span>
-                  </div>
-                  <p className="text-xs text-muted-foreground">Lê todas as mensagens do WhatsApp e agrupa em conversas. Processamento em lotes com barra de progresso ao vivo.</p>
-                </button>
-
-                <button
-                  onClick={runAnalyze}
-                  disabled={analyzing || !!runningJob}
-                  className="group text-left p-4 rounded-xl border border-border hover:border-primary/60 bg-background transition disabled:opacity-60"
-                >
-                  <div className="flex items-center gap-2 mb-1">
-                    <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center group-hover:bg-primary/20">
-                      {analyzing ? <Loader2 className="w-4 h-4 animate-spin text-primary" /> : <Sparkles className="w-4 h-4 text-primary" />}
-                    </div>
-                    <span className="font-semibold text-sm">Analisar próximas 10 conversas</span>
-                  </div>
-                  <p className="text-xs text-muted-foreground">A IA extrai perguntas e respostas, deduplica por similaridade e gera candidatos para você aprovar.</p>
-                </button>
-              </div>
-              <p className="text-xs text-muted-foreground">100% seguro: apenas leitura no seu banco. Nada é enviado ao WhatsApp — sem risco de bloqueio.</p>
-            </Card>
-
-            <Card className="p-4">
-              <h3 className="text-sm font-semibold mb-3 flex items-center gap-2"><Clock className="w-4 h-4" /> Últimos jobs</h3>
-              <div className="space-y-2">
-                {jobs.length === 0 && <p className="text-xs text-muted-foreground">Nenhum job ainda.</p>}
-                {jobs.map(j => {
-                  const pct = j.total > 0 ? Math.min(100, Math.round((j.processed / j.total) * 100)) : (j.status === 'done' ? 100 : 0);
-                  const statusColor = j.status === 'done' ? 'bg-emerald-500/15 text-emerald-500 border-emerald-500/30'
-                    : j.status === 'running' ? 'bg-primary/15 text-primary border-primary/30'
-                    : 'bg-destructive/15 text-destructive border-destructive/30';
-                  return (
-                    <div key={j.id} className="border border-border rounded-lg p-3 space-y-2">
-                      <div className="flex items-center justify-between text-xs flex-wrap gap-2">
-                        <div className="flex items-center gap-2">
-                          <Badge variant="outline" className={statusColor}>{j.status}</Badge>
-                          <span className="font-medium capitalize">{j.kind}</span>
-                          <span className="text-muted-foreground">{j.message ?? '-'}</span>
-                        </div>
-                        <span className="text-muted-foreground tabular-nums">{new Date(j.created_at).toLocaleString('pt-BR')}</span>
-                      </div>
-                      {j.total > 0 && (
-                        <div className="flex items-center gap-2">
-                          <Progress value={pct} className="h-1.5 flex-1" />
-                          <span className="text-[10px] text-muted-foreground tabular-nums w-24 text-right">
-                            {j.processed.toLocaleString('pt-BR')}/{j.total.toLocaleString('pt-BR')} ({pct}%)
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </Card>
-          </TabsContent>
-
-
-          <TabsContent value="approve" className="space-y-3 mt-4">
-            {candidates.length === 0 && (
-              <Card className="p-8 text-center border-dashed">
-                <BookOpen className="w-10 h-10 mx-auto mb-2 text-muted-foreground/50" />
-                <p className="text-sm text-muted-foreground">Nenhum candidato pendente. Rode "Analisar" para gerar novos.</p>
-              </Card>
-            )}
-            {candidates.map(c => (
-              <Card key={c.id} className="relative overflow-hidden p-4 space-y-3 border-border/50 hover:border-border transition shadow-[0_0_24px_-12px_rgba(139,92,246,0.4)]">
-                <span className="absolute left-0 top-0 h-full w-1 bg-violet-500" />
-                <div className="flex items-start justify-between gap-2 pl-2">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <Badge className="bg-violet-500/15 text-violet-300 border-violet-500/30 uppercase text-[10px] tracking-wider">{c.category}</Badge>
-                    <Badge variant="secondary" className="bg-emerald-500/15 text-emerald-300 border-emerald-500/30">{c.usage_count}× visto</Badge>
-                    <Badge variant="outline" className="bg-amber-500/10 text-amber-300 border-amber-500/30">{Math.round((c.success_rate ?? 0) * 100)}% sucesso</Badge>
-                  </div>
-                  <div className="flex gap-1">
-                    <Button size="sm" variant="outline" onClick={() => reject(c)}><X className="w-3.5 h-3.5 mr-1" /> Rejeitar</Button>
-                    <Button size="sm" onClick={() => approve(c)}><Check className="w-3.5 h-3.5 mr-1" /> Aprovar</Button>
-                  </div>
-                </div>
-                <div className="pl-2">
-                  <label className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">Pergunta canônica</label>
-                  <Input value={c.canonical_question} onChange={e => updateCandidate(c.id, { canonical_question: e.target.value })} />
-                </div>
-                <div className="pl-2">
-                  <label className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">Melhor resposta</label>
-                  <textarea
-                    value={c.best_answer}
-                    onChange={e => updateCandidate(c.id, { best_answer: e.target.value })}
-                    rows={4}
-                    className="w-full rounded-md border border-border bg-background p-2 text-sm"
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-2 pl-2">
-                  <div>
-                    <label className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">Categoria</label>
-                    <select value={c.category} onChange={e => updateCandidate(c.id, { category: e.target.value })} className="w-full h-9 rounded-md border border-border bg-background px-2 text-sm">
-                      {CATEGORIES.map(k => <option key={k} value={k}>{k}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">Palavras-chave</label>
-                    <Input value={c.keywords.join(', ')} onChange={e => updateCandidate(c.id, { keywords: e.target.value.split(',').map(s => s.trim()) })} />
-                  </div>
-                </div>
-                {c.similar_questions.length > 1 && (
-                  <details className="text-xs text-muted-foreground pl-2">
-                    <summary className="cursor-pointer">{c.similar_questions.length} perguntas semelhantes agrupadas</summary>
-                    <ul className="list-disc pl-5 mt-1 space-y-0.5">
-                      {c.similar_questions.slice(0, 20).map((q, i) => <li key={i}>{q}</li>)}
-                    </ul>
-                  </details>
-                )}
-              </Card>
-            ))}
-          </TabsContent>
-
-          <TabsContent value="stats" className="mt-4 space-y-3">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              <StatCard label="Conversas totais" value={stats.conversations} icon={<MessageSquare className="w-4 h-4" />} tone="primary" />
-              <StatCard label="Analisadas" value={stats.analyzed} icon={<Database className="w-4 h-4" />} tone="info" />
-              <StatCard label="Não classificadas" value={Math.max(0, stats.conversations - stats.analyzed)} icon={<Clock className="w-4 h-4" />} tone="warn" />
-              <StatCard label="Aprovadas" value={stats.approved} icon={<CheckCircle2 className="w-4 h-4" />} tone="success" />
+          {/* ============ DASHBOARD ============ */}
+          <TabsContent value="dashboard" className="space-y-4 mt-4">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+              <StatCard label="Conversas" value={stats.conversations.toLocaleString()} icon={MessageSquare} tone="blue" />
+              <StatCard label="Analisadas" value={stats.analyzed.toLocaleString()} icon={Brain} tone="violet" />
+              <StatCard label="Com sinal útil" value={stats.withSignal.toLocaleString()} icon={Zap} tone="emerald" hint={`${stats.analyzed>0 ? Math.round(stats.withSignal/stats.analyzed*100) : 0}% de aproveitamento`} />
+              <StatCard label="Aguardando" value={stats.pending} icon={Clock} tone="amber" />
+              <StatCard label="Aprovados" value={stats.approved} icon={CheckCircle2} tone="emerald" />
+              <StatCard label="Total conhecimento" value={items.length} icon={BookOpen} tone="cyan" />
             </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <Card className="p-4">
+                <h3 className="font-semibold flex items-center gap-2 mb-3"><Sparkles className="h-4 w-4 text-violet-500" />Por tipo</h3>
+                <div className="space-y-2">
+                  {(Object.keys(KIND_META) as Kind[]).map((k) => {
+                    const meta = KIND_META[k];
+                    const Icon = meta.icon;
+                    const n = stats.byKind[k] || 0;
+                    return (
+                      <div key={k} className="flex items-center gap-2">
+                        <div className={`p-1.5 rounded ${meta.badge} border`}><Icon className="h-3.5 w-3.5" /></div>
+                        <span className="text-sm flex-1">{meta.label}</span>
+                        <span className="font-semibold">{n}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </Card>
+
+              <Card className="p-4">
+                <h3 className="font-semibold flex items-center gap-2 mb-3"><TrendingUp className="h-4 w-4 text-emerald-500" />Top aplicativos</h3>
+                {stats.topApps.length === 0 ? <p className="text-xs text-muted-foreground">Sem dados</p> :
+                  <div className="space-y-2">
+                    {stats.topApps.map((a) => (
+                      <div key={a.name} className="flex items-center justify-between text-sm">
+                        <span>{a.name}</span><Badge variant="secondary">{a.count}</Badge>
+                      </div>
+                    ))}
+                  </div>}
+              </Card>
+
+              <Card className="p-4">
+                <h3 className="font-semibold flex items-center gap-2 mb-3"><Users className="h-4 w-4 text-amber-500" />Top operadores</h3>
+                {stats.topOperators.length === 0 ? <p className="text-xs text-muted-foreground">Sem dados</p> :
+                  <div className="space-y-2">
+                    {stats.topOperators.map((o) => (
+                      <div key={o.name} className="flex items-center justify-between text-sm">
+                        <span className="truncate">{o.name}</span>
+                        <div className="flex items-center gap-2">
+                          <Badge variant="outline" className="text-emerald-500 border-emerald-500/30">{Math.round(o.rate * 100)}%</Badge>
+                          <span className="text-xs text-muted-foreground">{o.count}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>}
+              </Card>
+            </div>
+          </TabsContent>
+
+          {/* ============ IMPORT ============ */}
+          <TabsContent value="import" className="space-y-4 mt-4">
+            <Card className="p-6">
+              <h3 className="font-semibold mb-2 flex items-center gap-2"><Database className="h-5 w-5 text-blue-500" />Importar histórico de atendimentos</h3>
+              <p className="text-sm text-muted-foreground mb-4">Puxa todas as conversas da Evolution API e agrupa em atendimentos (janela de 6h).</p>
+              <div className="flex gap-2 flex-wrap">
+                <Button onClick={runImport} disabled={importing || !!runningJob}>
+                  {importing ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Play className="h-4 w-4 mr-1" />}
+                  Importar histórico (Evolution)
+                </Button>
+                <Button variant="outline" onClick={runAnalyze} disabled={analyzing || !!runningJob}>
+                  {analyzing ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Brain className="h-4 w-4 mr-1" />}
+                  Analisar (extrair conhecimento)
+                </Button>
+              </div>
+            </Card>
+
             <Card className="p-4">
-              <p className="text-xs text-muted-foreground">Rode a análise em lotes até processar todo o histórico. Quanto mais conversas analisadas, mais completa a base fica.</p>
+              <h3 className="font-semibold mb-3">Últimos jobs</h3>
+              {jobs.length === 0 ? <p className="text-sm text-muted-foreground">Nenhum job ainda.</p> :
+                <div className="space-y-2">
+                  {jobs.map((j) => (
+                    <div key={j.id} className="flex items-center justify-between p-2 rounded border text-sm">
+                      <div className="flex items-center gap-2">
+                        <Badge variant={j.status==='done'?'default':j.status==='running'?'secondary':'destructive'}>{j.status}</Badge>
+                        <span className="font-medium">{j.kind}</span>
+                        <span className="text-muted-foreground">{j.message ?? ''}</span>
+                      </div>
+                      <span className="text-xs text-muted-foreground">{j.processed}/{j.total}</span>
+                    </div>
+                  ))}
+                </div>}
             </Card>
           </TabsContent>
 
+          {/* ============ APPROVE ============ */}
+          <TabsContent value="approve" className="space-y-4 mt-4">
+            <div className="flex gap-2 flex-wrap">
+              <Button size="sm" variant={filterKind==='all'?'default':'outline'} onClick={()=>setFilterKind('all')}>Todos ({items.filter(i=>i.status==='pending').length})</Button>
+              {(Object.keys(KIND_META) as Kind[]).map((k) => {
+                const meta = KIND_META[k];
+                const Icon = meta.icon;
+                const n = items.filter(i=>i.kind===k && i.status==='pending').length;
+                return (
+                  <Button key={k} size="sm" variant={filterKind===k?'default':'outline'} onClick={()=>setFilterKind(k)} className="gap-1">
+                    <Icon className="h-3.5 w-3.5" />{meta.label} ({n})
+                  </Button>
+                );
+              })}
+            </div>
+
+            {pendingList.length === 0 ? (
+              <Card className="p-12 text-center text-muted-foreground">
+                <Sparkles className="h-8 w-8 mx-auto mb-2 opacity-40" />
+                Nenhum conhecimento pendente. Rode uma análise para gerar novos itens.
+              </Card>
+            ) : (
+              <div className="grid gap-3">
+                {pendingList.map((it) => <ItemCard key={it.id} item={it} onAct={act} onEdit={setEditItem} onSource={openSource} />)}
+              </div>
+            )}
+          </TabsContent>
+
+          {/* ============ APPROVED ============ */}
+          <TabsContent value="approved" className="space-y-3 mt-4">
+            {items.filter(i=>i.status==='approved').length === 0 ? (
+              <Card className="p-12 text-center text-muted-foreground">Ainda nenhum conhecimento aprovado.</Card>
+            ) : (
+              <div className="grid gap-3">
+                {items.filter(i=>i.status==='approved').map((it) => <ItemCard key={it.id} item={it} approved onAct={act} onEdit={setEditItem} onSource={openSource} />)}
+              </div>
+            )}
+          </TabsContent>
         </Tabs>
       </div>
+
+      {/* EDIT DIALOG */}
+      <Dialog open={!!editItem} onOpenChange={(o)=>!o && setEditItem(null)}>
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>Editar conhecimento</DialogTitle></DialogHeader>
+          {editItem && <EditForm item={editItem} onChange={setEditItem} />}
+          <DialogFooter>
+            <Button variant="outline" onClick={()=>setEditItem(null)}>Cancelar</Button>
+            <Button onClick={()=>editItem && act(editItem.id,'update',{ patch: {
+              subject: editItem.subject, problem: editItem.problem, solution: editItem.solution,
+              steps: editItem.steps, category: editItem.category,
+            }})}>Salvar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* SOURCE DIALOG */}
+      <Dialog open={!!showSourceOf} onOpenChange={(o)=>!o && setShowSourceOf(null)}>
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>Conversas de origem</DialogTitle></DialogHeader>
+          <div className="space-y-2">
+            {sourceMessages.map((c) => (
+              <Card key={c.id} className="p-3">
+                <div className="flex items-center justify-between text-xs mb-1">
+                  <span className="font-medium">{c.contact_name || c.contact_phone}</span>
+                  <span className="text-muted-foreground">{new Date(c.started_at).toLocaleString()}</span>
+                </div>
+                <p className="text-sm"><b>Problema:</b> {c.problem_summary || '—'}</p>
+                <p className="text-sm"><b>Solução:</b> {c.solution_summary || '—'}</p>
+                {c.resolved && <Badge className="mt-1 bg-emerald-500/15 text-emerald-500 border-emerald-500/30">Resolvido</Badge>}
+              </Card>
+            ))}
+            {sourceMessages.length === 0 && <p className="text-sm text-muted-foreground text-center py-4">Sem conversas de origem disponíveis.</p>}
+          </div>
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   );
 }
 
-function StatCard({ label, value, icon, tone = 'primary' }: { label: string; value: number; icon?: React.ReactNode; tone?: 'primary' | 'info' | 'warn' | 'success' }) {
-  const tones: Record<string, { bar: string; iconBg: string; iconColor: string; label: string; glow: string }> = {
-    primary: { bar: 'bg-violet-500', iconBg: 'bg-violet-500/15', iconColor: 'text-violet-400', label: 'text-violet-300/80', glow: 'shadow-[0_0_24px_-8px_rgba(139,92,246,0.5)]' },
-    info: { bar: 'bg-emerald-500', iconBg: 'bg-emerald-500/15', iconColor: 'text-emerald-400', label: 'text-emerald-300/80', glow: 'shadow-[0_0_24px_-8px_rgba(16,185,129,0.5)]' },
-    warn: { bar: 'bg-amber-500', iconBg: 'bg-amber-500/15', iconColor: 'text-amber-400', label: 'text-amber-300/80', glow: 'shadow-[0_0_24px_-8px_rgba(245,158,11,0.5)]' },
-    success: { bar: 'bg-rose-500', iconBg: 'bg-rose-500/15', iconColor: 'text-rose-400', label: 'text-rose-300/80', glow: 'shadow-[0_0_24px_-8px_rgba(244,63,94,0.5)]' },
-  };
-  const t = tones[tone];
+// ================= ITEM CARD =================
+function ItemCard({ item, approved, onAct, onEdit, onSource }: {
+  item: KItem; approved?: boolean;
+  onAct: (id: string, action: string, extra?: any) => void;
+  onEdit: (i: KItem) => void;
+  onSource: (i: KItem) => void;
+}) {
+  const meta = KIND_META[item.kind];
+  const Icon = meta.icon;
   return (
-    <Card className={`relative overflow-hidden p-4 flex items-center gap-3 border-border/50 hover:border-border transition ${t.glow}`}>
-      <span className={`absolute left-0 top-0 h-full w-1 ${t.bar}`} />
-      <div className="flex-1 min-w-0">
-        <div className={`text-[10px] uppercase tracking-wider font-semibold ${t.label} truncate`}>{label}</div>
-        <div className="text-2xl font-bold tabular-nums mt-1">{value.toLocaleString('pt-BR')}</div>
+    <Card className={`p-4 border-l-4 ${meta.border} hover:shadow-lg transition-shadow`}>
+      <div className="flex items-start justify-between gap-3 mb-3">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-1 flex-wrap">
+            <Badge variant="outline" className={`${meta.badge} gap-1`}><Icon className="h-3 w-3" />{meta.label}</Badge>
+            <Badge variant="secondary" className="text-xs">{item.category}</Badge>
+            {approved && <Badge className="bg-emerald-500/15 text-emerald-500 border-emerald-500/30">Aprovado</Badge>}
+          </div>
+          <h4 className="font-semibold text-base">{item.subject}</h4>
+          {item.problem && <p className="text-sm text-muted-foreground mt-1"><b>Problema:</b> {item.problem}</p>}
+        </div>
+        <div className="text-right text-xs shrink-0">
+          <div className="flex items-center gap-1 justify-end"><Zap className="h-3 w-3 text-violet-500" /><span className="font-semibold">{Math.round(item.confidence * 100)}%</span></div>
+          <p className="text-muted-foreground">confiança</p>
+        </div>
       </div>
-      {icon && <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${t.iconBg} ${t.iconColor}`}>{icon}</div>}
+
+      {item.solution && <p className="text-sm mb-2"><b>Solução:</b> {item.solution}</p>}
+
+      {item.steps.length > 0 && (
+        <div className="bg-muted/40 rounded p-3 mb-3">
+          <p className="text-xs font-semibold mb-2 text-muted-foreground uppercase tracking-wider">Passo a passo</p>
+          <ol className="space-y-1 list-decimal list-inside text-sm">
+            {item.steps.slice(0, 8).map((s, i) => <li key={i}>{s}</li>)}
+          </ol>
+        </div>
+      )}
+
+      <div className="flex flex-wrap gap-1 mb-3">
+        {item.devices.map((d) => <Badge key={d} variant="outline" className="text-xs">📱 {d}</Badge>)}
+        {item.apps.map((a) => <Badge key={a} variant="outline" className="text-xs">🎬 {a}</Badge>)}
+        {item.keywords.slice(0, 6).map((k) => <Badge key={k} variant="secondary" className="text-xs">#{k}</Badge>)}
+      </div>
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3 text-xs">
+        <div className="p-2 rounded bg-muted/30"><p className="text-muted-foreground">Usos</p><p className="font-bold text-base">{item.usage_count}</p></div>
+        <div className="p-2 rounded bg-muted/30"><p className="text-muted-foreground">Resolvidos</p><p className="font-bold text-base">{item.resolved_count}</p></div>
+        <div className="p-2 rounded bg-muted/30"><p className="text-muted-foreground">Taxa sucesso</p><p className="font-bold text-base text-emerald-500">{Math.round(item.success_rate * 100)}%</p></div>
+        <div className="p-2 rounded bg-muted/30"><p className="text-muted-foreground">Conversas</p><p className="font-bold text-base">{item.source_conversation_ids.length}</p></div>
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        {!approved && <Button size="sm" onClick={() => onAct(item.id, 'approve')} className="bg-emerald-600 hover:bg-emerald-700"><Check className="h-4 w-4 mr-1" />Aprovar</Button>}
+        <Button size="sm" variant="outline" onClick={() => onEdit(item)}><Edit3 className="h-4 w-4 mr-1" />Editar</Button>
+        <Button size="sm" variant="outline" onClick={() => onSource(item)}><MessageSquare className="h-4 w-4 mr-1" />{item.source_conversation_ids.length} conversas</Button>
+        {!approved && <Button size="sm" variant="outline" className="text-rose-500" onClick={() => onAct(item.id, 'reject')}><Trash2 className="h-4 w-4 mr-1" />Rejeitar</Button>}
+      </div>
     </Card>
+  );
+}
+
+// ================= EDIT FORM =================
+function EditForm({ item, onChange }: { item: KItem; onChange: (i: KItem) => void }) {
+  return (
+    <div className="space-y-3">
+      <div>
+        <label className="text-xs font-semibold">Assunto</label>
+        <Input value={item.subject} onChange={(e) => onChange({ ...item, subject: e.target.value })} />
+      </div>
+      <div>
+        <label className="text-xs font-semibold">Problema</label>
+        <Textarea value={item.problem || ''} onChange={(e) => onChange({ ...item, problem: e.target.value })} rows={2} />
+      </div>
+      <div>
+        <label className="text-xs font-semibold">Solução</label>
+        <Textarea value={item.solution || ''} onChange={(e) => onChange({ ...item, solution: e.target.value })} rows={4} />
+      </div>
+      <div>
+        <label className="text-xs font-semibold">Passos (um por linha)</label>
+        <Textarea
+          value={item.steps.join('\n')}
+          onChange={(e) => onChange({ ...item, steps: e.target.value.split('\n').map(s=>s.trim()).filter(Boolean) })}
+          rows={6}
+        />
+      </div>
+    </div>
   );
 }
