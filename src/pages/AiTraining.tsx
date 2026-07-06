@@ -62,7 +62,10 @@ export default function AiTraining() {
     try {
       const { data, error } = await supabase.functions.invoke('ai-training-import', { body: { source: 'evolution' } });
       if (error) throw error;
-      toast({ title: 'Importação concluída', description: `${data?.conversations_created ?? 0} conversas de ${data?.messages_read ?? 0} mensagens` });
+      toast({
+        title: 'Importação concluída',
+        description: `${data?.conversations_created ?? 0} novas conversas de ${data?.messages_read ?? 0} mensagens. Puladas: ${data?.skippedOneSided ?? 0} sem ida+volta, ${data?.skippedDuplicate ?? 0} duplicadas.`,
+      });
       await reload();
     } catch (e) {
       toast({ title: 'Erro na importação', description: String((e as Error).message), variant: 'destructive' });
@@ -145,7 +148,7 @@ export default function AiTraining() {
                 </Button>
                 <Button variant="outline" onClick={reload} disabled={loading}>Atualizar</Button>
               </div>
-              <p className="text-xs text-muted-foreground">A importação lê as conversas já salvas do seu WhatsApp (Evolution) e agrupa em atendimentos. A análise usa IA para transformar cada atendimento em pergunta+resposta.</p>
+              <p className="text-xs text-muted-foreground">A importação é incremental: só cria conversas novas, reconhece direções in/out e ignora mensagens sem ida+volta para não treinar a IA com monólogos ou duplicidades.</p>
             </Card>
 
             <Card className="p-4">
