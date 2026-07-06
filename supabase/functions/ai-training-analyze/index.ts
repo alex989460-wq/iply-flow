@@ -5,7 +5,7 @@ import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 
 const AI_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
 const EMB_URL = "https://ai.gateway.lovable.dev/v1/embeddings";
-const MODEL = "openai/gpt-5.5-mini";
+const MODEL = "google/gemini-3.5-flash";
 const EMB_MODEL = "openai/text-embedding-3-small";
 
 const CATEGORIES = [
@@ -13,6 +13,27 @@ const CATEGORIES = [
   "pagamento","pix","teste","suporte","compatibilidade",
   "atualizacao","financeiro","revendedor","outros"
 ];
+
+function isOut(direction: string) {
+  return ["outgoing", "sent", "out", "from_me", "operator"].includes(String(direction || "").toLowerCase());
+}
+
+function extractJSON(raw: string): any {
+  let cleaned = String(raw || "")
+    .replace(/^```json\s*/im, "")
+    .replace(/^```\s*/im, "")
+    .replace(/```\s*$/im, "")
+    .trim();
+  if (!cleaned.startsWith("{") && !cleaned.startsWith("[")) {
+    const objStart = cleaned.indexOf("{");
+    const arrStart = cleaned.indexOf("[");
+    const isArray = arrStart !== -1 && (objStart === -1 || arrStart < objStart);
+    const start = isArray ? arrStart : objStart;
+    const end = isArray ? cleaned.lastIndexOf("]") : cleaned.lastIndexOf("}");
+    if (start !== -1 && end > start) cleaned = cleaned.slice(start, end + 1);
+  }
+  return JSON.parse(cleaned);
+}
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -63,7 +84,7 @@ Deno.serve(async (req) => {
     for (const c of convs) {
       try {
         const transcript = (c.raw as any[])
-          .map(m => `${m.d === "outgoing" || m.d === "sent" ? "OPERADOR" : "CLIENTE"}: ${m.c}`)
+          .map(m => `${isOut(m.d) ? "OPERADOR" : "CLIENTE"}: ${m.c}`)
           .join("\n").slice(0, 8000);
 
         const aiResp = await fetch(AI_URL, {
@@ -71,6 +92,7 @@ Deno.serve(async (req) => {
           headers: {
             "Content-Type": "application/json",
             "Authorization": `Bearer ${apiKey}`,
+            "Lovable-API-Key": apiKey,
           },
           body: JSON.stringify({
             model: MODEL,
@@ -84,9 +106,11 @@ Deno.serve(async (req) => {
 
         if (!aiResp.ok) { errors++; continue; }
         const aiJson = await aiResp.json();
+        const finishReason = aiJson.choices?.[0]?.finish_reason || aiJson.stop_reason;
+        if (finishReason === "length" || finishReason === "max_tokens") { errors++; continue; }
         const content = aiJson.choices?.[0]?.message?.content ?? "{}";
         let parsed: any = {};
-        try { parsed = JSON.parse(content); } catch { errors++; continue; }
+        try { parsed = extractJSON(content); } catch { errors++; continue; }
         const intents: any[] = parsed.intents ?? [];
 
         for (const it of intents) {
@@ -97,7 +121,7 @@ Deno.serve(async (req) => {
           // embedding
           const embResp = await fetch(EMB_URL, {
             method: "POST",
-            headers: { "Content-Type": "application/json", "Authorization": `Bearer ${apiKey}` },
+            headers: { "Content-Type": "application/json", "Authorization": `Bearer ${apiKey}`, "Lovable-API-Key": apiKey },
             body: JSON.stringify({ model: EMB_MODEL, input: q, dimensions: 1536 }),
           });
           if (!embResp.ok) { errors++; continue; }
