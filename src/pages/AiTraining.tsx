@@ -130,6 +130,21 @@ export default function AiTraining() {
     setCandidates(prev => prev.filter(x => x.id !== c.id));
   };
 
+  const cancelJob = async (jobId: string) => {
+    await supabase.from('ai_training_jobs' as any).update({ status: 'cancelled' }).eq('id', jobId);
+    toast({ title: 'Cancelando...', description: 'O processo será interrompido no próximo lote.' });
+    reload();
+  };
+
+  const forceKillStuck = async () => {
+    if (!user) return;
+    await supabase.from('ai_training_jobs' as any)
+      .update({ status: 'failed', message: 'Marcado como falho manualmente' })
+      .eq('user_id', user.id).eq('status', 'running');
+    toast({ title: 'Jobs presos liberados' });
+    reload();
+  };
+
   return (
     <DashboardLayout>
       <div className="container max-w-6xl py-6 space-y-6">
