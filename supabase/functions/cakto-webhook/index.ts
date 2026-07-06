@@ -545,6 +545,27 @@ serve(async (req) => {
 
         console.log(`[Cakto] Solicitação de ativação salva para ${finalAppName}`);
 
+        // Also register as pending manual renewal so admin sees it in the floating panel
+        try {
+          await supabaseActivation.from('pending_manual_renewals').insert({
+            owner_id: appOwnerId,
+            customer_name: finalName || 'Ativação de App',
+            customer_phone: phone || null,
+            plan_name: finalAppName,
+            amount: activationAmountNum,
+            reason: 'app_activation',
+            source: caktoId ? `cakto:${caktoId}` : 'cakto',
+            error_details: {
+              app_name: finalAppName,
+              mac_address: finalMac || null,
+              email: finalEmail || null,
+              payment_method: activationPaymentMethod.includes('credit') || activationPaymentMethod.includes('cart') ? 'Cartão' : 'PIX',
+            },
+          });
+        } catch (pendErr) {
+          console.error('[Cakto] Erro ao inserir pending_manual_renewals (ativação):', pendErr);
+        }
+
         // Send WhatsApp notifications
         const { data: ownerZapSettings } = await supabaseActivation
           .from('zap_responder_settings')
