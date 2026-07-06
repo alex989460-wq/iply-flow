@@ -1,69 +1,124 @@
+# Reformulação do módulo "Treinamento da IA"
 
-# Módulo "Treinamento da IA"
+Vou trocar o modelo atual de "pergunta/resposta bruta" por uma **Central de Conhecimento** que extrai procedimentos, fluxos, intenções e respostas oficiais do histórico real de atendimento (Evolution + Oficial). Nada é publicado sem sua aprovação.
 
-Vamos construir em 4 fases enxutas, porque o escopo é enorme e o valor real vem de já ter algo funcional para você aprovar conhecimento na primeira semana.
+## Fase 1 — Modelo de dados (nova arquitetura)
 
-## Fase 1 — Base de dados + Importação do histórico
+Novas tabelas (todas com RLS por `user_id`, GRANTs para `authenticated`/`service_role`):
 
-Novas tabelas (migration):
+- **`ai_conversations`** (substitui uso bruto de `ai_training_conversations`)
+  - `source`, `channel`, `contact_phone`, `contact_name`, `operator_id`, `operator_name`
+  - `started_at`, `ended_at`, `duration_seconds`, `message_count`
+  - `status`, `tags[]`, `has_audio`, `has_image`, `has_file`
+  - `problem_summary`, `solution_summary`, `resolved bool`, `device`, `app`, `category`
+  - `analyzed_at`, `analysis_version`, `raw jsonb`
 
-- `ai_training_conversations` — 1 linha por conversa importada
-  - `id`, `user_id`, `source` (`evolution` | `oficial`), `contact_phone`, `contact_name`, `operator_id`, `started_at`, `ended_at`, `duration_seconds`, `message_count`, `status`, `tags[]`, `outcome`, `raw` jsonb (todas as mensagens)
-- `ai_training_jobs` — status de importação/análise (progresso, total, erros)
-- `ai_knowledge_candidates` — conhecimento gerado pela IA aguardando aprovação
-  - `id`, `user_id`, `canonical_question`, `similar_questions[]`, `best_answer`, `category`, `tags[]`, `keywords[]`, `confidence`, `usage_count`, `success_rate`, `last_used_at`, `status` (`pending`|`approved`|`rejected`|`merged`), `source_conversation_ids[]`, `embedding vector(1536)`
-- Extensão: adicionar `embedding vector(1536)` também na `ai_knowledge_entries` existente (aprovação vira INSERT lá).
-- pgvector + índice HNSW.
-- GRANTs para `authenticated` + `service_role`, RLS por `user_id`.
+- **`ai_knowledge_items`** (unifica tudo — pending/approved)
+  - `kind` enum: `procedure` | `flow` | `intent` | `official_answer` | `business_rule` | `tutorial`
+  - `subject`, `problem`, `solution`, `steps jsonb` (procedimento), `flow_nodes jsonb` (fluxo)
+  - `category`, `devices[]`, `apps[]`, `tags[]`, `keywords[]`
+  - `usage_count`, `resolved_count`, `success_rate`, `confidence`, `last_used_at`
+  - `operators jsonb` (top operadores + contagem), `source_conversation_ids[]`
+  - `status`: `pending` | `approved` | `rejected` | `merged_into`
+  - `merged_into_id`, `embedding vector(1536)`, `approved_at`, `approved_by`
 
-Edge functions:
+- **`ai_analysis_queue`** — fila de conversas a analisar, com prioridade e retry
+- Manter `ai_knowledge_entries` como destino final ao aprovar (compatível com o bot atual)
 
-- `ai-training-import` — recebe `{ source, from, to }`, lê `evolution_messages` (para Evolution) e as tabelas de mensagens do CRM Oficial, agrupa por `contact_phone` em conversas (janela de inatividade 6h), popula `ai_training_conversations`. Progresso em `ai_training_jobs`.
-- Reaproveita histórico que já existe no banco — nada é buscado por API externa.
+## Fase 2 — Pré-processamento (limpeza obrigatória)
 
-## Fase 2 — Processamento inteligente
+Antes de mandar para a IA, uma função `sanitize()` remove:
+- Saudações puras (`oi`, `bom dia`, `ok`, `obrigado`, `valeu`, `boa noite`…)
+- Mensagens só com emoji/sticker/gif
+- Mensagens < 3 caracteres úteis
+- Comprovantes/PIX (regex de valores, "comprovante", `pix copiado`)
+- Mensagens automáticas conhecidas do próprio robô
+- Duplicatas consecutivas
+- Anexos sem legenda contextual
 
-Edge function `ai-training-analyze`:
+Conversa que sobrar com menos de 2 turnos úteis (cliente+operador) é marcada `no_signal` e não vai para IA.
 
-1. Pega conversas ainda não analisadas em lotes de 20.
-2. Para cada conversa monta o transcript e chama `openai/gpt-5.5-mini` via Lovable AI Gateway com structured output pedindo:
-   - `intents[]` com `{ customer_question, operator_answer, category, subject, resolved: bool, procedure }`
-3. Para cada intent gera embedding com `google/gemini-embedding-2`.
-4. Faz busca por similaridade (cosine ≥ 0.86) em `ai_knowledge_candidates`:
-   - Match → incrementa `usage_count`, atualiza `success_rate` (se `resolved=true`), adiciona `similar_questions`, atualiza `last_used_at`.
-   - Sem match → cria candidato novo `status='pending'`.
-5. Categorias fixas do negócio (instalação, login, ativação, renovação, pagamento, PIX, teste, suporte, compatibilidade, atualização, financeiro, revendedor, outros).
+## Fase 3 — Análise por conversa (2 passes)
 
-## Fase 3 — Painel de Aprovação (`/ai-training`)
+**Pass A — Compreensão da conversa** (`gpt-5.5-mini`, structured output):
+Para cada conversa retorna:
+```
+{ problem, objective, solution, resolved, duration_bucket,
+  device, app, category, tags[], operator_name,
+  signal_quality: high|medium|none }
+```
+Grava direto em `ai_conversations`. Se `signal_quality=none` → não gera conhecimento.
 
-Nova página `src/pages/AiTraining.tsx` com 3 abas:
+**Pass B — Extração de conhecimento estruturado**:
+A IA retorna 0..N itens tipados:
+```
+{ kind: procedure|flow|intent|official_answer|business_rule|tutorial,
+  subject, problem, solution,
+  steps: [ "abrir configurações", "aplicativos", "limpar cache", ... ],
+  flow_nodes: [ { actor, action }, ... ],
+  devices[], apps[], keywords[] }
+```
 
-- **Importar**: botão "Importar histórico" (escolhe Evolution / Oficial / ambos, período). Mostra job progress.
-- **Aprovação**: lista `ai_knowledge_candidates` `pending` ordenado por `usage_count`. Cada card:
-  - editar pergunta canônica, resposta, categoria, tags, keywords, prioridade
-  - ver perguntas semelhantes agrupadas
-  - ver conversas de origem
-  - botões: Aprovar (→ move para `ai_knowledge_entries`), Rejeitar, Mesclar com outro candidato
-- **Estatísticas**: cards com total de conversas analisadas, conhecimentos gerados, top 10 perguntas, top respostas, categorias mais usadas, taxa de sucesso média, conversas não classificadas.
+Cada item gera embedding e passa por **agrupamento por similaridade** (cos ≥ 0.86, mesmo `kind` e `category`):
+- Match → incrementa `usage_count`, adiciona operador, atualiza `success_rate`, junta `steps` (mescla, não sobrescreve), `last_used_at`
+- Sem match → cria novo `pending`
 
-Rota nova em `App.tsx` + item no `Sidebar.tsx`.
+Confiança é calculada:
+```
+confidence = min(1, 0.4 + 0.3*log10(usage_count+1) + 0.3*success_rate)
+```
 
-## Fase 4 — Aprendizado contínuo + busca semântica no bot
+## Fase 4 — Painel de aprovação (novo)
 
-- Trigger diário (pg_cron) que roda `ai-training-analyze` sobre novas conversas.
-- Atualizar `evolution-autoreply` para, além do keyword-match atual, gerar embedding da mensagem do cliente e buscar top-1 em `ai_knowledge_entries` (cos sim ≥ 0.82). Se achar, usa `response_template`. Fallback = comportamento atual.
-- Isso resolve o "Meu app não abre / tela preta / não acessa" mesmo com palavras diferentes.
+Substitui a aba "Aprovação" por cartões inteligentes com:
+- Badge do **tipo** (Procedimento/Fluxo/Intenção/Resposta Oficial/…) com cor
+- Assunto, problema, solução
+- **Passos numerados** (procedimento) ou **fluxograma vertical** (fluxo)
+- Dispositivos/apps relacionados (chips)
+- Métricas: usos, resolvidos, taxa de sucesso, confiança (barras)
+- Top operadores
+- Botão "Ver N conversas de origem" (modal com transcript)
+- Ações: **Aprovar · Editar · Mesclar · Rejeitar · Converter em (Procedimento/Fluxo/Resposta Oficial)**
+
+Aprovar → grava em `ai_knowledge_entries` (formato que o `evolution-autoreply` já consome) e marca item como `approved`.
+
+## Fase 5 — Dashboard inteligente
+
+Cards no estilo do dashboard principal (bordas coloridas, ícone, glow):
+- Conversas importadas / analisadas / com sinal útil
+- Conhecimentos por tipo (procedimento/fluxo/intenção/resposta oficial)
+- Perguntas sem solução (top 10)
+- Aplicativos mais citados / dispositivos mais usados (gráficos)
+- Operadores com maior taxa de resolução (ranking)
+- Pendentes de aprovação
+- Categorias mais frequentes
+
+## Fase 6 — Aprendizado contínuo
+
+- `pg_cron` a cada 30min → chama `ai-training-analyze` só para conversas novas (`analyzed_at IS NULL`)
+- Novo atendimento finalizado (trigger na `evolution_messages` quando gap > 6h) → enfileira em `ai_analysis_queue`
+- Bot: `evolution-autoreply` já pega da `ai_knowledge_entries`, então aprovação → efeito imediato
 
 ## Detalhes técnicos
 
-- Modelos: análise = `openai/gpt-5.5-mini` (barato + structured output OK), embeddings = `google/gemini-embedding-2` (default do gateway).
-- Custos: análise em lote de 20 conversas por chamada para reduzir gasto.
-- Nada é publicado sem sua aprovação — regra dura no backend (`ai-training-analyze` só grava em `ai_knowledge_candidates`, nunca em `ai_knowledge_entries`).
-- Reaproveita a `ai_knowledge_entries` existente que o robô já consome — não quebra o fluxo atual.
+- Modelos: análise = `google/gemini-3-flash-preview` (rápido + barato + structured output); embeddings = `openai/text-embedding-3-small` (1536d, compatível com pgvector HNSW)
+- Batches de 15 conversas por invocação, `EdgeRuntime.waitUntil` para background
+- Limpeza é feita no edge (Deno), não gasta token de IA em lixo
+- Similaridade cos ≥ 0.86 para agrupar; ≥ 0.92 sugere merge automático (ainda pendente)
+- Auto-cancel de jobs travados > 15min via check no início de cada batch
 
-## O que fica de fora deste plano (posso adicionar depois)
+## Fora de escopo desta rodada
 
-- UI de "operador responsável" e tempo de atendimento na aba estatísticas — depende de a Evolution/Oficial já marcarem operador; se não marcarem, mostro só total.
-- Auto-resposta com IA generativa livre (sem base) — mantemos template controlado.
+- Transcrição de áudios (fica placeholder `has_audio=true`, sem análise)
+- OCR de imagens/comprovantes (só detecção, não leitura)
+- Auto-aprovação — tudo continua exigindo você aprovar
 
-Se aprovar, começo pela Fase 1 (migration + edge de importação) e mostro rodando antes de seguir.
+## Ordem de entrega
+
+1. Migration (novas tabelas + enum + índices HNSW + RPC de match)
+2. Edge `ai-training-analyze` reescrita (sanitize → pass A → pass B → agrupamento)
+3. Edge `ai-training-approve` adaptada aos novos tipos
+4. Página `AiTraining.tsx` — cartões inteligentes + dashboard novo
+5. `pg_cron` para análise contínua
+
+Se aprovar, entrego nessa ordem e mostro rodando após cada fase.
