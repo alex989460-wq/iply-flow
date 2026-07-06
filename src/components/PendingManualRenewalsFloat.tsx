@@ -31,6 +31,7 @@ const REASON_LABEL: Record<string, string> = {
   expired_over_90d: 'Vencido +90 dias',
   status_blocked: 'Status bloqueado',
   phone_not_found: 'Telefone não encontrado',
+  app_activation: 'Ativação de App',
 };
 
 const REASON_COLOR: Record<string, string> = {
@@ -41,6 +42,7 @@ const REASON_COLOR: Record<string, string> = {
   expired_over_90d: 'bg-orange-500',
   status_blocked: 'bg-purple-500',
   phone_not_found: 'bg-pink-500',
+  app_activation: 'bg-emerald-600',
 };
 
 export default function PendingManualRenewalsFloat() {
