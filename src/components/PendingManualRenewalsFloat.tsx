@@ -47,6 +47,7 @@ const REASON_COLOR: Record<string, string> = {
 
 export default function PendingManualRenewalsFloat() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [items, setItems] = useState<PendingItem[]>([]);
   const [expanded, setExpanded] = useState(false);
   const [hidden, setHidden] = useState(false);
