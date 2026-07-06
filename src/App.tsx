@@ -135,6 +135,7 @@ function AppRoutes() {
 
       <Route path="/banner-generator" element={<ProtectedRoute><BannerGenerator /></ProtectedRoute>} />
       <Route path="/robo" element={<ProtectedRoute><RoboFlows /></ProtectedRoute>} />
+      <Route path="/ai-training" element={<ProtectedRoute><AiTraining /></ProtectedRoute>} />
       <Route path="*" element={<NotFound />} />
     </Routes>
   );
