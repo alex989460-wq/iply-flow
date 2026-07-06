@@ -158,9 +158,14 @@ export default function AiTraining() {
             </h1>
             <p className="text-sm text-muted-foreground mt-1">Transforma o histórico dos seus atendimentos em respostas prontas para o robô — nada é publicado sem sua aprovação.</p>
           </div>
-          <Button variant="outline" size="sm" onClick={reload} disabled={loading}>
-            <RefreshCw className={`w-3.5 h-3.5 mr-1 ${loading ? 'animate-spin' : ''}`} /> Atualizar
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={forceKillStuck}>
+              <X className="w-3.5 h-3.5 mr-1" /> Liberar jobs presos
+            </Button>
+            <Button variant="outline" size="sm" onClick={reload} disabled={loading}>
+              <RefreshCw className={`w-3.5 h-3.5 mr-1 ${loading ? 'animate-spin' : ''}`} /> Atualizar
+            </Button>
+          </div>
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -171,20 +176,26 @@ export default function AiTraining() {
         </div>
 
         {runningJob && (
-          <Card className="p-4 border-primary/40 bg-primary/5">
-            <div className="flex items-center justify-between text-sm mb-2">
+          <Card className="p-4 border-l-4 border-l-primary bg-primary/5 shadow-lg">
+            <div className="flex items-center justify-between text-sm mb-2 gap-2 flex-wrap">
               <div className="flex items-center gap-2 font-medium">
                 <Loader2 className="w-4 h-4 animate-spin text-primary" />
                 {runningJob.kind === 'import' ? 'Importando histórico' : 'Analisando conversas'}...
               </div>
-              <div className="text-xs text-muted-foreground tabular-nums">
-                {runningJob.processed.toLocaleString('pt-BR')} / {runningJob.total.toLocaleString('pt-BR')} ({runningPct}%)
+              <div className="flex items-center gap-3">
+                <div className="text-xs text-muted-foreground tabular-nums">
+                  {runningJob.processed.toLocaleString('pt-BR')} / {runningJob.total.toLocaleString('pt-BR')} ({runningPct}%)
+                </div>
+                <Button size="sm" variant="destructive" onClick={() => cancelJob(runningJob.id)}>
+                  <X className="w-3.5 h-3.5 mr-1" /> Parar
+                </Button>
               </div>
             </div>
             <Progress value={runningPct} className="h-2" />
             <p className="text-xs text-muted-foreground mt-2">{runningJob.message ?? 'Processando...'}</p>
           </Card>
         )}
+
 
         <Tabs value={tab} onValueChange={setTab}>
           <TabsList>
