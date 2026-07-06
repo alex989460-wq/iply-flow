@@ -158,6 +158,21 @@ Deno.serve(async (req) => {
         message: `Processadas ${processed}/${totalMessages ?? "?"} mensagens • ${created} conversas criadas`,
       }).eq("id", job!.id);
 
+      // Verifica se o usuário pediu para cancelar
+      const { data: jobCheck } = await supabase
+        .from("ai_training_jobs").select("status").eq("id", job!.id).single();
+      if (jobCheck?.status === "cancelled") {
+        for (const [key, buf] of openContacts) await flush(key, buf);
+        openContacts.clear();
+        await supabase.from("ai_training_jobs").update({
+          status: "cancelled",
+          processed,
+          finished_at: new Date().toISOString(),
+          message: `Cancelado pelo usuário • ${created} conversas de ${processed} mensagens`,
+        }).eq("id", job!.id);
+        return json({ ok: true, cancelled: true, conversations_created: created, messages_read: processed });
+      }
+
       if (rows.length < PAGE_SIZE) break;
       page++;
     }
