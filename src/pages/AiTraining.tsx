@@ -77,14 +77,16 @@ export default function AiTraining() {
       const { data, error } = await supabase.functions.invoke('ai-training-import', { body: { source: 'evolution' } });
       if (error) throw error;
       toast({
-        title: 'Importação concluída',
-        description: `${data?.conversations_created ?? 0} novas conversas de ${data?.messages_read ?? 0} mensagens.`,
+        title: 'Importação iniciada',
+        description: `Processando ${data?.total ?? 0} mensagens em segundo plano. Acompanhe o progresso na barra abaixo.`,
       });
-      await reload();
+      // Não espera terminar: polling assume daqui em diante
+      setTimeout(() => reload(), 800);
     } catch (e) {
-      toast({ title: 'Erro na importação', description: String((e as Error).message), variant: 'destructive' });
-    } finally { setImporting(false); await reload(); }
+      toast({ title: 'Erro ao iniciar', description: String((e as Error).message), variant: 'destructive' });
+    } finally { setImporting(false); }
   };
+
 
   const runAnalyze = async () => {
     setAnalyzing(true);
@@ -274,26 +276,32 @@ export default function AiTraining() {
 
 
           <TabsContent value="approve" className="space-y-3 mt-4">
-            {candidates.length === 0 && <p className="text-sm text-muted-foreground">Nenhum candidato pendente. Rode "Analisar" para gerar novos.</p>}
+            {candidates.length === 0 && (
+              <Card className="p-8 text-center border-dashed">
+                <BookOpen className="w-10 h-10 mx-auto mb-2 text-muted-foreground/50" />
+                <p className="text-sm text-muted-foreground">Nenhum candidato pendente. Rode "Analisar" para gerar novos.</p>
+              </Card>
+            )}
             {candidates.map(c => (
-              <Card key={c.id} className="p-4 space-y-2">
-                <div className="flex items-start justify-between gap-2">
+              <Card key={c.id} className="relative overflow-hidden p-4 space-y-3 border-border/50 hover:border-border transition shadow-[0_0_24px_-12px_rgba(139,92,246,0.4)]">
+                <span className="absolute left-0 top-0 h-full w-1 bg-violet-500" />
+                <div className="flex items-start justify-between gap-2 pl-2">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <Badge>{c.category}</Badge>
-                    <Badge variant="secondary">{c.usage_count}× visto</Badge>
-                    <Badge variant="outline">{Math.round((c.success_rate ?? 0) * 100)}% sucesso</Badge>
+                    <Badge className="bg-violet-500/15 text-violet-300 border-violet-500/30 uppercase text-[10px] tracking-wider">{c.category}</Badge>
+                    <Badge variant="secondary" className="bg-emerald-500/15 text-emerald-300 border-emerald-500/30">{c.usage_count}× visto</Badge>
+                    <Badge variant="outline" className="bg-amber-500/10 text-amber-300 border-amber-500/30">{Math.round((c.success_rate ?? 0) * 100)}% sucesso</Badge>
                   </div>
                   <div className="flex gap-1">
                     <Button size="sm" variant="outline" onClick={() => reject(c)}><X className="w-3.5 h-3.5 mr-1" /> Rejeitar</Button>
                     <Button size="sm" onClick={() => approve(c)}><Check className="w-3.5 h-3.5 mr-1" /> Aprovar</Button>
                   </div>
                 </div>
-                <div>
-                  <label className="text-[11px] text-muted-foreground">Pergunta canônica</label>
+                <div className="pl-2">
+                  <label className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">Pergunta canônica</label>
                   <Input value={c.canonical_question} onChange={e => updateCandidate(c.id, { canonical_question: e.target.value })} />
                 </div>
-                <div>
-                  <label className="text-[11px] text-muted-foreground">Melhor resposta</label>
+                <div className="pl-2">
+                  <label className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">Melhor resposta</label>
                   <textarea
                     value={c.best_answer}
                     onChange={e => updateCandidate(c.id, { best_answer: e.target.value })}
@@ -301,20 +309,20 @@ export default function AiTraining() {
                     className="w-full rounded-md border border-border bg-background p-2 text-sm"
                   />
                 </div>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-2 gap-2 pl-2">
                   <div>
-                    <label className="text-[11px] text-muted-foreground">Categoria</label>
+                    <label className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">Categoria</label>
                     <select value={c.category} onChange={e => updateCandidate(c.id, { category: e.target.value })} className="w-full h-9 rounded-md border border-border bg-background px-2 text-sm">
                       {CATEGORIES.map(k => <option key={k} value={k}>{k}</option>)}
                     </select>
                   </div>
                   <div>
-                    <label className="text-[11px] text-muted-foreground">Palavras-chave</label>
+                    <label className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">Palavras-chave</label>
                     <Input value={c.keywords.join(', ')} onChange={e => updateCandidate(c.id, { keywords: e.target.value.split(',').map(s => s.trim()) })} />
                   </div>
                 </div>
                 {c.similar_questions.length > 1 && (
-                  <details className="text-xs text-muted-foreground">
+                  <details className="text-xs text-muted-foreground pl-2">
                     <summary className="cursor-pointer">{c.similar_questions.length} perguntas semelhantes agrupadas</summary>
                     <ul className="list-disc pl-5 mt-1 space-y-0.5">
                       {c.similar_questions.slice(0, 20).map((q, i) => <li key={i}>{q}</li>)}
@@ -325,17 +333,18 @@ export default function AiTraining() {
             ))}
           </TabsContent>
 
-          <TabsContent value="stats" className="mt-4">
+          <TabsContent value="stats" className="mt-4 space-y-3">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <StatCard label="Conversas totais" value={stats.conversations} icon={<MessageSquare className="w-4 h-4" />} tone="primary" />
+              <StatCard label="Analisadas" value={stats.analyzed} icon={<Database className="w-4 h-4" />} tone="info" />
+              <StatCard label="Não classificadas" value={Math.max(0, stats.conversations - stats.analyzed)} icon={<Clock className="w-4 h-4" />} tone="warn" />
+              <StatCard label="Aprovadas" value={stats.approved} icon={<CheckCircle2 className="w-4 h-4" />} tone="success" />
+            </div>
             <Card className="p-4">
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                <StatCard label="Conversas totais" value={stats.conversations} />
-                <StatCard label="Analisadas" value={stats.analyzed} />
-                <StatCard label="Não classificadas" value={Math.max(0, stats.conversations - stats.analyzed)} />
-                <StatCard label="Conhecimentos aprovados" value={stats.approved} />
-              </div>
-              <p className="text-xs text-muted-foreground mt-4">Rode a análise em lotes até processar todo o histórico. Quanto mais conversas analisadas, mais completa a base fica.</p>
+              <p className="text-xs text-muted-foreground">Rode a análise em lotes até processar todo o histórico. Quanto mais conversas analisadas, mais completa a base fica.</p>
             </Card>
           </TabsContent>
+
         </Tabs>
       </div>
     </DashboardLayout>
