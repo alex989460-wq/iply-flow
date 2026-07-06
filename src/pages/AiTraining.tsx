@@ -77,14 +77,16 @@ export default function AiTraining() {
       const { data, error } = await supabase.functions.invoke('ai-training-import', { body: { source: 'evolution' } });
       if (error) throw error;
       toast({
-        title: 'Importação concluída',
-        description: `${data?.conversations_created ?? 0} novas conversas de ${data?.messages_read ?? 0} mensagens.`,
+        title: 'Importação iniciada',
+        description: `Processando ${data?.total ?? 0} mensagens em segundo plano. Acompanhe o progresso na barra abaixo.`,
       });
-      await reload();
+      // Não espera terminar: polling assume daqui em diante
+      setTimeout(() => reload(), 800);
     } catch (e) {
-      toast({ title: 'Erro na importação', description: String((e as Error).message), variant: 'destructive' });
-    } finally { setImporting(false); await reload(); }
+      toast({ title: 'Erro ao iniciar', description: String((e as Error).message), variant: 'destructive' });
+    } finally { setImporting(false); }
   };
+
 
   const runAnalyze = async () => {
     setAnalyzing(true);
