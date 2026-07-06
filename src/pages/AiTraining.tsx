@@ -343,19 +343,21 @@ export default function AiTraining() {
 }
 
 function StatCard({ label, value, icon, tone = 'primary' }: { label: string; value: number; icon?: React.ReactNode; tone?: 'primary' | 'info' | 'warn' | 'success' }) {
-  const tones: Record<string, string> = {
-    primary: 'bg-primary/10 text-primary',
-    info: 'bg-sky-500/10 text-sky-500',
-    warn: 'bg-amber-500/10 text-amber-500',
-    success: 'bg-emerald-500/10 text-emerald-500',
+  const tones: Record<string, { bar: string; iconBg: string; iconColor: string; label: string; glow: string }> = {
+    primary: { bar: 'bg-violet-500', iconBg: 'bg-violet-500/15', iconColor: 'text-violet-400', label: 'text-violet-300/80', glow: 'shadow-[0_0_24px_-8px_rgba(139,92,246,0.5)]' },
+    info: { bar: 'bg-emerald-500', iconBg: 'bg-emerald-500/15', iconColor: 'text-emerald-400', label: 'text-emerald-300/80', glow: 'shadow-[0_0_24px_-8px_rgba(16,185,129,0.5)]' },
+    warn: { bar: 'bg-amber-500', iconBg: 'bg-amber-500/15', iconColor: 'text-amber-400', label: 'text-amber-300/80', glow: 'shadow-[0_0_24px_-8px_rgba(245,158,11,0.5)]' },
+    success: { bar: 'bg-rose-500', iconBg: 'bg-rose-500/15', iconColor: 'text-rose-400', label: 'text-rose-300/80', glow: 'shadow-[0_0_24px_-8px_rgba(244,63,94,0.5)]' },
   };
+  const t = tones[tone];
   return (
-    <Card className="p-4 flex items-center gap-3">
-      {icon && <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${tones[tone]}`}>{icon}</div>}
-      <div className="min-w-0">
-        <div className="text-[11px] text-muted-foreground truncate">{label}</div>
-        <div className="text-2xl font-bold tabular-nums">{value.toLocaleString('pt-BR')}</div>
+    <Card className={`relative overflow-hidden p-4 flex items-center gap-3 border-border/50 hover:border-border transition ${t.glow}`}>
+      <span className={`absolute left-0 top-0 h-full w-1 ${t.bar}`} />
+      <div className="flex-1 min-w-0">
+        <div className={`text-[10px] uppercase tracking-wider font-semibold ${t.label} truncate`}>{label}</div>
+        <div className="text-2xl font-bold tabular-nums mt-1">{value.toLocaleString('pt-BR')}</div>
       </div>
+      {icon && <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${t.iconBg} ${t.iconColor}`}>{icon}</div>}
     </Card>
   );
 }
