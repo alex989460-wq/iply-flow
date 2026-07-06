@@ -1,48 +1,69 @@
-## Escopo: Fase 1 — migrar pagamento e cobrança automática para CRM Oficial
 
-Mantém Zap Responder vivo para os outros fluxos (confirm-conflict, confirm-activation, daily-report, mass-broadcast, bot-triggers). Sua escolha foi **falhar e registrar no log** se o CRM Oficial não conseguir entregar — sem fallback para Zap Responder.
+# Módulo "Treinamento da IA"
 
-### 1. Novo helper compartilhado: `_shared/crm-oficial-send.ts`
+Vamos construir em 4 fases enxutas, porque o escopo é enorme e o valor real vem de já ter algo funcional para você aprovar conhecimento na primeira semana.
 
-Função única `sendViaCrmOficial({ resellerId, phone, body, templateId?, components? })` que:
-- Lê `crm_oficial_settings` da revenda (URL + API key + channel_id padrão).
-- POSTa em `crm-oficial-sync` action `whatsapp-send` (texto) ou `whatsapp-template-send` (template) — reaproveitando o que já está pronto e funcionando hoje no chat e na cobrança individual.
-- Retorna `{ ok, status, error }` — quem chama decide o que logar.
-- Sem fallback. Erro vira log em `message_logs` com `provider='crm-oficial'` e status detalhado.
+## Fase 1 — Base de dados + Importação do histórico
 
-### 2. `cakto-webhook` — substituir 22 call sites
+Novas tabelas (migration):
 
-Trocar cada `fetch('.../zap-responder', ...)` por `sendViaCrmOficial(...)`. Locais afetados:
-- Confirmação ao cliente após pagamento aprovado (linhas ~311, ~1168, ~2263).
-- Alertas ao admin (telefone de notificação) sobre renovações automáticas e falhas (linhas ~571–639, ~1177–1194, ~1991–2025, ~2320–2460, ~2972).
-- Mensagens de conflito / múltiplas telas (linhas ~2197+, ~2372, ~2433).
+- `ai_training_conversations` — 1 linha por conversa importada
+  - `id`, `user_id`, `source` (`evolution` | `oficial`), `contact_phone`, `contact_name`, `operator_id`, `started_at`, `ended_at`, `duration_seconds`, `message_count`, `status`, `tags[]`, `outcome`, `raw` jsonb (todas as mensagens)
+- `ai_training_jobs` — status de importação/análise (progresso, total, erros)
+- `ai_knowledge_candidates` — conhecimento gerado pela IA aguardando aprovação
+  - `id`, `user_id`, `canonical_question`, `similar_questions[]`, `best_answer`, `category`, `tags[]`, `keywords[]`, `confidence`, `usage_count`, `success_rate`, `last_used_at`, `status` (`pending`|`approved`|`rejected`|`merged`), `source_conversation_ids[]`, `embedding vector(1536)`
+- Extensão: adicionar `embedding vector(1536)` também na `ai_knowledge_entries` existente (aprovação vira INSERT lá).
+- pgvector + índice HNSW.
+- GRANTs para `authenticated` + `service_role`, RLS por `user_id`.
 
-**Importante:** mensagens ao cliente que acabou de pagar têm boa chance de estarem dentro da janela 24h (acabou de abrir o link Cakto). Mensagens ao admin **provavelmente vão falhar** fora da janela 24h porque você não está usando templates. Vou marcar essas como `severity=warn` no log e seguir — você decide depois se cria template para alerta admin.
+Edge functions:
 
-### 3. `send-billing` + `send-billing-batch`
+- `ai-training-import` — recebe `{ source, from, to }`, lê `evolution_messages` (para Evolution) e as tabelas de mensagens do CRM Oficial, agrupa por `contact_phone` em conversas (janela de inatividade 6h), popula `ai_training_conversations`. Progresso em `ai_training_jobs`.
+- Reaproveita histórico que já existe no banco — nada é buscado por API externa.
 
-Hoje a lógica é: se a revenda configurou schedule `crm-oficial`, usa CRM Oficial; senão usa Zap Responder. Vou:
-- Remover o ramo Zap Responder dessas duas funções (4 call sites em `send-billing-batch`, 1 em `send-billing`).
-- Toda revenda passa a usar CRM Oficial nesses dois endpoints, sempre via template (já é o comportamento atual quando schedule = crm-oficial).
-- Se a revenda não tem template configurado ou canal: erro 400 claro no retorno + linha em `message_logs`.
+## Fase 2 — Processamento inteligente
 
-### 4. `scheduled-billing` (cron 8h/etc.)
+Edge function `ai-training-analyze`:
 
-Já tem o branch `crm-oficial` que você implementou. Vou remover o branch Zap Responder para garantir consistência. Se uma revenda não tem CRM Oficial configurado: skip + log, **não** cai mais para Zap Responder.
+1. Pega conversas ainda não analisadas em lotes de 20.
+2. Para cada conversa monta o transcript e chama `openai/gpt-5.5-mini` via Lovable AI Gateway com structured output pedindo:
+   - `intents[]` com `{ customer_question, operator_answer, category, subject, resolved: bool, procedure }`
+3. Para cada intent gera embedding com `google/gemini-embedding-2`.
+4. Faz busca por similaridade (cosine ≥ 0.86) em `ai_knowledge_candidates`:
+   - Match → incrementa `usage_count`, atualiza `success_rate` (se `resolved=true`), adiciona `similar_questions`, atualiza `last_used_at`.
+   - Sem match → cria candidato novo `status='pending'`.
+5. Categorias fixas do negócio (instalação, login, ativação, renovação, pagamento, PIX, teste, suporte, compatibilidade, atualização, financeiro, revendedor, outros).
 
-### 5. NÃO faz parte desta fase
+## Fase 3 — Painel de Aprovação (`/ai-training`)
 
-- `confirm-conflict-renewal`, `conflict-button-webhook`, `confirm-activation`, `daily-report`, `mass-broadcast`, `zap-responder`, `bot_triggers` — continuam exatamente como estão.
-- Deletar `zap-responder` e secret `ZAP_RESPONDER_TOKEN` — **NÃO** nesta fase. Ainda em uso pelos itens acima.
-- UI/Settings/Tutorial — sem mudança nesta fase.
+Nova página `src/pages/AiTraining.tsx` com 3 abas:
 
-### 6. Validação ao final
+- **Importar**: botão "Importar histórico" (escolhe Evolution / Oficial / ambos, período). Mostra job progress.
+- **Aprovação**: lista `ai_knowledge_candidates` `pending` ordenado por `usage_count`. Cada card:
+  - editar pergunta canônica, resposta, categoria, tags, keywords, prioridade
+  - ver perguntas semelhantes agrupadas
+  - ver conversas de origem
+  - botões: Aprovar (→ move para `ai_knowledge_entries`), Rejeitar, Mesclar com outro candidato
+- **Estatísticas**: cards com total de conversas analisadas, conhecimentos gerados, top 10 perguntas, top respostas, categorias mais usadas, taxa de sucesso média, conversas não classificadas.
 
-- `tsgo` no projeto + deploy das 4 funções alteradas.
-- Você dispara um teste real: 1 pagamento Cakto sandbox/produção pequeno e 1 cobrança manual via `Billing > Enviar agora`. Eu checo `edge_function_logs` e `message_logs` e te mostro o resultado antes de partir para Fase 2.
+Rota nova em `App.tsx` + item no `Sidebar.tsx`.
 
-### Riscos que assumo com esse plano
-- Alertas admin do `cakto-webhook` podem falhar fora da janela 24h até você criar um template para isso. Hoje funcionam porque Zap Responder envia texto livre sem janela.
-- Qualquer revenda que tinha Zap Responder configurado e **não** configurou CRM Oficial vai parar de receber cobranças automáticas. Vou listar no log quais revendas ficaram sem envio na primeira execução pós-deploy.
+## Fase 4 — Aprendizado contínuo + busca semântica no bot
 
-Aprova esse recorte? Se sim, executo direto.
+- Trigger diário (pg_cron) que roda `ai-training-analyze` sobre novas conversas.
+- Atualizar `evolution-autoreply` para, além do keyword-match atual, gerar embedding da mensagem do cliente e buscar top-1 em `ai_knowledge_entries` (cos sim ≥ 0.82). Se achar, usa `response_template`. Fallback = comportamento atual.
+- Isso resolve o "Meu app não abre / tela preta / não acessa" mesmo com palavras diferentes.
+
+## Detalhes técnicos
+
+- Modelos: análise = `openai/gpt-5.5-mini` (barato + structured output OK), embeddings = `google/gemini-embedding-2` (default do gateway).
+- Custos: análise em lote de 20 conversas por chamada para reduzir gasto.
+- Nada é publicado sem sua aprovação — regra dura no backend (`ai-training-analyze` só grava em `ai_knowledge_candidates`, nunca em `ai_knowledge_entries`).
+- Reaproveita a `ai_knowledge_entries` existente que o robô já consome — não quebra o fluxo atual.
+
+## O que fica de fora deste plano (posso adicionar depois)
+
+- UI de "operador responsável" e tempo de atendimento na aba estatísticas — depende de a Evolution/Oficial já marcarem operador; se não marcarem, mostro só total.
+- Auto-resposta com IA generativa livre (sem base) — mantemos template controlado.
+
+Se aprovar, começo pela Fase 1 (migration + edge de importação) e mostro rodando antes de seguir.
