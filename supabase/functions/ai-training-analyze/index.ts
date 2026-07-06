@@ -5,7 +5,7 @@ import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 
 const AI_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
 const EMB_URL = "https://ai.gateway.lovable.dev/v1/embeddings";
-const MODEL = "openai/gpt-5.5";
+const MODEL = "google/gemini-3.5-flash";
 const EMB_MODEL = "openai/text-embedding-3-small";
 
 const CATEGORIES = [
