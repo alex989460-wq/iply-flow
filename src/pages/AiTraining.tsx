@@ -316,11 +316,20 @@ export default function AiTraining() {
   );
 }
 
-function StatCard({ label, value }: { label: string; value: number }) {
+function StatCard({ label, value, icon, tone = 'primary' }: { label: string; value: number; icon?: React.ReactNode; tone?: 'primary' | 'info' | 'warn' | 'success' }) {
+  const tones: Record<string, string> = {
+    primary: 'bg-primary/10 text-primary',
+    info: 'bg-sky-500/10 text-sky-500',
+    warn: 'bg-amber-500/10 text-amber-500',
+    success: 'bg-emerald-500/10 text-emerald-500',
+  };
   return (
-    <Card className="p-3">
-      <div className="text-xs text-muted-foreground">{label}</div>
-      <div className="text-2xl font-bold">{value.toLocaleString('pt-BR')}</div>
+    <Card className="p-4 flex items-center gap-3">
+      {icon && <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${tones[tone]}`}>{icon}</div>}
+      <div className="min-w-0">
+        <div className="text-[11px] text-muted-foreground truncate">{label}</div>
+        <div className="text-2xl font-bold tabular-nums">{value.toLocaleString('pt-BR')}</div>
+      </div>
     </Card>
   );
 }
