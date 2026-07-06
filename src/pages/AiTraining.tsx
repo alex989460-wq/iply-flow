@@ -39,6 +39,8 @@ export default function AiTraining() {
   const [stats, setStats] = useState({ conversations: 0, analyzed: 0, candidates: 0, approved: 0 });
   const [loading, setLoading] = useState(false);
 
+  const pollRef = useRef<number | null>(null);
+
   const reload = async () => {
     if (!user) return;
     setLoading(true);
@@ -58,6 +60,17 @@ export default function AiTraining() {
 
   useEffect(() => { reload(); }, [user]);
 
+  // Poll enquanto houver job em execução para atualizar a barra em tempo real
+  useEffect(() => {
+    const hasRunning = jobs.some(j => j.status === 'running');
+    if (hasRunning && !pollRef.current) {
+      pollRef.current = window.setInterval(reload, 1500);
+    } else if (!hasRunning && pollRef.current) {
+      clearInterval(pollRef.current); pollRef.current = null;
+    }
+    return () => { if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; } };
+  }, [jobs]);
+
   const runImport = async () => {
     setImporting(true);
     try {
@@ -65,12 +78,12 @@ export default function AiTraining() {
       if (error) throw error;
       toast({
         title: 'Importação concluída',
-        description: `${data?.conversations_created ?? 0} novas conversas de ${data?.messages_read ?? 0} mensagens. Puladas: ${data?.skippedOneSided ?? 0} sem ida+volta, ${data?.skippedDuplicate ?? 0} duplicadas.`,
+        description: `${data?.conversations_created ?? 0} novas conversas de ${data?.messages_read ?? 0} mensagens.`,
       });
       await reload();
     } catch (e) {
       toast({ title: 'Erro na importação', description: String((e as Error).message), variant: 'destructive' });
-    } finally { setImporting(false); }
+    } finally { setImporting(false); await reload(); }
   };
 
   const runAnalyze = async () => {
@@ -84,6 +97,9 @@ export default function AiTraining() {
       toast({ title: 'Erro na análise', description: String((e as Error).message), variant: 'destructive' });
     } finally { setAnalyzing(false); }
   };
+
+  const runningJob = jobs.find(j => j.status === 'running');
+  const runningPct = runningJob && runningJob.total > 0 ? Math.min(100, Math.round((runningJob.processed / runningJob.total) * 100)) : 0;
 
   const updateCandidate = (id: string, patch: Partial<Candidate>) => {
     setCandidates(prev => prev.map(c => c.id === id ? { ...c, ...patch } : c));
