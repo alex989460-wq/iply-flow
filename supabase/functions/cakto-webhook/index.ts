@@ -2275,8 +2275,9 @@ serve(async (req) => {
           );
           const tplJson = await tplResp.json().catch(() => ({}));
           console.log(`[Cakto] Template "${tplName}" prévio: status=${tplResp.status} ok=${tplJson?.success}`);
-          // pequena pausa para garantir ordem de chegada no celular
-          await new Promise(r => setTimeout(r, 1500));
+          // Aguarda 90s: dá tempo do cliente enviar o comprovante em resposta ao template,
+          // o que abre com segurança a janela de 24h (Service) antes da mensagem/imagem dinâmica.
+          await new Promise(r => setTimeout(r, 90000));
         } catch (tplErr) {
           console.error('[Cakto] Erro template prévio (não crítico):', tplErr);
         }
