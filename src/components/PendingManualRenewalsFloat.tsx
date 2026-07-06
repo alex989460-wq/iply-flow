@@ -151,16 +151,31 @@ export default function PendingManualRenewalsFloat() {
                     </Badge>
                   </div>
                 </div>
-                <Button
-                  size="sm"
-                  variant="default"
-                  onClick={() => resolve(it.id)}
-                  disabled={resolving === it.id}
-                  className="h-7 px-2 text-xs gap-1"
-                >
-                  <CheckCircle2 className="h-3.5 w-3.5" />
-                  Dar baixa
-                </Button>
+                <div className="flex items-center gap-1 shrink-0">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      const term = (it.customer_phone || it.username || it.customer_name || '').toString().replace(/\D/g, '') || (it.username || it.customer_name || '');
+                      navigate(`/customers?search=${encodeURIComponent(term)}`);
+                    }}
+                    className="h-7 px-2 text-xs gap-1"
+                    title="Buscar cliente na página de clientes"
+                  >
+                    <Search className="h-3.5 w-3.5" />
+                    Verificar
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="default"
+                    onClick={() => resolve(it.id)}
+                    disabled={resolving === it.id}
+                    className="h-7 px-2 text-xs gap-1"
+                  >
+                    <CheckCircle2 className="h-3.5 w-3.5" />
+                    Dar baixa
+                  </Button>
+                </div>
               </div>
 
               <div className="grid gap-1 text-xs text-muted-foreground">
