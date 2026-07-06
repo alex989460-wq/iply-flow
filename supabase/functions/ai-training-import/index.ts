@@ -71,8 +71,10 @@ Deno.serve(async (req) => {
       let current: any[] = [];
       const flush = async () => {
         if (current.length < 2) { current = []; return; }
-        const hasOperator = current.some(x => x.direction === "outgoing" || x.direction === "sent");
-        const hasCustomer = current.some(x => x.direction === "incoming" || x.direction === "received");
+        const isOut = (d: string) => d === "outgoing" || d === "sent" || d === "out";
+        const isIn = (d: string) => d === "incoming" || d === "received" || d === "in";
+        const hasOperator = current.some(x => isOut(x.direction));
+        const hasCustomer = current.some(x => isIn(x.direction));
         if (!hasOperator || !hasCustomer) { current = []; return; }
         const first = current[0], last = current[current.length - 1];
         const started = new Date(first.created_at).getTime();
