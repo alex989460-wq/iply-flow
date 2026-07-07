@@ -1,25 +1,30 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { Users, Clock, Check, AlertTriangle, FileCheck, Send, Loader2 } from 'lucide-react';
+import { Users, Clock, AlertTriangle, Send, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
-import { extractCrmBroadcastSummary, type CrmBroadcastSummary } from '@/lib/crm-stats';
 
-type Summary = Partial<CrmBroadcastSummary>;
+type Summary = {
+  broadcasts_count: number;
+  recipients_total: number;
+  sent: number;
+  failed: number;
+  pending: number;
+};
 
-// Aggregated broadcast metrics from the CRM Oficial endpoint
-// GET /api/public/v1/broadcasts-stats, with fallback to local message_logs.
-export function BroadcastMetricsCards({ broadcastId }: { broadcastId?: string } = {}) {
+// Métricas locais consolidadas a partir de billing_logs (mesma fonte do "Relatório de Hoje").
+// Observação: a API do CRM Oficial (/broadcasts-stats) NÃO expõe entregues/lidas da Meta,
+// então esses cards foram removidos para evitar valores zerados enganosos.
+export function BroadcastMetricsCards({ broadcastId: _broadcastId }: { broadcastId?: string } = {}) {
   const { user } = useAuth();
 
   const { data, isLoading } = useQuery({
-    queryKey: ['broadcast-metrics-today-local', user?.id, broadcastId],
+    queryKey: ['broadcast-metrics-today-local', user?.id],
     queryFn: async (): Promise<Summary> => {
       const today = format(new Date(), 'yyyy-MM-dd');
       const start = `${today}T00:00:00`;
       const end = `${today}T23:59:59`;
 
-      // Source of truth: billing_logs (o mesmo que alimenta o "Relatório de Hoje")
       const { data: bLogs } = await supabase
         .from('billing_logs')
         .select('whatsapp_status, customer_id, sent_at')
@@ -27,45 +32,19 @@ export function BroadcastMetricsCards({ broadcastId }: { broadcastId?: string } 
         .lte('sent_at', end);
       const b = bLogs || [];
       const norm = (s: string) => (s || '').toLowerCase();
-      const isSent = (s: string) => ['sent', 'accepted', 'queued', 'delivered', 'read'].includes(norm(s));
+      const isSent = (s: string) => ['sent', 'accepted', 'queued', 'delivered', 'read', 'success'].includes(norm(s));
       const isFail = (s: string) => norm(s).startsWith('error') || ['failed', 'error'].includes(norm(s));
-      const isPending = (s: string) => ['pending', 'queued', ''].includes(norm(s));
-
-      // Entregues/lidas/falhas devem vir da Meta (via CRM Oficial).
-      let delivered = 0;
-      let read = 0;
-      let metaFailed = 0;
-      let metaSent = 0;
-      let templatesApproved = 0;
-      try {
-        const { data: res, error } = await supabase.functions.invoke('crm-oficial-sync', {
-          body: { action: 'broadcasts-stats', data: { broadcast_id: broadcastId, date: today, from: start, to: end } },
-        });
-        if (!error) {
-          const s = extractCrmBroadcastSummary(res, today);
-          delivered = s.delivered || 0;
-          read = s.read || 0;
-          metaFailed = s.failed || 0;
-          metaSent = s.sent || 0;
-          templatesApproved = s.templates_approved || 0;
-        }
-      } catch (_) { /* Meta indisponível: mantém 0 */ }
 
       const uniqueRecipients = new Set(b.map(x => x.customer_id).filter(Boolean)).size;
-      const localSent = b.filter(x => isSent(x.whatsapp_status)).length;
-      const localFail = b.filter(x => isFail(x.whatsapp_status)).length;
-      const sent = Math.max(metaSent, localSent);
-      const failed = Math.max(metaFailed, localFail);
+      const sent = b.filter(x => isSent(x.whatsapp_status)).length;
+      const failed = b.filter(x => isFail(x.whatsapp_status)).length;
 
       return {
         broadcasts_count: b.length,
         recipients_total: uniqueRecipients || b.length,
         sent,
-        delivered,
-        read,
         failed,
         pending: Math.max(0, b.length - sent - failed),
-        templates_approved: templatesApproved,
       };
     },
     enabled: !!user?.id,
@@ -84,15 +63,12 @@ export function BroadcastMetricsCards({ broadcastId }: { broadcastId?: string } 
     { label: 'Disparos', value: data?.broadcasts_count ?? 0, icon: Send, color: 'text-sky-400' },
     { label: 'Destinatários', value: data?.recipients_total ?? 0, icon: Users, color: 'text-emerald-400' },
     { label: 'Enviadas', value: data?.sent ?? 0, icon: Clock, color: 'text-emerald-400' },
-    { label: 'Entregues', value: data?.delivered ?? 0, icon: Check, color: 'text-emerald-400' },
-    { label: 'Lidas', value: data?.read ?? 0, icon: Check, color: 'text-emerald-500' },
     { label: 'Falhas', value: data?.failed ?? 0, icon: AlertTriangle, color: 'text-amber-400' },
     { label: 'Pendentes', value: data?.pending ?? 0, icon: Clock, color: 'text-zinc-400' },
-    { label: 'Templates OK', value: data?.templates_approved ?? 0, icon: FileCheck, color: 'text-emerald-400' },
   ];
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+    <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
       {items.map((it) => {
         const Icon = it.icon;
         return (
