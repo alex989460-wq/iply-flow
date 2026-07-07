@@ -308,11 +308,17 @@ function templateText(value: unknown, vars: Record<string, unknown>) {
   return String(value || '').replace(/\{\{\s*([\w.-]+)\s*\}\}/g, (_, key) => String(vars[key] ?? ''));
 }
 
+function normalizeConditionText(value: string) {
+  return String(value || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
+}
+
 function evalCondition(op: string, left: string, right: string) {
-  if (op === 'contains') return left.toLowerCase().includes(right.toLowerCase());
-  if (op === 'starts') return left.toLowerCase().startsWith(right.toLowerCase());
+  const l = normalizeConditionText(left);
+  const r = normalizeConditionText(right);
+  if (op === 'contains') return l.includes(r);
+  if (op === 'starts') return l.startsWith(r);
   if (op === 'regex') { try { return new RegExp(right, 'i').test(left); } catch { return false; } }
-  return left.toLowerCase() === right.toLowerCase();
+  return l === r;
 }
 
 function randomAccessCode(len = 10) {
