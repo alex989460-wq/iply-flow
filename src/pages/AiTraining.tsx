@@ -181,9 +181,10 @@ export default function AiTraining() {
         .select('status,message')
         .eq('id', jobId)
         .maybeSingle();
+      const jobState = data as { status?: string; message?: string } | null;
       await reload();
-      if (!data || data.status === 'done') return true;
-      if (data.status === 'failed' || data.status === 'cancelled') throw new Error(data.message || `${label} interrompido`);
+      if (!jobState || jobState.status === 'done') return true;
+      if (jobState.status === 'failed' || jobState.status === 'cancelled') throw new Error(jobState.message || `${label} interrompido`);
       await delay(1500);
     }
     throw new Error(`${label} demorou demais. O progresso ficou salvo; tente continuar em instantes.`);
