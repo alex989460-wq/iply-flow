@@ -121,7 +121,7 @@ export default function AiTraining() {
       supabase.from('ai_training_conversations' as any).select('*', { count: 'exact', head: true }).eq('user_id', user.id),
       supabase.from('ai_training_conversations' as any).select('*', { count: 'exact', head: true }).eq('user_id', user.id).not('analyzed_at', 'is', null),
       supabase.from('ai_training_conversations' as any).select('*', { count: 'exact', head: true }).eq('user_id', user.id).in('signal_quality', ['high','medium']),
-      supabase.from('ai_knowledge_items' as any).select('*', { count: 'exact', head: true }).eq('user_id', user.id).eq('status','pending'),
+      supabase.from('ai_knowledge_items' as any).select('*', { count: 'exact', head: true }).eq('user_id', user.id).eq('status','pending').gte('confidence', 0.7),
       supabase.from('ai_knowledge_items' as any).select('*', { count: 'exact', head: true }).eq('user_id', user.id).eq('status','approved'),
       supabase.from('ai_training_conversations' as any).select('device,app,operator_name,resolved').eq('user_id', user.id).not('analyzed_at','is',null).limit(2000),
     ]);
@@ -474,11 +474,11 @@ export default function AiTraining() {
           {/* ============ APPROVE ============ */}
           <TabsContent value="approve" className="space-y-4 mt-4">
             <div className="flex gap-2 flex-wrap">
-              <Button size="sm" variant={filterKind==='all'?'default':'outline'} onClick={()=>setFilterKind('all')}>Todos ({items.filter(i=>i.status==='pending').length})</Button>
+              <Button size="sm" variant={filterKind==='all'?'default':'outline'} onClick={()=>setFilterKind('all')}>Todos ({items.filter(i=>i.status==='pending' && Number(i.confidence || 0) >= 0.7).length})</Button>
               {(Object.keys(KIND_META) as Kind[]).map((k) => {
                 const meta = KIND_META[k];
                 const Icon = meta.icon;
-                const n = items.filter(i=>i.kind===k && i.status==='pending').length;
+                const n = items.filter(i=>i.kind===k && i.status==='pending' && Number(i.confidence || 0) >= 0.7).length;
                 return (
                   <Button key={k} size="sm" variant={filterKind===k?'default':'outline'} onClick={()=>setFilterKind(k)} className="gap-1">
                     <Icon className="h-3.5 w-3.5" />{meta.label} ({n})
