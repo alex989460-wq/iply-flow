@@ -197,6 +197,30 @@ export default function AiTraining() {
   };
 
 
+  const resetCentral = async () => {
+    if (!user) return;
+    if (!confirm('Isto vai APAGAR todos os conhecimentos e conversas importadas e reimportar do zero. Continuar?')) return;
+    try {
+      setImporting(true);
+      // limpa jobs travados
+      await supabase.from('ai_training_jobs' as any).update({ status: 'failed', message: 'Reset' }).eq('user_id', user.id).eq('status','running');
+      // apaga tudo
+      await supabase.from('ai_knowledge_items' as any).delete().eq('user_id', user.id);
+      await supabase.from('ai_training_conversations' as any).delete().eq('user_id', user.id);
+      toast({ title: 'Central limpa', description: 'Reimportando e analisando tudo...' });
+      // reimporta
+      await supabase.functions.invoke('ai-training-import', { body: { source: 'evolution' } });
+      // agenda análise (o import roda em background, a análise começa e pega o que já foi importado; polling continua chamando)
+      setTimeout(async () => {
+        await supabase.functions.invoke('ai-training-analyze', { body: {} });
+        reload();
+      }, 3000);
+      setTimeout(reload, 800);
+    } catch (e: any) {
+      toast({ title: 'Erro', description: e.message, variant: 'destructive' });
+    } finally { setImporting(false); }
+  };
+
   const cancelJob = async (jobId: string) => {
     await supabase.from('ai_training_jobs' as any).update({ status: 'cancelled' }).eq('id', jobId);
     setTimeout(reload, 500);
@@ -208,6 +232,7 @@ export default function AiTraining() {
       .eq('user_id', user.id).eq('status', 'running');
     reload();
   };
+
 
   const act = async (item_id: string, action: string, extra: any = {}) => {
     const { error } = await supabase.functions.invoke('ai-training-approve', { body: { item_id, action, ...extra } });
