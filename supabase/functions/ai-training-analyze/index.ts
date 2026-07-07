@@ -274,7 +274,7 @@ function buildFlowNodes(turns: Turn[], context: { brand?: string | null; app?: s
       title: "Gerar e enviar chave de acesso",
       api_url: "internal:generate-access-code",
       variable: "chave_acesso",
-      text: "Perfeito. Vou gerar sua chave de acesso e te enviar os dados para entrar no aplicativo.",
+      text: "Perfeito. Sua chave de acesso é: {{chave_acesso}}\n\nUse essa chave para entrar no aplicativo e me avise se abriu tudo certo. ✅",
       buttons: [],
       position: { x: 1820, y: 80 },
     },
