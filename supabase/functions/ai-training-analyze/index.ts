@@ -6,8 +6,8 @@ import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 const AI_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
 const EMB_URL = "https://ai.gateway.lovable.dev/v1/embeddings";
 // Modelo forte para análise assertiva; fallback automático em caso de falha
-const MODEL_PRIMARY = "google/gemini-2.5-pro";
-const MODEL_FALLBACK = "google/gemini-2.5-flash";
+const MODEL_PRIMARY = "openai/gpt-5.5";
+const MODEL_FALLBACK = "google/gemini-2.5-pro";
 const EMB_MODEL = "openai/text-embedding-3-small";
 
 const KINDS = ["procedure","flow","intent","official_answer","business_rule","tutorial"] as const;
@@ -99,7 +99,10 @@ async function callAIOnce(apiKey: string, model: string, system: string, user: s
       temperature: 0.15,
     }),
   });
-  if (!r.ok) throw new Error(`AI ${r.status}`);
+  if (!r.ok) {
+    const body = await r.text().catch(() => "");
+    throw new Error(`AI ${r.status}${body ? `: ${body.slice(0, 300)}` : ""}`);
+  }
   const j = await r.json();
   const content = j.choices?.[0]?.message?.content ?? "{}";
   return extractJSON(content);
@@ -119,7 +122,10 @@ async function embed(apiKey: string, text: string): Promise<number[]> {
     headers: { "Content-Type": "application/json", "Authorization": `Bearer ${apiKey}` },
     body: JSON.stringify({ model: EMB_MODEL, input: text.slice(0, 8000), dimensions: 1536 }),
   });
-  if (!r.ok) throw new Error(`EMB ${r.status}`);
+  if (!r.ok) {
+    const body = await r.text().catch(() => "");
+    throw new Error(`EMB ${r.status}${body ? `: ${body.slice(0, 300)}` : ""}`);
+  }
   const j = await r.json();
   return j.data?.[0]?.embedding;
 }
@@ -145,63 +151,79 @@ Deno.serve(async (req) => {
     const userId = userData.user.id;
 
     const body = await req.json().catch(() => ({}));
-    const chunk: number = Math.min(20, Math.max(1, body.batch ?? 15));
+    // Processa poucos atendimentos por chamada para evitar timeout e travamento.
+    // A tela chama novamente até zerar a fila, então 100% é analisado com progresso real.
+    const chunk: number = Math.min(6, Math.max(1, Number(body.batch ?? 3)));
+    const requestedJobId = typeof body.jobId === "string" ? body.jobId : null;
 
-    // Total pendente
-    const { count: pendingTotal } = await supabase.from("ai_training_conversations")
+    const { count: pendingBefore } = await supabase.from("ai_training_conversations")
       .select("id", { count: "exact", head: true })
       .eq("user_id", userId).is("analyzed_at", null);
 
-    const { data: job } = await supabase.from("ai_training_jobs")
-      .insert({
-        user_id: userId, kind: "analyze", status: "running",
-        total: pendingTotal ?? 0, processed: 0,
-        message: `Analisando ${pendingTotal ?? 0} conversas em segundo plano...`,
-      })
-      .select().single();
+    let job: any = null;
+    if (requestedJobId) {
+      const { data: existingJob } = await supabase.from("ai_training_jobs")
+        .select("*").eq("id", requestedJobId).eq("user_id", userId).maybeSingle();
+      job = existingJob;
+    }
 
-    if (!pendingTotal || pendingTotal === 0) {
+    if (!job || job.status !== "running") {
+      const { data: newJob, error: jobError } = await supabase.from("ai_training_jobs")
+        .insert({
+          user_id: userId, kind: "analyze", status: "running",
+          total: pendingBefore ?? 0, processed: 0,
+          message: `Fila iniciada: ${pendingBefore ?? 0} conversas pendentes.`,
+        })
+        .select().single();
+      if (jobError) throw jobError;
+      job = newJob;
+    }
+
+    if (job.status === "cancelled") return json({ ok: true, cancelled: true, jobId: job.id });
+
+    if (!pendingBefore || pendingBefore === 0) {
       await supabase.from("ai_training_jobs").update({
         status: "done", finished_at: new Date().toISOString(),
         message: "Nenhuma conversa pendente para analisar",
       }).eq("id", job!.id);
-      return json({ ok: true, processed: 0 });
+      return json({ ok: true, done: true, jobId: job!.id, processed: 0, remaining: 0 });
     }
 
-    // Processa TODAS as conversas em background, em chunks
-    const runAll = async () => {
-      let totalItemsCreated = 0, totalItemsMerged = 0, totalNoSignal = 0, totalErrors = 0, totalProcessed = 0;
-      const startedAt = Date.now();
-      const MAX_MS = 25 * 60 * 1000; // 25 min por invocação (limite edge ~30 min)
+    const totalForJob = Math.max(Number(job.total || 0), pendingBefore ?? 0);
+    let alreadyProcessed = Math.min(
+      totalForJob,
+      Math.max(Number(job.processed || 0), totalForJob - (pendingBefore ?? 0)),
+    );
+    let batchProcessed = 0;
+    let totalItemsCreated = 0, totalItemsMerged = 0, totalNoSignal = 0, totalErrors = Number(job.errors || 0);
 
-      while (true) {
-        // Checa cancelamento
-        const { data: jobState } = await supabase.from("ai_training_jobs")
-          .select("status").eq("id", job!.id).single();
-        if (jobState?.status === "cancelled") {
-          await supabase.from("ai_training_jobs").update({
-            finished_at: new Date().toISOString(),
-            message: `Cancelado após ${totalProcessed} conversas. ${totalItemsCreated} novos, ${totalItemsMerged} agrupados.`,
-          }).eq("id", job!.id);
-          return;
-        }
-        if (Date.now() - startedAt > MAX_MS) {
-          await supabase.from("ai_training_jobs").update({
-            status: "done", finished_at: new Date().toISOString(),
-            message: `Pausado por tempo. ${totalProcessed} analisadas — clique novamente para continuar.`,
-          }).eq("id", job!.id);
-          return;
-        }
+    const { data: convs, error: convError } = await supabase.from("ai_training_conversations")
+      .select("id,raw,contact_phone,duration_seconds,message_count")
+      .eq("user_id", userId).is("analyzed_at", null)
+      .order("created_at", { ascending: true })
+      .limit(chunk);
+    if (convError) throw convError;
 
-        const { data: convs } = await supabase.from("ai_training_conversations")
-          .select("id,raw,contact_phone,duration_seconds,message_count")
-          .eq("user_id", userId).is("analyzed_at", null)
-          .limit(chunk);
+    if (!convs || convs.length === 0) {
+      await supabase.from("ai_training_jobs").update({
+        status: "done", processed: totalForJob, finished_at: new Date().toISOString(),
+        message: "Concluído: todas as conversas pendentes foram analisadas.",
+      }).eq("id", job!.id);
+      return json({ ok: true, done: true, jobId: job!.id, processed: alreadyProcessed, remaining: 0 });
+    }
 
-        if (!convs || convs.length === 0) break;
+    for (const c of convs) {
+      const { data: jobState } = await supabase.from("ai_training_jobs")
+        .select("status").eq("id", job!.id).single();
+      if (jobState?.status === "cancelled") {
+        await supabase.from("ai_training_jobs").update({
+          finished_at: new Date().toISOString(),
+          message: `Cancelado após ${alreadyProcessed + batchProcessed} conversas analisadas.`,
+        }).eq("id", job!.id);
+        return json({ ok: true, cancelled: true, jobId: job!.id, processed: alreadyProcessed + batchProcessed });
+      }
 
-        for (const c of convs) {
-          try {
+      try {
             const { turns } = sanitize((c.raw as any[]) || []);
             const hasClient = turns.some(t => t.role === "CLIENTE");
             const hasOp = turns.some(t => t.role === "OPERADOR");
@@ -212,7 +234,13 @@ Deno.serve(async (req) => {
                 signal_quality: "none",
                 analysis_version: 3,
               }).eq("id", c.id);
-              totalProcessed++;
+              totalNoSignal++;
+              batchProcessed++;
+              await supabase.from("ai_training_jobs").update({
+                processed: alreadyProcessed + batchProcessed,
+                errors: totalErrors,
+                message: `${alreadyProcessed + batchProcessed}/${totalForJob} analisadas • ${totalItemsCreated} novos • ${totalItemsMerged} agrupados • ${totalNoSignal} sem sinal`,
+              }).eq("id", job!.id);
               continue;
             }
 
@@ -250,7 +278,16 @@ ${transcript}`);
               analysis_version: 3,
             }).eq("id", c.id);
 
-            if (signal === "none") { totalNoSignal++; totalProcessed++; continue; }
+            if (signal === "none") {
+              totalNoSignal++;
+              batchProcessed++;
+              await supabase.from("ai_training_jobs").update({
+                processed: alreadyProcessed + batchProcessed,
+                errors: totalErrors,
+                message: `${alreadyProcessed + batchProcessed}/${totalForJob} analisadas • ${totalItemsCreated} novos • ${totalItemsMerged} agrupados • ${totalNoSignal} sem sinal`,
+              }).eq("id", job!.id);
+              continue;
+            }
 
             const passB = await callAI(apiKey,
               `Você extrai CONHECIMENTO REUTILIZÁVEL DE ALTA QUALIDADE (>90% acurácia) de atendimentos IPTV. Tipos: procedure (passo a passo técnico), flow (fluxo de decisão), intent (intenção do cliente), official_answer (resposta oficial da empresa), business_rule (regra de negócio: prazos, valores, política), tutorial (guia completo). Categorias: ${CATEGORIES.join(", ")}. Responda SOMENTE JSON válido.`,
@@ -353,35 +390,54 @@ ${transcript}`);
                 totalItemsCreated++;
               }
             }
-            totalProcessed++;
+            batchProcessed++;
           } catch (e) {
             totalErrors++;
-            totalProcessed++;
+            batchProcessed++;
             console.error("analyze err", e);
+            await supabase.from("ai_training_conversations").update({
+              analyzed_at: new Date().toISOString(),
+              signal_quality: "none",
+              status: "analysis_error",
+              analysis_version: 3,
+            }).eq("id", c.id);
           }
-        }
-
-        // Atualiza progresso após cada chunk
-        await supabase.from("ai_training_jobs").update({
-          processed: totalProcessed,
-          errors: totalErrors,
-          message: `${totalProcessed}/${pendingTotal} analisadas • ${totalItemsCreated} novos • ${totalItemsMerged} agrupados • ${totalNoSignal} sem sinal`,
-        }).eq("id", job!.id);
-      }
 
       await supabase.from("ai_training_jobs").update({
+          processed: alreadyProcessed + batchProcessed,
+          errors: totalErrors,
+          message: `${alreadyProcessed + batchProcessed}/${totalForJob} analisadas • ${totalItemsCreated} novos • ${totalItemsMerged} agrupados • ${totalNoSignal} sem sinal`,
+        }).eq("id", job!.id);
+    }
+
+      const { count: remaining } = await supabase.from("ai_training_conversations")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", userId).is("analyzed_at", null);
+
+      const done = !remaining || remaining === 0;
+      if (done) {
+      await supabase.from("ai_training_jobs").update({
         status: "done",
-        processed: totalProcessed,
+          processed: totalForJob,
         errors: totalErrors,
         finished_at: new Date().toISOString(),
-        message: `Concluído: ${totalProcessed} analisadas • ${totalItemsCreated} novos conhecimentos • ${totalItemsMerged} agrupados • ${totalNoSignal} sem sinal útil`,
+          message: `Concluído: ${totalForJob} analisadas • ${totalItemsCreated} novos neste lote • ${totalItemsMerged} agrupados neste lote • ${totalNoSignal} sem sinal útil`,
       }).eq("id", job!.id);
-    };
+      }
 
-    // @ts-ignore - EdgeRuntime.waitUntil roda em background
-    EdgeRuntime.waitUntil(runAll());
-
-    return json({ ok: true, jobId: job!.id, total: pendingTotal });
+    return json({
+      ok: true,
+      done,
+      jobId: job!.id,
+      total: totalForJob,
+      processed: alreadyProcessed + batchProcessed,
+      remaining: remaining ?? 0,
+      batchProcessed,
+      created: totalItemsCreated,
+      merged: totalItemsMerged,
+      noSignal: totalNoSignal,
+      errors: totalErrors,
+    });
   } catch (e) {
     return json({ error: String((e as Error).message) }, 500);
   }
