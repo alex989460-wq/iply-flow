@@ -6,6 +6,7 @@ import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 
 const KINDS = ["procedure","flow","intent","official_answer","business_rule","tutorial"] as const;
 type Kind = typeof KINDS[number];
+const ANALYSIS_VERSION = 5;
 
 // -------- categorização por palavras-chave (pt-BR IPTV/streaming) --------
 const CATEGORY_KEYWORDS: Record<string, string[]> = {
@@ -418,9 +419,10 @@ Deno.serve(async (req) => {
     const chunk: number = Math.min(50, Math.max(1, Number(body.batch ?? 25)));
     const requestedJobId = typeof body.jobId === "string" ? body.jobId : null;
 
+    const pendingFilter = `analyzed_at.is.null,analysis_version.lt.${ANALYSIS_VERSION}`;
     const { count: pendingBefore } = await supabase.from("ai_training_conversations")
       .select("id", { count: "exact", head: true })
-      .eq("user_id", userId).is("analyzed_at", null);
+      .eq("user_id", userId).or(pendingFilter);
 
     let job: any = null;
     if (requestedJobId) {
@@ -456,7 +458,7 @@ Deno.serve(async (req) => {
 
     const { data: convs, error: convError } = await supabase.from("ai_training_conversations")
       .select("id,raw,contact_phone")
-      .eq("user_id", userId).is("analyzed_at", null)
+      .eq("user_id", userId).or(pendingFilter)
       .order("created_at", { ascending: true })
       .limit(chunk);
     if (convError) throw convError;
@@ -511,7 +513,7 @@ Deno.serve(async (req) => {
           device: analysis.device || null,
           app: analysis.app || null,
           signal_quality: signal,
-          analysis_version: 4,
+          analysis_version: ANALYSIS_VERSION,
         }).eq("id", c.id);
 
         if (signal === "none") {
@@ -583,7 +585,7 @@ Deno.serve(async (req) => {
           analyzed_at: new Date().toISOString(),
           signal_quality: "none",
           status: "analysis_error",
-          analysis_version: 4,
+          analysis_version: ANALYSIS_VERSION,
         }).eq("id", c.id);
       }
 
@@ -596,7 +598,7 @@ Deno.serve(async (req) => {
 
     const { count: remaining } = await supabase.from("ai_training_conversations")
       .select("id", { count: "exact", head: true })
-      .eq("user_id", userId).is("analyzed_at", null);
+      .eq("user_id", userId).or(pendingFilter);
 
     const done = !remaining || remaining === 0;
     if (done) {
