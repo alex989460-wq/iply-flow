@@ -814,6 +814,14 @@ Deno.serve(async (req) => {
       if (type === 'api_call') {
         const apiUrl = templateText(step.api_url, vars);
         if (apiUrl === 'internal:generate-access-code') {
+          const { data: roleRow } = await admin.from('user_roles').select('user_id').eq('user_id', user.id).eq('role', 'admin').maybeSingle();
+          if (!roleRow) {
+            const { data: access } = await admin.from('reseller_access').select('id,credits').eq('user_id', user.id).maybeSingle();
+            const credits = Number(access?.credits || 0);
+            if (!access || credits < 1) return jsonResponse({ ok: false, error: 'Crédito insuficiente para gerar chave automática' }, 200);
+            const { error: debitErr } = await admin.from('reseller_access').update({ credits: credits - 1 }).eq('id', access.id);
+            if (debitErr) return jsonResponse({ ok: false, error: debitErr.message }, 200);
+          }
           let code = randomAccessCode(10);
           for (let i = 0; i < 5; i++) {
             const { data: exists } = await admin.from('reseller_access_codes').select('id').eq('code', code).maybeSingle();
