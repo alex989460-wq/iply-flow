@@ -390,7 +390,9 @@ function analyzeLocal(turns: Turn[]) {
 }
 
 function computeConfidence(usage: number, rate: number): number {
-  const c = 0.4 + 0.3 * Math.log10(usage + 1) + 0.3 * rate;
+  // Base mais conservadora/profissional: só vira sugestão quando há sinal útil;
+  // a confiança sobe principalmente por repetição do mesmo padrão e resolução.
+  const c = 0.58 + 0.24 * Math.min(1, Math.log10(usage + 1) / 1.2) + 0.18 * rate;
   return Math.min(1, Math.max(0, +c.toFixed(3)));
 }
 
@@ -534,12 +536,13 @@ Deno.serve(async (req) => {
 
           if (bestId && bestScore >= 0.55) {
             const { data: cur } = await supabase.from("ai_knowledge_items")
-              .select("usage_count,resolved_count,operators,source_conversation_ids,steps,devices,apps,keywords")
+              .select("usage_count,resolved_count,operators,source_conversation_ids,steps,flow_nodes,devices,apps,keywords")
               .eq("id", bestId).single();
             const usage = (cur?.usage_count || 0) + 1;
             const resolved = (cur?.resolved_count || 0) + (analysis.resolved ? 1 : 0);
             const rate = usage > 0 ? resolved / usage : 0;
             const mergedSteps = Array.from(new Set([...(cur?.steps || []), ...(it.steps || [])])).slice(0, 20);
+            const mergedFlowNodes = (Array.isArray(cur?.flow_nodes) && cur.flow_nodes.length) ? cur.flow_nodes : ((it as any).flow_nodes || []);
             const mergedDevices = Array.from(new Set([...(cur?.devices || []), ...(it.devices || [])])).slice(0, 8);
             const mergedApps = Array.from(new Set([...(cur?.apps || []), ...(it.apps || [])])).slice(0, 8);
             const mergedKw = Array.from(new Set([...(cur?.keywords || []), ...(it.keywords || [])])).slice(0, 20);
@@ -549,14 +552,14 @@ Deno.serve(async (req) => {
               confidence: computeConfidence(usage, rate),
               last_used_at: new Date().toISOString(),
               source_conversation_ids: sids,
-              steps: mergedSteps, devices: mergedDevices, apps: mergedApps, keywords: mergedKw,
+              steps: mergedSteps, flow_nodes: mergedFlowNodes, devices: mergedDevices, apps: mergedApps, keywords: mergedKw,
             }).eq("id", bestId);
             totalItemsMerged++;
           } else {
             const { data: ins } = await supabase.from("ai_knowledge_items").insert({
               user_id: userId,
               kind, subject, problem: it.problem, solution,
-              steps: it.steps, devices: it.devices, apps: it.apps, keywords: it.keywords, category,
+              steps: it.steps, flow_nodes: (it as any).flow_nodes || [], devices: it.devices, apps: it.apps, keywords: it.keywords, category,
               usage_count: 1,
               resolved_count: analysis.resolved ? 1 : 0,
               success_rate: analysis.resolved ? 1 : 0,
