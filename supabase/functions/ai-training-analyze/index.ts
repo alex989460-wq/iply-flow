@@ -219,18 +219,22 @@ Deno.serve(async (req) => {
             const transcript = turns.map(t => `${t.role}: ${t.text}`).join("\n").slice(0, 6000);
 
             const passA = await callAI(apiKey,
-              `Você é um analista sênior de suporte técnico especializado em IPTV/streaming no Brasil. Categorias válidas: ${CATEGORIES.join(", ")}. Responda SOMENTE JSON válido, sem markdown.`,
+              `Você é um analista sênior de suporte técnico de IPTV/streaming no Brasil (IBO Player, TiviMate, XCIptv, SmartOne, Duplex, Fire TV, Roku, Smart TV Samsung/LG, Android TV). Sua análise deve ter precisão >90%. Categorias válidas: ${CATEGORIES.join(", ")}. Responda SOMENTE JSON válido, sem markdown, sem comentários.`,
               `Analise o atendimento e responda EXATAMENTE neste JSON:
 {"problem":"...","solution":"...","resolved":true|false,"category":"...","device":"...|null","app":"...|null","operator":"...|null","signal_quality":"high|medium|none","confidence_reason":"..."}
 
-REGRAS:
-1. signal_quality="none" só se: saudações/comprovante/sem problema.
-2. "problem" específico ("app IBO travando ao abrir SporTV na Fire TV"), nunca genérico.
-3. "solution" com ações reais ("limpar cache, reinstalar com playlist").
-4. "resolved"=true só se confirmado.
+REGRAS ESTRITAS:
+1. signal_quality="none" APENAS se: só saudações, só comprovante, ou sem problema real identificável.
+2. signal_quality="high" só quando problema E solução estão CLAROS e a solução é reutilizável.
+3. "problem" ULTRA-específico: cite app, dispositivo, canal, código de erro quando existir. Exemplo BOM: "IBO Player travando ao abrir SporTV HD na Fire TV Stick 4K". Exemplo RUIM: "cliente com problema".
+4. "solution" com passos concretos que outro atendente possa REPETIR e resolver igual. Exemplo BOM: "peça o MAC, gere nova playlist Xtream no painel Rush, envie link m3u e oriente reinstalar o IBO limpando cache". Exemplo RUIM: "resolvido".
+5. "resolved"=true SOMENTE se o cliente confirmou "funcionou/resolveu/ok" após a orientação. Silêncio ≠ resolvido.
+6. "operator" = nome do atendente humano, nunca "bot" ou "sistema".
+7. Se a conversa for genérica ou você tiver menos de 90% de certeza sobre problema+solução, use signal_quality="none".
 
 CONVERSA:
 ${transcript}`);
+
 
             const signal = passA.signal_quality || "medium";
             await supabase.from("ai_training_conversations").update({
@@ -249,13 +253,23 @@ ${transcript}`);
             if (signal === "none") { totalNoSignal++; totalProcessed++; continue; }
 
             const passB = await callAI(apiKey,
-              `Você extrai CONHECIMENTO REUTILIZÁVEL de atendimentos IPTV. Tipos: procedure, flow, intent, official_answer, business_rule, tutorial. Categorias: ${CATEGORIES.join(", ")}. Responda SOMENTE JSON.`,
-              `Extraia 0 a 4 conhecimentos ÚTEIS. JSON:
+              `Você extrai CONHECIMENTO REUTILIZÁVEL DE ALTA QUALIDADE (>90% acurácia) de atendimentos IPTV. Tipos: procedure (passo a passo técnico), flow (fluxo de decisão), intent (intenção do cliente), official_answer (resposta oficial da empresa), business_rule (regra de negócio: prazos, valores, política), tutorial (guia completo). Categorias: ${CATEGORIES.join(", ")}. Responda SOMENTE JSON válido.`,
+              `Extraia de 0 a 4 conhecimentos APENAS se forem realmente REUTILIZÁVEIS por outro atendente. JSON:
 {"items":[{"kind":"...","subject":"...","problem":"...","solution":"...","steps":["..."],"devices":["..."],"apps":["..."],"category":"...","keywords":["..."]}]}
-Regras: subject específico; solution pronta para reuso; steps no imperativo; se genérico → items:[].
+
+REGRAS ESTRITAS (aplique como se fosse VOCÊ respondendo o próximo cliente):
+1. subject = título curto e específico (ex: "Ativar IBO Player na Fire TV com playlist Xtream").
+2. problem = sintoma exato relatado pelo cliente, com app/dispositivo/canal quando existir.
+3. solution = resposta pronta, profissional, cordial, em PT-BR, que resolve o caso — como se você mesmo estivesse escrevendo para o cliente. Sem gírias, sem "oi tudo bem".
+4. steps = ações no imperativo, uma por item, ordenadas ("Peça o MAC do aparelho", "Acesse o painel Rush", "Gere nova playlist", ...).
+5. keywords = termos que o cliente usaria para procurar isso (ex: "ibo travando", "sportv não abre", "playlist expirou").
+6. NÃO invente: se o atendimento não deixou clara a solução, retorne items:[].
+7. NÃO extraia saudação, agradecimento, comprovante ou "vou verificar".
+8. Se o atendimento gera 2 conhecimentos independentes (ex: procedimento + regra de negócio), retorne os 2.
 
 CONVERSA:
 ${transcript}`);
+
 
             const items: any[] = Array.isArray(passB.items) ? passB.items.slice(0, 4) : [];
 
