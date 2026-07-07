@@ -5,7 +5,9 @@ import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 
 const AI_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
 const EMB_URL = "https://ai.gateway.lovable.dev/v1/embeddings";
-const MODEL = "google/gemini-3-flash-preview";
+// Modelo forte para análise assertiva; fallback automático em caso de falha
+const MODEL_PRIMARY = "google/gemini-2.5-pro";
+const MODEL_FALLBACK = "google/gemini-2.5-flash";
 const EMB_MODEL = "openai/text-embedding-3-small";
 
 const KINDS = ["procedure","flow","intent","official_answer","business_rule","tutorial"] as const;
