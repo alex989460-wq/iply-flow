@@ -388,8 +388,19 @@ export default function AiTraining() {
                   {analyzing ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Brain className="h-4 w-4 mr-1" />}
                   Analisar (extrair conhecimento)
                 </Button>
+                <Button variant="destructive" onClick={resetCentral} disabled={importing || analyzing || !!runningJob}>
+                  <Trash2 className="h-4 w-4 mr-1" />
+                  Limpar tudo e reimportar
+                </Button>
+                {!!runningJob && (
+                  <Button variant="outline" onClick={forceKillStuck}>
+                    <StopCircle className="h-4 w-4 mr-1" />
+                    Liberar jobs presos
+                  </Button>
+                )}
               </div>
             </Card>
+
 
             <Card className="p-4">
               <h3 className="font-semibold mb-3">Últimos jobs</h3>
