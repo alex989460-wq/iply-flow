@@ -15,10 +15,12 @@ function formatSolution(item: any): string {
 }
 
 function flowTriggers(item: any): string[] {
-  const keywords = Array.isArray(item.keywords) ? item.keywords : [];
+  const keywords = (Array.isArray(item.keywords) ? item.keywords : [])
+    .map((k: unknown) => String(k || "").trim().toLowerCase())
+    .filter((k: string) => ["adquirir", "comprar", "contratar", "assinar", "sistema", "teste", "plano"].includes(k));
   return Array.from(new Set([
-    "olá", "ola", "adquirir", "comprar", "contratar", "quero o sistema", "gostaria de adquirir", "tv",
-    ...keywords.map((k: unknown) => String(k || "").trim()).filter(Boolean),
+    "adquirir", "comprar", "contratar", "assinar", "quero o sistema", "gostaria de adquirir", "quero contratar", "teste", "plano",
+    ...keywords,
   ])).slice(0, 30);
 }
 
