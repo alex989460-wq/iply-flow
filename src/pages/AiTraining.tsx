@@ -117,7 +117,7 @@ export default function AiTraining() {
       { data: convsForStats },
     ] = await Promise.all([
       supabase.from('ai_training_jobs' as any).select('*').eq('user_id', user.id).order('created_at', { ascending: false }).limit(10),
-      supabase.from('ai_knowledge_items' as any).select('*').eq('user_id', user.id).in('status', ['pending','approved']).order('usage_count', { ascending: false }).limit(200),
+      supabase.from('ai_knowledge_items' as any).select('*').eq('user_id', user.id).in('status', ['pending','approved']).order('confidence', { ascending: false }).order('usage_count', { ascending: false }).limit(200),
       supabase.from('ai_training_conversations' as any).select('*', { count: 'exact', head: true }).eq('user_id', user.id),
       supabase.from('ai_training_conversations' as any).select('*', { count: 'exact', head: true }).eq('user_id', user.id).not('analyzed_at', 'is', null),
       supabase.from('ai_training_conversations' as any).select('*', { count: 'exact', head: true }).eq('user_id', user.id).in('signal_quality', ['high','medium']),
@@ -303,7 +303,7 @@ export default function AiTraining() {
 
   const runningJob = jobs.find(j => j.status === 'running');
   const filtered = useMemo(() => filterKind === 'all' ? items : items.filter(i => i.kind === filterKind), [items, filterKind]);
-  const pendingList = filtered.filter(i => i.status === 'pending');
+  const pendingList = filtered.filter(i => i.status === 'pending' && Number(i.confidence || 0) >= 0.7);
 
   return (
     <DashboardLayout>
@@ -490,7 +490,7 @@ export default function AiTraining() {
             {pendingList.length === 0 ? (
               <Card className="p-12 text-center text-muted-foreground">
                 <Sparkles className="h-8 w-8 mx-auto mb-2 opacity-40" />
-                Nenhum conhecimento pendente. Rode uma análise para gerar novos itens.
+                Nenhuma sugestão com confiança alta. Rode a análise completa para cruzar mais conversas.
               </Card>
             ) : (
               <div className="grid gap-3">
