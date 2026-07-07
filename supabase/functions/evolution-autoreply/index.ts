@@ -338,6 +338,7 @@ Deno.serve(async (req) => {
       const { data: session } = await admin.from('bot_flow_sessions').select('*').eq('owner_id', user_id).eq('phone', phone).gt('expires_at', new Date().toISOString()).maybeSingle();
       const { data: flows } = await admin.from('bot_flows').select('id,name,start_step_id,steps,trigger_keywords,enabled').eq('owner_id', user_id).eq('enabled', true).order('updated_at', { ascending: false });
       const incomingNorm = normalizeText(incomingContent);
+      let sessionVariables = { ...(session?.variables || {}) };
       const triggeredFlow = (flows || []).find((f: any) => {
         const keys = Array.isArray(f.trigger_keywords) ? f.trigger_keywords : [];
         return keys.some((k: string) => {
@@ -366,13 +367,14 @@ Deno.serve(async (req) => {
           startId = choice.next_step_id;
         } else if (stepType(waiting?.type) === 'question' || stepType(waiting?.type) === 'rating') {
           const vars = { ...(session?.variables || {}), [waiting.variable || 'ultima_resposta']: incomingContent, ultima_resposta: incomingContent, ultima_mensagem: incomingContent };
+          sessionVariables = vars;
           await admin.from('bot_flow_sessions').update({ variables: vars }).eq('id', session.id);
           startId = nextStepId(waiting);
         }
       }
       if (!flow || !startId) return { handled: false };
       const stepsById = new Map<string, any>((flow.steps || []).map((s: any) => [s.id, s]));
-      const variables = { ...(session?.variables || {}), ultima_mensagem: incomingContent, ultima_resposta: incomingContent };
+      const variables = { ...sessionVariables, ultima_mensagem: incomingContent, ultima_resposta: incomingContent };
       const runInlineChildren = async (step: any, seen = new Set<string>()) => {
         for (const child of Array.isArray(step?.children) ? step.children : []) {
           if (!child?.id || seen.has(child.id)) continue;
