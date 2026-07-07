@@ -765,8 +765,8 @@ Deno.serve(async (req) => {
       const attempts: Array<{ url: string; headers: Record<string, string>; body: any; mode: string }> = [];
       for (const target of targets) {
         const title = text || 'Escolha uma opção:';
-        const rows = buttons.map((b) => ({ title: b.label, description: '', rowId: b.id }));
-        const cleanReply = buttons.slice(0, 3).map((b) => ({ type: 'reply', displayText: b.label, id: b.id }));
+        const rows = buttons.map((b: { id: string; label: string }) => ({ title: b.label, description: '', rowId: b.id }));
+        const cleanReply = buttons.slice(0, 3).map((b: { id: string; label: string }) => ({ type: 'reply', displayText: b.label, id: b.id }));
         const isJid = /@(lid|s\.whatsapp\.net)\b/i.test(target);
         const number = isJid ? target : target.split('@')[0].replace(/\D/g, '');
         const forceList = menuMode === 'list' || buttons.length > 3;
@@ -774,13 +774,13 @@ Deno.serve(async (req) => {
           attempts.push(
             { url: `${baseUrl}/message/sendList/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number, title, description: title, buttonText: 'Ver opções', footerText: ' ', sections: [{ title: 'Opções', rows }] }, mode: 'evo-v2-list' },
             { url: `${baseUrl}/message/sendList/${encodeURIComponent(instance)}`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number, title, description: title, buttonText: 'Ver opções', footerText: ' ', sections: [{ title: 'Opções', rows }] }, mode: 'evo-v2-list-instkey' },
-            { url: `${baseUrl}/send/list`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number, title, description: title, buttonText: 'Ver opções', footerText: ' ', sections: [{ title: 'Opções', rows: rows.map((r) => ({ id: r.rowId, rowId: r.rowId, title: r.title, description: '' })) }], formatJid: !isJid }, mode: 'evo-go-send-list' },
+            { url: `${baseUrl}/send/list`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number, title, description: title, buttonText: 'Ver opções', footerText: ' ', sections: [{ title: 'Opções', rows: rows.map((r: { rowId: string; title: string }) => ({ id: r.rowId, rowId: r.rowId, title: r.title, description: '' })) }], formatJid: !isJid }, mode: 'evo-go-send-list' },
           );
         } else {
           attempts.push(
             { url: `${baseUrl}/message/sendButtons/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number, title, description: title, footer: ' ', buttons: cleanReply }, mode: 'evo-v2-buttons' },
             { url: `${baseUrl}/message/sendButtons/${encodeURIComponent(instance)}`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number, title, description: title, footer: ' ', buttons: cleanReply }, mode: 'evo-v2-buttons-instkey' },
-            { url: `${baseUrl}/send/button`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number, title, description: title, footer: ' ', buttons: cleanReply.map((b) => ({ id: b.id, displayText: b.displayText, type: 'reply' })), formatJid: !isJid }, mode: 'evo-go-send-button' },
+            { url: `${baseUrl}/send/button`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number, title, description: title, footer: ' ', buttons: cleanReply.map((b: { id: string; displayText: string }) => ({ id: b.id, displayText: b.displayText, type: 'reply' })), formatJid: !isJid }, mode: 'evo-go-send-button' },
             { url: `${baseUrl}/message/sendList/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number, title, description: title, buttonText: 'Ver opções', footerText: ' ', sections: [{ title: 'Opções', rows }] }, mode: 'evo-v2-list-fallback' },
           );
         }
@@ -799,7 +799,7 @@ Deno.serve(async (req) => {
       }
       if (!result.ok) {
         console.log('[send-menu] all interactive attempts failed, falling back to numbered text');
-        const fallbackText = `${text}\n\n${buttons.map((b, i) => `${i + 1}️⃣ ${b.label}`).join('\n')}`.trim();
+        const fallbackText = `${text}\n\n${buttons.map((b: { label: string }, i: number) => `${i + 1}️⃣ ${b.label}`).join('\n')}`.trim();
         const sendRes = await fetchJson(`${baseUrl}/message/sendText/${encodeURIComponent(instance)}`, { method: 'POST', headers: evolutionHeaders(apiKey, true), body: JSON.stringify({ number: targets[0], text: fallbackText, textMessage: { text: fallbackText } }) }, 8000).catch((e) => ({ ok: false, status: 0, data: { error: String(e?.message || e) } }));
         if (sendRes.ok) {
           await insertOutgoingMessage(admin, { user_id: user.id, instance_name: instance, remote_jid: `${phone}@s.whatsapp.net`, phone, direction: 'out', content: fallbackText, message_type: 'text', status: 'sent', external_id: sendRes.data?.key?.id || `menu-${crypto.randomUUID()}`, raw: { ...sendRes.data, __bot_menu: true, __bot_flow: true, __mode: 'text-fallback', __attempts: log } });
@@ -807,7 +807,7 @@ Deno.serve(async (req) => {
         }
         return jsonResponse({ ok: false, error: `Falha ao enviar menu (${log.map((l) => `${l.mode}:${l.status}`).join(' | ')})`, attempts: log, data: result.data }, 200);
       }
-      const content = `${text}\n\n${buttons.map((b, i) => `${i + 1}️⃣ ${b.label}`).join('\n')}`.trim();
+      const content = `${text}\n\n${buttons.map((b: { label: string }, i: number) => `${i + 1}️⃣ ${b.label}`).join('\n')}`.trim();
       await insertOutgoingMessage(admin, { user_id: user.id, instance_name: instance, remote_jid: `${phone}@s.whatsapp.net`, phone, direction: 'out', content, message_type: 'text', status: 'sent', external_id: result.data?.key?.id || result.data?.messageId || result.data?.data?.Info?.ID || `menu-${crypto.randomUUID()}`, raw: { ...result.data, __bot_menu: true, __bot_flow: true, __mode: mode, __attempts: log } });
       return jsonResponse({ ok: true, mode, data: result.data });
     }
