@@ -198,7 +198,7 @@ export default function AiTraining() {
     try {
       for (let i = 0; i < 2000; i++) {
         const { data, error } = await supabase.functions.invoke('ai-training-analyze', {
-          body: { jobId, batch: 3 },
+          body: { jobId, batch: 1 },
         });
         if (error) throw error;
         jobId = data?.jobId ?? jobId;
