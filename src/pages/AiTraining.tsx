@@ -187,14 +187,15 @@ export default function AiTraining() {
   const runAnalyze = async () => {
     setAnalyzing(true);
     try {
-      const { error } = await supabase.functions.invoke('ai-training-analyze', { body: { batch: 15 } });
+      const { error } = await supabase.functions.invoke('ai-training-analyze', { body: {} });
       if (error) throw error;
-      toast({ title: 'Análise iniciada', description: 'Extraindo conhecimento inteligente...' });
+      toast({ title: 'Análise iniciada', description: 'Processando 100% das conversas em segundo plano. Acompanhe em Jobs.' });
       setTimeout(reload, 800);
     } catch (e: any) {
       toast({ title: 'Erro', description: e.message, variant: 'destructive' });
     } finally { setAnalyzing(false); }
   };
+
 
   const cancelJob = async (jobId: string) => {
     await supabase.from('ai_training_jobs' as any).update({ status: 'cancelled' }).eq('id', jobId);
