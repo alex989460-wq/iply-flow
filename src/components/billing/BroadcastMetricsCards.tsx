@@ -39,10 +39,10 @@ export function BroadcastMetricsCards({ broadcastId }: { broadcastId?: string } 
       let templatesApproved = 0;
       try {
         const { data: res, error } = await supabase.functions.invoke('crm-oficial-sync', {
-          body: { action: 'broadcasts-stats', broadcast_id: broadcastId, date: today },
+          body: { action: 'broadcasts-stats', data: { broadcast_id: broadcastId, date: today, from: start, to: end } },
         });
         if (!error) {
-          const s = extractCrmBroadcastSummary(res);
+          const s = extractCrmBroadcastSummary(res, today);
           delivered = s.delivered || 0;
           read = s.read || 0;
           metaFailed = s.failed || 0;
@@ -54,15 +54,17 @@ export function BroadcastMetricsCards({ broadcastId }: { broadcastId?: string } 
       const uniqueRecipients = new Set(b.map(x => x.customer_id).filter(Boolean)).size;
       const localSent = b.filter(x => isSent(x.whatsapp_status)).length;
       const localFail = b.filter(x => isFail(x.whatsapp_status)).length;
+      const sent = Math.max(metaSent, localSent);
+      const failed = Math.max(metaFailed, localFail);
 
       return {
         broadcasts_count: b.length,
         recipients_total: uniqueRecipients || b.length,
-        sent: Math.max(metaSent, localSent),
+        sent,
         delivered,
         read,
-        failed: Math.max(metaFailed, localFail),
-        pending: Math.max(0, b.length - Math.max(metaSent, localSent) - Math.max(metaFailed, localFail)),
+        failed,
+        pending: Math.max(0, b.length - sent - failed),
         templates_approved: templatesApproved,
       };
     },

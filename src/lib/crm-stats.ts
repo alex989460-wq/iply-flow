@@ -54,8 +54,16 @@ function normalizeSummary(summary: any): CrmBroadcastSummary {
   };
 }
 
-function summarizeBroadcasts(broadcasts: any[]): CrmBroadcastSummary {
-  const totals = broadcasts.reduce((acc, item) => {
+function normalizeDate(value: unknown): string {
+  return value ? String(value).slice(0, 10) : '';
+}
+
+function summarizeBroadcasts(broadcasts: any[], targetDate?: string): CrmBroadcastSummary {
+  const scoped = targetDate
+    ? broadcasts.filter((item) => normalizeDate(item?.created_at || item?.sent_at || item?.updated_at) === targetDate)
+    : broadcasts;
+
+  const totals = scoped.reduce((acc, item) => {
     const recipients = pickNumber(item, ['total', 'recipients_total', 'recipients', 'count']);
     const sent = pickNumber(item, ['sent', 'total_sent']);
     const failed = pickNumber(item, ['failed', 'total_failed']);
@@ -68,23 +76,25 @@ function summarizeBroadcasts(broadcasts: any[]): CrmBroadcastSummary {
     acc.failed += failed;
     acc.pending += pending;
     return acc;
-  }, { ...emptySummary, broadcasts_count: broadcasts.length });
+  }, { ...emptySummary, broadcasts_count: scoped.length });
 
   return totals;
 }
 
-export function extractCrmBroadcastSummary(response: any): CrmBroadcastSummary {
+export function extractCrmBroadcastSummary(response: any, targetDate?: string): CrmBroadcastSummary {
   const payload = extractPayload(response);
-  const summary = payload?.summary ?? payload;
-  const normalized = normalizeSummary(summary);
-
-  if (Object.values(normalized).some((value) => value > 0)) return normalized;
-
   const broadcasts = Array.isArray(payload?.broadcasts)
     ? payload.broadcasts
     : Array.isArray(payload)
       ? payload
       : [];
+
+  if (targetDate && broadcasts.length) return summarizeBroadcasts(broadcasts, targetDate);
+
+  const summary = payload?.summary ?? payload;
+  const normalized = normalizeSummary(summary);
+
+  if (Object.values(normalized).some((value) => value > 0)) return normalized;
 
   return broadcasts.length ? summarizeBroadcasts(broadcasts) : emptySummary;
 }

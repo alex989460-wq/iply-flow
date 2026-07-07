@@ -5,9 +5,9 @@ import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 
 const AI_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
 const EMB_URL = "https://ai.gateway.lovable.dev/v1/embeddings";
-// Modelo forte para análise assertiva; fallback automático em caso de falha
-const MODEL_PRIMARY = "openai/gpt-5.5";
-const MODEL_FALLBACK = "google/gemini-2.5-pro";
+// Modelo rápido e econômico para analisar 100% sem travar; fallback só para erro técnico.
+const MODEL_PRIMARY = "google/gemini-2.5-flash";
+const MODEL_FALLBACK = "openai/gpt-4.1-mini";
 const EMB_MODEL = "openai/text-embedding-3-small";
 
 const KINDS = ["procedure","flow","intent","official_answer","business_rule","tutorial"] as const;
@@ -76,6 +76,10 @@ function sanitize(raw: any[]): { turns: { role: "CLIENTE"|"OPERADOR"; text: stri
 }
 
 // ---------- IA ----------
+class AiUnavailableError extends Error {
+  code = "ai_unavailable";
+}
+
 function extractJSON(raw: string): any {
   let s = String(raw || "").replace(/^```json\s*/im, "").replace(/^```\s*/im, "").replace(/```\s*$/im, "").trim();
   if (!s.startsWith("{") && !s.startsWith("[")) {
@@ -101,6 +105,13 @@ async function callAIOnce(apiKey: string, model: string, system: string, user: s
   });
   if (!r.ok) {
     const body = await r.text().catch(() => "");
+    const lower = body.toLowerCase();
+    if (r.status === 402 || lower.includes("not enough credits") || lower.includes("payment_required")) {
+      throw new AiUnavailableError("Créditos de IA insuficientes para continuar a análise. Nada foi apagado; recarregue créditos e clique em Analisar para retomar de onde parou.");
+    }
+    if (r.status === 429 || lower.includes("rate limit")) {
+      throw new AiUnavailableError("A IA atingiu o limite momentâneo de processamento. Aguarde alguns minutos e clique em Analisar para continuar de onde parou.");
+    }
     throw new Error(`AI ${r.status}${body ? `: ${body.slice(0, 300)}` : ""}`);
   }
   const j = await r.json();
@@ -111,6 +122,7 @@ async function callAIOnce(apiKey: string, model: string, system: string, user: s
 async function callAI(apiKey: string, system: string, user: string): Promise<any> {
   try { return await callAIOnce(apiKey, MODEL_PRIMARY, system, user); }
   catch (e) {
+    if (e instanceof AiUnavailableError) throw e;
     console.warn("primary model failed, falling back:", (e as Error).message);
     return await callAIOnce(apiKey, MODEL_FALLBACK, system, user);
   }
@@ -153,7 +165,7 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     // Processa poucos atendimentos por chamada para evitar timeout e travamento.
     // A tela chama novamente até zerar a fila, então 100% é analisado com progresso real.
-    const chunk: number = Math.min(6, Math.max(1, Number(body.batch ?? 3)));
+    const chunk: number = Math.min(3, Math.max(1, Number(body.batch ?? 2)));
     const requestedJobId = typeof body.jobId === "string" ? body.jobId : null;
 
     const { count: pendingBefore } = await supabase.from("ai_training_conversations")
@@ -243,36 +255,35 @@ Deno.serve(async (req) => {
               continue;
             }
 
-            const transcript = turns.map(t => `${t.role}: ${t.text}`).join("\n").slice(0, 6000);
+            const transcript = turns.map(t => `${t.role}: ${t.text}`).join("\n").slice(0, 5000);
 
-            const passA = await callAI(apiKey,
-              `Você é um analista sênior de suporte técnico de IPTV/streaming no Brasil (IBO Player, TiviMate, XCIptv, SmartOne, Duplex, Fire TV, Roku, Smart TV Samsung/LG, Android TV). Sua análise deve ter precisão >90%. Categorias válidas: ${CATEGORIES.join(", ")}. Responda SOMENTE JSON válido, sem markdown, sem comentários.`,
-              `Analise o atendimento e responda EXATAMENTE neste JSON:
-{"problem":"...","solution":"...","resolved":true|false,"category":"...","device":"...|null","app":"...|null","operator":"...|null","signal_quality":"high|medium|none","confidence_reason":"..."}
+            const analysis = await callAI(apiKey,
+              `Você é um analista sênior de suporte técnico de IPTV/streaming no Brasil. Extraia conhecimento reutilizável com precisão acima de 90%, sem inventar. Categorias válidas: ${CATEGORIES.join(", ")}. Responda SOMENTE JSON válido.`,
+              `Analise este atendimento uma única vez e responda EXATAMENTE neste JSON:
+{"problem":"...","solution":"...","resolved":true|false,"category":"...","device":"...|null","app":"...|null","operator":"...|null","signal_quality":"high|medium|none","items":[{"kind":"procedure|flow|intent|official_answer|business_rule|tutorial","subject":"...","problem":"...","solution":"...","steps":["..."],"devices":["..."],"apps":["..."],"category":"...","keywords":["..."]}]}
 
 REGRAS ESTRITAS:
-1. signal_quality="none" APENAS se: só saudações, só comprovante, ou sem problema real identificável.
-2. signal_quality="high" só quando problema E solução estão CLAROS e a solução é reutilizável.
-3. "problem" ULTRA-específico: cite app, dispositivo, canal, código de erro quando existir. Exemplo BOM: "IBO Player travando ao abrir SporTV HD na Fire TV Stick 4K". Exemplo RUIM: "cliente com problema".
-4. "solution" com passos concretos que outro atendente possa REPETIR e resolver igual. Exemplo BOM: "peça o MAC, gere nova playlist Xtream no painel Rush, envie link m3u e oriente reinstalar o IBO limpando cache". Exemplo RUIM: "resolvido".
-5. "resolved"=true SOMENTE se o cliente confirmou "funcionou/resolveu/ok" após a orientação. Silêncio ≠ resolvido.
-6. "operator" = nome do atendente humano, nunca "bot" ou "sistema".
-7. Se a conversa for genérica ou você tiver menos de 90% de certeza sobre problema+solução, use signal_quality="none".
+1. signal_quality="none" se não houver problema + solução claros, se for só saudação/comprovante/áudio sem transcrição, ou se a certeza for menor que 90%.
+2. problem deve ser específico, citando app, dispositivo, canal, login, código ou sintoma quando existir.
+3. solution deve ser uma resposta profissional pronta para reutilizar, como se fosse você respondendo corretamente o próximo cliente.
+4. resolved=true somente quando o cliente confirmou que funcionou após a orientação.
+5. Extraia no máximo 3 items realmente reutilizáveis; se não houver conhecimento claro, use items: [].
+6. Não invente procedimentos, valores, prazos, links, painéis ou nomes de aplicativos que não estejam na conversa.
 
 CONVERSA:
 ${transcript}`);
 
 
-            const signal = passA.signal_quality || "medium";
+            const signal = analysis.signal_quality || "medium";
             await supabase.from("ai_training_conversations").update({
               analyzed_at: new Date().toISOString(),
-              problem_summary: (passA.problem || "").slice(0, 500),
-              solution_summary: (passA.solution || "").slice(0, 500),
-              resolved: passA.resolved === true,
-              category: CATEGORIES.includes(passA.category) ? passA.category : "outros",
-              device: passA.device || null,
-              app: passA.app || null,
-              operator_name: passA.operator || null,
+              problem_summary: (analysis.problem || "").slice(0, 500),
+              solution_summary: (analysis.solution || "").slice(0, 500),
+              resolved: analysis.resolved === true,
+              category: CATEGORIES.includes(analysis.category) ? analysis.category : "outros",
+              device: analysis.device || null,
+              app: analysis.app || null,
+              operator_name: analysis.operator || null,
               signal_quality: signal,
               analysis_version: 3,
             }).eq("id", c.id);
@@ -288,26 +299,7 @@ ${transcript}`);
               continue;
             }
 
-            const passB = await callAI(apiKey,
-              `Você extrai CONHECIMENTO REUTILIZÁVEL DE ALTA QUALIDADE (>90% acurácia) de atendimentos IPTV. Tipos: procedure (passo a passo técnico), flow (fluxo de decisão), intent (intenção do cliente), official_answer (resposta oficial da empresa), business_rule (regra de negócio: prazos, valores, política), tutorial (guia completo). Categorias: ${CATEGORIES.join(", ")}. Responda SOMENTE JSON válido.`,
-              `Extraia de 0 a 4 conhecimentos APENAS se forem realmente REUTILIZÁVEIS por outro atendente. JSON:
-{"items":[{"kind":"...","subject":"...","problem":"...","solution":"...","steps":["..."],"devices":["..."],"apps":["..."],"category":"...","keywords":["..."]}]}
-
-REGRAS ESTRITAS (aplique como se fosse VOCÊ respondendo o próximo cliente):
-1. subject = título curto e específico (ex: "Ativar IBO Player na Fire TV com playlist Xtream").
-2. problem = sintoma exato relatado pelo cliente, com app/dispositivo/canal quando existir.
-3. solution = resposta pronta, profissional, cordial, em PT-BR, que resolve o caso — como se você mesmo estivesse escrevendo para o cliente. Sem gírias, sem "oi tudo bem".
-4. steps = ações no imperativo, uma por item, ordenadas ("Peça o MAC do aparelho", "Acesse o painel Rush", "Gere nova playlist", ...).
-5. keywords = termos que o cliente usaria para procurar isso (ex: "ibo travando", "sportv não abre", "playlist expirou").
-6. NÃO invente: se o atendimento não deixou clara a solução, retorne items:[].
-7. NÃO extraia saudação, agradecimento, comprovante ou "vou verificar".
-8. Se o atendimento gera 2 conhecimentos independentes (ex: procedimento + regra de negócio), retorne os 2.
-
-CONVERSA:
-${transcript}`);
-
-
-            const items: any[] = Array.isArray(passB.items) ? passB.items.slice(0, 4) : [];
+            const items: any[] = Array.isArray(analysis.items) ? analysis.items.slice(0, 3) : [];
 
             for (const it of items) {
               const kind = KINDS.includes(it.kind) ? it.kind : "intent";
@@ -315,11 +307,11 @@ ${transcript}`);
               const solution = String(it.solution || "").trim().slice(0, 3000);
               if (subject.length < 5 || solution.length < 5) continue;
 
-              const category = CATEGORIES.includes(it.category) ? it.category : (passA.category || "outros");
-              const problem = String(it.problem || passA.problem || "").slice(0, 1000);
+              const category = CATEGORIES.includes(it.category) ? it.category : (analysis.category || "outros");
+              const problem = String(it.problem || analysis.problem || "").slice(0, 1000);
               const steps = Array.isArray(it.steps) ? it.steps.map((s: any) => String(s).slice(0, 300)).slice(0, 20) : [];
-              const devices = Array.isArray(it.devices) ? it.devices.map(String).slice(0, 6) : (passA.device ? [passA.device] : []);
-              const apps = Array.isArray(it.apps) ? it.apps.map(String).slice(0, 6) : (passA.app ? [passA.app] : []);
+              const devices = Array.isArray(it.devices) ? it.devices.map(String).slice(0, 6) : (analysis.device ? [analysis.device] : []);
+              const apps = Array.isArray(it.apps) ? it.apps.map(String).slice(0, 6) : (analysis.app ? [analysis.app] : []);
               const keywords = Array.isArray(it.keywords) ? it.keywords.map((s: any) => String(s).toLowerCase()).slice(0, 12) : [];
 
               const embText = `${subject}\n${problem}\n${solution}`.slice(0, 4000);
@@ -335,7 +327,7 @@ ${transcript}`);
                 match_count: 1,
               });
 
-              const operator = passA.operator || "desconhecido";
+              const operator = analysis.operator || "desconhecido";
 
               if (matches && matches.length > 0) {
                 const m = matches[0];
@@ -344,7 +336,7 @@ ${transcript}`);
                   .eq("id", m.id).single();
 
                 const usage = (existing?.usage_count || 0) + 1;
-                const resolved = (existing?.resolved_count || 0) + (passA.resolved ? 1 : 0);
+                const resolved = (existing?.resolved_count || 0) + (analysis.resolved ? 1 : 0);
                 const rate = usage > 0 ? resolved / usage : 0;
                 const ops = Array.isArray(existing?.operators) ? existing!.operators as any[] : [];
                 const opIdx = ops.findIndex((o: any) => o.name === operator);
@@ -377,9 +369,9 @@ ${transcript}`);
                   kind, subject, problem, solution,
                   steps, devices, apps, keywords, category,
                   usage_count: 1,
-                  resolved_count: passA.resolved ? 1 : 0,
-                  success_rate: passA.resolved ? 1 : 0,
-                  confidence: computeConfidence(1, passA.resolved ? 1 : 0),
+                  resolved_count: analysis.resolved ? 1 : 0,
+                  success_rate: analysis.resolved ? 1 : 0,
+                  confidence: computeConfidence(1, analysis.resolved ? 1 : 0),
                   last_used_at: new Date().toISOString(),
                   operators: [{ name: operator, count: 1 }],
                   source_conversation_ids: [c.id],
@@ -391,6 +383,15 @@ ${transcript}`);
             }
             batchProcessed++;
           } catch (e) {
+            if (e instanceof AiUnavailableError) {
+              await supabase.from("ai_training_jobs").update({
+                status: "failed",
+                finished_at: new Date().toISOString(),
+                message: e.message,
+                errors: totalErrors + 1,
+              }).eq("id", job!.id);
+              return json({ error: e.message, code: e.code, jobId: job!.id }, 402);
+            }
             totalErrors++;
             batchProcessed++;
             console.error("analyze err", e);
