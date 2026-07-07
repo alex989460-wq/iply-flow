@@ -167,6 +167,8 @@ Deno.serve(async (req) => {
       job = existingJob;
     }
 
+    if (job?.status === "cancelled") return json({ ok: true, cancelled: true, jobId: job.id });
+
     if (!job || job.status !== "running") {
       const { data: newJob, error: jobError } = await supabase.from("ai_training_jobs")
         .insert({
@@ -178,8 +180,6 @@ Deno.serve(async (req) => {
       if (jobError) throw jobError;
       job = newJob;
     }
-
-    if (job.status === "cancelled") return json({ ok: true, cancelled: true, jobId: job.id });
 
     if (!pendingBefore || pendingBefore === 0) {
       await supabase.from("ai_training_jobs").update({
@@ -228,7 +228,6 @@ Deno.serve(async (req) => {
             const hasClient = turns.some(t => t.role === "CLIENTE");
             const hasOp = turns.some(t => t.role === "OPERADOR");
             if (!hasClient || !hasOp || turns.length < 2) {
-              totalNoSignal++;
               await supabase.from("ai_training_conversations").update({
                 analyzed_at: new Date().toISOString(),
                 signal_quality: "none",
