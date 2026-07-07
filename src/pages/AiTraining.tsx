@@ -204,6 +204,10 @@ export default function AiTraining() {
         jobId = data?.jobId ?? jobId;
         await reload();
 
+        if (data?.paused) {
+          toast({ title: 'Análise pausada', description: data.message || 'A IA pausou o processamento. Recarregue créditos e clique em Analisar para continuar de onde parou.', variant: 'destructive' });
+          return;
+        }
         if (data?.cancelled) {
           toast({ title: 'Análise parada', description: 'O processamento foi interrompido com segurança.' });
           return;
