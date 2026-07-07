@@ -88,20 +88,29 @@ function extractJSON(raw: string): any {
   return JSON.parse(s);
 }
 
-async function callAI(apiKey: string, system: string, user: string): Promise<any> {
+async function callAIOnce(apiKey: string, model: string, system: string, user: string): Promise<any> {
   const r = await fetch(AI_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json", "Authorization": `Bearer ${apiKey}` },
     body: JSON.stringify({
-      model: MODEL,
+      model,
       messages: [{ role: "system", content: system }, { role: "user", content: user }],
       response_format: { type: "json_object" },
+      temperature: 0.15,
     }),
   });
   if (!r.ok) throw new Error(`AI ${r.status}`);
   const j = await r.json();
   const content = j.choices?.[0]?.message?.content ?? "{}";
   return extractJSON(content);
+}
+
+async function callAI(apiKey: string, system: string, user: string): Promise<any> {
+  try { return await callAIOnce(apiKey, MODEL_PRIMARY, system, user); }
+  catch (e) {
+    console.warn("primary model failed, falling back:", (e as Error).message);
+    return await callAIOnce(apiKey, MODEL_FALLBACK, system, user);
+  }
 }
 
 async function embed(apiKey: string, text: string): Promise<number[]> {
