@@ -419,7 +419,7 @@ Deno.serve(async (req) => {
     const chunk: number = Math.min(50, Math.max(1, Number(body.batch ?? 25)));
     const requestedJobId = typeof body.jobId === "string" ? body.jobId : null;
 
-    const pendingFilter = `analyzed_at.is.null,analysis_version.lt.${ANALYSIS_VERSION}`;
+    const pendingFilter = `analyzed_at.is.null,analysis_version.is.null,analysis_version.lt.${ANALYSIS_VERSION}`;
     const { count: pendingBefore } = await supabase.from("ai_training_conversations")
       .select("id", { count: "exact", head: true })
       .eq("user_id", userId).or(pendingFilter);
