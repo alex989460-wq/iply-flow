@@ -1,21 +1,61 @@
-// Central de Conhecimento IA — extração inteligente
-// Pipeline: sanitize -> Pass A (compreensão) -> Pass B (extração tipada) -> agrupamento por embedding
+// Central de Conhecimento IA — extração 100% LOCAL, sem chamadas de IA externa.
+// Não consome créditos: usa heurísticas determinísticas + agrupamento por
+// similaridade de texto (Jaccard) sobre subject/problem/solution já salvos.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 
-const AI_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
-const EMB_URL = "https://ai.gateway.lovable.dev/v1/embeddings";
-// Modelo rápido e econômico para analisar 100% sem travar; fallback só para erro técnico.
-const MODEL_PRIMARY = "google/gemini-2.5-flash";
-const MODEL_FALLBACK = "google/gemini-2.5-flash-lite";
-const EMB_MODEL = "openai/text-embedding-3-small";
-
 const KINDS = ["procedure","flow","intent","official_answer","business_rule","tutorial"] as const;
-const CATEGORIES = [
-  "instalacao","configuracao","login","usuario_senha","codigo","ativacao",
-  "renovacao","pagamento","pix","financeiro","liberacao","teste","atualizacao",
-  "compatibilidade","travamento","tela_preta","buffer","dns","revendedor",
-  "planos","cancelamento","suporte","outros",
+type Kind = typeof KINDS[number];
+
+// -------- categorização por palavras-chave (pt-BR IPTV/streaming) --------
+const CATEGORY_KEYWORDS: Record<string, string[]> = {
+  instalacao: ["instala", "instalar", "instalação", "baixar", "download", "apk"],
+  configuracao: ["configura", "configurar", "configuração", "ajustar", "setar"],
+  login: ["login", "entrar", "acessar", "logar", "logado", "logou"],
+  usuario_senha: ["usuário", "usuario", "senha", "user", "password", "credenciais"],
+  codigo: ["código", "codigo", "code", "ativação código", "6 dígitos"],
+  ativacao: ["ativar", "ativação", "ativou", "ativado"],
+  renovacao: ["renov", "renova", "renovar", "prorrogar", "prorrogação"],
+  pagamento: ["pagamento", "pagar", "boleto", "cartão", "cartao"],
+  pix: ["pix", "chave pix", "qr code"],
+  financeiro: ["fatura", "cobrança", "cobranca", "valor", "preço", "preco"],
+  liberacao: ["liberar", "liberação", "liberou", "libera"],
+  teste: ["teste", "testar", "trial"],
+  atualizacao: ["atualiza", "atualizar", "atualização", "update", "versão", "versao"],
+  compatibilidade: ["compatível", "compativel", "compatibilidade", "funciona no"],
+  travamento: ["trava", "travando", "travou", "congela"],
+  tela_preta: ["tela preta", "tela escura", "sem imagem"],
+  buffer: ["buffer", "carregando", "travando imagem", "bufferiza"],
+  dns: ["dns", "servidor dns", "endereço dns"],
+  revendedor: ["revenda", "revendedor", "credito", "crédito"],
+  planos: ["plano", "planos", "pacote", "combo"],
+  cancelamento: ["cancelar", "cancelamento", "cancela"],
+  suporte: ["suporte", "ajuda", "atendimento"],
+};
+const CATEGORIES = Object.keys(CATEGORY_KEYWORDS).concat(["outros"]);
+
+// -------- devices / apps conhecidos --------
+const DEVICES = ["tv box","smart tv","celular","android","iphone","ios","fire stick","fire tv","chromecast","roku","pc","notebook","xbox","playstation"];
+const APPS = ["ibo player","ibo","smarters","iptv smarters","xtream","perfect player","tivimate","gse","gse smart iptv","duplex play","duplecast","xciptv","stbemu","flix","flixnet","cinevision","warezcd","cortex","cinema hd"];
+
+// -------- verbos de instrução (indicam solução) --------
+const INSTRUCTION_HINTS = [
+  /\b(clica|clique|clicar|toque|toca|aperta|aperte|selecione|seleciona)\b/i,
+  /\b(abra|abre|abrir|acesse|acessa|entra|entre|entrar)\b/i,
+  /\b(instala|instale|instalar|baixa|baixe|baixar|desinstala|desinstale)\b/i,
+  /\b(reinicia|reinicie|reiniciar|reboot|desliga|desligue|liga|ligue)\b/i,
+  /\b(atualiza|atualize|atualizar|update)\b/i,
+  /\b(configura|configure|configurar|ajusta|ajuste)\b/i,
+  /\b(insere|insira|insira o|digite|digita|coloca|coloque)\b/i,
+  /\b(usuário|usuario|senha|url|link|código|codigo|pin)\b/i,
+  /\bpasso\s*\d+/i, /^\d+[\)\.\-]\s+/m,
+];
+
+// -------- confirmações de resolução --------
+const RESOLUTION_HINTS = [
+  /\bfuncionou\b/i, /\bdeu certo\b/i, /\bresolveu\b/i, /\bresolvido\b/i,
+  /\bconseguiu?\b/i, /\bconseg[iu]?\b/i, /\bok+\b/i, /\bperfeito\b/i,
+  /\bmuito obrigad[oa]\b/i, /\bvaleu\b/i,
 ];
 
 // ---------- SANITIZAÇÃO ----------
@@ -33,16 +73,12 @@ const NOISE_PATTERNS = [
   /^pagamento\s+(realizado|efetuado|enviado)/i,
 ];
 
-// Reconhece se é só emoji/sticker/link
 function isNoise(text: string): boolean {
   const t = String(text || "").trim();
   if (t.length === 0) return true;
-  // Só emoji
   const stripped = t.replace(/[\p{Emoji}\p{Emoji_Presentation}\p{Extended_Pictographic}\s]/gu, "");
   if (stripped.length === 0) return true;
-  // Só link
   if (/^https?:\/\/\S+$/.test(t)) return true;
-  // Muito curto
   if (t.length < 3) return true;
   return NOISE_PATTERNS.some((r) => r.test(t));
 }
@@ -51,95 +87,138 @@ function isOut(direction: string) {
   return ["outgoing","sent","out","from_me","operator"].includes(String(direction || "").toLowerCase());
 }
 
-function sanitize(raw: any[]): { turns: { role: "CLIENTE"|"OPERADOR"; text: string }[]; hasAudio: boolean; hasImage: boolean; hasFile: boolean } {
-  const turns: { role: "CLIENTE"|"OPERADOR"; text: string }[] = [];
-  let hasAudio = false, hasImage = false, hasFile = false;
-  let lastKey = "";
-  for (const m of raw) {
-    const kind = String(m.k || "").toLowerCase();
-    if (kind.includes("audio")) hasAudio = true;
-    if (kind.includes("image")) hasImage = true;
-    if (kind.includes("document") || kind.includes("file")) hasFile = true;
+type Turn = { role: "CLIENTE"|"OPERADOR"; text: string };
 
+function sanitize(raw: any[]): Turn[] {
+  const turns: Turn[] = [];
+  let lastKey = "";
+  for (const m of raw || []) {
+    const kind = String(m.k || "").toLowerCase();
     const text = String(m.c || "").trim();
     if (!text || isNoise(text)) continue;
-    // Ignora media puro sem legenda útil
     if (kind && kind !== "text" && kind !== "conversation" && text.length < 15) continue;
-
     const role: "CLIENTE"|"OPERADOR" = isOut(m.d) ? "OPERADOR" : "CLIENTE";
     const key = `${role}:${text.toLowerCase()}`;
-    if (key === lastKey) continue; // duplicado consecutivo
+    if (key === lastKey) continue;
     lastKey = key;
-    turns.push({ role, text: text.slice(0, 600) });
+    turns.push({ role, text: text.slice(0, 800) });
   }
-  return { turns, hasAudio, hasImage, hasFile };
+  return turns;
 }
 
-// ---------- IA ----------
-class AiUnavailableError extends Error {
-  code = "ai_unavailable";
+// ---------- NORMALIZAÇÃO / SIMILARIDADE ----------
+function normalize(s: string): string {
+  return String(s || "")
+    .toLowerCase()
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
-function extractJSON(raw: string): any {
-  let s = String(raw || "").replace(/^```json\s*/im, "").replace(/^```\s*/im, "").replace(/```\s*$/im, "").trim();
-  if (!s.startsWith("{") && !s.startsWith("[")) {
-    const oi = s.indexOf("{"), ai = s.indexOf("[");
-    const isArr = ai !== -1 && (oi === -1 || ai < oi);
-    const start = isArr ? ai : oi;
-    const end = isArr ? s.lastIndexOf("]") : s.lastIndexOf("}");
-    if (start !== -1 && end > start) s = s.slice(start, end + 1);
+const STOPWORDS = new Set("a o os as um uma de do da dos das em para por com sem que se e ou meu minha seu sua no na nos nas ao aos pela pelo pelos pelas eu voce vc voces vcs isso isto esse essa aquele aquela ta esta esta aqui la ali sim nao ne bem mais menos ja tambem so muito pouco".split(" "));
+
+function tokens(s: string): Set<string> {
+  return new Set(normalize(s).split(" ").filter((w) => w.length > 2 && !STOPWORDS.has(w)));
+}
+
+function jaccard(a: Set<string>, b: Set<string>): number {
+  if (!a.size || !b.size) return 0;
+  let inter = 0;
+  for (const t of a) if (b.has(t)) inter++;
+  const uni = a.size + b.size - inter;
+  return uni === 0 ? 0 : inter / uni;
+}
+
+// ---------- ANÁLISE LOCAL ----------
+function detectCategory(text: string): string {
+  const n = normalize(text);
+  let best = "outros", bestScore = 0;
+  for (const [cat, kws] of Object.entries(CATEGORY_KEYWORDS)) {
+    let score = 0;
+    for (const kw of kws) if (n.includes(normalize(kw))) score++;
+    if (score > bestScore) { bestScore = score; best = cat; }
   }
-  return JSON.parse(s);
+  return best;
 }
 
-async function callAIOnce(apiKey: string, model: string, system: string, user: string): Promise<any> {
-  const r = await fetch(AI_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "Authorization": `Bearer ${apiKey}` },
-    body: JSON.stringify({
-      model,
-      messages: [{ role: "system", content: system }, { role: "user", content: user }],
-      response_format: { type: "json_object" },
-      temperature: 0.15,
-    }),
-  });
-  if (!r.ok) {
-    const body = await r.text().catch(() => "");
-    const lower = body.toLowerCase();
-    if (r.status === 402 || lower.includes("not enough credits") || lower.includes("payment_required")) {
-      throw new AiUnavailableError("Créditos de IA insuficientes para continuar a análise. Nada foi apagado; recarregue créditos e clique em Analisar para retomar de onde parou.");
+function detectFrom(text: string, list: string[]): string | null {
+  const n = normalize(text);
+  for (const item of list) if (n.includes(normalize(item))) return item;
+  return null;
+}
+
+function isInstruction(text: string): boolean {
+  return INSTRUCTION_HINTS.some((r) => r.test(text));
+}
+
+function analyzeLocal(turns: Turn[]) {
+  const clients = turns.filter((t) => t.role === "CLIENTE");
+  const ops = turns.filter((t) => t.role === "OPERADOR");
+  if (clients.length === 0 || ops.length === 0) {
+    return { signal_quality: "none" as const };
+  }
+
+  // problem = maior mensagem inicial do CLIENTE (nas 3 primeiras)
+  const earlyClients = clients.slice(0, 3).sort((a, b) => b.text.length - a.text.length);
+  const problem = (earlyClients[0]?.text || clients[0].text).slice(0, 500);
+
+  // solução = mensagens do OPERADOR que contêm instrução; se nenhuma, pega a maior do OPERADOR
+  const instrOps = ops.filter((t) => isInstruction(t.text));
+  const chosenOps = (instrOps.length ? instrOps : [ops.slice().sort((a, b) => b.text.length - a.text.length)[0]]).slice(0, 6);
+  const solution = chosenOps.map((t) => t.text).join(" \n").slice(0, 1500);
+
+  // steps: enumera linhas com "1)" "2)" ou verbos-início
+  const steps: string[] = [];
+  for (const t of chosenOps) {
+    for (const line of t.text.split(/\n|(?<=\.)\s+/)) {
+      const l = line.trim();
+      if (!l) continue;
+      if (/^(\d+[\)\.\-]|passo\s*\d+)/i.test(l) || isInstruction(l)) {
+        if (l.length > 6 && l.length < 240) steps.push(l);
+      }
     }
-    if (r.status === 429 || lower.includes("rate limit")) {
-      throw new AiUnavailableError("A IA atingiu o limite momentâneo de processamento. Aguarde alguns minutos e clique em Analisar para continuar de onde parou.");
-    }
-    throw new Error(`AI ${r.status}${body ? `: ${body.slice(0, 300)}` : ""}`);
   }
-  const j = await r.json();
-  const content = j.choices?.[0]?.message?.content ?? "{}";
-  return extractJSON(content);
-}
 
-async function callAI(apiKey: string, system: string, user: string): Promise<any> {
-  try { return await callAIOnce(apiKey, MODEL_PRIMARY, system, user); }
-  catch (e) {
-    if (e instanceof AiUnavailableError) throw e;
-    console.warn("primary model failed, falling back:", (e as Error).message);
-    return await callAIOnce(apiKey, MODEL_FALLBACK, system, user);
-  }
-}
+  // resolvido: CLIENTE confirmou APÓS a última instrução do OPERADOR
+  const lastOpIdx = turns.map((t, i) => ({ t, i })).filter((x) => x.t.role === "OPERADOR" && isInstruction(x.t.text)).pop()?.i ?? -1;
+  const resolved = lastOpIdx >= 0 && turns.slice(lastOpIdx + 1).some((t) => t.role === "CLIENTE" && RESOLUTION_HINTS.some((r) => r.test(t.text)));
 
-async function embed(apiKey: string, text: string): Promise<number[]> {
-  const r = await fetch(EMB_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "Authorization": `Bearer ${apiKey}` },
-    body: JSON.stringify({ model: EMB_MODEL, input: text.slice(0, 8000), dimensions: 1536 }),
-  });
-  if (!r.ok) {
-    const body = await r.text().catch(() => "");
-    throw new Error(`EMB ${r.status}${body ? `: ${body.slice(0, 300)}` : ""}`);
-  }
-  const j = await r.json();
-  return j.data?.[0]?.embedding;
+  const full = turns.map((t) => t.text).join(" ");
+  const category = detectCategory(full);
+  const device = detectFrom(full, DEVICES);
+  const app = detectFrom(full, APPS);
+
+  // qualidade do sinal: precisa ter problema + solução com verbo de instrução
+  let signal: "high" | "medium" | "none" = "none";
+  if (problem.length >= 20 && solution.length >= 20 && instrOps.length >= 1) signal = "high";
+  else if (problem.length >= 15 && solution.length >= 15) signal = "medium";
+
+  // subject curto derivado do problema
+  const subject = problem.replace(/\s+/g, " ").slice(0, 140);
+
+  // kind: se tem >=2 passos numerados = procedure; se tem "?" no problema = intent; senão official_answer
+  let kind: Kind = "official_answer";
+  if (steps.length >= 2) kind = "procedure";
+  else if (/\?/.test(problem)) kind = "intent";
+
+  const keywords = Array.from(new Set(
+    normalize(subject + " " + solution).split(" ")
+      .filter((w) => w.length >= 4 && !STOPWORDS.has(w))
+  )).slice(0, 12);
+
+  return {
+    signal_quality: signal,
+    problem, solution, resolved, category,
+    device, app,
+    items: signal !== "none" ? [{
+      kind, subject, problem, solution,
+      steps: steps.slice(0, 12),
+      devices: device ? [device] : [],
+      apps: app ? [app] : [],
+      category, keywords,
+    }] : [],
+  };
 }
 
 function computeConfidence(usage: number, rate: number): number {
@@ -147,14 +226,15 @@ function computeConfidence(usage: number, rate: number): number {
   return Math.min(1, Math.max(0, +c.toFixed(3)));
 }
 
+function json(p: unknown, s = 200) {
+  return new Response(JSON.stringify(p), { status: s, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+}
+
 // ---------- HANDLER ----------
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   try {
     const authHeader = req.headers.get("Authorization") ?? "";
-    const apiKey = Deno.env.get("LOVABLE_API_KEY");
-    if (!apiKey) return json({ error: "LOVABLE_API_KEY missing" }, 500);
-
     const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
     const userClient = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_ANON_KEY")!,
       { global: { headers: { Authorization: authHeader } } });
@@ -163,9 +243,8 @@ Deno.serve(async (req) => {
     const userId = userData.user.id;
 
     const body = await req.json().catch(() => ({}));
-    // Processa poucos atendimentos por chamada para evitar timeout e travamento.
-    // A tela chama novamente até zerar a fila, então 100% é analisado com progresso real.
-    const chunk: number = Math.min(3, Math.max(1, Number(body.batch ?? 2)));
+    // Sem IA externa: pode processar em lotes grandes rapidamente.
+    const chunk: number = Math.min(50, Math.max(1, Number(body.batch ?? 25)));
     const requestedJobId = typeof body.jobId === "string" ? body.jobId : null;
 
     const { count: pendingBefore } = await supabase.from("ai_training_conversations")
@@ -178,7 +257,6 @@ Deno.serve(async (req) => {
         .select("*").eq("id", requestedJobId).eq("user_id", userId).maybeSingle();
       job = existingJob;
     }
-
     if (job?.status === "cancelled") return json({ ok: true, cancelled: true, jobId: job.id });
 
     if (!job || job.status !== "running") {
@@ -187,8 +265,7 @@ Deno.serve(async (req) => {
           user_id: userId, kind: "analyze", status: "running",
           total: pendingBefore ?? 0, processed: 0,
           message: `Fila iniciada: ${pendingBefore ?? 0} conversas pendentes.`,
-        })
-        .select().single();
+        }).select().single();
       if (jobError) throw jobError;
       job = newJob;
     }
@@ -202,15 +279,12 @@ Deno.serve(async (req) => {
     }
 
     const totalForJob = Math.max(Number(job.total || 0), pendingBefore ?? 0);
-    let alreadyProcessed = Math.min(
-      totalForJob,
-      Math.max(Number(job.processed || 0), totalForJob - (pendingBefore ?? 0)),
-    );
+    const alreadyProcessed = Math.min(totalForJob, Math.max(Number(job.processed || 0), totalForJob - (pendingBefore ?? 0)));
     let batchProcessed = 0;
     let totalItemsCreated = 0, totalItemsMerged = 0, totalNoSignal = 0, totalErrors = Number(job.errors || 0);
 
     const { data: convs, error: convError } = await supabase.from("ai_training_conversations")
-      .select("id,raw,contact_phone,duration_seconds,message_count")
+      .select("id,raw,contact_phone")
       .eq("user_id", userId).is("analyzed_at", null)
       .order("created_at", { ascending: true })
       .limit(chunk);
@@ -222,6 +296,23 @@ Deno.serve(async (req) => {
         message: "Concluído: todas as conversas pendentes foram analisadas.",
       }).eq("id", job!.id);
       return json({ ok: true, done: true, jobId: job!.id, processed: alreadyProcessed, remaining: 0 });
+    }
+
+    // Cache leve de itens existentes por (kind|category) para dedup por Jaccard.
+    const existingCache = new Map<string, Array<{ id: string; tokenSet: Set<string>; subject: string }>>();
+    async function loadExisting(kind: string, category: string) {
+      const key = `${kind}|${category}`;
+      if (existingCache.has(key)) return existingCache.get(key)!;
+      const { data } = await supabase.from("ai_knowledge_items")
+        .select("id,subject,problem")
+        .eq("user_id", userId).eq("kind", kind).eq("category", category)
+        .limit(400);
+      const list = (data || []).map((r: any) => ({
+        id: r.id, subject: r.subject,
+        tokenSet: tokens(`${r.subject} ${r.problem || ""}`),
+      }));
+      existingCache.set(key, list);
+      return list;
     }
 
     for (const c of convs) {
@@ -236,201 +327,116 @@ Deno.serve(async (req) => {
       }
 
       try {
-            const { turns } = sanitize((c.raw as any[]) || []);
-            const hasClient = turns.some(t => t.role === "CLIENTE");
-            const hasOp = turns.some(t => t.role === "OPERADOR");
-            if (!hasClient || !hasOp || turns.length < 2) {
-              await supabase.from("ai_training_conversations").update({
-                analyzed_at: new Date().toISOString(),
-                signal_quality: "none",
-                analysis_version: 3,
-              }).eq("id", c.id);
-              totalNoSignal++;
-              batchProcessed++;
-              await supabase.from("ai_training_jobs").update({
-                processed: alreadyProcessed + batchProcessed,
-                errors: totalErrors,
-                message: `${alreadyProcessed + batchProcessed}/${totalForJob} analisadas • ${totalItemsCreated} novos • ${totalItemsMerged} agrupados • ${totalNoSignal} sem sinal`,
-              }).eq("id", job!.id);
-              continue;
-            }
+        const turns = sanitize((c.raw as any[]) || []);
+        const analysis = analyzeLocal(turns);
+        const signal = analysis.signal_quality;
 
-            const transcript = turns.map(t => `${t.role}: ${t.text}`).join("\n").slice(0, 5000);
+        await supabase.from("ai_training_conversations").update({
+          analyzed_at: new Date().toISOString(),
+          problem_summary: (analysis.problem || "").slice(0, 500),
+          solution_summary: (analysis.solution || "").slice(0, 500),
+          resolved: analysis.resolved === true,
+          category: CATEGORIES.includes(analysis.category || "") ? analysis.category : "outros",
+          device: analysis.device || null,
+          app: analysis.app || null,
+          signal_quality: signal,
+          analysis_version: 4,
+        }).eq("id", c.id);
 
-            const analysis = await callAI(apiKey,
-              `Você é um analista sênior de suporte técnico de IPTV/streaming no Brasil. Extraia conhecimento reutilizável com precisão acima de 90%, sem inventar. Categorias válidas: ${CATEGORIES.join(", ")}. Responda SOMENTE JSON válido.`,
-              `Analise este atendimento uma única vez e responda EXATAMENTE neste JSON:
-{"problem":"...","solution":"...","resolved":true|false,"category":"...","device":"...|null","app":"...|null","operator":"...|null","signal_quality":"high|medium|none","items":[{"kind":"procedure|flow|intent|official_answer|business_rule|tutorial","subject":"...","problem":"...","solution":"...","steps":["..."],"devices":["..."],"apps":["..."],"category":"...","keywords":["..."]}]}
+        if (signal === "none") {
+          totalNoSignal++;
+          batchProcessed++;
+          continue;
+        }
 
-REGRAS ESTRITAS:
-1. signal_quality="none" se não houver problema + solução claros, se for só saudação/comprovante/áudio sem transcrição, ou se a certeza for menor que 90%.
-2. problem deve ser específico, citando app, dispositivo, canal, login, código ou sintoma quando existir.
-3. solution deve ser uma resposta profissional pronta para reutilizar, como se fosse você respondendo corretamente o próximo cliente.
-4. resolved=true somente quando o cliente confirmou que funcionou após a orientação.
-5. Extraia no máximo 3 items realmente reutilizáveis; se não houver conhecimento claro, use items: [].
-6. Não invente procedimentos, valores, prazos, links, painéis ou nomes de aplicativos que não estejam na conversa.
+        for (const it of (analysis.items || [])) {
+          const kind = KINDS.includes(it.kind as Kind) ? it.kind : "intent";
+          const subject = String(it.subject || "").trim().slice(0, 200);
+          const solution = String(it.solution || "").trim().slice(0, 3000);
+          if (subject.length < 5 || solution.length < 5) continue;
+          const category = CATEGORIES.includes(it.category) ? it.category : "outros";
 
-CONVERSA:
-${transcript}`);
-
-
-            const signal = analysis.signal_quality || "medium";
-            await supabase.from("ai_training_conversations").update({
-              analyzed_at: new Date().toISOString(),
-              problem_summary: (analysis.problem || "").slice(0, 500),
-              solution_summary: (analysis.solution || "").slice(0, 500),
-              resolved: analysis.resolved === true,
-              category: CATEGORIES.includes(analysis.category) ? analysis.category : "outros",
-              device: analysis.device || null,
-              app: analysis.app || null,
-              operator_name: analysis.operator || null,
-              signal_quality: signal,
-              analysis_version: 3,
-            }).eq("id", c.id);
-
-            if (signal === "none") {
-              totalNoSignal++;
-              batchProcessed++;
-              await supabase.from("ai_training_jobs").update({
-                processed: alreadyProcessed + batchProcessed,
-                errors: totalErrors,
-                message: `${alreadyProcessed + batchProcessed}/${totalForJob} analisadas • ${totalItemsCreated} novos • ${totalItemsMerged} agrupados • ${totalNoSignal} sem sinal`,
-              }).eq("id", job!.id);
-              continue;
-            }
-
-            const items: any[] = Array.isArray(analysis.items) ? analysis.items.slice(0, 3) : [];
-
-            for (const it of items) {
-              const kind = KINDS.includes(it.kind) ? it.kind : "intent";
-              const subject = String(it.subject || "").trim().slice(0, 200);
-              const solution = String(it.solution || "").trim().slice(0, 3000);
-              if (subject.length < 5 || solution.length < 5) continue;
-
-              const category = CATEGORIES.includes(it.category) ? it.category : (analysis.category || "outros");
-              const problem = String(it.problem || analysis.problem || "").slice(0, 1000);
-              const steps = Array.isArray(it.steps) ? it.steps.map((s: any) => String(s).slice(0, 300)).slice(0, 20) : [];
-              const devices = Array.isArray(it.devices) ? it.devices.map(String).slice(0, 6) : (analysis.device ? [analysis.device] : []);
-              const apps = Array.isArray(it.apps) ? it.apps.map(String).slice(0, 6) : (analysis.app ? [analysis.app] : []);
-              const keywords = Array.isArray(it.keywords) ? it.keywords.map((s: any) => String(s).toLowerCase()).slice(0, 12) : [];
-
-              const embText = `${subject}\n${problem}\n${solution}`.slice(0, 4000);
-              let embedding: number[] | null = null;
-              try { embedding = await embed(apiKey, embText); } catch { totalErrors++; continue; }
-
-              const { data: matches } = await supabase.rpc("match_ai_knowledge_items", {
-                _user_id: userId,
-                _kind: kind,
-                _category: category,
-                query_embedding: embedding,
-                match_threshold: 0.86,
-                match_count: 1,
-              });
-
-              const operator = analysis.operator || "desconhecido";
-
-              if (matches && matches.length > 0) {
-                const m = matches[0];
-                const { data: existing } = await supabase.from("ai_knowledge_items")
-                  .select("usage_count,resolved_count,operators,source_conversation_ids,steps,devices,apps,keywords")
-                  .eq("id", m.id).single();
-
-                const usage = (existing?.usage_count || 0) + 1;
-                const resolved = (existing?.resolved_count || 0) + (analysis.resolved ? 1 : 0);
-                const rate = usage > 0 ? resolved / usage : 0;
-                const ops = Array.isArray(existing?.operators) ? existing!.operators as any[] : [];
-                const opIdx = ops.findIndex((o: any) => o.name === operator);
-                if (opIdx >= 0) ops[opIdx].count = (ops[opIdx].count || 0) + 1;
-                else ops.push({ name: operator, count: 1 });
-
-                const mergedSteps = Array.from(new Set([...(existing?.steps || []), ...steps])).slice(0, 20);
-                const mergedDevices = Array.from(new Set([...(existing?.devices || []), ...devices])).slice(0, 8);
-                const mergedApps = Array.from(new Set([...(existing?.apps || []), ...apps])).slice(0, 8);
-                const mergedKw = Array.from(new Set([...(existing?.keywords || []), ...keywords])).slice(0, 20);
-                const sids = Array.from(new Set([...(existing?.source_conversation_ids || []), c.id])).slice(0, 200);
-
-                await supabase.from("ai_knowledge_items").update({
-                  usage_count: usage,
-                  resolved_count: resolved,
-                  success_rate: rate,
-                  confidence: computeConfidence(usage, rate),
-                  last_used_at: new Date().toISOString(),
-                  operators: ops.slice(0, 20),
-                  source_conversation_ids: sids,
-                  steps: mergedSteps,
-                  devices: mergedDevices,
-                  apps: mergedApps,
-                  keywords: mergedKw,
-                }).eq("id", m.id);
-                totalItemsMerged++;
-              } else {
-                await supabase.from("ai_knowledge_items").insert({
-                  user_id: userId,
-                  kind, subject, problem, solution,
-                  steps, devices, apps, keywords, category,
-                  usage_count: 1,
-                  resolved_count: analysis.resolved ? 1 : 0,
-                  success_rate: analysis.resolved ? 1 : 0,
-                  confidence: computeConfidence(1, analysis.resolved ? 1 : 0),
-                  last_used_at: new Date().toISOString(),
-                  operators: [{ name: operator, count: 1 }],
-                  source_conversation_ids: [c.id],
-                  embedding,
-                  status: "pending",
-                });
-                totalItemsCreated++;
-              }
-            }
-            batchProcessed++;
-          } catch (e) {
-            if (e instanceof AiUnavailableError) {
-              await supabase.from("ai_training_jobs").update({
-                status: "failed",
-                finished_at: new Date().toISOString(),
-                message: e.message,
-                errors: totalErrors + 1,
-              }).eq("id", job!.id);
-              // Retorna 200 com flag paused para que o frontend consiga exibir a mensagem
-              // amigável em vez do genérico "Edge Function returned a non-2xx status code".
-              return json({ ok: true, paused: true, reason: e.code, message: e.message, jobId: job!.id, processed: alreadyProcessed + batchProcessed });
-            }
-            totalErrors++;
-            batchProcessed++;
-            console.error("analyze err", e);
-            await supabase.from("ai_training_conversations").update({
-              analyzed_at: new Date().toISOString(),
-              signal_quality: "none",
-              status: "analysis_error",
-              analysis_version: 3,
-            }).eq("id", c.id);
+          const existing = await loadExisting(kind, category);
+          const newTokens = tokens(`${subject} ${it.problem || ""}`);
+          let bestId: string | null = null; let bestScore = 0;
+          for (const e of existing) {
+            const s = jaccard(newTokens, e.tokenSet);
+            if (s > bestScore) { bestScore = s; bestId = e.id; }
           }
 
-      await supabase.from("ai_training_jobs").update({
-          processed: alreadyProcessed + batchProcessed,
-          errors: totalErrors,
-          message: `${alreadyProcessed + batchProcessed}/${totalForJob} analisadas • ${totalItemsCreated} novos • ${totalItemsMerged} agrupados • ${totalNoSignal} sem sinal`,
-        }).eq("id", job!.id);
-    }
-
-      const { count: remaining } = await supabase.from("ai_training_conversations")
-        .select("id", { count: "exact", head: true })
-        .eq("user_id", userId).is("analyzed_at", null);
-
-      const done = !remaining || remaining === 0;
-      if (done) {
-      await supabase.from("ai_training_jobs").update({
-        status: "done",
-          processed: totalForJob,
-        errors: totalErrors,
-        finished_at: new Date().toISOString(),
-          message: `Concluído: ${totalForJob} analisadas • ${totalItemsCreated} novos neste lote • ${totalItemsMerged} agrupados neste lote • ${totalNoSignal} sem sinal útil`,
-      }).eq("id", job!.id);
+          if (bestId && bestScore >= 0.55) {
+            const { data: cur } = await supabase.from("ai_knowledge_items")
+              .select("usage_count,resolved_count,operators,source_conversation_ids,steps,devices,apps,keywords")
+              .eq("id", bestId).single();
+            const usage = (cur?.usage_count || 0) + 1;
+            const resolved = (cur?.resolved_count || 0) + (analysis.resolved ? 1 : 0);
+            const rate = usage > 0 ? resolved / usage : 0;
+            const mergedSteps = Array.from(new Set([...(cur?.steps || []), ...(it.steps || [])])).slice(0, 20);
+            const mergedDevices = Array.from(new Set([...(cur?.devices || []), ...(it.devices || [])])).slice(0, 8);
+            const mergedApps = Array.from(new Set([...(cur?.apps || []), ...(it.apps || [])])).slice(0, 8);
+            const mergedKw = Array.from(new Set([...(cur?.keywords || []), ...(it.keywords || [])])).slice(0, 20);
+            const sids = Array.from(new Set([...(cur?.source_conversation_ids || []), c.id])).slice(0, 200);
+            await supabase.from("ai_knowledge_items").update({
+              usage_count: usage, resolved_count: resolved, success_rate: rate,
+              confidence: computeConfidence(usage, rate),
+              last_used_at: new Date().toISOString(),
+              source_conversation_ids: sids,
+              steps: mergedSteps, devices: mergedDevices, apps: mergedApps, keywords: mergedKw,
+            }).eq("id", bestId);
+            totalItemsMerged++;
+          } else {
+            const { data: ins } = await supabase.from("ai_knowledge_items").insert({
+              user_id: userId,
+              kind, subject, problem: it.problem, solution,
+              steps: it.steps, devices: it.devices, apps: it.apps, keywords: it.keywords, category,
+              usage_count: 1,
+              resolved_count: analysis.resolved ? 1 : 0,
+              success_rate: analysis.resolved ? 1 : 0,
+              confidence: computeConfidence(1, analysis.resolved ? 1 : 0),
+              last_used_at: new Date().toISOString(),
+              operators: [],
+              source_conversation_ids: [c.id],
+              status: "pending",
+            }).select("id").single();
+            if (ins?.id) existing.push({ id: ins.id, subject, tokenSet: newTokens });
+            totalItemsCreated++;
+          }
+        }
+        batchProcessed++;
+      } catch (e) {
+        totalErrors++;
+        batchProcessed++;
+        console.error("analyze err", e);
+        await supabase.from("ai_training_conversations").update({
+          analyzed_at: new Date().toISOString(),
+          signal_quality: "none",
+          status: "analysis_error",
+          analysis_version: 4,
+        }).eq("id", c.id);
       }
 
+      await supabase.from("ai_training_jobs").update({
+        processed: alreadyProcessed + batchProcessed,
+        errors: totalErrors,
+        message: `${alreadyProcessed + batchProcessed}/${totalForJob} analisadas • ${totalItemsCreated} novos • ${totalItemsMerged} agrupados • ${totalNoSignal} sem sinal`,
+      }).eq("id", job!.id);
+    }
+
+    const { count: remaining } = await supabase.from("ai_training_conversations")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", userId).is("analyzed_at", null);
+
+    const done = !remaining || remaining === 0;
+    if (done) {
+      await supabase.from("ai_training_jobs").update({
+        status: "done", processed: totalForJob, errors: totalErrors,
+        finished_at: new Date().toISOString(),
+        message: `Concluído: ${totalForJob} analisadas • ${totalItemsCreated} novos neste lote • ${totalItemsMerged} agrupados neste lote • ${totalNoSignal} sem sinal`,
+      }).eq("id", job!.id);
+    }
+
     return json({
-      ok: true,
-      done,
-      jobId: job!.id,
+      ok: true, done, jobId: job!.id,
       total: totalForJob,
       processed: alreadyProcessed + batchProcessed,
       remaining: remaining ?? 0,
@@ -444,8 +450,3 @@ ${transcript}`);
     return json({ error: String((e as Error).message) }, 500);
   }
 });
-
-
-function json(p: unknown, s = 200) {
-  return new Response(JSON.stringify(p), { status: s, headers: { ...corsHeaders, "Content-Type": "application/json" } });
-}
