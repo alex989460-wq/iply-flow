@@ -253,13 +253,23 @@ ${transcript}`);
             if (signal === "none") { totalNoSignal++; totalProcessed++; continue; }
 
             const passB = await callAI(apiKey,
-              `Você extrai CONHECIMENTO REUTILIZÁVEL de atendimentos IPTV. Tipos: procedure, flow, intent, official_answer, business_rule, tutorial. Categorias: ${CATEGORIES.join(", ")}. Responda SOMENTE JSON.`,
-              `Extraia 0 a 4 conhecimentos ÚTEIS. JSON:
+              `Você extrai CONHECIMENTO REUTILIZÁVEL DE ALTA QUALIDADE (>90% acurácia) de atendimentos IPTV. Tipos: procedure (passo a passo técnico), flow (fluxo de decisão), intent (intenção do cliente), official_answer (resposta oficial da empresa), business_rule (regra de negócio: prazos, valores, política), tutorial (guia completo). Categorias: ${CATEGORIES.join(", ")}. Responda SOMENTE JSON válido.`,
+              `Extraia de 0 a 4 conhecimentos APENAS se forem realmente REUTILIZÁVEIS por outro atendente. JSON:
 {"items":[{"kind":"...","subject":"...","problem":"...","solution":"...","steps":["..."],"devices":["..."],"apps":["..."],"category":"...","keywords":["..."]}]}
-Regras: subject específico; solution pronta para reuso; steps no imperativo; se genérico → items:[].
+
+REGRAS ESTRITAS (aplique como se fosse VOCÊ respondendo o próximo cliente):
+1. subject = título curto e específico (ex: "Ativar IBO Player na Fire TV com playlist Xtream").
+2. problem = sintoma exato relatado pelo cliente, com app/dispositivo/canal quando existir.
+3. solution = resposta pronta, profissional, cordial, em PT-BR, que resolve o caso — como se você mesmo estivesse escrevendo para o cliente. Sem gírias, sem "oi tudo bem".
+4. steps = ações no imperativo, uma por item, ordenadas ("Peça o MAC do aparelho", "Acesse o painel Rush", "Gere nova playlist", ...).
+5. keywords = termos que o cliente usaria para procurar isso (ex: "ibo travando", "sportv não abre", "playlist expirou").
+6. NÃO invente: se o atendimento não deixou clara a solução, retorne items:[].
+7. NÃO extraia saudação, agradecimento, comprovante ou "vou verificar".
+8. Se o atendimento gera 2 conhecimentos independentes (ex: procedimento + regra de negócio), retorne os 2.
 
 CONVERSA:
 ${transcript}`);
+
 
             const items: any[] = Array.isArray(passB.items) ? passB.items.slice(0, 4) : [];
 
