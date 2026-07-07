@@ -1113,12 +1113,8 @@ export default function Billing() {
         </div>
 
         <Tabs defaultValue="config" className="space-y-4">
-          <TabsList className="grid w-full grid-cols-3 sm:grid-cols-6 h-auto">
+          <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 h-auto">
             <TabsTrigger value="config" className="text-xs sm:text-sm py-2">Config</TabsTrigger>
-            <TabsTrigger value="departamentos" className="text-xs sm:text-sm py-2">
-              {isMetaCloudApi ? 'Números' : 'Deptos'}
-            </TabsTrigger>
-            <TabsTrigger value="conversas" className="text-xs sm:text-sm py-2">Conversas</TabsTrigger>
             <TabsTrigger value="templates" className="text-xs sm:text-sm py-2">Templates</TabsTrigger>
             <TabsTrigger value="relatorios" className="text-xs sm:text-sm py-2 flex items-center gap-1">
               <BarChart3 className="w-3 h-3 sm:w-4 sm:h-4" />
