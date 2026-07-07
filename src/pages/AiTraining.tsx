@@ -28,6 +28,7 @@ interface KItem {
   problem: string | null;
   solution: string | null;
   steps: string[];
+  flow_nodes?: any[];
   category: string;
   devices: string[];
   apps: string[];
@@ -198,7 +199,7 @@ export default function AiTraining() {
     try {
       for (let i = 0; i < 2000; i++) {
         const { data, error } = await supabase.functions.invoke('ai-training-analyze', {
-          body: { jobId, batch: 1 },
+          body: { jobId, batch: 50 },
         });
         if (error) throw error;
         jobId = data?.jobId ?? jobId;
@@ -240,7 +241,7 @@ export default function AiTraining() {
 
   const runAnalyze = async () => {
     try {
-      toast({ title: 'Análise iniciada', description: 'Processando em lotes seguros, com progresso atualizado na tela.' });
+      toast({ title: 'Análise iniciada', description: 'Lendo conversas completas, cruzando padrões e gerando sugestões com maior confiança.' });
       await analyzeUntilDone();
     } catch (e: any) {
       toast({ title: 'Erro', description: e.message, variant: 'destructive' });
@@ -314,7 +315,7 @@ export default function AiTraining() {
               <Brain className="h-7 w-7 text-violet-500" />
               Central de Conhecimento IA
             </h1>
-            <p className="text-sm text-muted-foreground mt-1">Aprende com seus atendimentos reais — nada é publicado sem sua aprovação.</p>
+            <p className="text-sm text-muted-foreground mt-1">Analisa atendimentos completos, cruza padrões e só publica automações após sua aprovação.</p>
             <div className="mt-2 inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 text-xs font-medium">
               <span className="relative flex h-2 w-2">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
@@ -436,7 +437,7 @@ export default function AiTraining() {
                 </Button>
                 <Button variant="outline" onClick={runAnalyze} disabled={analyzing || !!runningJob}>
                   {analyzing ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Brain className="h-4 w-4 mr-1" />}
-                  Analisar (extrair conhecimento)
+                  Analisar e cruzar histórico
                 </Button>
                 <Button variant="destructive" onClick={resetCentral} disabled={importing || analyzing || !!runningJob}>
                   <Trash2 className="h-4 w-4 mr-1" />
@@ -578,6 +579,20 @@ function ItemCard({ item, approved, onAct, onEdit, onSource }: {
       </div>
 
       {item.solution && <p className="text-sm mb-2"><b>Solução:</b> {item.solution}</p>}
+
+      {item.kind === 'flow' && item.flow_nodes && item.flow_nodes.length > 0 && (
+        <div className="bg-muted/40 rounded p-3 mb-3">
+          <p className="text-xs font-semibold mb-2 text-muted-foreground uppercase tracking-wider">Fluxo automático sugerido</p>
+          <div className="grid gap-2 md:grid-cols-2">
+            {item.flow_nodes.slice(0, 6).map((node: any, i: number) => (
+              <div key={node.id || i} className="rounded border border-border p-2 text-xs">
+                <p className="font-semibold">{i + 1}. {node.title || node.type}</p>
+                {node.text && <p className="text-muted-foreground mt-1 line-clamp-3">{node.text}</p>}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {item.steps.length > 0 && (
         <div className="bg-muted/40 rounded p-3 mb-3">
