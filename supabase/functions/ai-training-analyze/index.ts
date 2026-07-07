@@ -5,7 +5,9 @@ import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 
 const AI_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
 const EMB_URL = "https://ai.gateway.lovable.dev/v1/embeddings";
-const MODEL = "google/gemini-3-flash-preview";
+// Modelo forte para análise assertiva; fallback automático em caso de falha
+const MODEL_PRIMARY = "google/gemini-2.5-pro";
+const MODEL_FALLBACK = "google/gemini-2.5-flash";
 const EMB_MODEL = "openai/text-embedding-3-small";
 
 const KINDS = ["procedure","flow","intent","official_answer","business_rule","tutorial"] as const;
@@ -86,20 +88,29 @@ function extractJSON(raw: string): any {
   return JSON.parse(s);
 }
 
-async function callAI(apiKey: string, system: string, user: string): Promise<any> {
+async function callAIOnce(apiKey: string, model: string, system: string, user: string): Promise<any> {
   const r = await fetch(AI_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json", "Authorization": `Bearer ${apiKey}` },
     body: JSON.stringify({
-      model: MODEL,
+      model,
       messages: [{ role: "system", content: system }, { role: "user", content: user }],
       response_format: { type: "json_object" },
+      temperature: 0.15,
     }),
   });
   if (!r.ok) throw new Error(`AI ${r.status}`);
   const j = await r.json();
   const content = j.choices?.[0]?.message?.content ?? "{}";
   return extractJSON(content);
+}
+
+async function callAI(apiKey: string, system: string, user: string): Promise<any> {
+  try { return await callAIOnce(apiKey, MODEL_PRIMARY, system, user); }
+  catch (e) {
+    console.warn("primary model failed, falling back:", (e as Error).message);
+    return await callAIOnce(apiKey, MODEL_FALLBACK, system, user);
+  }
 }
 
 async function embed(apiKey: string, text: string): Promise<number[]> {
@@ -173,16 +184,20 @@ Deno.serve(async (req) => {
 
         const transcript = turns.map(t => `${t.role}: ${t.text}`).join("\n").slice(0, 6000);
 
-        // PASS A - compreensão
+        // PASS A - compreensão profunda
         const passA = await callAI(apiKey,
-          `Você analisa atendimentos de suporte de um serviço IPTV/streaming brasileiro. Categorias válidas: ${CATEGORIES.join(", ")}. Responda SOMENTE JSON.`,
-          `Analise este atendimento e responda em JSON com este formato exato:
-{"problem":"resumo curto do problema","solution":"resumo da solução aplicada","resolved":true|false,"category":"uma das categorias","device":"Fire TV|Android TV|Samsung|LG|Roku|TV Box|Windows|macOS|Web|Celular|null","app":"nome do app se citado ou null","operator":"nome do operador se identificado ou null","signal_quality":"high|medium|none"}
+          `Você é um analista sênior de suporte técnico especializado em IPTV/streaming no Brasil. Sua função é entender atendimentos reais entre operadores e clientes com precisão cirúrgica. Você conhece termos populares como: "lista", "teste", "playlist m3u", "código Xtream", "MAC", "renovar", "vencido", "travando", "sem sinal", "erro de servidor", "IBO", "SmartOne", "Xcloud TV", "Bay TV", "Duplecast", "9xTream", "SS IPTV", "TiviMate", "IPTV Smarters". Categorias válidas: ${CATEGORIES.join(", ")}. Responda SOMENTE JSON válido, sem markdown.`,
+          `Analise o atendimento abaixo com profundidade e responda EXATAMENTE neste JSON:
+{"problem":"descrição objetiva e específica do problema real do cliente (não genérico)","solution":"o que o operador REALMENTE fez para resolver, passo a passo resumido","resolved":true|false,"category":"uma das categorias listadas","device":"Fire TV|Android TV|Samsung|LG|Roku|TV Box|Windows|macOS|Web|Celular|iPhone|iPad|null","app":"nome exato do app citado (IBO Player, SmartOne, TiviMate, IPTV Smarters, Xcloud, etc) ou null","operator":"primeiro nome do operador se aparecer assinatura ou null","signal_quality":"high|medium|none","confidence_reason":"1 linha explicando por que classificou assim"}
 
-Regras:
-- signal_quality=none se for só saudação, comprovante, ou sem contexto real de suporte
-- signal_quality=high se há problema claro + solução técnica
-- Seja conciso e específico
+REGRAS CRÍTICAS (siga sem exceção):
+1. signal_quality="none" APENAS se: só troca de saudações, só envio de comprovante/PIX sem dúvida, sem problema identificável, ou operador nem respondeu tecnicamente.
+2. signal_quality="high" quando: problema técnico claro + solução aplicada e confirmada pelo cliente.
+3. signal_quality="medium" para casos parciais (dúvida respondida mas sem confirmação, ou problema sem solução final).
+4. "problem" NUNCA pode ser vago tipo "cliente com dúvida". Escreva especificamente: "app IBO travando ao abrir canal SporTV na Fire TV".
+5. "solution" descreve AÇÕES técnicas reais ("limpar cache do app, desinstalar e reinstalar com playlist atualizada"), NUNCA "ajudei o cliente".
+6. "resolved"=true SOMENTE se cliente confirmou funcionamento ou operador finalizou com sucesso comprovado.
+7. Se cliente pediu algo administrativo (renovar, cancelar, pedir teste), category correspondente (renovacao, cancelamento, teste) e resolved=true se foi atendido.
 
 CONVERSA:
 ${transcript}`);
@@ -198,29 +213,39 @@ ${transcript}`);
           app: passA.app || null,
           operator_name: passA.operator || null,
           signal_quality: signal,
-          analysis_version: 2,
+          analysis_version: 3,
         }).eq("id", c.id);
 
         if (signal === "none") { noSignal++; continue; }
 
-        // PASS B - extração tipada
+        // PASS B - extração tipada assertiva
         const passB = await callAI(apiKey,
-          `Você extrai conhecimento reutilizável de atendimentos. Tipos válidos: procedure (passo a passo técnico), flow (fluxo de atendimento), intent (intenção genérica reconhecível), official_answer (resposta padrão), business_rule (regra do negócio), tutorial (guia). Categorias: ${CATEGORIES.join(", ")}. Responda SOMENTE JSON.`,
-          `Do atendimento abaixo, extraia de 0 a 3 conhecimentos ÚTEIS e REUTILIZÁVEIS.
-Responda em JSON:
-{"items":[{"kind":"procedure|flow|intent|official_answer|business_rule|tutorial","subject":"título curto","problem":"problema","solution":"solução","steps":["passo 1","passo 2"],"devices":["Samsung"],"apps":["IBO Player"],"category":"uma categoria","keywords":["palavras-chave"]}]}
+          `Você extrai CONHECIMENTO REUTILIZÁVEL de atendimentos IPTV/streaming, para alimentar um bot de atendimento automático. Tipos:
+- procedure: passo a passo TÉCNICO reproduzível (ex: "como instalar IBO na Samsung")
+- flow: fluxo de atendimento (ex: fluxo de renovação, fluxo de novo cliente)
+- intent: intenção reconhecível do cliente + resposta padrão (ex: cliente pede teste → responder com link X)
+- official_answer: resposta oficial para pergunta frequente (ex: "quais formas de pagamento")
+- business_rule: regra do negócio (ex: "teste dura 6h", "não fazemos reembolso após 24h")
+- tutorial: guia completo passo a passo para o cliente executar sozinho
+Categorias: ${CATEGORIES.join(", ")}. Responda SOMENTE JSON válido.`,
+          `Extraia de 0 a 4 conhecimentos GENUINAMENTE ÚTEIS deste atendimento. Prefira QUALIDADE a quantidade.
+JSON esperado:
+{"items":[{"kind":"...","subject":"título específico e claro","problem":"gatilho/pergunta do cliente que ativa este conhecimento","solution":"resposta/procedimento completo pronto para ser reutilizado","steps":["passo 1 específico","passo 2 específico"],"devices":["Samsung"],"apps":["IBO Player"],"category":"...","keywords":["palavras que clientes usariam para pedir isso"]}]}
 
-Regras:
-- Se for procedure/tutorial: preencha steps com passos numerados
-- Se for flow: steps deve conter os passos do fluxo de atendimento
-- NÃO extraia se for só saudação, comprovante ou algo trivial
-- items pode ser [] se não houver nada reaproveitável
-- Máximo 3 items
+REGRAS OBRIGATÓRIAS:
+1. NÃO extraia nada que não seja reutilizável em OUTRO atendimento futuro.
+2. "subject" deve ser específico: "Instalar IBO Player na Samsung Tizen" e NÃO "instalação".
+3. "solution" deve estar PRONTA para o bot copiar e responder ao próximo cliente — completa, sem "ver com o suporte".
+4. "steps" com verbos no imperativo ("Abra...", "Toque em...", "Digite..."), 3+ passos quando for procedure/tutorial.
+5. "keywords" com 4-10 termos que clientes REAIS digitariam (variações populares, erros de escrita comuns).
+6. Se conteúdo genérico demais (só "olá, como posso ajudar") → retorne items: [].
+7. Se atendimento resolvido tecnicamente sem procedure claro, extraia AO MENOS um "intent" mapeando pergunta→resposta.
+8. Máximo 4 items, mínimo 0. Nunca invente informação que não está na conversa.
 
 CONVERSA:
 ${transcript}`);
 
-        const items: any[] = Array.isArray(passB.items) ? passB.items.slice(0, 3) : [];
+        const items: any[] = Array.isArray(passB.items) ? passB.items.slice(0, 4) : [];
 
         for (const it of items) {
           const kind = KINDS.includes(it.kind) ? it.kind : "intent";

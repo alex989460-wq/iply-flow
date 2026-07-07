@@ -239,6 +239,13 @@ export default function AiTraining() {
               Central de Conhecimento IA
             </h1>
             <p className="text-sm text-muted-foreground mt-1">Aprende com seus atendimentos reais — nada é publicado sem sua aprovação.</p>
+            <div className="mt-2 inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 text-xs font-medium">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+              </span>
+              Aprendizado contínuo ativo — analisa novas conversas a cada 15 min automaticamente
+            </div>
           </div>
           <div className="flex gap-2">
             <Button variant="outline" size="sm" onClick={reload}><RefreshCw className="h-4 w-4 mr-1" />Atualizar</Button>
