@@ -13,35 +13,45 @@ export function BroadcastMetricsCards({ broadcastId }: { broadcastId?: string } 
   const { user } = useAuth();
 
   const { data, isLoading } = useQuery({
-    queryKey: ['broadcast-metrics-today', user?.id, broadcastId],
+    queryKey: ['broadcast-metrics-today-local', user?.id, broadcastId],
     queryFn: async (): Promise<Summary> => {
-      // 1) Try CRM Oficial aggregated endpoint
-      try {
-        const { data: res, error } = await supabase.functions.invoke('crm-oficial-sync', {
-          body: { action: 'broadcasts-stats', broadcast_id: broadcastId },
-        });
-        if (!error) {
-          const summary = extractCrmBroadcastSummary(res);
-          if (Object.values(summary).some((value) => value > 0)) return summary;
-        }
-      } catch (_) { /* fallback below */ }
-
-      // 2) Local fallback: aggregate today's message_logs
       const today = format(new Date(), 'yyyy-MM-dd');
-      const { data: rows } = await supabase
+      const start = `${today}T00:00:00`;
+      const end = `${today}T23:59:59`;
+
+      // Source of truth: billing_logs (o mesmo que alimenta o "Relatório de Hoje")
+      const { data: bLogs } = await supabase
+        .from('billing_logs')
+        .select('whatsapp_status, customer_id, sent_at')
+        .gte('sent_at', start)
+        .lte('sent_at', end);
+      const b = bLogs || [];
+      const norm = (s: string) => (s || '').toLowerCase();
+      const isSent = (s: string) => ['sent', 'accepted', 'queued', 'delivered', 'read'].includes(norm(s));
+      const isFail = (s: string) => norm(s).startsWith('error') || ['failed', 'error'].includes(norm(s));
+      const isPending = (s: string) => ['pending', 'queued', ''].includes(norm(s));
+
+      // Complementa entregues/lidas com message_logs (callbacks do provedor)
+      const { data: mLogs } = await supabase
         .from('message_logs')
         .select('status')
-        .gte('created_at', `${today}T00:00:00`)
-        .lte('created_at', `${today}T23:59:59`);
-      const r = rows || [];
-      const norm = (s: string) => (s || '').toLowerCase();
+        .gte('created_at', start)
+        .lte('created_at', end);
+      const m = mLogs || [];
+      const delivered = m.filter(x => ['delivered', 'read'].includes(norm(x.status))).length;
+      const read = m.filter(x => norm(x.status) === 'read').length;
+
+      const uniqueRecipients = new Set(b.map(x => x.customer_id).filter(Boolean)).size;
+
       return {
-        recipients_total: r.length,
-        sent: r.filter(x => ['sent', 'accepted', 'queued', 'delivered', 'read'].includes(norm(x.status))).length,
-        delivered: r.filter(x => ['delivered', 'read'].includes(norm(x.status))).length,
-        read: r.filter(x => norm(x.status) === 'read').length,
-        failed: r.filter(x => ['failed', 'error'].includes(norm(x.status))).length,
-        pending: r.filter(x => ['pending', 'queued'].includes(norm(x.status))).length,
+        broadcasts_count: b.length,
+        recipients_total: uniqueRecipients || b.length,
+        sent: b.filter(x => isSent(x.whatsapp_status)).length,
+        delivered,
+        read,
+        failed: b.filter(x => isFail(x.whatsapp_status)).length,
+        pending: b.filter(x => isPending(x.whatsapp_status)).length,
+        templates_approved: 0,
       };
     },
     enabled: !!user?.id,
