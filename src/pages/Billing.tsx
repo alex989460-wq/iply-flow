@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import DashboardLayout from '@/components/layout/DashboardLayout';
@@ -152,8 +152,6 @@ export default function Billing() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [isDeletingLog, setIsDeletingLog] = useState(false);
-  const [departmentsLoaded, setDepartmentsLoaded] = useState(false);
-  const [sessionsLoaded, setSessionsLoaded] = useState(false);
 
   // Progress modal state
   const [progressModalOpen, setProgressModalOpen] = useState(false);
@@ -297,40 +295,6 @@ export default function Billing() {
     : isMetaCloudApi 
       ? !!zapSettings?.meta_phone_number_id 
       : !!zapSettings?.selected_session_id;
-
-  // Auto-load sessions and departments on mount
-  useEffect(() => {
-    if (zapSettings && !sessionsLoaded) {
-      fetchSessions(false).then(() => setSessionsLoaded(true));
-    }
-  }, [zapSettings, sessionsLoaded]);
-
-  useEffect(() => {
-    if (zapSettings && !departmentsLoaded) {
-      fetchDepartmentsAuto();
-    }
-  }, [zapSettings, departmentsLoaded]);
-
-  // Silent fetch for auto-load (no toast)
-  const fetchDepartmentsAuto = async () => {
-    setIsLoadingDepartments(true);
-    try {
-      const { data, error } = await supabase.functions.invoke('zap-responder', {
-        body: { action: 'departamentos' },
-      });
-
-      if (error) throw error;
-
-      if (data?.success && data?.data) {
-        setDepartments(data.data);
-        setDepartmentsLoaded(true);
-      }
-    } catch (error: any) {
-      console.error('Error auto-loading departments:', error);
-    } finally {
-      setIsLoadingDepartments(false);
-    }
-  };
 
   const { data: pendingBillings } = useQuery({
     queryKey: ['pending-billings'],

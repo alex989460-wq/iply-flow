@@ -1141,8 +1141,13 @@ Deno.serve(async (req) => {
     }
 
     if (action === "broadcasts-stats") {
-      const { broadcast_id } = data as { broadcast_id?: string };
-      const qs = broadcast_id ? `?broadcast_id=${encodeURIComponent(broadcast_id)}` : "";
+      const { broadcast_id, date, from, to } = data as { broadcast_id?: string; date?: string; from?: string; to?: string };
+      const params = new URLSearchParams();
+      if (broadcast_id) params.set("broadcast_id", broadcast_id);
+      if (date) params.set("date", date);
+      if (from) params.set("from", from);
+      if (to) params.set("to", to);
+      const qs = params.toString() ? `?${params.toString()}` : "";
       results.broadcasts_stats = await crmFetchWithKeyFallback(`/api/public/v1/broadcasts-stats${qs}`, { method: "GET" }, apiKey);
     }
 
