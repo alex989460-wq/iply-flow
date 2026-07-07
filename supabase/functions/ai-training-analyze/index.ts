@@ -9,6 +9,8 @@ type Kind = typeof KINDS[number];
 
 // -------- categorização por palavras-chave (pt-BR IPTV/streaming) --------
 const CATEGORY_KEYWORDS: Record<string, string[]> = {
+  venda: ["adquirir", "comprar", "contratar", "assinar", "quero o sistema", "gostaria de adquirir", "teste", "valor", "plano"],
+  indicacao: ["indicação", "indicacao", "indicou", "indicado", "veio por indicação"],
   instalacao: ["instala", "instalar", "instalação", "baixar", "download", "apk"],
   configuracao: ["configura", "configurar", "configuração", "ajustar", "setar"],
   login: ["login", "entrar", "acessar", "logar", "logado", "logou"],
@@ -35,8 +37,10 @@ const CATEGORY_KEYWORDS: Record<string, string[]> = {
 const CATEGORIES = Object.keys(CATEGORY_KEYWORDS).concat(["outros"]);
 
 // -------- devices / apps conhecidos --------
-const DEVICES = ["tv box","smart tv","celular","android","iphone","ios","fire stick","fire tv","chromecast","roku","pc","notebook","xbox","playstation"];
-const APPS = ["ibo player","ibo","smarters","iptv smarters","xtream","perfect player","tivimate","gse","gse smart iptv","duplex play","duplecast","xciptv","stbemu","flix","flixnet","cinevision","warezcd","cortex","cinema hd"];
+const DEVICES = ["tv lg","tv samsung","tv box","smart tv","celular","android tv","android","iphone","ios","fire stick","fire tv","chromecast","roku","pc","notebook","xbox","playstation"];
+const APPS = ["strimo","ibo player","ibo","smarters","iptv smarters","xtream","perfect player","tivimate","gse","gse smart iptv","duplex play","duplecast","xciptv","stbemu","flix","flixnet","cinevision","warezcd","cortex","cinema hd"];
+const TV_BRANDS = ["lg", "samsung", "philco", "tcl", "sony", "aoc", "philips", "roku", "android tv"];
+const SALES_HINTS = ["adquirir", "comprar", "contratar", "assinar", "quero o sistema", "gostaria de adquirir", "valor do sistema", "teste grátis", "teste gratis"];
 
 // -------- verbos de instrução (indicam solução) --------
 const INSTRUCTION_HINTS = [
