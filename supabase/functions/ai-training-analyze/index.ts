@@ -169,7 +169,7 @@ function classifyStage(text: string): string | null {
   const n = normalize(text);
   if (hasAny(n, SALES_HINTS)) return "interesse_compra";
   if (hasAny(n, CATEGORY_KEYWORDS.indicacao)) return "indicacao";
-  if (detectTvBrand(n) || /\b(minha|meu)\s+tv\b/.test(n)) return "marca_tv";
+  if (detectTvBrand(n)) return "marca_tv";
   if (hasAny(n, ["pronto", "instalei", "baixei", "ja instalei", "já instalei", "abri o app"])) return "app_instalado";
   if (hasAny(n, ["codigo", "código", "chave", "acesso", "usuario", "senha", "login"])) return "dados_acesso";
   return null;
@@ -177,7 +177,6 @@ function classifyStage(text: string): string | null {
 
 function normalizeProfessionalAnswer(text: string, context: { category: string; app?: string | null; device?: string | null; brand?: string | null }) {
   const clean = String(text || "").replace(/\s+/g, " ").trim();
-  const n = normalize(clean);
   const app = context.app || (context.brand === "lg" ? "Strimo" : "aplicativo indicado");
   const brand = context.brand || context.device || "sua TV";
 
@@ -209,7 +208,7 @@ function buildFlowNodes(turns: Turn[], context: { brand?: string | null; app?: s
   const hasSale = turns.some((t) => t.role === "CLIENTE" && classifyStage(t.text) === "interesse_compra");
   const hasBrand = turns.some((t) => t.role === "CLIENTE" && (classifyStage(t.text) === "marca_tv" || detectTvBrand(t.text)));
   const hasInstalled = turns.some((t) => t.role === "CLIENTE" && classifyStage(t.text) === "app_instalado");
-  if (!hasSale || !hasBrand) return null;
+  if (!hasSale || !hasBrand || !context.brand) return null;
 
   const start = "inicio_venda";
   const askBrand = "perguntar_marca_tv";
@@ -376,7 +375,7 @@ function analyzeLocal(turns: Turn[]) {
         ? [
             "Cumprimentar e solicitar contato de indicação, se houver.",
             "Perguntar a marca da TV.",
-            "Detectar automaticamente LG/Samsung/outra marca pela resposta do cliente.",
+            "Detectar automaticamente a marca da TV pela resposta do cliente.",
             "Enviar procedimento correto de instalação do aplicativo.",
             "Aguardar confirmação de instalação ou foto/código do app.",
             "Enviar dados/chave de acesso ou transferir para suporte quando faltar informação.",
