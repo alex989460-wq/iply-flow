@@ -101,6 +101,7 @@ export default function AiTraining() {
   const [showSourceOf, setShowSourceOf] = useState<KItem | null>(null);
   const [sourceMessages, setSourceMessages] = useState<any[]>([]);
   const pollRef = useRef<number | null>(null);
+  const analysisLoopRef = useRef(false);
 
   const reload = async () => {
     if (!user) return;
@@ -172,6 +173,55 @@ export default function AiTraining() {
     return () => { if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; } };
   }, [jobs]);
 
+  const delay = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms));
+
+  const waitForJob = async (jobId: string, label: string) => {
+    for (let i = 0; i < 900; i++) {
+      const { data } = await supabase.from('ai_training_jobs' as any)
+        .select('status,message')
+        .eq('id', jobId)
+        .maybeSingle();
+      const jobState = data as { status?: string; message?: string } | null;
+      await reload();
+      if (!jobState || jobState.status === 'done') return true;
+      if (jobState.status === 'failed' || jobState.status === 'cancelled') throw new Error(jobState.message || `${label} interrompido`);
+      await delay(1500);
+    }
+    throw new Error(`${label} demorou demais. O progresso ficou salvo; tente continuar em instantes.`);
+  };
+
+  const analyzeUntilDone = async (startedJobId?: string) => {
+    if (analysisLoopRef.current) return;
+    analysisLoopRef.current = true;
+    setAnalyzing(true);
+    let jobId = startedJobId;
+    try {
+      for (let i = 0; i < 2000; i++) {
+        const { data, error } = await supabase.functions.invoke('ai-training-analyze', {
+          body: { jobId, batch: 1 },
+        });
+        if (error) throw error;
+        jobId = data?.jobId ?? jobId;
+        await reload();
+
+        if (data?.cancelled) {
+          toast({ title: 'Análise parada', description: 'O processamento foi interrompido com segurança.' });
+          return;
+        }
+        if (data?.done || Number(data?.remaining ?? 0) === 0) {
+          toast({ title: 'Análise concluída', description: '100% das conversas pendentes foram processadas.' });
+          return;
+        }
+        await delay(700);
+      }
+      throw new Error('A análise ainda está em andamento. Clique em Analisar novamente para continuar de onde parou.');
+    } finally {
+      analysisLoopRef.current = false;
+      setAnalyzing(false);
+      await reload();
+    }
+  };
+
   const runImport = async () => {
     setImporting(true);
     try {
@@ -185,15 +235,12 @@ export default function AiTraining() {
   };
 
   const runAnalyze = async () => {
-    setAnalyzing(true);
     try {
-      const { error } = await supabase.functions.invoke('ai-training-analyze', { body: {} });
-      if (error) throw error;
-      toast({ title: 'Análise iniciada', description: 'Processando 100% das conversas em segundo plano. Acompanhe em Jobs.' });
-      setTimeout(reload, 800);
+      toast({ title: 'Análise iniciada', description: 'Processando em lotes seguros, com progresso atualizado na tela.' });
+      await analyzeUntilDone();
     } catch (e: any) {
       toast({ title: 'Erro', description: e.message, variant: 'destructive' });
-    } finally { setAnalyzing(false); }
+    }
   };
 
 
@@ -203,32 +250,31 @@ export default function AiTraining() {
     try {
       setImporting(true);
       // limpa jobs travados
-      await supabase.from('ai_training_jobs' as any).update({ status: 'failed', message: 'Reset' }).eq('user_id', user.id).eq('status','running');
+      await supabase.from('ai_training_jobs' as any).update({ status: 'failed', finished_at: new Date().toISOString(), message: 'Reset' }).eq('user_id', user.id).eq('status','running');
       // apaga tudo
       await supabase.from('ai_knowledge_items' as any).delete().eq('user_id', user.id);
       await supabase.from('ai_training_conversations' as any).delete().eq('user_id', user.id);
       toast({ title: 'Central limpa', description: 'Reimportando e analisando tudo...' });
       // reimporta
-      await supabase.functions.invoke('ai-training-import', { body: { source: 'evolution' } });
-      // agenda análise (o import roda em background, a análise começa e pega o que já foi importado; polling continua chamando)
-      setTimeout(async () => {
-        await supabase.functions.invoke('ai-training-analyze', { body: {} });
-        reload();
-      }, 3000);
-      setTimeout(reload, 800);
+      const { data: importData, error: importError } = await supabase.functions.invoke('ai-training-import', { body: { source: 'evolution' } });
+      if (importError) throw importError;
+      if (importData?.job_id) await waitForJob(importData.job_id, 'Importação');
+      setImporting(false);
+      toast({ title: 'Importação concluída', description: 'Agora analisando 100% das conversas importadas.' });
+      await analyzeUntilDone();
     } catch (e: any) {
       toast({ title: 'Erro', description: e.message, variant: 'destructive' });
     } finally { setImporting(false); }
   };
 
   const cancelJob = async (jobId: string) => {
-    await supabase.from('ai_training_jobs' as any).update({ status: 'cancelled' }).eq('id', jobId);
+    await supabase.from('ai_training_jobs' as any).update({ status: 'cancelled', finished_at: new Date().toISOString() }).eq('id', jobId);
     setTimeout(reload, 500);
   };
   const forceKillStuck = async () => {
     if (!user) return;
     await supabase.from('ai_training_jobs' as any)
-      .update({ status: 'failed', message: 'Liberado manualmente' })
+      .update({ status: 'failed', finished_at: new Date().toISOString(), message: 'Liberado manualmente' })
       .eq('user_id', user.id).eq('status', 'running');
     reload();
   };
