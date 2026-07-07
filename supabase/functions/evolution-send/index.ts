@@ -315,6 +315,13 @@ function evalCondition(op: string, left: string, right: string) {
   return left.toLowerCase() === right.toLowerCase();
 }
 
+function randomAccessCode(len = 10) {
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let out = '';
+  for (let i = 0; i < len; i++) out += alphabet[Math.floor(Math.random() * alphabet.length)];
+  return out;
+}
+
 const DEFAULT_WEBHOOK_EVENTS = ['MESSAGE', 'SEND_MESSAGE', 'CONNECTION', 'QRCODE', 'PRESENCE', 'CHAT_PRESENCE', 'MESSAGE_RECEIPT', 'MESSAGES_UPDATE', 'RECEIPT'];
 
 function normalizeWebhookEvents(value: unknown) {
@@ -806,6 +813,22 @@ Deno.serve(async (req) => {
       const type = String(step.type || '');
       if (type === 'api_call') {
         const apiUrl = templateText(step.api_url, vars);
+        if (apiUrl === 'internal:generate-access-code') {
+          let code = randomAccessCode(10);
+          for (let i = 0; i < 5; i++) {
+            const { data: exists } = await admin.from('reseller_access_codes').select('id').eq('code', code).maybeSingle();
+            if (!exists) break;
+            code = randomAccessCode(10);
+          }
+          const { error: codeErr } = await admin.from('reseller_access_codes').insert({
+            code,
+            days: Number(step.days || 30) || 30,
+            created_by: user.id,
+          });
+          if (codeErr) return jsonResponse({ ok: false, error: codeErr.message }, 200);
+          const replyText = templateText(step.text || 'Perfeito. Sua chave de acesso é: {{chave_acesso}}', { ...vars, chave_acesso: code });
+          return jsonResponse({ ok: true, replyText, variables: { [String(step.variable || 'chave_acesso')]: code, chave_acesso: code }, nextStepId: step.buttons?.[0]?.next_step_id || null });
+        }
         if (!/^https?:\/\//i.test(apiUrl)) return jsonResponse({ ok: false, error: 'URL de API inválida' }, 200);
         let headers: Record<string, string> = {};
         try { headers = step.api_headers ? JSON.parse(templateText(step.api_headers, vars)) : {}; } catch { return jsonResponse({ ok: false, error: 'Headers da API não são JSON válido' }, 200); }
