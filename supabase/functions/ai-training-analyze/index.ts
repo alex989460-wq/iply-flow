@@ -7,7 +7,7 @@ const AI_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
 const EMB_URL = "https://ai.gateway.lovable.dev/v1/embeddings";
 // Modelo rápido e econômico para analisar 100% sem travar; fallback só para erro técnico.
 const MODEL_PRIMARY = "google/gemini-2.5-flash";
-const MODEL_FALLBACK = "openai/gpt-4.1-mini";
+const MODEL_FALLBACK = "google/gemini-2.5-flash-lite";
 const EMB_MODEL = "openai/text-embedding-3-small";
 
 const KINDS = ["procedure","flow","intent","official_answer","business_rule","tutorial"] as const;
