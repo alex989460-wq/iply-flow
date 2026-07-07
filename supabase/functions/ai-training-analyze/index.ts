@@ -152,6 +152,142 @@ function detectFrom(text: string, list: string[]): string | null {
   return null;
 }
 
+function detectTvBrand(text: string): string | null {
+  const n = normalize(text);
+  for (const brand of TV_BRANDS) {
+    if (new RegExp(`(^|\\s)${normalize(brand).replace(/\\s+/g, "\\s+")}(\\s|$)`).test(n)) return brand;
+  }
+  return null;
+}
+
+function hasAny(text: string, hints: string[]): boolean {
+  const n = normalize(text);
+  return hints.some((h) => n.includes(normalize(h)));
+}
+
+function classifyStage(text: string): string | null {
+  const n = normalize(text);
+  if (hasAny(n, SALES_HINTS)) return "interesse_compra";
+  if (hasAny(n, CATEGORY_KEYWORDS.indicacao)) return "indicacao";
+  if (detectTvBrand(n) || /\b(minha|meu)\s+tv\b/.test(n)) return "marca_tv";
+  if (hasAny(n, ["pronto", "instalei", "baixei", "ja instalei", "já instalei", "abri o app"])) return "app_instalado";
+  if (hasAny(n, ["codigo", "código", "chave", "acesso", "usuario", "senha", "login"])) return "dados_acesso";
+  return null;
+}
+
+function normalizeProfessionalAnswer(text: string, context: { category: string; app?: string | null; device?: string | null; brand?: string | null }) {
+  const clean = String(text || "").replace(/\s+/g, " ").trim();
+  const n = normalize(clean);
+  const app = context.app || (context.brand === "lg" ? "Strimo" : "aplicativo indicado");
+  const brand = context.brand || context.device || "sua TV";
+
+  if (context.category === "venda" || hasAny(clean, SALES_HINTS)) {
+    return "Olá! Seja bem-vindo(a). 😊\n\nSe você veio por indicação, por favor anexe ou informe o contato da pessoa que te indicou. Em seguida, me informe a marca da sua TV para eu te passar o procedimento correto de instalação.";
+  }
+
+  if (context.category === "indicacao") {
+    return "Perfeito, obrigado pela indicação. Agora me informe a marca da sua TV para eu te orientar com o aplicativo correto.";
+  }
+
+  if (context.category === "instalacao" || context.brand) {
+    if (context.brand === "lg") {
+      return "Perfeito, sua TV é LG. Siga este procedimento:\n\n1. Abra a Loja de Apps da TV LG.\n2. Pesquise por Strimo.\n3. Instale e abra o aplicativo.\n4. Assim que abrir, me envie a foto/código que aparece na tela para eu liberar o acesso.";
+    }
+    return `Perfeito, entendi que é ${brand}. Siga o procedimento de instalação do ${app} para esse aparelho e, ao abrir o app, me envie a foto ou código que aparecer na tela para eu liberar o acesso.`;
+  }
+
+  if (context.category === "ativacao" || hasAny(clean, ["pronto", "instalei", "codigo", "chave"])) {
+    return "Perfeito. Vou gerar sua chave de acesso e te enviar os dados para entrar no aplicativo. Assim que receber, abra o app, informe os dados e me avise se entrou tudo certo.";
+  }
+
+  return clean.slice(0, 1500);
+}
+
+function buildFlowNodes(turns: Turn[], context: { brand?: string | null; app?: string | null }) {
+  const brand = context.brand || "lg";
+  const app = context.app || (brand === "lg" ? "Strimo" : "aplicativo recomendado");
+  const hasSale = turns.some((t) => t.role === "CLIENTE" && classifyStage(t.text) === "interesse_compra");
+  const hasBrand = turns.some((t) => t.role === "CLIENTE" && (classifyStage(t.text) === "marca_tv" || detectTvBrand(t.text)));
+  const hasInstalled = turns.some((t) => t.role === "CLIENTE" && classifyStage(t.text) === "app_instalado");
+  if (!hasSale || !hasBrand) return null;
+
+  const start = "inicio_venda";
+  const askBrand = "perguntar_marca_tv";
+  const conditionBrand = "detectar_marca_tv";
+  const installLg = "instalar_strimo_lg";
+  const waitInstalled = "aguardar_instalacao";
+  const sendAccess = "enviar_dados_acesso";
+  const transfer = "transferir_suporte";
+
+  return [
+    {
+      id: start,
+      type: "text",
+      title: "Boas-vindas e indicação",
+      text: "Olá! Seja bem-vindo(a). 😊\n\nSe você veio por indicação, por favor anexe ou informe o contato da pessoa que te indicou.",
+      buttons: [{ id: "next", label: "Próximo", next_step_id: askBrand }],
+      position: { x: 120, y: 120 },
+    },
+    {
+      id: askBrand,
+      type: "question",
+      title: "Perguntar marca da TV",
+      text: "Agora me informe a marca da sua TV para eu te passar a instalação correta.",
+      variable: "marca_tv",
+      buttons: [{ id: "next", label: "Próximo", next_step_id: conditionBrand }],
+      position: { x: 460, y: 120 },
+    },
+    {
+      id: conditionBrand,
+      type: "condition",
+      title: "Detectar marca da TV",
+      condition_variable: "marca_tv",
+      condition_rules: [
+        { id: "lg", op: "contains", value: "lg", next_step_id: installLg },
+      ],
+      buttons: [{ id: "default", label: "Senão", next_step_id: transfer }],
+      position: { x: 800, y: 120 },
+    },
+    {
+      id: installLg,
+      type: "question",
+      title: `Instalação ${app} na LG`,
+      text: `Perfeito, sua TV é LG. Faça assim:\n\n1. Abra a Loja de Apps da TV LG.\n2. Pesquise por ${app}.\n3. Instale e abra o aplicativo.\n4. Quando aparecer o código ou tela inicial, me envie uma foto aqui.`,
+      variable: "confirmacao_instalacao",
+      buttons: [{ id: "next", label: "Próximo", next_step_id: waitInstalled }],
+      position: { x: 1140, y: 80 },
+    },
+    {
+      id: waitInstalled,
+      type: "condition",
+      title: "Confirmou instalação",
+      condition_variable: "confirmacao_instalacao",
+      condition_rules: [
+        { id: "pronto", op: "regex", value: "(pronto|instalei|baixei|abri|codigo|código|foto)", next_step_id: sendAccess },
+      ],
+      buttons: [{ id: "default", label: "Senão", next_step_id: installLg }],
+      position: { x: 1480, y: 80 },
+    },
+    {
+      id: sendAccess,
+      type: "text",
+      title: "Enviar dados de acesso",
+      text: "Perfeito. Vou gerar sua chave de acesso e te enviar os dados para entrar no aplicativo. Assim que acessar, me avise se abriu tudo certo. ✅",
+      buttons: [],
+      position: { x: 1820, y: 80 },
+    },
+    {
+      id: transfer,
+      type: "transfer",
+      title: "Marca não reconhecida",
+      text: "Vou te direcionar para um atendente confirmar o melhor aplicativo para essa TV.",
+      transfer_department: "suporte",
+      buttons: [],
+      position: { x: 1140, y: 300 },
+    },
+  ].map((step) => ({ ...step, inferred_from_history: true, strong_signal: hasInstalled }));
+}
+
 function isInstruction(text: string): boolean {
   return INSTRUCTION_HINTS.some((r) => r.test(text));
 }
@@ -163,14 +299,27 @@ function analyzeLocal(turns: Turn[]) {
     return { signal_quality: "none" as const };
   }
 
-  // problem = maior mensagem inicial do CLIENTE (nas 3 primeiras)
-  const earlyClients = clients.slice(0, 3).sort((a, b) => b.text.length - a.text.length);
-  const problem = (earlyClients[0]?.text || clients[0].text).slice(0, 500);
+  const full = turns.map((t) => t.text).join(" ");
+  const category = detectCategory(full);
+  const brand = detectTvBrand(full);
+  const device = brand ? `tv ${brand}` : detectFrom(full, DEVICES);
+  const app = detectFrom(full, APPS) || (brand === "lg" ? "strimo" : null);
+  const stages = new Set(turns.map((t) => classifyStage(t.text)).filter(Boolean) as string[]);
+  const stageScore = Math.min(1, stages.size / 4);
 
-  // solução = mensagens do OPERADOR que contêm instrução; se nenhuma, pega a maior do OPERADOR
-  const instrOps = ops.filter((t) => isInstruction(t.text));
-  const chosenOps = (instrOps.length ? instrOps : [ops.slice().sort((a, b) => b.text.length - a.text.length)[0]]).slice(0, 6);
-  const solution = chosenOps.map((t) => t.text).join(" \n").slice(0, 1500);
+  // problem = melhor mensagem do CLIENTE após analisar o atendimento inteiro, não apenas o início.
+  const rankedClients = clients.slice().sort((a, b) => {
+    const sa = (classifyStage(a.text) ? 2 : 0) + Math.min(a.text.length / 120, 1);
+    const sb = (classifyStage(b.text) ? 2 : 0) + Math.min(b.text.length / 120, 1);
+    return sb - sa;
+  });
+  const problem = (rankedClients[0]?.text || clients[0].text).slice(0, 500);
+
+  // solução = cruza todas as mensagens do operador e prioriza respostas instrutivas/contextuais.
+  const instrOps = ops.filter((t) => isInstruction(t.text) || classifyStage(t.text));
+  const chosenOps = (instrOps.length ? instrOps : ops.slice().sort((a, b) => b.text.length - a.text.length)).slice(0, 8);
+  const rawSolution = chosenOps.map((t) => t.text).join(" \n").slice(0, 1800);
+  const solution = normalizeProfessionalAnswer(rawSolution, { category, app, device, brand }).slice(0, 1800);
 
   // steps: enumera linhas com "1)" "2)" ou verbos-início
   const steps: string[] = [];
@@ -188,22 +337,19 @@ function analyzeLocal(turns: Turn[]) {
   const lastOpIdx = turns.map((t, i) => ({ t, i })).filter((x) => x.t.role === "OPERADOR" && isInstruction(x.t.text)).pop()?.i ?? -1;
   const resolved = lastOpIdx >= 0 && turns.slice(lastOpIdx + 1).some((t) => t.role === "CLIENTE" && RESOLUTION_HINTS.some((r) => r.test(t.text)));
 
-  const full = turns.map((t) => t.text).join(" ");
-  const category = detectCategory(full);
-  const device = detectFrom(full, DEVICES);
-  const app = detectFrom(full, APPS);
-
   // qualidade do sinal: precisa ter problema + solução com verbo de instrução
   let signal: "high" | "medium" | "none" = "none";
-  if (problem.length >= 20 && solution.length >= 20 && instrOps.length >= 1) signal = "high";
-  else if (problem.length >= 15 && solution.length >= 15) signal = "medium";
+  if (problem.length >= 20 && solution.length >= 20 && (instrOps.length >= 1 || stageScore >= 0.5)) signal = "high";
+  else if (problem.length >= 15 && solution.length >= 15 && stageScore >= 0.25) signal = "medium";
 
   // subject curto derivado do problema
   const subject = problem.replace(/\s+/g, " ").slice(0, 140);
 
-  // kind: se tem >=2 passos numerados = procedure; se tem "?" no problema = intent; senão official_answer
+  // kind: fluxos com múltiplas etapas viram automação; procedimentos ficam separados.
   let kind: Kind = "official_answer";
-  if (steps.length >= 2) kind = "procedure";
+  const flowNodes = buildFlowNodes(turns, { brand, app });
+  if (flowNodes) kind = "flow";
+  else if (steps.length >= 2) kind = "procedure";
   else if (/\?/.test(problem)) kind = "intent";
 
   const keywords = Array.from(new Set(
@@ -211,16 +357,34 @@ function analyzeLocal(turns: Turn[]) {
       .filter((w) => w.length >= 4 && !STOPWORDS.has(w))
   )).slice(0, 12);
 
+  const flowKeywords = flowNodes ? ["ola", "olá", "adquirir", "comprar", "contratar", "sistema", "tv", brand || "lg", app || "strimo"].filter(Boolean) : [];
+
   return {
     signal_quality: signal,
-    problem, solution, resolved, category,
+    problem, solution, resolved, category: flowNodes ? "venda" : category,
     device, app,
     items: signal !== "none" ? [{
-      kind, subject, problem, solution,
-      steps: steps.slice(0, 12),
+      kind,
+      subject: flowNodes ? "Fluxo profissional de venda e instalação por marca da TV" : subject,
+      problem,
+      solution: flowNodes
+        ? "Fluxo aprovado para conduzir venda: saudação, indicação, identificação da marca da TV, procedimento de instalação do app correto e envio dos dados/chave de acesso."
+        : solution,
+      steps: flowNodes
+        ? [
+            "Cumprimentar e solicitar contato de indicação, se houver.",
+            "Perguntar a marca da TV.",
+            "Detectar automaticamente LG/Samsung/outra marca pela resposta do cliente.",
+            "Enviar procedimento correto de instalação do aplicativo.",
+            "Aguardar confirmação de instalação ou foto/código do app.",
+            "Enviar dados/chave de acesso ou transferir para suporte quando faltar informação.",
+          ]
+        : steps.slice(0, 12),
       devices: device ? [device] : [],
       apps: app ? [app] : [],
-      category, keywords,
+      category: flowNodes ? "venda" : category,
+      keywords: Array.from(new Set([...(flowKeywords as string[]), ...keywords])).slice(0, 20),
+      flow_nodes: flowNodes || [],
     }] : [],
   };
 }
