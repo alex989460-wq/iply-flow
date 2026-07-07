@@ -390,7 +390,9 @@ ${transcript}`);
                 message: e.message,
                 errors: totalErrors + 1,
               }).eq("id", job!.id);
-              return json({ error: e.message, code: e.code, jobId: job!.id }, 402);
+              // Retorna 200 com flag paused para que o frontend consiga exibir a mensagem
+              // amigável em vez do genérico "Edge Function returned a non-2xx status code".
+              return json({ ok: true, paused: true, reason: e.code, message: e.message, jobId: job!.id, processed: alreadyProcessed + batchProcessed });
             }
             totalErrors++;
             batchProcessed++;
