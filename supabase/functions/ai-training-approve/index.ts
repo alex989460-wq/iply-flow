@@ -14,6 +14,16 @@ function formatSolution(item: any): string {
   return parts.join("\n").slice(0, 4000);
 }
 
+function flowTriggers(item: any): string[] {
+  const keywords = (Array.isArray(item.keywords) ? item.keywords : [])
+    .map((k: unknown) => String(k || "").trim().toLowerCase())
+    .filter((k: string) => ["adquirir", "comprar", "contratar", "assinar", "sistema", "teste", "plano"].includes(k));
+  return Array.from(new Set([
+    "adquirir", "comprar", "contratar", "assinar", "quero o sistema", "gostaria de adquirir", "quero contratar", "teste", "plano",
+    ...keywords,
+  ])).slice(0, 30);
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   try {
@@ -71,6 +81,29 @@ Deno.serve(async (req) => {
       if (!item) return json({ error: "not found" }, 404);
 
       const merged = { ...item, ...(patch ?? {}) };
+      if (merged.kind === "flow" && Array.isArray(merged.flow_nodes) && merged.flow_nodes.length > 0) {
+        const flowName = String(merged.subject || "Fluxo aprendido pela IA").slice(0, 120);
+        const { data: flow, error: flowErr } = await supabase.from("bot_flows").insert({
+          owner_id: userId,
+          name: flowName,
+          enabled: true,
+          trigger_keywords: flowTriggers(merged),
+          start_step_id: merged.flow_nodes[0]?.id || null,
+          steps: merged.flow_nodes,
+        }).select("id").single();
+        if (flowErr) return json({ error: flowErr.message }, 500);
+
+        await supabase.from("ai_knowledge_items").update({
+          status: "approved",
+          approved_at: new Date().toISOString(),
+          approved_by: userId,
+          knowledge_entry_id: flow?.id,
+          ...(patch ?? {}),
+        }).eq("id", item_id).eq("user_id", userId);
+
+        return json({ ok: true, flow_id: flow?.id });
+      }
+
       const title = String(merged.subject || "Sem título").slice(0, 200);
       const response = formatSolution(merged);
 

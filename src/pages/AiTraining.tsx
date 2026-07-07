@@ -28,6 +28,7 @@ interface KItem {
   problem: string | null;
   solution: string | null;
   steps: string[];
+  flow_nodes?: any[];
   category: string;
   devices: string[];
   apps: string[];
@@ -116,11 +117,11 @@ export default function AiTraining() {
       { data: convsForStats },
     ] = await Promise.all([
       supabase.from('ai_training_jobs' as any).select('*').eq('user_id', user.id).order('created_at', { ascending: false }).limit(10),
-      supabase.from('ai_knowledge_items' as any).select('*').eq('user_id', user.id).in('status', ['pending','approved']).order('usage_count', { ascending: false }).limit(200),
+      supabase.from('ai_knowledge_items' as any).select('*').eq('user_id', user.id).in('status', ['pending','approved']).order('confidence', { ascending: false }).order('usage_count', { ascending: false }).limit(200),
       supabase.from('ai_training_conversations' as any).select('*', { count: 'exact', head: true }).eq('user_id', user.id),
       supabase.from('ai_training_conversations' as any).select('*', { count: 'exact', head: true }).eq('user_id', user.id).not('analyzed_at', 'is', null),
       supabase.from('ai_training_conversations' as any).select('*', { count: 'exact', head: true }).eq('user_id', user.id).in('signal_quality', ['high','medium']),
-      supabase.from('ai_knowledge_items' as any).select('*', { count: 'exact', head: true }).eq('user_id', user.id).eq('status','pending'),
+      supabase.from('ai_knowledge_items' as any).select('*', { count: 'exact', head: true }).eq('user_id', user.id).eq('status','pending').gte('confidence', 0.7),
       supabase.from('ai_knowledge_items' as any).select('*', { count: 'exact', head: true }).eq('user_id', user.id).eq('status','approved'),
       supabase.from('ai_training_conversations' as any).select('device,app,operator_name,resolved').eq('user_id', user.id).not('analyzed_at','is',null).limit(2000),
     ]);
@@ -198,14 +199,14 @@ export default function AiTraining() {
     try {
       for (let i = 0; i < 2000; i++) {
         const { data, error } = await supabase.functions.invoke('ai-training-analyze', {
-          body: { jobId, batch: 1 },
+          body: { jobId, batch: 50 },
         });
         if (error) throw error;
         jobId = data?.jobId ?? jobId;
         await reload();
 
         if (data?.paused) {
-          toast({ title: 'Análise pausada', description: data.message || 'A IA pausou o processamento. Recarregue créditos e clique em Analisar para continuar de onde parou.', variant: 'destructive' });
+          toast({ title: 'Análise pausada', description: data.message || 'O processamento foi pausado. Clique em Analisar para continuar de onde parou.', variant: 'destructive' });
           return;
         }
         if (data?.cancelled) {
@@ -240,7 +241,7 @@ export default function AiTraining() {
 
   const runAnalyze = async () => {
     try {
-      toast({ title: 'Análise iniciada', description: 'Processando em lotes seguros, com progresso atualizado na tela.' });
+      toast({ title: 'Análise iniciada', description: 'Lendo conversas completas, cruzando padrões e gerando sugestões com maior confiança.' });
       await analyzeUntilDone();
     } catch (e: any) {
       toast({ title: 'Erro', description: e.message, variant: 'destructive' });
@@ -302,7 +303,7 @@ export default function AiTraining() {
 
   const runningJob = jobs.find(j => j.status === 'running');
   const filtered = useMemo(() => filterKind === 'all' ? items : items.filter(i => i.kind === filterKind), [items, filterKind]);
-  const pendingList = filtered.filter(i => i.status === 'pending');
+  const pendingList = filtered.filter(i => i.status === 'pending' && Number(i.confidence || 0) >= 0.7);
 
   return (
     <DashboardLayout>
@@ -314,7 +315,7 @@ export default function AiTraining() {
               <Brain className="h-7 w-7 text-violet-500" />
               Central de Conhecimento IA
             </h1>
-            <p className="text-sm text-muted-foreground mt-1">Aprende com seus atendimentos reais — nada é publicado sem sua aprovação.</p>
+            <p className="text-sm text-muted-foreground mt-1">Analisa atendimentos completos, cruza padrões e só publica automações após sua aprovação.</p>
             <div className="mt-2 inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 text-xs font-medium">
               <span className="relative flex h-2 w-2">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
@@ -436,7 +437,7 @@ export default function AiTraining() {
                 </Button>
                 <Button variant="outline" onClick={runAnalyze} disabled={analyzing || !!runningJob}>
                   {analyzing ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Brain className="h-4 w-4 mr-1" />}
-                  Analisar (extrair conhecimento)
+                  Analisar e cruzar histórico
                 </Button>
                 <Button variant="destructive" onClick={resetCentral} disabled={importing || analyzing || !!runningJob}>
                   <Trash2 className="h-4 w-4 mr-1" />
@@ -473,11 +474,11 @@ export default function AiTraining() {
           {/* ============ APPROVE ============ */}
           <TabsContent value="approve" className="space-y-4 mt-4">
             <div className="flex gap-2 flex-wrap">
-              <Button size="sm" variant={filterKind==='all'?'default':'outline'} onClick={()=>setFilterKind('all')}>Todos ({items.filter(i=>i.status==='pending').length})</Button>
+              <Button size="sm" variant={filterKind==='all'?'default':'outline'} onClick={()=>setFilterKind('all')}>Todos ({items.filter(i=>i.status==='pending' && Number(i.confidence || 0) >= 0.7).length})</Button>
               {(Object.keys(KIND_META) as Kind[]).map((k) => {
                 const meta = KIND_META[k];
                 const Icon = meta.icon;
-                const n = items.filter(i=>i.kind===k && i.status==='pending').length;
+                const n = items.filter(i=>i.kind===k && i.status==='pending' && Number(i.confidence || 0) >= 0.7).length;
                 return (
                   <Button key={k} size="sm" variant={filterKind===k?'default':'outline'} onClick={()=>setFilterKind(k)} className="gap-1">
                     <Icon className="h-3.5 w-3.5" />{meta.label} ({n})
@@ -489,7 +490,7 @@ export default function AiTraining() {
             {pendingList.length === 0 ? (
               <Card className="p-12 text-center text-muted-foreground">
                 <Sparkles className="h-8 w-8 mx-auto mb-2 opacity-40" />
-                Nenhum conhecimento pendente. Rode uma análise para gerar novos itens.
+                Nenhuma sugestão com confiança alta. Rode a análise completa para cruzar mais conversas.
               </Card>
             ) : (
               <div className="grid gap-3">
@@ -578,6 +579,20 @@ function ItemCard({ item, approved, onAct, onEdit, onSource }: {
       </div>
 
       {item.solution && <p className="text-sm mb-2"><b>Solução:</b> {item.solution}</p>}
+
+      {item.kind === 'flow' && item.flow_nodes && item.flow_nodes.length > 0 && (
+        <div className="bg-muted/40 rounded p-3 mb-3">
+          <p className="text-xs font-semibold mb-2 text-muted-foreground uppercase tracking-wider">Fluxo automático sugerido</p>
+          <div className="grid gap-2 md:grid-cols-2">
+            {item.flow_nodes.slice(0, 6).map((node: any, i: number) => (
+              <div key={node.id || i} className="rounded border border-border p-2 text-xs">
+                <p className="font-semibold">{i + 1}. {node.title || node.type}</p>
+                {node.text && <p className="text-muted-foreground mt-1 line-clamp-3">{node.text}</p>}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {item.steps.length > 0 && (
         <div className="bg-muted/40 rounded p-3 mb-3">

@@ -308,11 +308,24 @@ function templateText(value: unknown, vars: Record<string, unknown>) {
   return String(value || '').replace(/\{\{\s*([\w.-]+)\s*\}\}/g, (_, key) => String(vars[key] ?? ''));
 }
 
+function normalizeConditionText(value: string) {
+  return String(value || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
+}
+
 function evalCondition(op: string, left: string, right: string) {
-  if (op === 'contains') return left.toLowerCase().includes(right.toLowerCase());
-  if (op === 'starts') return left.toLowerCase().startsWith(right.toLowerCase());
+  const l = normalizeConditionText(left);
+  const r = normalizeConditionText(right);
+  if (op === 'contains') return l.includes(r);
+  if (op === 'starts') return l.startsWith(r);
   if (op === 'regex') { try { return new RegExp(right, 'i').test(left); } catch { return false; } }
-  return left.toLowerCase() === right.toLowerCase();
+  return l === r;
+}
+
+function randomAccessCode(len = 10) {
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let out = '';
+  for (let i = 0; i < len; i++) out += alphabet[Math.floor(Math.random() * alphabet.length)];
+  return out;
 }
 
 const DEFAULT_WEBHOOK_EVENTS = ['MESSAGE', 'SEND_MESSAGE', 'CONNECTION', 'QRCODE', 'PRESENCE', 'CHAT_PRESENCE', 'MESSAGE_RECEIPT', 'MESSAGES_UPDATE', 'RECEIPT'];
@@ -752,8 +765,8 @@ Deno.serve(async (req) => {
       const attempts: Array<{ url: string; headers: Record<string, string>; body: any; mode: string }> = [];
       for (const target of targets) {
         const title = text || 'Escolha uma opção:';
-        const rows = buttons.map((b) => ({ title: b.label, description: '', rowId: b.id }));
-        const cleanReply = buttons.slice(0, 3).map((b) => ({ type: 'reply', displayText: b.label, id: b.id }));
+        const rows = buttons.map((b: { id: string; label: string }) => ({ title: b.label, description: '', rowId: b.id }));
+        const cleanReply = buttons.slice(0, 3).map((b: { id: string; label: string }) => ({ type: 'reply', displayText: b.label, id: b.id }));
         const isJid = /@(lid|s\.whatsapp\.net)\b/i.test(target);
         const number = isJid ? target : target.split('@')[0].replace(/\D/g, '');
         const forceList = menuMode === 'list' || buttons.length > 3;
@@ -761,13 +774,13 @@ Deno.serve(async (req) => {
           attempts.push(
             { url: `${baseUrl}/message/sendList/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number, title, description: title, buttonText: 'Ver opções', footerText: ' ', sections: [{ title: 'Opções', rows }] }, mode: 'evo-v2-list' },
             { url: `${baseUrl}/message/sendList/${encodeURIComponent(instance)}`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number, title, description: title, buttonText: 'Ver opções', footerText: ' ', sections: [{ title: 'Opções', rows }] }, mode: 'evo-v2-list-instkey' },
-            { url: `${baseUrl}/send/list`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number, title, description: title, buttonText: 'Ver opções', footerText: ' ', sections: [{ title: 'Opções', rows: rows.map((r) => ({ id: r.rowId, rowId: r.rowId, title: r.title, description: '' })) }], formatJid: !isJid }, mode: 'evo-go-send-list' },
+            { url: `${baseUrl}/send/list`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number, title, description: title, buttonText: 'Ver opções', footerText: ' ', sections: [{ title: 'Opções', rows: rows.map((r: { rowId: string; title: string }) => ({ id: r.rowId, rowId: r.rowId, title: r.title, description: '' })) }], formatJid: !isJid }, mode: 'evo-go-send-list' },
           );
         } else {
           attempts.push(
             { url: `${baseUrl}/message/sendButtons/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number, title, description: title, footer: ' ', buttons: cleanReply }, mode: 'evo-v2-buttons' },
             { url: `${baseUrl}/message/sendButtons/${encodeURIComponent(instance)}`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number, title, description: title, footer: ' ', buttons: cleanReply }, mode: 'evo-v2-buttons-instkey' },
-            { url: `${baseUrl}/send/button`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number, title, description: title, footer: ' ', buttons: cleanReply.map((b) => ({ id: b.id, displayText: b.displayText, type: 'reply' })), formatJid: !isJid }, mode: 'evo-go-send-button' },
+            { url: `${baseUrl}/send/button`, headers: evolutionHeaders(instAuth.apiKey, true, instAuth.instanceId), body: { number, title, description: title, footer: ' ', buttons: cleanReply.map((b: { id: string; displayText: string }) => ({ id: b.id, displayText: b.displayText, type: 'reply' })), formatJid: !isJid }, mode: 'evo-go-send-button' },
             { url: `${baseUrl}/message/sendList/${encodeURIComponent(instance)}`, headers: evolutionHeaders(apiKey, true), body: { number, title, description: title, buttonText: 'Ver opções', footerText: ' ', sections: [{ title: 'Opções', rows }] }, mode: 'evo-v2-list-fallback' },
           );
         }
@@ -786,7 +799,7 @@ Deno.serve(async (req) => {
       }
       if (!result.ok) {
         console.log('[send-menu] all interactive attempts failed, falling back to numbered text');
-        const fallbackText = `${text}\n\n${buttons.map((b, i) => `${i + 1}️⃣ ${b.label}`).join('\n')}`.trim();
+        const fallbackText = `${text}\n\n${buttons.map((b: { label: string }, i: number) => `${i + 1}️⃣ ${b.label}`).join('\n')}`.trim();
         const sendRes = await fetchJson(`${baseUrl}/message/sendText/${encodeURIComponent(instance)}`, { method: 'POST', headers: evolutionHeaders(apiKey, true), body: JSON.stringify({ number: targets[0], text: fallbackText, textMessage: { text: fallbackText } }) }, 8000).catch((e) => ({ ok: false, status: 0, data: { error: String(e?.message || e) } }));
         if (sendRes.ok) {
           await insertOutgoingMessage(admin, { user_id: user.id, instance_name: instance, remote_jid: `${phone}@s.whatsapp.net`, phone, direction: 'out', content: fallbackText, message_type: 'text', status: 'sent', external_id: sendRes.data?.key?.id || `menu-${crypto.randomUUID()}`, raw: { ...sendRes.data, __bot_menu: true, __bot_flow: true, __mode: 'text-fallback', __attempts: log } });
@@ -794,7 +807,7 @@ Deno.serve(async (req) => {
         }
         return jsonResponse({ ok: false, error: `Falha ao enviar menu (${log.map((l) => `${l.mode}:${l.status}`).join(' | ')})`, attempts: log, data: result.data }, 200);
       }
-      const content = `${text}\n\n${buttons.map((b, i) => `${i + 1}️⃣ ${b.label}`).join('\n')}`.trim();
+      const content = `${text}\n\n${buttons.map((b: { label: string }, i: number) => `${i + 1}️⃣ ${b.label}`).join('\n')}`.trim();
       await insertOutgoingMessage(admin, { user_id: user.id, instance_name: instance, remote_jid: `${phone}@s.whatsapp.net`, phone, direction: 'out', content, message_type: 'text', status: 'sent', external_id: result.data?.key?.id || result.data?.messageId || result.data?.data?.Info?.ID || `menu-${crypto.randomUUID()}`, raw: { ...result.data, __bot_menu: true, __bot_flow: true, __mode: mode, __attempts: log } });
       return jsonResponse({ ok: true, mode, data: result.data });
     }
@@ -806,6 +819,30 @@ Deno.serve(async (req) => {
       const type = String(step.type || '');
       if (type === 'api_call') {
         const apiUrl = templateText(step.api_url, vars);
+        if (apiUrl === 'internal:generate-access-code') {
+          const { data: roleRow } = await admin.from('user_roles').select('user_id').eq('user_id', user.id).eq('role', 'admin').maybeSingle();
+          if (!roleRow) {
+            const { data: access } = await admin.from('reseller_access').select('id,credits').eq('user_id', user.id).maybeSingle();
+            const credits = Number(access?.credits || 0);
+            if (!access || credits < 1) return jsonResponse({ ok: false, error: 'Crédito insuficiente para gerar chave automática' }, 200);
+            const { error: debitErr } = await admin.from('reseller_access').update({ credits: credits - 1 }).eq('id', access.id);
+            if (debitErr) return jsonResponse({ ok: false, error: debitErr.message }, 200);
+          }
+          let code = randomAccessCode(10);
+          for (let i = 0; i < 5; i++) {
+            const { data: exists } = await admin.from('reseller_access_codes').select('id').eq('code', code).maybeSingle();
+            if (!exists) break;
+            code = randomAccessCode(10);
+          }
+          const { error: codeErr } = await admin.from('reseller_access_codes').insert({
+            code,
+            days: Number(step.days || 30) || 30,
+            created_by: user.id,
+          });
+          if (codeErr) return jsonResponse({ ok: false, error: codeErr.message }, 200);
+          const replyText = templateText(step.text || 'Perfeito. Sua chave de acesso é: {{chave_acesso}}', { ...vars, chave_acesso: code });
+          return jsonResponse({ ok: true, replyText, variables: { [String(step.variable || 'chave_acesso')]: code, chave_acesso: code }, nextStepId: step.buttons?.[0]?.next_step_id || null });
+        }
         if (!/^https?:\/\//i.test(apiUrl)) return jsonResponse({ ok: false, error: 'URL de API inválida' }, 200);
         let headers: Record<string, string> = {};
         try { headers = step.api_headers ? JSON.parse(templateText(step.api_headers, vars)) : {}; } catch { return jsonResponse({ ok: false, error: 'Headers da API não são JSON válido' }, 200); }
