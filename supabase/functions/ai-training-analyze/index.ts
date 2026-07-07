@@ -394,7 +394,7 @@ function analyzeLocal(turns: Turn[]) {
 function computeConfidence(usage: number, rate: number): number {
   // Base mais conservadora/profissional: só vira sugestão quando há sinal útil;
   // a confiança sobe principalmente por repetição do mesmo padrão e resolução.
-  const c = 0.58 + 0.24 * Math.min(1, Math.log10(usage + 1) / 1.2) + 0.18 * rate;
+  const c = 0.68 + 0.2 * Math.min(1, Math.log10(usage + 1) / 1.2) + 0.12 * rate;
   return Math.min(1, Math.max(0, +c.toFixed(3)));
 }
 
