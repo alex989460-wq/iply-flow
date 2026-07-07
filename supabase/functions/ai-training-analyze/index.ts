@@ -145,18 +145,22 @@ Deno.serve(async (req) => {
     const userId = userData.user.id;
 
     const body = await req.json().catch(() => ({}));
-    const batch: number = Math.min(15, body.batch ?? 10);
+    const chunk: number = Math.min(20, Math.max(1, body.batch ?? 15));
+
+    // Total pendente
+    const { count: pendingTotal } = await supabase.from("ai_training_conversations")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", userId).is("analyzed_at", null);
 
     const { data: job } = await supabase.from("ai_training_jobs")
-      .insert({ user_id: userId, kind: "analyze", status: "running", message: "Iniciando análise inteligente..." })
+      .insert({
+        user_id: userId, kind: "analyze", status: "running",
+        total: pendingTotal ?? 0, processed: 0,
+        message: `Analisando ${pendingTotal ?? 0} conversas em segundo plano...`,
+      })
       .select().single();
 
-    const { data: convs } = await supabase.from("ai_training_conversations")
-      .select("id,raw,contact_phone,duration_seconds,message_count")
-      .eq("user_id", userId).is("analyzed_at", null)
-      .limit(batch);
-
-    if (!convs || convs.length === 0) {
+    if (!pendingTotal || pendingTotal === 0) {
       await supabase.from("ai_training_jobs").update({
         status: "done", finished_at: new Date().toISOString(),
         message: "Nenhuma conversa pendente para analisar",
@@ -164,190 +168,211 @@ Deno.serve(async (req) => {
       return json({ ok: true, processed: 0 });
     }
 
-    let itemsCreated = 0, itemsMerged = 0, noSignal = 0, errors = 0;
+    // Processa TODAS as conversas em background, em chunks
+    const runAll = async () => {
+      let totalItemsCreated = 0, totalItemsMerged = 0, totalNoSignal = 0, totalErrors = 0, totalProcessed = 0;
+      const startedAt = Date.now();
+      const MAX_MS = 25 * 60 * 1000; // 25 min por invocação (limite edge ~30 min)
 
-    for (const c of convs) {
-      try {
-        const { turns, hasAudio, hasImage, hasFile } = sanitize((c.raw as any[]) || []);
-        // Precisa de pelo menos 1 cliente + 1 operador com sinal
-        const hasClient = turns.some(t => t.role === "CLIENTE");
-        const hasOp = turns.some(t => t.role === "OPERADOR");
-        if (!hasClient || !hasOp || turns.length < 2) {
-          noSignal++;
-          await supabase.from("ai_training_conversations").update({
-            analyzed_at: new Date().toISOString(),
-            signal_quality: "none",
-            analysis_version: 2,
-          }).eq("id", c.id);
-          continue;
+      while (true) {
+        // Checa cancelamento
+        const { data: jobState } = await supabase.from("ai_training_jobs")
+          .select("status").eq("id", job!.id).single();
+        if (jobState?.status === "cancelled") {
+          await supabase.from("ai_training_jobs").update({
+            finished_at: new Date().toISOString(),
+            message: `Cancelado após ${totalProcessed} conversas. ${totalItemsCreated} novos, ${totalItemsMerged} agrupados.`,
+          }).eq("id", job!.id);
+          return;
+        }
+        if (Date.now() - startedAt > MAX_MS) {
+          await supabase.from("ai_training_jobs").update({
+            status: "done", finished_at: new Date().toISOString(),
+            message: `Pausado por tempo. ${totalProcessed} analisadas — clique novamente para continuar.`,
+          }).eq("id", job!.id);
+          return;
         }
 
-        const transcript = turns.map(t => `${t.role}: ${t.text}`).join("\n").slice(0, 6000);
+        const { data: convs } = await supabase.from("ai_training_conversations")
+          .select("id,raw,contact_phone,duration_seconds,message_count")
+          .eq("user_id", userId).is("analyzed_at", null)
+          .limit(chunk);
 
-        // PASS A - compreensão profunda
-        const passA = await callAI(apiKey,
-          `Você é um analista sênior de suporte técnico especializado em IPTV/streaming no Brasil. Sua função é entender atendimentos reais entre operadores e clientes com precisão cirúrgica. Você conhece termos populares como: "lista", "teste", "playlist m3u", "código Xtream", "MAC", "renovar", "vencido", "travando", "sem sinal", "erro de servidor", "IBO", "SmartOne", "Xcloud TV", "Bay TV", "Duplecast", "9xTream", "SS IPTV", "TiviMate", "IPTV Smarters". Categorias válidas: ${CATEGORIES.join(", ")}. Responda SOMENTE JSON válido, sem markdown.`,
-          `Analise o atendimento abaixo com profundidade e responda EXATAMENTE neste JSON:
-{"problem":"descrição objetiva e específica do problema real do cliente (não genérico)","solution":"o que o operador REALMENTE fez para resolver, passo a passo resumido","resolved":true|false,"category":"uma das categorias listadas","device":"Fire TV|Android TV|Samsung|LG|Roku|TV Box|Windows|macOS|Web|Celular|iPhone|iPad|null","app":"nome exato do app citado (IBO Player, SmartOne, TiviMate, IPTV Smarters, Xcloud, etc) ou null","operator":"primeiro nome do operador se aparecer assinatura ou null","signal_quality":"high|medium|none","confidence_reason":"1 linha explicando por que classificou assim"}
+        if (!convs || convs.length === 0) break;
 
-REGRAS CRÍTICAS (siga sem exceção):
-1. signal_quality="none" APENAS se: só troca de saudações, só envio de comprovante/PIX sem dúvida, sem problema identificável, ou operador nem respondeu tecnicamente.
-2. signal_quality="high" quando: problema técnico claro + solução aplicada e confirmada pelo cliente.
-3. signal_quality="medium" para casos parciais (dúvida respondida mas sem confirmação, ou problema sem solução final).
-4. "problem" NUNCA pode ser vago tipo "cliente com dúvida". Escreva especificamente: "app IBO travando ao abrir canal SporTV na Fire TV".
-5. "solution" descreve AÇÕES técnicas reais ("limpar cache do app, desinstalar e reinstalar com playlist atualizada"), NUNCA "ajudei o cliente".
-6. "resolved"=true SOMENTE se cliente confirmou funcionamento ou operador finalizou com sucesso comprovado.
-7. Se cliente pediu algo administrativo (renovar, cancelar, pedir teste), category correspondente (renovacao, cancelamento, teste) e resolved=true se foi atendido.
+        for (const c of convs) {
+          try {
+            const { turns } = sanitize((c.raw as any[]) || []);
+            const hasClient = turns.some(t => t.role === "CLIENTE");
+            const hasOp = turns.some(t => t.role === "OPERADOR");
+            if (!hasClient || !hasOp || turns.length < 2) {
+              totalNoSignal++;
+              await supabase.from("ai_training_conversations").update({
+                analyzed_at: new Date().toISOString(),
+                signal_quality: "none",
+                analysis_version: 3,
+              }).eq("id", c.id);
+              totalProcessed++;
+              continue;
+            }
 
-CONVERSA:
-${transcript}`);
+            const transcript = turns.map(t => `${t.role}: ${t.text}`).join("\n").slice(0, 6000);
 
-        const signal = passA.signal_quality || "medium";
-        await supabase.from("ai_training_conversations").update({
-          analyzed_at: new Date().toISOString(),
-          problem_summary: (passA.problem || "").slice(0, 500),
-          solution_summary: (passA.solution || "").slice(0, 500),
-          resolved: passA.resolved === true,
-          category: CATEGORIES.includes(passA.category) ? passA.category : "outros",
-          device: passA.device || null,
-          app: passA.app || null,
-          operator_name: passA.operator || null,
-          signal_quality: signal,
-          analysis_version: 3,
-        }).eq("id", c.id);
+            const passA = await callAI(apiKey,
+              `Você é um analista sênior de suporte técnico especializado em IPTV/streaming no Brasil. Categorias válidas: ${CATEGORIES.join(", ")}. Responda SOMENTE JSON válido, sem markdown.`,
+              `Analise o atendimento e responda EXATAMENTE neste JSON:
+{"problem":"...","solution":"...","resolved":true|false,"category":"...","device":"...|null","app":"...|null","operator":"...|null","signal_quality":"high|medium|none","confidence_reason":"..."}
 
-        if (signal === "none") { noSignal++; continue; }
-
-        // PASS B - extração tipada assertiva
-        const passB = await callAI(apiKey,
-          `Você extrai CONHECIMENTO REUTILIZÁVEL de atendimentos IPTV/streaming, para alimentar um bot de atendimento automático. Tipos:
-- procedure: passo a passo TÉCNICO reproduzível (ex: "como instalar IBO na Samsung")
-- flow: fluxo de atendimento (ex: fluxo de renovação, fluxo de novo cliente)
-- intent: intenção reconhecível do cliente + resposta padrão (ex: cliente pede teste → responder com link X)
-- official_answer: resposta oficial para pergunta frequente (ex: "quais formas de pagamento")
-- business_rule: regra do negócio (ex: "teste dura 6h", "não fazemos reembolso após 24h")
-- tutorial: guia completo passo a passo para o cliente executar sozinho
-Categorias: ${CATEGORIES.join(", ")}. Responda SOMENTE JSON válido.`,
-          `Extraia de 0 a 4 conhecimentos GENUINAMENTE ÚTEIS deste atendimento. Prefira QUALIDADE a quantidade.
-JSON esperado:
-{"items":[{"kind":"...","subject":"título específico e claro","problem":"gatilho/pergunta do cliente que ativa este conhecimento","solution":"resposta/procedimento completo pronto para ser reutilizado","steps":["passo 1 específico","passo 2 específico"],"devices":["Samsung"],"apps":["IBO Player"],"category":"...","keywords":["palavras que clientes usariam para pedir isso"]}]}
-
-REGRAS OBRIGATÓRIAS:
-1. NÃO extraia nada que não seja reutilizável em OUTRO atendimento futuro.
-2. "subject" deve ser específico: "Instalar IBO Player na Samsung Tizen" e NÃO "instalação".
-3. "solution" deve estar PRONTA para o bot copiar e responder ao próximo cliente — completa, sem "ver com o suporte".
-4. "steps" com verbos no imperativo ("Abra...", "Toque em...", "Digite..."), 3+ passos quando for procedure/tutorial.
-5. "keywords" com 4-10 termos que clientes REAIS digitariam (variações populares, erros de escrita comuns).
-6. Se conteúdo genérico demais (só "olá, como posso ajudar") → retorne items: [].
-7. Se atendimento resolvido tecnicamente sem procedure claro, extraia AO MENOS um "intent" mapeando pergunta→resposta.
-8. Máximo 4 items, mínimo 0. Nunca invente informação que não está na conversa.
+REGRAS:
+1. signal_quality="none" só se: saudações/comprovante/sem problema.
+2. "problem" específico ("app IBO travando ao abrir SporTV na Fire TV"), nunca genérico.
+3. "solution" com ações reais ("limpar cache, reinstalar com playlist").
+4. "resolved"=true só se confirmado.
 
 CONVERSA:
 ${transcript}`);
 
-        const items: any[] = Array.isArray(passB.items) ? passB.items.slice(0, 4) : [];
+            const signal = passA.signal_quality || "medium";
+            await supabase.from("ai_training_conversations").update({
+              analyzed_at: new Date().toISOString(),
+              problem_summary: (passA.problem || "").slice(0, 500),
+              solution_summary: (passA.solution || "").slice(0, 500),
+              resolved: passA.resolved === true,
+              category: CATEGORIES.includes(passA.category) ? passA.category : "outros",
+              device: passA.device || null,
+              app: passA.app || null,
+              operator_name: passA.operator || null,
+              signal_quality: signal,
+              analysis_version: 3,
+            }).eq("id", c.id);
 
-        for (const it of items) {
-          const kind = KINDS.includes(it.kind) ? it.kind : "intent";
-          const subject = String(it.subject || "").trim().slice(0, 200);
-          const solution = String(it.solution || "").trim().slice(0, 3000);
-          if (subject.length < 5 || solution.length < 5) continue;
+            if (signal === "none") { totalNoSignal++; totalProcessed++; continue; }
 
-          const category = CATEGORIES.includes(it.category) ? it.category : (passA.category || "outros");
-          const problem = String(it.problem || passA.problem || "").slice(0, 1000);
-          const steps = Array.isArray(it.steps) ? it.steps.map((s: any) => String(s).slice(0, 300)).slice(0, 20) : [];
-          const devices = Array.isArray(it.devices) ? it.devices.map(String).slice(0, 6) : (passA.device ? [passA.device] : []);
-          const apps = Array.isArray(it.apps) ? it.apps.map(String).slice(0, 6) : (passA.app ? [passA.app] : []);
-          const keywords = Array.isArray(it.keywords) ? it.keywords.map((s: any) => String(s).toLowerCase()).slice(0, 12) : [];
+            const passB = await callAI(apiKey,
+              `Você extrai CONHECIMENTO REUTILIZÁVEL de atendimentos IPTV. Tipos: procedure, flow, intent, official_answer, business_rule, tutorial. Categorias: ${CATEGORIES.join(", ")}. Responda SOMENTE JSON.`,
+              `Extraia 0 a 4 conhecimentos ÚTEIS. JSON:
+{"items":[{"kind":"...","subject":"...","problem":"...","solution":"...","steps":["..."],"devices":["..."],"apps":["..."],"category":"...","keywords":["..."]}]}
+Regras: subject específico; solution pronta para reuso; steps no imperativo; se genérico → items:[].
 
-          const embText = `${subject}\n${problem}\n${solution}`.slice(0, 4000);
-          let embedding: number[] | null = null;
-          try { embedding = await embed(apiKey, embText); } catch { errors++; continue; }
+CONVERSA:
+${transcript}`);
 
-          // Agrupamento por similaridade dentro do mesmo tipo+categoria
-          const { data: matches } = await supabase.rpc("match_ai_knowledge_items", {
-            _user_id: userId,
-            _kind: kind,
-            _category: category,
-            query_embedding: embedding,
-            match_threshold: 0.86,
-            match_count: 1,
-          });
+            const items: any[] = Array.isArray(passB.items) ? passB.items.slice(0, 4) : [];
 
-          const operator = passA.operator || "desconhecido";
+            for (const it of items) {
+              const kind = KINDS.includes(it.kind) ? it.kind : "intent";
+              const subject = String(it.subject || "").trim().slice(0, 200);
+              const solution = String(it.solution || "").trim().slice(0, 3000);
+              if (subject.length < 5 || solution.length < 5) continue;
 
-          if (matches && matches.length > 0) {
-            const m = matches[0];
-            const { data: existing } = await supabase.from("ai_knowledge_items")
-              .select("usage_count,resolved_count,operators,source_conversation_ids,steps,devices,apps,keywords")
-              .eq("id", m.id).single();
+              const category = CATEGORIES.includes(it.category) ? it.category : (passA.category || "outros");
+              const problem = String(it.problem || passA.problem || "").slice(0, 1000);
+              const steps = Array.isArray(it.steps) ? it.steps.map((s: any) => String(s).slice(0, 300)).slice(0, 20) : [];
+              const devices = Array.isArray(it.devices) ? it.devices.map(String).slice(0, 6) : (passA.device ? [passA.device] : []);
+              const apps = Array.isArray(it.apps) ? it.apps.map(String).slice(0, 6) : (passA.app ? [passA.app] : []);
+              const keywords = Array.isArray(it.keywords) ? it.keywords.map((s: any) => String(s).toLowerCase()).slice(0, 12) : [];
 
-            const usage = (existing?.usage_count || 0) + 1;
-            const resolved = (existing?.resolved_count || 0) + (passA.resolved ? 1 : 0);
-            const rate = usage > 0 ? resolved / usage : 0;
-            const ops = Array.isArray(existing?.operators) ? existing!.operators as any[] : [];
-            const opIdx = ops.findIndex((o: any) => o.name === operator);
-            if (opIdx >= 0) ops[opIdx].count = (ops[opIdx].count || 0) + 1;
-            else ops.push({ name: operator, count: 1 });
+              const embText = `${subject}\n${problem}\n${solution}`.slice(0, 4000);
+              let embedding: number[] | null = null;
+              try { embedding = await embed(apiKey, embText); } catch { totalErrors++; continue; }
 
-            const mergedSteps = Array.from(new Set([...(existing?.steps || []), ...steps])).slice(0, 20);
-            const mergedDevices = Array.from(new Set([...(existing?.devices || []), ...devices])).slice(0, 8);
-            const mergedApps = Array.from(new Set([...(existing?.apps || []), ...apps])).slice(0, 8);
-            const mergedKw = Array.from(new Set([...(existing?.keywords || []), ...keywords])).slice(0, 20);
-            const sids = Array.from(new Set([...(existing?.source_conversation_ids || []), c.id])).slice(0, 200);
+              const { data: matches } = await supabase.rpc("match_ai_knowledge_items", {
+                _user_id: userId,
+                _kind: kind,
+                _category: category,
+                query_embedding: embedding,
+                match_threshold: 0.86,
+                match_count: 1,
+              });
 
-            await supabase.from("ai_knowledge_items").update({
-              usage_count: usage,
-              resolved_count: resolved,
-              success_rate: rate,
-              confidence: computeConfidence(usage, rate),
-              last_used_at: new Date().toISOString(),
-              operators: ops.slice(0, 20),
-              source_conversation_ids: sids,
-              steps: mergedSteps,
-              devices: mergedDevices,
-              apps: mergedApps,
-              keywords: mergedKw,
-            }).eq("id", m.id);
-            itemsMerged++;
-          } else {
-            await supabase.from("ai_knowledge_items").insert({
-              user_id: userId,
-              kind, subject, problem, solution,
-              steps, devices, apps, keywords, category,
-              usage_count: 1,
-              resolved_count: passA.resolved ? 1 : 0,
-              success_rate: passA.resolved ? 1 : 0,
-              confidence: computeConfidence(1, passA.resolved ? 1 : 0),
-              last_used_at: new Date().toISOString(),
-              operators: [{ name: operator, count: 1 }],
-              source_conversation_ids: [c.id],
-              embedding,
-              status: "pending",
-            });
-            itemsCreated++;
+              const operator = passA.operator || "desconhecido";
+
+              if (matches && matches.length > 0) {
+                const m = matches[0];
+                const { data: existing } = await supabase.from("ai_knowledge_items")
+                  .select("usage_count,resolved_count,operators,source_conversation_ids,steps,devices,apps,keywords")
+                  .eq("id", m.id).single();
+
+                const usage = (existing?.usage_count || 0) + 1;
+                const resolved = (existing?.resolved_count || 0) + (passA.resolved ? 1 : 0);
+                const rate = usage > 0 ? resolved / usage : 0;
+                const ops = Array.isArray(existing?.operators) ? existing!.operators as any[] : [];
+                const opIdx = ops.findIndex((o: any) => o.name === operator);
+                if (opIdx >= 0) ops[opIdx].count = (ops[opIdx].count || 0) + 1;
+                else ops.push({ name: operator, count: 1 });
+
+                const mergedSteps = Array.from(new Set([...(existing?.steps || []), ...steps])).slice(0, 20);
+                const mergedDevices = Array.from(new Set([...(existing?.devices || []), ...devices])).slice(0, 8);
+                const mergedApps = Array.from(new Set([...(existing?.apps || []), ...apps])).slice(0, 8);
+                const mergedKw = Array.from(new Set([...(existing?.keywords || []), ...keywords])).slice(0, 20);
+                const sids = Array.from(new Set([...(existing?.source_conversation_ids || []), c.id])).slice(0, 200);
+
+                await supabase.from("ai_knowledge_items").update({
+                  usage_count: usage,
+                  resolved_count: resolved,
+                  success_rate: rate,
+                  confidence: computeConfidence(usage, rate),
+                  last_used_at: new Date().toISOString(),
+                  operators: ops.slice(0, 20),
+                  source_conversation_ids: sids,
+                  steps: mergedSteps,
+                  devices: mergedDevices,
+                  apps: mergedApps,
+                  keywords: mergedKw,
+                }).eq("id", m.id);
+                totalItemsMerged++;
+              } else {
+                await supabase.from("ai_knowledge_items").insert({
+                  user_id: userId,
+                  kind, subject, problem, solution,
+                  steps, devices, apps, keywords, category,
+                  usage_count: 1,
+                  resolved_count: passA.resolved ? 1 : 0,
+                  success_rate: passA.resolved ? 1 : 0,
+                  confidence: computeConfidence(1, passA.resolved ? 1 : 0),
+                  last_used_at: new Date().toISOString(),
+                  operators: [{ name: operator, count: 1 }],
+                  source_conversation_ids: [c.id],
+                  embedding,
+                  status: "pending",
+                });
+                totalItemsCreated++;
+              }
+            }
+            totalProcessed++;
+          } catch (e) {
+            totalErrors++;
+            totalProcessed++;
+            console.error("analyze err", e);
           }
         }
-      } catch (e) {
-        errors++;
-        console.error("analyze err", e);
+
+        // Atualiza progresso após cada chunk
+        await supabase.from("ai_training_jobs").update({
+          processed: totalProcessed,
+          errors: totalErrors,
+          message: `${totalProcessed}/${pendingTotal} analisadas • ${totalItemsCreated} novos • ${totalItemsMerged} agrupados • ${totalNoSignal} sem sinal`,
+        }).eq("id", job!.id);
       }
-    }
 
-    await supabase.from("ai_training_jobs").update({
-      status: "done",
-      total: convs.length,
-      processed: convs.length - errors,
-      errors,
-      finished_at: new Date().toISOString(),
-      message: `${itemsCreated} novos conhecimentos, ${itemsMerged} agrupados, ${noSignal} sem sinal útil`,
-    }).eq("id", job!.id);
+      await supabase.from("ai_training_jobs").update({
+        status: "done",
+        processed: totalProcessed,
+        errors: totalErrors,
+        finished_at: new Date().toISOString(),
+        message: `Concluído: ${totalProcessed} analisadas • ${totalItemsCreated} novos conhecimentos • ${totalItemsMerged} agrupados • ${totalNoSignal} sem sinal útil`,
+      }).eq("id", job!.id);
+    };
 
-    return json({ ok: true, processed: convs.length, itemsCreated, itemsMerged, noSignal, errors });
+    // @ts-ignore - EdgeRuntime.waitUntil roda em background
+    EdgeRuntime.waitUntil(runAll());
+
+    return json({ ok: true, jobId: job!.id, total: pendingTotal });
   } catch (e) {
     return json({ error: String((e as Error).message) }, 500);
   }
 });
+
 
 function json(p: unknown, s = 200) {
   return new Response(JSON.stringify(p), { status: s, headers: { ...corsHeaders, "Content-Type": "application/json" } });
