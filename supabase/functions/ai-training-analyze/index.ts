@@ -219,18 +219,22 @@ Deno.serve(async (req) => {
             const transcript = turns.map(t => `${t.role}: ${t.text}`).join("\n").slice(0, 6000);
 
             const passA = await callAI(apiKey,
-              `Você é um analista sênior de suporte técnico especializado em IPTV/streaming no Brasil. Categorias válidas: ${CATEGORIES.join(", ")}. Responda SOMENTE JSON válido, sem markdown.`,
+              `Você é um analista sênior de suporte técnico de IPTV/streaming no Brasil (IBO Player, TiviMate, XCIptv, SmartOne, Duplex, Fire TV, Roku, Smart TV Samsung/LG, Android TV). Sua análise deve ter precisão >90%. Categorias válidas: ${CATEGORIES.join(", ")}. Responda SOMENTE JSON válido, sem markdown, sem comentários.`,
               `Analise o atendimento e responda EXATAMENTE neste JSON:
 {"problem":"...","solution":"...","resolved":true|false,"category":"...","device":"...|null","app":"...|null","operator":"...|null","signal_quality":"high|medium|none","confidence_reason":"..."}
 
-REGRAS:
-1. signal_quality="none" só se: saudações/comprovante/sem problema.
-2. "problem" específico ("app IBO travando ao abrir SporTV na Fire TV"), nunca genérico.
-3. "solution" com ações reais ("limpar cache, reinstalar com playlist").
-4. "resolved"=true só se confirmado.
+REGRAS ESTRITAS:
+1. signal_quality="none" APENAS se: só saudações, só comprovante, ou sem problema real identificável.
+2. signal_quality="high" só quando problema E solução estão CLAROS e a solução é reutilizável.
+3. "problem" ULTRA-específico: cite app, dispositivo, canal, código de erro quando existir. Exemplo BOM: "IBO Player travando ao abrir SporTV HD na Fire TV Stick 4K". Exemplo RUIM: "cliente com problema".
+4. "solution" com passos concretos que outro atendente possa REPETIR e resolver igual. Exemplo BOM: "peça o MAC, gere nova playlist Xtream no painel Rush, envie link m3u e oriente reinstalar o IBO limpando cache". Exemplo RUIM: "resolvido".
+5. "resolved"=true SOMENTE se o cliente confirmou "funcionou/resolveu/ok" após a orientação. Silêncio ≠ resolvido.
+6. "operator" = nome do atendente humano, nunca "bot" ou "sistema".
+7. Se a conversa for genérica ou você tiver menos de 90% de certeza sobre problema+solução, use signal_quality="none".
 
 CONVERSA:
 ${transcript}`);
+
 
             const signal = passA.signal_quality || "medium";
             await supabase.from("ai_training_conversations").update({
