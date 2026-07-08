@@ -1189,6 +1189,26 @@ Deno.serve(async (req) => {
           })
           .eq('id', reservation.id);
 
+        // Webhook de saída (HMAC) — dispara para o sistema externo do usuário
+        try {
+          const { fireOutboundWebhook } = await import('../_shared/outbound-webhook.ts');
+          await fireOutboundWebhook('billing.sent', {
+            customer: {
+              id: customer.id,
+              name: customer.name,
+              phone: normalizedPhone,
+              due_date: customer.due_date,
+            },
+            billing_type: billingType,
+            template: templateName,
+            status: sendResult.success ? 'sent' : 'failed',
+            error: sendResult.error ?? null,
+            provider: effectiveApiType,
+          });
+        } catch (e) {
+          console.error('[send-billing-batch] webhook error:', e);
+        }
+
         console.log(`[Billing Batch] ${customer.name}: ${sendResult.success ? 'SENT' : 'ERROR'} - ${sendResult.error || 'OK'}`);
 
         results.push({
