@@ -8,13 +8,12 @@ type Summary = {
   broadcasts_count: number;
   recipients_total: number;
   sent: number;
+  delivered: number;
+  read: number;
   failed: number;
   pending: number;
 };
 
-// Métricas locais consolidadas a partir de billing_logs (mesma fonte do "Relatório de Hoje").
-// Observação: a API do CRM Oficial (/broadcasts-stats) NÃO expõe entregues/lidas da Meta,
-// então esses cards foram removidos para evitar valores zerados enganosos.
 export function BroadcastMetricsCards({ broadcastId: _broadcastId }: { broadcastId?: string } = {}) {
   const { user } = useAuth();
 
@@ -33,16 +32,22 @@ export function BroadcastMetricsCards({ broadcastId: _broadcastId }: { broadcast
       const b = bLogs || [];
       const norm = (s: string) => (s || '').toLowerCase();
       const isSent = (s: string) => ['sent', 'accepted', 'queued', 'delivered', 'read', 'success'].includes(norm(s));
+      const isDelivered = (s: string) => ['delivered', 'read'].includes(norm(s));
+      const isRead = (s: string) => norm(s) === 'read';
       const isFail = (s: string) => norm(s).startsWith('error') || ['failed', 'error'].includes(norm(s));
 
       const uniqueRecipients = new Set(b.map(x => x.customer_id).filter(Boolean)).size;
       const sent = b.filter(x => isSent(x.whatsapp_status)).length;
+      const delivered = b.filter(x => isDelivered(x.whatsapp_status)).length;
+      const read = b.filter(x => isRead(x.whatsapp_status)).length;
       const failed = b.filter(x => isFail(x.whatsapp_status)).length;
 
       return {
         broadcasts_count: b.length,
         recipients_total: uniqueRecipients || b.length,
         sent,
+        delivered,
+        read,
         failed,
         pending: Math.max(0, b.length - sent - failed),
       };
@@ -63,12 +68,14 @@ export function BroadcastMetricsCards({ broadcastId: _broadcastId }: { broadcast
     { label: 'Disparos', value: data?.broadcasts_count ?? 0, icon: Send, color: 'text-sky-400' },
     { label: 'Destinatários', value: data?.recipients_total ?? 0, icon: Users, color: 'text-emerald-400' },
     { label: 'Enviadas', value: data?.sent ?? 0, icon: Clock, color: 'text-emerald-400' },
+    { label: 'Entregues', value: data?.delivered ?? 0, icon: Clock, color: 'text-cyan-400' },
+    { label: 'Lidas', value: data?.read ?? 0, icon: Clock, color: 'text-blue-400' },
     { label: 'Falhas', value: data?.failed ?? 0, icon: AlertTriangle, color: 'text-amber-400' },
     { label: 'Pendentes', value: data?.pending ?? 0, icon: Clock, color: 'text-zinc-400' },
   ];
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+    <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-3">
       {items.map((it) => {
         const Icon = it.icon;
         return (
@@ -84,3 +91,4 @@ export function BroadcastMetricsCards({ broadcastId: _broadcastId }: { broadcast
     </div>
   );
 }
+
