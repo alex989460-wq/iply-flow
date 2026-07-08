@@ -53,7 +53,8 @@ export async function fireOutboundWebhook(event: string, payload: OutboundPayloa
     const url =
       Deno.env.get('URL_DE_WEBHOOK_DE_SAIDA') ||
       Deno.env.get('URL_DE_WEBHOOK_DE_SAÍDA') ||
-      Deno.env.get('OUTBOUND_WEBHOOK_URL');
+      Deno.env.get('OUTBOUND_WEBHOOK_URL') ||
+      'https://crmapioficial.lovable.app/api/public/billing/inbound';
     if (!url) return;
 
     const bearer =
