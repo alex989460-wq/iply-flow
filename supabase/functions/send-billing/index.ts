@@ -490,6 +490,26 @@ Deno.serve(async (req) => {
           })
           .eq('id', reservation.id);
 
+        // Webhook de saída para sistemas externos (HMAC-assinado)
+        try {
+          const { fireOutboundWebhook } = await import('../_shared/outbound-webhook.ts');
+          await fireOutboundWebhook('billing.sent', {
+            customer: {
+              id: customer.id,
+              name: customer.name,
+              phone: customer.normalizedPhone,
+              due_date: customer.due_date,
+            },
+            billing_type: billingType,
+            template: templateName,
+            status: sendResult.success ? 'sent' : 'failed',
+            error: sendResult.error ?? null,
+            provider: 'zap_responder',
+          });
+        } catch (e) {
+          console.error('[send-billing] webhook error:', e);
+        }
+
         return {
           customer: customer.name,
           phone: customer.phone,
@@ -498,6 +518,7 @@ Deno.serve(async (req) => {
           success: sendResult.success,
           error: sendResult.error,
         };
+
       });
 
       const batchResults = await Promise.all(batchPromises);
