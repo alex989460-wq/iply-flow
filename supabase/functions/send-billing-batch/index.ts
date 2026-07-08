@@ -1025,6 +1025,18 @@ Deno.serve(async (req) => {
         const exactLang = templateLangMap[templateName] || 'pt_BR';
         const headerImageUrl = extractHeaderImageUrl(templateConfig);
 
+        // On force resend, clear today's existing sent/pending log to bypass
+        // the unique index (customer_id, billing_type, sent_date_br) WHERE status IN ('pending','sent')
+        if (forceResend) {
+          await supabase
+            .from('billing_logs')
+            .delete()
+            .eq('customer_id', customer.id)
+            .eq('billing_type', billingType)
+            .eq('sent_date_br', today)
+            .in('whatsapp_status', ['pending', 'sent']);
+        }
+
         const { data: reservation, error: reserveError } = await supabase
           .from('billing_logs')
           .insert({
