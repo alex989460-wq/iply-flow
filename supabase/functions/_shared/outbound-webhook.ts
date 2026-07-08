@@ -56,7 +56,9 @@ export async function fireOutboundWebhook(event: string, payload: OutboundPayloa
       Deno.env.get('OUTBOUND_WEBHOOK_URL');
     if (!url) return;
 
-    const bearer = Deno.env.get('OUTBOUND_WEBHOOK_BEARER');
+    const bearer =
+      Deno.env.get('OUTBOUND_WEBHOOK_BEARER') ||
+      Deno.env.get('CRM_OFICIAL_API_KEY');
     const hmacSecret = Deno.env.get('WEBHOOK_OUTBOUND_SECRET');
 
     const eventPt = EVENT_MAP[event] || event;
