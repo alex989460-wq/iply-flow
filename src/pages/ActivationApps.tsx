@@ -190,6 +190,9 @@ export default function ActivationApps() {
               )}
             </TabsTrigger>
             <TabsTrigger value="apps">Apps Configurados</TabsTrigger>
+            <TabsTrigger value="panels">
+              <Settings2 className="w-3.5 h-3.5 mr-1" /> Painéis
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="requests">
