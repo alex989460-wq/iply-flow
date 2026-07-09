@@ -469,32 +469,31 @@ export default function ActivationApps() {
 
                   <div className="grid gap-3 sm:grid-cols-2">
                     <div>
-                      <Label>E-mail do painel</Label>
+                      <Label>URL do painel</Label>
                       <Input
-                        type="email"
-                        autoComplete="off"
-                        value={clouddyForm.username}
-                        onChange={e => setClouddyForm(f => ({ ...f, username: e.target.value }))}
-                        placeholder="seuemail@dominio.com"
+                        value={clouddyForm.base_url}
+                        onChange={e => setClouddyForm(f => ({ ...f, base_url: e.target.value }))}
+                        placeholder="https://console.clouddy.online"
                       />
                     </div>
                     <div>
-                      <Label>Senha</Label>
+                      <Label>Cookie da sessão</Label>
                       <div className="relative">
                         <Input
-                          type={showClPass ? 'text' : 'password'}
-                          autoComplete="new-password"
-                          value={clouddyForm.password}
-                          onChange={e => setClouddyForm(f => ({ ...f, password: e.target.value }))}
-                          placeholder="••••••••"
+                          type={showClCookie ? 'text' : 'password'}
+                          autoComplete="off"
+                          value={clouddyForm.cookie}
+                          onChange={e => setClouddyForm(f => ({ ...f, cookie: e.target.value }))}
+                          placeholder="PHPSESSID=xxx; REMEMBERME=yyy"
+                          className="font-mono text-xs"
                         />
                         <button
                           type="button"
-                          onClick={() => setShowClPass(v => !v)}
+                          onClick={() => setShowClCookie(v => !v)}
                           className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                          aria-label={showClPass ? 'Ocultar' : 'Mostrar'}
+                          aria-label={showClCookie ? 'Ocultar' : 'Mostrar'}
                         >
-                          {showClPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                          {showClCookie ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                         </button>
                       </div>
                     </div>
@@ -503,7 +502,7 @@ export default function ActivationApps() {
                   <div className="rounded-lg bg-muted/40 border border-border/50 p-3 text-xs text-muted-foreground flex gap-2">
                     <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-yellow-500" />
                     <span>
-                      Ao chegar um pedido de ativação com o app <b>Clouddy</b>, o sistema fará login com essas credenciais, cadastrará o <b>MAC</b> no <b>code</b> informado pelo cliente e disparará automaticamente a mensagem de app ativado. Se falhar, a solicitação fica pendente para ativação manual.
+                      Como o Clouddy tem <b>Cloudflare Turnstile</b> no login, entre em <span className="font-mono">console.clouddy.online/reseller</span> manualmente, abra o DevTools (F12) → <b>Network</b> → em qualquer requisição <span className="font-mono">/reseller/*</span> copie o valor completo do header <span className="font-mono">Cookie</span> e cole aqui (também aceita o JSON exportado). Ao chegar um pedido de ativação com o app <b>Clouddy</b>, o sistema usará essa sessão para localizar o cliente pelo <b>email</b> e realizar a recarga automaticamente.
                     </span>
                   </div>
 
