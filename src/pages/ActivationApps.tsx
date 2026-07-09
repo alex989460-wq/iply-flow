@@ -323,7 +323,90 @@ export default function ActivationApps() {
               </CardContent>
             </Card>
           </TabsContent>
-        </Tabs>
+
+          <TabsContent value="panels">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Settings2 className="w-5 h-5" /> Credenciais dos Painéis
+                </CardTitle>
+                <CardDescription>
+                  Configure aqui o login do seu painel de revenda para ativar apps automaticamente quando um pedido chegar. Cada revendedor usa suas próprias credenciais.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="rounded-xl border border-border/50 p-4 space-y-4 bg-card">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                        <Monitor className="w-5 h-5 text-primary" />
+                      </div>
+                      <div>
+                        <h3 className="font-semibold text-foreground">Duplecast</h3>
+                        <p className="text-xs text-muted-foreground">
+                          Painel do revendedor em <span className="font-mono">duplecast.com/client/login</span>
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Label htmlFor="dup-enabled" className="text-xs">Ativação automática</Label>
+                      <Switch
+                        id="dup-enabled"
+                        checked={duplecastForm.is_enabled}
+                        onCheckedChange={v => setDuplecastForm(f => ({ ...f, is_enabled: v }))}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div>
+                      <Label>E-mail do painel</Label>
+                      <Input
+                        type="email"
+                        autoComplete="off"
+                        value={duplecastForm.username}
+                        onChange={e => setDuplecastForm(f => ({ ...f, username: e.target.value }))}
+                        placeholder="seuemail@dominio.com"
+                      />
+                    </div>
+                    <div>
+                      <Label>Senha</Label>
+                      <div className="relative">
+                        <Input
+                          type={showPass ? 'text' : 'password'}
+                          autoComplete="new-password"
+                          value={duplecastForm.password}
+                          onChange={e => setDuplecastForm(f => ({ ...f, password: e.target.value }))}
+                          placeholder="••••••••"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPass(v => !v)}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                          aria-label={showPass ? 'Ocultar' : 'Mostrar'}
+                        >
+                          {showPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="rounded-lg bg-muted/40 border border-border/50 p-3 text-xs text-muted-foreground flex gap-2">
+                    <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-yellow-500" />
+                    <span>
+                      Ao chegar um pedido de ativação com o app <b>Duplecast</b>, o sistema fará login com essas credenciais, cadastrará o <b>MAC</b> no <b>code</b> informado pelo cliente e disparará automaticamente a mensagem de app ativado. Se falhar, a solicitação fica pendente para ativação manual.
+                    </span>
+                  </div>
+
+                  <div className="flex justify-end">
+                    <Button onClick={() => saveDuplecast.mutate()} disabled={saveDuplecast.isPending}>
+                      {saveDuplecast.isPending ? 'Salvando...' : 'Salvar credenciais'}
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
       </div>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
