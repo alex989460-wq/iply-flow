@@ -55,9 +55,9 @@ export default function ActivationApps() {
   const duplecast = panelCreds.find((c: any) => c.panel_type === 'duplecast');
   const clouddy = panelCreds.find((c: any) => c.panel_type === 'clouddy');
   const [duplecastForm, setDuplecastForm] = useState({ username: '', password: '', is_enabled: true });
-  const [clouddyForm, setClouddyForm] = useState({ username: '', password: '', is_enabled: true });
+  const [clouddyForm, setClouddyForm] = useState({ base_url: 'https://console.clouddy.online', cookie: '', is_enabled: true });
   const [showPass, setShowPass] = useState(false);
-  const [showClPass, setShowClPass] = useState(false);
+  const [showClCookie, setShowClCookie] = useState(false);
 
   useEffect(() => {
     if (duplecast) {
