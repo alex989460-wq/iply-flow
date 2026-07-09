@@ -441,6 +441,75 @@ export default function ActivationApps() {
                     </Button>
                   </div>
                 </div>
+
+                <div className="rounded-xl border border-border/50 p-4 space-y-4 bg-card">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                        <Monitor className="w-5 h-5 text-primary" />
+                      </div>
+                      <div>
+                        <h3 className="font-semibold text-foreground">P2Cine (kOfficePanel)</h3>
+                        <p className="text-xs text-muted-foreground">
+                          Painel com <b>hCaptcha</b> no login — usa cookie <span className="font-mono">PHPSESSID</span> manual
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Label htmlFor="p2-enabled" className="text-xs">Renovação automática</Label>
+                      <Switch
+                        id="p2-enabled"
+                        checked={p2cineForm.is_enabled}
+                        onCheckedChange={v => setP2cineForm(f => ({ ...f, is_enabled: v }))}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div>
+                      <Label>URL do painel</Label>
+                      <Input
+                        value={p2cineForm.base_url}
+                        onChange={e => setP2cineForm(f => ({ ...f, base_url: e.target.value }))}
+                        placeholder="https://daily3.news"
+                      />
+                    </div>
+                    <div>
+                      <Label>Cookie PHPSESSID</Label>
+                      <div className="relative">
+                        <Input
+                          type={showP2Cookie ? 'text' : 'password'}
+                          autoComplete="off"
+                          value={p2cineForm.phpsessid}
+                          onChange={e => setP2cineForm(f => ({ ...f, phpsessid: e.target.value }))}
+                          placeholder="i495gvo13bv18v52l36jhrs8nf"
+                          className="font-mono text-xs"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowP2Cookie(v => !v)}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                          aria-label={showP2Cookie ? 'Ocultar' : 'Mostrar'}
+                        >
+                          {showP2Cookie ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="rounded-lg bg-muted/40 border border-border/50 p-3 text-xs text-muted-foreground flex gap-2">
+                    <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-yellow-500" />
+                    <span>
+                      Como o P2Cine exige captcha no login, você precisa entrar no painel manualmente, abrir o DevTools (F12) → <b>Application → Cookies</b> → copiar o valor de <span className="font-mono">PHPSESSID</span> e colar aqui. A sessão dura ~24-72h; renove o cookie quando o painel deslogar.
+                    </span>
+                  </div>
+
+                  <div className="flex justify-end">
+                    <Button onClick={() => saveP2cine.mutate()} disabled={saveP2cine.isPending}>
+                      {saveP2cine.isPending ? 'Salvando...' : 'Salvar cookie'}
+                    </Button>
+                  </div>
+                </div>
               </CardContent>
             </Card>
           </TabsContent>
