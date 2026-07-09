@@ -407,6 +407,7 @@ export default function ActivationApps() {
               </CardContent>
             </Card>
           </TabsContent>
+        </Tabs>
       </div>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
