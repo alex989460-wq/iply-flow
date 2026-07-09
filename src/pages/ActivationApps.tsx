@@ -549,6 +549,75 @@ export default function ActivationApps() {
                     </Button>
                   </div>
                 </div>
+
+                <div className="rounded-xl border border-border/50 p-4 space-y-4 bg-card">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                        <Monitor className="w-5 h-5 text-primary" />
+                      </div>
+                      <div>
+                        <h3 className="font-semibold text-foreground">Clouddy</h3>
+                        <p className="text-xs text-muted-foreground">
+                          Painel com <b>Cloudflare Turnstile</b> no login — usa cookie de sessão manual
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Label htmlFor="cl-enabled" className="text-xs">Renovação automática</Label>
+                      <Switch
+                        id="cl-enabled"
+                        checked={clouddyForm.is_enabled}
+                        onCheckedChange={v => setClouddyForm(f => ({ ...f, is_enabled: v }))}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div>
+                      <Label>URL do painel</Label>
+                      <Input
+                        value={clouddyForm.base_url}
+                        onChange={e => setClouddyForm(f => ({ ...f, base_url: e.target.value }))}
+                        placeholder="https://console.clouddy.online"
+                      />
+                    </div>
+                    <div>
+                      <Label>Cookie da sessão</Label>
+                      <div className="relative">
+                        <Input
+                          type={showClCookie ? 'text' : 'password'}
+                          autoComplete="off"
+                          value={clouddyForm.cookie}
+                          onChange={e => setClouddyForm(f => ({ ...f, cookie: e.target.value }))}
+                          placeholder="PHPSESSID=xxx; REMEMBERME=yyy"
+                          className="font-mono text-xs"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowClCookie(v => !v)}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                          aria-label={showClCookie ? 'Ocultar' : 'Mostrar'}
+                        >
+                          {showClCookie ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="rounded-lg bg-muted/40 border border-border/50 p-3 text-xs text-muted-foreground flex gap-2">
+                    <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-yellow-500" />
+                    <span>
+                      Faça login em <span className="font-mono">console.clouddy.online/reseller</span>, abra o DevTools (F12) → <b>Network</b> → clique em qualquer requisição <span className="font-mono">/reseller/*</span> → em <b>Request Headers</b> copie o valor completo de <span className="font-mono">Cookie</span> e cole aqui. Também aceita o JSON exportado da aba <b>Application → Cookies</b>.
+                    </span>
+                  </div>
+
+                  <div className="flex justify-end">
+                    <Button onClick={() => saveClouddy.mutate()} disabled={saveClouddy.isPending}>
+                      {saveClouddy.isPending ? 'Salvando...' : 'Salvar cookie'}
+                    </Button>
+                  </div>
+                </div>
               </CardContent>
             </Card>
           </TabsContent>
