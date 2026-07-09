@@ -56,16 +56,15 @@ export default function ActivationApps() {
   const [duplecastForm, setDuplecastForm] = useState({ username: '', password: '', is_enabled: true });
   const [showPass, setShowPass] = useState(false);
 
-  // hydrate form when data loads / changes
-  useState(() => {});
-  if (duplecast && duplecastForm.username === '' && duplecastForm.password === '' && !showPass) {
-    // one-time sync on first load
-    setTimeout(() => setDuplecastForm({
-      username: duplecast.username || '',
-      password: duplecast.password || '',
-      is_enabled: duplecast.is_enabled ?? true,
-    }), 0);
-  }
+  useEffect(() => {
+    if (duplecast) {
+      setDuplecastForm({
+        username: duplecast.username || '',
+        password: duplecast.password || '',
+        is_enabled: duplecast.is_enabled ?? true,
+      });
+    }
+  }, [duplecast?.id, duplecast?.updated_at]);
 
   const saveDuplecast = useMutation({
     mutationFn: async () => {
