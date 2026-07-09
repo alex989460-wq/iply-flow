@@ -55,9 +55,9 @@ export default function ActivationApps() {
   const duplecast = panelCreds.find((c: any) => c.panel_type === 'duplecast');
   const clouddy = panelCreds.find((c: any) => c.panel_type === 'clouddy');
   const [duplecastForm, setDuplecastForm] = useState({ username: '', password: '', is_enabled: true });
-  const [clouddyForm, setClouddyForm] = useState({ username: '', password: '', is_enabled: true });
+  const [clouddyForm, setClouddyForm] = useState({ base_url: 'https://console.clouddy.online', cookie: '', is_enabled: true });
   const [showPass, setShowPass] = useState(false);
-  const [showClPass, setShowClPass] = useState(false);
+  const [showClCookie, setShowClCookie] = useState(false);
 
   useEffect(() => {
     if (duplecast) {
@@ -72,8 +72,8 @@ export default function ActivationApps() {
   useEffect(() => {
     if (clouddy) {
       setClouddyForm({
-        username: clouddy.username || '',
-        password: clouddy.password || '',
+        base_url: clouddy.username || 'https://console.clouddy.online',
+        cookie: clouddy.password || '',
         is_enabled: clouddy.is_enabled ?? true,
       });
     }
@@ -105,14 +105,14 @@ export default function ActivationApps() {
 
   const saveClouddy = useMutation({
     mutationFn: async () => {
-      if (!clouddyForm.username.trim() || !clouddyForm.password.trim()) {
-        throw new Error('E-mail e senha do painel Clouddy são obrigatórios');
+      if (!clouddyForm.base_url.trim() || !clouddyForm.cookie.trim()) {
+        throw new Error('URL do painel e cookie da sessão Clouddy são obrigatórios');
       }
       const payload = {
         user_id: user?.id,
         panel_type: 'clouddy',
-        username: clouddyForm.username.trim(),
-        password: clouddyForm.password,
+        username: clouddyForm.base_url.trim().replace(/\/+$/, ''),
+        password: clouddyForm.cookie.trim(),
         is_enabled: clouddyForm.is_enabled,
       };
       const { error } = await (supabase as any)
@@ -469,32 +469,31 @@ export default function ActivationApps() {
 
                   <div className="grid gap-3 sm:grid-cols-2">
                     <div>
-                      <Label>E-mail do painel</Label>
+                      <Label>URL do painel</Label>
                       <Input
-                        type="email"
-                        autoComplete="off"
-                        value={clouddyForm.username}
-                        onChange={e => setClouddyForm(f => ({ ...f, username: e.target.value }))}
-                        placeholder="seuemail@dominio.com"
+                        value={clouddyForm.base_url}
+                        onChange={e => setClouddyForm(f => ({ ...f, base_url: e.target.value }))}
+                        placeholder="https://console.clouddy.online"
                       />
                     </div>
                     <div>
-                      <Label>Senha</Label>
+                      <Label>Cookie da sessão</Label>
                       <div className="relative">
                         <Input
-                          type={showClPass ? 'text' : 'password'}
-                          autoComplete="new-password"
-                          value={clouddyForm.password}
-                          onChange={e => setClouddyForm(f => ({ ...f, password: e.target.value }))}
-                          placeholder="••••••••"
+                          type={showClCookie ? 'text' : 'password'}
+                          autoComplete="off"
+                          value={clouddyForm.cookie}
+                          onChange={e => setClouddyForm(f => ({ ...f, cookie: e.target.value }))}
+                          placeholder="PHPSESSID=xxx; REMEMBERME=yyy"
+                          className="font-mono text-xs"
                         />
                         <button
                           type="button"
-                          onClick={() => setShowClPass(v => !v)}
+                          onClick={() => setShowClCookie(v => !v)}
                           className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                          aria-label={showClPass ? 'Ocultar' : 'Mostrar'}
+                          aria-label={showClCookie ? 'Ocultar' : 'Mostrar'}
                         >
-                          {showClPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                          {showClCookie ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                         </button>
                       </div>
                     </div>
@@ -503,7 +502,7 @@ export default function ActivationApps() {
                   <div className="rounded-lg bg-muted/40 border border-border/50 p-3 text-xs text-muted-foreground flex gap-2">
                     <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-yellow-500" />
                     <span>
-                      Ao chegar um pedido de ativação com o app <b>Clouddy</b>, o sistema fará login com essas credenciais, cadastrará o <b>MAC</b> no <b>code</b> informado pelo cliente e disparará automaticamente a mensagem de app ativado. Se falhar, a solicitação fica pendente para ativação manual.
+                      Como o Clouddy tem <b>Cloudflare Turnstile</b> no login, entre em <span className="font-mono">console.clouddy.online/reseller</span> manualmente, abra o DevTools (F12) → <b>Network</b> → em qualquer requisição <span className="font-mono">/reseller/*</span> copie o valor completo do header <span className="font-mono">Cookie</span> e cole aqui (também aceita o JSON exportado). Ao chegar um pedido de ativação com o app <b>Clouddy</b>, o sistema usará essa sessão para localizar o cliente pelo <b>email</b> e realizar a recarga automaticamente.
                     </span>
                   </div>
 
