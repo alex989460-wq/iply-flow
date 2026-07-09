@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -13,7 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { toast } from 'sonner';
-import { Plus, Pencil, Trash2, Smartphone, Mail, Monitor, Clock, CheckCircle2, XCircle, AlertCircle } from 'lucide-react';
+import { Plus, Pencil, Trash2, Smartphone, Mail, Monitor, Clock, CheckCircle2, XCircle, AlertCircle, Settings2, Eye, EyeOff } from 'lucide-react';
 import { format } from 'date-fns';
 
 export default function ActivationApps() {
@@ -39,6 +39,55 @@ export default function ActivationApps() {
       if (error) throw error;
       return data || [];
     },
+  });
+
+  const { data: panelCreds = [] } = useQuery({
+    queryKey: ['activation-panel-credentials'],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from('activation_panel_credentials')
+        .select('*');
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  const duplecast = panelCreds.find((c: any) => c.panel_type === 'duplecast');
+  const [duplecastForm, setDuplecastForm] = useState({ username: '', password: '', is_enabled: true });
+  const [showPass, setShowPass] = useState(false);
+
+  useEffect(() => {
+    if (duplecast) {
+      setDuplecastForm({
+        username: duplecast.username || '',
+        password: duplecast.password || '',
+        is_enabled: duplecast.is_enabled ?? true,
+      });
+    }
+  }, [duplecast?.id, duplecast?.updated_at]);
+
+  const saveDuplecast = useMutation({
+    mutationFn: async () => {
+      if (!duplecastForm.username.trim() || !duplecastForm.password.trim()) {
+        throw new Error('E-mail e senha do painel Duplecast são obrigatórios');
+      }
+      const payload = {
+        user_id: user?.id,
+        panel_type: 'duplecast',
+        username: duplecastForm.username.trim(),
+        password: duplecastForm.password,
+        is_enabled: duplecastForm.is_enabled,
+      };
+      const { error } = await (supabase as any)
+        .from('activation_panel_credentials')
+        .upsert(payload, { onConflict: 'user_id,panel_type' });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['activation-panel-credentials'] });
+      toast.success('Credenciais Duplecast salvas!');
+    },
+    onError: (e: any) => toast.error(e.message),
   });
 
   const saveMutation = useMutation({
@@ -141,6 +190,9 @@ export default function ActivationApps() {
               )}
             </TabsTrigger>
             <TabsTrigger value="apps">Apps Configurados</TabsTrigger>
+            <TabsTrigger value="panels">
+              <Settings2 className="w-3.5 h-3.5 mr-1" /> Painéis
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="requests">
@@ -268,6 +320,90 @@ export default function ActivationApps() {
                     ))}
                   </div>
                 )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="panels">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Settings2 className="w-5 h-5" /> Credenciais dos Painéis
+                </CardTitle>
+                <CardDescription>
+                  Configure aqui o login do seu painel de revenda para ativar apps automaticamente quando um pedido chegar. Cada revendedor usa suas próprias credenciais.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="rounded-xl border border-border/50 p-4 space-y-4 bg-card">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                        <Monitor className="w-5 h-5 text-primary" />
+                      </div>
+                      <div>
+                        <h3 className="font-semibold text-foreground">Duplecast</h3>
+                        <p className="text-xs text-muted-foreground">
+                          Painel do revendedor em <span className="font-mono">duplecast.com/client/login</span>
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Label htmlFor="dup-enabled" className="text-xs">Ativação automática</Label>
+                      <Switch
+                        id="dup-enabled"
+                        checked={duplecastForm.is_enabled}
+                        onCheckedChange={v => setDuplecastForm(f => ({ ...f, is_enabled: v }))}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div>
+                      <Label>E-mail do painel</Label>
+                      <Input
+                        type="email"
+                        autoComplete="off"
+                        value={duplecastForm.username}
+                        onChange={e => setDuplecastForm(f => ({ ...f, username: e.target.value }))}
+                        placeholder="seuemail@dominio.com"
+                      />
+                    </div>
+                    <div>
+                      <Label>Senha</Label>
+                      <div className="relative">
+                        <Input
+                          type={showPass ? 'text' : 'password'}
+                          autoComplete="new-password"
+                          value={duplecastForm.password}
+                          onChange={e => setDuplecastForm(f => ({ ...f, password: e.target.value }))}
+                          placeholder="••••••••"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPass(v => !v)}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                          aria-label={showPass ? 'Ocultar' : 'Mostrar'}
+                        >
+                          {showPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="rounded-lg bg-muted/40 border border-border/50 p-3 text-xs text-muted-foreground flex gap-2">
+                    <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-yellow-500" />
+                    <span>
+                      Ao chegar um pedido de ativação com o app <b>Duplecast</b>, o sistema fará login com essas credenciais, cadastrará o <b>MAC</b> no <b>code</b> informado pelo cliente e disparará automaticamente a mensagem de app ativado. Se falhar, a solicitação fica pendente para ativação manual.
+                    </span>
+                  </div>
+
+                  <div className="flex justify-end">
+                    <Button onClick={() => saveDuplecast.mutate()} disabled={saveDuplecast.isPending}>
+                      {saveDuplecast.isPending ? 'Salvando...' : 'Salvar credenciais'}
+                    </Button>
+                  </div>
+                </div>
               </CardContent>
             </Card>
           </TabsContent>
