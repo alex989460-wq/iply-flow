@@ -41,6 +41,56 @@ export default function ActivationApps() {
     },
   });
 
+  const { data: panelCreds = [] } = useQuery({
+    queryKey: ['activation-panel-credentials'],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from('activation_panel_credentials')
+        .select('*');
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  const duplecast = panelCreds.find((c: any) => c.panel_type === 'duplecast');
+  const [duplecastForm, setDuplecastForm] = useState({ username: '', password: '', is_enabled: true });
+  const [showPass, setShowPass] = useState(false);
+
+  // hydrate form when data loads / changes
+  useState(() => {});
+  if (duplecast && duplecastForm.username === '' && duplecastForm.password === '' && !showPass) {
+    // one-time sync on first load
+    setTimeout(() => setDuplecastForm({
+      username: duplecast.username || '',
+      password: duplecast.password || '',
+      is_enabled: duplecast.is_enabled ?? true,
+    }), 0);
+  }
+
+  const saveDuplecast = useMutation({
+    mutationFn: async () => {
+      if (!duplecastForm.username.trim() || !duplecastForm.password.trim()) {
+        throw new Error('E-mail e senha do painel Duplecast são obrigatórios');
+      }
+      const payload = {
+        user_id: user?.id,
+        panel_type: 'duplecast',
+        username: duplecastForm.username.trim(),
+        password: duplecastForm.password,
+        is_enabled: duplecastForm.is_enabled,
+      };
+      const { error } = await (supabase as any)
+        .from('activation_panel_credentials')
+        .upsert(payload, { onConflict: 'user_id,panel_type' });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['activation-panel-credentials'] });
+      toast.success('Credenciais Duplecast salvas!');
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
   const saveMutation = useMutation({
     mutationFn: async (data: any) => {
       if (editingApp) {
