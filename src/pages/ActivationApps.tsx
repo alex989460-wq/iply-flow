@@ -53,14 +53,11 @@ export default function ActivationApps() {
   });
 
   const duplecast = panelCreds.find((c: any) => c.panel_type === 'duplecast');
-  const p2cine = panelCreds.find((c: any) => c.panel_type === 'p2cine');
   const clouddy = panelCreds.find((c: any) => c.panel_type === 'clouddy');
   const [duplecastForm, setDuplecastForm] = useState({ username: '', password: '', is_enabled: true });
-  const [p2cineForm, setP2cineForm] = useState({ base_url: 'https://daily3.news', phpsessid: '', is_enabled: true });
-  const [clouddyForm, setClouddyForm] = useState({ base_url: 'https://console.clouddy.online', cookie: '', is_enabled: true });
+  const [clouddyForm, setClouddyForm] = useState({ username: '', password: '', is_enabled: true });
   const [showPass, setShowPass] = useState(false);
-  const [showP2Cookie, setShowP2Cookie] = useState(false);
-  const [showClCookie, setShowClCookie] = useState(false);
+  const [showClPass, setShowClPass] = useState(false);
 
   useEffect(() => {
     if (duplecast) {
