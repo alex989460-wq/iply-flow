@@ -105,14 +105,14 @@ export default function ActivationApps() {
 
   const saveClouddy = useMutation({
     mutationFn: async () => {
-      if (!clouddyForm.username.trim() || !clouddyForm.password.trim()) {
-        throw new Error('E-mail e senha do painel Clouddy são obrigatórios');
+      if (!clouddyForm.base_url.trim() || !clouddyForm.cookie.trim()) {
+        throw new Error('URL do painel e cookie da sessão Clouddy são obrigatórios');
       }
       const payload = {
         user_id: user?.id,
         panel_type: 'clouddy',
-        username: clouddyForm.username.trim(),
-        password: clouddyForm.password,
+        username: clouddyForm.base_url.trim().replace(/\/+$/, ''),
+        password: clouddyForm.cookie.trim(),
         is_enabled: clouddyForm.is_enabled,
       };
       const { error } = await (supabase as any)
