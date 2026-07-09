@@ -70,23 +70,14 @@ export default function ActivationApps() {
   }, [duplecast?.id, duplecast?.updated_at]);
 
   useEffect(() => {
-    if (p2cine) {
-      setP2cineForm({
-        base_url: p2cine.username || 'https://daily3.news',
-        phpsessid: p2cine.password || '',
-        is_enabled: p2cine.is_enabled ?? true,
-      });
-    }
-  }, [p2cine?.id, p2cine?.updated_at]);
-
-  useEffect(() => {
     if (clouddy) {
       setClouddyForm({
-        base_url: clouddy.username || 'https://console.clouddy.online',
-        cookie: clouddy.password || '',
+        username: clouddy.username || '',
+        password: clouddy.password || '',
         is_enabled: clouddy.is_enabled ?? true,
       });
     }
+  }, [clouddy?.id, clouddy?.updated_at]);
   }, [clouddy?.id, clouddy?.updated_at]);
 
   const saveDuplecast = useMutation({
