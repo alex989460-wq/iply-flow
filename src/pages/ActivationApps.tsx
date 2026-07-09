@@ -140,6 +140,32 @@ export default function ActivationApps() {
     onError: (e: any) => toast.error(e.message),
   });
 
+  const saveClouddy = useMutation({
+    mutationFn: async () => {
+      if (!clouddyForm.base_url.trim() || !clouddyForm.cookie.trim()) {
+        throw new Error('URL do painel e cookie da sessão Clouddy são obrigatórios');
+      }
+      const payload = {
+        user_id: user?.id,
+        panel_type: 'clouddy',
+        username: clouddyForm.base_url.trim().replace(/\/+$/, ''),
+        password: clouddyForm.cookie.trim(),
+        is_enabled: clouddyForm.is_enabled,
+      };
+      const { error } = await (supabase as any)
+        .from('activation_panel_credentials')
+        .upsert(payload, { onConflict: 'user_id,panel_type' });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['activation-panel-credentials'] });
+      toast.success('Credenciais Clouddy salvas!');
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+
+
   const saveMutation = useMutation({
     mutationFn: async (data: any) => {
       if (editingApp) {
