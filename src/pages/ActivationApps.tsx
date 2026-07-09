@@ -54,10 +54,13 @@ export default function ActivationApps() {
 
   const duplecast = panelCreds.find((c: any) => c.panel_type === 'duplecast');
   const p2cine = panelCreds.find((c: any) => c.panel_type === 'p2cine');
+  const clouddy = panelCreds.find((c: any) => c.panel_type === 'clouddy');
   const [duplecastForm, setDuplecastForm] = useState({ username: '', password: '', is_enabled: true });
   const [p2cineForm, setP2cineForm] = useState({ base_url: 'https://daily3.news', phpsessid: '', is_enabled: true });
+  const [clouddyForm, setClouddyForm] = useState({ base_url: 'https://console.clouddy.online', cookie: '', is_enabled: true });
   const [showPass, setShowPass] = useState(false);
   const [showP2Cookie, setShowP2Cookie] = useState(false);
+  const [showClCookie, setShowClCookie] = useState(false);
 
   useEffect(() => {
     if (duplecast) {
@@ -78,6 +81,16 @@ export default function ActivationApps() {
       });
     }
   }, [p2cine?.id, p2cine?.updated_at]);
+
+  useEffect(() => {
+    if (clouddy) {
+      setClouddyForm({
+        base_url: clouddy.username || 'https://console.clouddy.online',
+        cookie: clouddy.password || '',
+        is_enabled: clouddy.is_enabled ?? true,
+      });
+    }
+  }, [clouddy?.id, clouddy?.updated_at]);
 
   const saveDuplecast = useMutation({
     mutationFn: async () => {
@@ -126,6 +139,32 @@ export default function ActivationApps() {
     },
     onError: (e: any) => toast.error(e.message),
   });
+
+  const saveClouddy = useMutation({
+    mutationFn: async () => {
+      if (!clouddyForm.base_url.trim() || !clouddyForm.cookie.trim()) {
+        throw new Error('URL do painel e cookie da sessão Clouddy são obrigatórios');
+      }
+      const payload = {
+        user_id: user?.id,
+        panel_type: 'clouddy',
+        username: clouddyForm.base_url.trim().replace(/\/+$/, ''),
+        password: clouddyForm.cookie.trim(),
+        is_enabled: clouddyForm.is_enabled,
+      };
+      const { error } = await (supabase as any)
+        .from('activation_panel_credentials')
+        .upsert(payload, { onConflict: 'user_id,panel_type' });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['activation-panel-credentials'] });
+      toast.success('Credenciais Clouddy salvas!');
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+
 
   const saveMutation = useMutation({
     mutationFn: async (data: any) => {
@@ -507,6 +546,75 @@ export default function ActivationApps() {
                   <div className="flex justify-end">
                     <Button onClick={() => saveP2cine.mutate()} disabled={saveP2cine.isPending}>
                       {saveP2cine.isPending ? 'Salvando...' : 'Salvar cookie'}
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-border/50 p-4 space-y-4 bg-card">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                        <Monitor className="w-5 h-5 text-primary" />
+                      </div>
+                      <div>
+                        <h3 className="font-semibold text-foreground">Clouddy</h3>
+                        <p className="text-xs text-muted-foreground">
+                          Painel com <b>Cloudflare Turnstile</b> no login — usa cookie de sessão manual
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Label htmlFor="cl-enabled" className="text-xs">Renovação automática</Label>
+                      <Switch
+                        id="cl-enabled"
+                        checked={clouddyForm.is_enabled}
+                        onCheckedChange={v => setClouddyForm(f => ({ ...f, is_enabled: v }))}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div>
+                      <Label>URL do painel</Label>
+                      <Input
+                        value={clouddyForm.base_url}
+                        onChange={e => setClouddyForm(f => ({ ...f, base_url: e.target.value }))}
+                        placeholder="https://console.clouddy.online"
+                      />
+                    </div>
+                    <div>
+                      <Label>Cookie da sessão</Label>
+                      <div className="relative">
+                        <Input
+                          type={showClCookie ? 'text' : 'password'}
+                          autoComplete="off"
+                          value={clouddyForm.cookie}
+                          onChange={e => setClouddyForm(f => ({ ...f, cookie: e.target.value }))}
+                          placeholder="PHPSESSID=xxx; REMEMBERME=yyy"
+                          className="font-mono text-xs"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowClCookie(v => !v)}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                          aria-label={showClCookie ? 'Ocultar' : 'Mostrar'}
+                        >
+                          {showClCookie ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="rounded-lg bg-muted/40 border border-border/50 p-3 text-xs text-muted-foreground flex gap-2">
+                    <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-yellow-500" />
+                    <span>
+                      Faça login em <span className="font-mono">console.clouddy.online/reseller</span>, abra o DevTools (F12) → <b>Network</b> → clique em qualquer requisição <span className="font-mono">/reseller/*</span> → em <b>Request Headers</b> copie o valor completo de <span className="font-mono">Cookie</span> e cole aqui. Também aceita o JSON exportado da aba <b>Application → Cookies</b>.
+                    </span>
+                  </div>
+
+                  <div className="flex justify-end">
+                    <Button onClick={() => saveClouddy.mutate()} disabled={saveClouddy.isPending}>
+                      {saveClouddy.isPending ? 'Salvando...' : 'Salvar cookie'}
                     </Button>
                   </div>
                 </div>
