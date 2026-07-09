@@ -78,7 +78,6 @@ export default function ActivationApps() {
       });
     }
   }, [clouddy?.id, clouddy?.updated_at]);
-  }, [clouddy?.id, clouddy?.updated_at]);
 
   const saveDuplecast = useMutation({
     mutationFn: async () => {
@@ -104,40 +103,16 @@ export default function ActivationApps() {
     onError: (e: any) => toast.error(e.message),
   });
 
-  const saveP2cine = useMutation({
-    mutationFn: async () => {
-      if (!p2cineForm.base_url.trim() || !p2cineForm.phpsessid.trim()) {
-        throw new Error('URL do painel e cookie PHPSESSID são obrigatórios');
-      }
-      const payload = {
-        user_id: user?.id,
-        panel_type: 'p2cine',
-        username: p2cineForm.base_url.trim().replace(/\/+$/, ''),
-        password: p2cineForm.phpsessid.trim(),
-        is_enabled: p2cineForm.is_enabled,
-      };
-      const { error } = await (supabase as any)
-        .from('activation_panel_credentials')
-        .upsert(payload, { onConflict: 'user_id,panel_type' });
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['activation-panel-credentials'] });
-      toast.success('Credenciais P2Cine salvas!');
-    },
-    onError: (e: any) => toast.error(e.message),
-  });
-
   const saveClouddy = useMutation({
     mutationFn: async () => {
-      if (!clouddyForm.base_url.trim() || !clouddyForm.cookie.trim()) {
-        throw new Error('URL do painel e cookie da sessão Clouddy são obrigatórios');
+      if (!clouddyForm.username.trim() || !clouddyForm.password.trim()) {
+        throw new Error('E-mail e senha do painel Clouddy são obrigatórios');
       }
       const payload = {
         user_id: user?.id,
         panel_type: 'clouddy',
-        username: clouddyForm.base_url.trim().replace(/\/+$/, ''),
-        password: clouddyForm.cookie.trim(),
+        username: clouddyForm.username.trim(),
+        password: clouddyForm.password,
         is_enabled: clouddyForm.is_enabled,
       };
       const { error } = await (supabase as any)
