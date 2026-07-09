@@ -88,10 +88,22 @@ serve(async (req) => {
     }
 
     const baseUrl = String(cred.username || '').replace(/\/+$/, '');
-    const phpsessid = String(cred.password || '').trim();
+    const rawPass = String(cred.password || '').trim();
+    // Aceita: token puro, JSON de cookie exportado, ou "PHPSESSID=xxx"
+    let phpsessid = rawPass;
+    try {
+      const parsed = JSON.parse(rawPass);
+      const arr = Array.isArray(parsed) ? parsed : [parsed];
+      const found = arr.find((c: any) => String(c?.name).toUpperCase() === 'PHPSESSID');
+      if (found?.value) phpsessid = String(found.value);
+    } catch { /* not JSON */ }
+    const m = phpsessid.match(/PHPSESSID\s*=\s*([A-Za-z0-9]+)/i);
+    if (m) phpsessid = m[1];
+    phpsessid = phpsessid.trim();
     if (!baseUrl || !phpsessid) {
       return new Response(JSON.stringify({ error: 'URL do painel ou PHPSESSID vazios' }), { status: 400, headers: jsonHeaders });
     }
+
 
     const commonHeaders = {
       'User-Agent': UA,
