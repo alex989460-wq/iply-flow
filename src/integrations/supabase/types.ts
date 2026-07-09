@@ -56,6 +56,42 @@ export type Database = {
         }
         Relationships: []
       }
+      activation_panel_credentials: {
+        Row: {
+          created_at: string
+          extra: Json
+          id: string
+          is_enabled: boolean
+          panel_type: string
+          password: string
+          updated_at: string
+          user_id: string
+          username: string
+        }
+        Insert: {
+          created_at?: string
+          extra?: Json
+          id?: string
+          is_enabled?: boolean
+          panel_type: string
+          password?: string
+          updated_at?: string
+          user_id: string
+          username?: string
+        }
+        Update: {
+          created_at?: string
+          extra?: Json
+          id?: string
+          is_enabled?: boolean
+          panel_type?: string
+          password?: string
+          updated_at?: string
+          user_id?: string
+          username?: string
+        }
+        Relationships: []
+      }
       activation_requests: {
         Row: {
           amount: number | null
