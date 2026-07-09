@@ -72,8 +72,8 @@ export default function ActivationApps() {
   useEffect(() => {
     if (clouddy) {
       setClouddyForm({
-        username: clouddy.username || '',
-        password: clouddy.password || '',
+        base_url: clouddy.username || 'https://console.clouddy.online',
+        cookie: clouddy.password || '',
         is_enabled: clouddy.is_enabled ?? true,
       });
     }
