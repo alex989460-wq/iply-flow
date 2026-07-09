@@ -53,8 +53,11 @@ export default function ActivationApps() {
   });
 
   const duplecast = panelCreds.find((c: any) => c.panel_type === 'duplecast');
+  const p2cine = panelCreds.find((c: any) => c.panel_type === 'p2cine');
   const [duplecastForm, setDuplecastForm] = useState({ username: '', password: '', is_enabled: true });
+  const [p2cineForm, setP2cineForm] = useState({ base_url: 'https://daily3.news', phpsessid: '', is_enabled: true });
   const [showPass, setShowPass] = useState(false);
+  const [showP2Cookie, setShowP2Cookie] = useState(false);
 
   useEffect(() => {
     if (duplecast) {
@@ -65,6 +68,16 @@ export default function ActivationApps() {
       });
     }
   }, [duplecast?.id, duplecast?.updated_at]);
+
+  useEffect(() => {
+    if (p2cine) {
+      setP2cineForm({
+        base_url: p2cine.username || 'https://daily3.news',
+        phpsessid: p2cine.password || '',
+        is_enabled: p2cine.is_enabled ?? true,
+      });
+    }
+  }, [p2cine?.id, p2cine?.updated_at]);
 
   const saveDuplecast = useMutation({
     mutationFn: async () => {
@@ -86,6 +99,30 @@ export default function ActivationApps() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['activation-panel-credentials'] });
       toast.success('Credenciais Duplecast salvas!');
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  const saveP2cine = useMutation({
+    mutationFn: async () => {
+      if (!p2cineForm.base_url.trim() || !p2cineForm.phpsessid.trim()) {
+        throw new Error('URL do painel e cookie PHPSESSID são obrigatórios');
+      }
+      const payload = {
+        user_id: user?.id,
+        panel_type: 'p2cine',
+        username: p2cineForm.base_url.trim().replace(/\/+$/, ''),
+        password: p2cineForm.phpsessid.trim(),
+        is_enabled: p2cineForm.is_enabled,
+      };
+      const { error } = await (supabase as any)
+        .from('activation_panel_credentials')
+        .upsert(payload, { onConflict: 'user_id,panel_type' });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['activation-panel-credentials'] });
+      toast.success('Credenciais P2Cine salvas!');
     },
     onError: (e: any) => toast.error(e.message),
   });
