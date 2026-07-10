@@ -339,20 +339,33 @@ function analyzeLocal(turns: Turn[]) {
   const lastOpIdx = turns.map((t, i) => ({ t, i })).filter((x) => x.t.role === "OPERADOR" && isInstruction(x.t.text)).pop()?.i ?? -1;
   const resolved = lastOpIdx >= 0 && turns.slice(lastOpIdx + 1).some((t) => t.role === "CLIENTE" && RESOLUTION_HINTS.some((r) => r.test(t.text)));
 
-  // qualidade do sinal: precisa ter problema + solução com verbo de instrução
+  // BLACKLIST: temas operacionais (pagamento, pix, renovação, confirmação, envio de acesso)
+  // NÃO viram conhecimento — são interações únicas com dados voláteis.
+  const OPERATIONAL_BLACKLIST = /(paguei|pix|cakto|kakito|comprovante|manda o pix|me envi[ae] .*pix|gostaria de renovar|quero renovar|renovar meu|confirma[çc][ãa]o de pagamento|meu amigo me enviou|quero contratar|gostaria de adquirir|quero volta|poderia ver pra mim|assinatura com vcs|data de vencimento|vencimento do aplicativo|fazer o pagamento|desistalou|desinstalou|volta com o aplicativo)/i;
+  const VOLATILE_IN_SOLUTION = /(cdnfull|gestorvplay|m3u_plus|get\.php\?username|http:\/\/cdn|https:\/\/apps\.gestor|Pagamento Aprovado|R\$ ?[0-9]+.*confirmado|C[oó]d[ei] Primeiro campo|\bDNS:\s*http)/i;
+  if (OPERATIONAL_BLACKLIST.test(problem) || VOLATILE_IN_SOLUTION.test(solution)) {
+    return { signal_quality: "none" as const };
+  }
+
+  // Requer pelo menos 2 verbos imperativos distintos na solução (procedimento real)
+  const distinctInstructionCount = INSTRUCTION_HINTS.reduce((n, r) => n + (r.test(solution) ? 1 : 0), 0);
+
+  // qualidade do sinal: exige problema + solução instrucional real
   let signal: "high" | "medium" | "none" = "none";
-  if (problem.length >= 20 && solution.length >= 20 && (instrOps.length >= 1 || stageScore >= 0.5)) signal = "high";
-  else if (problem.length >= 15 && solution.length >= 15 && stageScore >= 0.25) signal = "medium";
+  if (problem.length >= 25 && solution.length >= 40 && distinctInstructionCount >= 2 && instrOps.length >= 1) signal = "high";
+  else if (problem.length >= 20 && solution.length >= 30 && distinctInstructionCount >= 2 && stageScore >= 0.5) signal = "medium";
 
   // subject curto derivado do problema
   const subject = problem.replace(/\s+/g, " ").slice(0, 140);
 
-  // kind: fluxos com múltiplas etapas viram automação; procedimentos ficam separados.
+  // kind: fluxos com múltiplas etapas viram automação; procedimentos precisam de passos reais.
   let kind: Kind = "official_answer";
   const flowNodes = buildFlowNodes(turns, { brand, app });
   if (flowNodes) kind = "flow";
-  else if (steps.length >= 2) kind = "procedure";
-  else if (/\?/.test(problem)) kind = "intent";
+  else if (steps.length >= 3) kind = "procedure";
+  else if (/\?/.test(problem) && problem.length >= 30) kind = "intent";
+  else signal = "none"; // sem passos nem pergunta clara, descarta
+
 
   const keywords = Array.from(new Set(
     normalize(subject + " " + solution).split(" ")
