@@ -322,9 +322,10 @@ async function tick() {
     return log(`${next.customer_name || next.username}: ${msg}`, "fail");
   }
 
-  const r = await renewClient(lookup.clientId, cfg.months || "1");
+  const months = String(next.months || cfg.months || "1");
+  const r = await renewClient(lookup.clientId, months);
   await reportResult(cfg.token, next.id, r.ok, r.msg, r.status);
-  await log(`${next.customer_name || next.username} (id=${lookup.clientId}): ${r.msg}`, r.ok ? "ok" : "fail");
+  await log(`${next.customer_name || next.username} (id=${lookup.clientId}, ${months}m): ${r.msg}`, r.ok ? "ok" : "fail");
 
   if (r.ok) {
     chrome.notifications.create({
