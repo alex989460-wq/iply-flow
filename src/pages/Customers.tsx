@@ -548,13 +548,24 @@ export default function Customers() {
               else if (!rushResult?.success) console.warn('[Rush] Falha auto-renew:', rushResult?.error);
               else console.log('[Rush] Auto-renovado ao cadastrar:', rushResult);
             } else if (isUniplay) {
-              const months = Math.max(1, Math.round((plan?.duration_days || 30) / 30));
-              const { data: upResult, error: upError } = await supabase.functions.invoke('uniplay-renew', {
-                body: { username: newCustomer.username.trim(), months, customer_id: newCustomer.id },
+              const { error: queueError } = await supabase.from('pending_manual_renewals' as any).insert({
+                owner_id: user?.id,
+                customer_id: newCustomer.id,
+                customer_name: restData.name,
+                customer_phone: restData.phone,
+                username: newCustomer.username.trim(),
+                server_id: newCustomer.server_id,
+                server_name: serverName,
+                server_host: serverHost,
+                plan_name: (plan as any)?.plan_name || null,
+                amount: 0,
+                new_due_date: dueDate,
+                reason: 'uniplay_extension_pending',
+                source: 'frontend_uniplay_create',
+                error_details: { message: 'Aguardando extensão SuperGestor 1.6.0 em aba logada no searchdefense.top' },
               });
-              if (upError) console.error('[Uniplay] Erro auto-renew:', upError);
-              else if (!upResult?.success) console.warn('[Uniplay] Falha auto-renew:', upResult?.error);
-              else console.log('[Uniplay] Auto-renovado ao cadastrar:', upResult);
+              if (queueError) console.error('[Uniplay] Erro ao enviar para extensão:', queueError);
+              else console.log('[Uniplay] Enviado para fila da extensão');
             } else {
               const { data: xuiResult, error: xuiError } = await supabase.functions.invoke('xui-renew', {
                 body: { username: newCustomer.username.trim(), new_due_date: dueDate, customer_id: newCustomer.id },
@@ -719,13 +730,24 @@ export default function Customers() {
             else if (!rushResult?.success) console.warn('[Rush] Falha:', rushResult?.error);
             else console.log('[Rush] Renovado:', rushResult);
           } else if (isUniplay) {
-            const months = Math.max(1, Math.round(plan.duration_days / 30));
-            const { data: upResult, error: upError } = await supabase.functions.invoke('uniplay-renew', {
-              body: { username: customer.username.trim(), months, customer_id: customer.id },
+            const { error: queueError } = await supabase.from('pending_manual_renewals' as any).insert({
+              owner_id: customer.created_by || user?.id,
+              customer_id: customer.id,
+              customer_name: customer.name,
+              customer_phone: customer.phone,
+              username: customer.username.trim(),
+              server_id: customer.server_id,
+              server_name: serverName,
+              server_host: serverHost,
+              plan_name: plan.plan_name,
+              amount,
+              new_due_date: newDueDateStr,
+              reason: 'uniplay_extension_pending',
+              source: 'frontend_uniplay_renew',
+              error_details: { message: 'Aguardando extensão SuperGestor 1.6.0 em aba logada no searchdefense.top' },
             });
-            if (upError) console.error('[Uniplay] Erro:', upError);
-            else if (!upResult?.success) console.warn('[Uniplay] Falha:', upResult?.error);
-            else console.log('[Uniplay] Renovado:', upResult);
+            if (queueError) console.error('[Uniplay] Erro ao enviar para extensão:', queueError);
+            else console.log('[Uniplay] Enviado para fila da extensão');
           } else {
             const { data: xuiResult, error: xuiError } = await supabase.functions.invoke('xui-renew', {
               body: { username: customer.username.trim(), new_due_date: newDueDateStr, customer_id: customer.id },
@@ -1099,15 +1121,24 @@ export default function Customers() {
                 console.log(`[Rush] ${latestCustomer.name} renovado`);
               }
             } else if (isUniplay) {
-              const months = Math.max(1, Math.round(plan.duration_days / 30));
-              const { data: upResult, error: upError } = await supabase.functions.invoke('uniplay-renew', {
-                body: { username: latestCustomer.username.trim(), months, customer_id: latestCustomer.id },
+              const { error: queueError } = await supabase.from('pending_manual_renewals' as any).insert({
+                owner_id: user?.id,
+                customer_id: latestCustomer.id,
+                customer_name: latestCustomer.name,
+                customer_phone: latestCustomer.phone,
+                username: latestCustomer.username.trim(),
+                server_id: latestCustomer.server_id,
+                server_name: serverName,
+                server_host: serverHost,
+                plan_name: plan.plan_name,
+                amount,
+                new_due_date: newDueDateStr,
+                reason: 'uniplay_extension_pending',
+                source: 'frontend_uniplay_bulk_renew',
+                error_details: { message: 'Aguardando extensão SuperGestor 1.6.0 em aba logada no searchdefense.top' },
               });
-              if (upError || !upResult?.success) {
-                console.warn(`[Uniplay] Falha para ${latestCustomer.name}:`, upError?.message || upResult?.error);
-              } else {
-                console.log(`[Uniplay] ${latestCustomer.name} renovado`);
-              }
+              if (queueError) console.warn(`[Uniplay] Falha ao enviar ${latestCustomer.name} para extensão:`, queueError.message);
+              else console.log(`[Uniplay] ${latestCustomer.name} enviado para fila da extensão`);
             } else {
               const { data: xuiResult, error: xuiError } = await supabase.functions.invoke('xui-renew', {
                 body: { username: latestCustomer.username.trim(), new_due_date: newDueDateStr, customer_id: latestCustomer.id },
