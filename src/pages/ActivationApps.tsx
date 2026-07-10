@@ -82,6 +82,16 @@ export default function ActivationApps() {
     }
   }, [clouddy?.id, clouddy?.updated_at]);
 
+  useEffect(() => {
+    if (p2cine) {
+      setP2cineForm({
+        base_url: p2cine.username || '',
+        cookie: p2cine.password || '',
+        is_enabled: p2cine.is_enabled ?? true,
+      });
+    }
+  }, [p2cine?.id, p2cine?.updated_at]);
+
   const saveDuplecast = useMutation({
     mutationFn: async () => {
       if (!duplecastForm.username.trim() || !duplecastForm.password.trim()) {
