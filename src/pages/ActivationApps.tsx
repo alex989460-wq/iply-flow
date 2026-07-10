@@ -174,6 +174,32 @@ export default function ActivationApps() {
     onError: (e: any) => toast.error(e.message),
   });
 
+  const saveIbosol = useMutation({
+    mutationFn: async () => {
+      if (!ibosolForm.token.trim()) {
+        throw new Error('Token do IBO Sol é obrigatório');
+      }
+      const payload = {
+        user_id: user?.id,
+        panel_type: 'ibosol',
+        username: 'https://backend-apis.ibosol.com',
+        password: ibosolForm.token.trim(),
+        is_enabled: ibosolForm.is_enabled,
+      };
+      const { error } = await (supabase as any)
+        .from('activation_panel_credentials')
+        .upsert(payload, { onConflict: 'user_id,panel_type' });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['activation-panel-credentials'] });
+      toast.success('Token IBO Sol salvo!');
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+
+
 
   const saveMutation = useMutation({
     mutationFn: async (data: any) => {
