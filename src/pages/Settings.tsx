@@ -727,6 +727,7 @@ export default function Settings() {
           {/* APIs Externas Tab */}
           <TabsContent value="apis_externas" className="mt-6 space-y-6">
             <ResellerApiSettings />
+            <P2CineCredentialsCard />
             <AutoRenewServersCard />
           </TabsContent>
 
