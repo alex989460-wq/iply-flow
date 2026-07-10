@@ -23,6 +23,8 @@ export default function ResellerApiSettings() {
   const [showRushPassword, setShowRushPassword] = useState(false);
   const [showRushToken, setShowRushToken] = useState(false);
   const [showNatv2Key, setShowNatv2Key] = useState(false);
+  const [showUniplayPassword, setShowUniplayPassword] = useState(false);
+  const [testingUniplay, setTestingUniplay] = useState(false);
 
   const [settings, setSettings] = useState({
     cakto_webhook_secret: '',
@@ -39,6 +41,9 @@ export default function ResellerApiSettings() {
     rush_password: '',
     rush_token: '',
     rush_base_url: '',
+    uniplay_username: '',
+    uniplay_password: '',
+    uniplay_base_url: '',
   });
 
   const webhookUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/cakto-webhook`;
@@ -75,6 +80,9 @@ export default function ResellerApiSettings() {
           rush_password: d.rush_password || '',
           rush_token: d.rush_token || '',
           rush_base_url: d.rush_base_url || '',
+          uniplay_username: d.uniplay_username || '',
+          uniplay_password: d.uniplay_password || '',
+          uniplay_base_url: d.uniplay_base_url || '',
         });
       }
     } catch (err) {
@@ -104,6 +112,9 @@ export default function ResellerApiSettings() {
         rush_password: settings.rush_password || '',
         rush_token: settings.rush_token || '',
         rush_base_url: settings.rush_base_url || '',
+        uniplay_username: settings.uniplay_username || '',
+        uniplay_password: settings.uniplay_password || '',
+        uniplay_base_url: settings.uniplay_base_url || '',
         updated_at: new Date().toISOString(),
       };
 
@@ -135,6 +146,31 @@ export default function ResellerApiSettings() {
     toast({ title: 'Copiado!', description: `${label} copiado para a área de transferência` });
   };
 
+  const testUniplay = async () => {
+    if (!settings.uniplay_username || !settings.uniplay_password) {
+      toast({ title: 'Erro', description: 'Preencha usuário e senha do Uniplay', variant: 'destructive' });
+      return;
+    }
+    setTestingUniplay(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('uniplay-renew', {
+        body: {
+          action: 'test',
+          uniplay_username: settings.uniplay_username,
+          uniplay_password: settings.uniplay_password,
+          uniplay_base_url: settings.uniplay_base_url,
+        },
+      });
+      if (error) throw error;
+      if (!data?.success) throw new Error(data?.error || 'Falha no login');
+      toast({ title: 'Login OK', description: `Uniplay: ${data.username} (id ${data.id})` });
+    } catch (err: any) {
+      toast({ title: 'Erro Uniplay', description: err.message || String(err), variant: 'destructive' });
+    } finally {
+      setTestingUniplay(false);
+    }
+  };
+
   if (loading) {
     return (
       <Card>
@@ -150,6 +186,7 @@ export default function ResellerApiSettings() {
   const hasNatv2 = !!settings.natv2_api_key && !!settings.natv2_base_url;
   const hasTheBest = !!settings.the_best_username && !!settings.the_best_password;
   const hasRush = !!settings.rush_username && !!settings.rush_password && !!settings.rush_token;
+  const hasUniplay = !!settings.uniplay_username && !!settings.uniplay_password;
 
   return (
     <div className="space-y-6">
@@ -536,6 +573,86 @@ export default function ResellerApiSettings() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Uniplay */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Key className="w-5 h-5 text-pink-500" />
+            Uniplay (searchdefense.top)
+            {hasUniplay && <CheckCircle2 className="w-5 h-5 text-green-500" />}
+          </CardTitle>
+          <CardDescription>
+            Renovação automática nos painéis IPTV e P2P do Uniplay. A pesquisa é feita nas duas abas.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <Alert>
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>
+              <strong>Como configurar:</strong>
+              <ol className="list-decimal ml-4 mt-1 space-y-1 text-sm">
+                <li>Use o <strong>usuário e senha</strong> da sua revenda em <code>searchdefense.top</code></li>
+                <li>Ao renovar aqui, o sistema procura o cliente em <strong>IPTV</strong> e <strong>P2P</strong> e renova onde encontrar</li>
+                <li>Créditos usados = meses do plano cadastrado (30/90/180/365 dias)</li>
+              </ol>
+            </AlertDescription>
+          </Alert>
+
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="uniplay_username">Usuário da Revenda</Label>
+              <Input
+                id="uniplay_username"
+                value={settings.uniplay_username}
+                onChange={(e) => setSettings({ ...settings, uniplay_username: e.target.value })}
+                placeholder="Seu usuário do Uniplay"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="uniplay_password">Senha da Revenda</Label>
+              <div className="relative">
+                <Input
+                  id="uniplay_password"
+                  type={showUniplayPassword ? 'text' : 'password'}
+                  value={settings.uniplay_password}
+                  onChange={(e) => setSettings({ ...settings, uniplay_password: e.target.value })}
+                  placeholder="Sua senha do Uniplay"
+                  className="pr-10"
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="absolute right-0 top-0 h-full"
+                  onClick={() => setShowUniplayPassword(!showUniplayPassword)}
+                >
+                  {showUniplayPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="uniplay_url">URL Base da API (opcional)</Label>
+            <Input
+              id="uniplay_url"
+              value={settings.uniplay_base_url}
+              onChange={(e) => setSettings({ ...settings, uniplay_base_url: e.target.value })}
+              placeholder="https://gesapioffice.com"
+            />
+            <p className="text-xs text-muted-foreground">Padrão: https://gesapioffice.com</p>
+          </div>
+
+          <div>
+            <Button type="button" variant="outline" onClick={testUniplay} disabled={testingUniplay}>
+              {testingUniplay ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <CheckCircle2 className="w-4 h-4 mr-2" />}
+              Testar login
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
 
       <div className="flex justify-end">
         <Button onClick={handleSave} disabled={saving}>
