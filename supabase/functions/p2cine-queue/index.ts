@@ -116,7 +116,9 @@ Deno.serve(async (req) => {
       if (success) {
         // Advance the customer's due_date by inserting a confirmed payment so the
         // renew_customer_due_date trigger handles calendar-month math consistently.
-        if (pending.customer_id) {
+        // Frontend-created tasks already updated the local customer record; in that
+        // case the extension only confirms the external panel action.
+        if (pending.customer_id && !String(pending.source || "").startsWith("frontend_")) {
           const { error: payErr } = await supabase.from("payments").insert({
             customer_id: pending.customer_id,
             amount: pending.amount ?? 0,
