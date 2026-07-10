@@ -46,6 +46,7 @@ const REASON_COLOR: Record<string, string> = {
   phone_not_found: 'bg-pink-500',
   app_activation: 'bg-emerald-600',
   clouddy_session_expired: 'bg-amber-600',
+  p2cine_session_expired: 'bg-amber-700',
 };
 
 export default function PendingManualRenewalsFloat() {
