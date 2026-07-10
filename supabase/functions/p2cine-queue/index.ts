@@ -21,11 +21,13 @@ function json(body: unknown, status = 200) {
 }
 
 function isP2Cine(row: { server_host?: string | null; server_name?: string | null }) {
-  const h = (row.server_host || "").toLowerCase();
-  const n = (row.server_name || "").toLowerCase();
+  const h = (row.server_host || "").toLowerCase().trim();
+  const n = (row.server_name || "").toLowerCase().trim();
+  const hay = `${h} ${n}`;
   return (
-    h.includes("p2cine") || h.includes("daily3") ||
-    n.includes("p2cine") || n.includes("daily3")
+    hay.includes("p2cine") || hay.includes("daily3") ||
+    h === "p2c" || n === "p2c" ||
+    hay.includes(" p2c ") || hay.startsWith("p2c ") || hay.endsWith(" p2c")
   );
 }
 
