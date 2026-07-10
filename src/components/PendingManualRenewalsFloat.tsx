@@ -33,6 +33,7 @@ const REASON_LABEL: Record<string, string> = {
   phone_not_found: 'Telefone não encontrado',
   app_activation: 'Ativação de App',
   clouddy_session_expired: 'Sessão Clouddy expirada',
+  p2cine_session_expired: 'Sessão P2Cine expirada',
 };
 
 const REASON_COLOR: Record<string, string> = {
