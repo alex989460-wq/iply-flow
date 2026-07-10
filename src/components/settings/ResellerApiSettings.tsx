@@ -112,6 +112,9 @@ export default function ResellerApiSettings() {
         rush_password: settings.rush_password || '',
         rush_token: settings.rush_token || '',
         rush_base_url: settings.rush_base_url || '',
+        uniplay_username: settings.uniplay_username || '',
+        uniplay_password: settings.uniplay_password || '',
+        uniplay_base_url: settings.uniplay_base_url || '',
         updated_at: new Date().toISOString(),
       };
 
