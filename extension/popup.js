@@ -1,9 +1,8 @@
-const fields = ["token", "panelBase", "renewPath", "monthsParam", "monthsValue"];
+const fields = ["token", "months"];
 
 async function load() {
   const cfg = await chrome.storage.local.get({
-    token: "", panelBase: "https://daily3.news", renewPath: "/clients/renew",
-    monthsParam: "months", monthsValue: "1", enabled: false,
+    token: "", months: "1", enabled: false,
     lastRun: null, lastResult: "-", successCount: 0, failCount: 0,
   });
   for (const f of fields) document.getElementById(f).value = cfg[f];

@@ -4,12 +4,11 @@
 <meta charset="utf-8" />
 <title>SuperGestor P2Cine</title>
 <style>
-  body { font-family: -apple-system, system-ui, sans-serif; width: 340px; padding: 14px; margin: 0; background: #0f172a; color: #e2e8f0; }
-  h1 { font-size: 15px; margin: 0 0 10px; }
+  body { font-family: -apple-system, system-ui, sans-serif; width: 320px; padding: 14px; margin: 0; background: #0f172a; color: #e2e8f0; }
+  h1 { font-size: 15px; margin: 0 0 4px; }
+  .sub { font-size: 11px; opacity: .6; margin-bottom: 10px; }
   label { font-size: 11px; opacity: .75; display: block; margin: 8px 0 3px; text-transform: uppercase; letter-spacing: .5px; }
-  input, select { width: 100%; box-sizing: border-box; padding: 6px 8px; border-radius: 6px; border: 1px solid #334155; background: #1e293b; color: #f1f5f9; font-size: 12px; }
-  .row { display: flex; gap: 6px; }
-  .row > * { flex: 1; }
+  input { width: 100%; box-sizing: border-box; padding: 6px 8px; border-radius: 6px; border: 1px solid #334155; background: #1e293b; color: #f1f5f9; font-size: 12px; }
   button { margin-top: 12px; width: 100%; padding: 8px; border-radius: 6px; border: 0; background: #3b82f6; color: white; font-weight: 600; cursor: pointer; }
   button.secondary { background: #334155; }
   .status { margin-top: 12px; padding: 8px; border-radius: 6px; background: #1e293b; font-size: 11px; line-height: 1.5; }
@@ -19,26 +18,13 @@
 </head>
 <body>
   <h1>SuperGestor - P2Cine</h1>
+  <div class="sub">Painel: daily3.news (fixo)</div>
 
   <label>Token da extensao</label>
   <input id="token" type="password" placeholder="cole aqui" />
 
-  <label>URL do painel</label>
-  <input id="panelBase" placeholder="https://daily3.news" />
-
-  <label>Endpoint de renovacao</label>
-  <input id="renewPath" placeholder="/clients/renew" />
-
-  <div class="row">
-    <div>
-      <label>Nome do parametro</label>
-      <input id="monthsParam" placeholder="months" />
-    </div>
-    <div>
-      <label>Valor</label>
-      <input id="monthsValue" placeholder="1" />
-    </div>
-  </div>
+  <label>Meses por renovacao</label>
+  <input id="months" placeholder="1" />
 
   <div class="toggle">
     <input id="enabled" type="checkbox" />
