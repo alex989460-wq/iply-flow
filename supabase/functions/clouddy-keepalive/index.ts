@@ -45,15 +45,46 @@ serve(async (req) => {
       const baseUrl = String((c as any).username || "https://console.clouddy.online").replace(/\/+$/, "");
       const cookie = normalizeCookie(String((c as any).password || ""));
       if (!cookie) { results.push({ user_id: c.user_id, ok: false, error: "sem cookie" }); continue; }
+      let alive = false;
+      let status = 0;
+      let errMsg: string | null = null;
       try {
         const r = await fetch(`${baseUrl}/reseller/`, {
           headers: { "User-Agent": UA, Cookie: cookie, Accept: "text/html" },
           redirect: "manual",
         });
-        const alive = r.status === 200;
-        results.push({ user_id: c.user_id, ok: alive, status: r.status });
+        status = r.status;
+        alive = r.status === 200;
+        await r.body?.cancel();
       } catch (e) {
-        results.push({ user_id: c.user_id, ok: false, error: (e as Error).message });
+        errMsg = (e as Error).message;
+      }
+      results.push({ user_id: c.user_id, ok: alive, status, error: errMsg });
+
+      // Sessão morta → criar pendência manual (uma por dia por revendedor)
+      if (!alive) {
+        const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+        const { data: existing } = await admin
+          .from("pending_manual_renewals")
+          .select("id")
+          .eq("owner_id", c.user_id)
+          .eq("reason", "clouddy_session_expired")
+          .gte("created_at", since)
+          .limit(1);
+        if (!existing || existing.length === 0) {
+          await admin.from("pending_manual_renewals").insert({
+            owner_id: c.user_id,
+            customer_name: "⚠️ Sessão Clouddy expirada",
+            reason: "clouddy_session_expired",
+            source: "clouddy-keepalive",
+            error_details: {
+              message: "Cookie de sessão do painel Clouddy expirou. Faça login em console.clouddy.online, copie o Cookie do DevTools e atualize em Configurações → Ativações → Clouddy.",
+              status,
+              error: errMsg,
+              base_url: baseUrl,
+            },
+          });
+        }
       }
     }
     return new Response(JSON.stringify({ pinged: results.length, results }), { headers: jh });
