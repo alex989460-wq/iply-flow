@@ -248,34 +248,63 @@ serve(async (req) => {
       );
     }
 
-    // Step 2: GET refill page for CSRF
-    const refillUrl = `${baseUrl}/reseller/users/${clientId}/refill/${tariffId}`;
-    const pageResp = await fetch(refillUrl, { headers: baseHeaders, redirect: "manual" });
-    if (pageResp.status === 302 || pageResp.status === 301) {
-      return new Response(
-        JSON.stringify({
-          error:
-            "Sessão Clouddy expirada. Faça login no painel e atualize o cookie nas configurações.",
-        }),
-        { status: 401, headers: jsonHeaders },
-      );
+    // Step 2: GET refill/purchase page for CSRF.
+    // Contas novas sem tarifa vinculada não têm /refill/{id}; tentamos:
+    //   a) /reseller/users/{id}/refill/{tariff}
+    //   b) /reseller/users/{id}/purchase/{tariff}
+    //   c) /reseller/users/{id}/refill (formulário com form[tariff])
+    const candidates = [
+      { url: `${baseUrl}/reseller/users/${clientId}/refill/${tariffId}`, withTariffField: false },
+      { url: `${baseUrl}/reseller/users/${clientId}/purchase/${tariffId}`, withTariffField: false },
+      { url: `${baseUrl}/reseller/users/${clientId}/refill`, withTariffField: true },
+    ];
+
+    let refillUrl = "";
+    let csrf: string | null = null;
+    let withTariffField = false;
+    let lastStatus = 0;
+    for (const c of candidates) {
+      const r = await fetch(c.url, { headers: baseHeaders, redirect: "manual" });
+      lastStatus = r.status;
+      if (r.status === 302 || r.status === 301) {
+        const loc = r.headers.get("location") || "";
+        if (/\/auth\/login/i.test(loc)) {
+          return new Response(
+            JSON.stringify({
+              error:
+                "Sessão Clouddy expirada. Faça login no painel e atualize o cookie nas configurações.",
+            }),
+            { status: 401, headers: jsonHeaders },
+          );
+        }
+        continue;
+      }
+      if (!r.ok) continue;
+      const html = await r.text();
+      const token = extractCsrf(html);
+      if (token || /name=["']form\[sum\]["']/i.test(html)) {
+        refillUrl = c.url;
+        csrf = token;
+        withTariffField = c.withTariffField;
+        break;
+      }
     }
-    if (!pageResp.ok) {
+
+    if (!refillUrl) {
       return new Response(
         JSON.stringify({
-          error: `Falha ao abrir tarifa ${tariffId} do cliente ${clientId}: HTTP ${pageResp.status}`,
+          error: `Nenhum formulário de recarga encontrado para tarifa ${tariffId} (último HTTP ${lastStatus})`,
         }),
         { status: 502, headers: jsonHeaders },
       );
     }
-    const pageHtml = await pageResp.text();
-    const csrf = extractCsrf(pageHtml);
 
     // Step 3: submit refill
     const formBody = new URLSearchParams();
     formBody.set("form[sum]", sum);
     formBody.set("form[confirm]", "1");
     formBody.set("form[via]", via);
+    if (withTariffField) formBody.set("form[tariff]", String(tariffId));
     if (csrf) formBody.set("form[_token]", csrf);
 
     const submitResp = await fetch(refillUrl, {
