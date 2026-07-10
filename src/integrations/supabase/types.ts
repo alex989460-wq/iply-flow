@@ -2090,6 +2090,9 @@ export type Database = {
           the_best_base_url: string | null
           the_best_password: string | null
           the_best_username: string | null
+          uniplay_base_url: string | null
+          uniplay_password: string | null
+          uniplay_username: string | null
           updated_at: string
           user_id: string
         }
@@ -2110,6 +2113,9 @@ export type Database = {
           the_best_base_url?: string | null
           the_best_password?: string | null
           the_best_username?: string | null
+          uniplay_base_url?: string | null
+          uniplay_password?: string | null
+          uniplay_username?: string | null
           updated_at?: string
           user_id: string
         }
@@ -2130,6 +2136,9 @@ export type Database = {
           the_best_base_url?: string | null
           the_best_password?: string | null
           the_best_username?: string | null
+          uniplay_base_url?: string | null
+          uniplay_password?: string | null
+          uniplay_username?: string | null
           updated_at?: string
           user_id?: string
         }
