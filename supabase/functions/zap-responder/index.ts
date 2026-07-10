@@ -2159,10 +2159,11 @@ Deno.serve(async (req) => {
           );
         }
         const result = await buscarTemplates(apiBaseUrl, zapToken, department_id);
-        const statusCode = result.success ? 200 : (result.authError ? 401 : 500);
+        // Always return 200 so supabase.functions.invoke() doesn't throw FunctionsHttpError.
+        // Callers already check `result.success` and show a toast/log the error message.
         return new Response(
           JSON.stringify(result),
-          { status: statusCode, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
 
