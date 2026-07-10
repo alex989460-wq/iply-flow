@@ -46,9 +46,10 @@ function extractCsrf(html: string): string | null {
 }
 
 function extractUserIdFromHtml(html: string): string | null {
-  const m = html.match(/\/reseller\/users\/(\d+)(?:\/|["'])/);
+  const m = html.match(/reseller\/users\/(\d+)(?:\/|["'])/);
   return m ? m[1] : null;
 }
+
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
