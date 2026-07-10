@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "SuperGestor P2Cine Auto-Renew",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Renova clientes P2Cine automaticamente usando sua sessao logada em daily3.news.",
   "permissions": ["storage", "alarms", "notifications"],
   "host_permissions": [
