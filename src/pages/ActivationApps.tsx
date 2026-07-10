@@ -140,6 +140,29 @@ export default function ActivationApps() {
     onError: (e: any) => toast.error(e.message),
   });
 
+  const saveP2cine = useMutation({
+    mutationFn: async () => {
+      if (!p2cineForm.base_url.trim() || !p2cineForm.cookie.trim()) {
+        throw new Error('URL do painel e PHPSESSID do P2Cine são obrigatórios');
+      }
+      const payload = {
+        user_id: user?.id,
+        panel_type: 'p2cine',
+        username: p2cineForm.base_url.trim().replace(/\/+$/, ''),
+        password: p2cineForm.cookie.trim(),
+        is_enabled: p2cineForm.is_enabled,
+      };
+      const { error } = await (supabase as any)
+        .from('activation_panel_credentials')
+        .upsert(payload, { onConflict: 'user_id,panel_type' });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['activation-panel-credentials'] });
+      toast.success('Credenciais P2Cine salvas!');
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
 
 
   const saveMutation = useMutation({
