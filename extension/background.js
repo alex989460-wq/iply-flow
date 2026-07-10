@@ -1,8 +1,9 @@
-// SuperGestor P2Cine Auto-Renew - background service worker (v1.1.0)
+// SuperGestor P2Cine Auto-Renew - background service worker (v1.3.0)
 const QUEUE_URL = "https://fphqfgxfeaylldpxjqan.supabase.co/functions/v1/p2cine-queue";
 const SUPABASE_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZwaHFmZ3hmZWF5bGxkcHhqcWFuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY5OTYwMDAsImV4cCI6MjA4MjU3MjAwMH0.PsIJenRZEAWTlxbdGYvJWrBUfiIifPn9Q_UVeUyrFs8";
 const POLL_SECONDS = 20;
 const PANEL_BASE = "https://daily3.news";
+const CLIENTS_PAGE = `${PANEL_BASE}/clients/`;
 
 async function getConfig() {
   return await chrome.storage.local.get({
@@ -53,104 +54,246 @@ async function reportResult(token, id, success, message, http_status) {
   });
 }
 
-// Look up the P2Cine internal client_id from the login/username.
-async function findClientId(username) {
-  const norm = String(username).trim();
-  const strip = (v) => String(v ?? "").replace(/<[^>]*>/g, "").trim();
+function waitForTabComplete(tabId, timeoutMs = 12000) {
+  return new Promise((resolve) => {
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      chrome.tabs.onUpdated.removeListener(listener);
+      clearTimeout(timer);
+      resolve();
+    };
+    const listener = (updatedTabId, changeInfo) => {
+      if (updatedTabId === tabId && changeInfo.status === "complete") finish();
+    };
+    const timer = setTimeout(finish, timeoutMs);
+    chrome.tabs.onUpdated.addListener(listener);
+  });
+}
 
-  async function query(searchValue) {
-    const body = new URLSearchParams();
-    body.set("draw", "1");
-    body.set("start", "0");
-    body.set("length", "500");
-    body.set("search[value]", searchValue);
-    body.set("search[regex]", "false");
-    for (let i = 0; i < 10; i++) {
-      body.set(`columns[${i}][data]`, String(i));
-      body.set(`columns[${i}][name]`, "");
-      body.set(`columns[${i}][searchable]`, "true");
-      body.set(`columns[${i}][orderable]`, "true");
-      body.set(`columns[${i}][search][value]`, "");
-      body.set(`columns[${i}][search][regex]`, "false");
-    }
-    body.set("order[0][column]", "0");
-    body.set("order[0][dir]", "desc");
+async function getPanelTab(requireClientsPage = false) {
+  const tabs = await chrome.tabs.query({ url: ["https://daily3.news/*", "https://*.daily3.news/*"] });
+  let tab = tabs.find((t) => t.url?.startsWith(CLIENTS_PAGE)) || tabs[0];
+  if (!tab?.id) return { error: "no_tab" };
 
-    const res = await fetch(`${PANEL_BASE}/clients/api/?get_clients`, {
-      method: "POST",
-      credentials: "include",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
-        "X-Requested-With": "XMLHttpRequest",
-        "Accept": "application/json, text/javascript, */*; q=0.01",
-        "Referer": `${PANEL_BASE}/dashboard/`,
-      },
-      body: body.toString(),
-    });
-    const text = await res.text();
-    return { status: res.status, ok: res.ok, text, lower: text.toLowerCase() };
+  if (requireClientsPage && !tab.url?.startsWith(CLIENTS_PAGE)) {
+    const wait = waitForTabComplete(tab.id);
+    tab = await chrome.tabs.update(tab.id, { url: CLIENTS_PAGE });
+    await wait;
   }
+  return { tabId: tab.id };
+}
 
-  function findIn(rows) {
-    for (const r of rows || []) {
-      if (!r) continue;
-      const cells = Array.isArray(r) ? r : Object.values(r);
-      for (const c of cells) {
-        if (strip(c) === norm) {
-          const first = strip(cells[0]);
-          const id = /^\d+$/.test(first) ? first : String(r.DT_RowId || first).replace(/\D/g, "");
+async function runInPanel(func, args = [], requireClientsPage = false) {
+  const panel = await getPanelTab(requireClientsPage);
+  if (panel.error) return { error: panel.error };
+
+  try {
+    const [result] = await chrome.scripting.executeScript({
+      target: { tabId: panel.tabId },
+      world: "MAIN",
+      func,
+      args,
+    });
+    return result?.result || { error: "no_result" };
+  } catch (e) {
+    return { error: "script_error", message: e?.message || String(e) };
+  }
+}
+
+// Look up the P2Cine internal client_id from the login/username using the logged-in panel tab.
+async function findClientId(username) {
+  const direct = await runInPanel(async (login) => {
+    const norm = String(login || "").trim();
+    const strip = (v) => String(v ?? "").replace(/<[^>]*>/g, " ").replace(/&nbsp;/g, " ").replace(/\s+/g, " ").trim();
+    const compact = (v) => strip(v).replace(/\D/g, "");
+    const matchesLogin = (v) => strip(v) === norm || compact(v) === norm.replace(/\D/g, "");
+    const extractId = (row, cells) => {
+      const raw = [row?.DT_RowId, row?.id, row?.client_id, cells?.[0], ...cells].map(strip).join(" ");
+      const patterns = [
+        /client_id[=:\/]\s*(\d+)/i,
+        /renew_client_plus[^\d]+(\d+)/i,
+        /clients\/(?:view|edit|renew)?\/?(\d+)/i,
+        /\brow[_-]?(\d+)\b/i,
+      ];
+      for (const p of patterns) {
+        const m = raw.match(p);
+        if (m?.[1]) return m[1];
+      }
+      const first = strip(cells?.[0]);
+      if (/^\d+$/.test(first)) return first;
+      const any = raw.match(/\b\d{1,10}\b/);
+      return any?.[0] || null;
+    };
+    const findIn = (rows) => {
+      for (const row of rows || []) {
+        const cells = Array.isArray(row) ? row : Object.values(row || {});
+        if (cells.some(matchesLogin)) {
+          const id = extractId(row, cells);
           if (id) return id;
         }
       }
+      return null;
+    };
+    const makeBody = (searchValue, start = 0, length = 1000) => {
+      const body = new URLSearchParams();
+      body.set("draw", "1");
+      body.set("start", String(start));
+      body.set("length", String(length));
+      body.set("search[value]", searchValue);
+      body.set("search[regex]", "false");
+      for (let i = 0; i < 18; i++) {
+        body.set(`columns[${i}][data]`, String(i));
+        body.set(`columns[${i}][name]`, "");
+        body.set(`columns[${i}][searchable]`, "true");
+        body.set(`columns[${i}][orderable]`, "true");
+        body.set(`columns[${i}][search][value]`, "");
+        body.set(`columns[${i}][search][regex]`, "false");
+      }
+      body.set("order[0][column]", "0");
+      body.set("order[0][dir]", "desc");
+      return body;
+    };
+    const request = async (searchValue, start = 0) => {
+      const res = await fetch("/clients/api/?get_clients", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+          "X-Requested-With": "XMLHttpRequest",
+          "Accept": "application/json, text/javascript, */*; q=0.01",
+        },
+        body: makeBody(searchValue, start).toString(),
+      });
+      const text = await res.text();
+      const lower = text.toLowerCase();
+      if (res.status === 401 || res.status === 403 || lower.includes('name="password"')) return { error: "logged_out", status: res.status };
+      if (lower.includes("hcaptcha") || lower.includes("recaptcha")) return { error: "captcha", status: res.status };
+      if (!res.ok) return { error: `http_${res.status}`, status: res.status, text };
+      try { return { status: res.status, json: JSON.parse(text) }; }
+      catch { return { error: "bad_json", status: res.status, text }; }
+    };
+
+    const first = await request(norm, 0);
+    if (first.error) return first;
+    let id = findIn(first.json?.data);
+    let debug = `tab-api search rows=${(first.json?.data || []).length} total=${first.json?.recordsTotal ?? "?"}`;
+
+    if (!id) {
+      const all = await request("", 0);
+      if (all.error) return { ...all, debug };
+      id = findIn(all.json?.data);
+      debug += ` | all rows=${(all.json?.data || []).length} total=${all.json?.recordsTotal ?? "?"} sample=${JSON.stringify((all.json?.data || [])[0] || null).slice(0, 220)}`;
     }
-    return null;
-  }
+    return id ? { clientId: id, debug } : { error: "not_found", status: 200, debug };
+  }, [username], false);
 
-  let r = await query(norm);
-  if (r.status === 401 || r.status === 403 || r.lower.includes('name="password"'))
-    return { error: "logged_out", status: r.status };
-  if (r.lower.includes("hcaptcha") || r.lower.includes("recaptcha"))
-    return { error: "captcha", status: r.status };
-  if (!r.ok) return { error: `http_${r.status}`, status: r.status };
+  if (direct.debug) await chrome.storage.local.set({ lastDebug: direct.debug });
+  if (direct.clientId || !["not_found", "bad_json", "no_result"].includes(direct.error)) return direct;
 
-  let json;
-  try { json = JSON.parse(r.text); } catch { return { error: "bad_json", status: r.status }; }
-  let id = findIn(json?.data);
-  let debug = `search: rows=${(json?.data || []).length} total=${json?.recordsTotal ?? "?"}`;
+  const ui = await runInPanel(async (login) => {
+    const norm = String(login || "").trim();
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    const strip = (v) => String(v ?? "").replace(/<[^>]*>/g, " ").replace(/&nbsp;/g, " ").replace(/\s+/g, " ").trim();
+    const compact = (v) => strip(v).replace(/\D/g, "");
+    const matchesLogin = (v) => strip(v) === norm || compact(v) === norm.replace(/\D/g, "");
+    const extractIdFromText = (text) => {
+      const patterns = [/client_id[=:\/]\s*(\d+)/i, /renew_client_plus[^\d]+(\d+)/i, /clients\/(?:view|edit|renew)?\/?(\d+)/i, /\brow[_-]?(\d+)\b/i];
+      for (const p of patterns) {
+        const m = String(text || "").match(p);
+        if (m?.[1]) return m[1];
+      }
+      return null;
+    };
+    const idFromRow = (row) => {
+      const html = row.outerHTML || "";
+      const direct = extractIdFromText(html);
+      if (direct) return direct;
+      const first = strip(row.querySelector("td")?.textContent);
+      if (/^\d+$/.test(first)) return first;
+      return null;
+    };
+    const findInDom = () => {
+      const rows = [...document.querySelectorAll("table tbody tr")];
+      for (const row of rows) {
+        if ([...row.querySelectorAll("td")].some((td) => matchesLogin(td.textContent))) {
+          const id = idFromRow(row);
+          if (id) return id;
+        }
+      }
+      return null;
+    };
 
-  if (!id) {
-    const r2 = await query("");
-    try {
-      const j2 = JSON.parse(r2.text);
-      id = findIn(j2?.data);
-      debug += ` | all: rows=${(j2?.data || []).length} total=${j2?.recordsTotal ?? "?"} sample=${JSON.stringify((j2?.data || [])[0] || null).slice(0, 250)}`;
-    } catch (e) { debug += ` | all: parse_err`; }
-  }
-  await chrome.storage.local.set({ lastDebug: debug });
+    if (window.jQuery?.fn?.dataTable) {
+      const $ = window.jQuery;
+      const tables = $.fn.dataTable.tables();
+      for (const table of tables) {
+        try {
+          const dt = $(table).DataTable();
+          dt.search(norm).draw();
+        } catch {}
+      }
+      await sleep(3500);
+    } else {
+      const input = document.querySelector('.dataTables_filter input, input[type="search"], input[aria-controls*="client" i]');
+      if (input) {
+        input.focus();
+        input.value = norm;
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+        input.dispatchEvent(new KeyboardEvent("keyup", { bubbles: true, key: "9" }));
+        input.dispatchEvent(new Event("change", { bubbles: true }));
+        await sleep(3500);
+      }
+    }
 
-  if (!id) return { error: "not_found", status: 200 };
-  return { clientId: id };
+    let id = findInDom();
+    let debug = `ui-search url=${location.pathname} domRows=${document.querySelectorAll("table tbody tr").length}`;
+    if (!id && window.jQuery?.fn?.dataTable) {
+      const $ = window.jQuery;
+      for (const table of $.fn.dataTable.tables()) {
+        try {
+          const data = $(table).DataTable().rows({ search: "applied" }).data().toArray();
+          for (const row of data) {
+            const cells = Array.isArray(row) ? row : Object.values(row || {});
+            if (cells.some(matchesLogin)) {
+              const raw = JSON.stringify(row);
+              id = extractIdFromText(raw) || (/^\d+$/.test(strip(cells[0])) ? strip(cells[0]) : null);
+              if (id) break;
+            }
+          }
+          debug += ` dtRows=${data.length} sample=${JSON.stringify(data[0] || null).slice(0, 220)}`;
+        } catch {}
+      }
+    }
+    return id ? { clientId: id, debug } : { error: "not_found", status: 200, debug };
+  }, [username], true);
+
+  if (ui.debug) await chrome.storage.local.set({ lastDebug: `${direct.debug || ""} | ${ui.debug}`.trim() });
+  return ui;
 }
 
 async function renewClient(clientId, months) {
-  const url = `${PANEL_BASE}/clients/api/?renew_client_plus&client_id=${encodeURIComponent(clientId)}&months=${encodeURIComponent(months)}`;
-  const res = await fetch(url, {
-    method: "POST",
-    credentials: "include",
-    headers: {
-      "X-Requested-With": "XMLHttpRequest",
-      "Accept": "application/json, text/javascript, */*; q=0.01",
-    },
-  });
-  const text = await res.text();
-  if (!res.ok) return { ok: false, msg: `HTTP ${res.status}`, status: res.status };
-  try {
-    const j = JSON.parse(text);
-    if (j?.result === "success") return { ok: true, msg: "Renovado", status: res.status };
-    return { ok: false, msg: j?.message || j?.result || "Falha na renovacao", status: res.status };
-  } catch {
-    return { ok: false, msg: "Resposta invalida", status: res.status };
-  }
+  return await runInPanel(async (id, qty) => {
+    const url = `/clients/api/?renew_client_plus&client_id=${encodeURIComponent(id)}&months=${encodeURIComponent(qty)}`;
+    const res = await fetch(url, {
+      method: "POST",
+      credentials: "same-origin",
+      headers: {
+        "X-Requested-With": "XMLHttpRequest",
+        "Accept": "application/json, text/javascript, */*; q=0.01",
+      },
+    });
+    const text = await res.text();
+    if (!res.ok) return { ok: false, msg: `HTTP ${res.status}`, status: res.status };
+    try {
+      const j = JSON.parse(text);
+      if (j?.result === "success") return { ok: true, msg: "Renovado", status: res.status };
+      return { ok: false, msg: j?.message || j?.result || "Falha na renovacao", status: res.status };
+    } catch {
+      return { ok: false, msg: "Resposta invalida", status: res.status };
+    }
+  }, [clientId, months], false);
 }
 
 async function tick() {
@@ -169,6 +312,8 @@ async function tick() {
   if (lookup.error) {
     const msg = ({
       logged_out: "Sessao P2Cine deslogada. Faca login em daily3.news.",
+      no_tab: "Abra uma aba logada em daily3.news e tente novamente.",
+      script_error: "Nao consegui acessar a aba do daily3.news. Recarregue a pagina do painel.",
       captcha: "Captcha exigido pelo painel. Resolva manualmente.",
       not_found: `Login ${next.username} nao encontrado no painel`,
       bad_json: "Resposta invalida do get_clients",
