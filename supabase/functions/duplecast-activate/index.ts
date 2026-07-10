@@ -73,12 +73,13 @@ serve(async (request) => {
 
   try {
     const { email, password, code, mac } = await request.json();
-    if (!email || !password || !code || !mac) {
+    if (!email || !password || !mac) {
       return new Response(
-        JSON.stringify({ error: "email, password, code e mac são obrigatórios" }),
+        JSON.stringify({ error: "email, password e mac são obrigatórios" }),
         { status: 400, headers: jsonHeaders },
       );
     }
+
 
     const jar: Jar = new Map();
 
