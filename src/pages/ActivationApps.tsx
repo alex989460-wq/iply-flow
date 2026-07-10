@@ -93,6 +93,15 @@ export default function ActivationApps() {
     }
   }, [p2cine?.id, p2cine?.updated_at]);
 
+  useEffect(() => {
+    if (ibosol) {
+      setIbosolForm({
+        token: ibosol.password || '',
+        is_enabled: ibosol.is_enabled ?? true,
+      });
+    }
+  }, [ibosol?.id, ibosol?.updated_at]);
+
   const saveDuplecast = useMutation({
     mutationFn: async () => {
       if (!duplecastForm.username.trim() || !duplecastForm.password.trim()) {
