@@ -106,10 +106,10 @@ export default function P2CineCredentialsCard() {
             </div>
             <div>
               <CardTitle className="flex items-center gap-2">
-                P2Cine {existing && <span className="text-green-500 text-sm">●</span>}
+                Extensão P2Cine + Uniplay {existing && <span className="text-green-500 text-sm">●</span>}
               </CardTitle>
               <CardDescription>
-                Renovação manual protegida
+                Renovação protegida usando a sessão real do navegador
               </CardDescription>
             </div>
           </div>
@@ -139,17 +139,17 @@ export default function P2CineCredentialsCard() {
               <AlertTriangle className="h-4 w-4" />
               <AlertDescription className="text-xs space-y-2">
                 <p>
-                  <strong>Renovação automática via extensão do navegador:</strong> como o P2Cine
-                  derruba a sessão quando reutilizamos o <span className="font-mono">PHPSESSID</span> no
-                  backend, criamos uma extensão que roda dentro do <em>seu</em> Chrome, usando a sua
-                  sessão real logada em <span className="font-mono">daily3.news</span>. Sem burla, sem
-                  captcha bypass — apenas automatiza os cliques.
+                  <strong>Renovação automática via extensão do navegador:</strong> P2Cine e Uniplay
+                  precisam da sessão real do Chrome. A extensão roda dentro do <em>seu</em> navegador,
+                  usando a aba logada em <span className="font-mono">daily3.news</span> ou
+                  <span className="font-mono"> searchdefense.top</span>. Sem cookie falso e sem bypass
+                  de captcha — você faz login normalmente e a extensão automatiza a renovação.
                 </p>
                 <ol className="list-decimal ml-4 space-y-1">
                   <li>Baixe o ZIP abaixo e descompacte.</li>
                   <li>Abra <span className="font-mono">chrome://extensions</span>, ative "Modo desenvolvedor".</li>
                   <li>Clique "Carregar sem compactação" e selecione a pasta descompactada.</li>
-                  <li>Abra o ícone da extensão, cole o token, ative e mantenha uma aba do painel P2Cine logada.</li>
+                  <li>Abra o ícone da extensão, cole o token, ative e mantenha a aba do painel necessária logada.</li>
                 </ol>
               </AlertDescription>
             </Alert>
@@ -157,8 +157,8 @@ export default function P2CineCredentialsCard() {
             <div className="rounded-lg border p-3 space-y-2 bg-muted/30">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-semibold">Extensão SuperGestor P2Cine</p>
-                  <p className="text-xs text-muted-foreground">Roda a cada 20s enquanto sua aba estiver logada.</p>
+                  <p className="text-sm font-semibold">Extensão SuperGestor 1.6.0</p>
+                  <p className="text-xs text-muted-foreground">Roda a cada 20s enquanto a aba do painel estiver logada.</p>
                 </div>
                 <Button size="sm" variant="secondary" onClick={downloadExtension}>
                   Baixar extensão

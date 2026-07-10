@@ -1,9 +1,13 @@
-// SuperGestor P2Cine Auto-Renew - background service worker (v1.3.0)
+// SuperGestor Panel Auto-Renew - background service worker (v1.6.0)
 const QUEUE_URL = "https://fphqfgxfeaylldpxjqan.supabase.co/functions/v1/p2cine-queue";
 const SUPABASE_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZwaHFmZ3hmZWF5bGxkcHhqcWFuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY5OTYwMDAsImV4cCI6MjA4MjU3MjAwMH0.PsIJenRZEAWTlxbdGYvJWrBUfiIifPn9Q_UVeUyrFs8";
 const POLL_SECONDS = 20;
 const PANEL_BASE = "https://daily3.news";
 const CLIENTS_PAGE = `${PANEL_BASE}/clients/`;
+const UNIPLAY_PANEL_URLS = ["https://searchdefense.top/*", "http://searchdefense.top/*"];
+const UNIPLAY_API_BASE = "https://gesapioffice.com";
+const UNIPLAY_TOKEN_KEY = "372a8eb9ccd066d576409eead9568a13";
+const UNIPLAY_REG_PASS_KEY = "120asidj0sad0912j90d12";
 
 async function getConfig() {
   return await chrome.storage.local.get({
@@ -296,6 +300,101 @@ async function renewClient(clientId, months) {
   }, [clientId, months], false);
 }
 
+async function getUniplayTab() {
+  const tabs = await chrome.tabs.query({ url: UNIPLAY_PANEL_URLS });
+  const tab = tabs[0];
+  if (!tab?.id) return { error: "no_uniplay_tab" };
+  return { tabId: tab.id };
+}
+
+async function runInUniplay(func, args = []) {
+  const panel = await getUniplayTab();
+  if (panel.error) return { error: panel.error };
+  try {
+    const [result] = await chrome.scripting.executeScript({
+      target: { tabId: panel.tabId },
+      world: "MAIN",
+      func,
+      args,
+    });
+    return result?.result || { error: "no_result" };
+  } catch (e) {
+    return { error: "script_error", message: e?.message || String(e) };
+  }
+}
+
+async function renewUniplay(username, months) {
+  return await runInUniplay(async (login, qty, apiBase, tokenKey, regPassKey) => {
+    const token = localStorage.getItem(tokenKey) || "";
+    const regPass = localStorage.getItem(regPassKey) || "";
+    if (!token) return { ok: false, error: "logged_out", msg: "Sessao Uniplay deslogada", status: 401 };
+
+    const strip = (v) => String(v ?? "").replace(/<[^>]*>/g, " ").replace(/&nbsp;/g, " ").replace(/\s+/g, " ").trim();
+    const compact = (v) => strip(v).replace(/\D/g, "");
+    const variants = (() => {
+      const base = strip(login);
+      const digits = compact(base);
+      const set = new Set([base]);
+      if (digits) {
+        set.add(digits);
+        if (digits.startsWith("55") && digits.length >= 12) {
+          const wo = digits.slice(2);
+          set.add(wo);
+          if (wo.length === 11 && wo[2] === "9") {
+            set.add(wo.slice(0, 2) + wo.slice(3));
+            set.add("55" + wo.slice(0, 2) + wo.slice(3));
+          } else if (wo.length === 10) {
+            set.add(wo.slice(0, 2) + "9" + wo.slice(2));
+            set.add("55" + wo.slice(0, 2) + "9" + wo.slice(2));
+          }
+        } else if (digits.length >= 10) {
+          set.add("55" + digits);
+        }
+      }
+      return [...set].filter(Boolean).map((v) => v.toLowerCase());
+    })();
+    const headers = { "Accept": "application/json, text/plain, */*", "Authorization": `Bearer ${token}` };
+    const readJson = async (url, opts = {}) => {
+      const res = await fetch(url, { ...opts, headers: { ...headers, ...(opts.headers || {}) } });
+      const text = await res.text();
+      if (!res.ok) return { error: `http_${res.status}`, status: res.status, text: text.slice(0, 300) };
+      try { return { status: res.status, data: JSON.parse(text) }; }
+      catch { return { error: "bad_json", status: res.status, text: text.slice(0, 300) }; }
+    };
+    const iptvUrl = `${apiBase}/api/users-iptv${regPass ? `?reg_password=${encodeURIComponent(regPass)}` : ""}`;
+    const [iptv, p2p] = await Promise.all([
+      readJson(iptvUrl),
+      readJson(`${apiBase}/api/users-p2p`),
+    ]);
+    const listErrors = [iptv, p2p].filter((r) => r.error).map((r) => `${r.error}${r.status ? ` (${r.status})` : ""}`);
+    const iptvList = Array.isArray(iptv.data) ? iptv.data : [];
+    const p2pList = Array.isArray(p2p.data) ? p2p.data : [];
+    const matchIptv = iptvList.find((u) => variants.includes(strip(u?.username).toLowerCase()));
+    const matchP2p = p2pList.find((u) => variants.includes(strip(u?.name).toLowerCase()) || variants.includes(strip(u?.username).toLowerCase()));
+    if (!matchIptv && !matchP2p) {
+      return { ok: false, error: listErrors.length === 2 ? "list_failed" : "not_found", msg: listErrors.length === 2 ? `Login OK, mas listas falharam: ${listErrors.join(" | ")}` : `Usuario ${login} nao encontrado no Uniplay`, status: 200 };
+    }
+    const renew = async (kind, id) => {
+      const res = await fetch(`${apiBase}/api/users-${kind}/${encodeURIComponent(id)}`, {
+        method: "PUT",
+        headers: { ...headers, "Content-Type": "application/json;charset=UTF-8" },
+        body: JSON.stringify({ action: 1, credits: Math.max(1, Number(qty) || 1) }),
+      });
+      const text = await res.text();
+      return { kind, ok: res.ok, status: res.status, text: text.slice(0, 300) };
+    };
+    const results = [];
+    if (matchIptv?.id) results.push(await renew("iptv", matchIptv.id));
+    if (matchP2p?.id) results.push(await renew("p2p", matchP2p.id));
+    const ok = results.some((r) => r.ok);
+    return {
+      ok,
+      status: results.find((r) => !r.ok)?.status || 200,
+      msg: ok ? `Uniplay renovado (${results.filter((r) => r.ok).map((r) => r.kind.toUpperCase()).join(" + ")})` : `Falha Uniplay: ${JSON.stringify(results)}`,
+    };
+  }, [username, months, UNIPLAY_API_BASE, UNIPLAY_TOKEN_KEY, UNIPLAY_REG_PASS_KEY]);
+}
+
 async function tick() {
   const cfg = await getConfig();
   if (!cfg.enabled || !cfg.token) return;
@@ -307,6 +406,29 @@ async function tick() {
     return log("Erro consultando fila: " + e.message, "fail");
   }
   if (!next || !next.username) return;
+
+  if (next.panel_type === "uniplay") {
+    const months = String(next.months || cfg.months || "1");
+    const r = await renewUniplay(next.username, months);
+    if (r.error) {
+      const msg = ({
+        logged_out: "Sessao Uniplay deslogada. Faca login em searchdefense.top e resolva o captcha.",
+        no_uniplay_tab: "Abra uma aba logada em searchdefense.top e tente novamente.",
+        script_error: "Nao consegui acessar a aba do searchdefense.top. Recarregue a pagina do painel.",
+        not_found: `Login ${next.username} nao encontrado no Uniplay`,
+        list_failed: r.msg,
+        bad_json: "Resposta invalida do Uniplay",
+      })[r.error] || (r.msg || `Erro Uniplay: ${r.error}`);
+      await reportResult(cfg.token, next.id, false, msg, r.status);
+      return log(`${next.customer_name || next.username}: ${msg}`, "fail");
+    }
+    await reportResult(cfg.token, next.id, r.ok, r.msg, r.status);
+    await log(`${next.customer_name || next.username} (${months}m): ${r.msg}`, r.ok ? "ok" : "fail");
+    if (r.ok) {
+      chrome.notifications.create({ type: "basic", iconUrl: "icon.png", title: "Uniplay renovado", message: `${next.customer_name || next.username}` });
+    }
+    return;
+  }
 
   const lookup = await findClientId(next.username);
   if (lookup.error) {

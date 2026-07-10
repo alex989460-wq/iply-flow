@@ -177,7 +177,14 @@ export default function ResellerApiSettings() {
       if (!data?.success) throw new Error(data?.error || 'Falha no login');
       toast({ title: 'Login OK', description: `Uniplay: ${data.username} (id ${data.id})` });
     } catch (err: any) {
-      toast({ title: 'Erro Uniplay', description: err.message || String(err), variant: 'destructive' });
+      const message = err.message || String(err);
+      toast({
+        title: 'Uniplay exige extensão',
+        description: message.includes('404') || message.includes('Não foi possível conectar')
+          ? 'A API direta do Uniplay está respondendo 404. Use a extensão 1.6.0 com uma aba logada em searchdefense.top.'
+          : message,
+        variant: 'destructive',
+      });
     } finally {
       setTestingUniplay(false);
     }
@@ -594,8 +601,8 @@ export default function ResellerApiSettings() {
             Uniplay (searchdefense.top)
             {hasUniplay && <CheckCircle2 className="w-5 h-5 text-green-500" />}
           </CardTitle>
-          <CardDescription>
-            Renovação automática nos painéis IPTV e P2P do Uniplay. A pesquisa é feita nas duas abas.
+            <CardDescription>
+            Renovação nos painéis IPTV e P2P do Uniplay. Quando a API direta retorna 404/captcha, use a extensão 1.6.0.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -605,7 +612,8 @@ export default function ResellerApiSettings() {
               <strong>Como configurar:</strong>
               <ol className="list-decimal ml-4 mt-1 space-y-1 text-sm">
               <li>Use o <strong>usuário e senha</strong> da sua revenda em <code>searchdefense.top</code></li>
-                <li>Ao renovar aqui, o sistema procura o cliente em <strong>IPTV</strong> e <strong>P2P</strong> e renova onde encontrar</li>
+                <li>Para Uniplay, mantenha uma aba logada em <strong>searchdefense.top</strong> com a extensão SuperGestor 1.6.0 ativada</li>
+                <li>A extensão procura o cliente em <strong>IPTV</strong> e <strong>P2P</strong> e renova onde encontrar</li>
                 <li>Créditos usados = meses do plano cadastrado (30/90/180/365 dias)</li>
               </ol>
             </AlertDescription>
@@ -653,7 +661,7 @@ export default function ResellerApiSettings() {
               onChange={(e) => setSettings({ ...settings, uniplay_base_url: e.target.value })}
               placeholder="https://gesapioffice.com"
             />
-            <p className="text-xs text-muted-foreground">Padrão: https://gesapioffice.com. Se colocar searchdefense.top, o sistema converte para a API correta.</p>
+              <p className="text-xs text-muted-foreground">A API direta atual pode retornar 404. A extensão usa a sessão real do painel searchdefense.top.</p>
           </div>
 
           <div>
