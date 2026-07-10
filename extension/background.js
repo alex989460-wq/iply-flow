@@ -191,14 +191,42 @@ async function tick() {
   }
 }
 
+const VERSION_URL = "https://supergestor.top/p2cine-extension.json";
+const DOWNLOAD_URL = "https://supergestor.top/p2cine-extension.zip";
+
+async function checkForUpdate() {
+  try {
+    const res = await fetch(VERSION_URL + "?t=" + Date.now(), { cache: "no-store" });
+    if (!res.ok) return;
+    const info = await res.json();
+    const current = chrome.runtime.getManifest().version;
+    if (info?.version && info.version !== current) {
+      await chrome.storage.local.set({ updateAvailable: info.version, updateUrl: info.download || DOWNLOAD_URL });
+      chrome.action.setBadgeText({ text: "NEW" });
+      chrome.action.setBadgeBackgroundColor({ color: "#dc2626" });
+    } else {
+      await chrome.storage.local.set({ updateAvailable: null });
+      chrome.action.setBadgeText({ text: "" });
+    }
+  } catch {}
+}
+
 chrome.runtime.onInstalled.addListener(() => {
   chrome.alarms.create("p2cine-tick", { periodInMinutes: POLL_SECONDS / 60 });
+  chrome.alarms.create("p2cine-update", { periodInMinutes: 60 });
+  checkForUpdate();
 });
 chrome.runtime.onStartup.addListener(() => {
   chrome.alarms.create("p2cine-tick", { periodInMinutes: POLL_SECONDS / 60 });
+  chrome.alarms.create("p2cine-update", { periodInMinutes: 60 });
+  checkForUpdate();
 });
-chrome.alarms.onAlarm.addListener((a) => { if (a.name === "p2cine-tick") tick(); });
+chrome.alarms.onAlarm.addListener((a) => {
+  if (a.name === "p2cine-tick") tick();
+  if (a.name === "p2cine-update") checkForUpdate();
+});
 
 chrome.runtime.onMessage.addListener((msg, _s, send) => {
   if (msg?.type === "run-now") { tick().then(() => send({ ok: true })); return true; }
+  if (msg?.type === "check-update") { checkForUpdate().then(() => send({ ok: true })); return true; }
 });
