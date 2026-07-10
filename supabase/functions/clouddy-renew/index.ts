@@ -263,6 +263,7 @@ serve(async (req) => {
     let csrf: string | null = null;
     let withTariffField = false;
     let lastStatus = 0;
+    let pageHtml = "";
     for (const c of candidates) {
       const r = await fetch(c.url, { headers: baseHeaders, redirect: "manual" });
       lastStatus = r.status;
