@@ -76,30 +76,27 @@ serve(async (req) => {
             const code =
               findInObj(request.cakto_payload, ['code', 'codigo', 'código', 'activation_code', 'codigo_ativacao']) ||
               String((request as any).code || '');
-            if (!code) {
-              autoActivationError = 'Código Duplecast ausente no pedido (custom field code/codigo)';
-            } else {
-              const r = await fetch(
-                `${Deno.env.get('SUPABASE_URL')}/functions/v1/duplecast-activate`,
-                {
-                  method: 'POST',
-                  headers: {
-                    'Content-Type': 'application/json',
-                    Authorization: `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
-                  },
-                  body: JSON.stringify({
-                    email: (cred as any).username,
-                    password: (cred as any).password,
-                    mac: request.mac_address,
-                    code,
-                  }),
+            const r = await fetch(
+              `${Deno.env.get('SUPABASE_URL')}/functions/v1/duplecast-activate`,
+              {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  Authorization: `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
                 },
-              );
-              const j = await r.json().catch(() => ({}));
-              if (r.ok && j?.success) autoActivationOk = true;
-              else autoActivationError = j?.error || `HTTP ${r.status}`;
-            }
+                body: JSON.stringify({
+                  email: (cred as any).username,
+                  password: (cred as any).password,
+                  mac: request.mac_address,
+                  code: code || undefined,
+                }),
+              },
+            );
+            const j = await r.json().catch(() => ({}));
+            if (r.ok && j?.success) autoActivationOk = true;
+            else autoActivationError = j?.error || `HTTP ${r.status}`;
           }
+
         } else if (appUpper.includes('CLOUDDY')) {
           const email = request.email;
           if (!email) {
