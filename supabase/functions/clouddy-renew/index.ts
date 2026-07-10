@@ -208,8 +208,9 @@ serve(async (req) => {
         );
       }
       const html = await findResp.text();
-      debugFind = html.slice(0, 400);
+      debugFind = html;
       clientId = extractUserIdFromHtml(html);
+
     }
 
     if (!clientId) {
