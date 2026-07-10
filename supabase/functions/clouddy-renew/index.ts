@@ -46,9 +46,10 @@ function extractCsrf(html: string): string | null {
 }
 
 function extractUserIdFromHtml(html: string): string | null {
-  const m = html.match(/\/reseller\/users\/(\d+)(?:\/|["'])/);
+  const m = html.match(/reseller\/users\/(\d+)(?:\/|["'])/);
   return m ? m[1] : null;
 }
+
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -171,38 +172,77 @@ serve(async (req) => {
     }
 
     let clientId: string | null = null;
+    let debugAc = "";
+    let debugFind = "";
     try {
-      const acJson = await acResp.clone().json();
-      const list = Array.isArray(acJson) ? acJson : acJson?.results || acJson?.items || [];
+      const acText = await acResp.clone().text();
+      debugAc = acText.slice(0, 400);
+      const acJson = JSON.parse(acText);
+      const list = Array.isArray(acJson) ? acJson : acJson?.results || acJson?.items || acJson?.data || [];
       for (const it of list) {
         const id = it?.id ?? it?.value ?? it?.user_id;
-        const label = String(it?.label ?? it?.text ?? it?.email ?? "").toLowerCase();
+        const label = String(it?.label ?? it?.text ?? it?.email ?? it?.name ?? "").toLowerCase();
         if (id && (list.length === 1 || label.includes(email.toLowerCase()))) {
           clientId = String(id);
           break;
         }
       }
+      // If autocomplete returned a single id, use it even without label match
+      if (!clientId && list.length === 1) {
+        const only = list[0];
+        const id = only?.id ?? only?.value ?? only?.user_id;
+        if (id) clientId = String(id);
+      }
     } catch { /* not JSON, fall back to filter page */ }
 
-    // Step 1b: fallback via /reseller/users?find[email]=
+    // Step 1b: fallback via POST /reseller/users with filter[email]
     if (!clientId) {
-      const findUrl = `${baseUrl}/reseller/users?find%5Bemail%5D=${encodeURIComponent(email)}`;
-      const findResp = await fetch(findUrl, { headers: baseHeaders, redirect: "manual" });
+      const findUrl = `${baseUrl}/reseller/users`;
+      const filterBody = new URLSearchParams();
+      filterBody.set("filter[email]", email);
+      const findResp = await fetch(findUrl, {
+        method: "POST",
+        headers: {
+          ...baseHeaders,
+          "Content-Type": "application/x-www-form-urlencoded",
+          Origin: baseUrl,
+          Referer: findUrl,
+        },
+        body: filterBody.toString(),
+        redirect: "manual",
+      });
+      let html = "";
       if (findResp.status === 302 || findResp.status === 301) {
-        return new Response(
-          JSON.stringify({
-            error:
-              "Sessão Clouddy expirada. Faça login no painel e atualize o cookie nas configurações.",
-          }),
-          { status: 401, headers: jsonHeaders },
-        );
+        const loc = findResp.headers.get("location") || "";
+        if (/\/auth\/login/i.test(loc)) {
+          return new Response(
+            JSON.stringify({
+              error:
+                "Sessão Clouddy expirada. Faça login no painel e atualize o cookie nas configurações.",
+            }),
+            { status: 401, headers: jsonHeaders },
+          );
+        }
+        const followUrl = loc.startsWith("http") ? loc : `${baseUrl}/${loc.replace(/^\/+/, "")}`;
+        const r2 = await fetch(followUrl, { headers: baseHeaders, redirect: "manual" });
+        html = await r2.text();
+      } else {
+        html = await findResp.text();
       }
-      const html = await findResp.text();
+      debugFind = html;
       clientId = extractUserIdFromHtml(html);
     }
 
+
     if (!clientId) {
+      console.log("[clouddy-renew] AC:", debugAc);
+      // dump HTML in chunks to survive log truncation
+      for (let i = 0; i < debugFind.length; i += 1500) {
+        console.log(`[clouddy-renew] FIND[${i}]:`, debugFind.slice(i, i + 1500));
+      }
+
       return new Response(
+
         JSON.stringify({ success: false, error: `Cliente "${email}" não encontrado no Clouddy` }),
         { headers: jsonHeaders },
       );
