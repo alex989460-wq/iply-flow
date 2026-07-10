@@ -15,6 +15,7 @@ import { Separator } from '@/components/ui/separator';
 import VplayServersManager from '@/components/settings/VplayServersManager';
 import GoalsSettingsCard from '@/components/settings/GoalsSettingsCard';
 import ResellerApiSettings from '@/components/settings/ResellerApiSettings';
+import P2CineCredentialsCard from '@/components/settings/P2CineCredentialsCard';
 import AutoRenewServersCard from '@/components/settings/AutoRenewServersCard';
 import BillingSettingsCard from '@/components/settings/BillingSettingsCard';
 import BackupManagerCard from '@/components/settings/BackupManagerCard';
