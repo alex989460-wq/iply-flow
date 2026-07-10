@@ -110,9 +110,26 @@ serve(async (request) => {
     // Follow redirect to ensure session cookies stick
     await req(jar, `${BASE}/plugin/duplecast/device_main/`);
 
-    // 3) GET activation page to grab fresh CSRF
-    const codeClean = String(code).replace(/\D/g, "");
+    // 3) Auto-pick an unused code if not provided
+    let codeClean = String(code || "").replace(/\D/g, "");
+    if (!codeClean) {
+      const listRes = await req(jar, `${BASE}/plugin/duplecast/client_codes/`);
+      const listHtml = await listRes.text();
+      const found = new Set<string>();
+      const re = /\/plugin\/duplecast\/client_codes\/activate\/(\d+)\/?/gi;
+      let m: RegExpExecArray | null;
+      while ((m = re.exec(listHtml))) found.add(m[1]);
+      const first = [...found][0];
+      if (!first) {
+        return new Response(
+          JSON.stringify({ error: "Nenhum código Duplecast disponível na sua conta para ativar" }),
+          { status: 404, headers: jsonHeaders },
+        );
+      }
+      codeClean = first;
+    }
     const actUrl = `${BASE}/plugin/duplecast/client_codes/activate/${codeClean}/`;
+
     const actPage = await req(jar, actUrl);
     const actHtml = await actPage.text();
     if (actPage.status >= 400) {
