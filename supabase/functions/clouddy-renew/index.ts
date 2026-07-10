@@ -263,6 +263,7 @@ serve(async (req) => {
     let csrf: string | null = null;
     let withTariffField = false;
     let lastStatus = 0;
+    let pageHtml = "";
     for (const c of candidates) {
       const r = await fetch(c.url, { headers: baseHeaders, redirect: "manual" });
       lastStatus = r.status;
@@ -286,6 +287,7 @@ serve(async (req) => {
         refillUrl = c.url;
         csrf = token;
         withTariffField = c.withTariffField;
+        pageHtml = html;
         break;
       }
     }
@@ -299,9 +301,16 @@ serve(async (req) => {
       );
     }
 
+    // Clouddy calcula o custo real (em USD, com desconto) e o campo form[sum]
+    // é readonly — precisa ser exatamente o valor mostrado na página.
+    const sumMatch =
+      pageHtml.match(/name=["']form\[sum\]["'][^>]*value=["']([^"']+)["']/i) ||
+      pageHtml.match(/value=["']([^"']+)["'][^>]*name=["']form\[sum\]["']/i);
+    const finalSum = sumMatch ? sumMatch[1] : sum;
+
     // Step 3: submit refill
     const formBody = new URLSearchParams();
-    formBody.set("form[sum]", sum);
+    formBody.set("form[sum]", finalSum);
     formBody.set("form[confirm]", "1");
     formBody.set("form[via]", via);
     if (withTariffField) formBody.set("form[tariff]", String(tariffId));
@@ -345,8 +354,12 @@ serve(async (req) => {
 
     if (submitResp.ok) {
       const txt = await submitResp.text();
+      console.log(`[clouddy-renew] SUBMIT 200 URL=${refillUrl} withTariffField=${withTariffField}`);
+      for (let i = 0; i < txt.length; i += 1500) {
+        console.log(`[clouddy-renew] SUBMIT[${i}]:`, txt.slice(i, i + 1500));
+      }
       const err =
-        txt.match(/class=["'][^"']*(?:alert|error|invalid)[^"']*["'][^>]*>([\s\S]{0,300}?)</i)?.[1]
+        txt.match(/class=["'][^"']*(?:alert|error|invalid|help-block)[^"']*["'][^>]*>([\s\S]{0,400}?)</i)?.[1]
           ?.replace(/<[^>]+>/g, "")
           .trim() || null;
       return new Response(
