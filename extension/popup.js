@@ -52,13 +52,18 @@ document.getElementById("run").addEventListener("click", () => {
 
 document.getElementById("openPanels").addEventListener("click", () => {
   const btn = document.getElementById("openPanels");
+  btn.disabled = true;
   btn.textContent = "Abrindo...";
+  const reset = () => { btn.disabled = false; btn.textContent = "Abrir paineis em segundo plano"; };
   chrome.runtime.sendMessage({ type: "open-panels" }, () => {
+    if (chrome.runtime.lastError) { reset(); return; }
+    // Aguarda paineis carregarem e revalida status; sempre restaura o botao.
     setTimeout(() => {
-      chrome.runtime.sendMessage({ type: "check-status" }, (s) => { if (s) paintStatus(s); });
-      btn.textContent = "Abrir paineis em segundo plano";
-    }, 2500);
+      chrome.runtime.sendMessage({ type: "check-status" }, (s) => { if (s) paintStatus(s); reset(); });
+    }, 3000);
   });
+  // Fallback: se por algum motivo o callback nao voltar, restaura em 8s.
+  setTimeout(reset, 8000);
 });
 
 load();

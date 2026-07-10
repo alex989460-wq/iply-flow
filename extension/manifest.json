@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "SuperGestor Panel Auto-Renew",
-  "version": "1.7.0",
+  "version": "1.7.1",
   "description": "Renova clientes P2Cine e Uniplay usando a sessao real logada. Auto-abre painel, indicador de status e alerta de logout.",
   "permissions": ["storage", "alarms", "notifications", "tabs", "scripting"],
   "host_permissions": [
