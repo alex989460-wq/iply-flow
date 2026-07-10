@@ -345,8 +345,12 @@ serve(async (req) => {
 
     if (submitResp.ok) {
       const txt = await submitResp.text();
+      console.log(`[clouddy-renew] SUBMIT 200 URL=${refillUrl} withTariffField=${withTariffField}`);
+      for (let i = 0; i < txt.length; i += 1500) {
+        console.log(`[clouddy-renew] SUBMIT[${i}]:`, txt.slice(i, i + 1500));
+      }
       const err =
-        txt.match(/class=["'][^"']*(?:alert|error|invalid)[^"']*["'][^>]*>([\s\S]{0,300}?)</i)?.[1]
+        txt.match(/class=["'][^"']*(?:alert|error|invalid|help-block)[^"']*["'][^>]*>([\s\S]{0,400}?)</i)?.[1]
           ?.replace(/<[^>]+>/g, "")
           .trim() || null;
       return new Response(
