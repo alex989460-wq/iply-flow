@@ -97,12 +97,16 @@ async function findClientId(username) {
   let json;
   try { json = JSON.parse(text); } catch { return { error: "bad_json", status: res.status }; }
   const rows = json?.data || [];
-  // Row shape: [client_id, name_html, login, ...]. Match login exactly.
+  // kOffice row shape: [Id, Login, Senha, Adicionado, Vencimento, ...].
+  // Strip any HTML wrapping the cell may contain before comparing.
+  const strip = (v) => String(v ?? "").replace(/<[^>]*>/g, "").trim();
   const norm = String(username).trim();
-  const hit = rows.find((r) => String(r?.[2] ?? "").trim() === norm)
-    || rows.find((r) => String(r?.[2] ?? "").trim().includes(norm));
+  const hit =
+    rows.find((r) => strip(r?.[1]) === norm) ||
+    rows.find((r) => r && Object.values(r).some((c) => strip(c) === norm)) ||
+    rows.find((r) => strip(r?.[1]).includes(norm));
   if (!hit) return { error: "not_found", status: 200 };
-  return { clientId: String(hit[0]) };
+  return { clientId: strip(hit[0]) };
 }
 
 async function renewClient(clientId, months) {
