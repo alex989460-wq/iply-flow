@@ -77,10 +77,23 @@ function waitForTabComplete(tabId, timeoutMs = 12000) {
   });
 }
 
-async function getPanelTab(requireClientsPage = false) {
+async function openHiddenTab(url) {
+  // Cria aba em background (nao rouba foco). Usuario ainda precisa estar logado no painel.
+  const tab = await chrome.tabs.create({ url, active: false });
+  if (tab?.id) await waitForTabComplete(tab.id, 20000);
+  return tab?.id ? { tabId: tab.id } : { error: "create_failed" };
+}
+
+async function getPanelTab(requireClientsPage = false, { autoOpen = true } = {}) {
   const tabs = await chrome.tabs.query({ url: ["https://daily3.news/*", "https://*.daily3.news/*"] });
   let tab = tabs.find((t) => t.url?.startsWith(CLIENTS_PAGE)) || tabs[0];
-  if (!tab?.id) return { error: "no_tab" };
+
+  if (!tab?.id) {
+    if (!autoOpen) return { error: "no_tab" };
+    const opened = await openHiddenTab(CLIENTS_PAGE);
+    if (opened.error) return { error: "no_tab" };
+    return { tabId: opened.tabId, opened: true };
+  }
 
   if (requireClientsPage && !tab.url?.startsWith(CLIENTS_PAGE)) {
     const wait = waitForTabComplete(tab.id);
