@@ -628,6 +628,66 @@ export default function ActivationApps() {
                     </Button>
                   </div>
                 </div>
+
+                <div className="rounded-xl border border-border/50 p-4 space-y-4 bg-card">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                        <Monitor className="w-5 h-5 text-primary" />
+                      </div>
+                      <div>
+                        <h3 className="font-semibold text-foreground">IBO Sol (Bob Player, IBO Player, etc.)</h3>
+                        <p className="text-xs text-muted-foreground">
+                          Painel do revendedor em <span className="font-mono">ibosol.com</span> — ativação por MAC
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Label htmlFor="ibo-enabled" className="text-xs">Ativação automática</Label>
+                      <Switch
+                        id="ibo-enabled"
+                        checked={ibosolForm.is_enabled}
+                        onCheckedChange={v => setIbosolForm(f => ({ ...f, is_enabled: v }))}
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <Label>Token do IBO Sol (Bearer)</Label>
+                    <div className="relative">
+                      <Input
+                        type={showIboTok ? 'text' : 'password'}
+                        autoComplete="off"
+                        value={ibosolForm.token}
+                        onChange={e => setIbosolForm(f => ({ ...f, token: e.target.value }))}
+                        placeholder="5114508|tb3dyiNd5DRuzygqKTRRW9X2elAUtvjDPplNSPwj..."
+                        className="font-mono text-xs pr-9"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowIboTok(v => !v)}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                        aria-label={showIboTok ? 'Ocultar' : 'Mostrar'}
+                      >
+                        {showIboTok ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="rounded-lg bg-muted/40 border border-border/50 p-3 text-xs text-muted-foreground flex gap-2">
+                    <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-yellow-500" />
+                    <span>
+                      Como o IBO Sol tem <b>Cloudflare Turnstile</b> no login, faça login manualmente em <span className="font-mono">ibosol.com</span>, abra o DevTools (F12) → <b>Network</b> → localize a requisição <span className="font-mono">POST /api/login</span> e copie o campo <span className="font-mono">token</span> da resposta (formato <span className="font-mono">"5114508|xxxx..."</span>). Ao chegar um pedido com <b>BOBPLAYER</b>, <b>IBOPLAYER</b> ou qualquer outro app do IBO Sol, o sistema seleciona automaticamente o app correto e ativa o MAC do cliente (1 crédito).
+                    </span>
+                  </div>
+
+                  <div className="flex justify-end">
+                    <Button onClick={() => saveIbosol.mutate()} disabled={saveIbosol.isPending}>
+                      {saveIbosol.isPending ? 'Salvando...' : 'Salvar token'}
+                    </Button>
+                  </div>
+                </div>
+
               </CardContent>
             </Card>
           </TabsContent>
