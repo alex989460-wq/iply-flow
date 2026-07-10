@@ -49,11 +49,13 @@ import CostCalculator from "./pages/CostCalculator";
 import LeadCapture from "./pages/LeadCapture";
 import AiTraining from "./pages/AiTraining";
 import { Loader2 } from "lucide-react";
+import { useOneSignal } from "@/hooks/useOneSignal";
 
 const queryClient = new QueryClient();
 
 function AutoBackup() {
   const { user } = useAuth();
+  useOneSignal();
 
   useEffect(() => {
     if (!user) return;
