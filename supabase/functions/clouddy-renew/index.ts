@@ -194,24 +194,44 @@ serve(async (req) => {
       }
     } catch { /* not JSON, fall back to filter page */ }
 
-    // Step 1b: fallback via /reseller/users?find[email]=
+    // Step 1b: fallback via POST /reseller/users with filter[email]
     if (!clientId) {
-      const findUrl = `${baseUrl}/reseller/users?find%5Bemail%5D=${encodeURIComponent(email)}`;
-      const findResp = await fetch(findUrl, { headers: baseHeaders, redirect: "manual" });
+      const findUrl = `${baseUrl}/reseller/users`;
+      const filterBody = new URLSearchParams();
+      filterBody.set("filter[email]", email);
+      const findResp = await fetch(findUrl, {
+        method: "POST",
+        headers: {
+          ...baseHeaders,
+          "Content-Type": "application/x-www-form-urlencoded",
+          Origin: baseUrl,
+          Referer: findUrl,
+        },
+        body: filterBody.toString(),
+        redirect: "manual",
+      });
+      let html = "";
       if (findResp.status === 302 || findResp.status === 301) {
-        return new Response(
-          JSON.stringify({
-            error:
-              "Sessão Clouddy expirada. Faça login no painel e atualize o cookie nas configurações.",
-          }),
-          { status: 401, headers: jsonHeaders },
-        );
+        const loc = findResp.headers.get("location") || "";
+        if (/\/auth\/login/i.test(loc)) {
+          return new Response(
+            JSON.stringify({
+              error:
+                "Sessão Clouddy expirada. Faça login no painel e atualize o cookie nas configurações.",
+            }),
+            { status: 401, headers: jsonHeaders },
+          );
+        }
+        const followUrl = loc.startsWith("http") ? loc : `${baseUrl}/${loc.replace(/^\/+/, "")}`;
+        const r2 = await fetch(followUrl, { headers: baseHeaders, redirect: "manual" });
+        html = await r2.text();
+      } else {
+        html = await findResp.text();
       }
-      const html = await findResp.text();
       debugFind = html;
       clientId = extractUserIdFromHtml(html);
-
     }
+
 
     if (!clientId) {
       console.log("[clouddy-renew] AC:", debugAc);
