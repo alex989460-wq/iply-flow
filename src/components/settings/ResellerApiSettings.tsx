@@ -161,7 +161,19 @@ export default function ResellerApiSettings() {
           uniplay_base_url: settings.uniplay_base_url,
         },
       });
-      if (error) throw error;
+      if (error) {
+        const context = (error as any)?.context;
+        if (context instanceof Response) {
+          const text = await context.text().catch(() => '');
+          try {
+            const json = JSON.parse(text);
+            throw new Error(json?.error || json?.message || text || error.message);
+          } catch {
+            throw new Error(text || error.message);
+          }
+        }
+        throw error;
+      }
       if (!data?.success) throw new Error(data?.error || 'Falha no login');
       toast({ title: 'Login OK', description: `Uniplay: ${data.username} (id ${data.id})` });
     } catch (err: any) {
@@ -592,7 +604,7 @@ export default function ResellerApiSettings() {
             <AlertDescription>
               <strong>Como configurar:</strong>
               <ol className="list-decimal ml-4 mt-1 space-y-1 text-sm">
-                <li>Use o <strong>usuário e senha</strong> da sua revenda em <code>searchdefense.top</code></li>
+              <li>Use o <strong>usuário e senha</strong> da sua revenda em <code>searchdefense.top</code></li>
                 <li>Ao renovar aqui, o sistema procura o cliente em <strong>IPTV</strong> e <strong>P2P</strong> e renova onde encontrar</li>
                 <li>Créditos usados = meses do plano cadastrado (30/90/180/365 dias)</li>
               </ol>
@@ -641,7 +653,7 @@ export default function ResellerApiSettings() {
               onChange={(e) => setSettings({ ...settings, uniplay_base_url: e.target.value })}
               placeholder="https://gesapioffice.com"
             />
-            <p className="text-xs text-muted-foreground">Padrão: https://gesapioffice.com</p>
+            <p className="text-xs text-muted-foreground">Padrão: https://gesapioffice.com. Se colocar searchdefense.top, o sistema converte para a API correta.</p>
           </div>
 
           <div>
