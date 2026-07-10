@@ -314,11 +314,14 @@ async function renewClient(clientId, months) {
   }, [clientId, months], false);
 }
 
-async function getUniplayTab() {
+async function getUniplayTab({ autoOpen = true } = {}) {
   const tabs = await chrome.tabs.query({ url: UNIPLAY_PANEL_URLS });
   const tab = tabs[0];
-  if (!tab?.id) return { error: "no_uniplay_tab" };
-  return { tabId: tab.id };
+  if (tab?.id) return { tabId: tab.id };
+  if (!autoOpen) return { error: "no_uniplay_tab" };
+  const opened = await openHiddenTab(UNIPLAY_PANEL_URL);
+  if (opened.error) return { error: "no_uniplay_tab" };
+  return { tabId: opened.tabId, opened: true };
 }
 
 async function runInUniplay(func, args = []) {
