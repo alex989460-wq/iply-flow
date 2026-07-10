@@ -215,7 +215,11 @@ serve(async (req) => {
 
     if (!clientId) {
       console.log("[clouddy-renew] AC:", debugAc);
-      console.log("[clouddy-renew] FIND:", debugFind);
+      // dump HTML in chunks to survive log truncation
+      for (let i = 0; i < debugFind.length; i += 1500) {
+        console.log(`[clouddy-renew] FIND[${i}]:`, debugFind.slice(i, i + 1500));
+      }
+
       return new Response(
 
         JSON.stringify({ success: false, error: `Cliente "${email}" não encontrado no Clouddy` }),
