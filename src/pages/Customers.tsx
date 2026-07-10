@@ -685,6 +685,7 @@ export default function Customers() {
           const isNatv = serverName.toLowerCase().includes('natv') || serverHost.toLowerCase().includes('pixbot') || serverHost.toLowerCase().includes('natv');
           const isVplay = serverName.toLowerCase().includes('vplay') || serverHost.toLowerCase().includes('vplay');
           const isRush = serverName.toLowerCase().includes('rush') || serverHost.toLowerCase().includes('rush');
+          const isUniplay = serverName.toLowerCase().includes('uniplay') || serverHost.toLowerCase().includes('uniplay') || serverHost.toLowerCase().includes('searchdefense') || serverHost.toLowerCase().includes('gesapioffice');
           
           if (isTheBest) {
             const months = Math.max(1, Math.round(plan.duration_days / 30));
@@ -717,6 +718,14 @@ export default function Customers() {
             if (rushError) console.error('[Rush] Erro:', rushError);
             else if (!rushResult?.success) console.warn('[Rush] Falha:', rushResult?.error);
             else console.log('[Rush] Renovado:', rushResult);
+          } else if (isUniplay) {
+            const months = Math.max(1, Math.round(plan.duration_days / 30));
+            const { data: upResult, error: upError } = await supabase.functions.invoke('uniplay-renew', {
+              body: { username: customer.username.trim(), months, customer_id: customer.id },
+            });
+            if (upError) console.error('[Uniplay] Erro:', upError);
+            else if (!upResult?.success) console.warn('[Uniplay] Falha:', upResult?.error);
+            else console.log('[Uniplay] Renovado:', upResult);
           } else {
             const { data: xuiResult, error: xuiError } = await supabase.functions.invoke('xui-renew', {
               body: { username: customer.username.trim(), new_due_date: newDueDateStr, customer_id: customer.id },
