@@ -8,6 +8,89 @@ const corsHeaders = {
 };
 
 const DEFAULT_BASE_URL = "https://gesapioffice.com";
+const PANEL_HOST = "searchdefense.top";
+
+class UniplayExternalError extends Error {
+  status?: number;
+  endpoint?: string;
+  body?: string;
+
+  constructor(message: string, details?: { status?: number; endpoint?: string; body?: string }) {
+    super(message);
+    this.name = "UniplayExternalError";
+    this.status = details?.status;
+    this.endpoint = details?.endpoint;
+    this.body = details?.body;
+  }
+}
+
+function normalizeApiBaseUrl(raw: unknown): string {
+  const value = String(raw || "").trim();
+  if (!value) return DEFAULT_BASE_URL;
+
+  const withProtocol = /^https?:\/\//i.test(value) ? value : `https://${value}`;
+  try {
+    const url = new URL(withProtocol);
+    const host = url.hostname.replace(/^www\./i, "").toLowerCase();
+
+    // searchdefense.top is only the browser panel. Its own JS calls gesapioffice.com for the API.
+    if (host === PANEL_HOST) return DEFAULT_BASE_URL;
+
+    const path = url.pathname.replace(/\/+$/, "");
+    const cleanPath = path === "/api" ? "" : path;
+    return `${url.protocol}//${url.host}${cleanPath}`.replace(/\/+$/, "");
+  } catch {
+    return DEFAULT_BASE_URL;
+  }
+}
+
+function previewBody(body: string): string {
+  const text = body.trim();
+  if (!text) return "resposta vazia";
+  if (text.startsWith("<!DOCTYPE") || text.startsWith("<html")) {
+    return "retornou HTML em vez de JSON";
+  }
+  return text.slice(0, 500);
+}
+
+async function parseJsonResponse<T>(res: Response, endpoint: string, label: string): Promise<T> {
+  const text = await res.text();
+  const contentType = res.headers.get("content-type") || "";
+
+  if (!res.ok) {
+    throw new UniplayExternalError(
+      `${label} falhou: ${res.status} - ${previewBody(text)}. Endpoint testado: ${endpoint}`,
+      { status: res.status, endpoint, body: text },
+    );
+  }
+
+  if (!contentType.toLowerCase().includes("application/json")) {
+    throw new UniplayExternalError(
+      `${label} retornou resposta inválida (${contentType || "sem content-type"}) - ${previewBody(text)}. Endpoint testado: ${endpoint}`,
+      { status: res.status, endpoint, body: text },
+    );
+  }
+
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    throw new UniplayExternalError(
+      `${label} retornou JSON inválido - ${previewBody(text)}. Endpoint testado: ${endpoint}`,
+      { status: res.status, endpoint, body: text },
+    );
+  }
+}
+
+function uniplayHeaders(extra?: HeadersInit): HeadersInit {
+  return {
+    Accept: "application/json, text/plain, */*",
+    Origin: "https://searchdefense.top",
+    Referer: "https://searchdefense.top/",
+    "User-Agent":
+      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36",
+    ...extra,
+  };
+}
 
 // Build phone/username variants (55 country code, 9th digit) like rush-renew does.
 function buildUsernameVariants(raw: string): string[] {
@@ -43,33 +126,51 @@ interface LoginResp {
 }
 
 async function login(baseUrl: string, username: string, password: string): Promise<LoginResp> {
-  const res = await fetch(`${baseUrl}/api/login`, {
+  const endpoint = `${baseUrl}/api/login`;
+  const res = await fetch(endpoint, {
     method: "POST",
-    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    headers: uniplayHeaders({ "Content-Type": "application/json;charset=UTF-8" }),
     body: JSON.stringify({ username, password, code: "" }),
   });
-  if (!res.ok) {
-    const t = await res.text();
-    throw new Error(`Login Uniplay falhou: ${res.status} - ${t}`);
+  return await parseJsonResponse<LoginResp>(res, endpoint, "Login Uniplay");
+}
+
+async function loginWithFallback(
+  preferredBaseUrl: string,
+  username: string,
+  password: string,
+): Promise<{ session: LoginResp; apiBaseUrl: string }> {
+  const candidates = [...new Set([preferredBaseUrl, DEFAULT_BASE_URL].map(normalizeApiBaseUrl))];
+  const errors: string[] = [];
+
+  for (const apiBaseUrl of candidates) {
+    try {
+      return { session: await login(apiBaseUrl, username, password), apiBaseUrl };
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      errors.push(msg);
+    }
   }
-  return await res.json();
+
+  throw new UniplayExternalError(
+    `Não foi possível conectar na API Uniplay. ${errors.join(" | ")}`,
+  );
 }
 
 async function listIptv(baseUrl: string, token: string, cryptPass: string): Promise<any[]> {
   const url = `${baseUrl}/api/users-iptv?reg_password=${encodeURIComponent(cryptPass)}`;
   const res = await fetch(url, {
-    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+    headers: uniplayHeaders({ Authorization: `Bearer ${token}` }),
   });
-  if (!res.ok) throw new Error(`list-iptv ${res.status}`);
-  return await res.json();
+  return await parseJsonResponse<any[]>(res, url, "Listagem IPTV Uniplay");
 }
 
 async function listP2p(baseUrl: string, token: string): Promise<any[]> {
-  const res = await fetch(`${baseUrl}/api/users-p2p`, {
-    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+  const endpoint = `${baseUrl}/api/users-p2p`;
+  const res = await fetch(endpoint, {
+    headers: uniplayHeaders({ Authorization: `Bearer ${token}` }),
   });
-  if (!res.ok) throw new Error(`list-p2p ${res.status}`);
-  return await res.json();
+  return await parseJsonResponse<any[]>(res, endpoint, "Listagem P2P Uniplay");
 }
 
 async function extend(
@@ -81,11 +182,10 @@ async function extend(
 ): Promise<{ ok: boolean; body: string; status: number }> {
   const res = await fetch(`${baseUrl}/api/users-${kind}/${id}`, {
     method: "PUT",
-    headers: {
+    headers: uniplayHeaders({
       Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-      Accept: "application/json",
-    },
+      "Content-Type": "application/json;charset=UTF-8",
+    }),
     body: JSON.stringify({ action: 1, credits }),
   });
   const body = await res.text();
@@ -140,7 +240,7 @@ serve(async (req) => {
     // Load credentials from reseller_api_settings if not provided
     let uUser = uniplay_username || "";
     let uPass = uniplay_password || "";
-    let uBase = (uniplay_base_url || "").replace(/\/+$/, "") || DEFAULT_BASE_URL;
+    let uBase = normalizeApiBaseUrl(uniplay_base_url);
 
     const admin = createClient(
       Deno.env.get("SUPABASE_URL")!,
@@ -167,7 +267,7 @@ serve(async (req) => {
         if (s?.uniplay_username && s?.uniplay_password) {
           uUser = s.uniplay_username;
           uPass = s.uniplay_password;
-          uBase = (s.uniplay_base_url || "").replace(/\/+$/, "") || DEFAULT_BASE_URL;
+          uBase = normalizeApiBaseUrl(s.uniplay_base_url);
         }
       }
     }
@@ -183,7 +283,8 @@ serve(async (req) => {
     }
 
     console.log(`[Uniplay] Login as ${uUser} @ ${uBase}`);
-    const session = await login(uBase, uUser, uPass);
+    const { session, apiBaseUrl } = await loginWithFallback(uBase, uUser, uPass);
+    uBase = apiBaseUrl;
 
     if (action === "test") {
       return new Response(
@@ -191,6 +292,7 @@ serve(async (req) => {
           success: true,
           id: session.id,
           username: session.username,
+          apiBaseUrl: uBase,
           message: "Login Uniplay OK",
         }),
         { headers: jsonHeaders },
@@ -210,16 +312,34 @@ serve(async (req) => {
     console.log(`[Uniplay] Procurando "${username}" (variantes: ${candidates.join(", ")})`);
 
     // Fetch both lists in parallel
-    const [iptvList, p2pList] = await Promise.all([
-      listIptv(uBase, session.access_token, session.crypt_pass).catch((e) => {
-        console.error("[Uniplay] iptv list err", e);
-        return [] as any[];
-      }),
-      listP2p(uBase, session.access_token).catch((e) => {
-        console.error("[Uniplay] p2p list err", e);
-        return [] as any[];
-      }),
+    const [iptvResult, p2pResult] = await Promise.allSettled([
+      listIptv(uBase, session.access_token, session.crypt_pass),
+      listP2p(uBase, session.access_token),
     ]);
+
+    const listErrors: string[] = [];
+    const iptvList = iptvResult.status === "fulfilled" ? iptvResult.value : [];
+    const p2pList = p2pResult.status === "fulfilled" ? p2pResult.value : [];
+    if (iptvResult.status === "rejected") {
+      const msg = iptvResult.reason instanceof Error ? iptvResult.reason.message : String(iptvResult.reason);
+      console.error("[Uniplay] iptv list err", msg);
+      listErrors.push(msg);
+    }
+    if (p2pResult.status === "rejected") {
+      const msg = p2pResult.reason instanceof Error ? p2pResult.reason.message : String(p2pResult.reason);
+      console.error("[Uniplay] p2p list err", msg);
+      listErrors.push(msg);
+    }
+
+    if (listErrors.length === 2) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: `Login Uniplay OK, mas não foi possível listar IPTV/P2P: ${listErrors.join(" | ")}`,
+        }),
+        { headers: jsonHeaders },
+      );
+    }
 
     const matchIptv = iptvList.find((u: any) => {
       const un = String(u?.username || "").toLowerCase().trim();
@@ -236,6 +356,7 @@ serve(async (req) => {
           success: false,
           error: `Username "${username}" não encontrado em IPTV nem P2P`,
           tried: candidates,
+          list_errors: listErrors,
         }),
         { headers: jsonHeaders },
       );
@@ -261,7 +382,7 @@ serve(async (req) => {
           error: "Todas as renovações Uniplay falharam",
           results,
         }),
-        { status: 502, headers: jsonHeaders },
+        { headers: jsonHeaders },
       );
     }
 
@@ -302,8 +423,7 @@ serve(async (req) => {
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : "Erro desconhecido";
     console.error("[Uniplay] Erro:", err);
-    return new Response(JSON.stringify({ error: `Erro Uniplay: ${msg}` }), {
-      status: 500,
+    return new Response(JSON.stringify({ success: false, error: `Erro Uniplay: ${msg}` }), {
       headers: jsonHeaders,
     });
   }
