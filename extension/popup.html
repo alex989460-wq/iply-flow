@@ -4,21 +4,37 @@
 <meta charset="utf-8" />
 <title>SuperGestor Auto-Renew</title>
 <style>
-  body { font-family: -apple-system, system-ui, sans-serif; width: 320px; padding: 14px; margin: 0; background: #0f172a; color: #e2e8f0; }
+  body { font-family: -apple-system, system-ui, sans-serif; width: 340px; padding: 14px; margin: 0; background: #0f172a; color: #e2e8f0; }
   h1 { font-size: 15px; margin: 0 0 4px; }
   .sub { font-size: 11px; opacity: .6; margin-bottom: 10px; }
   label { font-size: 11px; opacity: .75; display: block; margin: 8px 0 3px; text-transform: uppercase; letter-spacing: .5px; }
   input { width: 100%; box-sizing: border-box; padding: 6px 8px; border-radius: 6px; border: 1px solid #334155; background: #1e293b; color: #f1f5f9; font-size: 12px; }
-  button { margin-top: 12px; width: 100%; padding: 8px; border-radius: 6px; border: 0; background: #3b82f6; color: white; font-weight: 600; cursor: pointer; }
+  button { margin-top: 8px; width: 100%; padding: 8px; border-radius: 6px; border: 0; background: #3b82f6; color: white; font-weight: 600; cursor: pointer; font-size: 12px; }
   button.secondary { background: #334155; }
   .status { margin-top: 12px; padding: 8px; border-radius: 6px; background: #1e293b; font-size: 11px; line-height: 1.5; }
-  .ok { color: #4ade80; } .bad { color: #f87171; }
+  .ok { color: #4ade80; } .bad { color: #f87171; } .warn { color: #fbbf24; }
   .toggle { display: flex; align-items: center; gap: 8px; margin-top: 10px; font-size: 13px; }
+  .panels { margin-top: 10px; padding: 8px; border-radius: 6px; background: #1e293b; font-size: 12px; }
+  .panel-row { display: flex; align-items: center; justify-content: space-between; padding: 4px 0; }
+  .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+  .dot.on { background: #4ade80; box-shadow: 0 0 6px #4ade80; }
+  .dot.off { background: #f87171; }
+  .dot.pending { background: #fbbf24; }
 </style>
 </head>
 <body>
   <h1>SuperGestor - Auto-Renew</h1>
-  <div class="sub">Painéis: P2Cine + Uniplay</div>
+  <div class="sub">Paineis: P2Cine + Uniplay - v1.7.0</div>
+
+  <div class="panels">
+    <div class="panel-row">
+      <span><span id="dot-p2" class="dot pending"></span> P2Cine <span id="txt-p2" class="warn">verificando...</span></span>
+    </div>
+    <div class="panel-row">
+      <span><span id="dot-up" class="dot pending"></span> Uniplay <span id="txt-up" class="warn">verificando...</span></span>
+    </div>
+    <button id="openPanels" class="secondary" style="margin-top:6px;">Abrir paineis em segundo plano</button>
+  </div>
 
   <label>Token da extensao</label>
   <input id="token" type="password" placeholder="cole aqui" />
@@ -29,9 +45,6 @@
   <div class="toggle">
     <input id="enabled" type="checkbox" />
     <label for="enabled" style="margin:0;text-transform:none;letter-spacing:0;font-size:13px;opacity:1;">Ativado</label>
-  </div>
-  <div class="sub" style="margin-top:8px;line-height:1.4;">
-    Mantenha uma aba logada em <b>daily3.news</b> para P2Cine e/ou em <b>searchdefense.top</b> para Uniplay.
   </div>
 
   <button id="save">Salvar</button>

@@ -1,9 +1,10 @@
-// SuperGestor Panel Auto-Renew - background service worker (v1.6.0)
+// SuperGestor Panel Auto-Renew - background service worker (v1.7.0)
 const QUEUE_URL = "https://fphqfgxfeaylldpxjqan.supabase.co/functions/v1/p2cine-queue";
 const SUPABASE_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZwaHFmZ3hmZWF5bGxkcHhqcWFuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY5OTYwMDAsImV4cCI6MjA4MjU3MjAwMH0.PsIJenRZEAWTlxbdGYvJWrBUfiIifPn9Q_UVeUyrFs8";
 const POLL_SECONDS = 20;
 const PANEL_BASE = "https://daily3.news";
 const CLIENTS_PAGE = `${PANEL_BASE}/clients/`;
+const UNIPLAY_PANEL_URL = "https://searchdefense.top/";
 const UNIPLAY_PANEL_URLS = ["https://searchdefense.top/*", "http://searchdefense.top/*"];
 const UNIPLAY_API_BASE = "https://gesapioffice.com";
 const UNIPLAY_TOKEN_KEY = "372a8eb9ccd066d576409eead9568a13";
@@ -76,10 +77,23 @@ function waitForTabComplete(tabId, timeoutMs = 12000) {
   });
 }
 
-async function getPanelTab(requireClientsPage = false) {
+async function openHiddenTab(url) {
+  // Cria aba em background (nao rouba foco). Usuario ainda precisa estar logado no painel.
+  const tab = await chrome.tabs.create({ url, active: false });
+  if (tab?.id) await waitForTabComplete(tab.id, 20000);
+  return tab?.id ? { tabId: tab.id } : { error: "create_failed" };
+}
+
+async function getPanelTab(requireClientsPage = false, { autoOpen = true } = {}) {
   const tabs = await chrome.tabs.query({ url: ["https://daily3.news/*", "https://*.daily3.news/*"] });
   let tab = tabs.find((t) => t.url?.startsWith(CLIENTS_PAGE)) || tabs[0];
-  if (!tab?.id) return { error: "no_tab" };
+
+  if (!tab?.id) {
+    if (!autoOpen) return { error: "no_tab" };
+    const opened = await openHiddenTab(CLIENTS_PAGE);
+    if (opened.error) return { error: "no_tab" };
+    return { tabId: opened.tabId, opened: true };
+  }
 
   if (requireClientsPage && !tab.url?.startsWith(CLIENTS_PAGE)) {
     const wait = waitForTabComplete(tab.id);
@@ -300,11 +314,14 @@ async function renewClient(clientId, months) {
   }, [clientId, months], false);
 }
 
-async function getUniplayTab() {
+async function getUniplayTab({ autoOpen = true } = {}) {
   const tabs = await chrome.tabs.query({ url: UNIPLAY_PANEL_URLS });
   const tab = tabs[0];
-  if (!tab?.id) return { error: "no_uniplay_tab" };
-  return { tabId: tab.id };
+  if (tab?.id) return { tabId: tab.id };
+  if (!autoOpen) return { error: "no_uniplay_tab" };
+  const opened = await openHiddenTab(UNIPLAY_PANEL_URL);
+  if (opened.error) return { error: "no_uniplay_tab" };
+  return { tabId: opened.tabId, opened: true };
 }
 
 async function runInUniplay(func, args = []) {
@@ -505,21 +522,113 @@ async function keepAlive() {
   await chrome.storage.local.set({ lastKeepAlive: new Date().toISOString(), lastKeepAliveResult: JSON.stringify(r) });
 }
 
+async function notifyOnce(id, title, message) {
+  const key = `notif_${id}`;
+  const prev = (await chrome.storage.local.get({ [key]: 0 }))[key];
+  const now = Date.now();
+  // debounce: no maximo 1 notif do mesmo tipo a cada 15min
+  if (now - prev < 15 * 60 * 1000) return;
+  await chrome.storage.local.set({ [key]: now });
+  try { chrome.notifications.create({ type: "basic", iconUrl: "icon.png", title, message }); } catch {}
+}
+
+async function checkPanelsStatus() {
+  // P2Cine: tenta encontrar aba SEM abrir automaticamente
+  let p2cineLogged = false, p2cineOpen = false;
+  const p2Tabs = await chrome.tabs.query({ url: ["https://daily3.news/*", "https://*.daily3.news/*"] });
+  p2cineOpen = p2Tabs.length > 0;
+  if (p2cineOpen) {
+    const r = await runInPanel(async () => {
+      try {
+        const body = new URLSearchParams();
+        body.set("draw", "1"); body.set("start", "0"); body.set("length", "1");
+        body.set("search[value]", "__ping__"); body.set("search[regex]", "false");
+        const res = await fetch("/clients/api/?get_clients", {
+          method: "POST", credentials: "same-origin",
+          headers: { "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8", "X-Requested-With": "XMLHttpRequest" },
+          body: body.toString(),
+        });
+        const t = await res.text();
+        const lower = t.toLowerCase();
+        if (res.status === 401 || res.status === 403 || lower.includes('name="password"')) return { logged: false };
+        return { logged: res.ok };
+      } catch { return { logged: false }; }
+    }, [], false);
+    p2cineLogged = !!r?.logged;
+  }
+
+  // Uniplay: verifica token no localStorage
+  let uniplayLogged = false, uniplayOpen = false;
+  const upTabs = await chrome.tabs.query({ url: UNIPLAY_PANEL_URLS });
+  uniplayOpen = upTabs.length > 0;
+  if (uniplayOpen) {
+    const r = await runInUniplay(async (tokenKey) => {
+      try { return { logged: !!localStorage.getItem(tokenKey) }; }
+      catch { return { logged: false }; }
+    }, [UNIPLAY_TOKEN_KEY]);
+    uniplayLogged = !!r?.logged;
+  }
+
+  const status = {
+    p2cine: { open: p2cineOpen, logged: p2cineLogged },
+    uniplay: { open: uniplayOpen, logged: uniplayLogged },
+    checkedAt: new Date().toISOString(),
+  };
+  const prev = (await chrome.storage.local.get({ panelsStatus: null })).panelsStatus;
+  await chrome.storage.local.set({ panelsStatus: status });
+
+  // Notificacoes de expiracao (transicoes logged -> not logged)
+  if (prev?.p2cine?.logged && !p2cineLogged && p2cineOpen) {
+    notifyOnce("p2cine_out", "Sessao P2Cine expirou", "Faca login novamente em daily3.news para retomar as renovacoes.");
+  }
+  if (prev?.uniplay?.logged && !uniplayLogged && uniplayOpen) {
+    notifyOnce("uniplay_out", "Sessao Uniplay expirou", "Faca login novamente em searchdefense.top para retomar as renovacoes.");
+  }
+  // Se nao ha aba aberta E ha renovacoes pendentes, avisa 1x
+  const cfg = await getConfig();
+  if (cfg.enabled && cfg.token && (!p2cineOpen || !uniplayOpen)) {
+    try {
+      const next = (await fetchNext(cfg.token)).item;
+      if (next) {
+        if (next.panel_type === "uniplay" && !uniplayOpen) {
+          notifyOnce("uniplay_notab", "Uniplay: abra o painel", "Ha renovacao pendente. Abra searchdefense.top e faca login.");
+        } else if (next.panel_type !== "uniplay" && !p2cineOpen) {
+          notifyOnce("p2cine_notab", "P2Cine: abra o painel", "Ha renovacao pendente. Abra daily3.news e faca login.");
+        }
+      }
+    } catch {}
+  }
+  return status;
+}
+
+async function openPanels() {
+  const opened = [];
+  const p2 = await chrome.tabs.query({ url: ["https://daily3.news/*", "https://*.daily3.news/*"] });
+  if (p2.length === 0) { await chrome.tabs.create({ url: CLIENTS_PAGE, active: false }); opened.push("p2cine"); }
+  const up = await chrome.tabs.query({ url: UNIPLAY_PANEL_URLS });
+  if (up.length === 0) { await chrome.tabs.create({ url: UNIPLAY_PANEL_URL, active: false }); opened.push("uniplay"); }
+  return { opened };
+}
+
 function setupAlarms() {
   chrome.alarms.create("p2cine-tick", { periodInMinutes: POLL_SECONDS / 60 });
   chrome.alarms.create("p2cine-update", { periodInMinutes: 60 });
   chrome.alarms.create("p2cine-keepalive", { periodInMinutes: 3 });
+  chrome.alarms.create("p2cine-status", { periodInMinutes: 2 });
 }
 
-chrome.runtime.onInstalled.addListener(() => { setupAlarms(); checkForUpdate(); keepAlive(); });
-chrome.runtime.onStartup.addListener(() => { setupAlarms(); checkForUpdate(); keepAlive(); });
+chrome.runtime.onInstalled.addListener(() => { setupAlarms(); checkForUpdate(); keepAlive(); checkPanelsStatus(); });
+chrome.runtime.onStartup.addListener(() => { setupAlarms(); checkForUpdate(); keepAlive(); checkPanelsStatus(); });
 chrome.alarms.onAlarm.addListener((a) => {
   if (a.name === "p2cine-tick") tick();
   if (a.name === "p2cine-update") checkForUpdate();
   if (a.name === "p2cine-keepalive") keepAlive();
+  if (a.name === "p2cine-status") checkPanelsStatus();
 });
 
 chrome.runtime.onMessage.addListener((msg, _s, send) => {
   if (msg?.type === "run-now") { tick().then(() => send({ ok: true })); return true; }
+  if (msg?.type === "open-panels") { openPanels().then((r) => send(r)); return true; }
+  if (msg?.type === "check-status") { checkPanelsStatus().then((s) => send(s)); return true; }
   if (msg?.type === "check-update") { checkForUpdate().then(() => send({ ok: true })); return true; }
 });

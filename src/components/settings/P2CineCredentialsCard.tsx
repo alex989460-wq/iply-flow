@@ -157,8 +157,8 @@ export default function P2CineCredentialsCard() {
             <div className="rounded-lg border p-3 space-y-2 bg-muted/30">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-semibold">Extensão SuperGestor 1.6.0</p>
-                  <p className="text-xs text-muted-foreground">Roda a cada 20s enquanto a aba do painel estiver logada.</p>
+                  <p className="text-sm font-semibold">Extensão SuperGestor 1.7.0</p>
+                  <p className="text-xs text-muted-foreground">Auto-abre painel, indicador de status ao vivo e alerta desktop quando sessão expira.</p>
                 </div>
                 <Button size="sm" variant="secondary" onClick={downloadExtension}>
                   Baixar extensão

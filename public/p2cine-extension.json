@@ -1,5 +1,5 @@
 {
-  "version": "1.6.0",
+  "version": "1.7.0",
   "download": "https://supergestor.top/p2cine-extension.zip",
-  "notes": "Agora suporta Uniplay via aba logada em searchdefense.top, sem cookies falsos"
+  "notes": "Auto-abre painel em background, indicador de status ao vivo e alerta desktop quando sessao expirar"
 }
