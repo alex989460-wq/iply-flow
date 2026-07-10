@@ -54,10 +54,13 @@ export default function ActivationApps() {
 
   const duplecast = panelCreds.find((c: any) => c.panel_type === 'duplecast');
   const clouddy = panelCreds.find((c: any) => c.panel_type === 'clouddy');
+  const p2cine = panelCreds.find((c: any) => c.panel_type === 'p2cine');
   const [duplecastForm, setDuplecastForm] = useState({ username: '', password: '', is_enabled: true });
   const [clouddyForm, setClouddyForm] = useState({ base_url: 'https://console.clouddy.online', cookie: '', is_enabled: true });
+  const [p2cineForm, setP2cineForm] = useState({ base_url: '', cookie: '', is_enabled: true });
   const [showPass, setShowPass] = useState(false);
   const [showClCookie, setShowClCookie] = useState(false);
+  const [showP2Cookie, setShowP2Cookie] = useState(false);
 
   useEffect(() => {
     if (duplecast) {
@@ -78,6 +81,16 @@ export default function ActivationApps() {
       });
     }
   }, [clouddy?.id, clouddy?.updated_at]);
+
+  useEffect(() => {
+    if (p2cine) {
+      setP2cineForm({
+        base_url: p2cine.username || '',
+        cookie: p2cine.password || '',
+        is_enabled: p2cine.is_enabled ?? true,
+      });
+    }
+  }, [p2cine?.id, p2cine?.updated_at]);
 
   const saveDuplecast = useMutation({
     mutationFn: async () => {
@@ -127,6 +140,29 @@ export default function ActivationApps() {
     onError: (e: any) => toast.error(e.message),
   });
 
+  const saveP2cine = useMutation({
+    mutationFn: async () => {
+      if (!p2cineForm.base_url.trim() || !p2cineForm.cookie.trim()) {
+        throw new Error('URL do painel e PHPSESSID do P2Cine são obrigatórios');
+      }
+      const payload = {
+        user_id: user?.id,
+        panel_type: 'p2cine',
+        username: p2cineForm.base_url.trim().replace(/\/+$/, ''),
+        password: p2cineForm.cookie.trim(),
+        is_enabled: p2cineForm.is_enabled,
+      };
+      const { error } = await (supabase as any)
+        .from('activation_panel_credentials')
+        .upsert(payload, { onConflict: 'user_id,panel_type' });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['activation-panel-credentials'] });
+      toast.success('Credenciais P2Cine salvas!');
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
 
 
   const saveMutation = useMutation({
@@ -509,6 +545,75 @@ export default function ActivationApps() {
                   <div className="flex justify-end">
                     <Button onClick={() => saveClouddy.mutate()} disabled={saveClouddy.isPending}>
                       {saveClouddy.isPending ? 'Salvando...' : 'Salvar credenciais'}
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-border/50 p-4 space-y-4 bg-card">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                        <Monitor className="w-5 h-5 text-primary" />
+                      </div>
+                      <div>
+                        <h3 className="font-semibold text-foreground">P2Cine</h3>
+                        <p className="text-xs text-muted-foreground">
+                          Painel P2Cine via sessão <span className="font-mono">PHPSESSID</span>
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Label htmlFor="p2-enabled" className="text-xs">Renovação automática</Label>
+                      <Switch
+                        id="p2-enabled"
+                        checked={p2cineForm.is_enabled}
+                        onCheckedChange={v => setP2cineForm(f => ({ ...f, is_enabled: v }))}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div>
+                      <Label>URL do painel</Label>
+                      <Input
+                        value={p2cineForm.base_url}
+                        onChange={e => setP2cineForm(f => ({ ...f, base_url: e.target.value }))}
+                        placeholder="https://painel.p2cine.com"
+                      />
+                    </div>
+                    <div>
+                      <Label>PHPSESSID / Cookie</Label>
+                      <div className="relative">
+                        <Input
+                          type={showP2Cookie ? 'text' : 'password'}
+                          autoComplete="off"
+                          value={p2cineForm.cookie}
+                          onChange={e => setP2cineForm(f => ({ ...f, cookie: e.target.value }))}
+                          placeholder="PHPSESSID=xxxxxxxxxxxx"
+                          className="font-mono text-xs"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowP2Cookie(v => !v)}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                          aria-label={showP2Cookie ? 'Ocultar' : 'Mostrar'}
+                        >
+                          {showP2Cookie ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="rounded-lg bg-muted/40 border border-border/50 p-3 text-xs text-muted-foreground flex gap-2">
+                    <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-yellow-500" />
+                    <span>
+                      O P2Cine tem <b>hCaptcha</b> no login. Entre manualmente no painel, abra o DevTools (F12) → <b>Application</b> → <b>Cookies</b>, copie o valor de <span className="font-mono">PHPSESSID</span> e cole aqui (aceita também o JSON exportado ou <span className="font-mono">PHPSESSID=xxx</span>). O sistema fará ping periódico para manter a sessão viva e, se expirar, você será avisado no painel de <b>Pendências</b> para renovar.
+                    </span>
+                  </div>
+
+                  <div className="flex justify-end">
+                    <Button onClick={() => saveP2cine.mutate()} disabled={saveP2cine.isPending}>
+                      {saveP2cine.isPending ? 'Salvando...' : 'Salvar credenciais'}
                     </Button>
                   </div>
                 </div>
