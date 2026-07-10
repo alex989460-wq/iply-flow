@@ -34,10 +34,16 @@
   <button id="save">Salvar</button>
   <button id="run" class="secondary">Rodar agora</button>
 
+  <div id="updateBox" style="display:none;margin-top:10px;padding:8px;border-radius:6px;background:#7f1d1d;font-size:11px;">
+    Nova versao <span id="newVer"></span> disponivel.
+    <a id="dlLink" href="#" target="_blank" style="color:#fecaca;text-decoration:underline;">Baixar</a>
+  </div>
+
   <div class="status">
     <div>Ultima: <span id="lastRun">-</span></div>
     <div id="lastResult">-</div>
     <div>OK: <span class="ok" id="okCount">0</span> - Falhas: <span class="bad" id="failCount">0</span></div>
+    <div id="debug" style="margin-top:6px;opacity:.6;font-size:10px;word-break:break-all;"></div>
   </div>
 
   <script src="popup.js"></script>
