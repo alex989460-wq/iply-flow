@@ -1,124 +1,69 @@
-# Reformulação do módulo "Treinamento da IA"
+# Renovação automática P2Cine via extensão do navegador
 
-Vou trocar o modelo atual de "pergunta/resposta bruta" por uma **Central de Conhecimento** que extrai procedimentos, fluxos, intenções e respostas oficiais do histórico real de atendimento (Evolution + Oficial). Nada é publicado sem sua aprovação.
+## Ideia central
 
-## Fase 1 — Modelo de dados (nova arquitetura)
+Nada de burlar captcha ou copiar cookie para o backend (o P2Cine derruba a sessão quando isso acontece). Em vez disso, uma **extensão do Chrome roda dentro do seu próprio navegador**, usando **sua sessão já logada** no `daily3.news`. Ela pergunta a cada X segundos ao nosso backend "tem cliente P2Cine pra renovar?" e, quando tem, executa a renovação como se você tivesse clicado — do lado do painel é indistinguível de uso humano legítimo.
 
-Novas tabelas (todas com RLS por `user_id`, GRANTs para `authenticated`/`service_role`):
+Você mantém uma aba do P2Cine aberta em segundo plano no seu PC (pode ficar minimizado). Enquanto essa aba existir e você estiver logado, as renovações rodam sozinhas.
 
-- **`ai_conversations`** (substitui uso bruto de `ai_training_conversations`)
-  - `source`, `channel`, `contact_phone`, `contact_name`, `operator_id`, `operator_name`
-  - `started_at`, `ended_at`, `duration_seconds`, `message_count`
-  - `status`, `tags[]`, `has_audio`, `has_image`, `has_file`
-  - `problem_summary`, `solution_summary`, `resolved bool`, `device`, `app`, `category`
-  - `analyzed_at`, `analysis_version`, `raw jsonb`
+## Fluxo
 
-- **`ai_knowledge_items`** (unifica tudo — pending/approved)
-  - `kind` enum: `procedure` | `flow` | `intent` | `official_answer` | `business_rule` | `tutorial`
-  - `subject`, `problem`, `solution`, `steps jsonb` (procedimento), `flow_nodes jsonb` (fluxo)
-  - `category`, `devices[]`, `apps[]`, `tags[]`, `keywords[]`
-  - `usage_count`, `resolved_count`, `success_rate`, `confidence`, `last_used_at`
-  - `operators jsonb` (top operadores + contagem), `source_conversation_ids[]`
-  - `status`: `pending` | `approved` | `rejected` | `merged_into`
-  - `merged_into_id`, `embedding vector(1536)`, `approved_at`, `approved_by`
-
-- **`ai_analysis_queue`** — fila de conversas a analisar, com prioridade e retry
-- Manter `ai_knowledge_entries` como destino final ao aprovar (compatível com o bot atual)
-
-## Fase 2 — Pré-processamento (limpeza obrigatória)
-
-Antes de mandar para a IA, uma função `sanitize()` remove:
-- Saudações puras (`oi`, `bom dia`, `ok`, `obrigado`, `valeu`, `boa noite`…)
-- Mensagens só com emoji/sticker/gif
-- Mensagens < 3 caracteres úteis
-- Comprovantes/PIX (regex de valores, "comprovante", `pix copiado`)
-- Mensagens automáticas conhecidas do próprio robô
-- Duplicatas consecutivas
-- Anexos sem legenda contextual
-
-Conversa que sobrar com menos de 2 turnos úteis (cliente+operador) é marcada `no_signal` e não vai para IA.
-
-## Fase 3 — Análise por conversa (2 passes)
-
-**Pass A — Compreensão da conversa** (`gpt-5.5-mini`, structured output):
-Para cada conversa retorna:
-```
-{ problem, objective, solution, resolved, duration_bucket,
-  device, app, category, tags[], operator_name,
-  signal_quality: high|medium|none }
-```
-Grava direto em `ai_conversations`. Se `signal_quality=none` → não gera conhecimento.
-
-**Pass B — Extração de conhecimento estruturado**:
-A IA retorna 0..N itens tipados:
-```
-{ kind: procedure|flow|intent|official_answer|business_rule|tutorial,
-  subject, problem, solution,
-  steps: [ "abrir configurações", "aplicativos", "limpar cache", ... ],
-  flow_nodes: [ { actor, action }, ... ],
-  devices[], apps[], keywords[] }
+```text
+Cakto webhook → pending_manual_renewals (reason=p2cine_auto_queue)
+                        ↓
+                edge fn: p2cine-queue (GET próximo item + POST resultado)
+                        ↓
+             Extensão Chrome (polling 15s na aba daily3.news)
+                        ↓
+      fetch interno no painel P2Cine com a sessão real do usuário
+                        ↓
+             POST resultado → marca pendência como resolvida
+                        ↓
+               atualiza customers.due_date
 ```
 
-Cada item gera embedding e passa por **agrupamento por similaridade** (cos ≥ 0.86, mesmo `kind` e `category`):
-- Match → incrementa `usage_count`, adiciona operador, atualiza `success_rate`, junta `steps` (mescla, não sobrescreve), `last_used_at`
-- Sem match → cria novo `pending`
+## O que vou construir
 
-Confiança é calculada:
-```
-confidence = min(1, 0.4 + 0.3*log10(usage_count+1) + 0.3*success_rate)
-```
+### 1. Backend (edge function `p2cine-queue`)
+- `GET ?token=XXX` — devolve o próximo item pendente (username, dias, id).
+- `POST ?token=XXX` com `{id, success, message}` — marca como resolvido ou registra falha.
+- Autenticada por `P2CINE_EXTENSION_TOKEN` (secret gerado, você cola na extensão uma vez).
 
-## Fase 4 — Painel de aprovação (novo)
+### 2. Fila
+- Reativar `p2cine-renew` para **não** tentar HTTP direto: apenas insere linha em `pending_manual_renewals` com `reason='p2cine_auto_queue'`.
+- Extensão consome dessa fila.
 
-Substitui a aba "Aprovação" por cartões inteligentes com:
-- Badge do **tipo** (Procedimento/Fluxo/Intenção/Resposta Oficial/…) com cor
-- Assunto, problema, solução
-- **Passos numerados** (procedimento) ou **fluxograma vertical** (fluxo)
-- Dispositivos/apps relacionados (chips)
-- Métricas: usos, resolvidos, taxa de sucesso, confiança (barras)
-- Top operadores
-- Botão "Ver N conversas de origem" (modal com transcript)
-- Ações: **Aprovar · Editar · Mesclar · Rejeitar · Converter em (Procedimento/Fluxo/Resposta Oficial)**
+### 3. Extensão Chrome (`/extension/`)
+- `manifest.json` MV3, permissões: `storage`, `alarms`, host `https://daily3.news/*` e nosso Supabase.
+- `background.js`: alarme a cada 15s → chama `p2cine-queue GET` → se tem item, envia mensagem pra content script da aba `daily3.news`.
+- `content.js`: injetado em `daily3.news/clients/*`, faz `fetch` interno no endpoint de renovação usando a sessão logada, devolve resultado ao background.
+- `popup.html`: campo pra colar o token + status ("Aba conectada / X renovações hoje").
 
-Aprovar → grava em `ai_knowledge_entries` (formato que o `evolution-autoreply` já consome) e marca item como `approved`.
-
-## Fase 5 — Dashboard inteligente
-
-Cards no estilo do dashboard principal (bordas coloridas, ícone, glow):
-- Conversas importadas / analisadas / com sinal útil
-- Conhecimentos por tipo (procedimento/fluxo/intenção/resposta oficial)
-- Perguntas sem solução (top 10)
-- Aplicativos mais citados / dispositivos mais usados (gráficos)
-- Operadores com maior taxa de resolução (ranking)
-- Pendentes de aprovação
-- Categorias mais frequentes
-
-## Fase 6 — Aprendizado contínuo
-
-- `pg_cron` a cada 30min → chama `ai-training-analyze` só para conversas novas (`analyzed_at IS NULL`)
-- Novo atendimento finalizado (trigger na `evolution_messages` quando gap > 6h) → enfileira em `ai_analysis_queue`
-- Bot: `evolution-autoreply` já pega da `ai_knowledge_entries`, então aprovação → efeito imediato
+### 4. UI no app
+- Card em Configurações → APIs Externas → P2Cine:
+  - Botão "Baixar extensão" (`/p2cine-extension.zip`).
+  - Passos de instalação (Load unpacked).
+  - Campo mostrando o token pra colar na extensão.
+  - Status: "Última renovação: há 2min" (lê de `pending_manual_renewals`).
 
 ## Detalhes técnicos
 
-- Modelos: análise = `google/gemini-3-flash-preview` (rápido + barato + structured output); embeddings = `openai/text-embedding-3-small` (1536d, compatível com pgvector HNSW)
-- Batches de 15 conversas por invocação, `EdgeRuntime.waitUntil` para background
-- Limpeza é feita no edge (Deno), não gasta token de IA em lixo
-- Similaridade cos ≥ 0.86 para agrupar; ≥ 0.92 sugere merge automático (ainda pendente)
-- Auto-cancel de jobs travados > 15min via check no início de cada batch
+- **Token**: `generate_secret P2CINE_EXTENSION_TOKEN` (64 chars). Extensão manda em header `X-Extension-Token`; edge fn compara com `Deno.env`.
+- **Endpoint de renovação P2Cine**: precisamos identificar a URL exata que o botão "Renovar" do painel dispara. Vou logar via `p2cine-renew` antigo (já temos o path `/clients/renew` provavelmente) — se estiver errado, você abre F12 → Network no painel, clica renovar em 1 cliente e me manda o request; ajusto o content script.
+- **Segurança**: extensão só age em `daily3.news`; token da extensão é separado do login do painel; se vazar, você regenera pelo botão "Rotacionar token".
+- **Sem burla**: extensão só faz o que você faria clicando. Captcha, se aparecer no meio, para a fila e notifica ("resolva o captcha manualmente"); depois volta a rodar.
 
-## Fora de escopo desta rodada
+## Alternativas que descartei
 
-- Transcrição de áudios (fica placeholder `has_audio=true`, sem análise)
-- OCR de imagens/comprovantes (só detecção, não leitura)
-- Auto-aprovação — tudo continua exigindo você aprovar
+- **Backend com Playwright headless resolvendo captcha** → viola ToS hCaptcha, quebra a cada update do painel, e ainda derruba sua sessão.
+- **Reusar PHPSESSID no backend** → já testado, o P2Cine invalida (memória `p2cine-automation-block`).
+- **API oficial do P2Cine** → ideal, mas depende do provedor liberar; pode pedir em paralelo.
 
 ## Ordem de entrega
 
-1. Migration (novas tabelas + enum + índices HNSW + RPC de match)
-2. Edge `ai-training-analyze` reescrita (sanitize → pass A → pass B → agrupamento)
-3. Edge `ai-training-approve` adaptada aos novos tipos
-4. Página `AiTraining.tsx` — cartões inteligentes + dashboard novo
-5. `pg_cron` para análise contínua
+1. Secret + edge function `p2cine-queue`.
+2. Refazer `p2cine-renew` para só enfileirar.
+3. Extensão + ZIP em `/public/p2cine-extension.zip`.
+4. Card de configuração com download e token.
 
-Se aprovar, entrego nessa ordem e mostro rodando após cada fase.
+Confirma que posso seguir? Se sim, na hora que a extensão ficar pronta te peço 30s pra abrir F12 e confirmar a URL exata do botão "Renovar" pra travar o content script.
