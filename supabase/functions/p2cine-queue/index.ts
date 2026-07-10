@@ -1,7 +1,7 @@
-// P2Cine queue: consumed by the browser extension using the user's real session.
+// Panel queue: consumed by the browser extension using the user's real session.
 // The extension polls GET to receive the next pending renewal, executes it inside
-// the logged-in daily3.news tab, then POSTs the result back so we can update the
-// customer's due_date and clear the pending item.
+// the logged-in panel tab, then POSTs the result back so we can update the
+// customer's due_date and clear the pending item. Supports P2Cine and Uniplay.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
 const corsHeaders = {
@@ -31,6 +31,13 @@ function isP2Cine(row: { server_host?: string | null; server_name?: string | nul
   );
 }
 
+function isUniplay(row: { server_host?: string | null; server_name?: string | null }) {
+  const h = (row.server_host || "").toLowerCase().trim();
+  const n = (row.server_name || "").toLowerCase().trim();
+  const hay = `${h} ${n}`;
+  return hay.includes("uniplay") || hay.includes("searchdefense") || hay.includes("gesapioffice");
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -58,8 +65,9 @@ Deno.serve(async (req) => {
         .limit(50);
       if (error) throw error;
 
-      const next = (data ?? []).find(isP2Cine);
+      const next = (data ?? []).find((row) => isP2Cine(row) || isUniplay(row));
       if (!next) return json({ item: null });
+      const panelType = isUniplay(next) ? "uniplay" : "p2cine";
 
       // Resolve months from the plan registered in the system (fallback 1).
       let months = 1;
@@ -83,6 +91,7 @@ Deno.serve(async (req) => {
           plan_name: next.plan_name,
           new_due_date: next.new_due_date,
           server_name: next.server_name,
+          panel_type: panelType,
           months,
         },
       });
@@ -113,7 +122,7 @@ Deno.serve(async (req) => {
             amount: pending.amount ?? 0,
             payment_date: new Date().toISOString().slice(0, 10),
             confirmed: true,
-            notes: "Renovado via extensão P2Cine",
+            notes: `Renovado via extensão ${isUniplay(pending) ? "Uniplay" : "P2Cine"}`,
           });
           if (payErr) console.error("[p2cine-queue] payment insert error", payErr);
         }
@@ -126,7 +135,7 @@ Deno.serve(async (req) => {
       await supabase
         .from("pending_manual_renewals")
         .update({
-          reason: "p2cine_extension_failed",
+          reason: `${isUniplay(pending) ? "uniplay" : "p2cine"}_extension_failed`,
           error_details: { message: message ?? "unknown", http_status: http_status ?? null },
         })
         .eq("id", id);

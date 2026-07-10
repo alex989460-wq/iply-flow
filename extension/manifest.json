@@ -1,16 +1,19 @@
 {
   "manifest_version": 3,
-  "name": "SuperGestor P2Cine Auto-Renew",
-  "version": "1.5.0",
-  "description": "Renova clientes P2Cine automaticamente usando sua sessao logada em daily3.news.",
+  "name": "SuperGestor Panel Auto-Renew",
+  "version": "1.6.0",
+  "description": "Renova clientes P2Cine e Uniplay usando a sessao real logada no navegador.",
   "permissions": ["storage", "alarms", "notifications", "tabs", "scripting"],
   "host_permissions": [
     "https://daily3.news/*",
     "https://*.daily3.news/*",
+    "https://searchdefense.top/*",
+    "http://searchdefense.top/*",
+    "https://gesapioffice.com/*",
     "https://supergestor.top/*",
     "https://fphqfgxfeaylldpxjqan.supabase.co/*"
   ],
   "background": { "service_worker": "background.js" },
-  "action": { "default_popup": "popup.html", "default_title": "SuperGestor P2Cine" },
+  "action": { "default_popup": "popup.html", "default_title": "SuperGestor Auto-Renew" },
   "icons": { "128": "icon.png" }
 }
