@@ -55,11 +55,14 @@ export default function ActivationApps() {
   const duplecast = panelCreds.find((c: any) => c.panel_type === 'duplecast');
   const clouddy = panelCreds.find((c: any) => c.panel_type === 'clouddy');
   const p2cine = panelCreds.find((c: any) => c.panel_type === 'p2cine');
+  const ibosol = panelCreds.find((c: any) => c.panel_type === 'ibosol');
   const [duplecastForm, setDuplecastForm] = useState({ username: '', password: '', is_enabled: true });
   const [clouddyForm, setClouddyForm] = useState({ base_url: 'https://console.clouddy.online', cookie: '', is_enabled: true });
   const [p2cineForm, setP2cineForm] = useState({ base_url: '', is_enabled: false });
+  const [ibosolForm, setIbosolForm] = useState({ token: '', is_enabled: true });
   const [showPass, setShowPass] = useState(false);
   const [showClCookie, setShowClCookie] = useState(false);
+  const [showIboTok, setShowIboTok] = useState(false);
 
   useEffect(() => {
     if (duplecast) {
@@ -89,6 +92,15 @@ export default function ActivationApps() {
       });
     }
   }, [p2cine?.id, p2cine?.updated_at]);
+
+  useEffect(() => {
+    if (ibosol) {
+      setIbosolForm({
+        token: ibosol.password || '',
+        is_enabled: ibosol.is_enabled ?? true,
+      });
+    }
+  }, [ibosol?.id, ibosol?.updated_at]);
 
   const saveDuplecast = useMutation({
     mutationFn: async () => {
@@ -161,6 +173,32 @@ export default function ActivationApps() {
     },
     onError: (e: any) => toast.error(e.message),
   });
+
+  const saveIbosol = useMutation({
+    mutationFn: async () => {
+      if (!ibosolForm.token.trim()) {
+        throw new Error('Token do IBO Sol é obrigatório');
+      }
+      const payload = {
+        user_id: user?.id,
+        panel_type: 'ibosol',
+        username: 'https://backend-apis.ibosol.com',
+        password: ibosolForm.token.trim(),
+        is_enabled: ibosolForm.is_enabled,
+      };
+      const { error } = await (supabase as any)
+        .from('activation_panel_credentials')
+        .upsert(payload, { onConflict: 'user_id,panel_type' });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['activation-panel-credentials'] });
+      toast.success('Token IBO Sol salvo!');
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+
 
 
   const saveMutation = useMutation({
@@ -590,6 +628,66 @@ export default function ActivationApps() {
                     </Button>
                   </div>
                 </div>
+
+                <div className="rounded-xl border border-border/50 p-4 space-y-4 bg-card">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                        <Monitor className="w-5 h-5 text-primary" />
+                      </div>
+                      <div>
+                        <h3 className="font-semibold text-foreground">IBO Sol (Bob Player, IBO Player, etc.)</h3>
+                        <p className="text-xs text-muted-foreground">
+                          Painel do revendedor em <span className="font-mono">ibosol.com</span> — ativação por MAC
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Label htmlFor="ibo-enabled" className="text-xs">Ativação automática</Label>
+                      <Switch
+                        id="ibo-enabled"
+                        checked={ibosolForm.is_enabled}
+                        onCheckedChange={v => setIbosolForm(f => ({ ...f, is_enabled: v }))}
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <Label>Token do IBO Sol (Bearer)</Label>
+                    <div className="relative">
+                      <Input
+                        type={showIboTok ? 'text' : 'password'}
+                        autoComplete="off"
+                        value={ibosolForm.token}
+                        onChange={e => setIbosolForm(f => ({ ...f, token: e.target.value }))}
+                        placeholder="5114508|tb3dyiNd5DRuzygqKTRRW9X2elAUtvjDPplNSPwj..."
+                        className="font-mono text-xs pr-9"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowIboTok(v => !v)}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                        aria-label={showIboTok ? 'Ocultar' : 'Mostrar'}
+                      >
+                        {showIboTok ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="rounded-lg bg-muted/40 border border-border/50 p-3 text-xs text-muted-foreground flex gap-2">
+                    <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-yellow-500" />
+                    <span>
+                      Como o IBO Sol tem <b>Cloudflare Turnstile</b> no login, faça login manualmente em <span className="font-mono">ibosol.com</span>, abra o DevTools (F12) → <b>Network</b> → localize a requisição <span className="font-mono">POST /api/login</span> e copie o campo <span className="font-mono">token</span> da resposta (formato <span className="font-mono">"5114508|xxxx..."</span>). Ao chegar um pedido com <b>BOBPLAYER</b>, <b>IBOPLAYER</b> ou qualquer outro app do IBO Sol, o sistema seleciona automaticamente o app correto e ativa o MAC do cliente (1 crédito).
+                    </span>
+                  </div>
+
+                  <div className="flex justify-end">
+                    <Button onClick={() => saveIbosol.mutate()} disabled={saveIbosol.isPending}>
+                      {saveIbosol.isPending ? 'Salvando...' : 'Salvar token'}
+                    </Button>
+                  </div>
+                </div>
+
               </CardContent>
             </Card>
           </TabsContent>

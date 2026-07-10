@@ -83,3 +83,8 @@ verify_jwt = false
 
 [functions.p2cine-extension-token]
 verify_jwt = false
+
+[functions.ibosol-activate]
+verify_jwt = false
+
+
