@@ -24,6 +24,51 @@ function normalizeCookie(raw: string): string {
   return s.replace(/^cookie:\s*/i, "").trim();
 }
 
+function looksLikeLoginUrl(url: string | null): boolean {
+  return /\/(auth\/login|login|signin)(?:[/?#]|$)/i.test(String(url || ""));
+}
+
+function looksLikeLoginHtml(html: string): boolean {
+  return /type=["']password["']/i.test(html) && /(login|entrar|senha|sign in|e-mail|email)/i.test(html);
+}
+
+async function checkClouddySession(baseUrl: string, cookie: string) {
+  const headers = { "User-Agent": UA, Cookie: cookie, Accept: "text/html" };
+  const entryUrl = `${baseUrl}/reseller/`;
+
+  let status = 0;
+  let finalUrl = entryUrl;
+  let location: string | null = null;
+
+  try {
+    const first = await fetch(entryUrl, { headers, redirect: "manual" });
+    status = first.status;
+    location = first.headers.get("location");
+
+    if (status === 401 || status === 403 || looksLikeLoginUrl(location)) {
+      await first.body?.cancel();
+      return { alive: false, expired: true, status, finalUrl, location, error: null, reason: "auth_rejected" };
+    }
+
+    if (status >= 300 && status < 400 && location) {
+      await first.body?.cancel();
+      const followUrl = location.startsWith("http") ? location : `${baseUrl}/${location.replace(/^\/+/, "")}`;
+      const follow = await fetch(followUrl, { headers, redirect: "follow" });
+      status = follow.status;
+      finalUrl = follow.url || followUrl;
+      const html = await follow.text();
+      const expired = status === 401 || status === 403 || looksLikeLoginUrl(finalUrl) || looksLikeLoginHtml(html);
+      return { alive: !expired && status >= 200 && status < 400, expired, status, finalUrl, location, error: null, reason: expired ? "login_redirect" : "redirect_ok" };
+    }
+
+    const html = await first.text();
+    const expired = looksLikeLoginUrl(first.url) || looksLikeLoginHtml(html);
+    return { alive: !expired && status >= 200 && status < 400, expired, status, finalUrl: first.url || finalUrl, location, error: null, reason: expired ? "login_page" : "ok" };
+  } catch (e) {
+    return { alive: false, expired: false, status, finalUrl, location, error: (e as Error).message, reason: "network_uncertain" };
+  }
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: cors });
   const jh = { ...cors, "Content-Type": "application/json" };
@@ -45,24 +90,12 @@ serve(async (req) => {
       const baseUrl = String((c as any).username || "https://console.clouddy.online").replace(/\/+$/, "");
       const cookie = normalizeCookie(String((c as any).password || ""));
       if (!cookie) { results.push({ user_id: c.user_id, ok: false, error: "sem cookie" }); continue; }
-      let alive = false;
-      let status = 0;
-      let errMsg: string | null = null;
-      try {
-        const r = await fetch(`${baseUrl}/reseller/`, {
-          headers: { "User-Agent": UA, Cookie: cookie, Accept: "text/html" },
-          redirect: "manual",
-        });
-        status = r.status;
-        alive = r.status === 200;
-        await r.body?.cancel();
-      } catch (e) {
-        errMsg = (e as Error).message;
-      }
-      results.push({ user_id: c.user_id, ok: alive, status, error: errMsg });
+      const session = await checkClouddySession(baseUrl, cookie);
+      results.push({ user_id: c.user_id, ok: session.alive, expired: session.expired, status: session.status, reason: session.reason, error: session.error });
 
-      // Sessão morta → criar pendência manual (uma por dia por revendedor)
-      if (!alive) {
+      // Só cria pendência quando há sinal claro de expiração/login.
+      // Redirects 301/302 não relacionados a login e falhas de rede são tratados como inconclusivos.
+      if (session.expired) {
         const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
         const { data: existing } = await admin
           .from("pending_manual_renewals")
@@ -79,9 +112,12 @@ serve(async (req) => {
             source: "clouddy-keepalive",
             error_details: {
               message: "Cookie de sessão do painel Clouddy expirou. Faça login em console.clouddy.online, copie o Cookie do DevTools e atualize em Configurações → Ativações → Clouddy.",
-              status,
-              error: errMsg,
+              status: session.status,
+              reason: session.reason,
+              error: session.error,
               base_url: baseUrl,
+              final_url: session.finalUrl,
+              location: session.location,
             },
           });
         }

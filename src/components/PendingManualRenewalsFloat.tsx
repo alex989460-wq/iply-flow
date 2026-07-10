@@ -32,6 +32,7 @@ const REASON_LABEL: Record<string, string> = {
   status_blocked: 'Status bloqueado',
   phone_not_found: 'Telefone não encontrado',
   app_activation: 'Ativação de App',
+  clouddy_session_expired: 'Sessão Clouddy expirada',
 };
 
 const REASON_COLOR: Record<string, string> = {
@@ -43,6 +44,7 @@ const REASON_COLOR: Record<string, string> = {
   status_blocked: 'bg-purple-500',
   phone_not_found: 'bg-pink-500',
   app_activation: 'bg-emerald-600',
+  clouddy_session_expired: 'bg-amber-600',
 };
 
 export default function PendingManualRenewalsFloat() {
