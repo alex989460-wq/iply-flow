@@ -146,6 +146,31 @@ export default function ResellerApiSettings() {
     toast({ title: 'Copiado!', description: `${label} copiado para a área de transferência` });
   };
 
+  const testUniplay = async () => {
+    if (!settings.uniplay_username || !settings.uniplay_password) {
+      toast({ title: 'Erro', description: 'Preencha usuário e senha do Uniplay', variant: 'destructive' });
+      return;
+    }
+    setTestingUniplay(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('uniplay-renew', {
+        body: {
+          action: 'test',
+          uniplay_username: settings.uniplay_username,
+          uniplay_password: settings.uniplay_password,
+          uniplay_base_url: settings.uniplay_base_url,
+        },
+      });
+      if (error) throw error;
+      if (!data?.success) throw new Error(data?.error || 'Falha no login');
+      toast({ title: 'Login OK', description: `Uniplay: ${data.username} (id ${data.id})` });
+    } catch (err: any) {
+      toast({ title: 'Erro Uniplay', description: err.message || String(err), variant: 'destructive' });
+    } finally {
+      setTestingUniplay(false);
+    }
+  };
+
   if (loading) {
     return (
       <Card>
