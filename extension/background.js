@@ -55,58 +55,81 @@ async function reportResult(token, id, success, message, http_status) {
 
 // Look up the P2Cine internal client_id from the login/username.
 async function findClientId(username) {
-  const body = new URLSearchParams();
-  body.set("draw", "1");
-  body.set("start", "0");
-  body.set("length", "25");
-  body.set("search[value]", username);
-  body.set("search[regex]", "false");
-  // Datatables requires column defs — send minimal set for cols 0..2.
-  for (let i = 0; i < 3; i++) {
-    body.set(`columns[${i}][data]`, String(i));
-    body.set(`columns[${i}][name]`, "");
-    body.set(`columns[${i}][searchable]`, "true");
-    body.set(`columns[${i}][orderable]`, "true");
-    body.set(`columns[${i}][search][value]`, "");
-    body.set(`columns[${i}][search][regex]`, "false");
-  }
-  body.set("order[0][column]", "0");
-  body.set("order[0][dir]", "desc");
+  const norm = String(username).trim();
+  const strip = (v) => String(v ?? "").replace(/<[^>]*>/g, "").trim();
 
-  const res = await fetch(`${PANEL_BASE}/clients/api/?get_clients`, {
-    method: "POST",
-    credentials: "include",
-    headers: {
-      "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
-      "X-Requested-With": "XMLHttpRequest",
-      "Accept": "application/json, text/javascript, */*; q=0.01",
-    },
-    body: body.toString(),
-  });
+  async function query(searchValue) {
+    const body = new URLSearchParams();
+    body.set("draw", "1");
+    body.set("start", "0");
+    body.set("length", "500");
+    body.set("search[value]", searchValue);
+    body.set("search[regex]", "false");
+    for (let i = 0; i < 10; i++) {
+      body.set(`columns[${i}][data]`, String(i));
+      body.set(`columns[${i}][name]`, "");
+      body.set(`columns[${i}][searchable]`, "true");
+      body.set(`columns[${i}][orderable]`, "true");
+      body.set(`columns[${i}][search][value]`, "");
+      body.set(`columns[${i}][search][regex]`, "false");
+    }
+    body.set("order[0][column]", "0");
+    body.set("order[0][dir]", "desc");
 
-  const text = await res.text();
-  const lower = text.toLowerCase();
-  if (res.status === 401 || res.status === 403 || lower.includes('name="password"')) {
-    return { error: "logged_out", status: res.status };
+    const res = await fetch(`${PANEL_BASE}/clients/api/?get_clients`, {
+      method: "POST",
+      credentials: "include",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+        "X-Requested-With": "XMLHttpRequest",
+        "Accept": "application/json, text/javascript, */*; q=0.01",
+        "Referer": `${PANEL_BASE}/dashboard/`,
+      },
+      body: body.toString(),
+    });
+    const text = await res.text();
+    return { status: res.status, ok: res.ok, text, lower: text.toLowerCase() };
   }
-  if (lower.includes("hcaptcha") || lower.includes("recaptcha")) {
-    return { error: "captcha", status: res.status };
+
+  function findIn(rows) {
+    for (const r of rows || []) {
+      if (!r) continue;
+      const cells = Array.isArray(r) ? r : Object.values(r);
+      for (const c of cells) {
+        if (strip(c) === norm) {
+          const first = strip(cells[0]);
+          const id = /^\d+$/.test(first) ? first : String(r.DT_RowId || first).replace(/\D/g, "");
+          if (id) return id;
+        }
+      }
+    }
+    return null;
   }
-  if (!res.ok) return { error: `http_${res.status}`, status: res.status };
+
+  let r = await query(norm);
+  if (r.status === 401 || r.status === 403 || r.lower.includes('name="password"'))
+    return { error: "logged_out", status: r.status };
+  if (r.lower.includes("hcaptcha") || r.lower.includes("recaptcha"))
+    return { error: "captcha", status: r.status };
+  if (!r.ok) return { error: `http_${r.status}`, status: r.status };
 
   let json;
-  try { json = JSON.parse(text); } catch { return { error: "bad_json", status: res.status }; }
-  const rows = json?.data || [];
-  // kOffice row shape: [Id, Login, Senha, Adicionado, Vencimento, ...].
-  // Strip any HTML wrapping the cell may contain before comparing.
-  const strip = (v) => String(v ?? "").replace(/<[^>]*>/g, "").trim();
-  const norm = String(username).trim();
-  const hit =
-    rows.find((r) => strip(r?.[1]) === norm) ||
-    rows.find((r) => r && Object.values(r).some((c) => strip(c) === norm)) ||
-    rows.find((r) => strip(r?.[1]).includes(norm));
-  if (!hit) return { error: "not_found", status: 200 };
-  return { clientId: strip(hit[0]) };
+  try { json = JSON.parse(r.text); } catch { return { error: "bad_json", status: r.status }; }
+  let id = findIn(json?.data);
+  let debug = `search: rows=${(json?.data || []).length} total=${json?.recordsTotal ?? "?"}`;
+
+  if (!id) {
+    const r2 = await query("");
+    try {
+      const j2 = JSON.parse(r2.text);
+      id = findIn(j2?.data);
+      debug += ` | all: rows=${(j2?.data || []).length} total=${j2?.recordsTotal ?? "?"} sample=${JSON.stringify((j2?.data || [])[0] || null).slice(0, 250)}`;
+    } catch (e) { debug += ` | all: parse_err`; }
+  }
+  await chrome.storage.local.set({ lastDebug: debug });
+
+  if (!id) return { error: "not_found", status: 200 };
+  return { clientId: id };
 }
 
 async function renewClient(clientId, months) {
@@ -168,14 +191,42 @@ async function tick() {
   }
 }
 
+const VERSION_URL = "https://supergestor.top/p2cine-extension.json";
+const DOWNLOAD_URL = "https://supergestor.top/p2cine-extension.zip";
+
+async function checkForUpdate() {
+  try {
+    const res = await fetch(VERSION_URL + "?t=" + Date.now(), { cache: "no-store" });
+    if (!res.ok) return;
+    const info = await res.json();
+    const current = chrome.runtime.getManifest().version;
+    if (info?.version && info.version !== current) {
+      await chrome.storage.local.set({ updateAvailable: info.version, updateUrl: info.download || DOWNLOAD_URL });
+      chrome.action.setBadgeText({ text: "NEW" });
+      chrome.action.setBadgeBackgroundColor({ color: "#dc2626" });
+    } else {
+      await chrome.storage.local.set({ updateAvailable: null });
+      chrome.action.setBadgeText({ text: "" });
+    }
+  } catch {}
+}
+
 chrome.runtime.onInstalled.addListener(() => {
   chrome.alarms.create("p2cine-tick", { periodInMinutes: POLL_SECONDS / 60 });
+  chrome.alarms.create("p2cine-update", { periodInMinutes: 60 });
+  checkForUpdate();
 });
 chrome.runtime.onStartup.addListener(() => {
   chrome.alarms.create("p2cine-tick", { periodInMinutes: POLL_SECONDS / 60 });
+  chrome.alarms.create("p2cine-update", { periodInMinutes: 60 });
+  checkForUpdate();
 });
-chrome.alarms.onAlarm.addListener((a) => { if (a.name === "p2cine-tick") tick(); });
+chrome.alarms.onAlarm.addListener((a) => {
+  if (a.name === "p2cine-tick") tick();
+  if (a.name === "p2cine-update") checkForUpdate();
+});
 
 chrome.runtime.onMessage.addListener((msg, _s, send) => {
   if (msg?.type === "run-now") { tick().then(() => send({ ok: true })); return true; }
+  if (msg?.type === "check-update") { checkForUpdate().then(() => send({ ok: true })); return true; }
 });
