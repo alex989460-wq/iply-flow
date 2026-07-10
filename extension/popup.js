@@ -4,6 +4,7 @@ async function load() {
   const cfg = await chrome.storage.local.get({
     token: "", months: "1", enabled: false,
     lastRun: null, lastResult: "-", successCount: 0, failCount: 0,
+    lastDebug: "", updateAvailable: null, updateUrl: "",
   });
   for (const f of fields) document.getElementById(f).value = cfg[f];
   document.getElementById("enabled").checked = cfg.enabled;
@@ -11,7 +12,14 @@ async function load() {
   document.getElementById("lastResult").textContent = cfg.lastResult || "-";
   document.getElementById("okCount").textContent = cfg.successCount;
   document.getElementById("failCount").textContent = cfg.failCount;
+  document.getElementById("debug").textContent = cfg.lastDebug || "";
+  if (cfg.updateAvailable) {
+    document.getElementById("updateBox").style.display = "block";
+    document.getElementById("newVer").textContent = cfg.updateAvailable;
+    document.getElementById("dlLink").href = cfg.updateUrl || "#";
+  }
 }
+chrome.runtime.sendMessage({ type: "check-update" }, () => {});
 
 document.getElementById("save").addEventListener("click", async () => {
   const data = { enabled: document.getElementById("enabled").checked };
