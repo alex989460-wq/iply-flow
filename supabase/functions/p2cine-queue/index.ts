@@ -53,13 +53,26 @@ Deno.serve(async (req) => {
       // Fetch a batch of pending items and filter P2Cine in memory.
       const { data, error } = await supabase
         .from("pending_manual_renewals")
-        .select("id, customer_id, customer_name, username, server_host, server_name, plan_name, new_due_date, created_at")
+        .select("id, customer_id, customer_name, username, server_host, server_name, plan_name, new_due_date, created_at, owner_id")
         .order("created_at", { ascending: true })
         .limit(50);
       if (error) throw error;
 
       const next = (data ?? []).find(isP2Cine);
       if (!next) return json({ item: null });
+
+      // Resolve months from the plan registered in the system (fallback 1).
+      let months = 1;
+      if (next.plan_name) {
+        const { data: plan } = await supabase
+          .from("plans")
+          .select("duration_days")
+          .eq("plan_name", next.plan_name)
+          .eq("created_by", next.owner_id)
+          .maybeSingle();
+        const days = plan?.duration_days ?? 0;
+        if (days > 0) months = Math.max(1, Math.round(days / 30));
+      }
 
       return json({
         item: {
@@ -70,6 +83,7 @@ Deno.serve(async (req) => {
           plan_name: next.plan_name,
           new_due_date: next.new_due_date,
           server_name: next.server_name,
+          months,
         },
       });
     }
