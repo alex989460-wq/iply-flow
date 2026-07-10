@@ -106,17 +106,51 @@ export default function P2CineCredentialsCard() {
               </div>
             </div>
 
-            <Alert variant="destructive">
+            <Alert>
               <AlertTriangle className="h-4 w-4" />
-              <AlertDescription className="text-xs">
-                O P2Cine invalida a sessão quando o mesmo <span className="font-mono">PHPSESSID</span> do navegador é usado pelo backend. Por isso o ping e a renovação automática via cookie foram desativados; pedidos desse painel devem ficar em pendência manual até existir uma API própria do provedor.
+              <AlertDescription className="text-xs space-y-2">
+                <p>
+                  <strong>Renovação automática via extensão do navegador:</strong> como o P2Cine
+                  derruba a sessão quando reutilizamos o <span className="font-mono">PHPSESSID</span> no
+                  backend, criamos uma extensão que roda dentro do <em>seu</em> Chrome, usando a sua
+                  sessão real logada em <span className="font-mono">daily3.news</span>. Sem burla, sem
+                  captcha bypass — apenas automatiza os cliques.
+                </p>
+                <ol className="list-decimal ml-4 space-y-1">
+                  <li>Baixe o ZIP abaixo e descompacte.</li>
+                  <li>Abra <span className="font-mono">chrome://extensions</span>, ative "Modo desenvolvedor".</li>
+                  <li>Clique "Carregar sem compactação" e selecione a pasta descompactada.</li>
+                  <li>Abra o ícone da extensão, cole o token, ative e mantenha uma aba do painel P2Cine logada.</li>
+                </ol>
               </AlertDescription>
             </Alert>
+
+            <div className="rounded-lg border p-3 space-y-2 bg-muted/30">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-semibold">Extensão SuperGestor P2Cine</p>
+                  <p className="text-xs text-muted-foreground">Roda a cada 20s enquanto sua aba estiver logada.</p>
+                </div>
+                <Button size="sm" variant="secondary" onClick={downloadExtension}>
+                  Baixar extensão
+                </Button>
+              </div>
+              <div className="text-xs">
+                <p className="text-muted-foreground mb-1">Token da extensão (cole no popup):</p>
+                <p className="font-mono text-[11px] bg-background border rounded px-2 py-1 break-all">
+                  Gerado automaticamente no backend — clique em "Copiar token" abaixo.
+                </p>
+                <Button size="sm" variant="outline" className="mt-2" onClick={copyToken} disabled={tokenLoading}>
+                  {tokenLoading ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : null}
+                  Copiar token
+                </Button>
+              </div>
+            </div>
 
             <div className="flex justify-end">
               <Button onClick={save} disabled={saving}>
                 {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
-                Salvar como manual
+                Salvar URL
               </Button>
             </div>
           </>
