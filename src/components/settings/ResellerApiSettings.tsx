@@ -80,6 +80,9 @@ export default function ResellerApiSettings() {
           rush_password: d.rush_password || '',
           rush_token: d.rush_token || '',
           rush_base_url: d.rush_base_url || '',
+          uniplay_username: d.uniplay_username || '',
+          uniplay_password: d.uniplay_password || '',
+          uniplay_base_url: d.uniplay_base_url || '',
         });
       }
     } catch (err) {
