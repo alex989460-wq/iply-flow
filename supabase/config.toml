@@ -87,4 +87,9 @@ verify_jwt = false
 [functions.ibosol-activate]
 verify_jwt = false
 
+[functions.ibosol-keepalive]
+verify_jwt = false
+
+
+
 
