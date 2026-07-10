@@ -13,8 +13,37 @@ export default function P2CineCredentialsCard() {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [tokenLoading, setTokenLoading] = useState(false);
   const [form, setForm] = useState({ base_url: '', is_enabled: false });
   const [existing, setExisting] = useState(false);
+
+  const downloadExtension = () => {
+    fetch('/p2cine-extension.zip')
+      .then(r => { if (!r.ok) throw new Error('Falha ao baixar'); return r.blob(); })
+      .then(blob => {
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'p2cine-extension.zip';
+        a.click();
+        URL.revokeObjectURL(a.href);
+      })
+      .catch(e => toast.error(e.message));
+  };
+
+  const copyToken = async () => {
+    setTokenLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('p2cine-extension-token');
+      if (error) throw error;
+      if (!data?.token) throw new Error('Token indisponível');
+      await navigator.clipboard.writeText(data.token);
+      toast.success('Token copiado! Cole no popup da extensão.');
+    } catch (e: any) {
+      toast.error(e.message || 'Erro ao obter token');
+    } finally {
+      setTokenLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (!user) return;

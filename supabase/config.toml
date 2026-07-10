@@ -80,3 +80,6 @@ verify_jwt = false
 
 [functions.p2cine-queue]
 verify_jwt = false
+
+[functions.p2cine-extension-token]
+verify_jwt = false
