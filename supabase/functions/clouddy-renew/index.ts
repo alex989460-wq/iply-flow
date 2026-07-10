@@ -286,6 +286,7 @@ serve(async (req) => {
         refillUrl = c.url;
         csrf = token;
         withTariffField = c.withTariffField;
+        pageHtml = html;
         break;
       }
     }
@@ -299,9 +300,16 @@ serve(async (req) => {
       );
     }
 
+    // Clouddy calcula o custo real (em USD, com desconto) e o campo form[sum]
+    // é readonly — precisa ser exatamente o valor mostrado na página.
+    const sumMatch =
+      pageHtml.match(/name=["']form\[sum\]["'][^>]*value=["']([^"']+)["']/i) ||
+      pageHtml.match(/value=["']([^"']+)["'][^>]*name=["']form\[sum\]["']/i);
+    const finalSum = sumMatch ? sumMatch[1] : sum;
+
     // Step 3: submit refill
     const formBody = new URLSearchParams();
-    formBody.set("form[sum]", sum);
+    formBody.set("form[sum]", finalSum);
     formBody.set("form[confirm]", "1");
     formBody.set("form[via]", via);
     if (withTariffField) formBody.set("form[tariff]", String(tariffId));
