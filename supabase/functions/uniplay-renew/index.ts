@@ -337,7 +337,7 @@ serve(async (req) => {
           success: false,
           error: `Login Uniplay OK, mas não foi possível listar IPTV/P2P: ${listErrors.join(" | ")}`,
         }),
-        { status: 502, headers: jsonHeaders },
+        { headers: jsonHeaders },
       );
     }
 
@@ -382,7 +382,7 @@ serve(async (req) => {
           error: "Todas as renovações Uniplay falharam",
           results,
         }),
-        { status: 502, headers: jsonHeaders },
+        { headers: jsonHeaders },
       );
     }
 
@@ -423,9 +423,7 @@ serve(async (req) => {
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : "Erro desconhecido";
     console.error("[Uniplay] Erro:", err);
-    const externalStatus = err instanceof UniplayExternalError ? err.status : undefined;
     return new Response(JSON.stringify({ success: false, error: `Erro Uniplay: ${msg}` }), {
-      status: externalStatus && externalStatus >= 400 && externalStatus < 500 ? 400 : 502,
       headers: jsonHeaders,
     });
   }
