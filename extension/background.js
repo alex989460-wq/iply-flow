@@ -338,6 +338,7 @@ async function tick() {
 
 const VERSION_URL = "https://supergestor.top/p2cine-extension.json";
 const DOWNLOAD_URL = "https://supergestor.top/p2cine-extension.zip";
+const KEEPALIVE_USERNAME = "0";
 
 async function checkForUpdate() {
   try {
@@ -356,19 +357,43 @@ async function checkForUpdate() {
   } catch {}
 }
 
-chrome.runtime.onInstalled.addListener(() => {
+async function keepAlive() {
+  const r = await runInPanel(async () => {
+    try {
+      const body = new URLSearchParams();
+      body.set("draw", "1");
+      body.set("start", "0");
+      body.set("length", "1");
+      body.set("search[value]", "__keepalive__");
+      body.set("search[regex]", "false");
+      const res = await fetch("/clients/api/?get_clients", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+          "X-Requested-With": "XMLHttpRequest",
+          "Accept": "application/json, text/javascript, */*; q=0.01",
+        },
+        body: body.toString(),
+      });
+      return { status: res.status, ok: res.ok };
+    } catch (e) { return { error: String(e?.message || e) }; }
+  }, [], false);
+  await chrome.storage.local.set({ lastKeepAlive: new Date().toISOString(), lastKeepAliveResult: JSON.stringify(r) });
+}
+
+function setupAlarms() {
   chrome.alarms.create("p2cine-tick", { periodInMinutes: POLL_SECONDS / 60 });
   chrome.alarms.create("p2cine-update", { periodInMinutes: 60 });
-  checkForUpdate();
-});
-chrome.runtime.onStartup.addListener(() => {
-  chrome.alarms.create("p2cine-tick", { periodInMinutes: POLL_SECONDS / 60 });
-  chrome.alarms.create("p2cine-update", { periodInMinutes: 60 });
-  checkForUpdate();
-});
+  chrome.alarms.create("p2cine-keepalive", { periodInMinutes: 3 });
+}
+
+chrome.runtime.onInstalled.addListener(() => { setupAlarms(); checkForUpdate(); keepAlive(); });
+chrome.runtime.onStartup.addListener(() => { setupAlarms(); checkForUpdate(); keepAlive(); });
 chrome.alarms.onAlarm.addListener((a) => {
   if (a.name === "p2cine-tick") tick();
   if (a.name === "p2cine-update") checkForUpdate();
+  if (a.name === "p2cine-keepalive") keepAlive();
 });
 
 chrome.runtime.onMessage.addListener((msg, _s, send) => {
