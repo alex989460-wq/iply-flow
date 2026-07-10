@@ -171,16 +171,26 @@ serve(async (req) => {
     }
 
     let clientId: string | null = null;
+    let debugAc = "";
+    let debugFind = "";
     try {
-      const acJson = await acResp.clone().json();
-      const list = Array.isArray(acJson) ? acJson : acJson?.results || acJson?.items || [];
+      const acText = await acResp.clone().text();
+      debugAc = acText.slice(0, 400);
+      const acJson = JSON.parse(acText);
+      const list = Array.isArray(acJson) ? acJson : acJson?.results || acJson?.items || acJson?.data || [];
       for (const it of list) {
         const id = it?.id ?? it?.value ?? it?.user_id;
-        const label = String(it?.label ?? it?.text ?? it?.email ?? "").toLowerCase();
+        const label = String(it?.label ?? it?.text ?? it?.email ?? it?.name ?? "").toLowerCase();
         if (id && (list.length === 1 || label.includes(email.toLowerCase()))) {
           clientId = String(id);
           break;
         }
+      }
+      // If autocomplete returned a single id, use it even without label match
+      if (!clientId && list.length === 1) {
+        const only = list[0];
+        const id = only?.id ?? only?.value ?? only?.user_id;
+        if (id) clientId = String(id);
       }
     } catch { /* not JSON, fall back to filter page */ }
 
@@ -198,11 +208,15 @@ serve(async (req) => {
         );
       }
       const html = await findResp.text();
+      debugFind = html.slice(0, 400);
       clientId = extractUserIdFromHtml(html);
     }
 
     if (!clientId) {
+      console.log("[clouddy-renew] AC:", debugAc);
+      console.log("[clouddy-renew] FIND:", debugFind);
       return new Response(
+
         JSON.stringify({ success: false, error: `Cliente "${email}" não encontrado no Clouddy` }),
         { headers: jsonHeaders },
       );
