@@ -23,6 +23,8 @@ export default function ResellerApiSettings() {
   const [showRushPassword, setShowRushPassword] = useState(false);
   const [showRushToken, setShowRushToken] = useState(false);
   const [showNatv2Key, setShowNatv2Key] = useState(false);
+  const [showUniplayPassword, setShowUniplayPassword] = useState(false);
+  const [testingUniplay, setTestingUniplay] = useState(false);
 
   const [settings, setSettings] = useState({
     cakto_webhook_secret: '',
@@ -39,6 +41,9 @@ export default function ResellerApiSettings() {
     rush_password: '',
     rush_token: '',
     rush_base_url: '',
+    uniplay_username: '',
+    uniplay_password: '',
+    uniplay_base_url: '',
   });
 
   const webhookUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/cakto-webhook`;
