@@ -530,7 +530,7 @@ serve(async (req) => {
         }
 
         // Save activation request
-        await supabaseActivation.from('activation_requests').insert({
+        const { data: insertedReq } = await supabaseActivation.from('activation_requests').insert({
           user_id: appOwnerId,
           app_name: finalAppName,
           customer_name: finalName,
@@ -541,30 +541,61 @@ serve(async (req) => {
           amount: activationAmountNum,
           status: 'pending',
           cakto_payload: body,
-        });
+        }).select('id').maybeSingle();
 
         console.log(`[Cakto] Solicitação de ativação salva para ${finalAppName}`);
 
-        // Also register as pending manual renewal so admin sees it in the floating panel
-        try {
-          await supabaseActivation.from('pending_manual_renewals').insert({
-            owner_id: appOwnerId,
-            customer_name: finalName || 'Ativação de App',
-            customer_phone: phone || null,
-            plan_name: finalAppName,
-            amount: activationAmountNum,
-            reason: 'app_activation',
-            source: caktoId ? `cakto:${caktoId}` : 'cakto',
-            error_details: {
-              app_name: finalAppName,
-              mac_address: finalMac || null,
-              email: finalEmail || null,
-              payment_method: activationPaymentMethod.includes('credit') || activationPaymentMethod.includes('cart') ? 'Cartão' : 'PIX',
-            },
-          });
-        } catch (pendErr) {
-          console.error('[Cakto] Erro ao inserir pending_manual_renewals (ativação):', pendErr);
+        // ── Auto-activate immediately (no manual click required) ──
+        let autoActivateOk = false;
+        let autoActivateError: string | null = null;
+        if (insertedReq?.id) {
+          try {
+            const acResp = await fetch(
+              `${Deno.env.get('SUPABASE_URL')}/functions/v1/confirm-activation`,
+              {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  Authorization: `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+                },
+                body: JSON.stringify({ request_id: insertedReq.id, action: 'activate' }),
+              },
+            );
+            const acJson = await acResp.json().catch(() => ({}));
+            autoActivateOk = !!acJson?.success;
+            if (!autoActivateOk) autoActivateError = acJson?.error || `HTTP ${acResp.status}`;
+            console.log(`[Cakto] Auto-ativação ${finalAppName}: ${autoActivateOk ? 'OK' : `FALHA (${autoActivateError})`}`);
+          } catch (acErr) {
+            autoActivateError = (acErr as Error).message;
+            console.error('[Cakto] Erro auto-ativação:', acErr);
+          }
         }
+
+
+        // Register as pending manual renewal ONLY if auto-activation failed
+        if (!autoActivateOk) {
+          try {
+            await supabaseActivation.from('pending_manual_renewals').insert({
+              owner_id: appOwnerId,
+              customer_name: finalName || 'Ativação de App',
+              customer_phone: phone || null,
+              plan_name: finalAppName,
+              amount: activationAmountNum,
+              reason: 'app_activation',
+              source: caktoId ? `cakto:${caktoId}` : 'cakto',
+              error_details: {
+                app_name: finalAppName,
+                mac_address: finalMac || null,
+                email: finalEmail || null,
+                payment_method: activationPaymentMethod.includes('credit') || activationPaymentMethod.includes('cart') ? 'Cartão' : 'PIX',
+                auto_activation_error: autoActivateError,
+              },
+            });
+          } catch (pendErr) {
+            console.error('[Cakto] Erro ao inserir pending_manual_renewals (ativação):', pendErr);
+          }
+        }
+
 
         // Send WhatsApp notifications
         const { data: ownerZapSettings } = await supabaseActivation
