@@ -178,15 +178,16 @@ serve(async (req) => {
       Authorization: `Bearer ${token}`,
     };
 
-    // 1) check-device-status (não bloqueia se ativo — é só telemetria)
+    // 1) check-device-status — se MAC já estiver ativo com validade futura, aborta (evita crédito duplicado)
     let currentStatus: string | null = null;
+    let existingExpiry: string | null = null;
     try {
       const chk = await fetch(`${API_BASE}/check-device-status`, {
         method: "POST",
         headers: baseHeaders,
         body: JSON.stringify({ macAddress: mac, app_id: app.id }),
       });
-      const cj = await chk.json().catch(() => ({}));
+      const cj = await chk.json().catch(() => ({} as any));
       currentStatus = cj?.status ?? null;
       if (chk.status === 401 || chk.status === 403) {
         return new Response(
@@ -196,7 +197,32 @@ serve(async (req) => {
           { status: 401, headers: jh },
         );
       }
-    } catch (_) { /* ignora — o passo 2 é o que importa */ }
+
+      // Procura data de expiração em campos comuns retornados pela API
+      const expRaw =
+        cj?.expire_date || cj?.expireDate || cj?.expiration_date ||
+        cj?.expiry || cj?.expiry_date || cj?.data?.expire_date ||
+        cj?.data?.expiration_date || cj?.data?.expiry_date || null;
+
+      if (expRaw) {
+        const expDate = new Date(expRaw);
+        if (!isNaN(expDate.getTime()) && expDate.getTime() > Date.now()) {
+          existingExpiry = expDate.toISOString();
+          return new Response(
+            JSON.stringify({
+              success: false,
+              already_active: true,
+              error: `MAC ${mac} já está ativo no ${app.module} até ${expDate.toLocaleDateString("pt-BR")}. Ativação cancelada para não consumir crédito duplicado.`,
+              expiry: existingExpiry,
+              module: app.module,
+              app_id: app.id,
+              mac,
+            }),
+            { status: 409, headers: jh },
+          );
+        }
+      }
+    } catch (_) { /* se check falhar por outro motivo, segue para ativar */ }
 
     // 2) get-multi-app-activate
     const activatePayload = {
