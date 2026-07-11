@@ -530,7 +530,7 @@ serve(async (req) => {
         }
 
         // Save activation request
-        await supabaseActivation.from('activation_requests').insert({
+        const { data: insertedReq } = await supabaseActivation.from('activation_requests').insert({
           user_id: appOwnerId,
           app_name: finalAppName,
           customer_name: finalName,
@@ -541,9 +541,36 @@ serve(async (req) => {
           amount: activationAmountNum,
           status: 'pending',
           cakto_payload: body,
-        });
+        }).select('id').maybeSingle();
 
         console.log(`[Cakto] Solicitação de ativação salva para ${finalAppName}`);
+
+        // ── Auto-activate immediately (no manual click required) ──
+        let autoActivateOk = false;
+        let autoActivateError: string | null = null;
+        if (insertedReq?.id) {
+          try {
+            const acResp = await fetch(
+              `${Deno.env.get('SUPABASE_URL')}/functions/v1/confirm-activation`,
+              {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  Authorization: `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+                },
+                body: JSON.stringify({ request_id: insertedReq.id, action: 'activate' }),
+              },
+            );
+            const acJson = await acResp.json().catch(() => ({}));
+            autoActivateOk = !!acJson?.success;
+            if (!autoActivateOk) autoActivateError = acJson?.error || `HTTP ${acResp.status}`;
+            console.log(`[Cakto] Auto-ativação ${finalAppName}: ${autoActivateOk ? 'OK' : `FALHA (${autoActivateError})`}`);
+          } catch (acErr) {
+            autoActivateError = (acErr as Error).message;
+            console.error('[Cakto] Erro auto-ativação:', acErr);
+          }
+        }
+
 
         // Also register as pending manual renewal so admin sees it in the floating panel
         try {
