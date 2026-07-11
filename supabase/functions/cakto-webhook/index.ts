@@ -781,32 +781,15 @@ serve(async (req) => {
       { auth: { autoRefreshToken: false, persistSession: false } },
     );
 
-    // ── EARLY IDEMPOTENCY (ATOMIC LOCK): Block duplicate Cakto events by caktoId ──
-    // Uses a dedicated table with PRIMARY KEY(cakto_id) so concurrent retries
-    // (especially during slow multi-screen renewals 2/3 telas) are rejected
-    // atomically by the unique constraint — no race condition window.
-    if (caktoId) {
-      const { error: lockError } = await supabaseAdmin
+    // ── Update lock owner_id (early lock above already inserted the row) ──
+    if (caktoId && webhookOwnerId) {
+      await supabaseAdmin
         .from('cakto_processed_events')
-        .insert({ cakto_id: caktoId, owner_id: webhookOwnerId ?? null });
-
-      if (lockError) {
-        // 23505 = unique_violation → event already being processed / processed
-        const isDuplicate = (lockError as any).code === '23505'
-          || /duplicate key|already exists/i.test(lockError.message || '');
-        if (isDuplicate) {
-          console.warn(`[Cakto] 🛡️ Evento Cakto já processado/em processamento (caktoId: ${caktoId}). Ignorando retry.`);
-          return new Response(JSON.stringify({
-            success: true,
-            message: 'Evento já processado',
-            duplicate: true,
-            caktoId,
-          }), { headers: jsonHeaders });
-        }
-        // Non-duplicate insert error: log but continue (don't lose payment)
-        console.error(`[Cakto] ⚠️ Falha ao gravar lock idempotente (continuando): ${lockError.message}`);
-      }
+        .update({ owner_id: webhookOwnerId })
+        .eq('cakto_id', caktoId)
+        .is('owner_id', null);
     }
+
 
     if (webhookOwnerId) {
       console.log(`[Cakto] Escopo aplicado: buscando clientes apenas do owner ${webhookOwnerId}`);
