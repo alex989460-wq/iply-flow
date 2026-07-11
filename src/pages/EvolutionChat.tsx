@@ -1964,7 +1964,7 @@ export default function EvolutionChat({ embed = false }: { embed?: boolean } = {
   const __content = (
     <>
 
-      <div className="flex flex-col md:flex-row h-[calc(100dvh-56px)] animate-fade-in bg-background">
+      <div className={`flex flex-col md:flex-row ${embed ? 'h-full' : 'h-[calc(100dvh-4rem)] lg:h-[100dvh]'} animate-fade-in bg-background`}>
         {/* Conversations sidebar */}
         <div className={cn(
           'flex flex-col border-r border-border bg-card/30',
@@ -2862,10 +2862,16 @@ export default function EvolutionChat({ embed = false }: { embed?: boolean } = {
           )}
         </div>
 
-        {/* Quick Renewal Panel — sempre visível no desktop, modal no mobile */}
+        {/* Quick Renewal Panel — mesmo design da API Oficial */}
         {!isMobile && (
-          <div className="hidden md:block border-l border-border">
-            <QuickRenewalPanel initialPhone={selectedPhone && !selectedPhone.startsWith('status') ? selectedPhone : null} />
+          <div className="w-[420px] xl:w-[460px] h-full border-l bg-background flex flex-col shrink-0">
+            <div className="flex items-center gap-2 px-3 py-2 border-b text-sm font-semibold">
+              <Zap className="h-4 w-4 text-emerald-500" />
+              Renovação rápida
+            </div>
+            <div className="flex-1 min-h-0 overflow-hidden">
+              <QuickRenewalPanel initialPhone={selectedPhone && !selectedPhone.startsWith('status') ? selectedPhone : null} />
+            </div>
           </div>
         )}
         {isMobile && showRenewalPanel && (
