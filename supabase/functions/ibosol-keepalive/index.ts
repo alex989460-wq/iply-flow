@@ -13,29 +13,36 @@ const UA =
 const API_BASE = "https://backend-apis.ibosol.com/api";
 
 async function pingIbosol(token: string) {
-  // Endpoints leves que renovam a sessão Sanctum. Tenta em ordem até um responder 2xx.
-  const endpoints = ["/user", "/get-reseller-info", "/get-packages"];
-  for (const ep of endpoints) {
-    try {
-      const r = await fetch(`${API_BASE}${ep}`, {
-        method: "GET",
-        headers: {
-          "User-Agent": UA,
-          Accept: "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-      });
-      const status = r.status;
-      await r.body?.cancel();
-      if (status === 401 || status === 403) {
-        return { alive: false, expired: true, status, endpoint: ep };
-      }
-      if (status >= 200 && status < 500) {
-        return { alive: true, expired: false, status, endpoint: ep };
-      }
-    } catch (_) { /* tenta próximo */ }
+  // Usa o MESMO endpoint que a ativação usa (check-device-status) — é o único
+  // que reflete de verdade se o Bearer ainda é aceito. Endpoints GET soltos
+  // podem devolver 404 (mascarando o 401 real) ou nem exigir auth.
+  try {
+    const r = await fetch(`${API_BASE}/check-device-status`, {
+      method: "POST",
+      headers: {
+        "User-Agent": UA,
+        "Content-Type": "application/json-patch+json",
+        Accept: "application/json",
+        Origin: "https://ibosol.com",
+        Referer: "https://ibosol.com/check-mac",
+        Authorization: `Bearer ${token}`,
+      },
+      // MAC dummy só pra validar o token; a resposta em si não importa
+      body: JSON.stringify({ macAddress: "00:00:00:00:00:00", app_id: 3 }),
+    });
+    const status = r.status;
+    await r.body?.cancel();
+    if (status === 401 || status === 403) {
+      return { alive: false, expired: true, status, endpoint: "/check-device-status" };
+    }
+    // Qualquer 2xx/4xx (que não seja 401/403) significa que o token foi aceito
+    if (status >= 200 && status < 500) {
+      return { alive: true, expired: false, status, endpoint: "/check-device-status" };
+    }
+    return { alive: false, expired: false, status, endpoint: "/check-device-status", error: `HTTP ${status}` };
+  } catch (e) {
+    return { alive: false, expired: false, status: 0, endpoint: null, error: (e as Error).message };
   }
-  return { alive: false, expired: false, status: 0, endpoint: null, error: "network" };
 }
 
 serve(async (req) => {
