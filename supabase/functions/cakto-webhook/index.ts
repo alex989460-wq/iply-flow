@@ -440,7 +440,35 @@ serve(async (req) => {
     const activationAmountNum = Number(String(activationPaymentAmount).replace(/[^\d.,]/g, '').replace(',', '.')) || 0;
     const activationPaymentMethod = (caktoData?.payment_method || caktoData?.paymentMethod || caktoData?.method || body?.payment_method || '').toString().toLowerCase();
 
+    // ── EARLY IDEMPOTENCY LOCK (before activation detection) ──
+    // Cakto reenvia o mesmo evento várias vezes. Sem este lock antecipado,
+    // cada retry criava um novo activation_request duplicado (e o segundo/terceiro
+    // caía no fallback genérico "ATIVAÇÃO APP" porque pending_activation_data já
+    // estava marcado como used=true).
+    if (caktoId) {
+      const supabaseLock = createClient(
+        Deno.env.get('SUPABASE_URL')!,
+        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+        { auth: { autoRefreshToken: false, persistSession: false } },
+      );
+      const { error: earlyLockErr } = await supabaseLock
+        .from('cakto_processed_events')
+        .insert({ cakto_id: caktoId, owner_id: null });
+      if (earlyLockErr) {
+        const isDup = (earlyLockErr as any).code === '23505'
+          || /duplicate key|already exists/i.test(earlyLockErr.message || '');
+        if (isDup) {
+          console.warn(`[Cakto] 🛡️ (early) Evento já processado (caktoId: ${caktoId}). Ignorando retry.`);
+          return new Response(JSON.stringify({
+            success: true, message: 'Evento já processado', duplicate: true, caktoId,
+          }), { headers: jsonHeaders });
+        }
+        console.error(`[Cakto] ⚠️ (early) Falha ao gravar lock idempotente: ${earlyLockErr.message}`);
+      }
+    }
+
     // ── Activation Detection: Check pending_activation_data FIRST, then fallback to product name ──
+
     {
       const supabaseActivation = createClient(
         Deno.env.get('SUPABASE_URL')!,
