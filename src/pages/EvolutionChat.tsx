@@ -1964,7 +1964,7 @@ export default function EvolutionChat({ embed = false }: { embed?: boolean } = {
   const __content = (
     <>
 
-      <div className="flex flex-col md:flex-row h-[calc(100dvh-56px)] animate-fade-in bg-background">
+      <div className={`flex flex-col md:flex-row ${embed ? 'h-full' : 'h-[calc(100dvh-4rem)] lg:h-[100dvh]'} animate-fade-in bg-background`}>
         {/* Conversations sidebar */}
         <div className={cn(
           'flex flex-col border-r border-border bg-card/30',
