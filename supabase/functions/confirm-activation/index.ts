@@ -161,6 +161,21 @@ serve(async (req) => {
       updated_at: new Date().toISOString(),
     }).eq('id', request_id);
 
+    // Auto-clear matching pending_manual_renewals entry when activation succeeded/rejected
+    if (newStatus === 'completed' || newStatus === 'rejected') {
+      try {
+        await supabaseAdmin
+          .from('pending_manual_renewals')
+          .delete()
+          .eq('owner_id', request.user_id)
+          .eq('reason', 'app_activation')
+          .eq('customer_phone', request.customer_phone);
+      } catch (delErr) {
+        console.error('[ActivationAction] Erro ao dar baixa em pending_manual_renewals:', delErr);
+      }
+    }
+
+
     if (action === 'activate' && supportedApp && !autoActivationOk) {
       return new Response(JSON.stringify({
         success: false,
