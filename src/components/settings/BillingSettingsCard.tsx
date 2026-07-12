@@ -442,11 +442,13 @@ export default function BillingSettingsCard() {
         </CardContent>
       </Card>
 
-      {/* WhatsApp Template & Vplay */}
+      {/* WhatsApp Template (API Oficial) */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg">⚙️ Template e Integrações</CardTitle>
-          <CardDescription>Template do WhatsApp para pagamento aprovado e integração Vplay</CardDescription>
+          <CardTitle className="text-lg">💬 Template WhatsApp (API Oficial)</CardTitle>
+          <CardDescription>
+            Template aprovado usado quando a cobrança é enviada pela API oficial (Meta / Zap Responder).
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
@@ -491,10 +493,31 @@ export default function BillingSettingsCard() {
               </p>
             )}
             <p className="text-xs text-muted-foreground">
-              Selecione o template aprovado no seu Zap Responder. Variáveis: {'{{1}}'} Nome, {'{{2}}'} Usuário, {'{{3}}'} Servidor, {'{{4}}'} Vencimento.
+              Variáveis disponíveis: {'{{1}}'} Nome, {'{{2}}'} Usuário, {'{{3}}'} Servidor, {'{{4}}'} Vencimento.
             </p>
           </div>
 
+          <div className="space-y-2">
+            <Label className="text-sm">Mensagem Personalizada da Cobrança (opcional)</Label>
+            <Textarea
+              placeholder="Mensagem adicional que aparecerá no final da cobrança..."
+              value={formData.custom_message || ''}
+              onChange={(e) => setFormData({ ...formData, custom_message: e.target.value })}
+              className="min-h-[60px]"
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Vplay Integration */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">🔗 Integração Vplay</CardTitle>
+          <CardDescription>
+            Link do chatbot Vplay e palavra-chave enviadas junto na cobrança para renovação automática.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label className="text-sm">URL Integração Vplay</Label>
@@ -514,30 +537,20 @@ export default function BillingSettingsCard() {
               />
             </div>
           </div>
-
-          <div className="space-y-2">
-            <Label className="text-sm">Mensagem Personalizada da Cobrança (opcional)</Label>
-            <Textarea
-              placeholder="Mensagem adicional que aparecerá no final da cobrança..."
-              value={formData.custom_message || ''}
-              onChange={(e) => setFormData({ ...formData, custom_message: e.target.value })}
-              className="min-h-[60px]"
-            />
-          </div>
         </CardContent>
       </Card>
 
-      {/* Evolution as billing channel */}
+      {/* Evolution as billing channel (API Não-Oficial) */}
       <Card>
         <CardHeader>
           <div className="flex items-start justify-between gap-3">
             <div>
               <CardTitle className="text-lg flex items-center gap-2">
                 <Zap className="w-5 h-5 text-primary" />
-                Enviar Cobrança pela Evolution
+                Enviar Cobrança pela Evolution (API Não-Oficial)
               </CardTitle>
               <CardDescription>
-                Quando ativo, as cobranças (D-1, D0, D+1) são enviadas como mensagem de texto pela instância Evolution selecionada — sem alterar sua API oficial (Meta/Zap Responder), que continua salva.
+                Quando ativo, as cobranças (D-1, D0, D+1) são enviadas como mensagem de texto comum pela instância da Evolution API (não-oficial, via QR Code) selecionada abaixo. A sua API Oficial (Meta / Zap Responder) permanece configurada e salva, mas não é usada enquanto esta opção estiver ligada.
               </CardDescription>
             </div>
             <Switch
@@ -546,6 +559,7 @@ export default function BillingSettingsCard() {
             />
           </div>
         </CardHeader>
+
         {formData.use_evolution_billing && (
           <CardContent className="space-y-4">
             <div className="space-y-2">
