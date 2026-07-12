@@ -57,16 +57,33 @@ Deno.serve(async (req) => {
 
   try {
     if (req.method === "GET") {
-      // Fetch a batch of pending items and filter P2Cine in memory.
+      // Only pick items not currently locked (or whose lock is stale > 3 min).
+      // This prevents the extension from processing the same client twice
+      // when a GET happens before the previous POST result arrives.
+      const staleCutoff = new Date(Date.now() - 3 * 60 * 1000).toISOString();
       const { data, error } = await supabase
         .from("pending_manual_renewals")
-        .select("id, customer_id, customer_name, username, server_host, server_name, plan_name, new_due_date, created_at, owner_id")
+        .select("id, customer_id, customer_name, username, server_host, server_name, plan_name, new_due_date, created_at, owner_id, locked_at")
+        .or(`locked_at.is.null,locked_at.lt.${staleCutoff}`)
         .order("created_at", { ascending: true })
         .limit(50);
       if (error) throw error;
 
       const next = (data ?? []).find((row) => isP2Cine(row) || isUniplay(row));
       if (!next) return json({ item: null });
+
+      // Atomic claim: only succeeds if the row still matches our lock state.
+      // If another extension already claimed it, the update returns 0 rows.
+      const { data: claimed, error: claimErr } = await supabase
+        .from("pending_manual_renewals")
+        .update({ locked_at: new Date().toISOString() })
+        .eq("id", next.id)
+        .or(`locked_at.is.null,locked_at.lt.${staleCutoff}`)
+        .select("id")
+        .maybeSingle();
+      if (claimErr) throw claimErr;
+      if (!claimed) return json({ item: null }); // someone else got it
+
       const panelType = isUniplay(next) ? "uniplay" : "p2cine";
 
       // Resolve months from the plan registered in the system (fallback 1).
@@ -96,6 +113,7 @@ Deno.serve(async (req) => {
         },
       });
     }
+
 
     if (req.method === "POST") {
       const body = await req.json().catch(() => ({}));
