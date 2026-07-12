@@ -430,6 +430,7 @@ export default function ActivationApps() {
                         'IBOXXPLAYER','DUPLEX','FLIXNET','SMARTONEPRO','CR PLAYER','HQ PLAYER','MESSITV',
                       ],
                     },
+                    iboplayerpro: { label: 'IBO Player Pro', apps: ['IBOPLAYERPRO'], needsMac: true, needsEmail: false },
                   };
                   const findPanel = (name: string) =>
                     Object.values(PANEL_APPS).find(p => p.apps.includes(name));
