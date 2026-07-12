@@ -378,7 +378,7 @@ export default function ActivationApps() {
 
   function openNew() {
     setEditingApp(null);
-    setForm({ app_name: '', description: '', requires_email: false, requires_mac: true, is_enabled: true });
+    setForm({ app_name: '', description: '', logo_url: '', requires_email: false, requires_mac: true, is_enabled: true });
     setDialogOpen(true);
   }
 
