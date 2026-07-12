@@ -585,49 +585,6 @@ export default function ActivationApps() {
                   </div>
                 </div>
 
-                <div className="rounded-xl border border-border/50 p-4 space-y-4 bg-card">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                        <Monitor className="w-5 h-5 text-primary" />
-                      </div>
-                      <div>
-                        <h3 className="font-semibold text-foreground">P2Cine</h3>
-                        <p className="text-xs text-muted-foreground">
-                          Renovação manual protegida
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <div>
-                      <Label>URL do painel</Label>
-                      <Input
-                        value={p2cineForm.base_url}
-                        onChange={e => setP2cineForm(f => ({ ...f, base_url: e.target.value }))}
-                        placeholder="https://painel.p2cine.com"
-                      />
-                    </div>
-                    <div>
-                      <Label>Status</Label>
-                      <Input value="Renovação automática desativada" readOnly />
-                    </div>
-                  </div>
-
-                  <div className="rounded-lg bg-muted/40 border border-border/50 p-3 text-xs text-muted-foreground flex gap-2">
-                    <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-yellow-500" />
-                    <span>
-                      O P2Cine derruba a sessão quando o mesmo <span className="font-mono">PHPSESSID</span> do navegador é reutilizado pelo backend. Para não te deslogar, o ping e a renovação automática via cookie foram desativados; use pendência manual até existir uma API própria do provedor.
-                    </span>
-                  </div>
-
-                  <div className="flex justify-end">
-                    <Button onClick={() => saveP2cine.mutate()} disabled={saveP2cine.isPending}>
-                        {saveP2cine.isPending ? 'Salvando...' : 'Salvar como manual'}
-                    </Button>
-                  </div>
-                </div>
 
                 <div className="rounded-xl border border-border/50 p-4 space-y-4 bg-card">
                   <div className="flex items-center justify-between">
