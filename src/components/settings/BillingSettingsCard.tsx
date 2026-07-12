@@ -487,15 +487,6 @@ export default function BillingSettingsCard() {
             </p>
           </div>
 
-          <div className="space-y-2">
-            <Label className="text-sm">Mensagem Personalizada da Cobrança (opcional)</Label>
-            <Textarea
-              placeholder="Mensagem adicional que aparecerá no final da cobrança..."
-              value={formData.custom_message || ''}
-              onChange={(e) => setFormData({ ...formData, custom_message: e.target.value })}
-              className="min-h-[60px]"
-            />
-          </div>
         </CardContent>
       </Card>
 
