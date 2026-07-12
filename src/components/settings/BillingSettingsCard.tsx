@@ -529,7 +529,7 @@ export default function BillingSettingsCard() {
                 Enviar Cobrança pela Evolution (API Não-Oficial)
               </CardTitle>
               <CardDescription>
-                Quando ativo, as cobranças (D-1, D0, D+1) são enviadas como mensagem de texto comum pela instância da Evolution API (não-oficial, via QR Code) selecionada abaixo. A sua API Oficial (Meta / Zap Responder) permanece configurada e salva, mas não é usada enquanto esta opção estiver ligada.
+                Quando ativo, as cobranças (D-1, D0, D+1) são enviadas como mensagem de texto comum pela instância da Evolution API (não-oficial, via QR Code) selecionada abaixo. A sua API Oficial do WhatsApp permanece configurada e salva, mas não é usada enquanto esta opção estiver ligada.
               </CardDescription>
             </div>
             <Switch
