@@ -354,11 +354,106 @@ export default function ActivationApps() {
                 </Badge>
               )}
             </TabsTrigger>
+            <TabsTrigger value="manual">
+              <Zap className="w-3.5 h-3.5 mr-1" /> Ativação Manual
+            </TabsTrigger>
             <TabsTrigger value="apps">Apps Configurados</TabsTrigger>
             <TabsTrigger value="panels">
               <Settings2 className="w-3.5 h-3.5 mr-1" /> Painéis
             </TabsTrigger>
           </TabsList>
+
+          <TabsContent value="manual">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Zap className="w-5 h-5 text-primary" /> Ativação Manual
+                </CardTitle>
+                <CardDescription>
+                  Para revendas que recebem pagamento manualmente (sem Cakto). Selecione o app, informe os dados do cliente e ative na hora.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div>
+                    <Label>App *</Label>
+                    <Select
+                      value={manualForm.app_name}
+                      onValueChange={(v) => setManualForm(f => ({ ...f, app_name: v }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione o aplicativo" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {apps.filter((a: any) => a.is_enabled).map((a: any) => (
+                          <SelectItem key={a.id} value={a.app_name}>{a.app_name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label>Nome do cliente *</Label>
+                    <Input
+                      value={manualForm.customer_name}
+                      onChange={e => setManualForm(f => ({ ...f, customer_name: e.target.value }))}
+                      placeholder="Ex: João da Silva"
+                    />
+                  </div>
+                  <div>
+                    <Label>E-mail {apps.find((a: any) => a.app_name === manualForm.app_name)?.requires_email && '*'}</Label>
+                    <Input
+                      type="email"
+                      value={manualForm.email}
+                      onChange={e => setManualForm(f => ({ ...f, email: e.target.value }))}
+                      placeholder="cliente@email.com"
+                    />
+                  </div>
+                  <div>
+                    <Label>MAC {apps.find((a: any) => a.app_name === manualForm.app_name)?.requires_mac && '*'}</Label>
+                    <Input
+                      value={manualForm.mac_address}
+                      onChange={e => setManualForm(f => ({ ...f, mac_address: e.target.value }))}
+                      placeholder="AA:BB:CC:DD:EE:FF"
+                      className="font-mono"
+                    />
+                  </div>
+                  <div>
+                    <Label>Telefone (WhatsApp)</Label>
+                    <Input
+                      value={manualForm.customer_phone}
+                      onChange={e => setManualForm(f => ({ ...f, customer_phone: e.target.value }))}
+                      placeholder="5511999999999"
+                    />
+                  </div>
+                  <div>
+                    <Label>Valor recebido (R$)</Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      value={manualForm.amount}
+                      onChange={e => setManualForm(f => ({ ...f, amount: e.target.value }))}
+                      placeholder="0.00"
+                    />
+                  </div>
+                </div>
+
+                <div className="rounded-lg bg-muted/40 border border-border/50 p-3 text-xs text-muted-foreground flex gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-yellow-500" />
+                  <span>
+                    Usa as credenciais do painel configuradas na aba <b>Painéis</b> (Duplecast, Clouddy, IBO Sol). Se o telefone estiver preenchido, o cliente recebe a mensagem de ativado automaticamente.
+                  </span>
+                </div>
+
+                <div className="flex justify-end">
+                  <Button onClick={() => manualActivate.mutate()} disabled={manualActivate.isPending}>
+                    <Zap className="w-4 h-4 mr-1" />
+                    {manualActivate.isPending ? 'Ativando...' : 'Ativar agora'}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
 
           <TabsContent value="requests">
             <Card>
