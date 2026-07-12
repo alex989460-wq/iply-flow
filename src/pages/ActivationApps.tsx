@@ -12,9 +12,11 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { Plus, Pencil, Trash2, Smartphone, Mail, Monitor, Clock, CheckCircle2, XCircle, AlertCircle, Settings2, Eye, EyeOff } from 'lucide-react';
+import { Plus, Pencil, Trash2, Smartphone, Mail, Monitor, Clock, CheckCircle2, XCircle, AlertCircle, Settings2, Eye, EyeOff, Zap } from 'lucide-react';
 import { format } from 'date-fns';
+
 
 export default function ActivationApps() {
   const { user } = useAuth();
@@ -246,6 +248,58 @@ export default function ActivationApps() {
     onError: (e: any) => toast.error(e.message),
   });
 
+  // ── Ativação Manual (revendas sem Cakto) ──
+  const [manualForm, setManualForm] = useState({
+    app_name: '',
+    customer_name: '',
+    customer_phone: '',
+    email: '',
+    mac_address: '',
+    amount: '',
+  });
+
+  const manualActivate = useMutation({
+    mutationFn: async () => {
+      if (!manualForm.app_name) throw new Error('Selecione o app');
+      if (!manualForm.customer_name.trim()) throw new Error('Nome do cliente é obrigatório');
+      const selected = apps.find((a: any) => a.app_name === manualForm.app_name);
+      if (selected?.requires_email && !manualForm.email.trim()) throw new Error('E-mail é obrigatório para este app');
+      if (selected?.requires_mac && !manualForm.mac_address.trim()) throw new Error('MAC é obrigatório para este app');
+
+      const { data: inserted, error: insErr } = await (supabase as any)
+        .from('activation_requests')
+        .insert({
+          user_id: user?.id,
+          app_name: manualForm.app_name,
+          customer_name: manualForm.customer_name.trim(),
+          customer_phone: manualForm.customer_phone.replace(/\D/g, '') || null,
+          email: manualForm.email.trim() || null,
+          mac_address: manualForm.mac_address.trim() || null,
+          payment_method: 'Manual',
+          amount: Number(manualForm.amount) || 0,
+          status: 'pending',
+          cakto_payload: { source: 'manual_activation' },
+        })
+        .select('id')
+        .single();
+      if (insErr) throw insErr;
+
+      const { data, error } = await supabase.functions.invoke('confirm-activation', {
+        body: { request_id: inserted.id, action: 'activate' },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      return data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['activation-requests'] });
+      toast.success(data?.message || 'Ativação enviada!');
+      setManualForm({ app_name: '', customer_name: '', customer_phone: '', email: '', mac_address: '', amount: '' });
+    },
+    onError: (e: any) => toast.error(e.message || 'Falha na ativação'),
+  });
+
+
   function openNew() {
     setEditingApp(null);
     setForm({ app_name: '', description: '', requires_email: false, requires_mac: true, is_enabled: true });
@@ -300,11 +354,106 @@ export default function ActivationApps() {
                 </Badge>
               )}
             </TabsTrigger>
+            <TabsTrigger value="manual">
+              <Zap className="w-3.5 h-3.5 mr-1" /> Ativação Manual
+            </TabsTrigger>
             <TabsTrigger value="apps">Apps Configurados</TabsTrigger>
             <TabsTrigger value="panels">
               <Settings2 className="w-3.5 h-3.5 mr-1" /> Painéis
             </TabsTrigger>
           </TabsList>
+
+          <TabsContent value="manual">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Zap className="w-5 h-5 text-primary" /> Ativação Manual
+                </CardTitle>
+                <CardDescription>
+                  Para revendas que recebem pagamento manualmente (sem Cakto). Selecione o app, informe os dados do cliente e ative na hora.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div>
+                    <Label>App *</Label>
+                    <Select
+                      value={manualForm.app_name}
+                      onValueChange={(v) => setManualForm(f => ({ ...f, app_name: v }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione o aplicativo" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {apps.filter((a: any) => a.is_enabled).map((a: any) => (
+                          <SelectItem key={a.id} value={a.app_name}>{a.app_name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label>Nome do cliente *</Label>
+                    <Input
+                      value={manualForm.customer_name}
+                      onChange={e => setManualForm(f => ({ ...f, customer_name: e.target.value }))}
+                      placeholder="Ex: João da Silva"
+                    />
+                  </div>
+                  <div>
+                    <Label>E-mail {apps.find((a: any) => a.app_name === manualForm.app_name)?.requires_email && '*'}</Label>
+                    <Input
+                      type="email"
+                      value={manualForm.email}
+                      onChange={e => setManualForm(f => ({ ...f, email: e.target.value }))}
+                      placeholder="cliente@email.com"
+                    />
+                  </div>
+                  <div>
+                    <Label>MAC {apps.find((a: any) => a.app_name === manualForm.app_name)?.requires_mac && '*'}</Label>
+                    <Input
+                      value={manualForm.mac_address}
+                      onChange={e => setManualForm(f => ({ ...f, mac_address: e.target.value }))}
+                      placeholder="AA:BB:CC:DD:EE:FF"
+                      className="font-mono"
+                    />
+                  </div>
+                  <div>
+                    <Label>Telefone (WhatsApp)</Label>
+                    <Input
+                      value={manualForm.customer_phone}
+                      onChange={e => setManualForm(f => ({ ...f, customer_phone: e.target.value }))}
+                      placeholder="5511999999999"
+                    />
+                  </div>
+                  <div>
+                    <Label>Valor recebido (R$)</Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      value={manualForm.amount}
+                      onChange={e => setManualForm(f => ({ ...f, amount: e.target.value }))}
+                      placeholder="0.00"
+                    />
+                  </div>
+                </div>
+
+                <div className="rounded-lg bg-muted/40 border border-border/50 p-3 text-xs text-muted-foreground flex gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-yellow-500" />
+                  <span>
+                    Usa as credenciais do painel configuradas na aba <b>Painéis</b> (Duplecast, Clouddy, IBO Sol). Se o telefone estiver preenchido, o cliente recebe a mensagem de ativado automaticamente.
+                  </span>
+                </div>
+
+                <div className="flex justify-end">
+                  <Button onClick={() => manualActivate.mutate()} disabled={manualActivate.isPending}>
+                    <Zap className="w-4 h-4 mr-1" />
+                    {manualActivate.isPending ? 'Ativando...' : 'Ativar agora'}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
 
           <TabsContent value="requests">
             <Card>
