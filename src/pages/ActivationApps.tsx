@@ -58,13 +58,16 @@ export default function ActivationApps() {
   const clouddy = panelCreds.find((c: any) => c.panel_type === 'clouddy');
   const p2cine = panelCreds.find((c: any) => c.panel_type === 'p2cine');
   const ibosol = panelCreds.find((c: any) => c.panel_type === 'ibosol');
+  const iboPro = panelCreds.find((c: any) => c.panel_type === 'iboplayerpro');
   const [duplecastForm, setDuplecastForm] = useState({ username: '', password: '', is_enabled: true });
   const [clouddyForm, setClouddyForm] = useState({ base_url: 'https://console.clouddy.online', cookie: '', is_enabled: true });
   const [p2cineForm, setP2cineForm] = useState({ base_url: '', is_enabled: false });
   const [ibosolForm, setIbosolForm] = useState({ token: '', is_enabled: true });
+  const [iboProForm, setIboProForm] = useState({ username: '', password: '', is_enabled: true });
   const [showPass, setShowPass] = useState(false);
   const [showClCookie, setShowClCookie] = useState(false);
   const [showIboTok, setShowIboTok] = useState(false);
+  const [showIboProPass, setShowIboProPass] = useState(false);
 
   useEffect(() => {
     if (duplecast) {
@@ -103,6 +106,16 @@ export default function ActivationApps() {
       });
     }
   }, [ibosol?.id, ibosol?.updated_at]);
+
+  useEffect(() => {
+    if (iboPro) {
+      setIboProForm({
+        username: iboPro.username || '',
+        password: iboPro.password || '',
+        is_enabled: iboPro.is_enabled ?? true,
+      });
+    }
+  }, [iboPro?.id, iboPro?.updated_at]);
 
   const saveDuplecast = useMutation({
     mutationFn: async () => {
@@ -200,7 +213,29 @@ export default function ActivationApps() {
     onError: (e: any) => toast.error(e.message),
   });
 
-
+  const saveIboPro = useMutation({
+    mutationFn: async () => {
+      if (!iboProForm.username.trim() || !iboProForm.password.trim()) {
+        throw new Error('E-mail e senha do IBO Player Pro são obrigatórios');
+      }
+      const payload = {
+        user_id: user?.id,
+        panel_type: 'iboplayerpro',
+        username: iboProForm.username.trim(),
+        password: iboProForm.password,
+        is_enabled: iboProForm.is_enabled,
+      };
+      const { error } = await (supabase as any)
+        .from('activation_panel_credentials')
+        .upsert(payload, { onConflict: 'user_id,panel_type' });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['activation-panel-credentials'] });
+      toast.success('Credenciais IBO Player Pro salvas!');
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
 
 
   const saveMutation = useMutation({
@@ -395,6 +430,7 @@ export default function ActivationApps() {
                         'IBOXXPLAYER','DUPLEX','FLIXNET','SMARTONEPRO','CR PLAYER','HQ PLAYER','MESSITV',
                       ],
                     },
+                    iboplayerpro: { label: 'IBO Player Pro', apps: ['IBOPLAYERPRO'], needsMac: true, needsEmail: false },
                   };
                   const findPanel = (name: string) =>
                     Object.values(PANEL_APPS).find(p => p.apps.includes(name));
@@ -839,6 +875,79 @@ export default function ActivationApps() {
                     </Button>
                   </div>
                 </div>
+
+                <div className="rounded-xl border border-border/50 p-4 space-y-4 bg-card">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                        <Monitor className="w-5 h-5 text-primary" />
+                      </div>
+                      <div>
+                        <h3 className="font-semibold text-foreground">IBO Player Pro</h3>
+                        <p className="text-xs text-muted-foreground">
+                          Painel do revendedor em <span className="font-mono">cms.iboplayer.pro</span> — ativação por MAC
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Label htmlFor="ibopro-enabled" className="text-xs">Ativação automática</Label>
+                      <Switch
+                        id="ibopro-enabled"
+                        checked={iboProForm.is_enabled}
+                        onCheckedChange={v => setIboProForm(f => ({ ...f, is_enabled: v }))}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div>
+                      <Label>E-mail do revendedor</Label>
+                      <Input
+                        type="email"
+                        autoComplete="off"
+                        value={iboProForm.username}
+                        onChange={e => setIboProForm(f => ({ ...f, username: e.target.value }))}
+                        placeholder="seu-email@exemplo.com"
+                      />
+                    </div>
+                    <div>
+                      <Label>Senha</Label>
+                      <div className="relative">
+                        <Input
+                          type={showIboProPass ? 'text' : 'password'}
+                          autoComplete="new-password"
+                          value={iboProForm.password}
+                          onChange={e => setIboProForm(f => ({ ...f, password: e.target.value }))}
+                          placeholder="••••••••"
+                          className="pr-9"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowIboProPass(v => !v)}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                          aria-label={showIboProPass ? 'Ocultar' : 'Mostrar'}
+                        >
+                          {showIboProPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="rounded-lg bg-muted/40 border border-border/50 p-3 text-xs text-muted-foreground flex gap-2">
+                    <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-yellow-500" />
+                    <span>
+                      Salve o e-mail e senha do painel <span className="font-mono">cms.iboplayer.pro</span>. O sistema mantém a sessão ativa automaticamente (mesma rotina do IBO Sol/Duplecast) e usa essas credenciais para ativar o MAC do cliente quando chegar um pedido do app <b>IBOPLAYERPRO</b>.
+                    </span>
+                  </div>
+
+                  <div className="flex justify-end">
+                    <Button onClick={() => saveIboPro.mutate()} disabled={saveIboPro.isPending}>
+                      {saveIboPro.isPending ? 'Salvando...' : 'Salvar credenciais'}
+                    </Button>
+                  </div>
+                </div>
+
+
 
               </CardContent>
             </Card>
