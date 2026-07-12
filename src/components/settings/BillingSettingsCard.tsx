@@ -447,19 +447,31 @@ export default function BillingSettingsCard() {
         <CardHeader>
           <CardTitle className="text-lg">💬 Template WhatsApp (API Oficial)</CardTitle>
           <CardDescription>
-            Template aprovado usado quando a cobrança é enviada pela API oficial (Meta / Zap Responder).
+            Template aprovado usado quando a cobrança é enviada pela API oficial do WhatsApp.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
-            <Label className="text-sm">Nome do Template (Zap Responder)</Label>
+            <Label className="text-sm">Nome do Template Aprovado</Label>
             <div className="flex gap-2">
-              <Select
+              <Input
+                placeholder="ex: pedido_aprovado"
                 value={formData.meta_template_name || ''}
+                onChange={(e) => setFormData({ ...formData, meta_template_name: e.target.value })}
+                className="flex-1 font-mono"
+                list="meta-templates-list"
+              />
+              <datalist id="meta-templates-list">
+                {metaTemplates.map((t: any) => (
+                  <option key={t.name} value={t.name}>{t.status}</option>
+                ))}
+              </datalist>
+              <Select
+                value=""
                 onValueChange={(v) => setFormData({ ...formData, meta_template_name: v })}
               >
-                <SelectTrigger className="flex-1 font-mono">
-                  <SelectValue placeholder="Selecione um template" />
+                <SelectTrigger className="w-[200px]">
+                  <SelectValue placeholder="Escolher da lista" />
                 </SelectTrigger>
                 <SelectContent>
                   {metaTemplates.map((t: any) => (
@@ -471,9 +483,7 @@ export default function BillingSettingsCard() {
                     </SelectItem>
                   ))}
                   {metaTemplates.length === 0 && (
-                    <SelectItem value={formData.meta_template_name || 'pedido_aprovado'} disabled={false}>
-                      {formData.meta_template_name || 'pedido_aprovado'}
-                    </SelectItem>
+                    <div className="px-2 py-1.5 text-xs text-muted-foreground">Nenhum template carregado</div>
                   )}
                 </SelectContent>
               </Select>
@@ -482,14 +492,14 @@ export default function BillingSettingsCard() {
                 size="icon"
                 onClick={() => refetchTemplates()}
                 disabled={loadingTemplates}
-                title="Recarregar templates do Zap Responder"
+                title="Recarregar templates"
               >
                 {loadingTemplates ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
               </Button>
             </div>
             {!zapSettings?.selected_department_id && (
               <p className="text-xs text-muted-foreground">
-                Selecione um departamento do Zap Responder para carregar os templates.
+                Configure um departamento nas configurações do WhatsApp Oficial para carregar templates automaticamente. Você também pode digitar o nome do template manualmente.
               </p>
             )}
             <p className="text-xs text-muted-foreground">
@@ -509,37 +519,6 @@ export default function BillingSettingsCard() {
         </CardContent>
       </Card>
 
-      {/* Vplay Integration */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">🔗 Integração Vplay</CardTitle>
-          <CardDescription>
-            Link do chatbot Vplay e palavra-chave enviadas junto na cobrança para renovação automática.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label className="text-sm">URL Integração Vplay</Label>
-              <Input
-                placeholder="https://gestorvplay.com/chatbot/1474"
-                value={formData.vplay_integration_url || ''}
-                onChange={(e) => setFormData({ ...formData, vplay_integration_url: e.target.value })}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label className="text-sm">Mensagem Chave Vplay</Label>
-              <Input
-                placeholder="XCLOUD, XC, HD..."
-                value={formData.vplay_key_message || ''}
-                onChange={(e) => setFormData({ ...formData, vplay_key_message: e.target.value.toUpperCase() })}
-                className="font-mono uppercase"
-              />
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
       {/* Evolution as billing channel (API Não-Oficial) */}
       <Card>
         <CardHeader>
@@ -550,7 +529,7 @@ export default function BillingSettingsCard() {
                 Enviar Cobrança pela Evolution (API Não-Oficial)
               </CardTitle>
               <CardDescription>
-                Quando ativo, as cobranças (D-1, D0, D+1) são enviadas como mensagem de texto comum pela instância da Evolution API (não-oficial, via QR Code) selecionada abaixo. A sua API Oficial (Meta / Zap Responder) permanece configurada e salva, mas não é usada enquanto esta opção estiver ligada.
+                Quando ativo, as cobranças (D-1, D0, D+1) são enviadas como mensagem de texto comum pela instância da Evolution API (não-oficial, via QR Code) selecionada abaixo. A sua API Oficial do WhatsApp permanece configurada e salva, mas não é usada enquanto esta opção estiver ligada.
               </CardDescription>
             </div>
             <Switch
