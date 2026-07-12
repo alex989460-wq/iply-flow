@@ -20,32 +20,65 @@ import { format } from 'date-fns';
 // Logos conhecidas (URL pública) por nome de app (uppercase).
 const APP_LOGOS: Record<string, string> = {
   IBOPLAYERPRO: 'https://iboplayer.pro/m3u/logo-512.png',
+  'IBO PLAYER PRO': 'https://iboplayer.pro/m3u/logo-512.png',
   DUPLECAST: 'https://duplecast.com/favicon.ico',
   CLOUDDY: 'https://console.clouddy.online/favicon.ico',
 };
 
+// Paleta fixa por app (mesmo estilo do painel ibosol.com) — usada quando não
+// existe uma logo real cadastrada. Assim cada app tem sempre a mesma cor.
+const APP_COLORS: Record<string, string> = {
+  MACPLAYER: '#f97316',
+  VIRGINIA: '#06b6d4',
+  ALLPLAYER: '#eab308',
+  HUSHPLAY: '#8b5cf6',
+  KTNPLAYER: '#f97316',
+  FAMILYPLAYER: '#eab308',
+  KING4KPLAYER: '#ec4899',
+  IBOXXPLAYER: '#22c55e',
+  DUPLEX: '#f97316',
+  FLIXNET: '#eab308',
+  SMARTONEPRO: '#f97316',
+  'CR PLAYER': '#eab308',
+  'HQ PLAYER': '#8b5cf6',
+  MESSITV: '#22c55e',
+  BOBPLAYER: '#3b82f6',
+  'BOB PLAYER': '#3b82f6',
+  BOBPRO: '#f97316',
+  BOBPREMIUM: '#eab308',
+  'IBO PLAYER': '#22c55e',
+  'IBO PLAY': '#22c55e',
+  IBOSTB: '#3b82f6',
+  IBOSSPLAYER: '#ec4899',
+  IBOSOLPLAYER: '#22c55e',
+  'IBO VPN PLAYER': '#8b5cf6',
+  ABEPLAYERTV: '#ef4444',
+};
+
 function AppLogo({ name, url, size = 40 }: { name: string; url?: string | null; size?: number }) {
-  const src = url || APP_LOGOS[(name || '').toUpperCase()];
+  const key = (name || '').toUpperCase();
+  const src = url || APP_LOGOS[key];
+  const [broken, setBroken] = useState(false);
   const initials = (name || '?').replace(/[^A-Za-z0-9]/g, '').slice(0, 2).toUpperCase() || '?';
   const palette = ['#ef4444','#f97316','#eab308','#22c55e','#06b6d4','#3b82f6','#8b5cf6','#ec4899'];
   let hash = 0;
-  for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) >>> 0;
-  const bg = palette[hash % palette.length];
-  if (src) {
+  for (let i = 0; i < (name || '').length; i++) hash = (hash * 31 + name.charCodeAt(i)) >>> 0;
+  const bg = APP_COLORS[key] || palette[hash % palette.length];
+  if (src && !broken) {
     return (
       <img
         src={src}
         alt={name}
         style={{ width: size, height: size }}
-        className="rounded-lg object-contain bg-muted p-0.5 border border-border/50"
-        onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+        className="rounded-lg object-contain bg-muted p-0.5 border border-border/50 shrink-0"
+        onError={() => setBroken(true)}
       />
     );
   }
   return (
     <div
-      style={{ width: size, height: size, background: bg }}
-      className="rounded-lg flex items-center justify-center text-white font-bold text-xs shrink-0"
+      style={{ width: size, height: size, background: bg, fontSize: Math.max(10, size * 0.35) }}
+      className="rounded-lg flex items-center justify-center text-white font-bold shrink-0"
     >
       {initials}
     </div>
