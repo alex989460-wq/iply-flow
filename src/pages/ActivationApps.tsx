@@ -107,6 +107,16 @@ export default function ActivationApps() {
     }
   }, [ibosol?.id, ibosol?.updated_at]);
 
+  useEffect(() => {
+    if (iboPro) {
+      setIboProForm({
+        username: iboPro.username || '',
+        password: iboPro.password || '',
+        is_enabled: iboPro.is_enabled ?? true,
+      });
+    }
+  }, [iboPro?.id, iboPro?.updated_at]);
+
   const saveDuplecast = useMutation({
     mutationFn: async () => {
       if (!duplecastForm.username.trim() || !duplecastForm.password.trim()) {
