@@ -33,6 +33,15 @@ async function log(msg, result) {
   console.log("[P2Cine]", msg);
 }
 
+async function pushHistory(entry) {
+  const { history = [] } = await chrome.storage.local.get({ history: [] });
+  history.unshift({ at: new Date().toISOString(), ...entry });
+  // keep last 50
+  if (history.length > 50) history.length = 50;
+  await chrome.storage.local.set({ history });
+}
+
+
 async function fetchNext(token) {
   const res = await fetch(QUEUE_URL, {
     method: "GET",
