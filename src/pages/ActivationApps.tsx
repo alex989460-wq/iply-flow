@@ -17,6 +17,43 @@ import { toast } from 'sonner';
 import { Plus, Pencil, Trash2, Smartphone, Mail, Monitor, Clock, CheckCircle2, XCircle, AlertCircle, Settings2, Eye, EyeOff, Zap } from 'lucide-react';
 import { format } from 'date-fns';
 
+// Logos conhecidas (URL pública) por nome de app (uppercase).
+const APP_LOGOS: Record<string, string> = {
+  IBOPLAYERPRO: 'https://iboplayer.pro/m3u/logo-512.png',
+  DUPLECAST: 'https://duplecast.com/favicon.ico',
+  CLOUDDY: 'https://console.clouddy.online/favicon.ico',
+};
+
+function AppLogo({ name, url, size = 40 }: { name: string; url?: string | null; size?: number }) {
+  const src = url || APP_LOGOS[(name || '').toUpperCase()];
+  const initials = (name || '?').replace(/[^A-Za-z0-9]/g, '').slice(0, 2).toUpperCase() || '?';
+  const palette = ['#ef4444','#f97316','#eab308','#22c55e','#06b6d4','#3b82f6','#8b5cf6','#ec4899'];
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) >>> 0;
+  const bg = palette[hash % palette.length];
+  if (src) {
+    return (
+      <img
+        src={src}
+        alt={name}
+        style={{ width: size, height: size }}
+        className="rounded-lg object-contain bg-muted p-0.5 border border-border/50"
+        onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+      />
+    );
+  }
+  return (
+    <div
+      style={{ width: size, height: size, background: bg }}
+      className="rounded-lg flex items-center justify-center text-white font-bold text-xs shrink-0"
+    >
+      {initials}
+    </div>
+  );
+}
+
+
+
 
 export default function ActivationApps() {
   const { user } = useAuth();
