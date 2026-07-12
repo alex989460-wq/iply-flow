@@ -60,7 +60,7 @@ export default function ActivationApps() {
   const queryClient = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingApp, setEditingApp] = useState<any>(null);
-  const [form, setForm] = useState({ app_name: '', description: '', requires_email: false, requires_mac: true, is_enabled: true });
+  const [form, setForm] = useState({ app_name: '', description: '', logo_url: '', requires_email: false, requires_mac: true, is_enabled: true });
 
   const { data: apps = [], isLoading } = useQuery({
     queryKey: ['activation-apps'],
