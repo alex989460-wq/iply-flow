@@ -151,15 +151,17 @@ Deno.serve(async (req) => {
         return json({ ok: true, action: "renewed" });
       }
 
-      // Failure: mark reason and keep in the queue for manual handling.
+      // Failure: mark reason, clear lock so it can be retried after cooldown.
       await supabase
         .from("pending_manual_renewals")
         .update({
           reason: `${isUniplay(pending) ? "uniplay" : "p2cine"}_extension_failed`,
           error_details: { message: message ?? "unknown", http_status: http_status ?? null },
+          locked_at: null,
         })
         .eq("id", id);
       return json({ ok: true, action: "flagged" });
+
     }
 
     return json({ error: "method_not_allowed" }, 405);
