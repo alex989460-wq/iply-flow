@@ -1,5 +1,5 @@
 {
-  "version": "1.7.1",
+  "version": "1.7.2",
   "download": "https://supergestor.top/p2cine-extension.zip",
-  "notes": "Auto-abre painel em background, indicador de status ao vivo e alerta desktop quando sessao expirar"
+  "notes": "Historico de renovacoes visivel no popup e novo icone SuperGestor"
 }

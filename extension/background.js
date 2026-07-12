@@ -1,4 +1,4 @@
-// SuperGestor Panel Auto-Renew - background service worker (v1.7.1)
+// SuperGestor Panel Auto-Renew - background service worker (v1.7.2)
 const QUEUE_URL = "https://fphqfgxfeaylldpxjqan.supabase.co/functions/v1/p2cine-queue";
 const SUPABASE_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZwaHFmZ3hmZWF5bGxkcHhqcWFuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY5OTYwMDAsImV4cCI6MjA4MjU3MjAwMH0.PsIJenRZEAWTlxbdGYvJWrBUfiIifPn9Q_UVeUyrFs8";
 const POLL_SECONDS = 20;
@@ -32,6 +32,15 @@ async function log(msg, result) {
   });
   console.log("[P2Cine]", msg);
 }
+
+async function pushHistory(entry) {
+  const { history = [] } = await chrome.storage.local.get({ history: [] });
+  history.unshift({ at: new Date().toISOString(), ...entry });
+  // keep last 50
+  if (history.length > 50) history.length = 50;
+  await chrome.storage.local.set({ history });
+}
+
 
 async function fetchNext(token) {
   const res = await fetch(QUEUE_URL, {
@@ -427,6 +436,7 @@ async function tick() {
   if (next.panel_type === "uniplay") {
     const months = String(next.months || cfg.months || "1");
     const r = await renewUniplay(next.username, months);
+    const name = next.customer_name || next.username;
     if (r.error) {
       const msg = ({
         logged_out: "Sessao Uniplay deslogada. Faca login em searchdefense.top e resolva o captcha.",
@@ -437,17 +447,20 @@ async function tick() {
         bad_json: "Resposta invalida do Uniplay",
       })[r.error] || (r.msg || `Erro Uniplay: ${r.error}`);
       await reportResult(cfg.token, next.id, false, msg, r.status);
-      return log(`${next.customer_name || next.username}: ${msg}`, "fail");
+      await pushHistory({ panel: "uniplay", name, username: next.username, months, ok: false, msg });
+      return log(`${name}: ${msg}`, "fail");
     }
     await reportResult(cfg.token, next.id, r.ok, r.msg, r.status);
-    await log(`${next.customer_name || next.username} (${months}m): ${r.msg}`, r.ok ? "ok" : "fail");
+    await pushHistory({ panel: "uniplay", name, username: next.username, months, ok: r.ok, msg: r.msg });
+    await log(`${name} (${months}m): ${r.msg}`, r.ok ? "ok" : "fail");
     if (r.ok) {
-      chrome.notifications.create({ type: "basic", iconUrl: "icon.png", title: "Uniplay renovado", message: `${next.customer_name || next.username}` });
+      chrome.notifications.create({ type: "basic", iconUrl: "icon.png", title: "Uniplay renovado", message: `${name}` });
     }
     return;
   }
 
   const lookup = await findClientId(next.username);
+  const name = next.customer_name || next.username;
   if (lookup.error) {
     const msg = ({
       logged_out: "Sessao P2Cine deslogada. Faca login em daily3.news.",
@@ -458,23 +471,26 @@ async function tick() {
       bad_json: "Resposta invalida do get_clients",
     })[lookup.error] || `Erro: ${lookup.error}`;
     await reportResult(cfg.token, next.id, false, msg, lookup.status);
-    return log(`${next.customer_name || next.username}: ${msg}`, "fail");
+    await pushHistory({ panel: "p2cine", name, username: next.username, ok: false, msg });
+    return log(`${name}: ${msg}`, "fail");
   }
 
   const months = String(next.months || cfg.months || "1");
   const r = await renewClient(lookup.clientId, months);
   await reportResult(cfg.token, next.id, r.ok, r.msg, r.status);
-  await log(`${next.customer_name || next.username} (id=${lookup.clientId}, ${months}m): ${r.msg}`, r.ok ? "ok" : "fail");
+  await pushHistory({ panel: "p2cine", name, username: next.username, months, ok: r.ok, msg: r.msg });
+  await log(`${name} (id=${lookup.clientId}, ${months}m): ${r.msg}`, r.ok ? "ok" : "fail");
 
   if (r.ok) {
     chrome.notifications.create({
       type: "basic",
       iconUrl: "icon.png",
       title: "P2Cine renovado",
-      message: `${next.customer_name || next.username}`,
+      message: `${name}`,
     });
   }
 }
+
 
 const VERSION_URL = "https://supergestor.top/p2cine-extension.json";
 const DOWNLOAD_URL = "https://supergestor.top/p2cine-extension.zip";
