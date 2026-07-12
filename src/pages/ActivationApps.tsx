@@ -248,6 +248,58 @@ export default function ActivationApps() {
     onError: (e: any) => toast.error(e.message),
   });
 
+  // ── Ativação Manual (revendas sem Cakto) ──
+  const [manualForm, setManualForm] = useState({
+    app_name: '',
+    customer_name: '',
+    customer_phone: '',
+    email: '',
+    mac_address: '',
+    amount: '',
+  });
+
+  const manualActivate = useMutation({
+    mutationFn: async () => {
+      if (!manualForm.app_name) throw new Error('Selecione o app');
+      if (!manualForm.customer_name.trim()) throw new Error('Nome do cliente é obrigatório');
+      const selected = apps.find((a: any) => a.app_name === manualForm.app_name);
+      if (selected?.requires_email && !manualForm.email.trim()) throw new Error('E-mail é obrigatório para este app');
+      if (selected?.requires_mac && !manualForm.mac_address.trim()) throw new Error('MAC é obrigatório para este app');
+
+      const { data: inserted, error: insErr } = await (supabase as any)
+        .from('activation_requests')
+        .insert({
+          user_id: user?.id,
+          app_name: manualForm.app_name,
+          customer_name: manualForm.customer_name.trim(),
+          customer_phone: manualForm.customer_phone.replace(/\D/g, '') || null,
+          email: manualForm.email.trim() || null,
+          mac_address: manualForm.mac_address.trim() || null,
+          payment_method: 'Manual',
+          amount: Number(manualForm.amount) || 0,
+          status: 'pending',
+          cakto_payload: { source: 'manual_activation' },
+        })
+        .select('id')
+        .single();
+      if (insErr) throw insErr;
+
+      const { data, error } = await supabase.functions.invoke('confirm-activation', {
+        body: { request_id: inserted.id, action: 'activate' },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      return data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['activation-requests'] });
+      toast.success(data?.message || 'Ativação enviada!');
+      setManualForm({ app_name: '', customer_name: '', customer_phone: '', email: '', mac_address: '', amount: '' });
+    },
+    onError: (e: any) => toast.error(e.message || 'Falha na ativação'),
+  });
+
+
   function openNew() {
     setEditingApp(null);
     setForm({ app_name: '', description: '', requires_email: false, requires_mac: true, is_enabled: true });
