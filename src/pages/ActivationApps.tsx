@@ -1012,6 +1012,19 @@ export default function ActivationApps() {
               <Label>Descrição</Label>
               <Input value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} placeholder="Ex: Player IPTV completo" />
             </div>
+            <div>
+              <Label>URL da Logo</Label>
+              <div className="flex items-center gap-2">
+                <AppLogo name={form.app_name || '?'} url={form.logo_url} size={40} />
+                <Input
+                  value={form.logo_url}
+                  onChange={e => setForm(f => ({ ...f, logo_url: e.target.value }))}
+                  placeholder="https://.../logo.png (opcional)"
+                />
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">Cole a URL pública da logo do app. Se vazio, mostramos as iniciais coloridas.</p>
+            </div>
+
             <div className="flex items-center justify-between">
               <Label>Requer endereço MAC</Label>
               <Switch checked={form.requires_mac} onCheckedChange={v => setForm(f => ({ ...f, requires_mac: v }))} />
