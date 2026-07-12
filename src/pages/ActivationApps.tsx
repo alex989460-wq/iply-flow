@@ -58,13 +58,16 @@ export default function ActivationApps() {
   const clouddy = panelCreds.find((c: any) => c.panel_type === 'clouddy');
   const p2cine = panelCreds.find((c: any) => c.panel_type === 'p2cine');
   const ibosol = panelCreds.find((c: any) => c.panel_type === 'ibosol');
+  const iboPro = panelCreds.find((c: any) => c.panel_type === 'iboplayerpro');
   const [duplecastForm, setDuplecastForm] = useState({ username: '', password: '', is_enabled: true });
   const [clouddyForm, setClouddyForm] = useState({ base_url: 'https://console.clouddy.online', cookie: '', is_enabled: true });
   const [p2cineForm, setP2cineForm] = useState({ base_url: '', is_enabled: false });
   const [ibosolForm, setIbosolForm] = useState({ token: '', is_enabled: true });
+  const [iboProForm, setIboProForm] = useState({ username: '', password: '', is_enabled: true });
   const [showPass, setShowPass] = useState(false);
   const [showClCookie, setShowClCookie] = useState(false);
   const [showIboTok, setShowIboTok] = useState(false);
+  const [showIboProPass, setShowIboProPass] = useState(false);
 
   useEffect(() => {
     if (duplecast) {
