@@ -59,50 +59,30 @@ export default function BillingSettingsCard() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadingImage, setUploadingImage] = useState(false);
 
-  // Load selected Zap Responder department
-  const { data: zapSettings } = useQuery({
-    queryKey: ['zap-settings-billing', user?.id],
-    queryFn: async () => {
-      if (!user?.id) return null;
-      const { data, error } = await supabase
-        .from('zap_responder_settings')
-        .select('selected_department_id')
-        .eq('user_id', user.id)
-        .maybeSingle();
-
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!user?.id,
-  });
-
-  // Fetch available templates from Zap Responder
+  // Fetch available templates directly from Meta (API Oficial via meta-templates edge function)
   const { data: metaTemplates = [], isLoading: loadingTemplates, refetch: refetchTemplates } = useQuery({
-    queryKey: ['zap-templates-list', user?.id, zapSettings?.selected_department_id],
+    queryKey: ['meta-templates-list', user?.id],
     queryFn: async () => {
-      const departmentId = zapSettings?.selected_department_id;
-      if (!departmentId) return [];
-
       try {
-        const { data, error } = await supabase.functions.invoke('zap-responder', {
-          body: { action: 'buscar-templates', department_id: departmentId },
+        const { data, error } = await supabase.functions.invoke('meta-templates', {
+          body: { action: 'list', limit: 200 },
         });
-
         if (error) throw error;
-        if (!data?.success) throw new Error(data?.error || 'Erro ao buscar templates do Zap Responder');
-
-        return (data?.data || [])
+        const list = (data?.data || [])
           .map((t: any) => ({
-            ...t,
-            name: t?.name ?? t?.template_name ?? t?.nome ?? '',
+            name: t?.name ?? '',
+            status: t?.status ?? '',
+            language: t?.language ?? '',
           }))
           .filter((t: any) => !!t.name);
+        const seen = new Set<string>();
+        return list.filter((t: any) => (seen.has(t.name) ? false : (seen.add(t.name), true)));
       } catch (e) {
-        console.error('Error fetching Zap Responder templates:', e);
+        console.error('Error fetching Meta templates:', e);
         return [];
       }
     },
-    enabled: !!user?.id && !!zapSettings?.selected_department_id,
+    enabled: !!user?.id,
     staleTime: 5 * 60 * 1000,
   });
 
@@ -497,9 +477,9 @@ export default function BillingSettingsCard() {
                 {loadingTemplates ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
               </Button>
             </div>
-            {!zapSettings?.selected_department_id && (
+            {metaTemplates.length === 0 && !loadingTemplates && (
               <p className="text-xs text-muted-foreground">
-                Configure um departamento nas configurações do WhatsApp Oficial para carregar templates automaticamente. Você também pode digitar o nome do template manualmente.
+                Nenhum template carregado. Conecte a API Oficial (Meta) para listar automaticamente, ou digite o nome do template manualmente.
               </p>
             )}
             <p className="text-xs text-muted-foreground">
