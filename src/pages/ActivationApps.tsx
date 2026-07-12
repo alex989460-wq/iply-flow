@@ -677,14 +677,13 @@ export default function ActivationApps() {
                       <div key={app.id} className="rounded-xl border border-border/50 p-4 space-y-3 bg-card">
                         <div className="flex items-start justify-between">
                           <div className="flex items-center gap-2">
-                            <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                              <Monitor className="w-5 h-5 text-primary" />
-                            </div>
+                            <AppLogo name={app.app_name} url={app.logo_url} size={40} />
                             <div>
                               <h3 className="font-semibold text-foreground">{app.app_name}</h3>
                               {app.description && <p className="text-xs text-muted-foreground">{app.description}</p>}
                             </div>
                           </div>
+
                           <Badge variant={app.is_enabled ? 'default' : 'secondary'}>
                             {app.is_enabled ? 'Ativo' : 'Inativo'}
                           </Badge>
