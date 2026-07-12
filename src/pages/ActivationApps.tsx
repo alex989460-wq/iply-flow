@@ -384,7 +384,7 @@ export default function ActivationApps() {
 
   function openEdit(app: any) {
     setEditingApp(app);
-    setForm({ app_name: app.app_name, description: app.description || '', requires_email: app.requires_email, requires_mac: app.requires_mac, is_enabled: app.is_enabled });
+    setForm({ app_name: app.app_name, description: app.description || '', logo_url: app.logo_url || '', requires_email: app.requires_email, requires_mac: app.requires_mac, is_enabled: app.is_enabled });
     setDialogOpen(true);
   }
 
