@@ -213,7 +213,29 @@ export default function ActivationApps() {
     onError: (e: any) => toast.error(e.message),
   });
 
-
+  const saveIboPro = useMutation({
+    mutationFn: async () => {
+      if (!iboProForm.username.trim() || !iboProForm.password.trim()) {
+        throw new Error('E-mail e senha do IBO Player Pro são obrigatórios');
+      }
+      const payload = {
+        user_id: user?.id,
+        panel_type: 'iboplayerpro',
+        username: iboProForm.username.trim(),
+        password: iboProForm.password,
+        is_enabled: iboProForm.is_enabled,
+      };
+      const { error } = await (supabase as any)
+        .from('activation_panel_credentials')
+        .upsert(payload, { onConflict: 'user_id,panel_type' });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['activation-panel-credentials'] });
+      toast.success('Credenciais IBO Player Pro salvas!');
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
 
 
   const saveMutation = useMutation({
