@@ -493,8 +493,14 @@ export default function ActivationApps() {
                                   {panel.label}
                                 </div>
                                 {panel.apps.map(app => (
-                                  <SelectItem key={app} value={app}>{app}</SelectItem>
+                                  <SelectItem key={app} value={app}>
+                                    <span className="flex items-center gap-2">
+                                      <AppLogo name={app} url={apps.find((a: any) => a.app_name?.toUpperCase() === app.toUpperCase())?.logo_url} size={20} />
+                                      {app}
+                                    </span>
+                                  </SelectItem>
                                 ))}
+
                               </div>
                             ))}
                           </SelectContent>
