@@ -119,6 +119,32 @@ serve(async (req) => {
             if (r.ok && j?.success) autoActivationOk = true;
             else autoActivationError = j?.error || `HTTP ${r.status}`;
           }
+        } else if (/IBOPLAYERPRO|IBO PLAYER PRO/i.test(String(request.app_name || ''))) {
+          // IBO Player Pro (cms.iboplayer.pro) — precisa vir ANTES do bloco IBO Sol
+          // porque a regex do IBO Sol contém "IBOPLAYER".
+          if (!request.mac_address) {
+            autoActivationError = 'MAC do cliente ausente na solicitação';
+          } else {
+            const r = await fetch(
+              `${Deno.env.get('SUPABASE_URL')}/functions/v1/iboplayerpro-activate`,
+              {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  Authorization: `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+                  'x-cakto-webhook-secret': Deno.env.get('CAKTO_WEBHOOK_SECRET') || '',
+                },
+                body: JSON.stringify({
+                  mac: request.mac_address,
+                  name: request.customer_name || '',
+                  user_id: request.user_id,
+                }),
+              },
+            );
+            const j = await r.json().catch(() => ({}));
+            if (r.ok && j?.success) autoActivationOk = true;
+            else autoActivationError = j?.error || `HTTP ${r.status}`;
+          }
         } else if (/(BOBPLAYER|BOB PLAYER|BOBPRO|BOBPREMIUM|IBOPLAYER|IBO PLAYER|IBOSTB|IBOSSPLAYER|IBOSOLPLAYER|IBO VPN|IBO PLAY|ABEPLAYER|MACPLAYER|VIRGINIA|ALLPLAYER|HUSHPLAY|KTNPLAYER|FAMILYPLAYER|KING4K|IBOXXPLAYER|DUPLEX|FLIXNET|SMARTONEPRO|CR PLAYER|HQ PLAYER|MESSITV)/i.test(String(request.app_name || ''))) {
           if (!request.mac_address) {
             autoActivationError = 'MAC do cliente ausente na solicitação';
