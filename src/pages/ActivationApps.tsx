@@ -262,9 +262,13 @@ export default function ActivationApps() {
     mutationFn: async () => {
       if (!manualForm.app_name) throw new Error('Selecione o app');
       if (!manualForm.customer_name.trim()) throw new Error('Nome do cliente é obrigatório');
-      const selected = apps.find((a: any) => a.app_name === manualForm.app_name);
-      if (selected?.requires_email && !manualForm.email.trim()) throw new Error('E-mail é obrigatório para este app');
-      if (selected?.requires_mac && !manualForm.mac_address.trim()) throw new Error('MAC é obrigatório para este app');
+      const upper = manualForm.app_name.toUpperCase();
+      const isClouddy = upper === 'CLOUDDY';
+      const isDuplecast = upper === 'DUPLECAST';
+      const isIbo = !isClouddy && !isDuplecast; // demais apps são todos IBO Sol
+      if (isClouddy && !manualForm.email.trim()) throw new Error('E-mail é obrigatório para Clouddy');
+      if ((isDuplecast || isIbo) && !manualForm.mac_address.trim()) throw new Error('MAC é obrigatório para este app');
+
 
       const { data: inserted, error: insErr } = await (supabase as any)
         .from('activation_requests')
@@ -374,68 +378,110 @@ export default function ActivationApps() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <div>
-                    <Label>App *</Label>
-                    <Select
-                      value={manualForm.app_name}
-                      onValueChange={(v) => setManualForm(f => ({ ...f, app_name: v }))}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Selecione o aplicativo" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {apps.filter((a: any) => a.is_enabled).map((a: any) => (
-                          <SelectItem key={a.id} value={a.app_name}>{a.app_name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label>Nome do cliente *</Label>
-                    <Input
-                      value={manualForm.customer_name}
-                      onChange={e => setManualForm(f => ({ ...f, customer_name: e.target.value }))}
-                      placeholder="Ex: João da Silva"
-                    />
-                  </div>
-                  <div>
-                    <Label>E-mail {apps.find((a: any) => a.app_name === manualForm.app_name)?.requires_email && '*'}</Label>
-                    <Input
-                      type="email"
-                      value={manualForm.email}
-                      onChange={e => setManualForm(f => ({ ...f, email: e.target.value }))}
-                      placeholder="cliente@email.com"
-                    />
-                  </div>
-                  <div>
-                    <Label>MAC {apps.find((a: any) => a.app_name === manualForm.app_name)?.requires_mac && '*'}</Label>
-                    <Input
-                      value={manualForm.mac_address}
-                      onChange={e => setManualForm(f => ({ ...f, mac_address: e.target.value }))}
-                      placeholder="AA:BB:CC:DD:EE:FF"
-                      className="font-mono"
-                    />
-                  </div>
-                  <div>
-                    <Label>Telefone (WhatsApp)</Label>
-                    <Input
-                      value={manualForm.customer_phone}
-                      onChange={e => setManualForm(f => ({ ...f, customer_phone: e.target.value }))}
-                      placeholder="5511999999999"
-                    />
-                  </div>
-                  <div>
-                    <Label>Valor recebido (R$)</Label>
-                    <Input
-                      type="number"
-                      step="0.01"
-                      value={manualForm.amount}
-                      onChange={e => setManualForm(f => ({ ...f, amount: e.target.value }))}
-                      placeholder="0.00"
-                    />
-                  </div>
-                </div>
+                {(() => {
+                  // Apps agrupados por painel — o nome enviado precisa bater com o roteamento
+                  // do confirm-activation (DUPLECAST / CLOUDDY / regex IBO Sol).
+                  const PANEL_APPS: Record<string, { label: string; apps: string[]; needsMac: boolean; needsEmail: boolean }> = {
+                    duplecast: { label: 'Duplecast', apps: ['DUPLECAST'], needsMac: true, needsEmail: false },
+                    clouddy:   { label: 'Clouddy',   apps: ['CLOUDDY'],   needsMac: false, needsEmail: true },
+                    ibosol:    {
+                      label: 'IBO Sol',
+                      needsMac: true,
+                      needsEmail: false,
+                      apps: [
+                        'BOBPLAYER','BOBPRO','BOBPREMIUM','IBOPLAYER','IBOSTB','IBOSSPLAYER',
+                        'IBOSOLPLAYER','IBO VPN PLAYER','IBO PLAY','ABEPLAYERTV','MACPLAYER',
+                        'VIRGINIA','ALLPLAYER','HUSHPLAY','KTNPLAYER','FAMILYPLAYER','KING4KPLAYER',
+                        'IBOXXPLAYER','DUPLEX','FLIXNET','SMARTONEPRO','CR PLAYER','HQ PLAYER','MESSITV',
+                      ],
+                    },
+                  };
+                  const findPanel = (name: string) =>
+                    Object.values(PANEL_APPS).find(p => p.apps.includes(name));
+                  const selectedPanel = findPanel(manualForm.app_name);
+                  const needsMac = selectedPanel?.needsMac ?? false;
+                  const needsEmail = selectedPanel?.needsEmail ?? false;
+
+                  return (
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <div>
+                        <Label>App *</Label>
+                        <Select
+                          value={manualForm.app_name}
+                          onValueChange={(v) => setManualForm(f => ({ ...f, app_name: v }))}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Selecione o aplicativo" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {Object.entries(PANEL_APPS).map(([key, panel]) => (
+                              <div key={key}>
+                                <div className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                                  {panel.label}
+                                </div>
+                                {panel.apps.map(app => (
+                                  <SelectItem key={app} value={app}>{app}</SelectItem>
+                                ))}
+                              </div>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        {selectedPanel && (
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Painel: <b>{selectedPanel.label}</b>
+                          </p>
+                        )}
+                      </div>
+                      <div>
+                        <Label>Nome do cliente *</Label>
+                        <Input
+                          value={manualForm.customer_name}
+                          onChange={e => setManualForm(f => ({ ...f, customer_name: e.target.value }))}
+                          placeholder="Ex: João da Silva"
+                        />
+                      </div>
+                      <div>
+                        <Label>E-mail {needsEmail && <span className="text-destructive">*</span>}</Label>
+                        <Input
+                          type="email"
+                          value={manualForm.email}
+                          onChange={e => setManualForm(f => ({ ...f, email: e.target.value }))}
+                          placeholder="cliente@email.com"
+                          disabled={!!selectedPanel && !needsEmail && selectedPanel.label !== 'Clouddy'}
+                        />
+                      </div>
+                      <div>
+                        <Label>MAC {needsMac && <span className="text-destructive">*</span>}</Label>
+                        <Input
+                          value={manualForm.mac_address}
+                          onChange={e => setManualForm(f => ({ ...f, mac_address: e.target.value }))}
+                          placeholder="AA:BB:CC:DD:EE:FF"
+                          className="font-mono"
+                          disabled={!!selectedPanel && !needsMac}
+                        />
+                      </div>
+                      <div>
+                        <Label>Telefone (WhatsApp)</Label>
+                        <Input
+                          value={manualForm.customer_phone}
+                          onChange={e => setManualForm(f => ({ ...f, customer_phone: e.target.value }))}
+                          placeholder="5511999999999"
+                        />
+                      </div>
+                      <div>
+                        <Label>Valor recebido (R$)</Label>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          value={manualForm.amount}
+                          onChange={e => setManualForm(f => ({ ...f, amount: e.target.value }))}
+                          placeholder="0.00"
+                        />
+                      </div>
+                    </div>
+                  );
+                })()}
+
 
                 <div className="rounded-lg bg-muted/40 border border-border/50 p-3 text-xs text-muted-foreground flex gap-2">
                   <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-yellow-500" />
