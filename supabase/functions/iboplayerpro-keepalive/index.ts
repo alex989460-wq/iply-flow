@@ -1,7 +1,10 @@
 // Mantém a sessão do IBO Player Pro (cms.iboplayer.pro) viva.
-// Faz login periódico com o e-mail/senha salvos em activation_panel_credentials
-// (panel_type = 'iboplayerpro'). Se o login falhar, cria um pending_manual_renewals
-// alertando o revendedor para atualizar as credenciais.
+// API real: https://api.iboproapp.com  (fallback https://api.proapqapi.xyz)
+//   POST /admin/login   { username, password } -> { accessToken, refreshToken }
+//   GET  /admin/me      (Authorization: Bearer <accessToken>)
+// Faz login com o e-mail/senha salvos em activation_panel_credentials
+// (panel_type = 'iboplayerpro'), guarda o accessToken em `notes` para o
+// activate reutilizar e alerta o revendedor se o login falhar.
 // Agendar via pg_cron a cada 10 minutos.
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -14,40 +17,46 @@ const cors = {
 const UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36";
 
-// Endpoints de login tentados (o painel é SPA e o endpoint pode variar entre builds).
-// Retorna no primeiro que responder JSON com token/status válido.
-const LOGIN_CANDIDATES = [
-  "https://cms.iboplayer.pro/api/login",
-  "https://cms.iboplayer.pro/api/auth/login",
-  "https://cms.iboplayer.pro/api/reseller/login",
-  "https://api.iboplayer.pro/api/login",
-  "https://api.iboplayer.pro/login",
-  "https://backend.iboplayer.pro/api/login",
+const API_BASES = [
+  "https://api.iboproapp.com",
+  "https://api.proapqapi.xyz",
 ];
 
-async function tryLogin(email: string, password: string) {
-  for (const url of LOGIN_CANDIDATES) {
+const commonHeaders = () => ({
+  "User-Agent": UA,
+  "Content-Type": "application/json",
+  Accept: "application/json, text/plain, */*",
+  Origin: "https://cms.iboplayer.pro",
+  Referer: "https://cms.iboplayer.pro/",
+});
+
+export async function iboProLogin(email: string, password: string) {
+  let lastErr = "";
+  for (const base of API_BASES) {
     try {
-      const r = await fetch(url, {
+      const r = await fetch(`${base}/admin/login`, {
         method: "POST",
-        headers: {
-          "User-Agent": UA,
-          "Content-Type": "application/json",
-          Accept: "application/json",
-          Origin: "https://cms.iboplayer.pro",
-          Referer: "https://cms.iboplayer.pro/",
-        },
-        body: JSON.stringify({ email, password }),
+        headers: commonHeaders(),
+        body: JSON.stringify({ username: email, password }),
       });
-      const ct = r.headers.get("content-type") || "";
-      if (!ct.includes("json")) { await r.body?.cancel(); continue; }
       const j = await r.json().catch(() => null);
-      if (!j) continue;
-      const ok = r.ok && (j.token || j.access_token || j.status === true || j.success === true);
-      return { url, status: r.status, ok: !!ok, body: j };
-    } catch (_) { /* try next */ }
+      if (r.ok && j?.status === true && j?.accessToken) {
+        return { ok: true, base, token: j.accessToken as string, refresh: j.refreshToken || null };
+      }
+      lastErr = `HTTP ${r.status} ${j?.message || ""} @ ${base}`;
+    } catch (e) {
+      lastErr = (e as Error).message;
+    }
   }
-  return { url: null, status: 0, ok: false, body: null };
+  return { ok: false, base: null as string | null, token: "", refresh: null, error: lastErr };
+}
+
+async function pingMe(base: string, token: string) {
+  const r = await fetch(`${base}/admin/me`, {
+    headers: { ...commonHeaders(), Authorization: `Bearer ${token}` },
+  });
+  await r.body?.cancel();
+  return r.status;
 }
 
 serve(async (req) => {
@@ -62,7 +71,7 @@ serve(async (req) => {
 
     const { data: creds } = await admin
       .from("activation_panel_credentials")
-      .select("user_id, username, password, is_enabled")
+      .select("id, user_id, username, password, is_enabled")
       .eq("panel_type", "iboplayerpro")
       .eq("is_enabled", true);
 
@@ -74,10 +83,9 @@ serve(async (req) => {
         results.push({ user_id: c.user_id, ok: false, error: "credenciais vazias" });
         continue;
       }
-      const r = await tryLogin(email, password);
-      results.push({ user_id: c.user_id, ok: r.ok, status: r.status, endpoint: r.url });
-
-      if (!r.ok) {
+      const login = await iboProLogin(email, password);
+      if (!login.ok) {
+        results.push({ user_id: c.user_id, ok: false, error: login.error });
         const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
         const { data: existing } = await admin
           .from("pending_manual_renewals")
@@ -93,12 +101,27 @@ serve(async (req) => {
             reason: "iboplayerpro_session_expired",
             source: "iboplayerpro-keepalive",
             error_details: {
-              message: "Não foi possível manter a sessão do IBO Player Pro ativa. Verifique e-mail/senha em Ativação de Apps → IBO Player Pro.",
-              status: r.status,
+              message: "Login no IBO Player Pro falhou. Verifique e-mail/senha em Ativação de Apps → IBO Player Pro.",
+              detail: login.error,
             },
           });
         }
+        continue;
       }
+      const meStatus = await pingMe(login.base!, login.token);
+      // Guarda o token/base em `extra` para o activate reutilizar sem novo login
+      await admin
+        .from("activation_panel_credentials")
+        .update({
+          extra: {
+            access_token: login.token,
+            refresh_token: login.refresh,
+            api_base: login.base,
+            refreshed_at: new Date().toISOString(),
+          },
+        })
+        .eq("id", (c as any).id);
+      results.push({ user_id: c.user_id, ok: meStatus === 200 || meStatus === 304, me_status: meStatus, base: login.base });
     }
     return new Response(JSON.stringify({ pinged: results.length, results }), { headers: jh });
   } catch (e) {
