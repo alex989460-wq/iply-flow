@@ -262,9 +262,13 @@ export default function ActivationApps() {
     mutationFn: async () => {
       if (!manualForm.app_name) throw new Error('Selecione o app');
       if (!manualForm.customer_name.trim()) throw new Error('Nome do cliente é obrigatório');
-      const selected = apps.find((a: any) => a.app_name === manualForm.app_name);
-      if (selected?.requires_email && !manualForm.email.trim()) throw new Error('E-mail é obrigatório para este app');
-      if (selected?.requires_mac && !manualForm.mac_address.trim()) throw new Error('MAC é obrigatório para este app');
+      const upper = manualForm.app_name.toUpperCase();
+      const isClouddy = upper === 'CLOUDDY';
+      const isDuplecast = upper === 'DUPLECAST';
+      const isIbo = !isClouddy && !isDuplecast; // demais apps são todos IBO Sol
+      if (isClouddy && !manualForm.email.trim()) throw new Error('E-mail é obrigatório para Clouddy');
+      if ((isDuplecast || isIbo) && !manualForm.mac_address.trim()) throw new Error('MAC é obrigatório para este app');
+
 
       const { data: inserted, error: insErr } = await (supabase as any)
         .from('activation_requests')
