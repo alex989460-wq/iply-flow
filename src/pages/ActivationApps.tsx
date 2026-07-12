@@ -17,13 +17,50 @@ import { toast } from 'sonner';
 import { Plus, Pencil, Trash2, Smartphone, Mail, Monitor, Clock, CheckCircle2, XCircle, AlertCircle, Settings2, Eye, EyeOff, Zap } from 'lucide-react';
 import { format } from 'date-fns';
 
+// Logos conhecidas (URL pública) por nome de app (uppercase).
+const APP_LOGOS: Record<string, string> = {
+  IBOPLAYERPRO: 'https://iboplayer.pro/m3u/logo-512.png',
+  DUPLECAST: 'https://duplecast.com/favicon.ico',
+  CLOUDDY: 'https://console.clouddy.online/favicon.ico',
+};
+
+function AppLogo({ name, url, size = 40 }: { name: string; url?: string | null; size?: number }) {
+  const src = url || APP_LOGOS[(name || '').toUpperCase()];
+  const initials = (name || '?').replace(/[^A-Za-z0-9]/g, '').slice(0, 2).toUpperCase() || '?';
+  const palette = ['#ef4444','#f97316','#eab308','#22c55e','#06b6d4','#3b82f6','#8b5cf6','#ec4899'];
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) >>> 0;
+  const bg = palette[hash % palette.length];
+  if (src) {
+    return (
+      <img
+        src={src}
+        alt={name}
+        style={{ width: size, height: size }}
+        className="rounded-lg object-contain bg-muted p-0.5 border border-border/50"
+        onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+      />
+    );
+  }
+  return (
+    <div
+      style={{ width: size, height: size, background: bg }}
+      className="rounded-lg flex items-center justify-center text-white font-bold text-xs shrink-0"
+    >
+      {initials}
+    </div>
+  );
+}
+
+
+
 
 export default function ActivationApps() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingApp, setEditingApp] = useState<any>(null);
-  const [form, setForm] = useState({ app_name: '', description: '', requires_email: false, requires_mac: true, is_enabled: true });
+  const [form, setForm] = useState({ app_name: '', description: '', logo_url: '', requires_email: false, requires_mac: true, is_enabled: true });
 
   const { data: apps = [], isLoading } = useQuery({
     queryKey: ['activation-apps'],
@@ -341,13 +378,13 @@ export default function ActivationApps() {
 
   function openNew() {
     setEditingApp(null);
-    setForm({ app_name: '', description: '', requires_email: false, requires_mac: true, is_enabled: true });
+    setForm({ app_name: '', description: '', logo_url: '', requires_email: false, requires_mac: true, is_enabled: true });
     setDialogOpen(true);
   }
 
   function openEdit(app: any) {
     setEditingApp(app);
-    setForm({ app_name: app.app_name, description: app.description || '', requires_email: app.requires_email, requires_mac: app.requires_mac, is_enabled: app.is_enabled });
+    setForm({ app_name: app.app_name, description: app.description || '', logo_url: app.logo_url || '', requires_email: app.requires_email, requires_mac: app.requires_mac, is_enabled: app.is_enabled });
     setDialogOpen(true);
   }
 
@@ -456,8 +493,14 @@ export default function ActivationApps() {
                                   {panel.label}
                                 </div>
                                 {panel.apps.map(app => (
-                                  <SelectItem key={app} value={app}>{app}</SelectItem>
+                                  <SelectItem key={app} value={app}>
+                                    <span className="flex items-center gap-2">
+                                      <AppLogo name={app} url={apps.find((a: any) => a.app_name?.toUpperCase() === app.toUpperCase())?.logo_url} size={20} />
+                                      {app}
+                                    </span>
+                                  </SelectItem>
                                 ))}
+
                               </div>
                             ))}
                           </SelectContent>
@@ -634,14 +677,13 @@ export default function ActivationApps() {
                       <div key={app.id} className="rounded-xl border border-border/50 p-4 space-y-3 bg-card">
                         <div className="flex items-start justify-between">
                           <div className="flex items-center gap-2">
-                            <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                              <Monitor className="w-5 h-5 text-primary" />
-                            </div>
+                            <AppLogo name={app.app_name} url={app.logo_url} size={40} />
                             <div>
                               <h3 className="font-semibold text-foreground">{app.app_name}</h3>
                               {app.description && <p className="text-xs text-muted-foreground">{app.description}</p>}
                             </div>
                           </div>
+
                           <Badge variant={app.is_enabled ? 'default' : 'secondary'}>
                             {app.is_enabled ? 'Ativo' : 'Inativo'}
                           </Badge>
@@ -970,6 +1012,19 @@ export default function ActivationApps() {
               <Label>Descrição</Label>
               <Input value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} placeholder="Ex: Player IPTV completo" />
             </div>
+            <div>
+              <Label>URL da Logo</Label>
+              <div className="flex items-center gap-2">
+                <AppLogo name={form.app_name || '?'} url={form.logo_url} size={40} />
+                <Input
+                  value={form.logo_url}
+                  onChange={e => setForm(f => ({ ...f, logo_url: e.target.value }))}
+                  placeholder="https://.../logo.png (opcional)"
+                />
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">Cole a URL pública da logo do app. Se vazio, mostramos as iniciais coloridas.</p>
+            </div>
+
             <div className="flex items-center justify-between">
               <Label>Requer endereço MAC</Label>
               <Switch checked={form.requires_mac} onCheckedChange={v => setForm(f => ({ ...f, requires_mac: v }))} />

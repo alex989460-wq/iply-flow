@@ -22,6 +22,7 @@ export type Database = {
           icon: string | null
           id: string
           is_enabled: boolean | null
+          logo_url: string | null
           requires_email: boolean | null
           requires_mac: boolean | null
           sort_order: number | null
@@ -35,6 +36,7 @@ export type Database = {
           icon?: string | null
           id?: string
           is_enabled?: boolean | null
+          logo_url?: string | null
           requires_email?: boolean | null
           requires_mac?: boolean | null
           sort_order?: number | null
@@ -48,6 +50,7 @@ export type Database = {
           icon?: string | null
           id?: string
           is_enabled?: boolean | null
+          logo_url?: string | null
           requires_email?: boolean | null
           requires_mac?: boolean | null
           sort_order?: number | null
