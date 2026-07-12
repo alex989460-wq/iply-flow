@@ -1790,6 +1790,7 @@ export type Database = {
           customer_phone: string | null
           error_details: Json | null
           id: string
+          locked_at: string | null
           new_due_date: string | null
           owner_id: string
           plan_name: string | null
@@ -1808,6 +1809,7 @@ export type Database = {
           customer_phone?: string | null
           error_details?: Json | null
           id?: string
+          locked_at?: string | null
           new_due_date?: string | null
           owner_id: string
           plan_name?: string | null
@@ -1826,6 +1828,7 @@ export type Database = {
           customer_phone?: string | null
           error_details?: Json | null
           id?: string
+          locked_at?: string | null
           new_due_date?: string | null
           owner_id?: string
           plan_name?: string | null
