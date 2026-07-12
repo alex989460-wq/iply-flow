@@ -109,16 +109,16 @@ serve(async (req) => {
         continue;
       }
       const meStatus = await pingMe(login.base!, login.token);
-      // Guarda o token/base em `notes` para o activate reutilizar sem novo login
+      // Guarda o token/base em `extra` para o activate reutilizar sem novo login
       await admin
         .from("activation_panel_credentials")
         .update({
-          notes: JSON.stringify({
+          extra: {
             access_token: login.token,
             refresh_token: login.refresh,
             api_base: login.base,
             refreshed_at: new Date().toISOString(),
-          }),
+          },
         })
         .eq("id", (c as any).id);
       results.push({ user_id: c.user_id, ok: meStatus === 200 || meStatus === 304, me_status: meStatus, base: login.base });
