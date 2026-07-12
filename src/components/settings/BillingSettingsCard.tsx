@@ -477,9 +477,9 @@ export default function BillingSettingsCard() {
                 {loadingTemplates ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
               </Button>
             </div>
-            {!zapSettings?.selected_department_id && (
+            {metaTemplates.length === 0 && !loadingTemplates && (
               <p className="text-xs text-muted-foreground">
-                Configure um departamento nas configurações do WhatsApp Oficial para carregar templates automaticamente. Você também pode digitar o nome do template manualmente.
+                Nenhum template carregado. Conecte a API Oficial (Meta) para listar automaticamente, ou digite o nome do template manualmente.
               </p>
             )}
             <p className="text-xs text-muted-foreground">
