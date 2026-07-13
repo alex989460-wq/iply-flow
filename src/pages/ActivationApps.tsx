@@ -55,9 +55,16 @@ const APP_COLORS: Record<string, string> = {
   ABEPLAYERTV: '#ef4444',
 };
 
+// Cache global das logos vindas do painel IBO Sol (populado pelo hook abaixo).
+const IBOSOL_LOGOS: Record<string, string> = {};
+
+function normKey(name: string) {
+  return String(name || '').toUpperCase().replace(/\s+/g, '');
+}
+
 function AppLogo({ name, url, size = 40 }: { name: string; url?: string | null; size?: number }) {
   const key = (name || '').toUpperCase();
-  const src = url || APP_LOGOS[key];
+  const src = url || APP_LOGOS[key] || IBOSOL_LOGOS[key] || IBOSOL_LOGOS[normKey(name)];
   const [broken, setBroken] = useState(false);
   const initials = (name || '?').replace(/[^A-Za-z0-9]/g, '').slice(0, 2).toUpperCase() || '?';
   const palette = ['#ef4444','#f97316','#eab308','#22c55e','#06b6d4','#3b82f6','#8b5cf6','#ec4899'];
@@ -84,6 +91,7 @@ function AppLogo({ name, url, size = 40 }: { name: string; url?: string | null; 
     </div>
   );
 }
+
 
 
 
