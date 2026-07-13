@@ -120,12 +120,14 @@ Deno.serve(async (req) => {
         // Frontend-created tasks already updated the local customer record; in that
         // case the extension only confirms the external panel action.
         if (pending.customer_id && !String(pending.source || "").startsWith("frontend_")) {
+          const panelSource = isUniplay(pending) ? "uniplay_extension" : "p2cine_extension";
           const { error: payErr } = await supabase.from("payments").insert({
             customer_id: pending.customer_id,
             amount: pending.amount ?? 0,
             payment_date: new Date().toISOString().slice(0, 10),
+            method: "pix",
             confirmed: true,
-            notes: `Renovado via extensão ${isUniplay(pending) ? "Uniplay" : "P2Cine"}`,
+            source: panelSource,
           });
           if (payErr) console.error("[p2cine-queue] payment insert error", payErr);
         }
