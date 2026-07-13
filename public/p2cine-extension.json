@@ -1,5 +1,5 @@
 {
-  "version": "1.7.4",
+  "version": "1.8.0",
   "download": "https://supergestor.top/p2cine-extension.zip",
-  "notes": "Corrige Failed to fetch na fila (remove headers que travavam o SW no Chrome)"
+  "notes": "Mantem a sessao IBO Sol viva automaticamente (abre aba oculta em ibosol.com e pinga /profile a cada 4 min)."
 }
