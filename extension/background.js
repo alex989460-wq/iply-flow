@@ -542,7 +542,73 @@ async function keepAlive() {
   await chrome.storage.local.set({ lastKeepAlive: new Date().toISOString(), lastKeepAliveResult: JSON.stringify(r) });
 }
 
+async function getIbosolTab({ autoOpen = true } = {}) {
+  const tabs = await chrome.tabs.query({ url: IBOSOL_PANEL_URLS });
+  const tab = tabs[0];
+  if (tab?.id) return { tabId: tab.id };
+  if (!autoOpen) return { error: "no_ibosol_tab" };
+  const opened = await openHiddenTab(IBOSOL_PANEL_URL);
+  if (opened.error) return { error: "no_ibosol_tab" };
+  return { tabId: opened.tabId, opened: true };
+}
+
+async function ibosolKeepAlive() {
+  // Faz um ping em /profile a partir da aba do ibosol.com (usa o Bearer token
+  // salvo em localStorage/sessionStorage do proprio painel). Isso renova a
+  // sessao/cookies do Cloudflare e evita logout automatico.
+  const panel = await getIbosolTab({ autoOpen: true });
+  if (panel.error) {
+    await chrome.storage.local.set({ lastIbosolKeepAlive: new Date().toISOString(), lastIbosolKeepAliveResult: JSON.stringify(panel) });
+    return panel;
+  }
+  try {
+    const [r] = await chrome.scripting.executeScript({
+      target: { tabId: panel.tabId },
+      world: "MAIN",
+      func: async (apiBase) => {
+        try {
+          const findToken = () => {
+            const scan = (store) => {
+              for (let i = 0; i < store.length; i++) {
+                const k = store.key(i);
+                const v = store.getItem(k) || "";
+                if (/^\d+\|[A-Za-z0-9]{20,}$/.test(v)) return v;
+                try {
+                  const j = JSON.parse(v);
+                  const t = j?.token || j?.access_token || j?.auth?.token;
+                  if (typeof t === "string" && /^\d+\|[A-Za-z0-9]{20,}$/.test(t)) return t;
+                } catch {}
+              }
+              return null;
+            };
+            return scan(localStorage) || scan(sessionStorage);
+          };
+          const token = findToken();
+          const headers = { Accept: "application/json" };
+          if (token) headers.Authorization = `Bearer ${token}`;
+          const res = await fetch(`${apiBase}/profile`, { method: "GET", credentials: "include", headers });
+          return { ok: res.ok, status: res.status, hasToken: !!token };
+        } catch (e) { return { ok: false, error: String(e?.message || e) }; }
+      },
+      args: [IBOSOL_API_BASE],
+    });
+    const result = r?.result || { error: "no_result" };
+    await chrome.storage.local.set({ lastIbosolKeepAlive: new Date().toISOString(), lastIbosolKeepAliveResult: JSON.stringify(result) });
+
+    // Se o painel voltou 401/403, notifica uma vez que a sessao caiu.
+    if (result?.status === 401 || result?.status === 403) {
+      notifyOnce("ibosol_out", "Sessao IBO Sol expirou", "Faca login novamente em ibosol.com e cole o novo token em Ativacao de Apps.");
+    }
+    return result;
+  } catch (e) {
+    const err = { error: "script_error", message: e?.message || String(e) };
+    await chrome.storage.local.set({ lastIbosolKeepAlive: new Date().toISOString(), lastIbosolKeepAliveResult: JSON.stringify(err) });
+    return err;
+  }
+}
+
 async function notifyOnce(id, title, message) {
+
   const key = `notif_${id}`;
   const prev = (await chrome.storage.local.get({ [key]: 0 }))[key];
   const now = Date.now();
