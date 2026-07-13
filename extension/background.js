@@ -45,11 +45,10 @@ async function pushHistory(entry) {
 async function fetchNext(token) {
   const res = await fetch(QUEUE_URL, {
     method: "GET",
-    headers: {
-      "x-extension-token": token,
-      "apikey": SUPABASE_ANON,
-      "Authorization": `Bearer ${SUPABASE_ANON}`,
-    },
+    mode: "cors",
+    credentials: "omit",
+    cache: "no-store",
+    headers: { "x-extension-token": token },
   });
   if (!res.ok) throw new Error(`queue GET ${res.status}`);
   return await res.json();
@@ -58,11 +57,12 @@ async function fetchNext(token) {
 async function reportResult(token, id, success, message, http_status) {
   await fetch(QUEUE_URL, {
     method: "POST",
+    mode: "cors",
+    credentials: "omit",
+    cache: "no-store",
     headers: {
       "Content-Type": "application/json",
       "x-extension-token": token,
-      "apikey": SUPABASE_ANON,
-      "Authorization": `Bearer ${SUPABASE_ANON}`,
     },
     body: JSON.stringify({ id, success, message, http_status }),
   });
