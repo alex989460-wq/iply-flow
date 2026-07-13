@@ -1,4 +1,4 @@
-// SuperGestor Panel Auto-Renew - background service worker (v1.7.3)
+// SuperGestor Panel Auto-Renew - background service worker (v1.8.0)
 const QUEUE_URL = "https://fphqfgxfeaylldpxjqan.supabase.co/functions/v1/p2cine-queue";
 const SUPABASE_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZwaHFmZ3hmZWF5bGxkcHhqcWFuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY5OTYwMDAsImV4cCI6MjA4MjU3MjAwMH0.PsIJenRZEAWTlxbdGYvJWrBUfiIifPn9Q_UVeUyrFs8";
 const POLL_SECONDS = 20;
@@ -9,6 +9,10 @@ const UNIPLAY_PANEL_URLS = ["https://searchdefense.top/*", "http://searchdefense
 const UNIPLAY_API_BASE = "https://gesapioffice.com";
 const UNIPLAY_TOKEN_KEY = "372a8eb9ccd066d576409eead9568a13";
 const UNIPLAY_REG_PASS_KEY = "120asidj0sad0912j90d12";
+const IBOSOL_PANEL_URL = "https://ibosol.com/multi-apps-activation";
+const IBOSOL_PANEL_URLS = ["https://ibosol.com/*", "https://*.ibosol.com/*"];
+const IBOSOL_API_BASE = "https://backend-apis.ibosol.com/api";
+
 
 async function getConfig() {
   return await chrome.storage.local.get({
