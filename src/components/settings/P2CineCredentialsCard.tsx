@@ -75,8 +75,8 @@ export default function P2CineCredentialsCard() {
         <div className="rounded-lg border p-3 space-y-2 bg-muted/30">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-semibold">Extensão SuperGestor 1.7.3</p>
-              <p className="text-xs text-muted-foreground">Auto-abre painel, indicador de status ao vivo, histórico de renovações e alerta desktop quando sessão expira.</p>
+              <p className="text-sm font-semibold">Extensão SuperGestor 1.8.0</p>
+              <p className="text-xs text-muted-foreground">Mantém a sessão IBO Sol viva automaticamente, além de renovar P2Cine e Uniplay.</p>
             </div>
             <Button size="sm" variant="secondary" onClick={downloadExtension}>
               Baixar extensão
