@@ -693,6 +693,8 @@ async function openPanels() {
   if (p2.length === 0) { await chrome.tabs.create({ url: CLIENTS_PAGE, active: false }); opened.push("p2cine"); }
   const up = await chrome.tabs.query({ url: UNIPLAY_PANEL_URLS });
   if (up.length === 0) { await chrome.tabs.create({ url: UNIPLAY_PANEL_URL, active: false }); opened.push("uniplay"); }
+  const ib = await chrome.tabs.query({ url: IBOSOL_PANEL_URLS });
+  if (ib.length === 0) { await chrome.tabs.create({ url: IBOSOL_PANEL_URL, active: false }); opened.push("ibosol"); }
   return { opened };
 }
 
@@ -701,16 +703,19 @@ function setupAlarms() {
   chrome.alarms.create("p2cine-update", { periodInMinutes: 60 });
   chrome.alarms.create("p2cine-keepalive", { periodInMinutes: 3 });
   chrome.alarms.create("p2cine-status", { periodInMinutes: 2 });
+  chrome.alarms.create("ibosol-keepalive", { periodInMinutes: 4 });
 }
 
-chrome.runtime.onInstalled.addListener(() => { setupAlarms(); checkForUpdate(); keepAlive(); checkPanelsStatus(); });
-chrome.runtime.onStartup.addListener(() => { setupAlarms(); checkForUpdate(); keepAlive(); checkPanelsStatus(); });
+chrome.runtime.onInstalled.addListener(() => { setupAlarms(); checkForUpdate(); keepAlive(); ibosolKeepAlive(); checkPanelsStatus(); });
+chrome.runtime.onStartup.addListener(() => { setupAlarms(); checkForUpdate(); keepAlive(); ibosolKeepAlive(); checkPanelsStatus(); });
 chrome.alarms.onAlarm.addListener((a) => {
   if (a.name === "p2cine-tick") tick();
   if (a.name === "p2cine-update") checkForUpdate();
   if (a.name === "p2cine-keepalive") keepAlive();
   if (a.name === "p2cine-status") checkPanelsStatus();
+  if (a.name === "ibosol-keepalive") ibosolKeepAlive();
 });
+
 
 chrome.runtime.onMessage.addListener((msg, _s, send) => {
   if (msg?.type === "run-now") { tick().then(() => send({ ok: true })); return true; }
