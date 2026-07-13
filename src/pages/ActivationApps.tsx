@@ -55,9 +55,16 @@ const APP_COLORS: Record<string, string> = {
   ABEPLAYERTV: '#ef4444',
 };
 
+// Cache global das logos vindas do painel IBO Sol (populado pelo hook abaixo).
+const IBOSOL_LOGOS: Record<string, string> = {};
+
+function normKey(name: string) {
+  return String(name || '').toUpperCase().replace(/\s+/g, '');
+}
+
 function AppLogo({ name, url, size = 40 }: { name: string; url?: string | null; size?: number }) {
   const key = (name || '').toUpperCase();
-  const src = url || APP_LOGOS[key];
+  const src = url || APP_LOGOS[key] || IBOSOL_LOGOS[key] || IBOSOL_LOGOS[normKey(name)];
   const [broken, setBroken] = useState(false);
   const initials = (name || '?').replace(/[^A-Za-z0-9]/g, '').slice(0, 2).toUpperCase() || '?';
   const palette = ['#ef4444','#f97316','#eab308','#22c55e','#06b6d4','#3b82f6','#8b5cf6','#ec4899'];
@@ -84,6 +91,7 @@ function AppLogo({ name, url, size = 40 }: { name: string; url?: string | null; 
     </div>
   );
 }
+
 
 
 
@@ -124,12 +132,32 @@ export default function ActivationApps() {
     },
   });
 
+  // Busca logos oficiais dos apps direto do painel IBO Sol (usa o token salvo).
+  useQuery({
+    queryKey: ['ibosol-apps-logos'],
+    staleTime: 60 * 60 * 1000,
+    queryFn: async () => {
+      try {
+        const { data } = await supabase.functions.invoke('ibosol-list-apps');
+        const list: Array<{ name: string; logo: string | null }> = (data as any)?.apps || [];
+        for (const a of list) {
+          if (a?.name && a?.logo) {
+            IBOSOL_LOGOS[a.name.toUpperCase()] = a.logo;
+            IBOSOL_LOGOS[normKey(a.name)] = a.logo;
+          }
+        }
+        return list;
+      } catch { return []; }
+    },
+  });
+
   const duplecast = panelCreds.find((c: any) => c.panel_type === 'duplecast');
   const clouddy = panelCreds.find((c: any) => c.panel_type === 'clouddy');
   const p2cine = panelCreds.find((c: any) => c.panel_type === 'p2cine');
   const ibosol = panelCreds.find((c: any) => c.panel_type === 'ibosol');
   const iboPro = panelCreds.find((c: any) => c.panel_type === 'iboplayerpro');
   const [duplecastForm, setDuplecastForm] = useState({ username: '', password: '', is_enabled: true });
+
   const [clouddyForm, setClouddyForm] = useState({ base_url: 'https://console.clouddy.online', cookie: '', is_enabled: true });
   const [p2cineForm, setP2cineForm] = useState({ base_url: '', is_enabled: false });
   const [ibosolForm, setIbosolForm] = useState({ token: '', is_enabled: true });

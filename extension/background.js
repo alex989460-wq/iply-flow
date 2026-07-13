@@ -1,4 +1,4 @@
-// SuperGestor Panel Auto-Renew - background service worker (v1.7.3)
+// SuperGestor Panel Auto-Renew - background service worker (v1.8.0)
 const QUEUE_URL = "https://fphqfgxfeaylldpxjqan.supabase.co/functions/v1/p2cine-queue";
 const SUPABASE_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZwaHFmZ3hmZWF5bGxkcHhqcWFuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY5OTYwMDAsImV4cCI6MjA4MjU3MjAwMH0.PsIJenRZEAWTlxbdGYvJWrBUfiIifPn9Q_UVeUyrFs8";
 const POLL_SECONDS = 20;
@@ -9,6 +9,10 @@ const UNIPLAY_PANEL_URLS = ["https://searchdefense.top/*", "http://searchdefense
 const UNIPLAY_API_BASE = "https://gesapioffice.com";
 const UNIPLAY_TOKEN_KEY = "372a8eb9ccd066d576409eead9568a13";
 const UNIPLAY_REG_PASS_KEY = "120asidj0sad0912j90d12";
+const IBOSOL_PANEL_URL = "https://ibosol.com/multi-apps-activation";
+const IBOSOL_PANEL_URLS = ["https://ibosol.com/*", "https://*.ibosol.com/*"];
+const IBOSOL_API_BASE = "https://backend-apis.ibosol.com/api";
+
 
 async function getConfig() {
   return await chrome.storage.local.get({
@@ -538,7 +542,73 @@ async function keepAlive() {
   await chrome.storage.local.set({ lastKeepAlive: new Date().toISOString(), lastKeepAliveResult: JSON.stringify(r) });
 }
 
+async function getIbosolTab({ autoOpen = true } = {}) {
+  const tabs = await chrome.tabs.query({ url: IBOSOL_PANEL_URLS });
+  const tab = tabs[0];
+  if (tab?.id) return { tabId: tab.id };
+  if (!autoOpen) return { error: "no_ibosol_tab" };
+  const opened = await openHiddenTab(IBOSOL_PANEL_URL);
+  if (opened.error) return { error: "no_ibosol_tab" };
+  return { tabId: opened.tabId, opened: true };
+}
+
+async function ibosolKeepAlive() {
+  // Faz um ping em /profile a partir da aba do ibosol.com (usa o Bearer token
+  // salvo em localStorage/sessionStorage do proprio painel). Isso renova a
+  // sessao/cookies do Cloudflare e evita logout automatico.
+  const panel = await getIbosolTab({ autoOpen: true });
+  if (panel.error) {
+    await chrome.storage.local.set({ lastIbosolKeepAlive: new Date().toISOString(), lastIbosolKeepAliveResult: JSON.stringify(panel) });
+    return panel;
+  }
+  try {
+    const [r] = await chrome.scripting.executeScript({
+      target: { tabId: panel.tabId },
+      world: "MAIN",
+      func: async (apiBase) => {
+        try {
+          const findToken = () => {
+            const scan = (store) => {
+              for (let i = 0; i < store.length; i++) {
+                const k = store.key(i);
+                const v = store.getItem(k) || "";
+                if (/^\d+\|[A-Za-z0-9]{20,}$/.test(v)) return v;
+                try {
+                  const j = JSON.parse(v);
+                  const t = j?.token || j?.access_token || j?.auth?.token;
+                  if (typeof t === "string" && /^\d+\|[A-Za-z0-9]{20,}$/.test(t)) return t;
+                } catch {}
+              }
+              return null;
+            };
+            return scan(localStorage) || scan(sessionStorage);
+          };
+          const token = findToken();
+          const headers = { Accept: "application/json" };
+          if (token) headers.Authorization = `Bearer ${token}`;
+          const res = await fetch(`${apiBase}/profile`, { method: "GET", credentials: "include", headers });
+          return { ok: res.ok, status: res.status, hasToken: !!token };
+        } catch (e) { return { ok: false, error: String(e?.message || e) }; }
+      },
+      args: [IBOSOL_API_BASE],
+    });
+    const result = r?.result || { error: "no_result" };
+    await chrome.storage.local.set({ lastIbosolKeepAlive: new Date().toISOString(), lastIbosolKeepAliveResult: JSON.stringify(result) });
+
+    // Se o painel voltou 401/403, notifica uma vez que a sessao caiu.
+    if (result?.status === 401 || result?.status === 403) {
+      notifyOnce("ibosol_out", "Sessao IBO Sol expirou", "Faca login novamente em ibosol.com e cole o novo token em Ativacao de Apps.");
+    }
+    return result;
+  } catch (e) {
+    const err = { error: "script_error", message: e?.message || String(e) };
+    await chrome.storage.local.set({ lastIbosolKeepAlive: new Date().toISOString(), lastIbosolKeepAliveResult: JSON.stringify(err) });
+    return err;
+  }
+}
+
 async function notifyOnce(id, title, message) {
+
   const key = `notif_${id}`;
   const prev = (await chrome.storage.local.get({ [key]: 0 }))[key];
   const now = Date.now();
@@ -623,6 +693,8 @@ async function openPanels() {
   if (p2.length === 0) { await chrome.tabs.create({ url: CLIENTS_PAGE, active: false }); opened.push("p2cine"); }
   const up = await chrome.tabs.query({ url: UNIPLAY_PANEL_URLS });
   if (up.length === 0) { await chrome.tabs.create({ url: UNIPLAY_PANEL_URL, active: false }); opened.push("uniplay"); }
+  const ib = await chrome.tabs.query({ url: IBOSOL_PANEL_URLS });
+  if (ib.length === 0) { await chrome.tabs.create({ url: IBOSOL_PANEL_URL, active: false }); opened.push("ibosol"); }
   return { opened };
 }
 
@@ -631,16 +703,19 @@ function setupAlarms() {
   chrome.alarms.create("p2cine-update", { periodInMinutes: 60 });
   chrome.alarms.create("p2cine-keepalive", { periodInMinutes: 3 });
   chrome.alarms.create("p2cine-status", { periodInMinutes: 2 });
+  chrome.alarms.create("ibosol-keepalive", { periodInMinutes: 4 });
 }
 
-chrome.runtime.onInstalled.addListener(() => { setupAlarms(); checkForUpdate(); keepAlive(); checkPanelsStatus(); });
-chrome.runtime.onStartup.addListener(() => { setupAlarms(); checkForUpdate(); keepAlive(); checkPanelsStatus(); });
+chrome.runtime.onInstalled.addListener(() => { setupAlarms(); checkForUpdate(); keepAlive(); ibosolKeepAlive(); checkPanelsStatus(); });
+chrome.runtime.onStartup.addListener(() => { setupAlarms(); checkForUpdate(); keepAlive(); ibosolKeepAlive(); checkPanelsStatus(); });
 chrome.alarms.onAlarm.addListener((a) => {
   if (a.name === "p2cine-tick") tick();
   if (a.name === "p2cine-update") checkForUpdate();
   if (a.name === "p2cine-keepalive") keepAlive();
   if (a.name === "p2cine-status") checkPanelsStatus();
+  if (a.name === "ibosol-keepalive") ibosolKeepAlive();
 });
+
 
 chrome.runtime.onMessage.addListener((msg, _s, send) => {
   if (msg?.type === "run-now") { tick().then(() => send({ ok: true })); return true; }
