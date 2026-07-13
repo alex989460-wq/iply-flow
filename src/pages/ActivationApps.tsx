@@ -132,12 +132,32 @@ export default function ActivationApps() {
     },
   });
 
+  // Busca logos oficiais dos apps direto do painel IBO Sol (usa o token salvo).
+  useQuery({
+    queryKey: ['ibosol-apps-logos'],
+    staleTime: 60 * 60 * 1000,
+    queryFn: async () => {
+      try {
+        const { data } = await supabase.functions.invoke('ibosol-list-apps');
+        const list: Array<{ name: string; logo: string | null }> = (data as any)?.apps || [];
+        for (const a of list) {
+          if (a?.name && a?.logo) {
+            IBOSOL_LOGOS[a.name.toUpperCase()] = a.logo;
+            IBOSOL_LOGOS[normKey(a.name)] = a.logo;
+          }
+        }
+        return list;
+      } catch { return []; }
+    },
+  });
+
   const duplecast = panelCreds.find((c: any) => c.panel_type === 'duplecast');
   const clouddy = panelCreds.find((c: any) => c.panel_type === 'clouddy');
   const p2cine = panelCreds.find((c: any) => c.panel_type === 'p2cine');
   const ibosol = panelCreds.find((c: any) => c.panel_type === 'ibosol');
   const iboPro = panelCreds.find((c: any) => c.panel_type === 'iboplayerpro');
   const [duplecastForm, setDuplecastForm] = useState({ username: '', password: '', is_enabled: true });
+
   const [clouddyForm, setClouddyForm] = useState({ base_url: 'https://console.clouddy.online', cookie: '', is_enabled: true });
   const [p2cineForm, setP2cineForm] = useState({ base_url: '', is_enabled: false });
   const [ibosolForm, setIbosolForm] = useState({ token: '', is_enabled: true });
