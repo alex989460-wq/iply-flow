@@ -48,7 +48,7 @@ serve(async (req) => {
       Referer: "https://ibosol.com/multi-apps-activation",
       Authorization: `Bearer ${token}`,
     };
-    const endpoints = ["/fetch-allowed-applications", "/activated-apps-list"];
+    const endpoints = ["/fetch-allowed-applications"];
     let raw: any = null;
     let status = 0;
     for (const ep of endpoints) {
@@ -61,13 +61,18 @@ serve(async (req) => {
     }
     if (!raw) return new Response(JSON.stringify({ error: `IBO Sol HTTP ${status}`, apps: [] }), { status: 502, headers: jh });
 
-    // Normaliza a lista — a API pode retornar {data:[...]}, {applications:[...]}, ou array direto.
-    const list: any[] = Array.isArray(raw) ? raw : (raw.data || raw.applications || raw.apps || []);
+    // Response format: { data: { ApplicationList: [{ id, app_name, app_disp_name, app_logo, ... }] } }
+    const list: any[] =
+      raw?.data?.ApplicationList ||
+      (Array.isArray(raw?.data) ? raw.data : null) ||
+      raw?.applications || raw?.apps ||
+      (Array.isArray(raw) ? raw : []);
     const apps = list.map((a: any) => ({
       id: a.id ?? a.app_id ?? null,
-      name: a.name || a.module || a.app_name || a.selectedModule || a.title || "",
-      logo: a.logo || a.icon || a.image || a.img_url || a.logo_url || a.app_logo || null,
+      name: a.app_name || a.app_disp_name || a.name || a.module || a.selectedModule || "",
+      logo: a.app_logo || a.logo || a.icon || a.image || a.img_url || a.logo_url || null,
     })).filter((a) => a.name);
+
 
     return new Response(JSON.stringify({ apps }), { headers: jh });
   } catch (e) {
