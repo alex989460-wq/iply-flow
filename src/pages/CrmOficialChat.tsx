@@ -132,8 +132,9 @@ export default function CrmOficialChat({ embed = false }: { embed?: boolean } = 
           </>
         )}
       </div>
-      <PendingManualRenewalsFloat />
+      {!embed && <PendingManualRenewalsFloat />}
     </>
+
   );
   return embed ? __content : <DashboardLayout noPadding>{__content}</DashboardLayout>;
 }
