@@ -2309,8 +2309,7 @@ serve(async (req) => {
         const formattedTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
         // Format phone with country code
-        let metaPhone = phoneDigits;
-        if (!metaPhone.startsWith('55')) metaPhone = '55' + metaPhone;
+        const metaPhone = toWaPhone(matchedCustomer?.phone || phoneDigits);
 
         const displayUsername = isMultiScreen 
           ? customersToRenew.map((c: any) => c.username || '-').join(', ')
