@@ -146,8 +146,8 @@ export default function CrmOficialCard() {
         </CardTitle>
         <CardDescription>
           Integre com{' '}
-          <a href="https://crmapioficial.lovable.app" target="_blank" rel="noreferrer" className="text-primary inline-flex items-center gap-1 hover:underline">
-            crmapioficial.lovable.app <ExternalLink className="w-3 h-3" />
+          <a href="https://zapcrm.top" target="_blank" rel="noreferrer" className="text-primary inline-flex items-center gap-1 hover:underline">
+            zapcrm.top <ExternalLink className="w-3 h-3" />
           </a>{' '}
           para sincronizar contas, chats de teste e notificações de renovação automaticamente.
         </CardDescription>

@@ -10,7 +10,7 @@ import QuickRenewalPanel from "@/components/chat/QuickRenewalPanel";
 import { useIsMobile } from "@/hooks/use-mobile";
 import PendingManualRenewalsFloat from "@/components/PendingManualRenewalsFloat";
 
-const CRM_BASE = "https://crmapioficial.lovable.app";
+const CRM_BASE = "https://zapcrm.top";
 
 export default function CrmOficialChat({ embed = false }: { embed?: boolean } = {}) {
   const [apiKey, setApiKey] = useState<string | null>(null);
