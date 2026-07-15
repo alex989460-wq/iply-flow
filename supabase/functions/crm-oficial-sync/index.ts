@@ -1,4 +1,4 @@
-// Integração com CRM Oficial (https://crmapioficial.lovable.app)
+// Integração com CRM Oficial (https://zapcrm.top)
 // Ações suportadas (todas idempotentes, falham silenciosamente para não quebrar fluxo):
 //   - signup       : cria conta no CRM para um novo revendedor
 //   - test-chat    : cria contato + mensagem (in) no inbox da conta master, simulando chat de teste
@@ -11,7 +11,7 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const CRM_BASE = "https://crmapioficial.lovable.app";
+const CRM_BASE = "https://zapcrm.top";
 const CRM_SUPABASE_URL = "https://qoijgbmbwcmnmvixsbrv.supabase.co";
 const CRM_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFvaWpnYm1id2Ntbm12aXhzYnJ2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE3MjI3MTIsImV4cCI6MjA5NzI5ODcxMn0.IgBFtqw8O2bwmOFU3iWIwkvUZ2_KWOK_-CGWt2P1buw";
 

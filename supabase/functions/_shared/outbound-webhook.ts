@@ -1,6 +1,6 @@
 // Dispara webhook para o gestor externo (formato do CRM Oficial inbound).
 // Segredos:
-//   - URL_DE_WEBHOOK_DE_SAIDA  (ex: https://crmapioficial.lovable.app/api/public/billing/inbound)
+//   - URL_DE_WEBHOOK_DE_SAIDA  (ex: https://zapcrm.top/api/public/billing/inbound)
 //   - OUTBOUND_WEBHOOK_BEARER  (API key com escopo messages:write / broadcasts:write)
 //   - WEBHOOK_OUTBOUND_SECRET  (opcional — se presente, também envia X-Signature HMAC-SHA256)
 // Fire-and-forget: nunca lança.
@@ -54,7 +54,7 @@ export async function fireOutboundWebhook(event: string, payload: OutboundPayloa
       Deno.env.get('URL_DE_WEBHOOK_DE_SAIDA') ||
       Deno.env.get('URL_DE_WEBHOOK_DE_SAÍDA') ||
       Deno.env.get('OUTBOUND_WEBHOOK_URL') ||
-      'https://crmapioficial.lovable.app/api/public/billing/inbound';
+      'https://zapcrm.top/api/public/billing/inbound';
     if (!url) return;
 
     const bearer =
