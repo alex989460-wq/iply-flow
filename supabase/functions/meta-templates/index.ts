@@ -9,6 +9,8 @@ const corsHeaders = {
 
 const GRAPH_API_VERSION = "v21.0";
 const CRM_BASE = "https://zapcrm.top";
+const CRM_SUPABASE_URL = "https://qoijgbmbwcmnmvixsbrv.supabase.co";
+const CRM_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFvaWpnYm1id2Ntbm12aXhzYnJ2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE3MjI3MTIsImV4cCI6MjA5NzI5ODcxMn0.IgBFtqw8O2bwmOFU3iWIwkvUZ2_KWOK_-CGWt2P1buw";
 
 function json(data: unknown, status = 200) {
   return new Response(JSON.stringify(data), {
@@ -40,10 +42,105 @@ async function crmFetch(path: string, apiKey: string, init: RequestInit = {}) {
   return { ok: res.ok, status: res.status, body };
 }
 
+async function getCrmOwnerSession(apiKey: string) {
+  const embed = await crmFetch("/api/public/v1/embed-session", apiKey, {
+    method: "POST",
+    body: JSON.stringify({ redirect: "/app/inbox" }),
+  });
+  const tokenHash = (embed.body as any)?.token_hash;
+  if (!embed.ok || !tokenHash) throw new Error(`Não foi possível abrir sessão do CRM Oficial (${embed.status})`);
+
+  const verify = await fetch(`${CRM_SUPABASE_URL}/auth/v1/verify`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", apikey: CRM_SUPABASE_ANON_KEY },
+    body: JSON.stringify({ type: "magiclink", token_hash: tokenHash }),
+  });
+  const session = await verify.json().catch(() => ({}));
+  if (!verify.ok || !session?.access_token) throw new Error("Sessão do CRM Oficial inválida");
+  return String(session.access_token);
+}
+
+async function crmRest(path: string, accessToken: string) {
+  const res = await fetch(`${CRM_SUPABASE_URL}/rest/v1/${path}`, {
+    headers: {
+      apikey: CRM_SUPABASE_ANON_KEY,
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+  });
+  const text = await res.text();
+  let body: any = null;
+  try { body = text ? JSON.parse(text) : null; } catch { body = text; }
+  if (!res.ok) throw new Error(typeof body === "string" ? body : JSON.stringify(body));
+  return body;
+}
+
+async function appSecretProof(accessToken: string) {
+  const appSecret = Deno.env.get("META_APP_SECRET");
+  if (!appSecret) return "";
+  const encoder = new TextEncoder();
+  const key = await crypto.subtle.importKey("raw", encoder.encode(appSecret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  const sig = await crypto.subtle.sign("HMAC", key, encoder.encode(accessToken));
+  return Array.from(new Uint8Array(sig)).map(b => b.toString(16).padStart(2, "0")).join("");
+}
+
+function isExpiredTokenError(value: unknown) {
+  const text = typeof value === "string" ? value : JSON.stringify(value || {});
+  return /validating access token|session has expired|OAuthException|code\s*190/i.test(text);
+}
+
+async function listTemplatesDirectFromCrm(apiKey: string, limit = 250) {
+  const accessToken = await getCrmOwnerSession(apiKey);
+  const credentials: Array<{ source: string; phone_number_id?: string; waba_id?: string; system_user_token?: string }> = [];
+
+  try {
+    const legacy = await crmRest("whatsapp_settings?select=phone_number_id,system_user_token,waba_id&limit=1", accessToken) as any[];
+    for (const row of legacy || []) credentials.push({ source: "primary", ...row });
+  } catch (e) {
+    console.warn("[MetaTemplates] CRM primary credentials unavailable:", e instanceof Error ? e.message : e);
+  }
+
+  try {
+    const channels = await crmRest("channels?select=id,phone_number_id,system_user_token,waba_id,is_active,created_at&kind=eq.whatsapp_cloud&is_active=eq.true&order=created_at.desc", accessToken) as any[];
+    for (const row of channels || []) credentials.push({ source: "channel", ...row });
+  } catch (e) {
+    console.warn("[MetaTemplates] CRM channel credentials unavailable:", e instanceof Error ? e.message : e);
+  }
+
+  const seen = new Set<string>();
+  const errors: string[] = [];
+  for (const cred of credentials) {
+    const wabaId = String(cred.waba_id || "").trim();
+    const token = String(cred.system_user_token || "").trim();
+    const key = `${wabaId}:${cred.phone_number_id || ""}`;
+    if (!wabaId || !token || seen.has(key)) continue;
+    seen.add(key);
+
+    const url = new URL(`https://graph.facebook.com/${GRAPH_API_VERSION}/${wabaId}/message_templates`);
+    url.searchParams.set("fields", "id,name,status,language,category,components,quality_score,parameter_format");
+    url.searchParams.set("limit", String(limit));
+    const res = await fetchWithTimeout(url.toString(), { headers: { Authorization: `Bearer ${token}` } }, 25_000);
+    const data = await res.json().catch(() => ({}));
+    if (res.ok) {
+      console.log(`[MetaTemplates] Templates carregados direto do CRM Oficial (${cred.source}, WABA ${wabaId})`);
+      return Array.isArray(data?.data) ? data.data : normalizeTemplatesBody(data);
+    }
+
+    const message = data?.error?.message || JSON.stringify(data?.error || data || {}).slice(0, 220);
+    errors.push(`${cred.source}/${wabaId}: ${message}`);
+    console.warn(`[MetaTemplates] Ignorando canal CRM Oficial com falha (${cred.source}, WABA ${wabaId}):`, message);
+    if (!isExpiredTokenError(data)) continue;
+  }
+
+  throw new Error(errors[0] || "Nenhum canal WhatsApp Cloud válido encontrado no CRM Oficial.");
+}
+
 function normalizeTemplatesBody(body: any): any[] {
   if (Array.isArray(body)) return body;
   if (Array.isArray(body?.data)) return body.data;
   if (Array.isArray(body?.templates)) return body.templates;
+  if (Array.isArray(body?.results?.templates)) return body.results.templates;
+  if (Array.isArray(body?.results?.templates?.body?.data)) return body.results.templates.body.data;
   if (Array.isArray(body?.results)) return body.results;
   if (Array.isArray(body?.items)) return body.items;
   return [];
@@ -101,6 +198,10 @@ serve(async (req) => {
         const r = await crmFetch(`/api/public/v1/templates?limit=${encodeURIComponent(String(limit))}`, crmApiKey, { method: "GET" });
         if (!r.ok) {
           console.error(`[MetaTemplates] CRM list ${r.status}:`, JSON.stringify(r.body).slice(0, 300));
+          if (isExpiredTokenError(r.body)) {
+            const direct = await listTemplatesDirectFromCrm(crmApiKey, Number(limit) || 250);
+            return json({ data: direct });
+          }
           return json({ error: r.body?.error || `CRM Oficial ${r.status}`, details: r.body }, r.status || 500);
         }
         return json({ data: normalizeTemplatesBody(r.body) });
