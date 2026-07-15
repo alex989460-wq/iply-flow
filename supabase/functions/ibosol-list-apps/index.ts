@@ -55,7 +55,8 @@ serve(async (req) => {
       const r = await fetch(`${API}${ep}`, { method: "GET", headers });
       status = r.status;
       if (r.status === 401 || r.status === 403) {
-        return new Response(JSON.stringify({ error: "Token IBO Sol expirado", apps: [] }), { status: 401, headers: jh });
+        // Retorna 200 com apps vazio para não quebrar a UI; frontend mostra fallback.
+        return new Response(JSON.stringify({ error: "Token IBO Sol expirado", expired: true, apps: [] }), { status: 200, headers: jh });
       }
       if (r.ok) { raw = await r.json().catch(() => null); if (raw) break; }
     }
