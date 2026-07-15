@@ -2479,8 +2479,7 @@ serve(async (req) => {
         const extraPhoneRaw = (matchedCustomer as any).extra_phone;
         if (extraPhoneRaw && String(extraPhoneRaw).replace(/\D/g, '').length >= 10) {
           try {
-            let extraPhone = String(extraPhoneRaw).replace(/\D/g, '');
-            if (!extraPhone.startsWith('55')) extraPhone = '55' + extraPhone;
+            const extraPhone = toWaPhone(extraPhoneRaw);
             await fetchWithTimeout(
               `${Deno.env.get('SUPABASE_URL')}/functions/v1/crm-oficial-sync`,
               {
