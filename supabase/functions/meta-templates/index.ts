@@ -119,9 +119,6 @@ async function listTemplatesDirectFromCrm(apiKey: string, limit = 250) {
     const url = new URL(`https://graph.facebook.com/${GRAPH_API_VERSION}/${wabaId}/message_templates`);
     url.searchParams.set("fields", "id,name,status,language,category,components,quality_score,parameter_format");
     url.searchParams.set("limit", String(limit));
-    const proof = await appSecretProof(token);
-    if (proof) url.searchParams.set("appsecret_proof", proof);
-
     const res = await fetchWithTimeout(url.toString(), { headers: { Authorization: `Bearer ${token}` } }, 25_000);
     const data = await res.json().catch(() => ({}));
     if (res.ok) {
@@ -132,7 +129,7 @@ async function listTemplatesDirectFromCrm(apiKey: string, limit = 250) {
     const message = data?.error?.message || JSON.stringify(data?.error || data || {}).slice(0, 220);
     errors.push(`${cred.source}/${wabaId}: ${message}`);
     console.warn(`[MetaTemplates] Ignorando canal CRM Oficial com falha (${cred.source}, WABA ${wabaId}):`, message);
-    if (!isExpiredTokenError(data)) break;
+    if (!isExpiredTokenError(data)) continue;
   }
 
   throw new Error(errors[0] || "Nenhum canal WhatsApp Cloud válido encontrado no CRM Oficial.");
