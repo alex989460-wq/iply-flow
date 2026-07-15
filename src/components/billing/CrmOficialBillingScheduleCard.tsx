@@ -158,14 +158,12 @@ export function CrmOficialBillingScheduleCard() {
   const { data: templates, isLoading: loadingTpls, refetch: refetchTpls } = useQuery({
     queryKey: ['crm-oficial-templates-list', user?.id, crmSettings?.api_key],
     queryFn: async () => {
-      const { data, error } = await supabase.functions.invoke('crm-oficial-sync', {
-        body: { action: 'list-templates', data: { apiKey: crmSettings?.api_key, limit: 250 } },
+      const { data, error } = await supabase.functions.invoke('meta-templates', {
+        body: { action: 'list', apiKey: crmSettings?.api_key, limit: 250 },
       });
       if (error) throw error;
-      if (!data?.success) throw new Error(data?.error || 'Erro ao carregar templates');
-      const result = data?.results?.templates;
-      if (result && !result.ok) throw new Error(`CRM Oficial retornou status ${result.status}`);
-      const all = normalizeTemplates(result?.body);
+      if (data?.error) throw new Error(data.error || 'Erro ao carregar templates');
+      const all = normalizeTemplates(data?.data ?? data);
       return all.filter(t => (t.status || '').toUpperCase() === 'APPROVED');
     },
     enabled: !!user?.id && !!crmSettings?.api_key,
