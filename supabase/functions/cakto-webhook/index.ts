@@ -2526,8 +2526,7 @@ serve(async (req) => {
         try {
           const dueParts2 = newDueDate.split('-');
           const fmtDue = `${dueParts2[2]}/${dueParts2[1]}/${dueParts2[0]}`;
-          let adminMetaPhone = phoneDigits;
-          if (!adminMetaPhone.startsWith('55')) adminMetaPhone = '55' + adminMetaPhone;
+          const adminMetaPhone = toWaPhone(matchedCustomer?.phone || phoneDigits);
           let adminServerName = '-';
           if (matchedCustomer.server_id) {
             const { data: srvData } = await supabaseAdmin
