@@ -114,32 +114,22 @@ export default function CrmOficialTemplates() {
     setSyncing(true);
     setLoadError(null);
     try {
-      // 1) Fonte primária: API pública do CRM Oficial (já funciona com a chave atual).
-      if (apiKey) {
-        const r = await invoke('list-templates', { limit: 250 });
-        const result = r?.templates;
-        if (result?.ok) {
-          setTemplates(normalizeTemplates(result.body));
-          return;
-        }
-        // Se 403/escopo, segue para fallback Meta; senão lança.
-        if (result && result.status !== 403) {
-          const detail = typeof result.body === 'string' ? result.body : JSON.stringify(result.body).slice(0, 180);
-          throw new Error(`CRM Oficial ${result.status}: ${detail}`);
-        }
-      }
-
-      // 2) Fallback: Meta OAuth direto.
-      const { data: oauthRes } = await supabase.functions.invoke('meta-oauth', { body: { action: 'fetch-templates' } });
-      if (oauthRes && !oauthRes.error && Array.isArray(oauthRes.templates)) {
-        setTemplates(normalizeTemplates(oauthRes.templates));
+      // Fonte primária: função dedicada de templates. A documentação pública do
+      // ZapCRM não expõe /api/public/v1/templates como endpoint garantido; por
+      // isso não bloqueamos mais a tela nessa rota do CRM.
+      const { data: metaRes, error: metaErr } = await supabase.functions.invoke('meta-templates', {
+        body: { action: 'list', limit: 250, apiKey },
+      });
+      if (metaErr) throw metaErr;
+      if (metaRes && !metaRes.error && Array.isArray(metaRes.data)) {
+        setTemplates(normalizeTemplates(metaRes));
         return;
       }
 
-      // 3) Fallback: meta-templates dedicado.
-      const { data: metaRes } = await supabase.functions.invoke('meta-templates', { body: { action: 'list', limit: 250 } });
-      if (metaRes && !metaRes.error && Array.isArray(metaRes.data)) {
-        setTemplates(normalizeTemplates(metaRes));
+      // Fallback: Meta OAuth direto.
+      const { data: oauthRes } = await supabase.functions.invoke('meta-oauth', { body: { action: 'fetch-templates' } });
+      if (oauthRes && !oauthRes.error && Array.isArray(oauthRes.templates)) {
+        setTemplates(normalizeTemplates(oauthRes.templates));
         return;
       }
 

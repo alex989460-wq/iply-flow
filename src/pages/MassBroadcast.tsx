@@ -200,14 +200,13 @@ export default function MassBroadcast() {
 
     setIsLoadingTemplates(true);
     try {
-      const { data, error } = await supabase.functions.invoke('crm-oficial-sync', {
-        body: { action: 'list-templates', data: { apiKey: crmSettings!.api_key, limit: 250 } },
+      const { data, error } = await supabase.functions.invoke('meta-templates', {
+        body: { action: 'list', apiKey: crmSettings!.api_key, limit: 250 },
       });
       if (error) throw error;
+      if (data?.error) throw new Error(data.error);
 
-      // Response shape: { results: { templates: { ok, status, body: { data: [...] } } } }
-      const tplsNode = data?.results?.templates ?? data?.results ?? data;
-      const body = tplsNode?.body ?? tplsNode;
+      const body = data?.data ?? data;
       const list: any[] = Array.isArray(body)
         ? body
         : (body?.data ?? body?.templates ?? body?.results ?? []);
