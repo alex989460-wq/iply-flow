@@ -604,8 +604,7 @@ serve(async (req) => {
 
         let customerPhoneFmt = '';
         if (ownerZapSettings?.selected_department_id && ownerNotifPhone) {
-          customerPhoneFmt = String(phone).replace(/\D/g, '');
-          if (!customerPhoneFmt.startsWith('55')) customerPhoneFmt = '55' + customerPhoneFmt;
+          customerPhoneFmt = toWaPhone(phone);
 
           const customerMsg = `📥 *PEDIDO DE ATIVAÇÃO RECEBIDO*\n\nRecebemos sua solicitação de ativação do aplicativo.\nNossa equipe já está processando o pedido e em breve seu acesso será liberado.\n\n📱 Aplicativo: *${finalAppName}*\n👤 Cliente: *${finalName || '-'}*\n${finalMac ? `🖥 MAC: *${finalMac}*\n` : ''}${finalEmail ? `📧 E-mail: *${finalEmail}*\n` : ''}\n⏳ Assim que a ativação for concluída, você receberá uma nova mensagem confirmando.\n\nObrigado pela preferência! 😊`;
 
