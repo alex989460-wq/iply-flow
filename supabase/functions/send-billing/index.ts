@@ -69,11 +69,10 @@ async function sendWhatsAppTemplate(
   vars: Array<{ name: string; value: string }> = []
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    // Format phone number (remove non-digits and ensure country code)
+    // Format phone: preserva código de país se houver '+' original ou já mais de 11 dígitos.
+    const hasPlus = phone.trim().startsWith('+');
     let formattedPhone = phone.replace(/\D/g, '');
-    
-    // Ensure phone has country code (Brazil = 55)
-    if (!formattedPhone.startsWith('55') && formattedPhone.length <= 11) {
+    if (!hasPlus && !formattedPhone.startsWith('55') && formattedPhone.length >= 10 && formattedPhone.length <= 11) {
       formattedPhone = '55' + formattedPhone;
     }
     
