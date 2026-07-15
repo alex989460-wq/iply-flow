@@ -269,13 +269,12 @@ export default function LeadCapture() {
   async function loadTemplates() {
     setLoadingTpl(true);
     try {
-      const { data, error } = await supabase.functions.invoke('crm-oficial-sync', {
-        body: { action: 'list-templates', data: { apiKey, limit: 250 } },
+      const { data, error } = await supabase.functions.invoke('meta-templates', {
+        body: { action: 'list', apiKey, limit: 250 },
       });
       if (error) throw error;
-      // Response: { results: { templates: { ok, status, body: { data:[...] } } } }
-      const node = data?.results?.templates ?? data?.results ?? data;
-      const body = node?.body ?? node;
+      if (data?.error) throw new Error(data.error);
+      const body = data?.data ?? data;
       const list: any[] = Array.isArray(body)
         ? body
         : (body?.data ?? body?.templates ?? body?.results ?? []);
