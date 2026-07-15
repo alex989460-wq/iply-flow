@@ -1445,20 +1445,16 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
 
       let list: any[] = [];
 
-      // 1) Fonte primária: API do CRM Oficial
-      if (crmSettings?.api_key) {
-        try {
-          const { data, error } = await supabase.functions.invoke('crm-oficial-sync', {
-            body: { action: 'list-templates', data: { apiKey: crmSettings.api_key, limit: 250 } },
-          });
-          if (!error) {
-            const tpls = data?.results?.templates;
-            if (tpls?.ok) list = normalize(tpls.body);
-            else if (Array.isArray(tpls)) list = normalize(tpls);
-          }
-        } catch (e) {
-          console.warn('[CRM templates] primary fetch failed', e);
+      // 1) Fonte primária: meta-templates (bypass do endpoint público do CRM que retorna 502)
+      try {
+        const { data: metaRes, error: metaErr } = await supabase.functions.invoke('meta-templates', {
+          body: { action: 'list', apiKey: crmSettings?.api_key, limit: 250 },
+        });
+        if (!metaErr && metaRes && !metaRes.error) {
+          list = normalize(metaRes.data ?? metaRes.templates ?? metaRes);
         }
+      } catch (e) {
+        console.warn('[CRM templates] meta-templates primary failed', e);
       }
 
       // 2) Fallback: meta-oauth fetch-templates
@@ -1473,15 +1469,19 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
         }
       }
 
-      // 3) Fallback: meta-templates dedicado
-      if (list.length === 0) {
+      // 3) Fallback: crm-oficial-sync (pode falhar por token expirado)
+      if (list.length === 0 && crmSettings?.api_key) {
         try {
-          const { data: metaRes } = await supabase.functions.invoke('meta-templates', { body: { action: 'list', limit: 250 } });
-          if (metaRes && !metaRes.error) {
-            list = normalize(metaRes.data ?? metaRes);
+          const { data, error } = await supabase.functions.invoke('crm-oficial-sync', {
+            body: { action: 'list-templates', data: { apiKey: crmSettings.api_key, limit: 250 } },
+          });
+          if (!error) {
+            const tpls = data?.results?.templates;
+            if (tpls?.ok) list = normalize(tpls.body);
+            else if (Array.isArray(tpls)) list = normalize(tpls);
           }
         } catch (e) {
-          console.warn('[CRM templates] meta-templates fallback failed', e);
+          console.warn('[CRM templates] crm-oficial-sync fallback failed', e);
         }
       }
 
