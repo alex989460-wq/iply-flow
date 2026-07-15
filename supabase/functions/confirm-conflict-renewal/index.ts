@@ -303,8 +303,12 @@ serve(async (req) => {
         const now = new Date();
         const formattedTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
-        let metaPhone = (customer.phone || '').replace(/\D/g, '');
-        if (!metaPhone.startsWith('55')) metaPhone = '55' + metaPhone;
+        const rawPhone = String(customer.phone || '').trim();
+        const hasPlus = rawPhone.startsWith('+');
+        let metaPhone = rawPhone.replace(/\D/g, '');
+        if (!hasPlus && !metaPhone.startsWith('55') && metaPhone.length >= 10 && metaPhone.length <= 11) {
+          metaPhone = '55' + metaPhone;
+        }
 
         const defaultTemplate = `✅ Olá, *{{nome}}*. Obrigado por confirmar seu pagamento. Segue abaixo os dados da sua assinatura:\n\n==========================\n📅 Próx. Vencimento: *{{vencimento}} - {{hora}} hrs*\n💰 Valor: *{{valor}}*\n👤 Usuário: *{{usuario}}*\n📦 Plano: *{{plano}}*\n🔌 Status: *Ativo*\n💎 Obs: -\n⚡: *{{servidor}}*\n==========================`;
         const template = billingSettings?.renewal_message_template || defaultTemplate;

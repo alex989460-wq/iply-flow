@@ -345,8 +345,9 @@ async function sendWhatsAppTemplate(
   headerImageUrl?: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
+    const hasPlus = phone.trim().startsWith('+');
     let formattedPhone = phone.replace(/\D/g, '');
-    if (!formattedPhone.startsWith('55') && formattedPhone.length <= 11) {
+    if (!hasPlus && !formattedPhone.startsWith('55') && formattedPhone.length >= 10 && formattedPhone.length <= 11) {
       formattedPhone = '55' + formattedPhone;
     }
 

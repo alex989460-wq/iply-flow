@@ -220,8 +220,12 @@ serve(async (req) => {
         .maybeSingle();
 
       if (crmSettings?.enabled && crmSettings?.api_key) {
-        let customerPhone = String(request.customer_phone).replace(/\D/g, '');
-        if (!customerPhone.startsWith('55')) customerPhone = '55' + customerPhone;
+        const rawCustPhone = String(request.customer_phone || '').trim();
+        const custHasPlus = rawCustPhone.startsWith('+');
+        let customerPhone = rawCustPhone.replace(/\D/g, '');
+        if (!custHasPlus && !customerPhone.startsWith('55') && customerPhone.length >= 10 && customerPhone.length <= 11) {
+          customerPhone = '55' + customerPhone;
+        }
 
         let message = '';
         if (action === 'activate') {

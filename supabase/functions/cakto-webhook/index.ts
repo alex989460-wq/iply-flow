@@ -26,6 +26,20 @@ serve(async (req) => {
 
   const normalizeBaseUrl = (rawUrl: string) => String(rawUrl || '').trim().replace(/\/+$/, '');
 
+  // Normaliza telefone para WhatsApp preservando código de país estrangeiro.
+  // Só prepende 55 quando o número parece brasileiro (10-11 dígitos, sem '+').
+  const toWaPhone = (raw: any): string => {
+    const s = String(raw ?? '').trim();
+    const hasPlus = s.startsWith('+');
+    const digits = s.replace(/\D/g, '');
+    if (!digits) return '';
+    if (hasPlus) return digits;
+    if (digits.startsWith('55')) return digits;
+    if (digits.length >= 12) return digits; // já tem código de país
+    if (digits.length >= 10 && digits.length <= 11) return '55' + digits;
+    return digits;
+  };
+
   const buildUsernameVariants = (rawUsername: string): string[] => {
     const base = String(rawUsername || '').trim();
     const variants = new Set<string>();
@@ -590,8 +604,7 @@ serve(async (req) => {
 
         let customerPhoneFmt = '';
         if (ownerZapSettings?.selected_department_id && ownerNotifPhone) {
-          customerPhoneFmt = String(phone).replace(/\D/g, '');
-          if (!customerPhoneFmt.startsWith('55')) customerPhoneFmt = '55' + customerPhoneFmt;
+          customerPhoneFmt = toWaPhone(phone);
 
           const customerMsg = `📥 *PEDIDO DE ATIVAÇÃO RECEBIDO*\n\nRecebemos sua solicitação de ativação do aplicativo.\nNossa equipe já está processando o pedido e em breve seu acesso será liberado.\n\n📱 Aplicativo: *${finalAppName}*\n👤 Cliente: *${finalName || '-'}*\n${finalMac ? `🖥 MAC: *${finalMac}*\n` : ''}${finalEmail ? `📧 E-mail: *${finalEmail}*\n` : ''}\n⏳ Assim que a ativação for concluída, você receberá uma nova mensagem confirmando.\n\nObrigado pela preferência! 😊`;
 
@@ -1190,8 +1203,7 @@ serve(async (req) => {
             .maybeSingle();
 
           if (zapSettings?.selected_department_id) {
-            let custPhone = String(pendingNew.phone).replace(/\D/g, '');
-            if (!custPhone.startsWith('55')) custPhone = '55' + custPhone;
+            const custPhone = toWaPhone(pendingNew.phone);
 
             const spNow = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
             const horaStr = `${String(spNow.getHours()).padStart(2, '0')}:${String(spNow.getMinutes()).padStart(2, '0')}`;
@@ -2297,8 +2309,7 @@ serve(async (req) => {
         const formattedTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
         // Format phone with country code
-        let metaPhone = phoneDigits;
-        if (!metaPhone.startsWith('55')) metaPhone = '55' + metaPhone;
+        const metaPhone = toWaPhone(matchedCustomer?.phone || phoneDigits);
 
         const displayUsername = isMultiScreen 
           ? customersToRenew.map((c: any) => c.username || '-').join(', ')
@@ -2468,8 +2479,7 @@ serve(async (req) => {
         const extraPhoneRaw = (matchedCustomer as any).extra_phone;
         if (extraPhoneRaw && String(extraPhoneRaw).replace(/\D/g, '').length >= 10) {
           try {
-            let extraPhone = String(extraPhoneRaw).replace(/\D/g, '');
-            if (!extraPhone.startsWith('55')) extraPhone = '55' + extraPhone;
+            const extraPhone = toWaPhone(extraPhoneRaw);
             await fetchWithTimeout(
               `${Deno.env.get('SUPABASE_URL')}/functions/v1/crm-oficial-sync`,
               {
@@ -2516,8 +2526,7 @@ serve(async (req) => {
         try {
           const dueParts2 = newDueDate.split('-');
           const fmtDue = `${dueParts2[2]}/${dueParts2[1]}/${dueParts2[0]}`;
-          let adminMetaPhone = phoneDigits;
-          if (!adminMetaPhone.startsWith('55')) adminMetaPhone = '55' + adminMetaPhone;
+          const adminMetaPhone = toWaPhone(matchedCustomer?.phone || phoneDigits);
           let adminServerName = '-';
           if (matchedCustomer.server_id) {
             const { data: srvData } = await supabaseAdmin
