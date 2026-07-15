@@ -1203,8 +1203,7 @@ serve(async (req) => {
             .maybeSingle();
 
           if (zapSettings?.selected_department_id) {
-            let custPhone = String(pendingNew.phone).replace(/\D/g, '');
-            if (!custPhone.startsWith('55')) custPhone = '55' + custPhone;
+            const custPhone = toWaPhone(pendingNew.phone);
 
             const spNow = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
             const horaStr = `${String(spNow.getHours()).padStart(2, '0')}:${String(spNow.getMinutes()).padStart(2, '0')}`;
