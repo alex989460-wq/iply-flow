@@ -12,7 +12,9 @@ const corsHeaders = {
 function normalizePhone(p: string): string {
   let n = (p || '').replace(/\D/g, '');
   if (!n) return '';
-  if (!n.startsWith('55') && n.length <= 11) n = '55' + n;
+  const foreignDdis = ['971','598','595','593','591','353','351','86','81','61','58','57','56','54','52','51','49','44','41','39','34','33','32','31'];
+  const hasForeignDdi = foreignDdis.some((ddi) => n.startsWith(ddi) && n.length > ddi.length);
+  if (!n.startsWith('55') && !hasForeignDdi && n.length >= 10 && n.length <= 11) n = '55' + n;
   return n;
 }
 

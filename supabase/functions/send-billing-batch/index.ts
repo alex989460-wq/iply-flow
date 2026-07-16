@@ -533,7 +533,9 @@ function getRelativeDateSaoPaulo(daysOffset: number): string {
 // Normalize phone number
 function normalizePhone(phone: string): string {
   let normalized = phone.replace(/\D/g, '');
-  if (!normalized.startsWith('55') && normalized.length <= 11) {
+  const foreignDdis = ['971','598','595','593','591','353','351','86','81','61','58','57','56','54','52','51','49','44','41','39','34','33','32','31'];
+  const hasForeignDdi = foreignDdis.some((ddi) => normalized.startsWith(ddi) && normalized.length > ddi.length);
+  if (!normalized.startsWith('55') && !hasForeignDdi && normalized.length >= 10 && normalized.length <= 11) {
     normalized = '55' + normalized;
   }
   return normalized;
