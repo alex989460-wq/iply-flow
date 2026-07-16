@@ -159,6 +159,7 @@ export default function BillingSettingsCard() {
         vplay_integration_url: (settings as any).vplay_integration_url || '',
         vplay_key_message: (settings as any).vplay_key_message || 'XCLOUD',
         meta_template_name: (settings as any).meta_template_name || 'pedido_aprovado',
+        meta_phone_number_id: (settings as any).meta_phone_number_id || '',
         notification_phone: (settings as any).notification_phone || '',
         renewal_message_template: (settings as any).renewal_message_template || '',
         renewal_image_url: (settings as any).renewal_image_url || '',
