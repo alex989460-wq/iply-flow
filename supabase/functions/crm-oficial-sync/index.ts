@@ -823,6 +823,7 @@ Deno.serve(async (req) => {
       const userId = (rawBody.user_id as string | undefined) || undefined;
       const headerImageUrl = (rawBody.header_image_url || rawBody.image_url || rawBody.media_url) as string | undefined;
       const parameters = Array.isArray(rawBody.parameters) ? rawBody.parameters : [];
+      const tplPhoneNumberId = (rawBody.phone_number_id || rawBody.phoneNumberId || rawBody.from_phone_number_id) as string | undefined;
       let resellerApiKey: string | undefined;
       if (userId) {
         try {
