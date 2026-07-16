@@ -114,16 +114,15 @@ export default function CrmOficialTemplates() {
     setSyncing(true);
     setLoadError(null);
     try {
-      // Fonte primária: função dedicada de templates. A documentação pública do
-      // ZapCRM não expõe /api/public/v1/templates como endpoint garantido; por
-      // isso não bloqueamos mais a tela nessa rota do CRM.
-      const { data: metaRes, error: metaErr } = await supabase.functions.invoke('meta-templates', {
-        body: { action: 'list', limit: 250, apiKey },
-      });
-      if (metaErr) throw metaErr;
-      if (metaRes && !metaRes.error && Array.isArray(metaRes.data)) {
-        setTemplates(normalizeTemplates(metaRes));
-        return;
+      // Primária: função dedicada de templates (só chama se houver apiKey do CRM Oficial).
+      if (apiKey) {
+        const { data: metaRes, error: metaErr } = await supabase.functions.invoke('meta-templates', {
+          body: { action: 'list', limit: 250, apiKey },
+        });
+        if (!metaErr && metaRes && !metaRes.error && Array.isArray(metaRes.data)) {
+          setTemplates(normalizeTemplates(metaRes));
+          return;
+        }
       }
 
       // Fallback: Meta OAuth direto.
@@ -133,7 +132,11 @@ export default function CrmOficialTemplates() {
         return;
       }
 
-      throw new Error(oauthRes?.error || metaRes?.error || 'Nenhuma fonte de templates disponível.');
+      const msg = !apiKey
+        ? 'Configure a chave da API do CRM Oficial em Configurações para listar os templates.'
+        : (oauthRes?.error || 'Nenhuma fonte de templates disponível.');
+      setLoadError(msg);
+      setTemplates([]);
     } catch (e: any) {
       setLoadError(e.message);
       toast({ title: 'Erro ao carregar templates', description: e.message, variant: 'destructive' });
