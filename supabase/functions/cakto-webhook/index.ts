@@ -2353,6 +2353,7 @@ serve(async (req) => {
                 language: 'pt_BR',
                 user_id: matchedCustomer.created_by,
                 parameters: [],
+                phone_number_id: billingPhoneNumberId,
               }),
             },
             MESSAGE_SEND_TIMEOUT_MS,
