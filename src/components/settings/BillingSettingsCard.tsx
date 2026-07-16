@@ -101,8 +101,11 @@ export default function BillingSettingsCard() {
           body: { action: 'list-channels' },
         });
         const raw = data?.results?.channels?.body || data?.channels?.body || data?.results?.channels || data?.channels || [];
-        const list = Array.isArray(raw) ? raw : (raw?.data || raw?.items || []);
+        const list = Array.isArray(raw)
+          ? raw
+          : (raw?.whatsapp || raw?.data || raw?.items || []);
         return (list || [])
+          .filter((c: any) => c?.kind === 'whatsapp_cloud' || c?.phone_number_id)
           .map((c: any) => ({
             id: String(c?.id || ''),
             phone_number_id: String(c?.phone_number_id || ''),
