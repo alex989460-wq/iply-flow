@@ -832,25 +832,30 @@ export default function Customers() {
           const phoneWithCode = phone.startsWith('55') ? phone : `55${phone}`;
           const imageUrl = ownerBillingSettings?.renewal_image_url?.trim() || undefined;
 
-          const { data, error } = await supabase.functions.invoke('zap-responder', {
-            body: {
-              action: 'enviar-mensagem',
-              department_id: zapSettings.selected_department_id,
-              number: phoneWithCode,
-              text: message,
-              image_url: imageUrl,
-            },
-          });
+          if (shouldSendToClient) {
+            const { data, error } = await supabase.functions.invoke('zap-responder', {
+              body: {
+                action: 'enviar-mensagem',
+                department_id: zapSettings.selected_department_id,
+                number: phoneWithCode,
+                text: message,
+                image_url: imageUrl,
+              },
+            });
 
-          if (error) {
-            messageError = error.message;
-            console.error('Erro ao enviar mensagem WhatsApp:', error);
-          } else if (!data?.success) {
-            messageError = data?.error || 'Falha ao enviar mensagem.';
-            console.error('Falha ao enviar mensagem WhatsApp:', data);
+            if (error) {
+              messageError = error.message;
+              console.error('Erro ao enviar mensagem WhatsApp:', error);
+            } else if (!data?.success) {
+              messageError = data?.error || 'Falha ao enviar mensagem.';
+              console.error('Falha ao enviar mensagem WhatsApp:', data);
+            } else {
+              messageSent = true;
+              console.log('Mensagem de confirmação enviada:', data);
+            }
           } else {
             messageSent = true;
-            console.log('Mensagem de confirmação enviada:', data);
+            console.log('[Customers] Regra "somente admin" ativa — mensagem para o cliente pulada.');
           }
 
           // Send reseller/admin notification
