@@ -90,6 +90,13 @@ verify_jwt = false
 [functions.ibosol-keepalive]
 verify_jwt = false
 
+[functions.efi-webhook]
+verify_jwt = false
+
+[functions.efi-pix-public]
+verify_jwt = false
+
+
 
 
 
