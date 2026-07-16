@@ -263,9 +263,19 @@ serve(async (req) => {
       if (action === "delete") {
         const { template_name, template_id } = body;
         if (!template_name) return json({ error: "template_name é obrigatório" }, 400);
-        const r = await crmFetch(`/api/public/v1/templates/${encodeURIComponent(String(template_name))}`, crmApiKey, { method: "DELETE" });
-        if (r.ok) return json({ success: true });
-        console.error(`[MetaTemplates] CRM delete ${r.status}:`, JSON.stringify(r.body).slice(0, 300));
+
+        // Preferred: CRM's actual delete endpoint requires ?id={metaId}
+        let crmResp: any = null;
+        if (template_id) {
+          const r1 = await crmFetch(`/api/public/v1/templates?id=${encodeURIComponent(String(template_id))}`, crmApiKey, { method: "DELETE" });
+          crmResp = r1;
+          if (r1.ok) return json({ success: true });
+          console.error(`[MetaTemplates] CRM delete by id ${r1.status}:`, JSON.stringify(r1.body).slice(0, 200));
+        }
+        // Legacy path (mostly returns 404 HTML but keep as best-effort)
+        const r2 = await crmFetch(`/api/public/v1/templates/${encodeURIComponent(String(template_name))}`, crmApiKey, { method: "DELETE" });
+        if (r2.ok) return json({ success: true });
+        if (!crmResp) crmResp = r2;
 
         // Fallback: delete directly via Meta Graph API using ALL CRM's owner credentials.
         try {
@@ -282,7 +292,6 @@ serve(async (req) => {
 
           const attempted: string[] = [];
           let lastErr = "";
-          // Try every (waba, token) pair — different channels may have different perms.
           for (const cred of credentials) {
             const wabaId = String(cred?.waba_id || "").trim();
             const tk = String(cred?.system_user_token || "").trim();
@@ -291,40 +300,35 @@ serve(async (req) => {
             if (attempted.includes(pairKey)) continue;
             attempted.push(pairKey);
 
-            // Attempt 1: by hsm_id (single-language, most permissive)
             if (template_id) {
               const u1 = new URL(`https://graph.facebook.com/${GRAPH_API_VERSION}/${wabaId}/message_templates`);
               u1.searchParams.set("hsm_id", String(template_id));
               u1.searchParams.set("name", String(template_name));
               const d1 = await fetchWithTimeout(u1.toString(), { method: "DELETE", headers: { Authorization: `Bearer ${tk}` } }, 20_000);
               const t1 = await d1.text();
-              if (d1.ok) {
-                console.log(`[MetaTemplates] Graph delete OK by hsm_id (WABA ${wabaId})`);
-                return json({ success: true });
-              }
+              if (d1.ok) { console.log(`[MetaTemplates] Graph delete OK by hsm_id (WABA ${wabaId})`); return json({ success: true }); }
               lastErr = `hsm_id ${d1.status}: ${t1.slice(0, 200)}`;
-              console.warn(`[MetaTemplates] Graph delete hsm_id failed WABA ${wabaId}: ${lastErr}`);
             }
-
-            // Attempt 2: by name (deletes all languages)
             const u2 = new URL(`https://graph.facebook.com/${GRAPH_API_VERSION}/${wabaId}/message_templates`);
             u2.searchParams.set("name", String(template_name));
             const d2 = await fetchWithTimeout(u2.toString(), { method: "DELETE", headers: { Authorization: `Bearer ${tk}` } }, 20_000);
             const t2 = await d2.text();
-            if (d2.ok) {
-              console.log(`[MetaTemplates] Graph delete OK by name (WABA ${wabaId})`);
-              return json({ success: true });
-            }
+            if (d2.ok) { console.log(`[MetaTemplates] Graph delete OK by name (WABA ${wabaId})`); return json({ success: true }); }
             lastErr = `name ${d2.status}: ${t2.slice(0, 200)}`;
-            console.warn(`[MetaTemplates] Graph delete name failed WABA ${wabaId}: ${lastErr}`);
+            console.warn(`[MetaTemplates] Graph delete failed WABA ${wabaId}: ${lastErr}`);
           }
 
-          const friendly = lastErr.includes("(#100)")
-            ? "O token do CRM Oficial não tem permissão whatsapp_business_management no WABA. Exclua este template diretamente pelo painel do ZapCRM ou pelo Gerenciador da Meta."
-            : (lastErr || (typeof r.body === "string" ? "CRM não expõe endpoint de exclusão" : (r.body?.error || `CRM Oficial ${r.status}`)));
-          return json({ error: friendly, details: r.body }, 400);
+          const crmBodyText = typeof crmResp?.body === "string" ? crmResp.body : JSON.stringify(crmResp?.body || {});
+          const notDeletable = /not deletable/i.test(crmBodyText);
+          const noPerm = /\(#100\)|permission/i.test(lastErr);
+          const friendly = notDeletable
+            ? "O CRM Oficial não permite excluir este template pela API pública. Acesse zapcrm.top → WhatsApp → Templates para excluir manualmente."
+            : noPerm
+              ? "O token do WhatsApp não tem permissão whatsapp_business_management. Exclua o template pelo painel do ZapCRM (zapcrm.top) ou pelo Gerenciador da Meta."
+              : (lastErr || crmBodyText.slice(0, 200) || "Falha ao excluir o template.");
+          return json({ error: friendly, crm_only: notDeletable || noPerm, details: crmResp?.body }, 400);
         } catch (fallbackErr: any) {
-          return json({ error: r.body?.error || fallbackErr?.message || `CRM Oficial ${r.status}`, details: r.body }, r.status || 500);
+          return json({ error: fallbackErr?.message || "Falha ao excluir o template.", details: crmResp?.body }, 500);
         }
       }
 
