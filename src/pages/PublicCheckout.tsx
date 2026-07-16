@@ -47,6 +47,16 @@ export default function PublicCheckout() {
   >({ status: 'idle' });
 
 
+  // Efí Pix
+  const [efiEnabled, setEfiEnabled] = useState(false);
+  const [efiSubmitting, setEfiSubmitting] = useState(false);
+  const [efiCharge, setEfiCharge] = useState<
+    | null
+    | { txid: string; qrcode_base64: string; pix_copia_cola: string; amount: number; status: 'pending' | 'paid' | 'expired' | 'cancelled' }
+  >(null);
+  const pollRef = useRef<number | null>(null);
+
+
   useEffect(() => {
     if (!userId) return;
     const fetchData = async () => {
@@ -60,6 +70,16 @@ export default function PublicCheckout() {
         setServers(data.servers || []);
         setPlans(data.plans || []);
         setOwnerName(data.owner_name || '');
+
+        // Ask whether this owner has Efí Pix enabled — silent, best-effort.
+        try {
+          const { data: efi } = await supabase.functions.invoke('efi-pix-public', {
+            body: { action: 'is-enabled', owner_id: userId },
+          });
+          setEfiEnabled(!!efi?.enabled);
+        } catch {
+          setEfiEnabled(false);
+        }
       } catch {
         toast({ title: 'Erro ao carregar dados', variant: 'destructive' });
       } finally {
