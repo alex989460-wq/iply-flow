@@ -21,6 +21,7 @@ import BillingSettingsCard from '@/components/settings/BillingSettingsCard';
 import BackupManagerCard from '@/components/settings/BackupManagerCard';
 import EvolutionApiCard from '@/components/settings/EvolutionApiCard';
 import CrmOficialCard from '@/components/settings/CrmOficialCard';
+import EfiSettingsCard from '@/components/settings/EfiSettingsCard';
 import PanelThemeCard from '@/components/settings/PanelThemeCard';
 import AttendancesStatsCard from '@/components/settings/AttendancesStatsCard';
 import { Palette, MessageSquare } from 'lucide-react';
@@ -720,9 +721,11 @@ export default function Settings() {
           )}
 
           {/* Cobrança Tab */}
-          <TabsContent value="cobranca" className="mt-6">
+          <TabsContent value="cobranca" className="mt-6 space-y-6">
             <BillingSettingsCard />
+            <EfiSettingsCard />
           </TabsContent>
+
 
 
           {/* APIs Externas Tab */}

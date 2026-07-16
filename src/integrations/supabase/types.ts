@@ -1214,6 +1214,114 @@ export type Database = {
         }
         Relationships: []
       }
+      efi_charges: {
+        Row: {
+          amount: number
+          created_at: string
+          customer_id: string | null
+          environment: string
+          expires_at: string | null
+          id: string
+          metadata: Json
+          owner_id: string
+          paid_at: string | null
+          pending_id: string | null
+          pending_kind: string | null
+          pix_copia_cola: string | null
+          qrcode_base64: string | null
+          status: string
+          txid: string
+          updated_at: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          customer_id?: string | null
+          environment: string
+          expires_at?: string | null
+          id?: string
+          metadata?: Json
+          owner_id: string
+          paid_at?: string | null
+          pending_id?: string | null
+          pending_kind?: string | null
+          pix_copia_cola?: string | null
+          qrcode_base64?: string | null
+          status?: string
+          txid: string
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          customer_id?: string | null
+          environment?: string
+          expires_at?: string | null
+          id?: string
+          metadata?: Json
+          owner_id?: string
+          paid_at?: string | null
+          pending_id?: string | null
+          pending_kind?: string | null
+          pix_copia_cola?: string | null
+          qrcode_base64?: string | null
+          status?: string
+          txid?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      efi_settings: {
+        Row: {
+          cert_p12_base64: string | null
+          cert_password: string
+          client_id: string | null
+          client_secret: string | null
+          created_at: string
+          enabled: boolean
+          environment: string
+          id: string
+          last_error: string | null
+          last_verified_at: string | null
+          pix_key: string | null
+          updated_at: string
+          user_id: string
+          webhook_configured_at: string | null
+        }
+        Insert: {
+          cert_p12_base64?: string | null
+          cert_password?: string
+          client_id?: string | null
+          client_secret?: string | null
+          created_at?: string
+          enabled?: boolean
+          environment?: string
+          id?: string
+          last_error?: string | null
+          last_verified_at?: string | null
+          pix_key?: string | null
+          updated_at?: string
+          user_id: string
+          webhook_configured_at?: string | null
+        }
+        Update: {
+          cert_p12_base64?: string | null
+          cert_password?: string
+          client_id?: string | null
+          client_secret?: string | null
+          created_at?: string
+          enabled?: boolean
+          environment?: string
+          id?: string
+          last_error?: string | null
+          last_verified_at?: string | null
+          pix_key?: string | null
+          updated_at?: string
+          user_id?: string
+          webhook_configured_at?: string | null
+        }
+        Relationships: []
+      }
       evolution_billing_schedule: {
         Row: {
           created_at: string

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -6,7 +6,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { PhoneInput } from '@/components/ui/phone-input';
 import { Label } from '@/components/ui/label';
-import { Loader2, ShoppingCart, User, Phone, Package, ExternalLink, Check, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { Loader2, ShoppingCart, User, Phone, Package, ExternalLink, Check, AlertCircle, CheckCircle2, QrCode, Copy } from 'lucide-react';
 
 import { useToast } from '@/hooks/use-toast';
 
@@ -46,6 +47,16 @@ export default function PublicCheckout() {
   >({ status: 'idle' });
 
 
+  // Efí Pix
+  const [efiEnabled, setEfiEnabled] = useState(false);
+  const [efiSubmitting, setEfiSubmitting] = useState(false);
+  const [efiCharge, setEfiCharge] = useState<
+    | null
+    | { txid: string; qrcode_base64: string; pix_copia_cola: string; amount: number; status: 'pending' | 'paid' | 'expired' | 'cancelled' }
+  >(null);
+  const pollRef = useRef<number | null>(null);
+
+
   useEffect(() => {
     if (!userId) return;
     const fetchData = async () => {
@@ -59,6 +70,16 @@ export default function PublicCheckout() {
         setServers(data.servers || []);
         setPlans(data.plans || []);
         setOwnerName(data.owner_name || '');
+
+        // Ask whether this owner has Efí Pix enabled — silent, best-effort.
+        try {
+          const { data: efi } = await supabase.functions.invoke('efi-pix-public', {
+            body: { action: 'is-enabled', owner_id: userId },
+          });
+          setEfiEnabled(!!efi?.enabled);
+        } catch {
+          setEfiEnabled(false);
+        }
       } catch {
         toast({ title: 'Erro ao carregar dados', variant: 'destructive' });
       } finally {
@@ -114,44 +135,110 @@ export default function PublicCheckout() {
     return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const validateForm = () => {
     if (!name.trim() || !phone.trim() || !username.trim() || !planId || !selectedPlan) {
       toast({ title: 'Preencha todos os campos', variant: 'destructive' });
-      return;
+      return false;
     }
+    return true;
+  };
 
-    setSubmitting(true);
-    try {
-      // Save pending new customer
-      // PhoneInput já entrega dígitos com DDI. Só prefixa 55 se não houver DDI nenhum (compat).
-      const phoneDigits = phone.replace(/\D/g, '');
-      const phoneNormalized = phoneDigits.length >= 11 ? phoneDigits : '55' + phoneDigits;
+  /** Insert the pending_new_customers row and return its id. Shared by both providers. */
+  const createPendingRow = async (): Promise<string | null> => {
+    const phoneDigits = phone.replace(/\D/g, '');
+    const phoneNormalized = phoneDigits.length >= 11 ? phoneDigits : '55' + phoneDigits;
+    const detectedServerId =
+      verifyResult.status === 'ok' && verifyResult.server_id ? verifyResult.server_id : null;
 
-      // Prefer the server detected during username verification (vplay/natv).
-      // Fallback to first available server if none was detected.
-      const detectedServerId =
-        verifyResult.status === 'ok' && verifyResult.server_id ? verifyResult.server_id : null;
-
-      const { error } = await supabase.from('pending_new_customers' as any).insert({
+    const { data, error } = await (supabase
+      .from('pending_new_customers' as any)
+      .insert({
         owner_id: userId,
         name: name.trim(),
         phone: phoneNormalized,
         username: username.trim(),
         server_id: detectedServerId || (servers.length > 0 ? servers[0].id : null),
         plan_id: planId,
-        checkout_url: selectedPlan.checkout_url,
-      });
+        checkout_url: selectedPlan?.checkout_url || '',
+      })
+      .select('id')
+      .single() as any);
+    if (error) throw error;
+    return data?.id || null;
+  };
 
-      if (error) throw error;
-
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!validateForm()) return;
+    setSubmitting(true);
+    try {
+      await createPendingRow();
       // Redirect to Cakto checkout
-      window.location.href = selectedPlan.checkout_url;
+      window.location.href = selectedPlan!.checkout_url;
     } catch (err: any) {
       toast({ title: 'Erro ao processar', description: err.message, variant: 'destructive' });
       setSubmitting(false);
     }
   };
+
+  const payWithEfi = async () => {
+    if (!validateForm()) return;
+    setEfiSubmitting(true);
+    try {
+      const pendingId = await createPendingRow();
+      if (!pendingId) throw new Error('Não foi possível registrar seu pedido.');
+
+      const { data, error } = await supabase.functions.invoke('efi-pix-public', {
+        body: { action: 'create-charge-for-pending', owner_id: userId, pending_id: pendingId },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      setEfiCharge({
+        txid: data.txid,
+        qrcode_base64: data.qrcode_base64,
+        pix_copia_cola: data.pix_copia_cola,
+        amount: data.amount,
+        status: 'pending',
+      });
+    } catch (err: any) {
+      toast({ title: 'Erro ao gerar Pix', description: err.message, variant: 'destructive' });
+    } finally {
+      setEfiSubmitting(false);
+    }
+  };
+
+  // Poll charge status while dialog is open and status is still pending.
+  useEffect(() => {
+    if (!efiCharge || efiCharge.status !== 'pending') {
+      if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
+      return;
+    }
+    pollRef.current = window.setInterval(async () => {
+      try {
+        const { data } = await supabase.functions.invoke('efi-pix-public', {
+          body: { action: 'poll', txid: efiCharge.txid },
+        });
+        if (data?.status && data.status !== 'pending') {
+          setEfiCharge(c => c ? { ...c, status: data.status } : c);
+          if (data.status === 'paid') {
+            toast({ title: 'Pagamento confirmado!', description: 'Sua assinatura foi ativada.' });
+          }
+        }
+      } catch { /* ignore transient errors */ }
+    }, 4000);
+    return () => { if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; } };
+  }, [efiCharge?.txid, efiCharge?.status]);
+
+  const copyPix = async () => {
+    if (!efiCharge?.pix_copia_cola) return;
+    try {
+      await navigator.clipboard.writeText(efiCharge.pix_copia_cola);
+      toast({ title: 'Copiado!', description: 'Cole no app do seu banco.' });
+    } catch {
+      toast({ title: 'Não foi possível copiar', variant: 'destructive' });
+    }
+  };
+
 
   if (loading) {
     return (
@@ -309,11 +396,85 @@ export default function PublicCheckout() {
               )}
               {verifying ? 'Verificando usuário...' :
                 verifyResult.status === 'notfound' ? 'Usuário inválido' :
-                'Ir para Pagamento'}
+                'Pagar com Cartão / Cakto'}
             </Button>
+
+            {efiEnabled && (
+              <>
+                <div className="relative py-1">
+                  <div className="absolute inset-0 flex items-center">
+                    <div className="w-full border-t border-border/40" />
+                  </div>
+                  <div className="relative flex justify-center">
+                    <span className="bg-card px-3 text-xs text-muted-foreground uppercase tracking-wider">ou</span>
+                  </div>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full border-emerald-500/40 hover:bg-emerald-500/10"
+                  size="lg"
+                  onClick={payWithEfi}
+                  disabled={
+                    efiSubmitting || submitting || !name || !phone || !username || !planId ||
+                    verifying || verifyResult.status !== 'ok'
+                  }
+                >
+                  {efiSubmitting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <QrCode className="w-4 h-4 mr-2" />}
+                  Pagar com Pix (Efí)
+                </Button>
+              </>
+            )}
           </form>
         </CardContent>
       </Card>
+
+      {/* Efí Pix dialog */}
+      <Dialog open={!!efiCharge} onOpenChange={(o) => { if (!o) setEfiCharge(null); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <QrCode className="w-5 h-5 text-emerald-500" /> Pague com Pix
+            </DialogTitle>
+            <DialogDescription>
+              {efiCharge?.status === 'paid'
+                ? 'Pagamento confirmado! Sua assinatura foi ativada.'
+                : `Valor: R$ ${efiCharge?.amount?.toFixed(2)} — escaneie o QR ou copie o código.`}
+            </DialogDescription>
+          </DialogHeader>
+          {efiCharge?.status === 'paid' ? (
+            <div className="flex flex-col items-center gap-3 py-4">
+              <div className="w-16 h-16 rounded-full bg-emerald-500/20 flex items-center justify-center">
+                <CheckCircle2 className="w-9 h-9 text-emerald-500" />
+              </div>
+              <p className="text-sm text-center text-muted-foreground">Você já pode fechar esta janela.</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {efiCharge?.qrcode_base64 && (
+                <div className="flex justify-center">
+                  <img src={efiCharge.qrcode_base64} alt="QR Code Pix" className="w-56 h-56 rounded-lg border border-border/60 bg-white p-2" />
+                </div>
+              )}
+              {efiCharge?.pix_copia_cola && (
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Pix copia-e-cola</Label>
+                  <div className="flex gap-2">
+                    <Input readOnly value={efiCharge.pix_copia_cola} className="font-mono text-xs" />
+                    <Button type="button" variant="outline" size="icon" onClick={copyPix}>
+                      <Copy className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </div>
+              )}
+              <p className="text-xs text-center text-muted-foreground flex items-center justify-center gap-1">
+                <Loader2 className="w-3 h-3 animate-spin" /> Aguardando confirmação do pagamento…
+              </p>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
+
   );
 }
