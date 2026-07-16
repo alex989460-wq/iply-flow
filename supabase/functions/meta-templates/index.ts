@@ -213,16 +213,8 @@ serve(async (req) => {
         if (parameter_format === "NAMED" || parameter_format === "POSITIONAL") payload.parameter_format = parameter_format;
         if (allow_category_change) payload.allow_category_change = true;
         console.log(`[MetaTemplates] CRM create payload:`, JSON.stringify(payload).slice(0, 2000));
-        let r = await crmFetch("/api/public/v1/templates", crmApiKey, { method: "POST", body: JSON.stringify(payload) });
-        // Retry without parameter_format if CRM rejects with "Invalid parameter"
-        if (!r.ok && payload.parameter_format) {
-          const bodyStr = typeof r.body === "string" ? r.body : JSON.stringify(r.body || "");
-          if (/invalid parameter/i.test(bodyStr)) {
-            const { parameter_format: _pf, ...retryPayload } = payload;
-            console.log(`[MetaTemplates] retry without parameter_format`);
-            r = await crmFetch("/api/public/v1/templates", crmApiKey, { method: "POST", body: JSON.stringify(retryPayload) });
-          }
-        }
+        const r = await crmFetch("/api/public/v1/templates", crmApiKey, { method: "POST", body: JSON.stringify(payload) });
+
         if (!r.ok) {
           console.error(`[MetaTemplates] CRM create ${r.status}:`, JSON.stringify(r.body).slice(0, 500));
           const detailMsg = (r.body as any)?.error?.error_user_msg
@@ -261,12 +253,48 @@ serve(async (req) => {
         const { template_name } = body;
         if (!template_name) return json({ error: "template_name é obrigatório" }, 400);
         const r = await crmFetch(`/api/public/v1/templates/${encodeURIComponent(String(template_name))}`, crmApiKey, { method: "DELETE" });
-        if (!r.ok) {
-          console.error(`[MetaTemplates] CRM delete ${r.status}:`, JSON.stringify(r.body).slice(0, 300));
-          return json({ error: r.body?.error || `CRM Oficial ${r.status}`, details: r.body }, r.status || 500);
+        if (r.ok) return json({ success: true });
+        console.error(`[MetaTemplates] CRM delete ${r.status}:`, JSON.stringify(r.body).slice(0, 300));
+
+        // Fallback: delete directly via Meta Graph API using CRM's owner credentials
+        try {
+          const accessToken = await getCrmOwnerSession(crmApiKey);
+          const credentials: Array<any> = [];
+          try {
+            const legacy = await crmRest("whatsapp_settings?select=system_user_token,waba_id&limit=1", accessToken) as any[];
+            for (const row of legacy || []) credentials.push(row);
+          } catch (_) { /* ignore */ }
+          try {
+            const channels = await crmRest("channels?select=system_user_token,waba_id&kind=eq.whatsapp_cloud&is_active=eq.true&order=created_at.desc", accessToken) as any[];
+            for (const row of channels || []) credentials.push(row);
+          } catch (_) { /* ignore */ }
+          const seen = new Set<string>();
+          let lastErr = "";
+          for (const cred of credentials) {
+            const wabaId = String(cred?.waba_id || "").trim();
+            const tk = String(cred?.system_user_token || "").trim();
+            if (!wabaId || !tk || seen.has(wabaId)) continue;
+            seen.add(wabaId);
+            const url = new URL(`https://graph.facebook.com/${GRAPH_API_VERSION}/${wabaId}/message_templates`);
+            url.searchParams.set("name", String(template_name));
+            const del = await fetchWithTimeout(url.toString(), {
+              method: "DELETE",
+              headers: { Authorization: `Bearer ${tk}` },
+            }, 20_000);
+            const dtxt = await del.text();
+            if (del.ok) {
+              console.log(`[MetaTemplates] Graph delete OK (WABA ${wabaId}) name=${template_name}`);
+              return json({ success: true });
+            }
+            lastErr = `${del.status}: ${dtxt.slice(0, 200)}`;
+            console.warn(`[MetaTemplates] Graph delete failed WABA ${wabaId}: ${lastErr}`);
+          }
+          return json({ error: lastErr || (typeof r.body === "string" ? r.body : (r.body?.error || `CRM Oficial ${r.status}`)), details: r.body }, r.status || 500);
+        } catch (fallbackErr: any) {
+          return json({ error: r.body?.error || fallbackErr?.message || `CRM Oficial ${r.status}`, details: r.body }, r.status || 500);
         }
-        return json({ success: true });
       }
+
     }
 
     // ============================================================
