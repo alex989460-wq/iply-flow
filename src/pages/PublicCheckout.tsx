@@ -396,11 +396,85 @@ export default function PublicCheckout() {
               )}
               {verifying ? 'Verificando usuário...' :
                 verifyResult.status === 'notfound' ? 'Usuário inválido' :
-                'Ir para Pagamento'}
+                'Pagar com Cartão / Cakto'}
             </Button>
+
+            {efiEnabled && (
+              <>
+                <div className="relative py-1">
+                  <div className="absolute inset-0 flex items-center">
+                    <div className="w-full border-t border-border/40" />
+                  </div>
+                  <div className="relative flex justify-center">
+                    <span className="bg-card px-3 text-xs text-muted-foreground uppercase tracking-wider">ou</span>
+                  </div>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full border-emerald-500/40 hover:bg-emerald-500/10"
+                  size="lg"
+                  onClick={payWithEfi}
+                  disabled={
+                    efiSubmitting || submitting || !name || !phone || !username || !planId ||
+                    verifying || verifyResult.status !== 'ok'
+                  }
+                >
+                  {efiSubmitting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <QrCode className="w-4 h-4 mr-2" />}
+                  Pagar com Pix (Efí)
+                </Button>
+              </>
+            )}
           </form>
         </CardContent>
       </Card>
+
+      {/* Efí Pix dialog */}
+      <Dialog open={!!efiCharge} onOpenChange={(o) => { if (!o) setEfiCharge(null); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <QrCode className="w-5 h-5 text-emerald-500" /> Pague com Pix
+            </DialogTitle>
+            <DialogDescription>
+              {efiCharge?.status === 'paid'
+                ? 'Pagamento confirmado! Sua assinatura foi ativada.'
+                : `Valor: R$ ${efiCharge?.amount?.toFixed(2)} — escaneie o QR ou copie o código.`}
+            </DialogDescription>
+          </DialogHeader>
+          {efiCharge?.status === 'paid' ? (
+            <div className="flex flex-col items-center gap-3 py-4">
+              <div className="w-16 h-16 rounded-full bg-emerald-500/20 flex items-center justify-center">
+                <CheckCircle2 className="w-9 h-9 text-emerald-500" />
+              </div>
+              <p className="text-sm text-center text-muted-foreground">Você já pode fechar esta janela.</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {efiCharge?.qrcode_base64 && (
+                <div className="flex justify-center">
+                  <img src={efiCharge.qrcode_base64} alt="QR Code Pix" className="w-56 h-56 rounded-lg border border-border/60 bg-white p-2" />
+                </div>
+              )}
+              {efiCharge?.pix_copia_cola && (
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Pix copia-e-cola</Label>
+                  <div className="flex gap-2">
+                    <Input readOnly value={efiCharge.pix_copia_cola} className="font-mono text-xs" />
+                    <Button type="button" variant="outline" size="icon" onClick={copyPix}>
+                      <Copy className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </div>
+              )}
+              <p className="text-xs text-center text-muted-foreground flex items-center justify-center gap-1">
+                <Loader2 className="w-3 h-3 animate-spin" /> Aguardando confirmação do pagamento…
+              </p>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
+
   );
 }
