@@ -353,10 +353,27 @@ export default function BillingSettingsCard() {
       {/* Notification & Renewal Message */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg">📞 Notificações e Mensagem de Renovação</CardTitle>
-          <CardDescription>Configure o telefone que receberá confirmações e personalize a mensagem enviada ao cliente</CardDescription>
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex-1">
+              <CardTitle className="text-lg">📞 Notificações e Mensagem de Renovação</CardTitle>
+              <CardDescription>Configure o telefone que receberá confirmações e personalize a mensagem enviada ao cliente</CardDescription>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <span className={`text-xs font-medium ${notificationsEnabled ? 'text-emerald-500' : 'text-muted-foreground'}`}>
+                {notificationsEnabled ? 'Ativado' : 'Desativado'}
+              </span>
+              <Switch
+                checked={notificationsEnabled}
+                onCheckedChange={(checked) => {
+                  setNotificationsEnabled(checked);
+                  if (notifStorageKey) localStorage.setItem(notifStorageKey, checked ? '1' : '0');
+                }}
+              />
+            </div>
+          </div>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className={`space-y-4 ${notificationsEnabled ? '' : 'opacity-50 pointer-events-none'}`}>
+
           <div className="space-y-2">
             <Label className="text-sm">Telefone para Notificações</Label>
             <Input
