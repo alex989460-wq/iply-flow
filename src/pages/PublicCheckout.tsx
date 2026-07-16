@@ -135,44 +135,110 @@ export default function PublicCheckout() {
     return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const validateForm = () => {
     if (!name.trim() || !phone.trim() || !username.trim() || !planId || !selectedPlan) {
       toast({ title: 'Preencha todos os campos', variant: 'destructive' });
-      return;
+      return false;
     }
+    return true;
+  };
 
-    setSubmitting(true);
-    try {
-      // Save pending new customer
-      // PhoneInput já entrega dígitos com DDI. Só prefixa 55 se não houver DDI nenhum (compat).
-      const phoneDigits = phone.replace(/\D/g, '');
-      const phoneNormalized = phoneDigits.length >= 11 ? phoneDigits : '55' + phoneDigits;
+  /** Insert the pending_new_customers row and return its id. Shared by both providers. */
+  const createPendingRow = async (): Promise<string | null> => {
+    const phoneDigits = phone.replace(/\D/g, '');
+    const phoneNormalized = phoneDigits.length >= 11 ? phoneDigits : '55' + phoneDigits;
+    const detectedServerId =
+      verifyResult.status === 'ok' && verifyResult.server_id ? verifyResult.server_id : null;
 
-      // Prefer the server detected during username verification (vplay/natv).
-      // Fallback to first available server if none was detected.
-      const detectedServerId =
-        verifyResult.status === 'ok' && verifyResult.server_id ? verifyResult.server_id : null;
-
-      const { error } = await supabase.from('pending_new_customers' as any).insert({
+    const { data, error } = await (supabase
+      .from('pending_new_customers' as any)
+      .insert({
         owner_id: userId,
         name: name.trim(),
         phone: phoneNormalized,
         username: username.trim(),
         server_id: detectedServerId || (servers.length > 0 ? servers[0].id : null),
         plan_id: planId,
-        checkout_url: selectedPlan.checkout_url,
-      });
+        checkout_url: selectedPlan?.checkout_url || '',
+      })
+      .select('id')
+      .single() as any);
+    if (error) throw error;
+    return data?.id || null;
+  };
 
-      if (error) throw error;
-
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!validateForm()) return;
+    setSubmitting(true);
+    try {
+      await createPendingRow();
       // Redirect to Cakto checkout
-      window.location.href = selectedPlan.checkout_url;
+      window.location.href = selectedPlan!.checkout_url;
     } catch (err: any) {
       toast({ title: 'Erro ao processar', description: err.message, variant: 'destructive' });
       setSubmitting(false);
     }
   };
+
+  const payWithEfi = async () => {
+    if (!validateForm()) return;
+    setEfiSubmitting(true);
+    try {
+      const pendingId = await createPendingRow();
+      if (!pendingId) throw new Error('Não foi possível registrar seu pedido.');
+
+      const { data, error } = await supabase.functions.invoke('efi-pix-public', {
+        body: { action: 'create-charge-for-pending', owner_id: userId, pending_id: pendingId },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      setEfiCharge({
+        txid: data.txid,
+        qrcode_base64: data.qrcode_base64,
+        pix_copia_cola: data.pix_copia_cola,
+        amount: data.amount,
+        status: 'pending',
+      });
+    } catch (err: any) {
+      toast({ title: 'Erro ao gerar Pix', description: err.message, variant: 'destructive' });
+    } finally {
+      setEfiSubmitting(false);
+    }
+  };
+
+  // Poll charge status while dialog is open and status is still pending.
+  useEffect(() => {
+    if (!efiCharge || efiCharge.status !== 'pending') {
+      if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
+      return;
+    }
+    pollRef.current = window.setInterval(async () => {
+      try {
+        const { data } = await supabase.functions.invoke('efi-pix-public', {
+          body: { action: 'poll', txid: efiCharge.txid },
+        });
+        if (data?.status && data.status !== 'pending') {
+          setEfiCharge(c => c ? { ...c, status: data.status } : c);
+          if (data.status === 'paid') {
+            toast({ title: 'Pagamento confirmado!', description: 'Sua assinatura foi ativada.' });
+          }
+        }
+      } catch { /* ignore transient errors */ }
+    }, 4000);
+    return () => { if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; } };
+  }, [efiCharge?.txid, efiCharge?.status]);
+
+  const copyPix = async () => {
+    if (!efiCharge?.pix_copia_cola) return;
+    try {
+      await navigator.clipboard.writeText(efiCharge.pix_copia_cola);
+      toast({ title: 'Copiado!', description: 'Cole no app do seu banco.' });
+    } catch {
+      toast({ title: 'Não foi possível copiar', variant: 'destructive' });
+    }
+  };
+
 
   if (loading) {
     return (
