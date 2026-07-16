@@ -58,6 +58,9 @@ export default function BillingSettingsCard() {
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
+  const notifStorageKey = user?.id ? `renewal_notifications_enabled_${user.id}` : '';
+  const savedPhoneRef = useRef<string>('');
 
   // Fetch available templates directly from Meta (API Oficial via meta-templates edge function)
   const { data: metaTemplates = [], isLoading: loadingTemplates, refetch: refetchTemplates } = useQuery({
@@ -161,6 +164,14 @@ export default function BillingSettingsCard() {
         evolution_msg_d0: (settings as any).evolution_msg_d0 || '',
         evolution_msg_d_plus_1: (settings as any).evolution_msg_d_plus_1 || '',
       });
+      const phone = (settings as any).notification_phone || '';
+      savedPhoneRef.current = phone;
+      const stored = notifStorageKey ? localStorage.getItem(notifStorageKey) : null;
+      if (stored === null) {
+        setNotificationsEnabled(!!phone);
+      } else {
+        setNotificationsEnabled(stored === '1');
+      }
     }
   }, [settings]);
 
@@ -224,7 +235,7 @@ export default function BillingSettingsCard() {
         vplay_integration_url: data.vplay_integration_url || null,
         vplay_key_message: data.vplay_key_message || 'XCLOUD',
         meta_template_name: data.meta_template_name || 'pedido_aprovado',
-        notification_phone: data.notification_phone || '',
+        notification_phone: notificationsEnabled ? (data.notification_phone || '') : '',
         renewal_message_template: data.renewal_message_template || null,
         renewal_image_url: data.renewal_image_url || '',
         use_evolution_billing: !!data.use_evolution_billing,
@@ -342,10 +353,27 @@ export default function BillingSettingsCard() {
       {/* Notification & Renewal Message */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg">📞 Notificações e Mensagem de Renovação</CardTitle>
-          <CardDescription>Configure o telefone que receberá confirmações e personalize a mensagem enviada ao cliente</CardDescription>
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex-1">
+              <CardTitle className="text-lg">📞 Notificações e Mensagem de Renovação</CardTitle>
+              <CardDescription>Configure o telefone que receberá confirmações e personalize a mensagem enviada ao cliente</CardDescription>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <span className={`text-xs font-medium ${notificationsEnabled ? 'text-emerald-500' : 'text-muted-foreground'}`}>
+                {notificationsEnabled ? 'Ativado' : 'Desativado'}
+              </span>
+              <Switch
+                checked={notificationsEnabled}
+                onCheckedChange={(checked) => {
+                  setNotificationsEnabled(checked);
+                  if (notifStorageKey) localStorage.setItem(notifStorageKey, checked ? '1' : '0');
+                }}
+              />
+            </div>
+          </div>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className={`space-y-4 ${notificationsEnabled ? '' : 'opacity-50 pointer-events-none'}`}>
+
           <div className="space-y-2">
             <Label className="text-sm">Telefone para Notificações</Label>
             <Input
