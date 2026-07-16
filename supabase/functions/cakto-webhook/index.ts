@@ -2294,6 +2294,73 @@ serve(async (req) => {
       const shouldSendToClient = notifTarget === 'both';
       const billingPhoneNumberId = (billingSettings as any)?.meta_phone_number_id || undefined;
 
+      // Format phone with country code (usado pelo template oficial e pela mensagem dinâmica)
+      const metaPhone = toWaPhone(matchedCustomer?.phone || phoneDigits);
+
+      // ── SEMPRE dispara o template oficial aprovado para o cliente ──
+      // O template é canal separado (Meta) e serve como confirmação oficial de pagamento.
+      // A regra "somente admin" abaixo só suprime a mensagem dinâmica de texto, não o template.
+      const tplName = billingSettings?.meta_template_name;
+      if (tplName && metaPhone) {
+        try {
+          // Resolve variáveis do template (Nome, Usuário, Servidor, Vencimento)
+          let tplServerName = '-';
+          if (matchedCustomer.server_id) {
+            const { data: srvData } = await supabaseAdmin
+              .from('servers').select('server_name').eq('id', matchedCustomer.server_id).maybeSingle();
+            if (srvData) tplServerName = srvData.server_name;
+          }
+          const tplDueParts = newDueDate.split('-');
+          const tplFormattedDue = `${tplDueParts[2]}/${tplDueParts[1]}/${tplDueParts[0]}`;
+          const tplDisplayUsername = isMultiScreen
+            ? customersToRenew.map((c: any) => c.username || '-').join(', ')
+            : (matchedCustomer.username || '-');
+
+          const tplResp = await fetchWithTimeout(
+            `${Deno.env.get('SUPABASE_URL')}/functions/v1/crm-oficial-sync`,
+            {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+              },
+              body: JSON.stringify({
+                action: 'enviar-template',
+                template_name: tplName,
+                number: metaPhone,
+                language: 'pt_BR',
+                user_id: matchedCustomer.created_by,
+                parameters: [
+                  matchedCustomer.name || '-',
+                  tplDisplayUsername,
+                  tplServerName,
+                  tplFormattedDue,
+                ],
+                phone_number_id: billingPhoneNumberId,
+              }),
+            },
+            MESSAGE_SEND_TIMEOUT_MS,
+          );
+          const tplJson = await tplResp.json().catch(() => ({}));
+          const tplOk = tplResp.ok && tplJson?.success !== false;
+          console.log(`[Cakto] Template oficial "${tplName}" enviado ao cliente ${metaPhone}: status=${tplResp.status} ok=${tplOk}`);
+          await supabaseAdmin.from('message_logs').insert({
+            user_id: matchedCustomer.created_by,
+            customer_id: matchedCustomer.id,
+            customer_name: matchedCustomer.name,
+            customer_phone: metaPhone,
+            message_type: 'confirmation_template',
+            source: caktoId ? `cakto:${caktoId}` : 'cakto',
+            status: tplOk ? 'success' : 'error',
+            error_message: tplOk ? null : (tplJson?.error || tplJson?.message || `HTTP ${tplResp.status}`),
+            whatsapp_response: tplJson,
+            metadata: { template_name: tplName, always_send: true },
+          });
+        } catch (tplErr) {
+          console.error('[Cakto] Erro ao enviar template oficial (não crítico):', tplErr);
+        }
+      }
+
       if (zapSettings?.selected_department_id && shouldSendToClient) {
         // Get server name
         let serverName = '-';
@@ -2311,9 +2378,6 @@ serve(async (req) => {
         const formattedDueDate = `${dueParts[2]}/${dueParts[1]}/${dueParts[0]}`;
         const now = new Date();
         const formattedTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-
-        // Format phone with country code
-        const metaPhone = toWaPhone(matchedCustomer?.phone || phoneDigits);
 
         const displayUsername = isMultiScreen 
           ? customersToRenew.map((c: any) => c.username || '-').join(', ')
@@ -2334,38 +2398,6 @@ serve(async (req) => {
           .replace(/\{\{telefone\}\}/g, matchedCustomer.phone || '-')
           .replace(/\{\{inicio\}\}/g, matchedCustomer.start_date ? new Date(matchedCustomer.start_date + 'T12:00:00').toLocaleDateString('pt-BR') : '-')
           .replace(/\{\{status\}\}/g, matchedCustomer.status || '-');
-
-        // ── PRIMEIRO: dispara template aprovado (imagem oficial Meta) — abre janela 24h ──
-        try {
-          const tplName = billingSettings?.meta_template_name || 'aprovado';
-          const tplResp = await fetchWithTimeout(
-            `${Deno.env.get('SUPABASE_URL')}/functions/v1/crm-oficial-sync`,
-            {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
-              },
-              body: JSON.stringify({
-                action: 'enviar-template',
-                template_name: tplName,
-                number: metaPhone,
-                language: 'pt_BR',
-                user_id: matchedCustomer.created_by,
-                parameters: [],
-                phone_number_id: billingPhoneNumberId,
-              }),
-            },
-            MESSAGE_SEND_TIMEOUT_MS,
-          );
-          const tplJson = await tplResp.json().catch(() => ({}));
-          console.log(`[Cakto] Template "${tplName}" prévio: status=${tplResp.status} ok=${tplJson?.success}`);
-          // Aguarda 90s: dá tempo do cliente enviar o comprovante em resposta ao template,
-          // o que abre com segurança a janela de 24h (Service) antes da mensagem/imagem dinâmica.
-          await new Promise(r => setTimeout(r, 90000));
-        } catch (tplErr) {
-          console.error('[Cakto] Erro template prévio (não crítico):', tplErr);
-        }
 
         console.log(`[Cakto] Enviando mensagem texto dinâmica para ${metaPhone}`);
 
