@@ -862,9 +862,7 @@ export default function Customers() {
           const notificationPhoneDigits = ownerBillingSettings?.notification_phone?.replace(/\D/g, '');
           if (notificationPhoneDigits) {
             try {
-              const notificationPhone = notificationPhoneDigits.startsWith('55')
-                ? notificationPhoneDigits
-                : `55${notificationPhoneDigits}`;
+              const notificationPhone = normalizeWhatsAppPhone(ownerBillingSettings?.notification_phone);
               const adminMsg = `🔔 *Renovação Manual (Clientes)*\n\n👤 Cliente: *${customer.name}*\n📞 Tel: ${phoneWithCode}\n👤 Usuário: *${customer.username || '-'}*\n💰 Valor: *R$ ${amount.toFixed(2)}*\n📦 Plano: *${plan.plan_name}*\n🖥️ Servidor: *${customer.servers?.server_name || '-'}*\n📅 Novo vencimento: *${formattedDueDate}*\n✅ Status: Renovado`;
               await supabase.functions.invoke('zap-responder', {
                 body: {

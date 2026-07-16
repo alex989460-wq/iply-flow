@@ -704,7 +704,7 @@ Obrigado pela preferência! 🙏`;
                 body: {
                   action: 'enviar-mensagem',
                   department_id: zapSettings.selected_department_id,
-                  number: notificationPhone,
+                  number: normalizeWhatsAppPhone(notificationPhone),
                   text: adminMsg,
                 },
               });

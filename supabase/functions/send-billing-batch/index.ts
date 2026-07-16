@@ -212,7 +212,9 @@ async function sendWhatsAppTemplateMeta(
 ): Promise<{ success: boolean; error?: string; isBillingError?: boolean }> {
   try {
     let formattedPhone = phone.replace(/\D/g, '');
-    if (!formattedPhone.startsWith('55') && formattedPhone.length <= 11) {
+    const foreignDdis = ['971','598','595','593','591','353','351','86','81','61','58','57','56','54','52','51','49','44','41','39','34','33','32','31'];
+    const hasForeignDdi = foreignDdis.some((ddi) => formattedPhone.startsWith(ddi) && formattedPhone.length > ddi.length);
+    if (!formattedPhone.startsWith('55') && !hasForeignDdi && formattedPhone.length >= 10 && formattedPhone.length <= 11) {
       formattedPhone = '55' + formattedPhone;
     }
     
@@ -328,7 +330,9 @@ async function sendWhatsAppTemplateZap(
 ): Promise<{ success: boolean; error?: string }> {
   try {
     let formattedPhone = phone.replace(/\D/g, '');
-    if (!formattedPhone.startsWith('55') && formattedPhone.length <= 11) {
+    const foreignDdis = ['971','598','595','593','591','353','351','86','81','61','58','57','56','54','52','51','49','44','41','39','34','33','32','31'];
+    const hasForeignDdi = foreignDdis.some((ddi) => formattedPhone.startsWith(ddi) && formattedPhone.length > ddi.length);
+    if (!formattedPhone.startsWith('55') && !hasForeignDdi && formattedPhone.length >= 10 && formattedPhone.length <= 11) {
       formattedPhone = '55' + formattedPhone;
     }
     
@@ -459,7 +463,9 @@ async function sendEvolutionText(
 ): Promise<{ success: boolean; error?: string }> {
   try {
     let formattedPhone = phone.replace(/\D/g, '');
-    if (!formattedPhone.startsWith('55') && formattedPhone.length <= 11) {
+    const foreignDdis = ['971','598','595','593','591','353','351','86','81','61','58','57','56','54','52','51','49','44','41','39','34','33','32','31'];
+    const hasForeignDdi = foreignDdis.some((ddi) => formattedPhone.startsWith(ddi) && formattedPhone.length > ddi.length);
+    if (!formattedPhone.startsWith('55') && !hasForeignDdi && formattedPhone.length >= 10 && formattedPhone.length <= 11) {
       formattedPhone = '55' + formattedPhone;
     }
     const cleanBase = baseUrl.replace(/\/$/, '');

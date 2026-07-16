@@ -306,7 +306,9 @@ serve(async (req) => {
         const rawPhone = String(customer.phone || '').trim();
         const hasPlus = rawPhone.startsWith('+');
         let metaPhone = rawPhone.replace(/\D/g, '');
-        if (!hasPlus && !metaPhone.startsWith('55') && metaPhone.length >= 10 && metaPhone.length <= 11) {
+        const foreignDdis = ['971','598','595','593','591','353','351','86','81','61','58','57','56','54','52','51','49','44','41','39','34','33','32','31'];
+        const hasForeignDdi = foreignDdis.some((ddi) => metaPhone.startsWith(ddi) && metaPhone.length > ddi.length);
+        if (!hasPlus && !metaPhone.startsWith('55') && !hasForeignDdi && metaPhone.length >= 10 && metaPhone.length <= 11) {
           metaPhone = '55' + metaPhone;
         }
 
