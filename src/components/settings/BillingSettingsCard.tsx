@@ -104,6 +104,7 @@ export default function BillingSettingsCard() {
     notification_phone: '',
     renewal_message_template: '',
     renewal_image_url: '',
+    renewal_notification_target: 'both',
     use_evolution_billing: false,
     evolution_instance: '',
     evolution_msg_d_minus_1: '',
