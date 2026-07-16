@@ -781,9 +781,11 @@ Deno.serve(async (req) => {
           console.error("[crm-oficial-sync sendText] erro lookup api_key:", e);
         }
       }
+      const phoneNumberId = (rawBody.phone_number_id || rawBody.phoneNumberId || rawBody.from_phone_number_id) as string | undefined;
       let sendResult = await doSendWhatsapp({
         phone,
         body,
+        ...(phoneNumberId ? { phone_number_id: String(phoneNumberId), from_phone_number_id: String(phoneNumberId) } : {}),
         ...(mediaUrl ? { media_url: mediaUrl, media_type: "image", caption: body } : {}),
       }, resellerApiKey);
       let ok = (sendResult as any)?.ok === true;
