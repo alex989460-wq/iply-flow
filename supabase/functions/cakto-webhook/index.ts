@@ -2286,12 +2286,13 @@ serve(async (req) => {
       // Fetch billing settings for custom message template and notification phone
       const { data: billingSettings } = await supabaseAdmin
         .from('billing_settings')
-        .select('notification_phone, renewal_message_template, renewal_image_url, meta_template_name, renewal_notification_target')
+        .select('notification_phone, renewal_message_template, renewal_image_url, meta_template_name, renewal_notification_target, meta_phone_number_id')
         .eq('user_id', matchedCustomer.created_by)
         .maybeSingle();
 
       const notifTarget = ((billingSettings as any)?.renewal_notification_target || 'both') as 'admin' | 'both';
       const shouldSendToClient = notifTarget === 'both';
+      const billingPhoneNumberId = (billingSettings as any)?.meta_phone_number_id || undefined;
 
       if (zapSettings?.selected_department_id && shouldSendToClient) {
         // Get server name
