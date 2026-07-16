@@ -186,11 +186,27 @@ async function authedRequest(
   return { status: resp.status, body: parsed };
 }
 
-/** Register (or replace) the webhook URL for a given Pix key. */
+/**
+ * Register (or replace) the webhook URL for a given Pix key.
+ * Efí normally requires mTLS on the receiving side too — Supabase Edge
+ * terminates TLS at the platform, so we send `x-skip-mtls-checking: true`
+ * to bypass that check (documented by Efí).
+ */
 export async function registerWebhook(c: EfiCredentials, webhookUrl: string) {
-  return await authedRequest(c, "PUT", `/v2/webhook/${encodeURIComponent(c.pixKey)}`, {
-    webhookUrl,
+  const token = await getAccessToken(c);
+  const resp = await mtlsFetch(c, `/v2/webhook/${encodeURIComponent(c.pixKey)}`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+      "x-skip-mtls-checking": "true",
+    },
+    body: JSON.stringify({ webhookUrl }),
   });
+  const text = await resp.text();
+  let parsed: any = null;
+  try { parsed = text ? JSON.parse(text) : null; } catch { parsed = { raw: text }; }
+  return { status: resp.status, body: parsed };
 }
 
 export async function getWebhook(c: EfiCredentials) {
