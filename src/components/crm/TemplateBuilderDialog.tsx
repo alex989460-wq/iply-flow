@@ -257,13 +257,34 @@ export default function TemplateBuilderDialog({ open, onOpenChange, mode, initia
   const getParameterFormat = () => {
     const vars = extractVarTokens(form.body);
     if (!vars.length) return undefined;
-    return vars.every(v => /^\d+$/.test(v)) ? 'POSITIONAL' : 'NAMED';
+    // Honor the user's selection so a mixed body doesn't silently flip format.
+    return form.varType === 'NAME' ? 'NAMED' : 'POSITIONAL';
   };
 
   const save = async () => {
     if (!form.name.trim() || !form.body.trim()) {
       toast({ title: 'Campos obrigatórios', description: 'Nome e corpo são obrigatórios.', variant: 'destructive' });
       return;
+    }
+    // Validate variables match the selected format (Meta rejects mismatches).
+    const vars = extractVarTokens(form.body);
+    if (form.varType === 'NAME') {
+      const bad = vars.filter(v => /^\d+$/.test(v));
+      if (bad.length) {
+        toast({ title: 'Variável inválida', description: `Modo "Nome" selecionado, mas o corpo tem variáveis numéricas: ${bad.map(v => `{{${v}}}`).join(', ')}. Troque por nomes (ex: {{nome}}) ou mude o tipo para "Número".`, variant: 'destructive' });
+        return;
+      }
+      const invalidName = vars.find(v => !/^[a-z_][a-z0-9_]{0,23}$/.test(v));
+      if (invalidName) {
+        toast({ title: 'Nome de variável inválido', description: `"{{${invalidName}}}" deve ser minúsculo, começar com letra e conter apenas letras, números e "_" (máx. 24 caracteres).`, variant: 'destructive' });
+        return;
+      }
+    } else {
+      const bad = vars.filter(v => !/^\d+$/.test(v));
+      if (bad.length) {
+        toast({ title: 'Variável inválida', description: `Modo "Número" selecionado, mas o corpo tem variáveis nomeadas: ${bad.map(v => `{{${v}}}`).join(', ')}. Troque por números ({{1}}, {{2}}…) ou mude o tipo para "Nome".`, variant: 'destructive' });
+        return;
+      }
     }
     setSaving(true);
     try {
