@@ -235,7 +235,7 @@ export default function BillingSettingsCard() {
         vplay_integration_url: data.vplay_integration_url || null,
         vplay_key_message: data.vplay_key_message || 'XCLOUD',
         meta_template_name: data.meta_template_name || 'pedido_aprovado',
-        notification_phone: data.notification_phone || '',
+        notification_phone: notificationsEnabled ? (data.notification_phone || '') : '',
         renewal_message_template: data.renewal_message_template || null,
         renewal_image_url: data.renewal_image_url || '',
         use_evolution_billing: !!data.use_evolution_billing,
