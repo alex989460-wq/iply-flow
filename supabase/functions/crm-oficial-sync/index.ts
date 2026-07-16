@@ -799,7 +799,7 @@ Deno.serve(async (req) => {
         const requireMedia = rawBody.require_media === true || rawBody.action === "enviar-imagem";
         if (scopeIssue && !requireMedia) {
           console.warn("[crm-oficial-sync sendText] media falhou, fallback para texto puro:", status);
-          const textOnly = await doSendWhatsapp({ phone, body }, resellerApiKey);
+          const textOnly = await doSendWhatsapp({ phone, body, ...(phoneNumberId ? { phone_number_id: String(phoneNumberId), from_phone_number_id: String(phoneNumberId) } : {}) }, resellerApiKey);
           if ((textOnly as any)?.ok === true) {
             sendResult = textOnly;
             ok = true;
