@@ -135,6 +135,51 @@ async function listTemplatesDirectFromCrm(apiKey: string, limit = 250) {
   throw new Error(errors[0] || "Nenhum canal WhatsApp Cloud válido encontrado no CRM Oficial.");
 }
 
+async function getHiddenTemplateKeys(supabase: any, userId: string) {
+  const { data, error } = await supabase
+    .from("crm_oficial_hidden_templates")
+    .select("template_id,template_name,language")
+    .eq("user_id", userId);
+  if (error) {
+    console.warn("[MetaTemplates] Hidden templates unavailable:", error.message || error);
+    return new Set<string>();
+  }
+  const keys = new Set<string>();
+  for (const row of data || []) {
+    const lang = String(row.language || "").trim();
+    const name = String(row.template_name || "").trim();
+    const id = String(row.template_id || "").trim();
+    if (name) keys.add(`name:${name}:${lang}`);
+    if (id) keys.add(`id:${id}`);
+  }
+  return keys;
+}
+
+function filterHiddenTemplates(templates: any[], hiddenKeys: Set<string>) {
+  if (!hiddenKeys.size) return templates;
+  return templates.filter((template) => {
+    const id = String(template?.id || template?.template_id || "").trim();
+    const name = String(template?.name || template?.template_name || "").trim();
+    const lang = String(template?.language || template?.language_code || template?.lang || "").trim();
+    return !(id && hiddenKeys.has(`id:${id}`)) && !(name && hiddenKeys.has(`name:${name}:${lang}`));
+  });
+}
+
+async function hideTemplateLocally(supabase: any, userId: string, args: { template_id?: unknown; template_name: string; language?: unknown; reason?: string }) {
+  const payload = {
+    user_id: userId,
+    template_id: args.template_id ? String(args.template_id) : null,
+    template_name: String(args.template_name),
+    language: args.language ? String(args.language) : null,
+    reason: args.reason || "external_delete_blocked",
+    updated_at: new Date().toISOString(),
+  };
+  const { error } = await supabase
+    .from("crm_oficial_hidden_templates")
+    .upsert(payload, { onConflict: "user_id,template_name,language" });
+  if (error) throw new Error(`Falha ao ocultar template localmente: ${error.message || error}`);
+}
+
 function normalizeTemplatesBody(body: any): any[] {
   if (Array.isArray(body)) return body;
   if (Array.isArray(body?.data)) return body.data;
@@ -200,11 +245,13 @@ serve(async (req) => {
           console.error(`[MetaTemplates] CRM list ${r.status}:`, JSON.stringify(r.body).slice(0, 300));
           if (isExpiredTokenError(r.body)) {
             const direct = await listTemplatesDirectFromCrm(crmApiKey, Number(limit) || 250);
-            return json({ data: direct });
+            const hiddenKeys = await getHiddenTemplateKeys(supabase, user.id);
+            return json({ data: filterHiddenTemplates(direct, hiddenKeys) });
           }
           return json({ error: r.body?.error || `CRM Oficial ${r.status}`, details: r.body }, r.status || 500);
         }
-        return json({ data: normalizeTemplatesBody(r.body) });
+        const hiddenKeys = await getHiddenTemplateKeys(supabase, user.id);
+        return json({ data: filterHiddenTemplates(normalizeTemplatesBody(r.body), hiddenKeys) });
       }
 
       if (action === "create") {
@@ -261,7 +308,7 @@ serve(async (req) => {
       }
 
       if (action === "delete") {
-        const { template_name, template_id } = body;
+        const { template_name, template_id, template_language } = body;
         if (!template_name) return json({ error: "template_name é obrigatório" }, 400);
 
         // Preferred: CRM's actual delete endpoint requires ?id={metaId}
@@ -321,6 +368,15 @@ serve(async (req) => {
           const crmBodyText = typeof crmResp?.body === "string" ? crmResp.body : JSON.stringify(crmResp?.body || {});
           const notDeletable = /not deletable/i.test(crmBodyText);
           const noPerm = /\(#100\)|permission/i.test(lastErr);
+          if (notDeletable || noPerm) {
+            await hideTemplateLocally(supabase, user.id, {
+              template_id,
+              template_name: String(template_name),
+              language: template_language,
+              reason: notDeletable ? "crm_api_not_deletable" : "meta_permission_blocked",
+            });
+            return json({ success: true, hidden_only: true });
+          }
           const friendly = notDeletable
             ? "O CRM Oficial não permite excluir este template pela API pública. Acesse zapcrm.top → WhatsApp → Templates para excluir manualmente."
             : noPerm
