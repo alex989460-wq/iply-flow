@@ -64,7 +64,31 @@ Deno.serve(async (req) => {
         .limit(50);
       if (error) throw error;
 
-      const next = (data ?? []).find((row) => isP2Cine(row) || isUniplay(row));
+      const candidates = (data ?? []).filter((row) => isP2Cine(row) || isUniplay(row));
+
+      // Skip and cleanup any pending row whose customer was renewed in the last 12h
+      // (prevents the extension from double-renewing after Cakto/webhook already paid it).
+      const cutoff = new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString();
+      let next: any = null;
+      for (const row of candidates) {
+        if (row.customer_id) {
+          const { data: recentPay } = await supabase
+            .from("payments")
+            .select("id, created_at, source")
+            .eq("customer_id", row.customer_id)
+            .eq("confirmed", true)
+            .gte("created_at", cutoff)
+            .limit(1)
+            .maybeSingle();
+          if (recentPay) {
+            console.log(`[p2cine-queue] skipping ${row.id} (${row.customer_name}) — already paid at ${recentPay.created_at} via ${recentPay.source}`);
+            await supabase.from("pending_manual_renewals").delete().eq("id", row.id);
+            continue;
+          }
+        }
+        next = row;
+        break;
+      }
       if (!next) return json({ item: null });
 
       const panelType = isUniplay(next) ? "uniplay" : "p2cine";
