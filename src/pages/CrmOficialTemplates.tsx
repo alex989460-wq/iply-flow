@@ -178,14 +178,20 @@ export default function CrmOficialTemplates() {
   const deleteTemplate = async (t: CrmTemplate) => {
     if (!confirm(`Excluir template "${t.name}"?`)) return;
     try {
-      // Tenta Meta Graph primeiro
-      const { data: res, error: err } = await supabase.functions.invoke('meta-templates', {
+      const { data: res } = await supabase.functions.invoke('meta-templates', {
         body: { action: 'delete', template_name: t.name, template_id: t.metaId },
       });
-      if (err || res?.error) {
-        // Fallback CRM Oficial
-        const r = await invoke('delete-template', { template_name: t.name });
-        if (r?.template && !r.template.ok) throw new Error(res?.error || `Status ${r.template.status}`);
+      if (res?.error) {
+        if (res?.crm_only) {
+          toast({
+            title: 'Exclusão bloqueada pela API',
+            description: res.error,
+            variant: 'destructive',
+          });
+          window.open('https://zapcrm.top/app/whatsapp/templates', '_blank', 'noopener');
+          return;
+        }
+        throw new Error(res.error);
       }
       toast({ title: 'Template excluído' });
       await loadTemplates();
