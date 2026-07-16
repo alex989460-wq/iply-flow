@@ -967,6 +967,39 @@ export type Database = {
         }
         Relationships: []
       }
+      crm_oficial_hidden_templates: {
+        Row: {
+          created_at: string
+          id: string
+          language: string | null
+          reason: string | null
+          template_id: string | null
+          template_name: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          language?: string | null
+          reason?: string | null
+          template_id?: string | null
+          template_name: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          language?: string | null
+          reason?: string | null
+          template_id?: string | null
+          template_name?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       crm_oficial_settings: {
         Row: {
           api_key: string | null
