@@ -2286,12 +2286,13 @@ serve(async (req) => {
       // Fetch billing settings for custom message template and notification phone
       const { data: billingSettings } = await supabaseAdmin
         .from('billing_settings')
-        .select('notification_phone, renewal_message_template, renewal_image_url, meta_template_name, renewal_notification_target')
+        .select('notification_phone, renewal_message_template, renewal_image_url, meta_template_name, renewal_notification_target, meta_phone_number_id')
         .eq('user_id', matchedCustomer.created_by)
         .maybeSingle();
 
       const notifTarget = ((billingSettings as any)?.renewal_notification_target || 'both') as 'admin' | 'both';
       const shouldSendToClient = notifTarget === 'both';
+      const billingPhoneNumberId = (billingSettings as any)?.meta_phone_number_id || undefined;
 
       if (zapSettings?.selected_department_id && shouldSendToClient) {
         // Get server name
@@ -2352,6 +2353,7 @@ serve(async (req) => {
                 language: 'pt_BR',
                 user_id: matchedCustomer.created_by,
                 parameters: [],
+                phone_number_id: billingPhoneNumberId,
               }),
             },
             MESSAGE_SEND_TIMEOUT_MS,
@@ -2390,6 +2392,7 @@ serve(async (req) => {
                   user_id: matchedCustomer.created_by,
                   image_url: billingSettings?.renewal_image_url || undefined,
                   require_media: !!billingSettings?.renewal_image_url,
+                  phone_number_id: billingPhoneNumberId,
                 }),
               },
               MESSAGE_SEND_TIMEOUT_MS,
@@ -2447,6 +2450,7 @@ serve(async (req) => {
                   number: metaPhone,
                   language: 'pt_BR',
                   user_id: matchedCustomer.created_by,
+                  phone_number_id: billingPhoneNumberId,
                 }),
               },
               MESSAGE_SEND_TIMEOUT_MS,
@@ -2499,6 +2503,7 @@ serve(async (req) => {
                   user_id: matchedCustomer.created_by,
                   image_url: billingSettings?.renewal_image_url || undefined,
                   require_media: !!billingSettings?.renewal_image_url,
+                  phone_number_id: billingPhoneNumberId,
                 }),
               },
               MESSAGE_SEND_TIMEOUT_MS,
@@ -2560,6 +2565,7 @@ serve(async (req) => {
                 number: notificationPhone,
                 text: adminMsg,
                 user_id: matchedCustomer.created_by,
+                phone_number_id: billingPhoneNumberId,
               }),
             },
             MESSAGE_SEND_TIMEOUT_MS,
@@ -2588,6 +2594,7 @@ serve(async (req) => {
                     number: notificationPhone,
                     language: 'pt_BR',
                     user_id: matchedCustomer.created_by,
+                    phone_number_id: billingPhoneNumberId,
                   }),
                 },
                 MESSAGE_SEND_TIMEOUT_MS,

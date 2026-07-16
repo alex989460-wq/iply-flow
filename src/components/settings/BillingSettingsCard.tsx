@@ -31,6 +31,7 @@ interface BillingSettings {
   vplay_integration_url: string | null;
   vplay_key_message: string | null;
   meta_template_name: string | null;
+  meta_phone_number_id?: string | null;
   notification_phone: string | null;
   renewal_message_template: string | null;
   renewal_image_url: string | null;
@@ -90,6 +91,35 @@ export default function BillingSettingsCard() {
     staleTime: 5 * 60 * 1000,
   });
 
+  // Fetch Meta WhatsApp channels (multi-number support) so the reseller can pick
+  // exactly which number sends the payment confirmation.
+  const { data: metaChannels = [], isLoading: loadingChannels, refetch: refetchChannels } = useQuery({
+    queryKey: ['meta-channels-list', user?.id],
+    queryFn: async () => {
+      try {
+        const { data } = await supabase.functions.invoke('crm-oficial-sync', {
+          body: { action: 'list-channels' },
+        });
+        const raw = data?.results?.channels?.body || data?.channels?.body || data?.results?.channels || data?.channels || [];
+        const list = Array.isArray(raw) ? raw : (raw?.data || raw?.items || []);
+        return (list || [])
+          .map((c: any) => ({
+            id: String(c?.id || ''),
+            phone_number_id: String(c?.phone_number_id || ''),
+            display_phone_number: String(c?.display_phone_number || c?.phone_number || c?.number || ''),
+            verified_name: String(c?.verified_name || c?.name || c?.label || ''),
+            is_active: c?.is_active !== false,
+          }))
+          .filter((c: any) => c.phone_number_id);
+      } catch (e) {
+        console.error('Error fetching Meta channels:', e);
+        return [];
+      }
+    },
+    enabled: !!user?.id,
+    staleTime: 5 * 60 * 1000,
+  });
+
   const [formData, setFormData] = useState<Partial<BillingSettings>>({
     pix_key: '',
     pix_key_type: 'celular',
@@ -101,6 +131,7 @@ export default function BillingSettingsCard() {
     vplay_integration_url: '',
     vplay_key_message: 'XCLOUD',
     meta_template_name: 'pedido_aprovado',
+    meta_phone_number_id: '',
     notification_phone: '',
     renewal_message_template: '',
     renewal_image_url: '',
@@ -157,6 +188,7 @@ export default function BillingSettingsCard() {
         vplay_integration_url: (settings as any).vplay_integration_url || '',
         vplay_key_message: (settings as any).vplay_key_message || 'XCLOUD',
         meta_template_name: (settings as any).meta_template_name || 'pedido_aprovado',
+        meta_phone_number_id: (settings as any).meta_phone_number_id || '',
         notification_phone: (settings as any).notification_phone || '',
         renewal_message_template: (settings as any).renewal_message_template || '',
         renewal_image_url: (settings as any).renewal_image_url || '',
@@ -238,6 +270,7 @@ export default function BillingSettingsCard() {
         vplay_integration_url: data.vplay_integration_url || null,
         vplay_key_message: data.vplay_key_message || 'XCLOUD',
         meta_template_name: data.meta_template_name || 'pedido_aprovado',
+        meta_phone_number_id: data.meta_phone_number_id || null,
         notification_phone: notificationsEnabled ? (data.notification_phone || '') : '',
         renewal_message_template: data.renewal_message_template || null,
         renewal_image_url: data.renewal_image_url || '',
@@ -533,6 +566,48 @@ export default function BillingSettingsCard() {
             )}
             <p className="text-xs text-muted-foreground">
               Variáveis disponíveis: {'{{1}}'} Nome, {'{{2}}'} Usuário, {'{{3}}'} Servidor, {'{{4}}'} Vencimento.
+            </p>
+          </div>
+
+          {/* Selector: which Meta phone number should send the confirmation */}
+          <div className="space-y-2 pt-2 border-t">
+            <Label className="text-sm">Número do WhatsApp (API Oficial) que envia a confirmação</Label>
+            <div className="flex gap-2">
+              <Select
+                value={formData.meta_phone_number_id || '__default__'}
+                onValueChange={(v) => setFormData({ ...formData, meta_phone_number_id: v === '__default__' ? '' : v })}
+              >
+                <SelectTrigger className="flex-1">
+                  <SelectValue placeholder="Número padrão (mais recente)" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__default__">Número padrão (mais recente)</SelectItem>
+                  {metaChannels.map((c: any) => (
+                    <SelectItem key={c.phone_number_id} value={c.phone_number_id}>
+                      <span className="flex items-center gap-2">
+                        <span className={`inline-block w-2 h-2 rounded-full ${c.is_active ? 'bg-green-500' : 'bg-gray-400'}`} />
+                        {c.display_phone_number || c.verified_name || c.phone_number_id}
+                        {c.verified_name && c.display_phone_number ? ` — ${c.verified_name}` : ''}
+                      </span>
+                    </SelectItem>
+                  ))}
+                  {metaChannels.length === 0 && (
+                    <div className="px-2 py-1.5 text-xs text-muted-foreground">Nenhum número carregado</div>
+                  )}
+                </SelectContent>
+              </Select>
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => refetchChannels()}
+                disabled={loadingChannels}
+                title="Recarregar números"
+              >
+                {loadingChannels ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Selecione qual número da API Oficial envia a mensagem de confirmação (evita usar o número de marketing por engano).
             </p>
           </div>
 

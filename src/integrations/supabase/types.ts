@@ -640,6 +640,7 @@ export type Database = {
           evolution_msg_d_plus_1: string | null
           evolution_msg_d0: string | null
           id: string
+          meta_phone_number_id: string | null
           meta_template_name: string | null
           monthly_price: number | null
           notification_phone: string | null
@@ -665,6 +666,7 @@ export type Database = {
           evolution_msg_d_plus_1?: string | null
           evolution_msg_d0?: string | null
           id?: string
+          meta_phone_number_id?: string | null
           meta_template_name?: string | null
           monthly_price?: number | null
           notification_phone?: string | null
@@ -690,6 +692,7 @@ export type Database = {
           evolution_msg_d_plus_1?: string | null
           evolution_msg_d0?: string | null
           id?: string
+          meta_phone_number_id?: string | null
           meta_template_name?: string | null
           monthly_price?: number | null
           notification_phone?: string | null

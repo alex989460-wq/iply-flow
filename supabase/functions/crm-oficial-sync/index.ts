@@ -781,9 +781,11 @@ Deno.serve(async (req) => {
           console.error("[crm-oficial-sync sendText] erro lookup api_key:", e);
         }
       }
+      const phoneNumberId = (rawBody.phone_number_id || rawBody.phoneNumberId || rawBody.from_phone_number_id) as string | undefined;
       let sendResult = await doSendWhatsapp({
         phone,
         body,
+        ...(phoneNumberId ? { phone_number_id: String(phoneNumberId), from_phone_number_id: String(phoneNumberId) } : {}),
         ...(mediaUrl ? { media_url: mediaUrl, media_type: "image", caption: body } : {}),
       }, resellerApiKey);
       let ok = (sendResult as any)?.ok === true;
@@ -797,7 +799,7 @@ Deno.serve(async (req) => {
         const requireMedia = rawBody.require_media === true || rawBody.action === "enviar-imagem";
         if (scopeIssue && !requireMedia) {
           console.warn("[crm-oficial-sync sendText] media falhou, fallback para texto puro:", status);
-          const textOnly = await doSendWhatsapp({ phone, body }, resellerApiKey);
+          const textOnly = await doSendWhatsapp({ phone, body, ...(phoneNumberId ? { phone_number_id: String(phoneNumberId), from_phone_number_id: String(phoneNumberId) } : {}) }, resellerApiKey);
           if ((textOnly as any)?.ok === true) {
             sendResult = textOnly;
             ok = true;
@@ -821,6 +823,7 @@ Deno.serve(async (req) => {
       const userId = (rawBody.user_id as string | undefined) || undefined;
       const headerImageUrl = (rawBody.header_image_url || rawBody.image_url || rawBody.media_url) as string | undefined;
       const parameters = Array.isArray(rawBody.parameters) ? rawBody.parameters : [];
+      const tplPhoneNumberId = (rawBody.phone_number_id || rawBody.phoneNumberId || rawBody.from_phone_number_id) as string | undefined;
       let resellerApiKey: string | undefined;
       if (userId) {
         try {
@@ -864,6 +867,7 @@ Deno.serve(async (req) => {
         template_name: templateName,
         language,
         template_params: finalParams,
+        ...(tplPhoneNumberId ? { phone_number_id: String(tplPhoneNumberId), from_phone_number_id: String(tplPhoneNumberId) } : {}),
         ...(comps.length ? { components: comps } : {}),
       });
 
