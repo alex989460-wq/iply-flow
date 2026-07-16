@@ -15,6 +15,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { AlertCircle, Edit, Eye, FileText, Loader2, Plus, RefreshCw, Search, Send, ShieldCheck, Trash2, Zap } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { normalizeWhatsAppPhone } from '@/lib/phone';
 import TemplateBuilderDialog from '@/components/crm/TemplateBuilderDialog';
 
 interface TemplateComponent {
@@ -213,7 +214,7 @@ export default function CrmOficialTemplates() {
     try {
       const params = sendForm.params.split(',').map(p => p.trim()).filter(Boolean);
       const r = await invoke('send-whatsapp', {
-        phone: sendForm.phone.replace(/\D/g, '').startsWith('55') ? sendForm.phone.replace(/\D/g, '') : `55${sendForm.phone.replace(/\D/g, '')}`,
+        phone: normalizeWhatsAppPhone(sendForm.phone),
         template_name: selected.name,
         template_language: selected.language,
         template_params: params,
