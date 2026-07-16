@@ -91,6 +91,35 @@ export default function BillingSettingsCard() {
     staleTime: 5 * 60 * 1000,
   });
 
+  // Fetch Meta WhatsApp channels (multi-number support) so the reseller can pick
+  // exactly which number sends the payment confirmation.
+  const { data: metaChannels = [], isLoading: loadingChannels, refetch: refetchChannels } = useQuery({
+    queryKey: ['meta-channels-list', user?.id],
+    queryFn: async () => {
+      try {
+        const { data } = await supabase.functions.invoke('crm-oficial-sync', {
+          body: { action: 'list-channels' },
+        });
+        const raw = data?.results?.channels?.body || data?.channels?.body || data?.results?.channels || data?.channels || [];
+        const list = Array.isArray(raw) ? raw : (raw?.data || raw?.items || []);
+        return (list || [])
+          .map((c: any) => ({
+            id: String(c?.id || ''),
+            phone_number_id: String(c?.phone_number_id || ''),
+            display_phone_number: String(c?.display_phone_number || c?.phone_number || c?.number || ''),
+            verified_name: String(c?.verified_name || c?.name || c?.label || ''),
+            is_active: c?.is_active !== false,
+          }))
+          .filter((c: any) => c.phone_number_id);
+      } catch (e) {
+        console.error('Error fetching Meta channels:', e);
+        return [];
+      }
+    },
+    enabled: !!user?.id,
+    staleTime: 5 * 60 * 1000,
+  });
+
   const [formData, setFormData] = useState<Partial<BillingSettings>>({
     pix_key: '',
     pix_key_type: 'celular',
