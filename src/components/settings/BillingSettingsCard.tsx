@@ -569,6 +569,48 @@ export default function BillingSettingsCard() {
             </p>
           </div>
 
+          {/* Selector: which Meta phone number should send the confirmation */}
+          <div className="space-y-2 pt-2 border-t">
+            <Label className="text-sm">Número do WhatsApp (API Oficial) que envia a confirmação</Label>
+            <div className="flex gap-2">
+              <Select
+                value={formData.meta_phone_number_id || '__default__'}
+                onValueChange={(v) => setFormData({ ...formData, meta_phone_number_id: v === '__default__' ? '' : v })}
+              >
+                <SelectTrigger className="flex-1">
+                  <SelectValue placeholder="Número padrão (mais recente)" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__default__">Número padrão (mais recente)</SelectItem>
+                  {metaChannels.map((c: any) => (
+                    <SelectItem key={c.phone_number_id} value={c.phone_number_id}>
+                      <span className="flex items-center gap-2">
+                        <span className={`inline-block w-2 h-2 rounded-full ${c.is_active ? 'bg-green-500' : 'bg-gray-400'}`} />
+                        {c.display_phone_number || c.verified_name || c.phone_number_id}
+                        {c.verified_name && c.display_phone_number ? ` — ${c.verified_name}` : ''}
+                      </span>
+                    </SelectItem>
+                  ))}
+                  {metaChannels.length === 0 && (
+                    <div className="px-2 py-1.5 text-xs text-muted-foreground">Nenhum número carregado</div>
+                  )}
+                </SelectContent>
+              </Select>
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => refetchChannels()}
+                disabled={loadingChannels}
+                title="Recarregar números"
+              >
+                {loadingChannels ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Selecione qual número da API Oficial envia a mensagem de confirmação (evita usar o número de marketing por engano).
+            </p>
+          </div>
+
         </CardContent>
       </Card>
 
