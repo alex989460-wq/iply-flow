@@ -31,6 +31,7 @@ interface BillingSettings {
   vplay_integration_url: string | null;
   vplay_key_message: string | null;
   meta_template_name: string | null;
+  meta_phone_number_id?: string | null;
   notification_phone: string | null;
   renewal_message_template: string | null;
   renewal_image_url: string | null;
