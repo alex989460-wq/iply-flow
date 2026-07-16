@@ -285,7 +285,9 @@ serve(async (req) => {
       }
     }
 
-    if (!accessToken || !wabaId) {
+    // upload-media only needs META_APP_ID + META_APP_SECRET (app access token),
+    // não depende do WABA/accessToken local — não bloquear por falta de config CRM.
+    if ((!accessToken || !wabaId) && action !== "upload-media") {
       return json({ error: "Configure a integração com o CRM Oficial em Configurações para gerenciar templates." }, 400);
     }
 
