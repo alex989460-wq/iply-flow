@@ -796,16 +796,20 @@ export default function Customers() {
           notification_phone?: string | null;
           renewal_message_template?: string | null;
           renewal_image_url?: string | null;
+          renewal_notification_target?: 'admin' | 'both' | null;
         } | null = null;
 
         if (settingsUserId) {
           const { data: settingsData } = await (supabase
             .from('billing_settings' as any)
-            .select('notification_phone, renewal_message_template, renewal_image_url')
+            .select('notification_phone, renewal_message_template, renewal_image_url, renewal_notification_target')
             .eq('user_id', settingsUserId)
             .maybeSingle() as any);
           ownerBillingSettings = settingsData || null;
         }
+
+        const notifTarget = (ownerBillingSettings?.renewal_notification_target || 'both') as 'admin' | 'both';
+        const shouldSendToClient = notifTarget === 'both';
 
         const defaultTemplate = `✅ Olá, *{{nome}}*. Obrigado por confirmar seu pagamento. Segue abaixo os dados da sua assinatura:\n\n==========================\n📅 Próx. Vencimento: *{{vencimento}} - {{hora}} hrs*\n💰 Valor: *{{valor}}*\n👤 Usuário: *{{usuario}}*\n📦 Plano: *{{plano}}*\n🔌 Status: *Ativo*\n💎 Obs: -\n⚡: *{{servidor}}*\n==========================`;
         const template = ownerBillingSettings?.renewal_message_template || defaultTemplate;
