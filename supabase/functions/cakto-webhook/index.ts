@@ -2594,6 +2594,7 @@ serve(async (req) => {
                     number: notificationPhone,
                     language: 'pt_BR',
                     user_id: matchedCustomer.created_by,
+                    phone_number_id: billingPhoneNumberId,
                   }),
                 },
                 MESSAGE_SEND_TIMEOUT_MS,
