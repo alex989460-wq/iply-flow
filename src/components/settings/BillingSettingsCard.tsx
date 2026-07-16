@@ -34,6 +34,7 @@ interface BillingSettings {
   notification_phone: string | null;
   renewal_message_template: string | null;
   renewal_image_url: string | null;
+  renewal_notification_target?: 'admin' | 'both' | null;
   use_evolution_billing?: boolean;
   evolution_instance?: string | null;
   evolution_msg_d_minus_1?: string | null;
