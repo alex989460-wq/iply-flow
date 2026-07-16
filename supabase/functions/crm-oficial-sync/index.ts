@@ -867,6 +867,7 @@ Deno.serve(async (req) => {
         template_name: templateName,
         language,
         template_params: finalParams,
+        ...(tplPhoneNumberId ? { phone_number_id: String(tplPhoneNumberId), from_phone_number_id: String(tplPhoneNumberId) } : {}),
         ...(comps.length ? { components: comps } : {}),
       });
 
