@@ -473,10 +473,21 @@ async function doSendWhatsapp(payload: {
 
   // Template oficial: usar endpoint /whatsapp-template-send se houver template_name.
   if (payload.template_name) {
-    const lang = payload.template_language || payload.language || "pt_BR";
+    const requestedLang = payload.template_language || payload.language || "pt_BR";
     const params = Array.isArray(payload.template_params) ? payload.template_params : [];
     const fallbackBody = textFromUnknown(payload.body).trim() || params.map(textFromUnknown).filter(Boolean).join(" ");
-    const officialTemplate = await fetchOfficialTemplate(String(payload.template_name), String(lang), apiKey).catch(() => null);
+    // Try the requested language first; if the template doesn't exist in that locale,
+    // fall back to whatever locale actually exists (fetchOfficialTemplate returns matches[0]).
+    // Then use the *actual* language of the resolved template on the wire, so Meta doesn't
+    // reject with 132001 "template name does not exist in <lang>".
+    let officialTemplate = await fetchOfficialTemplate(String(payload.template_name), String(requestedLang), apiKey).catch(() => null);
+    if (!officialTemplate) {
+      officialTemplate = await fetchOfficialTemplate(String(payload.template_name), "", apiKey).catch(() => null);
+    }
+    const resolvedLang = String(
+      officialTemplate?.language || officialTemplate?.language_code || officialTemplate?.lang || requestedLang
+    );
+    const lang = resolvedLang;
     const paramNames = officialTemplate ? getTemplateBodyParamNames(officialTemplate) : [];
     const isNamed = String(officialTemplate?.parameter_format || "").toUpperCase() === "NAMED"
       || (paramNames.length > 0 && paramNames.every((n) => n));
