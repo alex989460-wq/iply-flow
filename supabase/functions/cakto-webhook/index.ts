@@ -2509,8 +2509,10 @@ serve(async (req) => {
           }
         }
       } else {
-        console.log('[Cakto] Nenhum departamento configurado. Mensagem não enviada.');
-        // Log skipped
+        const skipReason = !shouldSendToClient
+          ? 'Regra "somente admin" ativa — mensagem para o cliente não enviada'
+          : 'Nenhum departamento configurado';
+        console.log(`[Cakto] ${skipReason}.`);
         await supabaseAdmin.from('message_logs').insert({
           user_id: matchedCustomer.created_by,
           customer_id: matchedCustomer.id,
@@ -2519,7 +2521,7 @@ serve(async (req) => {
           message_type: 'confirmation',
           source: caktoId ? `cakto:${caktoId}` : 'cakto',
           status: 'skipped',
-          error_message: 'Nenhum departamento configurado',
+          error_message: skipReason,
         });
       }
 
