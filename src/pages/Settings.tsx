@@ -721,9 +721,11 @@ export default function Settings() {
           )}
 
           {/* Cobrança Tab */}
-          <TabsContent value="cobranca" className="mt-6">
+          <TabsContent value="cobranca" className="mt-6 space-y-6">
             <BillingSettingsCard />
+            <EfiSettingsCard />
           </TabsContent>
+
 
 
           {/* APIs Externas Tab */}
