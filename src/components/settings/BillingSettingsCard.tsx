@@ -34,6 +34,7 @@ interface BillingSettings {
   notification_phone: string | null;
   renewal_message_template: string | null;
   renewal_image_url: string | null;
+  renewal_notification_target?: 'admin' | 'both' | null;
   use_evolution_billing?: boolean;
   evolution_instance?: string | null;
   evolution_msg_d_minus_1?: string | null;
@@ -103,6 +104,7 @@ export default function BillingSettingsCard() {
     notification_phone: '',
     renewal_message_template: '',
     renewal_image_url: '',
+    renewal_notification_target: 'both',
     use_evolution_billing: false,
     evolution_instance: '',
     evolution_msg_d_minus_1: '',
@@ -158,6 +160,7 @@ export default function BillingSettingsCard() {
         notification_phone: (settings as any).notification_phone || '',
         renewal_message_template: (settings as any).renewal_message_template || '',
         renewal_image_url: (settings as any).renewal_image_url || '',
+        renewal_notification_target: ((settings as any).renewal_notification_target as 'admin' | 'both') || 'both',
         use_evolution_billing: !!(settings as any).use_evolution_billing,
         evolution_instance: (settings as any).evolution_instance || '',
         evolution_msg_d_minus_1: (settings as any).evolution_msg_d_minus_1 || '',
@@ -238,6 +241,7 @@ export default function BillingSettingsCard() {
         notification_phone: notificationsEnabled ? (data.notification_phone || '') : '',
         renewal_message_template: data.renewal_message_template || null,
         renewal_image_url: data.renewal_image_url || '',
+        renewal_notification_target: data.renewal_notification_target || 'both',
         use_evolution_billing: !!data.use_evolution_billing,
         evolution_instance: data.evolution_instance || null,
         evolution_msg_d_minus_1: data.evolution_msg_d_minus_1 || null,
@@ -384,6 +388,23 @@ export default function BillingSettingsCard() {
             />
             <p className="text-xs text-muted-foreground">
               Número com DDD (ex: 5541999999999). Receberá notificações de cada renovação manual e automática.
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <Label className="text-sm">Regra de envio da confirmação</Label>
+            <Select
+              value={formData.renewal_notification_target || 'both'}
+              onValueChange={(v) => setFormData({ ...formData, renewal_notification_target: v as 'admin' | 'both' })}
+            >
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="admin">Somente para o telefone de notificações (admin)</SelectItem>
+                <SelectItem value="both">Para o cliente e para o telefone de notificações</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              Define para quem a mensagem de renovação será enviada após cada pagamento confirmado.
             </p>
           </div>
 

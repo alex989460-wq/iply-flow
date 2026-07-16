@@ -64,7 +64,31 @@ Deno.serve(async (req) => {
         .limit(50);
       if (error) throw error;
 
-      const next = (data ?? []).find((row) => isP2Cine(row) || isUniplay(row));
+      const candidates = (data ?? []).filter((row) => isP2Cine(row) || isUniplay(row));
+
+      // Skip and cleanup any pending row whose customer was renewed in the last 12h
+      // (prevents the extension from double-renewing after Cakto/webhook already paid it).
+      const cutoff = new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString();
+      let next: any = null;
+      for (const row of candidates) {
+        if (row.customer_id) {
+          const { data: recentPay } = await supabase
+            .from("payments")
+            .select("id, created_at, source")
+            .eq("customer_id", row.customer_id)
+            .eq("confirmed", true)
+            .gte("created_at", cutoff)
+            .limit(1)
+            .maybeSingle();
+          if (recentPay) {
+            console.log(`[p2cine-queue] skipping ${row.id} (${row.customer_name}) — already paid at ${recentPay.created_at} via ${recentPay.source}`);
+            await supabase.from("pending_manual_renewals").delete().eq("id", row.id);
+            continue;
+          }
+        }
+        next = row;
+        break;
+      }
       if (!next) return json({ item: null });
 
       const panelType = isUniplay(next) ? "uniplay" : "p2cine";
@@ -120,6 +144,30 @@ Deno.serve(async (req) => {
         // Frontend-created tasks already updated the local customer record; in that
         // case the extension only confirms the external panel action.
         if (pending.customer_id && !String(pending.source || "").startsWith("frontend_")) {
+          // Guard against duplicate renewals: if this customer already has a confirmed
+          // payment in the last 12h (e.g. Cakto webhook renewed while the extension
+          // was still processing the panel queue with two tabs open), just delete
+          // the pending row and log — do NOT insert another payment.
+          const cutoff = new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString();
+          const { data: recentPay } = await supabase
+            .from("payments")
+            .select("id, created_at, source")
+            .eq("customer_id", pending.customer_id)
+            .eq("confirmed", true)
+            .gte("created_at", cutoff)
+            .limit(1)
+            .maybeSingle();
+
+          if (recentPay) {
+            console.warn(
+              `[p2cine-queue] DUPLICATE BLOCKED: ${pending.customer_name} (${pending.customer_id}) ` +
+              `already paid at ${recentPay.created_at} via ${recentPay.source}. ` +
+              `Skipping extension payment insert.`,
+            );
+            await supabase.from("pending_manual_renewals").delete().eq("id", id);
+            return json({ ok: true, action: "skipped_duplicate", recent_source: recentPay.source });
+          }
+
           const panelSource = isUniplay(pending) ? "uniplay_extension" : "p2cine_extension";
           const { error: payErr } = await supabase.from("payments").insert({
             customer_id: pending.customer_id,

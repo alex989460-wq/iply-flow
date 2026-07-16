@@ -2286,11 +2286,14 @@ serve(async (req) => {
       // Fetch billing settings for custom message template and notification phone
       const { data: billingSettings } = await supabaseAdmin
         .from('billing_settings')
-        .select('notification_phone, renewal_message_template, renewal_image_url, meta_template_name')
+        .select('notification_phone, renewal_message_template, renewal_image_url, meta_template_name, renewal_notification_target')
         .eq('user_id', matchedCustomer.created_by)
         .maybeSingle();
 
-      if (zapSettings?.selected_department_id) {
+      const notifTarget = ((billingSettings as any)?.renewal_notification_target || 'both') as 'admin' | 'both';
+      const shouldSendToClient = notifTarget === 'both';
+
+      if (zapSettings?.selected_department_id && shouldSendToClient) {
         // Get server name
         let serverName = '-';
         if (matchedCustomer.server_id) {
@@ -2506,8 +2509,10 @@ serve(async (req) => {
           }
         }
       } else {
-        console.log('[Cakto] Nenhum departamento configurado. Mensagem não enviada.');
-        // Log skipped
+        const skipReason = !shouldSendToClient
+          ? 'Regra "somente admin" ativa — mensagem para o cliente não enviada'
+          : 'Nenhum departamento configurado';
+        console.log(`[Cakto] ${skipReason}.`);
         await supabaseAdmin.from('message_logs').insert({
           user_id: matchedCustomer.created_by,
           customer_id: matchedCustomer.id,
@@ -2516,7 +2521,7 @@ serve(async (req) => {
           message_type: 'confirmation',
           source: caktoId ? `cakto:${caktoId}` : 'cakto',
           status: 'skipped',
-          error_message: 'Nenhum departamento configurado',
+          error_message: skipReason,
         });
       }
 

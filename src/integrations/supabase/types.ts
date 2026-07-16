@@ -648,6 +648,7 @@ export type Database = {
           quarterly_price: number | null
           renewal_image_url: string | null
           renewal_message_template: string | null
+          renewal_notification_target: string
           semiannual_price: number | null
           updated_at: string
           use_evolution_billing: boolean
@@ -672,6 +673,7 @@ export type Database = {
           quarterly_price?: number | null
           renewal_image_url?: string | null
           renewal_message_template?: string | null
+          renewal_notification_target?: string
           semiannual_price?: number | null
           updated_at?: string
           use_evolution_billing?: boolean
@@ -696,6 +698,7 @@ export type Database = {
           quarterly_price?: number | null
           renewal_image_url?: string | null
           renewal_message_template?: string | null
+          renewal_notification_target?: string
           semiannual_price?: number | null
           updated_at?: string
           use_evolution_billing?: boolean
