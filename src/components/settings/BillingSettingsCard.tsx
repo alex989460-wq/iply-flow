@@ -392,6 +392,23 @@ export default function BillingSettingsCard() {
           </div>
 
           <div className="space-y-2">
+            <Label className="text-sm">Regra de envio da confirmação</Label>
+            <Select
+              value={formData.renewal_notification_target || 'both'}
+              onValueChange={(v) => setFormData({ ...formData, renewal_notification_target: v as 'admin' | 'both' })}
+            >
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="admin">Somente para o telefone de notificações (admin)</SelectItem>
+                <SelectItem value="both">Para o cliente e para o telefone de notificações</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              Define para quem a mensagem de renovação será enviada após cada pagamento confirmado.
+            </p>
+          </div>
+
+          <div className="space-y-2">
             <Label className="text-sm">Mensagem de Renovação (Template)</Label>
             <Textarea
               placeholder={DEFAULT_RENEWAL_TEMPLATE}
