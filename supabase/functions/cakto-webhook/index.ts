@@ -2290,7 +2290,10 @@ serve(async (req) => {
         .eq('user_id', matchedCustomer.created_by)
         .maybeSingle();
 
-      if (zapSettings?.selected_department_id) {
+      const notifTarget = ((billingSettings as any)?.renewal_notification_target || 'both') as 'admin' | 'both';
+      const shouldSendToClient = notifTarget === 'both';
+
+      if (zapSettings?.selected_department_id && shouldSendToClient) {
         // Get server name
         let serverName = '-';
         if (matchedCustomer.server_id) {
