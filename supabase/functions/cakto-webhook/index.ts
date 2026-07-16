@@ -2392,6 +2392,7 @@ serve(async (req) => {
                   user_id: matchedCustomer.created_by,
                   image_url: billingSettings?.renewal_image_url || undefined,
                   require_media: !!billingSettings?.renewal_image_url,
+                  phone_number_id: billingPhoneNumberId,
                 }),
               },
               MESSAGE_SEND_TIMEOUT_MS,
