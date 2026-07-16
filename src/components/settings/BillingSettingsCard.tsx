@@ -164,6 +164,14 @@ export default function BillingSettingsCard() {
         evolution_msg_d0: (settings as any).evolution_msg_d0 || '',
         evolution_msg_d_plus_1: (settings as any).evolution_msg_d_plus_1 || '',
       });
+      const phone = (settings as any).notification_phone || '';
+      savedPhoneRef.current = phone;
+      const stored = notifStorageKey ? localStorage.getItem(notifStorageKey) : null;
+      if (stored === null) {
+        setNotificationsEnabled(!!phone);
+      } else {
+        setNotificationsEnabled(stored === '1');
+      }
     }
   }, [settings]);
 
