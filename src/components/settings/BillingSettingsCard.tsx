@@ -160,6 +160,7 @@ export default function BillingSettingsCard() {
         notification_phone: (settings as any).notification_phone || '',
         renewal_message_template: (settings as any).renewal_message_template || '',
         renewal_image_url: (settings as any).renewal_image_url || '',
+        renewal_notification_target: ((settings as any).renewal_notification_target as 'admin' | 'both') || 'both',
         use_evolution_billing: !!(settings as any).use_evolution_billing,
         evolution_instance: (settings as any).evolution_instance || '',
         evolution_msg_d_minus_1: (settings as any).evolution_msg_d_minus_1 || '',
