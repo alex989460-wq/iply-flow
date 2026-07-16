@@ -2286,7 +2286,7 @@ serve(async (req) => {
       // Fetch billing settings for custom message template and notification phone
       const { data: billingSettings } = await supabaseAdmin
         .from('billing_settings')
-        .select('notification_phone, renewal_message_template, renewal_image_url, meta_template_name')
+        .select('notification_phone, renewal_message_template, renewal_image_url, meta_template_name, renewal_notification_target')
         .eq('user_id', matchedCustomer.created_by)
         .maybeSingle();
 
