@@ -180,12 +180,12 @@ export default function CrmOficialTemplates() {
     try {
       // Tenta Meta Graph primeiro
       const { data: res, error: err } = await supabase.functions.invoke('meta-templates', {
-        body: { action: 'delete', template_name: t.name },
+        body: { action: 'delete', template_name: t.name, template_id: t.metaId },
       });
       if (err || res?.error) {
         // Fallback CRM Oficial
         const r = await invoke('delete-template', { template_name: t.name });
-        if (r?.template && !r.template.ok) throw new Error(`Status ${r.template.status}`);
+        if (r?.template && !r.template.ok) throw new Error(res?.error || `Status ${r.template.status}`);
       }
       toast({ title: 'Template excluído' });
       await loadTemplates();
