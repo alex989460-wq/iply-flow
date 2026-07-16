@@ -213,7 +213,18 @@ serve(async (req) => {
         if (parameter_format === "NAMED" || parameter_format === "POSITIONAL") payload.parameter_format = parameter_format;
         if (allow_category_change) payload.allow_category_change = true;
         console.log(`[MetaTemplates] CRM create payload:`, JSON.stringify(payload).slice(0, 2000));
-        const r = await crmFetch("/api/public/v1/templates", crmApiKey, { method: "POST", body: JSON.stringify(payload) });
+        let r = await crmFetch("/api/public/v1/templates", crmApiKey, { method: "POST", body: JSON.stringify(payload) });
+
+        // CRM proxy sometimes rejects `parameter_format` with generic "Invalid parameter".
+        // Meta auto-detects the format from body_text_named_params / body_text_examples,
+        // so retry once without the top-level parameter_format.
+        const errText = JSON.stringify(r.body || "").toLowerCase();
+        if (!r.ok && payload.parameter_format && (errText.includes("invalid parameter") || r.status === 400 || r.status === 502)) {
+          console.warn("[MetaTemplates] Retrying create without parameter_format after error:", r.status, errText.slice(0, 200));
+          const retryPayload = { ...payload };
+          delete retryPayload.parameter_format;
+          r = await crmFetch("/api/public/v1/templates", crmApiKey, { method: "POST", body: JSON.stringify(retryPayload) });
+        }
 
         if (!r.ok) {
           console.error(`[MetaTemplates] CRM create ${r.status}:`, JSON.stringify(r.body).slice(0, 500));
