@@ -179,7 +179,7 @@ export default function CrmOficialTemplates() {
     if (!confirm(`Excluir template "${t.name}"?`)) return;
     try {
       const { data: res } = await supabase.functions.invoke('meta-templates', {
-        body: { action: 'delete', template_name: t.name, template_id: t.metaId },
+        body: { action: 'delete', template_name: t.name, template_id: t.metaId, template_language: t.language },
       });
       if (res?.error) {
         if (res?.crm_only) {
@@ -193,7 +193,7 @@ export default function CrmOficialTemplates() {
         }
         throw new Error(res.error);
       }
-      toast({ title: 'Template excluído' });
+      toast({ title: res?.hidden_only ? 'Template removido da lista' : 'Template excluído' });
       await loadTemplates();
     } catch (e: any) {
       toast({ title: 'Erro ao excluir', description: e.message, variant: 'destructive' });
