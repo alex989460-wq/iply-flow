@@ -57,6 +57,7 @@ import {
 import { Progress } from '@/components/ui/progress';
 import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/utils';
+import { normalizeWhatsAppPhone } from '@/lib/phone';
 import { Switch } from '@/components/ui/switch';
 import { ScrollToTop } from '@/components/ui/scroll-to-top';
 import { format } from 'date-fns';
@@ -828,8 +829,7 @@ export default function Customers() {
           .replace(/\{\{status\}\}/g, customer.status || '-');
 
         try {
-          const phone = customer.phone.replace(/\D/g, '');
-          const phoneWithCode = phone.startsWith('55') ? phone : `55${phone}`;
+          const phoneWithCode = normalizeWhatsAppPhone(customer.phone);
           const imageUrl = ownerBillingSettings?.renewal_image_url?.trim() || undefined;
 
           if (shouldSendToClient) {
@@ -862,9 +862,7 @@ export default function Customers() {
           const notificationPhoneDigits = ownerBillingSettings?.notification_phone?.replace(/\D/g, '');
           if (notificationPhoneDigits) {
             try {
-              const notificationPhone = notificationPhoneDigits.startsWith('55')
-                ? notificationPhoneDigits
-                : `55${notificationPhoneDigits}`;
+              const notificationPhone = normalizeWhatsAppPhone(ownerBillingSettings?.notification_phone);
               const adminMsg = `🔔 *Renovação Manual (Clientes)*\n\n👤 Cliente: *${customer.name}*\n📞 Tel: ${phoneWithCode}\n👤 Usuário: *${customer.username || '-'}*\n💰 Valor: *R$ ${amount.toFixed(2)}*\n📦 Plano: *${plan.plan_name}*\n🖥️ Servidor: *${customer.servers?.server_name || '-'}*\n📅 Novo vencimento: *${formattedDueDate}*\n✅ Status: Renovado`;
               await supabase.functions.invoke('zap-responder', {
                 body: {
@@ -1186,8 +1184,7 @@ export default function Customers() {
           
           const message = `✅ Olá, *${latestCustomer.name}*. Obrigado por confirmar seu pagamento. Segue abaixo os dados da sua assinatura:\n\n==========================\n📅 Próx. Vencimento: *${formattedDueDate} - ${formattedTime} hrs*\n💰 Valor: *${Number(amount).toFixed(2)}*\n👤 Usuário: *${latestCustomer.username || '-'}*\n📦 Plano: *${plan.plan_name}*\n🔌 Status: *Ativo*\n💎 Obs: ${latestCustomer.notes || '-'}\n⚡: *${serverName}*\n==========================`;
           
-          const phone = latestCustomer.phone.replace(/\D/g, '');
-          const phoneWithCode = phone.startsWith('55') ? phone : `55${phone}`;
+          const phoneWithCode = normalizeWhatsAppPhone(latestCustomer.phone);
           
           try {
             await supabase.functions.invoke('zap-responder', {
@@ -1392,8 +1389,7 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
   const isOverdue = (dueDate: string) => new Date(dueDate + 'T23:59:59') < new Date();
 
   const openWhatsApp = (phone: string) => {
-    const formattedPhone = phone.replace(/\D/g, '');
-    const phoneWithCode = formattedPhone.startsWith('55') ? formattedPhone : `55${formattedPhone}`;
+    const phoneWithCode = normalizeWhatsAppPhone(phone);
     window.open(`https://wa.me/${phoneWithCode}`, '_blank');
   };
 
@@ -1680,7 +1676,7 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
         toast({ title: 'Telefone inválido', description: 'Cadastre um telefone válido (com DDD) antes de enviar via CRM Oficial.', variant: 'destructive' });
         return;
       }
-      const phoneWithCode = phone.startsWith('55') ? phone : `55${phone}`;
+      const phoneWithCode = normalizeWhatsAppPhone(rawPhone);
       let templatePayload: { components: any[]; params: string[]; fallbackBody: string };
       try {
         templatePayload = buildCrmTemplatePayload(selectedTemplateConfig, sendingBillingCustomer);
@@ -1747,8 +1743,7 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
         'D+1': billingSettings?.evolution_msg_d_plus_1 || 'Olá {{nome}}, seu plano venceu em {{vencimento}}. PIX: {{pix}}',
       };
       const text = renderEvolutionTemplate(tplMap[selectedEvoTemplateKey], sendingBillingCustomer);
-      const phone = sendingBillingCustomer.phone.replace(/\D/g, '');
-      const phoneWithCode = phone.startsWith('55') ? phone : `55${phone}`;
+      const phoneWithCode = normalizeWhatsAppPhone(sendingBillingCustomer.phone);
       setIsSendingBilling(true);
       try {
         const { data, error } = await supabase.functions.invoke('evolution-send', {
@@ -1777,8 +1772,7 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
     
     setIsSendingBilling(true);
     try {
-      const phone = sendingBillingCustomer.phone.replace(/\D/g, '');
-      const phoneWithCode = phone.startsWith('55') ? phone : `55${phone}`;
+      const phoneWithCode = normalizeWhatsAppPhone(sendingBillingCustomer.phone);
       
       const selectedTemplateConfig = templates.find((template) => template.name === selectedTemplate);
       const bodyComponent = selectedTemplateConfig?.components?.find((component) => component.type === 'BODY');

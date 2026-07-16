@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { PhoneInput } from '@/components/ui/phone-input';
+import { normalizeWhatsAppPhone } from '@/lib/phone';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Loader2, ShoppingCart, User, Phone, Package, ExternalLink, Check, AlertCircle, CheckCircle2, QrCode, Copy } from 'lucide-react';
@@ -145,8 +146,7 @@ export default function PublicCheckout() {
 
   /** Insert the pending_new_customers row and return its id. Shared by both providers. */
   const createPendingRow = async (): Promise<string | null> => {
-    const phoneDigits = phone.replace(/\D/g, '');
-    const phoneNormalized = phoneDigits.length >= 11 ? phoneDigits : '55' + phoneDigits;
+    const phoneNormalized = normalizeWhatsAppPhone(phone);
     const detectedServerId =
       verifyResult.status === 'ok' && verifyResult.server_id ? verifyResult.server_id : null;
 

@@ -33,6 +33,7 @@ import { CSS } from '@dnd-kit/utilities';
 import { toast } from 'sonner';
 import { addDays, addMonths, format, startOfDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { normalizeWhatsAppPhone } from '@/lib/phone';
 import {
   Select,
   SelectContent,
@@ -626,10 +627,9 @@ Obrigado pela preferência! 🙏`;
 
           const settings = freshSettings || billingSettings;
 
-          const phone = customer.phone.replace(/\D/g, '');
-          const phoneWithCode = phone.startsWith('55') ? phone : `55${phone}`;
+          const phoneWithCode = normalizeWhatsAppPhone(customer.phone);
           const extraPhone = (editedExtraPhone.trim() || customer.extra_phone || '').replace(/\D/g, '');
-          const extraPhoneWithCode = extraPhone ? (extraPhone.startsWith('55') ? extraPhone : `55${extraPhone}`) : '';
+          const extraPhoneWithCode = extraPhone ? normalizeWhatsAppPhone(editedExtraPhone.trim() || customer.extra_phone) : '';
           const formattedTime = format(new Date(), 'HH:mm', { locale: ptBR });
           const formattedDueDate = format(new Date(newDueDate + 'T12:00:00'), 'dd/MM/yyyy', { locale: ptBR });
           const serverName = customer.server?.server_name || '-';
@@ -704,7 +704,7 @@ Obrigado pela preferência! 🙏`;
                 body: {
                   action: 'enviar-mensagem',
                   department_id: zapSettings.selected_department_id,
-                  number: notificationPhone,
+                  number: normalizeWhatsAppPhone(notificationPhone),
                   text: adminMsg,
                 },
               });

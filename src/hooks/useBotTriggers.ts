@@ -1,4 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
+import { normalizeWhatsAppPhone } from '@/lib/phone';
 
 interface Customer {
   id: string;
@@ -79,8 +80,7 @@ export async function triggerWelcomeBot(
     console.log('[triggerWelcomeBot] Departamento:', departmentId);
 
     // 3. Preparar variáveis para a mensagem
-    const phone = customer.phone.replace(/\D/g, '');
-    const phoneWithCode = phone.startsWith('55') ? phone : `55${phone}`;
+    const phoneWithCode = normalizeWhatsAppPhone(customer.phone);
     const plan = plans?.find(p => p.id === customer.plan_id);
     
     const variables: Record<string, string | number> = {

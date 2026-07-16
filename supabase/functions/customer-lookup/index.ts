@@ -6,6 +6,21 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+const KNOWN_FOREIGN_DDIS = [
+  '971', '598', '595', '593', '591', '353', '351',
+  '86', '81', '61', '58', '57', '56', '54', '52', '51', '49', '44', '41', '39', '34', '33', '32', '31',
+];
+
+const normalizeWhatsappPhone = (phone: string) => {
+  const digits = String(phone || '').replace(/\D/g, '');
+  if (!digits) return '';
+  if (digits.startsWith('55')) return digits;
+  if (KNOWN_FOREIGN_DDIS.some((ddi) => digits.startsWith(ddi) && digits.length > ddi.length)) return digits;
+  if (digits.length >= 12) return digits;
+  if (digits.length >= 10 && digits.length <= 11) return `55${digits}`;
+  return digits;
+};
+
 const normalizePhoneVariants = (phone: string) => {
   const phoneDigits = String(phone || '').replace(/\D/g, '');
   const variants = new Set<string>();
@@ -16,7 +31,7 @@ const normalizePhoneVariants = (phone: string) => {
 
   if (phoneDigits.startsWith('55') && phoneDigits.length >= 12) {
     variants.add(phoneDigits.slice(2));
-  } else {
+  } else if (phoneDigits.length >= 10 && phoneDigits.length <= 11 && !KNOWN_FOREIGN_DDIS.some((ddi) => phoneDigits.startsWith(ddi) && phoneDigits.length > ddi.length)) {
     variants.add(`55${phoneDigits}`);
   }
 
@@ -30,7 +45,7 @@ const normalizePhoneVariants = (phone: string) => {
     variants.add(`${withoutCC.slice(0, 2)}9${withoutCC.slice(2)}`);
   }
 
-  const canonicalPhone = phoneDigits.startsWith('55') ? phoneDigits : `55${phoneDigits}`;
+  const canonicalPhone = normalizeWhatsappPhone(phoneDigits);
   variants.add(canonicalPhone);
 
   return { phoneDigits, canonicalPhone, variants: [...variants] };

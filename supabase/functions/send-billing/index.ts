@@ -72,7 +72,9 @@ async function sendWhatsAppTemplate(
     // Format phone: preserva código de país se houver '+' original ou já mais de 11 dígitos.
     const hasPlus = phone.trim().startsWith('+');
     let formattedPhone = phone.replace(/\D/g, '');
-    if (!hasPlus && !formattedPhone.startsWith('55') && formattedPhone.length >= 10 && formattedPhone.length <= 11) {
+    const foreignDdis = ['971','598','595','593','591','353','351','86','81','61','58','57','56','54','52','51','49','44','41','39','34','33','32','31'];
+    const hasForeignDdi = foreignDdis.some((ddi) => formattedPhone.startsWith(ddi) && formattedPhone.length > ddi.length);
+    if (!hasPlus && !formattedPhone.startsWith('55') && !hasForeignDdi && formattedPhone.length >= 10 && formattedPhone.length <= 11) {
       formattedPhone = '55' + formattedPhone;
     }
     
@@ -157,7 +159,9 @@ function getRelativeDateSaoPaulo(daysOffset: number): string {
 // Normalize phone number for comparison
 function normalizePhone(phone: string): string {
   let normalized = phone.replace(/\D/g, '');
-  if (!normalized.startsWith('55') && normalized.length <= 11) {
+  const foreignDdis = ['971','598','595','593','591','353','351','86','81','61','58','57','56','54','52','51','49','44','41','39','34','33','32','31'];
+  const hasForeignDdi = foreignDdis.some((ddi) => normalized.startsWith(ddi) && normalized.length > ddi.length);
+  if (!normalized.startsWith('55') && !hasForeignDdi && normalized.length >= 10 && normalized.length <= 11) {
     normalized = '55' + normalized;
   }
   return normalized;

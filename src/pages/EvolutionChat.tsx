@@ -19,6 +19,7 @@ import KnowledgeBaseDialog from '@/components/chat/KnowledgeBaseDialog';
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from '@/components/ui/context-menu';
 import { Link } from 'react-router-dom';
 import { tryAutocorrectOnInput } from '@/lib/pt-autocorrect';
+import { normalizeWhatsAppPhone } from '@/lib/phone';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
@@ -1204,7 +1205,7 @@ export default function EvolutionChat({ embed = false }: { embed?: boolean } = {
   const startConversation = async () => {
     const digits = newPhone.replace(/\D/g, '');
     if (!digits || !user) return;
-    const phone = digits.startsWith('55') ? digits : `55${digits}`;
+    const phone = normalizeWhatsAppPhone(newPhone);
     setContacts(prev => ({ ...prev, [phone]: prev[phone] || { phone, name: null, profile_pic_url: null } }));
     setSelectedPhone(phone);
     setNewPhone('');

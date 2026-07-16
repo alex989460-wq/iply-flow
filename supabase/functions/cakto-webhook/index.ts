@@ -26,6 +26,11 @@ serve(async (req) => {
 
   const normalizeBaseUrl = (rawUrl: string) => String(rawUrl || '').trim().replace(/\/+$/, '');
 
+  const KNOWN_FOREIGN_DDIS = [
+    '971', '598', '595', '593', '591', '353', '351',
+    '86', '81', '61', '58', '57', '56', '54', '52', '51', '49', '44', '41', '39', '34', '33', '32', '31',
+  ];
+
   // Normaliza telefone para WhatsApp preservando código de país estrangeiro.
   // Só prepende 55 quando o número parece brasileiro (10-11 dígitos, sem '+').
   const toWaPhone = (raw: any): string => {
@@ -35,6 +40,7 @@ serve(async (req) => {
     if (!digits) return '';
     if (hasPlus) return digits;
     if (digits.startsWith('55')) return digits;
+    if (KNOWN_FOREIGN_DDIS.some((ddi) => digits.startsWith(ddi) && digits.length > ddi.length)) return digits;
     if (digits.length >= 12) return digits; // já tem código de país
     if (digits.length >= 10 && digits.length <= 11) return '55' + digits;
     return digits;

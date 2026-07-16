@@ -10,6 +10,8 @@ function normalizePhone(p: string) {
   const digits = String(p || '').replace(/\D/g, '');
   if (!digits) return '';
   if (digits.startsWith('55')) return digits;
+  const foreignDdis = ['971','598','595','593','591','353','351','86','81','61','58','57','56','54','52','51','49','44','41','39','34','33','32','31'];
+  if (foreignDdis.some((ddi) => digits.startsWith(ddi) && digits.length > ddi.length)) return digits;
   // Foreign numbers already include their own DDI (length >= 11).
   // Only auto-prepend BR "55" for short legacy stored numbers (DDD+number, 10-11 dígitos).
   if (digits.length >= 12) return digits;
