@@ -107,6 +107,17 @@ function conversationProtocol(phone: string) {
   return `#${hex.slice(0, 6)}-${hex.slice(6, 10)}`;
 }
 
+// Cor sólida vívida para avatar sem foto — estilo ZapCRM (vermelho, roxo, rosa, azul, laranja, verde).
+const AVATAR_PALETTE = [
+  '#e53935', '#8e24aa', '#5e35b1', '#3949ab', '#1e88e5',
+  '#00897b', '#43a047', '#fb8c00', '#f4511e', '#6d4c41',
+  '#d81b60', '#00acc1', '#c0ca33', '#7cb342', '#ff5722',
+];
+function avatarColorFor(seed: string) {
+  let h = 0;
+  for (let i = 0; i < seed.length; i++) h = ((h << 5) - h + seed.charCodeAt(i)) | 0;
+  return AVATAR_PALETTE[Math.abs(h) % AVATAR_PALETTE.length];
+
 // Timestamp longo estilo ZapCRM: "4 minutos", "2 horas", "3 dias".
 function longRelativeTime(iso: string) {
   const diffSec = (Date.now() - new Date(iso).getTime()) / 1000;
