@@ -2577,7 +2577,7 @@ export default function EvolutionChat({ embed = false }: { embed?: boolean } = {
                 {groupedThread.map((g) => (
                   <div key={g.date} className="space-y-1.5">
                     <div className="flex justify-center my-3">
-                      <span className="text-[11px] px-3 py-1 rounded-full bg-[#1d282f] text-[#aebac1] shadow-sm uppercase tracking-wide font-medium">{g.date}</span>
+                      <span className="text-[11px] px-3 py-1 rounded-full bg-[#1d282f]/90 backdrop-blur-md text-[#aebac1] shadow-lg border border-white/5 uppercase tracking-wider font-semibold">{g.date}</span>
                     </div>
                     {g.items.map((m) => {
                       const isPinned = pinnedIds.has(m.id);
