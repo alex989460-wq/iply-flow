@@ -246,27 +246,28 @@ export default function ResellerActivation() {
             </div>
           </div>
         ) : (
-          /* ============ Step 3: Plan + Payment ============ */
+          /* ============ Step 3: Duration + Payment ============ */
           <div className="space-y-5">
             <div>
-              <h1 className="text-2xl font-bold">Escolha o Plano</h1>
-              <p className="text-sm text-white/60">Selecione a duração e pague para ativar</p>
+              <h1 className="text-2xl font-bold">Escolha a Duração</h1>
+              <p className="text-sm text-white/60">Selecione o período da licença e pague para ativar</p>
             </div>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-              {data.plans.map(p => {
-                const active = plan?.id === p.id;
+            <div className="grid grid-cols-3 gap-3">
+              {(['monthly','quarterly','annual'] as Duration[]).map(d => {
+                const price = d === 'monthly' ? app!.price_monthly : d === 'quarterly' ? app!.price_quarterly : app!.price_annual;
+                if (price == null) return null;
+                const active = duration === d;
                 return (
-                  <button key={p.id} onClick={() => setPlan(p)}
+                  <button key={d} onClick={() => setDuration(d)}
                     className={`rounded-xl border p-4 text-left transition-all ${active ? 'border-[var(--brand)] bg-[var(--brand)]/[0.08]' : 'border-white/10 bg-[#111] hover:border-white/25'}`}>
-                    <p className="text-[10px] font-bold tracking-widest text-white/60">{durationLabel(p.duration_days)}</p>
-                    <p className="text-xl font-extrabold mt-1"><span className="text-xs text-white/50">R$</span>{Number(p.price).toFixed(2).replace('.', ',')}</p>
-                    <p className="text-xs text-white/50 mt-1 truncate">{p.name}</p>
+                    <p className="text-[10px] font-bold tracking-widest text-white/60">{DURATION_LABEL[d]}</p>
+                    <p className="text-xl font-extrabold mt-1"><span className="text-xs text-white/50">R$</span>{Number(price).toFixed(2).replace('.', ',')}</p>
                   </button>
                 );
               })}
             </div>
 
-            {plan && (
+            {duration && currentPrice != null && (
               <div className="space-y-3 pt-2">
                 <p className="text-sm text-white/80 font-semibold">Forma de pagamento:</p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -277,17 +278,17 @@ export default function ResellerActivation() {
                         {creating ? <Loader2 className="w-6 h-6 animate-spin text-emerald-500" /> : <img src={pixLogo.url} alt="Pix" className="w-9 h-9" />}
                       </div>
                       <p className="font-bold text-sm">PIX INSTANTÂNEO</p>
-                      <p className="text-xl font-extrabold">{fmtBRL(plan.price)}</p>
+                      <p className="text-xl font-extrabold">{fmtBRL(currentPrice)}</p>
                     </button>
                   )}
-                  {data.methods.cakto && (plan.card_url || plan.cakto_url) && (
-                    <button onClick={() => submit(plan.card_url ? 'cakto_card' : 'cakto')} disabled={creating}
+                  {data.methods.cakto && data.activation_cakto_url && (
+                    <button onClick={() => submit('cakto')} disabled={creating}
                       className="group rounded-xl border border-white/10 bg-gradient-to-br from-sky-500/[0.06] to-transparent hover:border-sky-400/70 hover:from-sky-500/[0.12] p-5 flex flex-col items-center gap-2 transition-all disabled:opacity-50 hover:-translate-y-0.5">
                       <div className="w-14 h-14 rounded-xl bg-white flex items-center justify-center">
                         <img src={cardLogo.url} alt="Cartão" className="w-9 h-9" />
                       </div>
                       <p className="font-bold text-sm">CARTÃO / CAKTO</p>
-                      <p className="text-xl font-extrabold">{fmtBRL(plan.price)}</p>
+                      <p className="text-xl font-extrabold">{fmtBRL(currentPrice)}</p>
                     </button>
                   )}
                 </div>
