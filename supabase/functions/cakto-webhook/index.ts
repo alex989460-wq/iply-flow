@@ -42,7 +42,12 @@ serve(async (req) => {
     if (digits.startsWith('55')) return digits;
     if (KNOWN_FOREIGN_DDIS.some((ddi) => digits.startsWith(ddi) && digits.length > ddi.length)) return digits;
     if (digits.length >= 12) return digits; // já tem código de país
-    if (digits.length >= 10 && digits.length <= 11) return '55' + digits;
+    // BR mobile tem 11 dígitos com '9' na 3ª posição (DDD + 9 + 8). Se não, é estrangeiro (ex.: US 1XXXXXXXXXX).
+    if (digits.length === 11) {
+      if (digits[2] === '9') return '55' + digits;
+      return digits;
+    }
+    if (digits.length === 10) return '55' + digits; // BR fixo
     return digits;
   };
 
