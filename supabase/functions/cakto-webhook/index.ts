@@ -944,7 +944,7 @@ serve(async (req) => {
     // ── Check for pending new customer FIRST (from public checkout page) ──
     // This must run BEFORE conflict detection so new customers with existing phones are handled correctly
     {
-      const { data: pendingNew } = await supabaseAdmin
+      let { data: pendingNew } = await supabaseAdmin
         .from('pending_new_customers')
         .select('*')
         .in('phone', [...searchVariants])
