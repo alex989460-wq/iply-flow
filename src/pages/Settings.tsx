@@ -22,6 +22,7 @@ import BackupManagerCard from '@/components/settings/BackupManagerCard';
 import EvolutionApiCard from '@/components/settings/EvolutionApiCard';
 import CrmOficialCard from '@/components/settings/CrmOficialCard';
 import EfiSettingsCard from '@/components/settings/EfiSettingsCard';
+import ResellerCheckoutCard from '@/components/settings/ResellerCheckoutCard';
 import PanelThemeCard from '@/components/settings/PanelThemeCard';
 import AttendancesStatsCard from '@/components/settings/AttendancesStatsCard';
 import { Palette, MessageSquare } from 'lucide-react';
@@ -724,6 +725,7 @@ export default function Settings() {
           <TabsContent value="cobranca" className="mt-6 space-y-6">
             <BillingSettingsCard />
             <EfiSettingsCard />
+            <ResellerCheckoutCard />
           </TabsContent>
 
 
