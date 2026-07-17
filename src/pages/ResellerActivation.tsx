@@ -233,7 +233,25 @@ export default function ResellerActivation() {
               {app?.requires_mac && (
                 <div>
                   <Label className="text-xs text-white/70">Endereço MAC</Label>
-                  <Input value={form.mac} onChange={e => setForm(f => ({ ...f, mac: e.target.value.toUpperCase() }))} placeholder="AA:BB:CC:DD:EE:FF" className="bg-[#111] border-white/10 h-11 mt-1 font-mono" />
+                  <Input
+                    value={form.mac}
+                    onChange={e => setForm(f => ({ ...f, mac: formatMac(e.target.value) }))}
+                    onPaste={e => {
+                      e.preventDefault();
+                      const t = e.clipboardData.getData('text');
+                      setForm(f => ({ ...f, mac: formatMac(t) }));
+                    }}
+                    placeholder="AA:BB:CC:DD:EE:FF"
+                    maxLength={17}
+                    inputMode="text"
+                    autoCapitalize="characters"
+                    autoCorrect="off"
+                    spellCheck={false}
+                    className="bg-[#111] border-white/10 h-11 mt-1 font-mono tracking-wider uppercase"
+                  />
+                  {form.mac && !isValidMac(form.mac) && (
+                    <p className="text-[10px] text-amber-400 mt-1">Formato: AA:BB:CC:DD:EE:FF (6 pares hexadecimais)</p>
+                  )}
                 </div>
               )}
               {app?.requires_email && (
