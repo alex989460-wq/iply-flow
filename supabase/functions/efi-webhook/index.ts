@@ -166,21 +166,14 @@ Deno.serve(async (req) => {
         }
       }
 
-      // Fire WhatsApp confirmation (template + text + admin) for any customer-linked charge.
-      const targetCustomerId = charge.customer_id ||
-        (charge.pending_kind === "new_customer" ? null : null);
-      // Re-read customer_id in case it was just linked (new_customer flow updated it).
-      let notifyCustomerId = targetCustomerId;
-      if (!notifyCustomerId) {
-        const { data: refreshed } = await admin.from("efi_charges")
-          .select("customer_id").eq("id", charge.id).maybeSingle();
-        notifyCustomerId = refreshed?.customer_id || null;
-      }
-      if (notifyCustomerId) {
-        // Read the just-advanced due_date so the message shows the new value.
+      const meta2: any = charge.metadata || {};
+      const notifyIds: string[] = Array.isArray(meta2.customer_ids) && meta2.customer_ids.length
+        ? meta2.customer_ids
+        : (charge.customer_id ? [charge.customer_id] : []);
+      for (const cid of notifyIds) {
         const { data: freshCust } = await admin.from("customers")
-          .select("due_date").eq("id", notifyCustomerId).maybeSingle();
-        const meta: any = charge.metadata || {};
+          .select("due_date").eq("id", cid).maybeSingle();
+        const perAmount = notifyIds.length > 1 ? Math.round((dbAmount / notifyIds.length) * 100) / 100 : dbAmount;
         fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/send-payment-confirmation`, {
           method: "POST",
           headers: {
@@ -188,11 +181,11 @@ Deno.serve(async (req) => {
             "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
           },
           body: JSON.stringify({
-            customer_id: notifyCustomerId,
-            amount: dbAmount,
-            plan_name: meta.plan_name || null,
+            customer_id: cid,
+            amount: perAmount,
+            plan_name: meta2.plan_name || null,
             new_due_date: freshCust?.due_date || null,
-            source: meta.source ? `efi:${meta.source}` : `efi:${txid}`,
+            source: meta2.source ? `efi:${meta2.source}` : `efi:${txid}`,
           }),
         }).catch((e) => console.error("[efi-webhook] send-payment-confirmation err", e));
       }
