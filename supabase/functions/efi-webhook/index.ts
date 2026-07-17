@@ -142,6 +142,11 @@ Deno.serve(async (req) => {
           // Cleanup the pending row.
           await admin.from("pending_new_customers").delete().eq("id", pending.id);
         }
+      } else if (charge.pending_kind === "activation_request" && charge.pending_id) {
+        // Mark activation request as paid — reseller processes it manually.
+        await admin.from("activation_requests")
+          .update({ status: "pago", paid_at: new Date().toISOString() })
+          .eq("id", charge.pending_id);
       } else if (charge.customer_id) {
         // Multi-customer charge (metadata.customer_ids) or single charge.
         const meta: any = charge.metadata || {};
