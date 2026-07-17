@@ -712,7 +712,7 @@ export default function ActivationApps() {
                             </TableCell>
                             <TableCell>
                               <div className="flex gap-1">
-                                {req.status === 'pending' && (
+                                {req.status !== 'activated' && req.status !== 'rejected' && (
                                   <>
                                     <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => updateRequestStatus.mutate({ id: req.id, action: 'activate' })}>
                                       <CheckCircle2 className="w-3 h-3 mr-1" /> Ativar
