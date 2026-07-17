@@ -2802,7 +2802,7 @@ export default function EvolutionChat({ embed = false }: { embed?: boolean } = {
               )}
 
               {/* Composer */}
-              <div className="px-2 py-2 border-t border-[#0b1115] bg-[#202c33] flex items-end gap-1.5">
+              <div className="px-3 py-2.5 border-t border-[#0b1115] bg-gradient-to-b from-[#1a252b] to-[#202c33] flex items-end gap-1.5">
                 <input ref={imgInputRef} type="file" accept="image/*" hidden onChange={onPickFile('image')} />
                 <input ref={fileInputRef} type="file" hidden onChange={onPickFile('document')} />
                 <input ref={stickerInputRef} type="file" accept="image/webp,image/png" hidden onChange={onPickFile('sticker')} />
