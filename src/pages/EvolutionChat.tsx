@@ -2066,7 +2066,7 @@ export default function EvolutionChat({ embed = false }: { embed?: boolean } = {
             <Button asChild size="icon" variant="ghost" className="h-8 w-8 text-emerald-500 hover:text-emerald-400 hover:bg-emerald-500/10" title="Conectar / Gerenciar instâncias">
               <Link to="/evolution-instances"><QrCode className="w-4 h-4" /></Link>
             </Button>
-            <Button size="icon" variant="ghost" className="h-8 w-8" onClick={load} title="Atualizar">
+            <Button size="icon" variant="ghost" className="h-8 w-8 hover:rotate-180 transition-transform duration-500" onClick={() => { load(); toast({ title: 'Atualizando conversas…' }); }} title="Atualizar">
               <RefreshCw className={cn('w-3.5 h-3.5', loading && 'animate-spin')} />
             </Button>
             <DropdownMenu>
