@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
-import { Loader2, Save, Globe, Copy, RefreshCw, ExternalLink, Key } from 'lucide-react';
+import { Loader2, Save, Globe, Copy, RefreshCw, ExternalLink, Key, Upload, X } from 'lucide-react';
 
 interface Settings {
   id?: string;
