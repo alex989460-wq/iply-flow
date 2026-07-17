@@ -52,7 +52,14 @@ import AiTraining from "./pages/AiTraining";
 import { Loader2 } from "lucide-react";
 import { useOneSignal } from "@/hooks/useOneSignal";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+    },
+  },
+});
 
 function AutoBackup() {
   const { user } = useAuth();
