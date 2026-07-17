@@ -30,14 +30,6 @@ interface Data {
 
 const DURATION_LABEL: Record<Duration, string> = { monthly: 'MENSAL', quarterly: 'TRIMESTRAL', annual: 'ANUAL' };
 
-function durationLabel(days: number) {
-  if (days <= 31) return 'MENSAL';
-  if (days <= 62) return 'BIMESTRAL';
-  if (days <= 92) return 'TRIMESTRAL';
-  if (days <= 186) return 'SEMESTRAL';
-  return 'ANUAL';
-}
-
 export default function ResellerActivation() {
   const { slug } = useParams<{ slug: string }>();
   const [data, setData] = useState<Data | null>(null);
@@ -46,7 +38,7 @@ export default function ResellerActivation() {
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
   const [app, setApp] = useState<AppItem | null>(null);
   const [form, setForm] = useState({ name: '', phone: '', mac: '', email: '' });
-  const [plan, setPlan] = useState<PlanItem | null>(null);
+  const [duration, setDuration] = useState<Duration | null>(null);
   const [creating, setCreating] = useState(false);
   const [pix, setPix] = useState<{ txid: string; qr: string; copy: string; amount: number } | null>(null);
   const [paid, setPaid] = useState(false);
