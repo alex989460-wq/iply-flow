@@ -117,6 +117,8 @@ function longRelativeTime(iso: string) {
   if (hr < 24) return `${hr} hora${hr > 1 ? 's' : ''}`;
   const dy = Math.floor(hr / 24);
   return `${dy} dia${dy > 1 ? 's' : ''}`;
+}
+
 
 function getNestedValue(source: unknown, path: string[]): unknown {
   return path.reduce<unknown>((acc, key) => (acc && typeof acc === 'object' ? (acc as Record<string, unknown>)[key] : undefined), source);
