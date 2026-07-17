@@ -1107,8 +1107,30 @@ export default function ActivationApps() {
                   placeholder="https://.../logo.png (opcional)"
                 />
               </div>
-              <p className="text-xs text-muted-foreground mt-1">Cole a URL pública da logo do app. Se vazio, mostramos as iniciais coloridas.</p>
             </div>
+
+            <div className="rounded-lg border border-border/60 p-3 space-y-2 bg-muted/30">
+              <Label className="text-sm font-semibold">Valores da Licença (R$)</Label>
+              <p className="text-xs text-muted-foreground">Preços usados no checkout público de ativação. Deixe em branco para ocultar a opção.</p>
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <Label className="text-xs">Mensal</Label>
+                  <Input type="number" step="0.01" placeholder="—" value={form.price_monthly}
+                    onChange={e => setForm(f => ({ ...f, price_monthly: e.target.value }))} />
+                </div>
+                <div>
+                  <Label className="text-xs">Trimestral</Label>
+                  <Input type="number" step="0.01" placeholder="—" value={form.price_quarterly}
+                    onChange={e => setForm(f => ({ ...f, price_quarterly: e.target.value }))} />
+                </div>
+                <div>
+                  <Label className="text-xs">Anual</Label>
+                  <Input type="number" step="0.01" placeholder="25.00" value={form.price_annual}
+                    onChange={e => setForm(f => ({ ...f, price_annual: e.target.value }))} />
+                </div>
+              </div>
+            </div>
+
 
             <div className="flex items-center justify-between">
               <Label>Requer endereço MAC</Label>
