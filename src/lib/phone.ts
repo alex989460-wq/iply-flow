@@ -16,7 +16,12 @@ export function normalizeWhatsAppPhone(raw: string | number | null | undefined):
   if (digits.startsWith('55')) return digits;
   if (hasKnownForeignCountryCode(digits)) return digits;
   if (digits.length >= 12) return digits;
-  if (digits.length >= 10 && digits.length <= 11) return `55${digits}`;
+  // BR mobile: 11 dígitos com '9' na 3ª posição (DDD + 9 + 8). Caso contrário é estrangeiro (ex.: US 1XXXXXXXXXX).
+  if (digits.length === 11) {
+    if (digits[2] === '9') return `55${digits}`;
+    return digits;
+  }
+  if (digits.length === 10) return `55${digits}`;
 
   return digits;
 }
