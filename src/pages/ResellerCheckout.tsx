@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
-import { Loader2, Check, Phone, CreditCard, QrCode, ArrowLeft, Copy, Sparkles, ShieldCheck, Tv, User as UserIcon, AlertTriangle, Server } from 'lucide-react';
+import { Loader2, Check, Phone, QrCode, ArrowLeft, Copy, Sparkles, ShieldCheck, Tv, User as UserIcon, AlertTriangle, Server, Smartphone, ChevronRight } from 'lucide-react';
 import { toast } from 'sonner';
+import pixLogo from '@/assets/pix-logo.png.asset.json';
+import cardLogo from '@/assets/card-logo.png.asset.json';
 
 interface Plan {
   id: string; name: string; duration_days: number; price: number;
