@@ -83,7 +83,7 @@ export default function ResellerActivation() {
   const brandStyle = useMemo(() => ({ '--brand': brand } as React.CSSProperties), [brand]);
 
   const canContinueForm = form.name.trim() && form.phone.trim() &&
-    (!app?.requires_mac || form.mac.trim()) && (!app?.requires_email || form.email.trim());
+    (!app?.requires_mac || isValidMac(form.mac)) && (!app?.requires_email || form.email.trim());
 
   const currentPrice = app && duration
     ? (duration === 'monthly' ? app.price_monthly : duration === 'quarterly' ? app.price_quarterly : app.price_annual)
