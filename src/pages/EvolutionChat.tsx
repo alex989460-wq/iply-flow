@@ -2294,8 +2294,9 @@ export default function EvolutionChat({ embed = false }: { embed?: boolean } = {
                       <button
                         onClick={() => setSelectedPhone(c.phone)}
                         className={cn(
-                          'w-full text-left px-3 py-2.5 hover:bg-accent/40 transition-colors flex gap-3 items-start border-b border-border/20',
-                          active && 'bg-accent',
+                          'w-full text-left px-3 py-2.5 hover:bg-accent/40 transition-all duration-200 flex gap-3 items-start border-b border-border/20 relative',
+                          active && 'bg-accent/60 shadow-inner',
+                          active && 'before:absolute before:left-0 before:top-2 before:bottom-2 before:w-0.5 before:rounded-full before:bg-[#00a884]',
                           isPinnedContact && 'bg-gradient-to-r from-emerald-500/5 to-transparent',
                         )}
                       >
