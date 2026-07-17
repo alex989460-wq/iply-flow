@@ -910,7 +910,24 @@ Deno.serve(async (req) => {
       }
 
 
+
       const ok = (sendResult as any)?.ok === true;
+
+      // After a successful template send, upsert the contact in the CRM Oficial
+      // so the conversation shows up in the chat list. Template broadcasts return
+      // `conversation_id: null` and do NOT create a contact/conversation on their own.
+      if (ok) {
+        const contactName = String(rawBody.contact_name || rawBody.name || "Cliente").trim() || "Cliente";
+        try {
+          await doContact(
+            { name: contactName, phone, stage: "new", notes: "Contato criado automaticamente após envio de template" },
+            resellerApiKey,
+          );
+        } catch (e) {
+          console.warn("[crm-oficial-sync sendTemplate] falha ao criar contato pós-template:", (e as Error).message);
+        }
+      }
+
       return new Response(JSON.stringify({ success: ok, send: sendResult, provider: "crm-oficial" }), {
         status: ok ? 200 : 502,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
