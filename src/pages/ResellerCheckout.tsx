@@ -145,17 +145,21 @@ export default function ResellerCheckout() {
   }
 
   return (
-    <div style={brandStyle} className="min-h-screen bg-[#0a0a0a] text-white">
+    <div style={brandStyle} className="min-h-screen text-white relative overflow-hidden bg-[#07070a]">
+      {/* Ambient glow */}
+      <div className="pointer-events-none absolute inset-0 opacity-60"
+           style={{ background: `radial-gradient(1200px 500px at 50% -10%, ${brand}22, transparent 60%), radial-gradient(800px 400px at 90% 20%, ${brand}15, transparent 60%)` }} />
       {/* Header */}
-      <header className="pt-10 pb-6 text-center">
+      <header className="relative pt-10 pb-6 text-center">
         {data.logo_url ? (
-          <img src={data.logo_url} alt={data.display_name || ''} className="h-16 mx-auto object-contain" />
+          <img src={data.logo_url} alt={data.display_name || ''} className="h-16 mx-auto object-contain drop-shadow-2xl" />
         ) : (
-          <h1 className="text-3xl font-extrabold" style={{ color: brand }}>{data.display_name || 'Assinatura'}</h1>
+          <h1 className="text-3xl font-extrabold tracking-tight" style={{ color: brand }}>{data.display_name || 'Assinatura'}</h1>
         )}
       </header>
 
-      <main className="max-w-5xl mx-auto px-4 pb-16 space-y-8">
+      <main className="relative max-w-5xl mx-auto px-4 pb-16 space-y-8">
+
         {/* Sucesso Pix */}
         {paid && (
           <Card className="border-emerald-500/40 bg-emerald-500/10 text-white">
