@@ -112,12 +112,12 @@ Deno.serve(async (req) => {
       .from("efi_settings").select("*").eq("user_id", ownerId).eq("enabled", true).maybeSingle();
     if (!efi) return json({ error: "efi_not_configured" }, 400);
 
-    const amount = Math.round(Number(plan.price) * 100) / 100;
+    const amount = Math.round(price * 100) / 100;
     const creds = buildCredentials(efi as any);
     const txid = newTxid();
     const cob = await createCharge(creds, {
       txid, amount,
-      description: `Ativação ${app.app_name} — ${customerName}`.slice(0, 140),
+      description: `Ativação ${app.app_name} ${durationLabel} — ${customerName}`.slice(0, 140),
       expiresInSec: 3600,
     });
     if (cob.status < 200 || cob.status >= 300) {
