@@ -43,6 +43,7 @@ import CrmOficialChatbots from "./pages/CrmOficialChatbots";
 import Atendimentos from "./pages/Atendimentos";
 
 import PublicCheckout from "./pages/PublicCheckout";
+import ResellerCheckout from "./pages/ResellerCheckout";
 import BannerGenerator from "./pages/BannerGenerator";
 import RoboFlows from "./pages/RoboFlows";
 import CostCalculator from "./pages/CostCalculator";
@@ -103,6 +104,7 @@ function AppRoutes() {
       <Route path="/confirmar-renovacao" element={<ConflictRenewal />} />
       <Route path="/consulta" element={<ConsultaDue />} />
       <Route path="/checkout/:userId" element={<PublicCheckout />} />
+      <Route path="/r/:slug" element={<ResellerCheckout />} />
       <Route path="/dashboard" element={<ProtectedRoute><Index /></ProtectedRoute>} />
       <Route path="/servers" element={<ProtectedRoute><Servers /></ProtectedRoute>} />
       <Route path="/plans" element={<ProtectedRoute><Plans /></ProtectedRoute>} />
