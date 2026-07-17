@@ -1,5 +1,4 @@
 const KNOWN_COUNTRY_CODES = [
-  '1',
   '971', '598', '595', '593', '591', '353', '351',
   '86', '81', '61', '58', '57', '56', '54', '52', '51', '49', '44', '41', '39', '34', '33', '32', '31',
 ] as const;
@@ -11,9 +10,9 @@ function hasKnownForeignCountryCode(digits: string) {
 function stripAccidentalBrazilPrefix(digits: string) {
   if (!digits.startsWith('55')) return digits;
   const withoutBrazilCode = digits.slice(2);
-  if (hasKnownForeignCountryCode(withoutBrazilCode)) return withoutBrazilCode;
   // Corrige números estrangeiros de 11 dígitos que já foram salvos/enviados com 55 por engano.
   if (withoutBrazilCode.length === 11 && withoutBrazilCode[2] !== '9') return withoutBrazilCode;
+  if (withoutBrazilCode.length >= 12 && hasKnownForeignCountryCode(withoutBrazilCode)) return withoutBrazilCode;
   return digits;
 }
 
