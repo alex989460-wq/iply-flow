@@ -17,7 +17,11 @@ const normalizeWhatsappPhone = (phone: string) => {
   if (digits.startsWith('55')) return digits;
   if (KNOWN_FOREIGN_DDIS.some((ddi) => digits.startsWith(ddi) && digits.length > ddi.length)) return digits;
   if (digits.length >= 12) return digits;
-  if (digits.length >= 10 && digits.length <= 11) return `55${digits}`;
+  if (digits.length === 11) {
+    if (digits[2] === '9') return `55${digits}`;
+    return digits;
+  }
+  if (digits.length === 10) return `55${digits}`;
   return digits;
 };
 
