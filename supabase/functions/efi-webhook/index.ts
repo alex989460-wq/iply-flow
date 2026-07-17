@@ -143,32 +143,37 @@ Deno.serve(async (req) => {
           await admin.from("pending_new_customers").delete().eq("id", pending.id);
         }
       } else if (charge.customer_id) {
-        // Manual charge for an existing customer.
-        await admin.from("payments").insert({
-          customer_id: charge.customer_id,
-          amount: dbAmount,
-          payment_date: new Date().toISOString().slice(0, 10),
-          method: "pix",
-          confirmed: true,
-          source: `efi:${txid}`,
-        });
+        // Multi-customer charge (metadata.customer_ids) or single charge.
+        const meta: any = charge.metadata || {};
+        const ids: string[] = Array.isArray(meta.customer_ids) && meta.customer_ids.length
+          ? meta.customer_ids
+          : [charge.customer_id];
+        // Fetch per-customer price (custom_price fallback to charge.amount/N)
+        const { data: custs } = await admin.from("customers")
+          .select("id, custom_price").in("id", ids);
+        const fallback = dbAmount / ids.length;
+        for (const cid of ids) {
+          const cust = (custs || []).find((c: any) => c.id === cid);
+          const perAmount = Number(cust?.custom_price ?? fallback);
+          await admin.from("payments").insert({
+            customer_id: cid,
+            amount: perAmount,
+            payment_date: new Date().toISOString().slice(0, 10),
+            method: "pix",
+            confirmed: true,
+            source: `efi:${txid}`,
+          });
+        }
       }
 
-      // Fire WhatsApp confirmation (template + text + admin) for any customer-linked charge.
-      const targetCustomerId = charge.customer_id ||
-        (charge.pending_kind === "new_customer" ? null : null);
-      // Re-read customer_id in case it was just linked (new_customer flow updated it).
-      let notifyCustomerId = targetCustomerId;
-      if (!notifyCustomerId) {
-        const { data: refreshed } = await admin.from("efi_charges")
-          .select("customer_id").eq("id", charge.id).maybeSingle();
-        notifyCustomerId = refreshed?.customer_id || null;
-      }
-      if (notifyCustomerId) {
-        // Read the just-advanced due_date so the message shows the new value.
+      const meta2: any = charge.metadata || {};
+      const notifyIds: string[] = Array.isArray(meta2.customer_ids) && meta2.customer_ids.length
+        ? meta2.customer_ids
+        : (charge.customer_id ? [charge.customer_id] : []);
+      for (const cid of notifyIds) {
         const { data: freshCust } = await admin.from("customers")
-          .select("due_date").eq("id", notifyCustomerId).maybeSingle();
-        const meta: any = charge.metadata || {};
+          .select("due_date").eq("id", cid).maybeSingle();
+        const perAmount = notifyIds.length > 1 ? Math.round((dbAmount / notifyIds.length) * 100) / 100 : dbAmount;
         fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/send-payment-confirmation`, {
           method: "POST",
           headers: {
@@ -176,11 +181,11 @@ Deno.serve(async (req) => {
             "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
           },
           body: JSON.stringify({
-            customer_id: notifyCustomerId,
-            amount: dbAmount,
-            plan_name: meta.plan_name || null,
+            customer_id: cid,
+            amount: perAmount,
+            plan_name: meta2.plan_name || null,
             new_due_date: freshCust?.due_date || null,
-            source: meta.source ? `efi:${meta.source}` : `efi:${txid}`,
+            source: meta2.source ? `efi:${meta2.source}` : `efi:${txid}`,
           }),
         }).catch((e) => console.error("[efi-webhook] send-payment-confirmation err", e));
       }

@@ -3,45 +3,76 @@ import { useParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent } from '@/components/ui/card';
-import { Loader2, Check, Phone, CreditCard, QrCode, ArrowLeft, Copy, ExternalLink, Sparkles, ShieldCheck, Tv, Zap } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { Loader2, Check, Phone, CreditCard, QrCode, ArrowLeft, Copy, Sparkles, ShieldCheck, Tv, User as UserIcon, AlertTriangle, Server } from 'lucide-react';
 import { toast } from 'sonner';
 
-interface Plan { id: string; name: string; duration_days: number; price: number; cakto_url: string | null; }
-interface Customer { id: string; name: string; username: string; due_date: string; status: string; current_plan: string | null; screens: number; }
+interface Plan {
+  id: string; name: string; duration_days: number; price: number; cakto_url: string | null;
+  screens: number; kind: 'pix' | 'card';
+}
+interface Customer {
+  id: string; name: string; username: string; due_date: string; status: string;
+  current_plan: string | null; screens: number;
+}
 interface CheckoutData {
   slug: string; display_name: string | null; logo_url: string | null; brand_color: string;
   headline: string | null; subheadline: string | null;
   methods: { efi: boolean; cakto: boolean };
-  plans: Plan[];
+  plans: any[];
 }
 
 const FN_BASE = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1`;
 const ANON = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
-function fmtBRL(n: number) { return n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }); }
-function label(days: number) {
+const fmtBRL = (n: number) => `R$ ${Number(n).toFixed(2).replace('.', ',')}`;
+function durationLabel(days: number) {
   if (days <= 31) return 'MENSAL';
+  if (days <= 62) return 'BIMESTRAL';
   if (days <= 92) return 'TRIMESTRAL';
   if (days <= 186) return 'SEMESTRAL';
   return 'ANUAL';
 }
-function extractScreens(name: string): number | null {
-  const m = name?.match(/(\d+)\s*(telas?|tela|screens?|dispositivos?|conex[õo]es|pontos?)/i);
-  if (m) return parseInt(m[1], 10);
-  const m2 = name?.match(/\b([1-9])\s*t\b/i);
-  return m2 ? parseInt(m2[1], 10) : null;
+function extractScreens(name: string): number {
+  const m = name?.match(/(\d+)\s*(telas?|screens?|dispositivos?)/i);
+  if (m) return Math.min(parseInt(m[1], 10), 10);
+  return 1;
+}
+function isCardPlan(name: string): boolean {
+  return /cart(a|ã)o/i.test(name || '');
+}
+
+/** Group raw plans by (screens, duration_days). Prefer pix as primary, keep card variant. */
+interface PlanGroup { key: string; screens: number; duration_days: number; pix?: Plan; card?: Plan; }
+function groupPlans(raw: any[]): PlanGroup[] {
+  const groups = new Map<string, PlanGroup>();
+  for (const p of raw) {
+    const screens = extractScreens(p.name);
+    const kind: 'pix' | 'card' = isCardPlan(p.name) ? 'card' : 'pix';
+    const norm: Plan = { ...p, screens, kind };
+    const key = `${screens}::${p.duration_days}`;
+    let g = groups.get(key);
+    if (!g) { g = { key, screens, duration_days: p.duration_days }; groups.set(key, g); }
+    if (kind === 'pix' && (!g.pix || p.price < g.pix.price)) g.pix = norm;
+    if (kind === 'card' && (!g.card || p.price < g.card.price)) g.card = norm;
+  }
+  return Array.from(groups.values()).sort((a, b) => a.screens - b.screens || a.duration_days - b.duration_days);
 }
 
 export default function ResellerCheckout() {
   const { slug } = useParams<{ slug: string }>();
   const [data, setData] = useState<CheckoutData | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // Modal steps: 'phone' -> 'accounts' -> 'method' -> 'pix'
+  const [step, setStep] = useState<null | 'phone' | 'accounts' | 'method' | 'pix'>(null);
+  const [group, setGroup] = useState<PlanGroup | null>(null);
+
   const [phone, setPhone] = useState('');
   const [searching, setSearching] = useState(false);
-  const [customers, setCustomers] = useState<Customer[] | null>(null);
-  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
-  const [selectedPlan, setSelectedPlan] = useState<Plan | null>(null);
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+
   const [creating, setCreating] = useState(false);
   const [pix, setPix] = useState<{ txid: string; qr: string; copy: string; amount: number } | null>(null);
   const [paid, setPaid] = useState(false);
@@ -57,13 +88,11 @@ export default function ResellerCheckout() {
         setData(j);
       } catch (e: any) {
         toast.error(e.message || 'Link inválido');
-      } finally {
-        setLoading(false);
-      }
+      } finally { setLoading(false); }
     })();
   }, [slug]);
 
-  // Poll Pix status
+  // Poll Pix
   useEffect(() => {
     if (!pix || paid) return;
     const t = setInterval(async () => {
@@ -81,11 +110,33 @@ export default function ResellerCheckout() {
   }, [pix, paid]);
 
   const brand = data?.brand_color || '#e11d48';
-  const brandStyle = useMemo(() => ({
-    '--brand': brand,
-  } as React.CSSProperties), [brand]);
+  const brandStyle = useMemo(() => ({ '--brand': brand } as React.CSSProperties), [brand]);
+  const grouped = useMemo(() => data ? groupPlans(data.plans) : [], [data]);
 
-  const searchPhone = async () => {
+  const singles = grouped.filter(g => g.screens === 1);
+  const multi = grouped.filter(g => g.screens >= 2);
+  const multiByScreens = new Map<number, PlanGroup[]>();
+  for (const g of multi) {
+    const arr = multiByScreens.get(g.screens) || [];
+    arr.push(g);
+    multiByScreens.set(g.screens, arr);
+  }
+
+  const totalSelectedScreens = useMemo(
+    () => selectedIds.reduce((sum, id) => sum + (customers.find(c => c.id === id)?.screens || 1), 0),
+    [selectedIds, customers]
+  );
+  const requiredScreens = group?.screens || 1;
+
+  const openPlan = (g: PlanGroup) => {
+    setGroup(g); setSelectedIds([]); setCustomers([]); setStep('phone');
+  };
+  const resetAll = () => {
+    setStep(null); setGroup(null); setPhone(''); setCustomers([]); setSelectedIds([]);
+    setPix(null); setPaid(false);
+  };
+
+  const doSearch = async () => {
     if (!phone.trim()) { toast.error('Informe seu telefone'); return; }
     setSearching(true);
     try {
@@ -96,309 +147,389 @@ export default function ResellerCheckout() {
       });
       const j = await res.json();
       if (!res.ok) throw new Error(j.error || 'Falha');
-      setCustomers(j.customers || []);
-      if (!j.customers?.length) toast.warning('Nenhum usuário encontrado para esse telefone.');
-    } catch (e: any) {
-      toast.error(e.message);
-    } finally {
-      setSearching(false);
+      const list: Customer[] = j.customers || [];
+      if (!list.length) { toast.warning('Nenhum usuário encontrado. Verifique o telefone.'); return; }
+      // Only include accounts with screens <= plan.screens
+      const eligible = list.filter(c => (c.screens || 1) <= requiredScreens);
+      if (!eligible.length) {
+        toast.warning('Seus cadastros têm mais telas que este plano. Escolha um plano maior.');
+        return;
+      }
+      setCustomers(eligible);
+      // auto-select first if fits exactly
+      const first = eligible[0];
+      if (first && (first.screens || 1) === requiredScreens) setSelectedIds([first.id]);
+      setStep('accounts');
+    } catch (e: any) { toast.error(e.message); }
+    finally { setSearching(false); }
+  };
+
+  const toggleAccount = (c: Customer) => {
+    const cs = c.screens || 1;
+    if (selectedIds.includes(c.id)) {
+      setSelectedIds(prev => prev.filter(id => id !== c.id));
+    } else {
+      if (totalSelectedScreens + cs > requiredScreens) {
+        toast.warning(`Este plano suporta ${requiredScreens} tela(s). Remova outra conta primeiro.`);
+        return;
+      }
+      setSelectedIds(prev => [...prev, c.id]);
     }
   };
 
-  const startPayment = async (method: 'pix' | 'cakto') => {
-    if (!selectedCustomer || !selectedPlan) return;
+  const goPayment = () => {
+    if (totalSelectedScreens !== requiredScreens) {
+      toast.warning(`Selecione contas que somem exatamente ${requiredScreens} tela(s).`);
+      return;
+    }
+    setStep('method');
+  };
+
+  const pay = async (method: 'pix' | 'cakto') => {
+    if (!group) return;
+    const plan = method === 'pix' ? (group.pix || group.card) : (group.card || group.pix);
+    if (!plan) { toast.error('Plano indisponível'); return; }
     setCreating(true);
     try {
       const res = await fetch(`${FN_BASE}/reseller-checkout-charge`, {
         method: 'POST',
         headers: { apikey: ANON, Authorization: `Bearer ${ANON}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          action: 'create', slug,
-          customer_id: selectedCustomer.id,
-          plan_id: selectedPlan.id,
-          method,
+          action: 'create', slug, plan_id: plan.id, method,
+          customer_ids: selectedIds,
         }),
       });
       const j = await res.json();
       if (!res.ok || !j.ok) throw new Error(j.error || 'Falha ao gerar cobrança');
-      if (j.method === 'cakto') {
-        window.location.href = j.checkout_url;
-        return;
-      }
-      setPix({ txid: j.txid, qr: j.qrcode_base64, copy: j.pix_copia_cola, amount: j.amount });
-    } catch (e: any) {
-      toast.error(e.message);
-    } finally {
-      setCreating(false);
-    }
+      if (j.method === 'cakto') { window.location.href = j.checkout_url; return; }
+      setPix({ txid: j.txid, qr: j.qrcode_base64 || '', copy: j.pix_copia_cola || '', amount: j.amount });
+      setStep('pix');
+    } catch (e: any) { toast.error(e.message); }
+    finally { setCreating(false); }
   };
 
-  const reset = () => {
-    setPix(null); setPaid(false); setSelectedPlan(null); setSelectedCustomer(null); setCustomers(null); setPhone('');
+  if (loading) return <div className="min-h-screen flex items-center justify-center bg-[#0d0d0d]"><Loader2 className="w-8 h-8 text-white/60 animate-spin" /></div>;
+  if (!data) return <div className="min-h-screen flex items-center justify-center bg-[#0d0d0d] text-white">Link inválido ou desativado.</div>;
+
+  const pixTotal = selectedIds.reduce((s, id) => {
+    const c = customers.find(x => x.id === id);
+    return s + Number((c as any)?.custom_price ?? group?.pix?.price ?? 0);
+  }, 0);
+  const cardTotal = selectedIds.reduce((s, id) => {
+    const c = customers.find(x => x.id === id);
+    return s + Number((c as any)?.custom_price ?? group?.card?.price ?? group?.pix?.price ?? 0);
+  }, 0);
+
+  const renderPlanCard = (g: PlanGroup, popular = false, saveBadge?: string) => {
+    const primary = g.pix || g.card;
+    if (!primary) return null;
+    return (
+      <div
+        key={g.key}
+        className={`relative rounded-2xl bg-[#131313] border ${popular ? 'border-[var(--brand)] shadow-lg shadow-[var(--brand)]/20' : 'border-white/[0.08]'} p-6 flex flex-col transition-all hover:border-white/20 hover:-translate-y-0.5`}
+      >
+        {popular && (
+          <span className="absolute -top-3 left-1/2 -translate-x-1/2 text-[10px] font-bold px-3 py-1 rounded-full text-white shadow-lg" style={{ background: brand }}>
+            ✨ MAIS POPULAR
+          </span>
+        )}
+        {saveBadge && (
+          <span className="absolute -top-3 right-4 text-[10px] font-bold px-3 py-1 rounded-full bg-emerald-500 text-white shadow-lg">
+            {saveBadge}
+          </span>
+        )}
+        <div className="flex items-center gap-2 text-white/70 text-xs font-bold tracking-widest uppercase mb-4">
+          <Tv className="w-4 h-4" style={{ color: brand }} /> {durationLabel(g.duration_days)}
+        </div>
+        <div className="mb-5">
+          <p className="text-4xl font-extrabold text-white leading-none">
+            <span className="text-sm text-white/50 font-normal align-top mr-1">R$</span>
+            {Number(primary.price).toFixed(2).replace('.', ',')}
+          </p>
+        </div>
+        <ul className="space-y-2 text-sm text-white/80 mb-6 flex-1">
+          <li className="flex items-center gap-2"><Check className="w-4 h-4" style={{ color: brand }} /> {g.screens} tela{g.screens > 1 ? 's' : ''} simultânea{g.screens > 1 ? 's' : ''}</li>
+          <li className="flex items-center gap-2"><Check className="w-4 h-4" style={{ color: brand }} /> Canais, Filmes e Séries</li>
+          <li className="flex items-center gap-2"><Check className="w-4 h-4" style={{ color: brand }} /> Qualidade HD / Full HD</li>
+        </ul>
+        <Button
+          onClick={() => openPlan(g)}
+          className={`w-full h-12 font-bold tracking-wide rounded-xl ${popular ? 'text-white shadow-md' : 'bg-[#1e1e1e] hover:bg-[#2a2a2a] text-white'}`}
+          style={popular ? { background: brand } : undefined}
+        >
+          ASSINAR / RENOVAR
+        </Button>
+      </div>
+    );
   };
 
-  if (loading) {
-    return <div className="min-h-screen flex items-center justify-center bg-black"><Loader2 className="w-8 h-8 text-white animate-spin" /></div>;
-  }
-  if (!data) {
-    return <div className="min-h-screen flex items-center justify-center bg-black text-white">Link inválido ou desativado.</div>;
-  }
+  // save badge helper for 1-tela section
+  const oneMonth = singles.find(s => s.duration_days <= 31)?.pix?.price;
+  const saveBadge = (g: PlanGroup) => {
+    if (!oneMonth || g.duration_days <= 31) return undefined;
+    const months = g.duration_days / 30;
+    const fullPrice = oneMonth * months;
+    const p = g.pix?.price || 0;
+    const pct = Math.round((1 - p / fullPrice) * 100);
+    if (pct >= 5) return `Economize ${pct}%`;
+    return undefined;
+  };
+  const popularId = singles.find(s => s.duration_days >= 60 && s.duration_days <= 100)?.key
+    || singles[1]?.key;
 
   return (
-    <div style={brandStyle} className="min-h-screen text-white relative overflow-hidden bg-[#07070a]">
-      {/* Ambient glow */}
-      <div className="pointer-events-none absolute inset-0 opacity-60"
-           style={{ background: `radial-gradient(1200px 500px at 50% -10%, ${brand}22, transparent 60%), radial-gradient(800px 400px at 90% 20%, ${brand}15, transparent 60%)` }} />
+    <div style={brandStyle} className="min-h-screen text-white bg-[#0d0d0d]">
       {/* Header */}
-      <header className="relative pt-10 pb-6 text-center">
+      <header className="pt-10 pb-6 text-center">
         {data.logo_url ? (
-          <img src={data.logo_url} alt={data.display_name || ''} className="h-16 mx-auto object-contain drop-shadow-2xl" />
+          <img src={data.logo_url} alt={data.display_name || ''} className="h-16 mx-auto object-contain" />
         ) : (
-          <h1 className="text-3xl font-extrabold tracking-tight" style={{ color: brand }}>{data.display_name || 'Assinatura'}</h1>
+          <h1 className="text-3xl font-extrabold" style={{ color: brand }}>{data.display_name || 'Assinatura'}</h1>
         )}
       </header>
 
-      <main className="relative max-w-5xl mx-auto px-4 pb-16 space-y-8">
+      <main className="max-w-6xl mx-auto px-4 pb-20 space-y-12">
+        {/* Hero title */}
+        <section className="text-center space-y-3 pt-4">
+          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-[11px] font-bold tracking-widest border" style={{ borderColor: brand, color: brand }}>
+            <Sparkles className="w-3.5 h-3.5" /> {data.headline || 'MELHOR CUSTO-BENEFÍCIO'}
+          </div>
+          <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight">
+            Escolha seu <span style={{ color: brand }}>Plano</span>
+          </h1>
+          <p className="text-white/50 text-sm">{data.subheadline || 'Assista onde e quando quiser. Cancele a qualquer momento.'}</p>
+        </section>
 
-        {/* Sucesso Pix */}
-        {paid && (
-          <Card className="border-emerald-500/40 bg-emerald-500/10 text-white">
-            <CardContent className="p-8 text-center space-y-3">
-              <div className="w-16 h-16 rounded-full bg-emerald-500 mx-auto flex items-center justify-center">
-                <Check className="w-10 h-10 text-white" />
+        {/* 1 tela */}
+        {singles.length > 0 && (
+          <section className="space-y-5">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: `${brand}22`, color: brand }}>
+                <Tv className="w-5 h-5" />
               </div>
-              <h2 className="text-2xl font-bold">Pagamento confirmado!</h2>
-              <p className="text-sm text-white/80">Sua renovação foi processada. Em instantes seu acesso é liberado.</p>
-              <Button onClick={reset} variant="outline" className="mt-2 text-black">Nova renovação</Button>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Pix QR */}
-        {!paid && pix && (
-          <Card className="border-white/10 bg-white/5">
-            <CardContent className="p-6 md:p-8 space-y-4">
-              <div className="flex items-center justify-between">
-                <button onClick={() => setPix(null)} className="text-sm text-white/60 hover:text-white flex items-center gap-1">
-                  <ArrowLeft className="w-4 h-4" /> Voltar
-                </button>
-                <div className="text-sm text-white/60 flex items-center gap-1"><ShieldCheck className="w-4 h-4 text-emerald-400" /> Ambiente seguro</div>
-              </div>
-              <h2 className="text-xl font-bold text-center">Pague {fmtBRL(pix.amount)} para renovar</h2>
-              {pix.qr && (
-                <div className="bg-white p-4 rounded-xl w-fit mx-auto">
-                  <img src={`data:image/png;base64,${pix.qr}`} alt="QR Code Pix" className="w-64 h-64" />
-                </div>
-              )}
-              <div className="bg-black/40 rounded-lg p-3">
-                <p className="text-xs text-white/60 mb-2">Ou copie e cole o código Pix:</p>
-                <div className="flex gap-2">
-                  <Input readOnly value={pix.copy} className="text-xs bg-black/60 border-white/10" />
-                  <Button
-                    size="sm"
-                    onClick={() => { navigator.clipboard.writeText(pix.copy); toast.success('Copiado!'); }}
-                    style={{ background: brand }}
-                  ><Copy className="w-4 h-4" /></Button>
-                </div>
-              </div>
-              <p className="text-center text-sm text-white/60 flex items-center justify-center gap-2">
-                <Loader2 className="w-4 h-4 animate-spin" /> Aguardando pagamento...
-              </p>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Escolha do plano */}
-        {!pix && !paid && selectedCustomer && (
-          <Card className="border-white/10 bg-white/5">
-            <CardContent className="p-6 md:p-8 space-y-6">
-              <button onClick={() => { setSelectedCustomer(null); setSelectedPlan(null); }}
-                className="text-sm text-white/60 hover:text-white flex items-center gap-1">
-                <ArrowLeft className="w-4 h-4" /> Trocar usuário
-              </button>
-              <div className="text-center">
-                <p className="text-white/60 text-sm">Renovando</p>
-                <p className="text-xl font-bold" style={{ color: brand }}>{selectedCustomer.username}</p>
-                <p className="text-xs text-white/60">Vencimento atual: {new Date(selectedCustomer.due_date).toLocaleDateString('pt-BR')}</p>
-              </div>
-
-              {!selectedPlan && (
-                <>
-                  <div className="text-center flex items-center justify-center gap-2 text-sm text-white/80">
-                    <Sparkles className="w-4 h-4" style={{ color: brand }} /> Escolha o plano de renovação
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                    {data.plans.map((p, i) => {
-                      const isPopular = i === 1 && data.plans.length >= 3;
-                      const telas = extractScreens(p.name);
-                      return (
-                        <button
-                          key={p.id}
-                          onClick={() => setSelectedPlan(p)}
-                          className="group relative text-left rounded-2xl bg-gradient-to-br from-white/[0.06] to-white/[0.02] hover:from-white/[0.1] hover:to-white/[0.04] border border-white/10 hover:border-[var(--brand)] p-5 transition-all hover:-translate-y-0.5 hover:shadow-xl hover:shadow-[var(--brand)]/20"
-                        >
-                          {isPopular && (
-                            <span className="absolute -top-3 left-1/2 -translate-x-1/2 text-[10px] font-bold px-3 py-1 rounded-full text-white shadow-lg" style={{ background: brand }}>
-                              MAIS POPULAR
-                            </span>
-                          )}
-                          <p className="text-xs text-white/60 font-semibold tracking-wider">{label(p.duration_days)}</p>
-                          <p className="text-3xl font-extrabold mt-2">
-                            <span className="text-sm text-white/60 align-top mr-1">R$</span>{Number(p.price).toFixed(2).replace('.', ',')}
-                          </p>
-                          <div className="flex items-center gap-2 mt-3 flex-wrap">
-                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/10 text-white/70">{p.duration_days} dias</span>
-                            {telas && (
-                              <span className="text-[10px] px-2 py-0.5 rounded-full bg-[var(--brand)]/20 text-white flex items-center gap-1 font-semibold">
-                                <Tv className="w-3 h-3" /> {telas} {telas === 1 ? 'tela' : 'telas'}
-                              </span>
-                            )}
-                          </div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </>
-              )}
-
-              {selectedPlan && (
-                <div className="space-y-5">
-                  <button onClick={() => setSelectedPlan(null)} className="text-sm text-white/60 hover:text-white flex items-center gap-1">
-                    <ArrowLeft className="w-4 h-4" /> Trocar plano
-                  </button>
-                  <div className="text-center py-2">
-                    <p className="text-white/60 text-sm">Total a pagar</p>
-                    <p className="text-5xl font-extrabold mt-1" style={{ color: brand }}>{fmtBRL(Number(selectedPlan.price))}</p>
-                    <p className="text-xs text-white/50 mt-1">
-                      {selectedPlan.name} • {selectedPlan.duration_days} dias
-                      {extractScreens(selectedPlan.name) ? ` • ${extractScreens(selectedPlan.name)} telas` : ''}
-                    </p>
-                  </div>
-
-                  <div className="space-y-2 pt-2">
-                    <p className="text-xs uppercase tracking-wider text-white/50 text-center font-semibold">Escolha como pagar</p>
-
-                    {data.methods.efi && (
-                      <button
-                        onClick={() => startPayment('pix')}
-                        disabled={creating}
-                        className="w-full group relative overflow-hidden rounded-2xl p-4 border border-emerald-500/30 bg-gradient-to-br from-emerald-500/15 to-emerald-500/5 hover:from-emerald-500/25 hover:to-emerald-500/10 transition-all hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-wait text-left"
-                      >
-                        <div className="flex items-center gap-4">
-                          <div className="w-12 h-12 rounded-xl bg-emerald-500 flex items-center justify-center shrink-0 shadow-lg shadow-emerald-500/30">
-                            {creating ? <Loader2 className="w-6 h-6 text-white animate-spin" /> : <QrCode className="w-6 h-6 text-white" />}
-                          </div>
-                          <div className="flex-1">
-                            <p className="font-bold text-white flex items-center gap-2">Pix instantâneo <Zap className="w-3.5 h-3.5 text-emerald-300" /></p>
-                            <p className="text-xs text-white/60">QR Code na hora • aprovação em segundos</p>
-                          </div>
-                          <span className="text-[10px] font-bold px-2 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">RECOMENDADO</span>
-                        </div>
-                      </button>
-                    )}
-
-                    {data.methods.cakto && selectedPlan.cakto_url && (
-                      <button
-                        onClick={() => startPayment('cakto')}
-                        disabled={creating}
-                        className="w-full group relative overflow-hidden rounded-2xl p-4 border border-white/10 bg-gradient-to-br from-white/[0.06] to-white/[0.02] hover:from-white/[0.12] hover:to-white/[0.04] transition-all hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-wait text-left"
-                      >
-                        <div className="flex items-center gap-4">
-                          <div className="w-12 h-12 rounded-xl bg-white/10 flex items-center justify-center shrink-0">
-                            <CreditCard className="w-6 h-6 text-white" />
-                          </div>
-                          <div className="flex-1">
-                            <p className="font-bold text-white flex items-center gap-2">Cartão, boleto ou Pix <ExternalLink className="w-3.5 h-3.5 text-white/60" /></p>
-                            <p className="text-xs text-white/60">Checkout Cakto • parcele em até 12x no cartão</p>
-                          </div>
-                        </div>
-                      </button>
-                    )}
-
-                    {!data.methods.efi && !(data.methods.cakto && selectedPlan.cakto_url) && (
-                      <p className="text-center text-sm text-white/60 py-4">Nenhum método de pagamento disponível. Entre em contato com o suporte.</p>
-                    )}
-                  </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Lista de usuários */}
-        {!pix && !paid && !selectedCustomer && customers && customers.length > 0 && (
-          <Card className="border-white/10 bg-white/5">
-            <CardContent className="p-6 space-y-4">
-              <button onClick={() => setCustomers(null)} className="text-sm text-white/60 hover:text-white flex items-center gap-1">
-                <ArrowLeft className="w-4 h-4" /> Voltar
-              </button>
-              <h2 className="text-lg font-bold text-center">Selecione o usuário para renovar</h2>
-              <div className="space-y-2">
-                {customers.map((c) => (
-                  <button
-                    key={c.id}
-                    onClick={() => setSelectedCustomer(c)}
-                    className="w-full text-left flex items-center justify-between bg-black/40 hover:bg-black/60 border border-white/10 hover:border-[var(--brand)] rounded-xl p-4 transition-all"
-                  >
-                    <div>
-                      <p className="font-bold">{c.username || c.name}</p>
-                      <p className="text-xs text-white/60">
-                        {c.current_plan || 'Sem plano'} • Vence {new Date(c.due_date).toLocaleDateString('pt-BR')}
-                      </p>
-                    </div>
-                    <span className="text-xs px-2 py-0.5 rounded-full bg-white/10">{c.status}</span>
-                  </button>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Etapa 1: informar telefone */}
-        {!pix && !paid && !customers && (
-          <>
-            <section className="text-center space-y-3">
-              <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-bold border" style={{ borderColor: brand, color: brand }}>
-                <Sparkles className="w-3.5 h-3.5" /> {data.headline || 'ÁREA DO CLIENTE'}
-              </div>
-              <h1 className="text-3xl md:text-5xl font-extrabold">
-                Renove seu <span style={{ color: brand }}>plano</span>
-              </h1>
-              <p className="text-white/60">{data.subheadline || 'Informe seu telefone para localizar sua conta e escolher o plano.'}</p>
-            </section>
-
-            <Card className="border-white/10 bg-white/5 max-w-md mx-auto">
-              <CardContent className="p-6 space-y-4">
-                <div className="space-y-2">
-                  <label className="text-sm text-white/70 flex items-center gap-2"><Phone className="w-4 h-4" /> Telefone cadastrado</label>
-                  <Input
-                    inputMode="tel"
-                    placeholder="DDD + número"
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && searchPhone()}
-                    className="h-12 bg-black/40 border-white/10 text-white"
-                  />
-                </div>
-                <Button onClick={searchPhone} disabled={searching} className="w-full h-12 text-base font-bold" style={{ background: brand }}>
-                  {searching ? <Loader2 className="w-5 h-5 mr-2 animate-spin" /> : null}
-                  Continuar
-                </Button>
-                <p className="text-xs text-white/50 text-center">Usamos seu telefone somente para localizar seu acesso.</p>
-              </CardContent>
-            </Card>
-
-            <div className="max-w-md mx-auto flex items-center justify-center gap-6 text-[11px] text-white/40 pt-2">
-              <span className="flex items-center gap-1"><ShieldCheck className="w-3.5 h-3.5" /> Ambiente seguro</span>
-              <span className="flex items-center gap-1"><Zap className="w-3.5 h-3.5" /> Ativação imediata</span>
+              <h2 className="text-xl font-bold">Plano 1 Tela</h2>
             </div>
-          </>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              {singles.map(g => renderPlanCard(g, g.key === popularId, saveBadge(g)))}
+            </div>
+          </section>
         )}
 
-        <footer className="text-center text-xs text-white/40 pt-8">
+        {/* Multi telas */}
+        {multi.length > 0 && (
+          <section className="space-y-6 pt-4">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: `${brand}22`, color: brand }}>
+                <Server className="w-5 h-5" />
+              </div>
+              <h2 className="text-xl font-bold">Planos Multi Telas</h2>
+            </div>
+            {[...multiByScreens.entries()].sort(([a],[b])=>a-b).map(([screens, list]) => (
+              <div key={screens} className="space-y-3">
+                <p className="text-sm text-white/60 flex items-center gap-2 font-semibold">
+                  <Tv className="w-4 h-4" /> {screens} Telas Simultâneas
+                </p>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                  {list.map(g => renderPlanCard(g, false, saveBadge(g)))}
+                </div>
+              </div>
+            ))}
+          </section>
+        )}
+
+        <footer className="text-center text-xs text-white/30 pt-8">
           Pagamento processado com segurança. {data.methods.efi && 'Pix instantâneo via Efí.'}
         </footer>
       </main>
+
+      {/* ------- Dialog: Phone ------- */}
+      <Dialog open={step === 'phone'} onOpenChange={(o) => !o && resetAll()}>
+        <DialogContent className="bg-[#151515] border-white/10 text-white max-w-md">
+          <DialogHeader>
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: `${brand}22`, color: brand }}>
+                <Phone className="w-5 h-5" />
+              </div>
+              <DialogTitle className="text-xl">Identificação</DialogTitle>
+            </div>
+          </DialogHeader>
+          {group && (
+            <p className="text-sm text-white/70">
+              Plano selecionado: <span className="font-bold text-white">{durationLabel(group.duration_days)} — {group.screens} tela{group.screens>1?'s':''}</span>
+            </p>
+          )}
+          <p className="text-sm text-white/60">Digite o número de telefone cadastrado na sua conta:</p>
+          <div className="flex gap-2">
+            <div className="px-3 flex items-center gap-1 rounded-md bg-[#0d0d0d] border border-white/10 text-sm">
+              🇧🇷 <span className="text-white/70">+55</span>
+            </div>
+            <Input
+              inputMode="tel"
+              placeholder="Seu número"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && doSearch()}
+              className="h-11 bg-[#0d0d0d] border-white/10 text-white flex-1"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-3 pt-2">
+            <Button variant="outline" onClick={resetAll} className="h-11 bg-transparent border-white/15 text-white hover:bg-white/5">Cancelar</Button>
+            <Button onClick={doSearch} disabled={searching} className="h-11 font-bold text-white" style={{ background: brand }}>
+              {searching ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+              Continuar
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ------- Dialog: Accounts ------- */}
+      <Dialog open={step === 'accounts'} onOpenChange={(o) => !o && resetAll()}>
+        <DialogContent className="bg-[#151515] border-white/10 text-white max-w-md">
+          <DialogHeader>
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: `${brand}22`, color: brand }}>
+                <UserIcon className="w-5 h-5" />
+              </div>
+              <DialogTitle className="text-xl">Selecione suas Contas</DialogTitle>
+            </div>
+            <DialogDescription className="text-white/60">
+              Encontramos <b className="text-white">{customers.length}</b> conta(s). Plano suporta <b className="text-white">{requiredScreens}</b> tela(s).
+            </DialogDescription>
+          </DialogHeader>
+          <div className="rounded-lg border border-white/10 bg-[#0d0d0d] px-3 py-2 text-sm flex items-center gap-2">
+            <Tv className="w-4 h-4" style={{ color: brand }} />
+            <span className={totalSelectedScreens === requiredScreens ? 'text-emerald-400 font-bold' : 'text-white'}>
+              {totalSelectedScreens} / {requiredScreens} tela(s) selecionada(s)
+            </span>
+          </div>
+          <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+            {customers.map(c => {
+              const active = selectedIds.includes(c.id);
+              const overdue = c.due_date && new Date(c.due_date) < new Date();
+              return (
+                <button key={c.id} onClick={() => toggleAccount(c)}
+                  className={`w-full text-left rounded-xl p-3 border transition-all flex items-start gap-3 ${active ? 'border-[var(--brand)] bg-[var(--brand)]/10' : 'border-white/10 bg-[#0d0d0d] hover:border-white/25'}`}>
+                  <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${active ? 'bg-[var(--brand)]' : 'bg-white/10'}`}>
+                    {active && <Check className="w-4 h-4 text-white" />}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-bold text-sm truncate">{c.name || c.username}</p>
+                    <p className="text-xs text-white/60 flex items-center gap-1"><UserIcon className="w-3 h-3" /> {c.username}</p>
+                    <p className="text-xs text-white/60">Venc: <b>{new Date(c.due_date).toLocaleDateString('pt-BR')}</b></p>
+                    <div className="flex gap-1 mt-1.5 flex-wrap">
+                      {overdue && <span className="text-[10px] px-2 py-0.5 rounded-full bg-red-500/15 text-red-400 border border-red-500/30">Vencido</span>}
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/10 text-white/70">{c.screens || 1} tela{(c.screens || 1) > 1 ? 's' : ''}</span>
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+          <div className="grid grid-cols-2 gap-3 pt-2">
+            <Button variant="outline" onClick={() => setStep('phone')} className="h-11 bg-transparent border-white/15 text-white hover:bg-white/5">Voltar</Button>
+            <Button onClick={goPayment} disabled={totalSelectedScreens !== requiredScreens} className="h-11 font-bold text-white" style={{ background: brand }}>
+              Continuar ({selectedIds.length})
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ------- Dialog: Method ------- */}
+      <Dialog open={step === 'method'} onOpenChange={(o) => !o && resetAll()}>
+        <DialogContent className="bg-[#151515] border-white/10 text-white max-w-md">
+          <DialogHeader>
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full flex items-center justify-center bg-amber-500/20 text-amber-400">
+                <AlertTriangle className="w-5 h-5" />
+              </div>
+              <DialogTitle className="text-xl">Confirmar Plano</DialogTitle>
+            </div>
+          </DialogHeader>
+          {group && (
+            <>
+              <p className="text-sm text-white/70">Plano <b className="text-white">{durationLabel(group.duration_days)}</b> — {group.screens} tela(s)</p>
+              <p className="text-sm text-white/70">Renovando <b className="text-white">{selectedIds.length}</b> conta(s) ({totalSelectedScreens} tela(s))</p>
+              <p className="text-sm text-white/80 font-semibold pt-1">Escolha a forma de pagamento:</p>
+              <div className="grid grid-cols-2 gap-3">
+                {data.methods.efi && group.pix && (
+                  <button onClick={() => pay('pix')} disabled={creating}
+                    className="rounded-xl border border-white/10 bg-[#0d0d0d] hover:border-emerald-500/60 hover:bg-emerald-500/5 p-5 flex flex-col items-center gap-2 transition-all disabled:opacity-50">
+                    <div className="w-14 h-14 rounded-xl bg-emerald-500/15 flex items-center justify-center">
+                      {creating ? <Loader2 className="w-6 h-6 animate-spin text-emerald-400" /> : <QrCode className="w-7 h-7 text-emerald-400" />}
+                    </div>
+                    <p className="font-bold text-sm tracking-wide">PIX</p>
+                    <p className="text-xl font-extrabold">{fmtBRL(pixTotal || group.pix.price)}</p>
+                  </button>
+                )}
+                {data.methods.cakto && group.card?.cakto_url && (
+                  <button onClick={() => pay('cakto')} disabled={creating}
+                    className="rounded-xl border border-white/10 bg-[#0d0d0d] hover:border-sky-500/60 hover:bg-sky-500/5 p-5 flex flex-col items-center gap-2 transition-all disabled:opacity-50">
+                    <div className="w-14 h-14 rounded-xl bg-sky-500/15 flex items-center justify-center">
+                      <CreditCard className="w-7 h-7 text-sky-400" />
+                    </div>
+                    <p className="font-bold text-sm tracking-wide">CARTÃO</p>
+                    <p className="text-xl font-extrabold">{fmtBRL(cardTotal || group.card.price)}</p>
+                  </button>
+                )}
+              </div>
+              <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-200/90 flex gap-2">
+                <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                <p>
+                  <b>Atenção:</b> os dados informados no pagamento devem ser <b>sempre do responsável da conta</b> para que o sistema consiga renovar corretamente, <b>principalmente o número de telefone</b>.
+                </p>
+              </div>
+              <Button variant="outline" onClick={() => setStep('accounts')} className="h-11 bg-transparent border-white/15 text-white hover:bg-white/5">Voltar</Button>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* ------- Dialog: Pix ------- */}
+      <Dialog open={step === 'pix'} onOpenChange={(o) => !o && resetAll()}>
+        <DialogContent className="bg-[#151515] border-white/10 text-white max-w-md">
+          <DialogHeader>
+            <div className="flex items-center justify-between">
+              <button onClick={() => setStep('method')} className="text-sm text-white/60 hover:text-white flex items-center gap-1"><ArrowLeft className="w-4 h-4" /> Voltar</button>
+              <div className="text-xs text-white/60 flex items-center gap-1"><ShieldCheck className="w-3.5 h-3.5 text-emerald-400" /> Ambiente seguro</div>
+            </div>
+            <DialogTitle className="text-center text-lg">{paid ? 'Pagamento confirmado!' : `Pague ${pix ? fmtBRL(pix.amount) : ''} para renovar`}</DialogTitle>
+          </DialogHeader>
+          {paid ? (
+            <div className="text-center space-y-3 py-4">
+              <div className="w-16 h-16 rounded-full bg-emerald-500 mx-auto flex items-center justify-center"><Check className="w-10 h-10 text-white" /></div>
+              <p className="text-sm text-white/80">Sua renovação foi processada. Em instantes o acesso é liberado.</p>
+              <Button onClick={resetAll} className="w-full h-11 font-bold text-white" style={{ background: brand }}>Nova renovação</Button>
+            </div>
+          ) : pix && (
+            <div className="space-y-3">
+              {pix.qr ? (
+                <div className="bg-white p-4 rounded-xl w-fit mx-auto">
+                  <img
+                    src={pix.qr.startsWith('data:') ? pix.qr : `data:image/png;base64,${pix.qr}`}
+                    alt="QR Code Pix" className="w-56 h-56"
+                  />
+                </div>
+              ) : (
+                <div className="bg-white/5 rounded-xl h-56 flex items-center justify-center text-white/40 text-sm">
+                  QR Code indisponível — use o código Pix abaixo
+                </div>
+              )}
+              <div className="bg-[#0d0d0d] rounded-lg p-3 border border-white/10">
+                <p className="text-[11px] text-white/50 mb-2">Ou copie e cole o código Pix:</p>
+                <div className="flex gap-2">
+                  <Input readOnly value={pix.copy} className="text-[11px] bg-black/40 border-white/10 h-9" />
+                  <Button size="sm" onClick={() => { navigator.clipboard.writeText(pix.copy); toast.success('Copiado!'); }} style={{ background: brand }} className="h-9">
+                    <Copy className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
+              <p className="text-center text-xs text-white/50 flex items-center justify-center gap-2 pt-1">
+                <Loader2 className="w-3.5 h-3.5 animate-spin" /> Aguardando pagamento...
+              </p>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

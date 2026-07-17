@@ -1,9 +1,9 @@
-// Public endpoint: creates a payment for a specific customer + plan of a reseller.
+// Public endpoint: creates a payment for one or more customers of a reseller.
 // Two methods:
-//   - "pix": creates an Efí Pix cob and returns QR + txid.
+//   - "pix": creates a single Efí Pix cob summing all selected customers.
 //   - "cakto": returns the plan's Cakto checkout URL (must be preconfigured).
 // Actions:
-//   action = "create" -> creates the charge
+//   action = "create" -> creates the charge  (accepts customer_id or customer_ids[])
 //   action = "poll"   -> polls Efí charge status by txid
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { buildCredentials, createCharge, getQrCode, newTxid } from "../_shared/efi-client.ts";
@@ -15,6 +15,13 @@ const cors = {
 };
 const json = (b: unknown, s = 200) =>
   new Response(JSON.stringify(b), { status: s, headers: { ...cors, "Content-Type": "application/json" } });
+
+/** Ensure a base64 image string does NOT include a data: prefix (raw base64 only). */
+function stripDataPrefix(s: string): string {
+  if (!s) return "";
+  const idx = s.indexOf("base64,");
+  return idx >= 0 ? s.slice(idx + 7) : s;
+}
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: cors });
@@ -41,10 +48,13 @@ Deno.serve(async (req) => {
 
     // ---- create ----
     const slug = String(body.slug || "").trim().toLowerCase();
-    const customerId = String(body.customer_id || "");
+    const rawIds: string[] = Array.isArray(body.customer_ids) && body.customer_ids.length
+      ? body.customer_ids.map((x: any) => String(x))
+      : (body.customer_id ? [String(body.customer_id)] : []);
+    const customerIds = Array.from(new Set(rawIds.filter(Boolean)));
     const planId = String(body.plan_id || "");
     const method = String(body.method || "pix");
-    if (!slug || !customerId || !planId) return json({ error: "missing_params" }, 400);
+    if (!slug || customerIds.length === 0 || !planId) return json({ error: "missing_params" }, 400);
 
     const { data: settings } = await admin
       .from("reseller_checkout_settings")
@@ -62,12 +72,14 @@ Deno.serve(async (req) => {
       .maybeSingle();
     if (!plan || plan.created_by !== ownerId) return json({ error: "plan_not_found" }, 404);
 
-    const { data: customer } = await admin
+    const { data: customers } = await admin
       .from("customers")
       .select("id, name, username, created_by, custom_price")
-      .eq("id", customerId)
-      .maybeSingle();
-    if (!customer || customer.created_by !== ownerId) return json({ error: "customer_not_found" }, 404);
+      .in("id", customerIds)
+      .eq("created_by", ownerId);
+    if (!customers || customers.length !== customerIds.length) {
+      return json({ error: "customer_not_found" }, 404);
+    }
 
     if (method === "cakto") {
       if (!settings.enable_cakto) return json({ error: "cakto_disabled" }, 400);
@@ -79,8 +91,14 @@ Deno.serve(async (req) => {
     if (method !== "pix") return json({ error: "unknown_method" }, 400);
     if (!settings.enable_efi) return json({ error: "efi_disabled" }, 400);
 
-    const amount = Number(customer.custom_price ?? plan.price);
-    if (!isFinite(amount) || amount <= 0) return json({ error: "invalid_amount" }, 400);
+    // Sum per-customer prices (custom_price override supported).
+    let amount = 0;
+    for (const c of customers) {
+      const p = Number((c as any).custom_price ?? plan.price);
+      if (!isFinite(p) || p <= 0) return json({ error: "invalid_amount" }, 400);
+      amount += p;
+    }
+    amount = Math.round(amount * 100) / 100;
 
     const { data: efi } = await admin
       .from("efi_settings").select("*").eq("user_id", ownerId).eq("enabled", true).maybeSingle();
@@ -88,10 +106,11 @@ Deno.serve(async (req) => {
 
     const creds = buildCredentials(efi as any);
     const txid = newTxid();
+    const usernamesLabel = customers.map((c: any) => c.username || c.name).join(", ").slice(0, 100);
     const cob = await createCharge(creds, {
       txid,
       amount,
-      description: `${plan.plan_name} — ${customer.username || customer.name}`.slice(0, 140),
+      description: `${plan.plan_name} — ${usernamesLabel}`.slice(0, 140),
       expiresInSec: 3600,
     });
     if (cob.status < 200 || cob.status >= 300) {
@@ -102,12 +121,12 @@ Deno.serve(async (req) => {
     const locId = cob.body?.loc?.id;
     if (locId) {
       const qr = await getQrCode(creds, locId);
-      if (qr.status === 200 && qr.body?.imagemQrcode) qrcodeBase64 = qr.body.imagemQrcode;
+      if (qr.status === 200 && qr.body?.imagemQrcode) qrcodeBase64 = stripDataPrefix(qr.body.imagemQrcode);
     }
 
     await admin.from("efi_charges").insert({
       owner_id: ownerId,
-      customer_id: customerId,
+      customer_id: customers[0].id,
       pending_id: null,
       pending_kind: null,
       txid,
@@ -120,7 +139,8 @@ Deno.serve(async (req) => {
         slug,
         plan_id: plan.id,
         plan_name: plan.plan_name,
-        username: customer.username,
+        customer_ids: customers.map((c: any) => c.id),
+        usernames: customers.map((c: any) => c.username || c.name),
       },
       expires_at: new Date(Date.now() + 3600_000).toISOString(),
     });
