@@ -11,6 +11,11 @@ import cardLogo from '@/assets/card-logo.png.asset.json';
 const FN_BASE = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1`;
 const ANON = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 const fmtBRL = (n: number) => `R$ ${Number(n).toFixed(2).replace('.', ',')}`;
+const formatMac = (v: string) => {
+  const hex = v.toUpperCase().replace(/[^0-9A-F]/g, '').slice(0, 12);
+  return hex.match(/.{1,2}/g)?.join(':') ?? '';
+};
+const isValidMac = (v: string) => /^([0-9A-F]{2}:){5}[0-9A-F]{2}$/.test(v);
 
 interface AppItem {
   id: string; name: string; description?: string | null;
@@ -78,7 +83,7 @@ export default function ResellerActivation() {
   const brandStyle = useMemo(() => ({ '--brand': brand } as React.CSSProperties), [brand]);
 
   const canContinueForm = form.name.trim() && form.phone.trim() &&
-    (!app?.requires_mac || form.mac.trim()) && (!app?.requires_email || form.email.trim());
+    (!app?.requires_mac || isValidMac(form.mac)) && (!app?.requires_email || form.email.trim());
 
   const currentPrice = app && duration
     ? (duration === 'monthly' ? app.price_monthly : duration === 'quarterly' ? app.price_quarterly : app.price_annual)
@@ -228,7 +233,25 @@ export default function ResellerActivation() {
               {app?.requires_mac && (
                 <div>
                   <Label className="text-xs text-white/70">Endereço MAC</Label>
-                  <Input value={form.mac} onChange={e => setForm(f => ({ ...f, mac: e.target.value.toUpperCase() }))} placeholder="AA:BB:CC:DD:EE:FF" className="bg-[#111] border-white/10 h-11 mt-1 font-mono" />
+                  <Input
+                    value={form.mac}
+                    onChange={e => setForm(f => ({ ...f, mac: formatMac(e.target.value) }))}
+                    onPaste={e => {
+                      e.preventDefault();
+                      const t = e.clipboardData.getData('text');
+                      setForm(f => ({ ...f, mac: formatMac(t) }));
+                    }}
+                    placeholder="AA:BB:CC:DD:EE:FF"
+                    maxLength={17}
+                    inputMode="text"
+                    autoCapitalize="characters"
+                    autoCorrect="off"
+                    spellCheck={false}
+                    className="bg-[#111] border-white/10 h-11 mt-1 font-mono tracking-wider uppercase"
+                  />
+                  {form.mac && !isValidMac(form.mac) && (
+                    <p className="text-[10px] text-amber-400 mt-1">Formato: AA:BB:CC:DD:EE:FF (6 pares hexadecimais)</p>
+                  )}
                 </div>
               )}
               {app?.requires_email && (
