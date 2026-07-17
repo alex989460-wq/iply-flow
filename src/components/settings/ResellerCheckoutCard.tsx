@@ -139,6 +139,7 @@ export default function ResellerCheckoutCard() {
         subheadline: data.subheadline ?? '',
         api_key: data.api_key ?? '',
         webhook_url: data.webhook_url ?? '',
+        activation_cakto_url: data.activation_cakto_url ?? '',
       });
       toast.success('Checkout público salvo!');
     } catch (e: any) {
