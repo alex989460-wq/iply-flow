@@ -3125,8 +3125,8 @@ export default function EvolutionChat({ embed = false }: { embed?: boolean } = {
                   <Avatar className="h-28 w-28 ring-4 ring-[#00a884]/40 shadow-xl hover:scale-105 transition-transform">
                     {selectedContact?.profile_pic_url && <AvatarImage src={selectedContact.profile_pic_url} />}
                     <AvatarFallback
-                      className="text-3xl font-semibold text-white"
-                      style={{ backgroundColor: avatarColorFor(selectedName || selectedPhone || '?') }}
+                      className="text-3xl font-bold text-white"
+                      style={{ background: avatarGradientFor(selectedName || selectedPhone || '?') }}
                     >
                       {initials(selectedName, selectedPhone)}
                     </AvatarFallback>
