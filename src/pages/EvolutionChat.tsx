@@ -709,8 +709,10 @@ export default function EvolutionChat({ embed = false }: { embed?: boolean } = {
     // A atualização completa fica somente no botão de recarregar.
     if (!cacheLoaded) load();
     else setLoading(false);
-    loadInstances();
-  }, [cacheLoaded, load, loadInstances]);
+    // Só busca instâncias se ainda não temos cache — evita reload ao trocar de aba/rota.
+    if (instances.length === 0) loadInstances();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cacheLoaded]);
 
   // Carrega status do robô (somente o "enabled") para mostrar o badge no header.
   useEffect(() => {
