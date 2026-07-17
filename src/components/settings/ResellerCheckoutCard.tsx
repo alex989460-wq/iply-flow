@@ -101,7 +101,18 @@ export default function ResellerCheckoutCard() {
         }
         return;
       }
-      setForm({ ...EMPTY, ...data });
+      setForm({
+        ...EMPTY,
+        ...data,
+        slug: data.slug ?? '',
+        display_name: data.display_name ?? '',
+        logo_url: data.logo_url ?? '',
+        brand_color: data.brand_color ?? '#e11d48',
+        headline: data.headline ?? '',
+        subheadline: data.subheadline ?? '',
+        api_key: data.api_key ?? '',
+        webhook_url: data.webhook_url ?? '',
+      });
       toast.success('Checkout público salvo!');
     } catch (e: any) {
       toast.error(e.message || 'Erro ao salvar');
