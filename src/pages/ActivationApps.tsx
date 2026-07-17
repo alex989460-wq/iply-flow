@@ -55,8 +55,14 @@ const APP_COLORS: Record<string, string> = {
   ABEPLAYERTV: '#ef4444',
 };
 
-// Cache global das logos vindas do painel IBO Sol (populado pelo hook abaixo).
-const IBOSOL_LOGOS: Record<string, string> = {};
+// Cache global das logos vindas do painel IBO Sol.
+// Persiste em localStorage para não depender do token estar válido —
+// uma vez que o painel devolveu as logos, elas ficam fixas.
+const IBOSOL_LOGOS_KEY = 'ibosol_apps_logos_v1';
+const IBOSOL_LOGOS: Record<string, string> = (() => {
+  try { return JSON.parse(localStorage.getItem(IBOSOL_LOGOS_KEY) || '{}') || {}; }
+  catch { return {}; }
+})();
 
 function normKey(name: string) {
   return String(name || '').toUpperCase().replace(/\s+/g, '');
