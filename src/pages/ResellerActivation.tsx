@@ -80,15 +80,19 @@ export default function ResellerActivation() {
   const canContinueForm = form.name.trim() && form.phone.trim() &&
     (!app?.requires_mac || form.mac.trim()) && (!app?.requires_email || form.email.trim());
 
-  const submit = async (method: 'pix' | 'cakto' | 'cakto_card') => {
-    if (!app || !plan) return;
+  const currentPrice = app && duration
+    ? (duration === 'monthly' ? app.price_monthly : duration === 'quarterly' ? app.price_quarterly : app.price_annual)
+    : null;
+
+  const submit = async (method: 'pix' | 'cakto') => {
+    if (!app || !duration) return;
     setCreating(true);
     try {
       const res = await fetch(`${FN_BASE}/reseller-activation-create`, {
         method: 'POST',
         headers: { apikey: ANON, Authorization: `Bearer ${ANON}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          action: 'create', slug, app_id: app.id, plan_id: plan.id, method,
+          action: 'create', slug, app_id: app.id, duration, method,
           name: form.name, phone: form.phone, mac: form.mac, email: form.email,
         }),
       });
