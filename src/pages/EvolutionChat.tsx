@@ -386,8 +386,12 @@ export default function EvolutionChat({ embed = false }: { embed?: boolean } = {
 
   const [autoReplyLoading, setAutoReplyLoading] = useState(false);
   const [autoReplySaving, setAutoReplySaving] = useState(false);
-  const [instances, setInstances] = useState<Array<{ id: string; name: string; phone: string | null; state: string; profile_name: string | null }>>([]);
-  const [currentInstance, setCurrentInstance] = useState<string>('');
+  const [instances, setInstances] = useState<Array<{ id: string; name: string; phone: string | null; state: string; profile_name: string | null }>>(() => {
+    try { return JSON.parse(sessionStorage.getItem('evo_cache_instances') || '[]'); } catch { return []; }
+  });
+  const [currentInstance, setCurrentInstance] = useState<string>(() => {
+    try { return sessionStorage.getItem('evo_cache_current_instance') || ''; } catch { return ''; }
+  });
   const [switchingInstance, setSwitchingInstance] = useState(false);
   const [showContactInfo, setShowContactInfo] = useState(false);
   const [editingContactName, setEditingContactName] = useState(false);
