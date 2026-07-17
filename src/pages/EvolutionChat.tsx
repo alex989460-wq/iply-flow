@@ -2505,7 +2505,7 @@ export default function EvolutionChat({ embed = false }: { embed?: boolean } = {
                       <ExternalLink className="w-4 h-4 mr-2" /> Abrir no WhatsApp
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
-                    <DropdownMenuItem onClick={load}>
+                    <DropdownMenuItem onClick={() => load()}>
                       <RefreshCw className="w-4 h-4 mr-2" /> Recarregar mensagens
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={() => syncHistory(selectedPhone || undefined)} disabled={syncingHistory || !selectedPhone || selectedPhone.startsWith('status:')}>
