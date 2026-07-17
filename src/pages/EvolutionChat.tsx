@@ -2586,8 +2586,10 @@ export default function EvolutionChat({ embed = false }: { embed?: boolean } = {
                         <ContextMenu>
                           <ContextMenuTrigger asChild>
                             <div className={cn(
-                              'max-w-[78%] md:max-w-[65%] rounded-[10px] px-2.5 py-1.5 text-sm relative text-[#e9edef] cursor-context-menu shadow-[0_1px_0.5px_rgba(11,20,26,0.13)]',
-                              m.direction === 'out' ? 'bg-[#005c4b] rounded-tr-[2px]' : 'bg-[#202c33] rounded-tl-[2px]',
+                              'max-w-[78%] md:max-w-[65%] rounded-2xl px-3 py-1.5 text-sm relative text-[#e9edef] cursor-context-menu shadow-md backdrop-blur-sm animate-in fade-in slide-in-from-bottom-1 duration-200',
+                              m.direction === 'out'
+                                ? 'bg-gradient-to-br from-[#005c4b] to-[#00463a] rounded-tr-md'
+                                : 'bg-gradient-to-br from-[#202c33] to-[#1a252b] rounded-tl-md',
                               m._failed && 'ring-1 ring-destructive',
                               isPinned && 'ring-1 ring-[#00a884]/60',
                             )}>
