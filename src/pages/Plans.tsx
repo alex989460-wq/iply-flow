@@ -36,6 +36,7 @@ export default function Plans() {
     duration_days: 30,
     price: 0,
     checkout_url: '',
+    card_checkout_url: '',
   });
 
   const queryClient = useQueryClient();
@@ -104,7 +105,7 @@ export default function Plans() {
   });
 
   const resetForm = () => {
-    setFormData({ plan_name: '', duration_days: 30, price: 0, checkout_url: '' });
+    setFormData({ plan_name: '', duration_days: 30, price: 0, checkout_url: '', card_checkout_url: '' });
     setEditingPlan(null);
   };
 
@@ -115,6 +116,7 @@ export default function Plans() {
       duration_days: plan.duration_days,
       price: Number(plan.price),
       checkout_url: (plan as any).checkout_url || '',
+      card_checkout_url: (plan as any).card_checkout_url || '',
     });
     setIsOpen(true);
   };
@@ -182,14 +184,24 @@ export default function Plans() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Link Checkout (Cakto)</Label>
+                  <Label>Link Pix / Checkout (Cakto)</Label>
                   <Input
                     value={formData.checkout_url}
                     onChange={(e) => setFormData({ ...formData, checkout_url: e.target.value })}
-                    placeholder="https://pay.cakto.com.br/..."
+                    placeholder="https://pay.cakto.com.br/... (Pix)"
                     className="bg-secondary/50"
                   />
-                  <p className="text-xs text-muted-foreground">Link de pagamento da Cakto para a página pública de checkout</p>
+                  <p className="text-xs text-muted-foreground">Link Cakto padrão (usado como Pix na página pública).</p>
+                </div>
+                <div className="space-y-2">
+                  <Label>Link Cartão de Crédito (Cakto)</Label>
+                  <Input
+                    value={formData.card_checkout_url}
+                    onChange={(e) => setFormData({ ...formData, card_checkout_url: e.target.value })}
+                    placeholder="https://pay.cakto.com.br/... (Cartão)"
+                    className="bg-secondary/50"
+                  />
+                  <p className="text-xs text-muted-foreground">Opcional. Se preenchido, aparece o botão "Cartão de Crédito" no checkout público.</p>
                 </div>
                 <Button
                   type="submit" 

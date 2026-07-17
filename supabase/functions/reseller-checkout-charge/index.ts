@@ -67,7 +67,7 @@ Deno.serve(async (req) => {
 
     const { data: plan } = await admin
       .from("plans")
-      .select("id, plan_name, price, checkout_url, created_by")
+      .select("id, plan_name, price, checkout_url, card_checkout_url, created_by")
       .eq("id", planId)
       .maybeSingle();
     if (!plan || plan.created_by !== ownerId) return json({ error: "plan_not_found" }, 404);
@@ -81,11 +81,13 @@ Deno.serve(async (req) => {
       return json({ error: "customer_not_found" }, 404);
     }
 
-    if (method === "cakto") {
+    if (method === "cakto" || method === "cakto_card") {
       if (!settings.enable_cakto) return json({ error: "cakto_disabled" }, 400);
-      const link = String(plan.checkout_url || "").trim();
+      const link = method === "cakto_card"
+        ? String((plan as any).card_checkout_url || plan.checkout_url || "").trim()
+        : String(plan.checkout_url || (plan as any).card_checkout_url || "").trim();
       if (!link) return json({ error: "cakto_link_missing" }, 400);
-      return json({ ok: true, method: "cakto", checkout_url: link });
+      return json({ ok: true, method, checkout_url: link });
     }
 
     if (method !== "pix") return json({ error: "unknown_method" }, 400);

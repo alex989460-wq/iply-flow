@@ -44,7 +44,7 @@ Deno.serve(async (req) => {
     // Plans of this reseller.
     const { data: plans } = await admin
       .from("plans")
-      .select("id, plan_name, duration_days, price, checkout_url")
+      .select("id, plan_name, duration_days, price, checkout_url, card_checkout_url")
       .eq("created_by", ownerId)
       .order("price", { ascending: true });
 
@@ -65,6 +65,7 @@ Deno.serve(async (req) => {
         duration_days: p.duration_days,
         price: Number(p.price),
         cakto_url: p.checkout_url || null,
+        card_url: p.card_checkout_url || null,
       })),
     });
   } catch (err) {
