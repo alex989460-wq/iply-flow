@@ -954,26 +954,28 @@ serve(async (req) => {
         .limit(1)
         .maybeSingle();
 
+      // 🚫 Guarda contra duplicidade: se já existe cliente com o mesmo username para este owner,
+      // NÃO cria um segundo cadastro — descarta o pending e deixa o fluxo normal renovar.
+      if (pendingNew?.username && pendingNew?.owner_id) {
+        const { data: existingDup } = await supabaseAdmin
+          .from('customers')
+          .select('id')
+          .eq('created_by', pendingNew.owner_id)
+          .ilike('username', pendingNew.username)
+          .limit(1)
+          .maybeSingle();
+        if (existingDup) {
+          console.log(`[Cakto] ⚠️ Username "${pendingNew.username}" já existe (id=${existingDup.id}). Descartando pending_new_customers e usando fluxo de renovação.`);
+          await supabaseAdmin.from('pending_new_customers').update({ used: true }).eq('id', pendingNew.id);
+          pendingNew = null as any;
+        }
+      }
+
       if (pendingNew) {
         console.log(`[Cakto] ✅ Novo cliente encontrado via checkout público: ${pendingNew.name} (${pendingNew.username})`);
 
-        // 🚫 Guarda contra duplicidade: se já existe cliente com o mesmo username para este owner,
-        // NÃO cria um segundo cadastro — deixa o fluxo normal de renovação tratar (search abaixo).
-        if (pendingNew.username && pendingNew.owner_id) {
-          const { data: existingDup } = await supabaseAdmin
-            .from('customers')
-            .select('id')
-            .eq('created_by', pendingNew.owner_id)
-            .ilike('username', pendingNew.username)
-            .limit(1)
-            .maybeSingle();
-          if (existingDup) {
-            console.log(`[Cakto] ⚠️ Username "${pendingNew.username}" já existe (id=${existingDup.id}). Ignorando pending_new e caindo no fluxo de renovação.`);
-            await supabaseAdmin.from('pending_new_customers').update({ used: true }).eq('id', pendingNew.id);
-            // Não retorna — segue o processamento como renovação normal abaixo.
-          } else {
-            // Mark as used
-            await supabaseAdmin.from('pending_new_customers').update({ used: true }).eq('id', pendingNew.id);
+        // Mark as used
+        await supabaseAdmin.from('pending_new_customers').update({ used: true }).eq('id', pendingNew.id);
 
         // Get plan info
         const { data: newPlan } = await supabaseAdmin.from('plans').select('*').eq('id', pendingNew.plan_id).maybeSingle();
