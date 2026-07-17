@@ -51,10 +51,51 @@ async function crmFetchWithKeyFallback(path: string, init: RequestInit & { withA
   return firstOk(keys.map((key) => () => crmFetch(path, { ...init, apiKey: key })));
 }
 
-function normalizeWhatsappPhone(value: unknown) {
-  const digits = String(value || "").replace(/\D/g, "");
-  if (digits.startsWith("55") && digits.length === 12) return `${digits.slice(0, 4)}9${digits.slice(4)}`;
+const KNOWN_FOREIGN_COUNTRY_CODES = [
+  "971", "598", "595", "593", "591", "353", "351",
+  "86", "81", "61", "58", "57", "56", "54", "52", "51", "49", "44", "41", "39", "34", "33", "32", "31",
+];
+
+function hasKnownForeignCountryCode(digits: string) {
+  return KNOWN_FOREIGN_COUNTRY_CODES.some((ddi) => digits.startsWith(ddi) && digits.length > ddi.length);
+}
+
+function stripAccidentalBrazilPrefix(digits: string) {
+  if (!digits.startsWith("55")) return digits;
+  const withoutBrazilCode = digits.slice(2);
+  // Números estrangeiros tipo US/CA com 11 dígitos podem ter sido gravados como 55 + 1XXXXXXXXXX.
+  if (withoutBrazilCode.length === 11 && withoutBrazilCode[2] !== "9") return withoutBrazilCode;
+  if (withoutBrazilCode.length >= 12 && hasKnownForeignCountryCode(withoutBrazilCode)) return withoutBrazilCode;
   return digits;
+}
+
+function normalizeWhatsappPhone(value: unknown) {
+  const raw = String(value || "").trim();
+  const digits = stripAccidentalBrazilPrefix(raw.replace(/\D/g, ""));
+  if (!digits) return "";
+  if (raw.startsWith("+")) return digits;
+  if (digits.startsWith("55")) {
+    if (digits.length === 12) return `${digits.slice(0, 4)}9${digits.slice(4)}`;
+    return digits;
+  }
+  if (hasKnownForeignCountryCode(digits)) return digits;
+  if (digits.length >= 12) return digits;
+  if (digits.length === 11) return digits[2] === "9" ? `55${digits}` : digits;
+  if (digits.length === 10) return `55${digits}`;
+  return digits;
+}
+
+function formatCrmPublicPhone(value: unknown) {
+  const normalized = normalizeWhatsappPhone(value);
+  if (!normalized) return "";
+  // Para o endpoint público do CRM, números internacionais precisam ir com '+'.
+  // Sem isso, o CRM assume Brasil e adiciona 55 indevidamente.
+  return normalized.startsWith("55") ? normalized : `+${normalized}`;
+}
+
+function isForeignWhatsappPhone(value: unknown) {
+  const normalized = normalizeWhatsappPhone(value);
+  return !!normalized && !normalized.startsWith("55");
 }
 
 function cleanMimeType(value?: string | null, fallback = "application/octet-stream") {
@@ -222,6 +263,98 @@ async function directMetaMediaSend(args: {
   }
 
   return { ok: true, status: 200, body: { ok: true, whatsapp: graph, direct_meta_media: true, phone_number_id: creds.phone_number_id } };
+}
+
+async function directMetaTemplateSend(args: {
+  apiKey?: string;
+  phone: string;
+  name?: unknown;
+  templateName: string;
+  language: string;
+  components?: unknown[];
+  channelId?: unknown;
+  phoneNumberId?: unknown;
+}) {
+  const { accessToken, ownerId } = await getCrmOwnerSession(args.apiKey);
+  const selectorPhone = args.phoneNumberId ? String(args.phoneNumberId) : "";
+  const selectorChannel = args.channelId ? String(args.channelId) : "";
+
+  let channels = await crmRest(
+    `channels?select=id,phone_number_id,system_user_token,waba_id,is_active,created_at&kind=eq.whatsapp_cloud&is_active=eq.true&order=created_at.desc`,
+    accessToken,
+  ) as any[];
+  if (selectorPhone) channels = channels.filter((c) => String(c.phone_number_id) === selectorPhone);
+  if (selectorChannel) channels = channels.filter((c) => String(c.id) === selectorChannel || String(c.phone_number_id) === selectorChannel);
+
+  let creds = channels.find((c) => c?.phone_number_id && c?.system_user_token);
+  if (!creds && !selectorChannel && !selectorPhone) {
+    const legacy = await crmRest(`whatsapp_settings?select=phone_number_id,system_user_token,waba_id&limit=1`, accessToken) as any[];
+    creds = legacy.find((c) => c?.phone_number_id && c?.system_user_token);
+  }
+  if (!creds?.phone_number_id || !creds?.system_user_token) throw new Error("Canal WhatsApp Oficial não configurado no CRM");
+
+  const to = normalizeWhatsappPhone(args.phone);
+  const template: Record<string, unknown> = {
+    name: args.templateName,
+    language: { code: args.language, policy: "deterministic" },
+  };
+  if (Array.isArray(args.components) && args.components.length) template.components = args.components;
+
+  const payload = { messaging_product: "whatsapp", to, type: "template", template };
+  const send = await fetch(`https://graph.facebook.com/v21.0/${creds.phone_number_id}/messages`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${creds.system_user_token}`, "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  const graph = await send.json().catch(() => ({}));
+  if (!send.ok) throw new Error(graph?.error?.message || `Meta template HTTP ${send.status}`);
+
+  try {
+    const contactRows = await crmRest(`contacts?select=id,name,phone&phone=eq.${encodeURIComponent(to)}&limit=1`, accessToken) as any[];
+    let contact = contactRows?.[0];
+    if (!contact) {
+      const created = await crmRest(`contacts?select=id,name,phone`, accessToken, {
+        method: "POST",
+        body: JSON.stringify({ owner_id: ownerId, phone: to, name: String(args.name || to), stage: "new" }),
+      }) as any[];
+      contact = created?.[0];
+    }
+    if (contact?.id) {
+      let convRows = await crmRest(`conversations?select=id,unread_count&contact_id=eq.${contact.id}&phone_number_id=eq.${encodeURIComponent(String(creds.phone_number_id))}&limit=1`, accessToken) as any[];
+      let conv = convRows?.[0];
+      if (!conv) {
+        const createdConv = await crmRest(`conversations?select=id,unread_count`, accessToken, {
+          method: "POST",
+          body: JSON.stringify({ owner_id: ownerId, contact_id: contact.id, channel: "whatsapp", channel_id: creds.id ?? null, phone_number_id: creds.phone_number_id, status: "open" }),
+        }) as any[];
+        conv = createdConv?.[0];
+      }
+      if (conv?.id) {
+        const body = `[Template: ${args.templateName}]`;
+        const now = new Date().toISOString();
+        await crmRest(`messages`, accessToken, {
+          method: "POST",
+          body: JSON.stringify({
+            conversation_id: conv.id,
+            owner_id: ownerId,
+            direction: "out",
+            body,
+            status: graph?.messages?.[0]?.message_status || "accepted",
+            wa_message_id: graph?.messages?.[0]?.id ?? null,
+            phone_number_id: creds.phone_number_id,
+          }),
+        });
+        await crmRest(`conversations?id=eq.${conv.id}`, accessToken, {
+          method: "PATCH",
+          body: JSON.stringify({ last_message: body, last_message_at: now, unread_count: 0, status: "open", phone_number_id: creds.phone_number_id }),
+        });
+      }
+    }
+  } catch (persistError) {
+    console.warn("[crm-oficial-sync] template enviado, mas não persistiu no inbox:", persistError instanceof Error ? persistError.message : persistError);
+  }
+
+  return { ok: true, status: 200, body: { ok: true, whatsapp: graph, direct_meta_template: true, phone_number_id: creds.phone_number_id, to } };
 }
 
 function textFromUnknown(value: unknown) {
@@ -463,7 +596,8 @@ async function doSendWhatsapp(payload: {
   components?: unknown[];
   require_media?: boolean;
 }, apiKey?: string) {
-  const final: Record<string, unknown> = { ...payload };
+  const crmPhone = formatCrmPublicPhone(payload.phone);
+  const final: Record<string, unknown> = { ...payload, phone: crmPhone, to: crmPhone };
   if (payload.media_url && !final.mediaUrl) final.mediaUrl = payload.media_url;
   if (payload.media_id && !final.mediaId) final.mediaId = payload.media_id;
   if (payload.media_type && !final.mediaType) final.mediaType = payload.media_type;
@@ -473,6 +607,7 @@ async function doSendWhatsapp(payload: {
 
   // Template oficial: usar endpoint /whatsapp-template-send se houver template_name.
   if (payload.template_name) {
+    const recipientPhone = formatCrmPublicPhone(payload.phone);
     const requestedLang = payload.template_language || payload.language || "pt_BR";
     const params = Array.isArray(payload.template_params) ? payload.template_params : [];
     const fallbackBody = textFromUnknown(payload.body).trim() || params.map(textFromUnknown).filter(Boolean).join(" ");
@@ -508,9 +643,35 @@ async function doSendWhatsapp(payload: {
     }
     const headerImageUrl = rawHeaderImageUrl ? await ensurePublicMediaUrl(rawHeaderImageUrl, String(payload.template_name)) : undefined;
     const templateComponents = replaceHeaderImageInComponents(components, headerImageUrl);
+    if (isForeignWhatsappPhone(payload.phone)) {
+      try {
+        const directResult = await directMetaTemplateSend({
+          apiKey,
+          phone: payload.phone,
+          name: payload.name,
+          templateName: String(payload.template_name),
+          language: String(lang),
+          components: templateComponents,
+          channelId: payload.channel_id,
+          phoneNumberId: payload.phone_number_id || payload.from_phone_number_id,
+        });
+        console.log("[crm-oficial-sync] direct foreign template send", {
+          template: payload.template_name,
+          lang,
+          to: normalizeWhatsappPhone(payload.phone),
+          ok: true,
+          status: directResult.status,
+        });
+        return directResult;
+      } catch (directError) {
+        const message = directError instanceof Error ? directError.message : String(directError);
+        console.error("[crm-oficial-sync] direct foreign template falhou:", message);
+        return { ok: false, status: 502, body: { error: message, direct_meta_template: true, blocked_wrong_country_prefix_fallback: true } };
+      }
+    }
     const officialPayload: Record<string, unknown> = {
-      phone: payload.phone,
-      to: payload.phone,
+      phone: recipientPhone,
+      to: recipientPhone,
       name: payload.name,
       channel_id: payload.channel_id,
       channelId: payload.channel_id,
@@ -529,8 +690,8 @@ async function doSendWhatsapp(payload: {
       ...(headerImageUrl ? { header_image_url: headerImageUrl, headerImageUrl } : {}),
     };
     const legacyPayload: Record<string, unknown> = {
-      phone: payload.phone,
-      to: payload.phone,
+      phone: recipientPhone,
+      to: recipientPhone,
       name: payload.name,
       channel_id: payload.channel_id,
       channelId: payload.channel_id,
@@ -551,8 +712,8 @@ async function doSendWhatsapp(payload: {
       template: { name: payload.template_name, language: { code: lang, policy: "deterministic" }, components: templateComponents },
     };
     const variablePayload: Record<string, unknown> = {
-      phone: payload.phone,
-      to: payload.phone,
+      phone: recipientPhone,
+      to: recipientPhone,
       name: payload.name,
       channel_id: payload.channel_id,
       channelId: payload.channel_id,
@@ -641,7 +802,7 @@ async function doSendWhatsapp(payload: {
       try {
         return await directMetaMediaSend({
           apiKey,
-          phone: String(final.phone || ""),
+          phone: normalizeWhatsappPhone(final.phone),
           name: final.name,
           body: captionText || String(final.body || ""),
           mediaUrl,
@@ -828,7 +989,8 @@ Deno.serve(async (req) => {
 
     // ── COMPAT: sendTemplate { number/phone, template_name, language?, user_id?, header_image_url?, parameters? }
     if ((rawBody?.action === "sendTemplate" || rawBody?.action === "enviar-template") && (rawBody.number || rawBody.phone) && rawBody.template_name) {
-      const phone = String(rawBody.number || rawBody.phone || "");
+      const rawPhone = String(rawBody.number || rawBody.phone || "");
+      const phone = formatCrmPublicPhone(rawPhone);
       const templateName = String(rawBody.template_name || "");
       const language = (rawBody.language as string) || "pt_BR";
       const userId = (rawBody.user_id as string | undefined) || undefined;
