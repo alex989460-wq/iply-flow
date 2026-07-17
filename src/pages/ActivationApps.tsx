@@ -345,11 +345,22 @@ export default function ActivationApps() {
 
   const saveMutation = useMutation({
     mutationFn: async (data: any) => {
+      const toNum = (v: any) => {
+        if (v === '' || v === null || v === undefined) return null;
+        const n = Number(String(v).replace(',', '.'));
+        return Number.isFinite(n) ? n : null;
+      };
+      const payload: any = {
+        ...data,
+        price_monthly: toNum(data.price_monthly),
+        price_quarterly: toNum(data.price_quarterly),
+        price_annual: toNum(data.price_annual),
+      };
       if (editingApp) {
-        const { error } = await (supabase as any).from('activation_apps').update(data).eq('id', editingApp.id);
+        const { error } = await (supabase as any).from('activation_apps').update(payload).eq('id', editingApp.id);
         if (error) throw error;
       } else {
-        const { error } = await (supabase as any).from('activation_apps').insert({ ...data, user_id: user?.id });
+        const { error } = await (supabase as any).from('activation_apps').insert({ ...payload, user_id: user?.id });
         if (error) throw error;
       }
     },
