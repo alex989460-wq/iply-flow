@@ -143,15 +143,27 @@ Deno.serve(async (req) => {
           await admin.from("pending_new_customers").delete().eq("id", pending.id);
         }
       } else if (charge.customer_id) {
-        // Manual charge for an existing customer.
-        await admin.from("payments").insert({
-          customer_id: charge.customer_id,
-          amount: dbAmount,
-          payment_date: new Date().toISOString().slice(0, 10),
-          method: "pix",
-          confirmed: true,
-          source: `efi:${txid}`,
-        });
+        // Multi-customer charge (metadata.customer_ids) or single charge.
+        const meta: any = charge.metadata || {};
+        const ids: string[] = Array.isArray(meta.customer_ids) && meta.customer_ids.length
+          ? meta.customer_ids
+          : [charge.customer_id];
+        // Fetch per-customer price (custom_price fallback to charge.amount/N)
+        const { data: custs } = await admin.from("customers")
+          .select("id, custom_price").in("id", ids);
+        const fallback = dbAmount / ids.length;
+        for (const cid of ids) {
+          const cust = (custs || []).find((c: any) => c.id === cid);
+          const perAmount = Number(cust?.custom_price ?? fallback);
+          await admin.from("payments").insert({
+            customer_id: cid,
+            amount: perAmount,
+            payment_date: new Date().toISOString().slice(0, 10),
+            method: "pix",
+            confirmed: true,
+            source: `efi:${txid}`,
+          });
+        }
       }
 
       // Fire WhatsApp confirmation (template + text + admin) for any customer-linked charge.
