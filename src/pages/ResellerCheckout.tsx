@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
-import { Loader2, Check, Phone, CreditCard, QrCode, ArrowLeft, Copy, Sparkles, ShieldCheck, Tv, User as UserIcon, AlertTriangle, Server } from 'lucide-react';
+import { Loader2, Check, Phone, QrCode, ArrowLeft, Copy, Sparkles, ShieldCheck, Tv, User as UserIcon, AlertTriangle, Server, Smartphone, ChevronRight } from 'lucide-react';
 import { toast } from 'sonner';
+import pixLogo from '@/assets/pix-logo.png.asset.json';
+import cardLogo from '@/assets/card-logo.png.asset.json';
 
 interface Plan {
   id: string; name: string; duration_days: number; price: number;
@@ -228,42 +230,50 @@ export default function ResellerCheckout() {
     const primary = g.pix || g.card;
     if (!primary) return null;
     return (
-      <div
+      <button
         key={g.key}
-        className={`relative rounded-2xl bg-[#131313] border ${popular ? 'border-[var(--brand)] shadow-lg shadow-[var(--brand)]/20' : 'border-white/[0.08]'} p-6 flex flex-col transition-all hover:border-white/20 hover:-translate-y-0.5`}
+        type="button"
+        onClick={() => openPlan(g)}
+        className={`group relative rounded-2xl bg-gradient-to-br from-[#161616] to-[#0f0f0f] border text-left p-6 flex flex-col transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-[#0d0d0d] ${popular ? 'border-[var(--brand)] shadow-[0_0_30px_-8px_var(--brand)]' : 'border-white/[0.08] hover:border-white/25'}`}
+        style={popular ? { boxShadow: `0 0 40px -12px ${brand}` } : undefined}
       >
+        {/* glow overlay on hover */}
+        <span
+          className="pointer-events-none absolute inset-0 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500"
+          style={{ background: `radial-gradient(600px circle at 50% 0%, ${brand}18, transparent 60%)` }}
+        />
         {popular && (
-          <span className="absolute -top-3 left-1/2 -translate-x-1/2 text-[10px] font-bold px-3 py-1 rounded-full text-white shadow-lg" style={{ background: brand }}>
+          <span className="absolute -top-3 left-1/2 -translate-x-1/2 text-[10px] font-bold px-3 py-1 rounded-full text-white shadow-lg z-10 animate-pulse" style={{ background: brand }}>
             ✨ MAIS POPULAR
           </span>
         )}
         {saveBadge && (
-          <span className="absolute -top-3 right-4 text-[10px] font-bold px-3 py-1 rounded-full bg-emerald-500 text-white shadow-lg">
+          <span className="absolute -top-3 right-4 text-[10px] font-bold px-3 py-1 rounded-full bg-emerald-500 text-white shadow-lg z-10">
             {saveBadge}
           </span>
         )}
-        <div className="flex items-center gap-2 text-white/70 text-xs font-bold tracking-widest uppercase mb-4">
+        <div className="relative flex items-center gap-2 text-white/70 text-xs font-bold tracking-widest uppercase mb-4">
           <Tv className="w-4 h-4" style={{ color: brand }} /> {durationLabel(g.duration_days)}
         </div>
-        <div className="mb-5">
+        <div className="relative mb-5">
           <p className="text-4xl font-extrabold text-white leading-none">
             <span className="text-sm text-white/50 font-normal align-top mr-1">R$</span>
             {Number(primary.price).toFixed(2).replace('.', ',')}
           </p>
         </div>
-        <ul className="space-y-2 text-sm text-white/80 mb-6 flex-1">
+        <ul className="relative space-y-2 text-sm text-white/80 mb-6 flex-1">
           <li className="flex items-center gap-2"><Check className="w-4 h-4" style={{ color: brand }} /> {g.screens} tela{g.screens > 1 ? 's' : ''} simultânea{g.screens > 1 ? 's' : ''}</li>
           <li className="flex items-center gap-2"><Check className="w-4 h-4" style={{ color: brand }} /> Canais, Filmes e Séries</li>
           <li className="flex items-center gap-2"><Check className="w-4 h-4" style={{ color: brand }} /> Qualidade HD / Full HD</li>
         </ul>
-        <Button
-          onClick={() => openPlan(g)}
-          className={`w-full h-12 font-bold tracking-wide rounded-xl ${popular ? 'text-white shadow-md' : 'bg-[#1e1e1e] hover:bg-[#2a2a2a] text-white'}`}
+        <div
+          className={`relative w-full h-12 font-bold tracking-wide rounded-xl flex items-center justify-center gap-2 transition-all ${popular ? 'text-white shadow-md' : 'bg-white/[0.04] group-hover:bg-white/[0.08] text-white'}`}
           style={popular ? { background: brand } : undefined}
         >
           ASSINAR / RENOVAR
-        </Button>
-      </div>
+          <ChevronRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
+        </div>
+      </button>
     );
   };
 
@@ -282,26 +292,48 @@ export default function ResellerCheckout() {
     || singles[1]?.key;
 
   return (
-    <div style={brandStyle} className="min-h-screen text-white bg-[#0d0d0d]">
+    <div style={brandStyle} className="min-h-screen text-white bg-[#0a0a0a] relative overflow-hidden">
+      {/* Ambient background glow */}
+      <div className="pointer-events-none absolute inset-0 opacity-60">
+        <div className="absolute -top-40 left-1/2 -translate-x-1/2 w-[900px] h-[900px] rounded-full blur-3xl" style={{ background: `radial-gradient(closest-side, ${brand}22, transparent 70%)` }} />
+      </div>
+
       {/* Header */}
-      <header className="pt-10 pb-6 text-center">
-        {data.logo_url ? (
-          <img src={data.logo_url} alt={data.display_name || ''} className="h-16 mx-auto object-contain" />
-        ) : (
-          <h1 className="text-3xl font-extrabold" style={{ color: brand }}>{data.display_name || 'Assinatura'}</h1>
-        )}
+      <header className="relative pt-8 pb-4 px-4 flex items-center justify-between max-w-6xl mx-auto">
+        <div className="flex-1" />
+        <div className="text-center">
+          {data.logo_url ? (
+            <img src={data.logo_url} alt={data.display_name || ''} className="h-14 md:h-16 mx-auto object-contain" />
+          ) : (
+            <h1 className="text-2xl md:text-3xl font-extrabold" style={{ color: brand }}>{data.display_name || 'Assinatura'}</h1>
+          )}
+        </div>
+        <div className="flex-1 flex justify-end">
+          <Link
+            to={`/r/${slug}/ativar`}
+            className="hidden sm:inline-flex items-center gap-2 px-4 py-2 text-xs font-bold tracking-wide rounded-full border border-white/15 bg-white/[0.03] hover:bg-white/[0.08] transition-all hover:border-[var(--brand)]"
+          >
+            <Smartphone className="w-4 h-4" style={{ color: brand }} /> ATIVAR APP
+          </Link>
+        </div>
       </header>
 
-      <main className="max-w-6xl mx-auto px-4 pb-20 space-y-12">
+      <main className="relative max-w-6xl mx-auto px-4 pb-20 space-y-12">
         {/* Hero title */}
         <section className="text-center space-y-3 pt-4">
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-[11px] font-bold tracking-widest border" style={{ borderColor: brand, color: brand }}>
+          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-[11px] font-bold tracking-widest border backdrop-blur-sm" style={{ borderColor: brand, color: brand, background: `${brand}0d` }}>
             <Sparkles className="w-3.5 h-3.5" /> {data.headline || 'MELHOR CUSTO-BENEFÍCIO'}
           </div>
           <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight">
             Escolha seu <span style={{ color: brand }}>Plano</span>
           </h1>
           <p className="text-white/50 text-sm">{data.subheadline || 'Assista onde e quando quiser. Cancele a qualquer momento.'}</p>
+          <Link
+            to={`/r/${slug}/ativar`}
+            className="sm:hidden inline-flex items-center gap-2 mt-2 px-4 py-2 text-xs font-bold tracking-wide rounded-full border border-white/15 bg-white/[0.03]"
+          >
+            <Smartphone className="w-4 h-4" style={{ color: brand }} /> ATIVAR APP
+          </Link>
         </section>
 
         {/* 1 tela */}
@@ -457,9 +489,9 @@ export default function ResellerCheckout() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {data.methods.efi && group.pix && (
                   <button onClick={() => pay('pix')} disabled={creating}
-                    className="rounded-xl border border-white/10 bg-[#0d0d0d] hover:border-emerald-500/60 hover:bg-emerald-500/5 p-5 flex flex-col items-center gap-2 transition-all disabled:opacity-50">
-                    <div className="w-14 h-14 rounded-xl bg-emerald-500/15 flex items-center justify-center">
-                      {creating ? <Loader2 className="w-6 h-6 animate-spin text-emerald-400" /> : <QrCode className="w-7 h-7 text-emerald-400" />}
+                    className="group rounded-xl border border-white/10 bg-gradient-to-br from-emerald-500/[0.06] to-transparent hover:border-emerald-400/70 hover:from-emerald-500/[0.12] p-5 flex flex-col items-center gap-2 transition-all disabled:opacity-50 hover:-translate-y-0.5 hover:shadow-[0_0_25px_-6px_rgba(16,185,129,0.6)]">
+                    <div className="w-14 h-14 rounded-xl bg-white flex items-center justify-center shadow-sm">
+                      {creating ? <Loader2 className="w-6 h-6 animate-spin text-emerald-500" /> : <img src={pixLogo.url} alt="Pix" className="w-9 h-9" />}
                     </div>
                     <p className="font-bold text-sm tracking-wide">PIX INSTANTÂNEO</p>
                     <p className="text-[10px] text-white/50 -mt-1">Aprovação imediata</p>
@@ -468,9 +500,9 @@ export default function ResellerCheckout() {
                 )}
                 {data.methods.cakto && (group.pix?.card_url || group.card?.cakto_url) && (
                   <button onClick={() => pay('cakto_card')} disabled={creating}
-                    className="rounded-xl border border-white/10 bg-[#0d0d0d] hover:border-sky-500/60 hover:bg-sky-500/5 p-5 flex flex-col items-center gap-2 transition-all disabled:opacity-50">
-                    <div className="w-14 h-14 rounded-xl bg-sky-500/15 flex items-center justify-center">
-                      <CreditCard className="w-7 h-7 text-sky-400" />
+                    className="group rounded-xl border border-white/10 bg-gradient-to-br from-sky-500/[0.06] to-transparent hover:border-sky-400/70 hover:from-sky-500/[0.12] p-5 flex flex-col items-center gap-2 transition-all disabled:opacity-50 hover:-translate-y-0.5 hover:shadow-[0_0_25px_-6px_rgba(56,189,248,0.6)]">
+                    <div className="w-14 h-14 rounded-xl bg-white flex items-center justify-center shadow-sm">
+                      <img src={cardLogo.url} alt="Cartão" className="w-9 h-9" />
                     </div>
                     <p className="font-bold text-sm tracking-wide">CARTÃO DE CRÉDITO</p>
                     <p className="text-[10px] text-white/50 -mt-1">Processado pela Cakto</p>
@@ -479,9 +511,9 @@ export default function ResellerCheckout() {
                 )}
                 {data.methods.cakto && !data.methods.efi && group.pix?.cakto_url && (
                   <button onClick={() => pay('cakto')} disabled={creating}
-                    className="rounded-xl border border-white/10 bg-[#0d0d0d] hover:border-emerald-500/60 hover:bg-emerald-500/5 p-5 flex flex-col items-center gap-2 transition-all disabled:opacity-50">
-                    <div className="w-14 h-14 rounded-xl bg-emerald-500/15 flex items-center justify-center">
-                      <QrCode className="w-7 h-7 text-emerald-400" />
+                    className="group rounded-xl border border-white/10 bg-gradient-to-br from-emerald-500/[0.06] to-transparent hover:border-emerald-400/70 hover:from-emerald-500/[0.12] p-5 flex flex-col items-center gap-2 transition-all disabled:opacity-50 hover:-translate-y-0.5">
+                    <div className="w-14 h-14 rounded-xl bg-white flex items-center justify-center shadow-sm">
+                      <img src={pixLogo.url} alt="Pix" className="w-9 h-9" />
                     </div>
                     <p className="font-bold text-sm tracking-wide">PIX (CAKTO)</p>
                     <p className="text-[10px] text-white/50 -mt-1">Link Cakto</p>
