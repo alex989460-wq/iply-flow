@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
-import { Loader2, Save, Globe, Copy, RefreshCw, ExternalLink, Key } from 'lucide-react';
+import { Loader2, Save, Globe, Copy, RefreshCw, ExternalLink, Key, Upload, X } from 'lucide-react';
 
 interface Settings {
   id?: string;
@@ -42,7 +42,30 @@ export default function ResellerCheckoutCard() {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [form, setForm] = useState<Settings>(EMPTY);
+
+  const uploadLogo = async (file: File) => {
+    if (!user) return;
+    if (file.size > 3 * 1024 * 1024) { toast.error('Logo muito grande (máx 3MB)'); return; }
+    if (!/^image\//.test(file.type)) { toast.error('Envie um arquivo de imagem'); return; }
+    setUploading(true);
+    try {
+      const ext = file.name.split('.').pop()?.toLowerCase() || 'png';
+      const path = `${user.id}/logo-${Date.now()}.${ext}`;
+      const { error: upErr } = await supabase.storage.from('reseller-assets').upload(path, file, {
+        cacheControl: '3600', upsert: true, contentType: file.type,
+      });
+      if (upErr) throw upErr;
+      const { data: pub } = supabase.storage.from('reseller-assets').getPublicUrl(path);
+      setForm((f) => ({ ...f, logo_url: pub.publicUrl }));
+      toast.success('Logo enviada! Clique em Salvar para aplicar.');
+    } catch (e: any) {
+      toast.error(e.message || 'Falha no upload');
+    } finally {
+      setUploading(false);
+    }
+  };
 
   useEffect(() => {
     if (!user) return;
@@ -169,8 +192,45 @@ export default function ResellerCheckoutCard() {
 
         <div className="grid md:grid-cols-2 gap-3">
           <div className="space-y-1.5">
-            <Label className="text-sm">URL do logo (opcional)</Label>
-            <Input placeholder="https://…/logo.png" value={form.logo_url} onChange={(e) => setForm((f) => ({ ...f, logo_url: e.target.value }))} />
+            <Label className="text-sm">Logo</Label>
+            <div className="flex items-center gap-3">
+              <div className="w-16 h-16 rounded-lg border border-border/60 bg-muted/40 flex items-center justify-center overflow-hidden shrink-0">
+                {form.logo_url ? (
+                  <img src={form.logo_url} alt="logo" className="w-full h-full object-contain" />
+                ) : (
+                  <Upload className="w-5 h-5 text-muted-foreground" />
+                )}
+              </div>
+              <div className="flex-1 space-y-1.5">
+                <div className="flex items-center gap-2">
+                  <label className="inline-flex">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => e.target.files?.[0] && uploadLogo(e.target.files[0])}
+                    />
+                    <Button asChild size="sm" variant="outline" disabled={uploading}>
+                      <span className="cursor-pointer">
+                        {uploading ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Upload className="w-4 h-4 mr-1" />}
+                        Enviar imagem
+                      </span>
+                    </Button>
+                  </label>
+                  {form.logo_url && (
+                    <Button size="sm" variant="ghost" onClick={() => setForm((f) => ({ ...f, logo_url: '' }))}>
+                      <X className="w-4 h-4" />
+                    </Button>
+                  )}
+                </div>
+                <Input
+                  placeholder="ou cole uma URL: https://…/logo.png"
+                  value={form.logo_url}
+                  onChange={(e) => setForm((f) => ({ ...f, logo_url: e.target.value }))}
+                  className="text-xs"
+                />
+              </div>
+            </div>
           </div>
           <div className="space-y-1.5">
             <Label className="text-sm">Cor da marca</Label>
