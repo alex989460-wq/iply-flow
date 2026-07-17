@@ -4,7 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
-import { Loader2, Check, Phone, CreditCard, QrCode, ArrowLeft, Copy, ExternalLink, Sparkles, ShieldCheck } from 'lucide-react';
+import { Loader2, Check, Phone, CreditCard, QrCode, ArrowLeft, Copy, ExternalLink, Sparkles, ShieldCheck, Tv, Zap } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface Plan { id: string; name: string; duration_days: number; price: number; cakto_url: string | null; }
