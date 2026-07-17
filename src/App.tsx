@@ -113,6 +113,7 @@ function AppRoutes() {
       <Route path="/consulta" element={<ConsultaDue />} />
       <Route path="/checkout/:userId" element={<PublicCheckout />} />
       <Route path="/r/:slug" element={<ResellerCheckout />} />
+      <Route path="/r/:slug/ativar" element={<ResellerActivation />} />
       <Route path="/dashboard" element={<ProtectedRoute><Index /></ProtectedRoute>} />
       <Route path="/servers" element={<ProtectedRoute><Servers /></ProtectedRoute>} />
       <Route path="/plans" element={<ProtectedRoute><Plans /></ProtectedRoute>} />
