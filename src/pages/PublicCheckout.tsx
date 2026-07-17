@@ -150,13 +150,25 @@ export default function PublicCheckout() {
     const detectedServerId =
       verifyResult.status === 'ok' && verifyResult.server_id ? verifyResult.server_id : null;
 
+    // 🚫 Bloqueia cadastro duplicado: se o verify já detectou que o usuário existe como cliente deste
+    // revendedor, não pode se cadastrar novamente. Precisa renovar pelo fluxo de cliente existente.
+    const uname = username.trim();
+    if (verifyResult.status === 'ok' && verifyResult.source === 'customer') {
+      toast({
+        title: 'Usuário já cadastrado',
+        description: `O usuário "${uname}" já existe. Faça a renovação pelo checkout de cliente existente.`,
+        variant: 'destructive',
+      });
+      throw new Error('duplicate_username');
+    }
+
     const { data, error } = await (supabase
       .from('pending_new_customers' as any)
       .insert({
         owner_id: userId,
         name: name.trim(),
         phone: phoneNormalized,
-        username: username.trim(),
+        username: uname,
         server_id: detectedServerId || (servers.length > 0 ? servers[0].id : null),
         plan_id: planId,
         checkout_url: selectedPlan?.checkout_url || '',

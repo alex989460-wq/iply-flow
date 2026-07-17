@@ -386,8 +386,12 @@ export default function EvolutionChat({ embed = false }: { embed?: boolean } = {
 
   const [autoReplyLoading, setAutoReplyLoading] = useState(false);
   const [autoReplySaving, setAutoReplySaving] = useState(false);
-  const [instances, setInstances] = useState<Array<{ id: string; name: string; phone: string | null; state: string; profile_name: string | null }>>([]);
-  const [currentInstance, setCurrentInstance] = useState<string>('');
+  const [instances, setInstances] = useState<Array<{ id: string; name: string; phone: string | null; state: string; profile_name: string | null }>>(() => {
+    try { return JSON.parse(sessionStorage.getItem('evo_cache_instances') || '[]'); } catch { return []; }
+  });
+  const [currentInstance, setCurrentInstance] = useState<string>(() => {
+    try { return sessionStorage.getItem('evo_cache_current_instance') || ''; } catch { return ''; }
+  });
   const [switchingInstance, setSwitchingInstance] = useState(false);
   const [showContactInfo, setShowContactInfo] = useState(false);
   const [editingContactName, setEditingContactName] = useState(false);
@@ -522,8 +526,14 @@ export default function EvolutionChat({ embed = false }: { embed?: boolean } = {
 
   const loadInstances = useCallback(async () => {
     const { data } = await invokeEvolution({ action: 'list-instances' });
-    if (data?.instances) setInstances(data.instances);
-    if (data?.current) setCurrentInstance(data.current);
+    if (data?.instances) {
+      setInstances(data.instances);
+      try { sessionStorage.setItem('evo_cache_instances', JSON.stringify(data.instances)); } catch { /* noop */ }
+    }
+    if (data?.current) {
+      setCurrentInstance(data.current);
+      try { sessionStorage.setItem('evo_cache_current_instance', data.current); } catch { /* noop */ }
+    }
   }, [invokeEvolution]);
 
   const switchInstance = async (name: string) => {
@@ -699,8 +709,10 @@ export default function EvolutionChat({ embed = false }: { embed?: boolean } = {
     // A atualização completa fica somente no botão de recarregar.
     if (!cacheLoaded) load();
     else setLoading(false);
-    loadInstances();
-  }, [cacheLoaded, load, loadInstances]);
+    // Só busca instâncias se ainda não temos cache — evita reload ao trocar de aba/rota.
+    if (instances.length === 0) loadInstances();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cacheLoaded]);
 
   // Carrega status do robô (somente o "enabled") para mostrar o badge no header.
   useEffect(() => {

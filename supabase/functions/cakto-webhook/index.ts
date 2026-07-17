@@ -944,7 +944,7 @@ serve(async (req) => {
     // ── Check for pending new customer FIRST (from public checkout page) ──
     // This must run BEFORE conflict detection so new customers with existing phones are handled correctly
     {
-      const { data: pendingNew } = await supabaseAdmin
+      let { data: pendingNew } = await supabaseAdmin
         .from('pending_new_customers')
         .select('*')
         .in('phone', [...searchVariants])
@@ -953,6 +953,23 @@ serve(async (req) => {
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle();
+
+      // 🚫 Guarda contra duplicidade: se já existe cliente com o mesmo username para este owner,
+      // NÃO cria um segundo cadastro — descarta o pending e deixa o fluxo normal renovar.
+      if (pendingNew?.username && pendingNew?.owner_id) {
+        const { data: existingDup } = await supabaseAdmin
+          .from('customers')
+          .select('id')
+          .eq('created_by', pendingNew.owner_id)
+          .ilike('username', pendingNew.username)
+          .limit(1)
+          .maybeSingle();
+        if (existingDup) {
+          console.log(`[Cakto] ⚠️ Username "${pendingNew.username}" já existe (id=${existingDup.id}). Descartando pending_new_customers e usando fluxo de renovação.`);
+          await supabaseAdmin.from('pending_new_customers').update({ used: true }).eq('id', pendingNew.id);
+          pendingNew = null as any;
+        }
+      }
 
       if (pendingNew) {
         console.log(`[Cakto] ✅ Novo cliente encontrado via checkout público: ${pendingNew.name} (${pendingNew.username})`);
