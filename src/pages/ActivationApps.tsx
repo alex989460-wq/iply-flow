@@ -446,13 +446,19 @@ export default function ActivationApps() {
 
   function openNew() {
     setEditingApp(null);
-    setForm({ app_name: '', description: '', logo_url: '', requires_email: false, requires_mac: true, is_enabled: true });
+    setForm({ app_name: '', description: '', logo_url: '', requires_email: false, requires_mac: true, is_enabled: true, price_monthly: '', price_quarterly: '', price_annual: 25 });
     setDialogOpen(true);
   }
 
   function openEdit(app: any) {
     setEditingApp(app);
-    setForm({ app_name: app.app_name, description: app.description || '', logo_url: app.logo_url || '', requires_email: app.requires_email, requires_mac: app.requires_mac, is_enabled: app.is_enabled });
+    setForm({
+      app_name: app.app_name, description: app.description || '', logo_url: app.logo_url || '',
+      requires_email: app.requires_email, requires_mac: app.requires_mac, is_enabled: app.is_enabled,
+      price_monthly: app.price_monthly ?? '',
+      price_quarterly: app.price_quarterly ?? '',
+      price_annual: app.price_annual ?? 25,
+    });
     setDialogOpen(true);
   }
 
