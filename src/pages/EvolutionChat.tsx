@@ -526,8 +526,14 @@ export default function EvolutionChat({ embed = false }: { embed?: boolean } = {
 
   const loadInstances = useCallback(async () => {
     const { data } = await invokeEvolution({ action: 'list-instances' });
-    if (data?.instances) setInstances(data.instances);
-    if (data?.current) setCurrentInstance(data.current);
+    if (data?.instances) {
+      setInstances(data.instances);
+      try { sessionStorage.setItem('evo_cache_instances', JSON.stringify(data.instances)); } catch { /* noop */ }
+    }
+    if (data?.current) {
+      setCurrentInstance(data.current);
+      try { sessionStorage.setItem('evo_cache_current_instance', data.current); } catch { /* noop */ }
+    }
   }, [invokeEvolution]);
 
   const switchInstance = async (name: string) => {
