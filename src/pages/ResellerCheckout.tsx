@@ -26,6 +26,12 @@ function label(days: number) {
   if (days <= 186) return 'SEMESTRAL';
   return 'ANUAL';
 }
+function extractScreens(name: string): number | null {
+  const m = name?.match(/(\d+)\s*(telas?|tela|screens?|dispositivos?|conex[õo]es|pontos?)/i);
+  if (m) return parseInt(m[1], 10);
+  const m2 = name?.match(/\b([1-9])\s*t\b/i);
+  return m2 ? parseInt(m2[1], 10) : null;
+}
 
 export default function ResellerCheckout() {
   const { slug } = useParams<{ slug: string }>();
