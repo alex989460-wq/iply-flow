@@ -117,6 +117,7 @@ export default function ResellerCheckoutCard() {
         api_key: form.api_key || genApiKey(),
         webhook_url: (form.webhook_url || '').trim() || null,
         is_active: form.is_active,
+        activation_cakto_url: (form.activation_cakto_url || '').trim() || null,
       };
       const { error, data } = await (supabase.from('reseller_checkout_settings' as any).upsert(payload, { onConflict: 'user_id' }).select().single() as any);
       if (error) {
