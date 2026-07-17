@@ -315,10 +315,16 @@ async function fileToBase64(file: Blob): Promise<string> {
   });
 }
 
+const EVO_CACHE_LOADED_KEY = 'evo_cache_loaded';
+const EVO_CONTACT_SYNCED_KEY = 'evo_contacts_synced_once';
+
 export default function EvolutionChat({ embed = false }: { embed?: boolean } = {}) {
   const { user, session } = useAuth();
   const { toast } = useToast();
   const isMobile = useIsMobile();
+  const cacheLoaded = useMemo(() => {
+    try { return sessionStorage.getItem(EVO_CACHE_LOADED_KEY) === '1'; } catch { return false; }
+  }, []);
   // Hydrate from sessionStorage so abrir o chat (especialmente no mobile) seja instantâneo
   const cachedMessages = useMemo<EvoMessage[]>(() => {
     try { return JSON.parse(sessionStorage.getItem('evo_cache_messages') || '[]'); } catch { return []; }
@@ -326,7 +332,7 @@ export default function EvolutionChat({ embed = false }: { embed?: boolean } = {
   const cachedContacts = useMemo<Record<string, EvoContact>>(() => {
     try { return JSON.parse(sessionStorage.getItem('evo_cache_contacts') || '{}'); } catch { return {}; }
   }, []);
-  const [loading, setLoading] = useState(cachedMessages.length === 0);
+  const [loading, setLoading] = useState(!cacheLoaded && cachedMessages.length === 0);
   const [messages, setMessages] = useState<EvoMessage[]>(cachedMessages);
   const [contacts, setContacts] = useState<Record<string, EvoContact>>(cachedContacts);
   const [selectedPhone, setSelectedPhone] = useState<string | null>(null);
@@ -666,6 +672,7 @@ export default function EvolutionChat({ embed = false }: { embed?: boolean } = {
     try {
       sessionStorage.setItem('evo_cache_messages', JSON.stringify(merged.slice(-800)));
       sessionStorage.setItem('evo_cache_contacts', JSON.stringify(cmap));
+      sessionStorage.setItem(EVO_CACHE_LOADED_KEY, '1');
     } catch { /* quota cheia, ignora */ }
   }, [user, toast]);
 
@@ -687,7 +694,13 @@ export default function EvolutionChat({ embed = false }: { embed?: boolean } = {
     return false;
   }, [currentInstance, selectedInstance]);
 
-  useEffect(() => { load(); loadInstances(); }, [load, loadInstances]);
+  useEffect(() => {
+    // Não recarrega automaticamente ao voltar para a página do chat: mantém o estado/cache fixo.
+    // A atualização completa fica somente no botão de recarregar.
+    if (!cacheLoaded) load();
+    else setLoading(false);
+    loadInstances();
+  }, [cacheLoaded, load, loadInstances]);
 
   // Carrega status do robô (somente o "enabled") para mostrar o badge no header.
   useEffect(() => {
@@ -885,6 +898,10 @@ export default function EvolutionChat({ embed = false }: { embed?: boolean } = {
 
   useEffect(() => {
     if (!user || contactSyncRef.current) return;
+    try {
+      if (sessionStorage.getItem(EVO_CONTACT_SYNCED_KEY) === '1') return;
+      sessionStorage.setItem(EVO_CONTACT_SYNCED_KEY, '1');
+    } catch { /* noop */ }
     contactSyncRef.current = true;
     invokeEvolution({ action: 'sync-contacts' }).catch(() => undefined);
   }, [user, invokeEvolution]);
