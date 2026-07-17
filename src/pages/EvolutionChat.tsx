@@ -2279,7 +2279,6 @@ export default function EvolutionChat({ embed = false }: { embed?: boolean } = {
                           isPinnedContact && 'bg-gradient-to-r from-emerald-500/5 to-transparent',
                         )}
                       >
-                        <Avatar className="h-9 w-9 shrink-0">
                         <div className="relative shrink-0">
                           <Avatar className="h-11 w-11 shrink-0 ring-0 border-0">
                             {cc?.profile_pic_url && <AvatarImage src={cc.profile_pic_url} alt={displayName} />}
