@@ -2284,7 +2284,7 @@ export default function EvolutionChat({ embed = false }: { embed?: boolean } = {
                               {isGroup && <span className="text-[9px] px-1 rounded bg-purple-500/20 text-purple-400 shrink-0">GRUPO</span>}
                               {displayName}
                             </div>
-                            <div className="text-[10px] text-muted-foreground shrink-0">{c.last ? relativeTime(c.last.created_at) : 'novo'}</div>
+                            <div className="text-[10px] text-muted-foreground shrink-0">{c.last ? longRelativeTime(c.last.created_at) : 'novo'}</div>
                           </div>
 
                           <div className="flex items-center justify-between gap-2 mt-0.5">
@@ -2293,9 +2293,16 @@ export default function EvolutionChat({ embed = false }: { embed?: boolean } = {
                               {c.last?.content || 'Nova conversa'}
                             </div>
                             {!active && c.unread > 0 && (
-                              <Badge className="h-4 min-w-4 px-1 text-[9px] bg-primary">{c.unread > 99 ? '99+' : c.unread}</Badge>
+                              <Badge className="h-4 min-w-4 px-1 text-[9px] bg-[#00a884] text-black hover:bg-[#00a884]">{c.unread > 99 ? '99+' : c.unread}</Badge>
                             )}
                           </div>
+
+                          {/* Protocolo estilo ZapCRM */}
+                          {!isStatusEntry && (
+                            <div className="text-[10px] font-mono text-cyan-400/80 mt-0.5 truncate">
+                              {conversationProtocol(c.phone)}
+                            </div>
+                          )}
                         </div>
                       </button>
                     </ContextMenuTrigger>
