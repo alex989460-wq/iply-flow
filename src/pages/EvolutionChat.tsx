@@ -99,6 +99,25 @@ function relativeTime(iso: string) {
   return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
 }
 
+// Protocolo curto estilo ZapCRM: #XXXXXX-XXXX (hash determinístico do telefone).
+function conversationProtocol(phone: string) {
+  let h = 5381;
+  for (let i = 0; i < phone.length; i++) h = ((h << 5) + h + phone.charCodeAt(i)) >>> 0;
+  const hex = h.toString(16).toUpperCase().padStart(10, '0');
+  return `#${hex.slice(0, 6)}-${hex.slice(6, 10)}`;
+}
+
+// Timestamp longo estilo ZapCRM: "4 minutos", "2 horas", "3 dias".
+function longRelativeTime(iso: string) {
+  const diffSec = (Date.now() - new Date(iso).getTime()) / 1000;
+  if (diffSec < 60) return 'menos de um minuto';
+  const min = Math.floor(diffSec / 60);
+  if (min < 60) return `${min} minuto${min > 1 ? 's' : ''}`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `${hr} hora${hr > 1 ? 's' : ''}`;
+  const dy = Math.floor(hr / 24);
+  return `${dy} dia${dy > 1 ? 's' : ''}`;
+
 function getNestedValue(source: unknown, path: string[]): unknown {
   return path.reduce<unknown>((acc, key) => (acc && typeof acc === 'object' ? (acc as Record<string, unknown>)[key] : undefined), source);
 }
