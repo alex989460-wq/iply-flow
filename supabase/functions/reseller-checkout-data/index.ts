@@ -51,7 +51,7 @@ Deno.serve(async (req) => {
     // Activation apps configured by this reseller (public listing).
     const { data: apps } = await admin
       .from("activation_apps")
-      .select("id, app_name, description, logo_url, icon, requires_mac, requires_email, sort_order")
+      .select("id, app_name, description, logo_url, icon, requires_mac, requires_email, sort_order, price_monthly, price_quarterly, price_annual")
       .eq("user_id", ownerId)
       .eq("is_enabled", true)
       .order("sort_order", { ascending: true });
@@ -63,6 +63,7 @@ Deno.serve(async (req) => {
       brand_color: settings.brand_color,
       headline: settings.headline,
       subheadline: settings.subheadline,
+      activation_cakto_url: settings.activation_cakto_url || null,
       methods: {
         efi: settings.enable_efi && efi_ready,
         cakto: settings.enable_cakto,
@@ -83,6 +84,9 @@ Deno.serve(async (req) => {
         icon: a.icon,
         requires_mac: !!a.requires_mac,
         requires_email: !!a.requires_email,
+        price_monthly: a.price_monthly != null ? Number(a.price_monthly) : null,
+        price_quarterly: a.price_quarterly != null ? Number(a.price_quarterly) : null,
+        price_annual: a.price_annual != null ? Number(a.price_annual) : null,
       })),
     });
   } catch (err) {
