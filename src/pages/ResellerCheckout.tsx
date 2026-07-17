@@ -384,23 +384,10 @@ export default function ResellerCheckout() {
               </CardContent>
             </Card>
 
-            {/* Vitrine dos planos (informativa) */}
-            {data.plans.length > 0 && (
-              <section className="space-y-4">
-                <h3 className="text-center text-lg font-bold text-white/80">Planos disponíveis</h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                  {data.plans.map((p, i) => (
-                    <div key={p.id} className="rounded-2xl bg-black/40 border border-white/10 p-5">
-                      <p className="text-xs text-white/60 font-semibold tracking-wider">{label(p.duration_days)}</p>
-                      <p className="text-3xl font-extrabold mt-2">
-                        <span className="text-sm text-white/60 align-top mr-1">R$</span>{Number(p.price).toFixed(2).replace('.', ',')}
-                      </p>
-                      <p className="text-xs text-white/50 mt-2">{p.duration_days} dias</p>
-                    </div>
-                  ))}
-                </div>
-              </section>
-            )}
+            <div className="max-w-md mx-auto flex items-center justify-center gap-6 text-[11px] text-white/40 pt-2">
+              <span className="flex items-center gap-1"><ShieldCheck className="w-3.5 h-3.5" /> Ambiente seguro</span>
+              <span className="flex items-center gap-1"><Zap className="w-3.5 h-3.5" /> Ativação imediata</span>
+            </div>
           </>
         )}
 
