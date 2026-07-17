@@ -2330,6 +2330,60 @@ export type Database = {
         }
         Relationships: []
       }
+      reseller_checkout_settings: {
+        Row: {
+          api_key: string
+          brand_color: string
+          created_at: string
+          display_name: string | null
+          enable_cakto: boolean
+          enable_efi: boolean
+          headline: string | null
+          id: string
+          is_active: boolean
+          logo_url: string | null
+          slug: string
+          subheadline: string | null
+          updated_at: string
+          user_id: string
+          webhook_url: string | null
+        }
+        Insert: {
+          api_key: string
+          brand_color?: string
+          created_at?: string
+          display_name?: string | null
+          enable_cakto?: boolean
+          enable_efi?: boolean
+          headline?: string | null
+          id?: string
+          is_active?: boolean
+          logo_url?: string | null
+          slug: string
+          subheadline?: string | null
+          updated_at?: string
+          user_id: string
+          webhook_url?: string | null
+        }
+        Update: {
+          api_key?: string
+          brand_color?: string
+          created_at?: string
+          display_name?: string | null
+          enable_cakto?: boolean
+          enable_efi?: boolean
+          headline?: string | null
+          id?: string
+          is_active?: boolean
+          logo_url?: string | null
+          slug?: string
+          subheadline?: string | null
+          updated_at?: string
+          user_id?: string
+          webhook_url?: string | null
+        }
+        Relationships: []
+      }
       servers: {
         Row: {
           auto_renew: boolean

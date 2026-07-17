@@ -1,49 +1,83 @@
-## Contexto
+# Checkout do Revendedor + API Externa
 
-O bug de ordem das mensagens antigas já foi corrigido nesta rodada (merge agora reordena por `created_at` e o `thread` também).
+Criar um checkout público estilo `planos.socialplay.com.br`, um para cada revendedor, e uma API REST para sites externos (como o próprio SocialPlay) consumirem o mesmo fluxo. Reaproveita 100% da integração Efí já pronta e mantém o Cakto funcionando lado a lado.
 
-O "CRM Oficial" que aparece nos prints (`/crm-oficial/chat`) é na verdade um **iframe do ZapCRM** (`zapcrm.top/embed/inbox`) — não é código nosso. Então "igual ao CRM" significa recriar o visual do ZapCRM dentro do nosso `EvolutionChat.tsx` (3.365 linhas). Não dá pra reaproveitar componente — é reconstrução visual.
+## Fluxo do cliente final
 
-## Escopo do redesign
+1. Cliente abre `supergestor.top/r/socialtv` (slug do revendedor).
+2. Vê a marca (logo + cor + nome) e a lista de planos ativos daquele revendedor.
+3. Digita **telefone** → sistema lista os usuários vinculados àquele telefone.
+4. Cliente **seleciona qual usuário** quer renovar.
+5. Escolhe o plano → escolhe **Pix Efí (QR na hora)** ou **Cakto (link)**.
+6. Pix Efí: QR aparece na tela + polling; ao confirmar, roda o mesmo pipeline de renovação automática do webhook Cakto.
+7. Cakto: redireciona pro link já cadastrado no plano.
 
-Vou refazer as 4 superfícies visuais principais do `EvolutionChat`, mantendo 100% da lógica atual (envio, webhooks, presença, reações, quick renewal, drawers de mídia/contato, gatilhos de bot, etc.).
+Sem senha, sem cadastro — igual ao SocialPlay atual.
 
-### 1. Sidebar de conversas (esquerda)
-- Header "Chat — Atendimento no estilo WhatsApp Web" com badge verde "X novas".
-- Busca em pill arredondada com ícone à esquerda + botão refresh redondo à direita.
-- Abas em pill: Todas / Não lidas / Abertas / Fechadas com contagem embaixo.
-- Selects em pill: "Todos os canais", "Etiquetas", "Todos os números".
-- Contador "N conversa(s)" + badge "X novas".
-- Item de conversa: avatar colorido por inicial, nome em bold, prévia da última msg com ícone de tipo, timestamp relativo ("4 minutos"), protocolo `#XXXXXX-XXXX` em ciano embaixo, badge verde de não lidas, menu `⋮`.
+## Página pública `/r/:slug`
 
-### 2. Header do chat (topo direito)
-- Avatar + nome + badge do canal (ex: "WhatsApp Business (Meta)") + protocolo embaixo.
-- Botões redondos: refresh, "Fechar" (verde), busca, info, mais opções.
+- Layout escuro elegante inspirado no SocialPlay (grid de planos, badge "Mais Popular", "Economize X%").
+- Personalização por revendedor: logo, cor primária, título.
+- Estados: input telefone → lista de usuários encontrados → seleção de plano → tela de pagamento (QR Pix ou botão Cakto) → confirmação.
+- Mensagem clara quando o telefone não bater com nenhum cliente.
 
-### 3. Área de mensagens
-- Fundo escuro `#0b141a` mantido (já era WhatsApp-like).
-- Bolhas com raio maior e sombra mais sutil, tipografia 15px.
-- Separadores de dia em pill central.
-- Card verde-esmeralda para mensagens de template (com título em bold e corpo formatado como no print).
-- Ícone "🎧" ao lado do nome nas conversas que têm agente vinculado.
+## API REST (para o SocialPlay e outros sites externos)
 
-### 4. Composer (inferior)
-- Barra em pill arredondada, ícones à esquerda (anexo, emoji, imagem), textarea limpa no meio, ícones à direita (mic, docs, escudo), botão enviar verde circular.
+Base: `https://fphqfgxfeaylldpxjqan.supabase.co/functions/v1/reseller-api`
+Autenticação: header `x-api-key: <chave do revendedor>`
 
-## Fora de escopo (não mudo)
-- Lógica de envio, edge functions, webhooks, realtime, cache, reações, respostas rápidas, painel Quick Renewal, drawers de contato/mídia/gatilhos de bot.
-- `EvolutionInstances`, `UnifiedChat`, `CrmOficialChat`.
-- Cores globais do design system.
+Endpoints:
+- `GET /plans` — lista planos públicos do revendedor.
+- `POST /lookup` `{ phone }` — retorna clientes vinculados ao telefone.
+- `POST /charge` `{ customer_id, plan_id, method: "pix"|"cakto" }` — cria cobrança Pix Efí (retorna QR + txid) **ou** devolve o link Cakto.
+- `GET /charge/:txid` — status do Pix (pending / paid).
+- Webhook `POST /webhook` no site externo (opcional, cadastrado no painel) recebe notificação de pagamento aprovado.
 
-## Detalhes técnicos
+Cada revendedor gera/rotaciona sua chave numa nova aba **Integração** dentro de Configurações.
 
-- Arquivo único: `src/pages/EvolutionChat.tsx`.
-- Substitui apenas os JSX blocks das 4 superfícies (sidebar ~2080-2400, header ~2410-2470, thread render ~2470-2700, composer ~2700-2850).
-- Reaproveita hooks e estados existentes (`conversations`, `thread`, `selectedPhone`, `messagesRef`, `unreadCount`, etc.).
-- Novos utilitários locais: `getInitials(name)`, `getAvatarColor(phone)`, `formatRelative(iso)`, `formatProtocol(phone, created_at)`.
-- Sem migração, sem edge function, sem novas dependências.
+## Painel do revendedor
 
-## Risco e verificação
+Nova aba **Checkout Público** em Configurações:
+- Define **slug** (único, validado).
+- Personaliza logo, cor primária e nome exibido.
+- Ativa/desativa Pix Efí e Cakto no checkout (usa configuração Efí e `plans.checkout_url` já existentes).
+- Copia link `/r/slug` e chave da API REST.
 
-- Risco: quebrar interações complexas embutidas no JSX (menu de contexto, drag/drop, upload). Vou preservar todos os handlers atuais, só troco wrappers/classes/estrutura visual.
-- Verificação: `bun run build` + smoke visual do preview em `/evolution/chat` (sidebar carregando, abrir uma conversa, enviar msg, carregar antigas — ver se a ordem se mantém).
+## Mudanças de banco
+
+Uma migration adicionando:
+- `public.reseller_checkout_settings` — slug (único), logo_url, brand_color, display_name, enable_efi, enable_cakto, api_key, webhook_url, is_active.
+- Índice único em `slug` e `api_key`.
+- RLS: dono edita o seu; leitura pública apenas por slug via edge function com service role.
+
+Nenhuma tabela existente perde coluna. `efi_settings`, `efi_charges`, `plans`, `customers` permanecem intactos.
+
+## Edge functions novas
+
+- `reseller-checkout-data` (pública) — dados do slug: revendedor + planos + métodos habilitados.
+- `reseller-checkout-lookup` (pública) — telefone → clientes.
+- `reseller-checkout-charge` (pública) — cria Pix Efí (reutiliza `_shared/efi-client.ts`) ou retorna link Cakto, grava `efi_charges` com `owner_id` correto.
+- `reseller-api` (autenticada por `x-api-key`) — mesmos recursos acima expostos como REST estável para sites externos.
+
+O webhook Efí atual (`efi-webhook`) já processa a confirmação e dispara a renovação — não precisa mudar.
+
+## Segurança
+
+- Slug e telefone tratados como públicos, com rate-limit simples por IP na edge function.
+- Telefone normalizado antes da busca (mesmo helper `src/lib/phone.ts`).
+- API key gerada com `crypto.getRandomValues` (32 bytes) e mostrada uma única vez após rotação.
+- Nunca expõe `SERVICE_ROLE_KEY` nem dados de outros revendedores.
+
+## Ordem de execução
+
+1. Migration (`reseller_checkout_settings`).
+2. Edge functions: `reseller-checkout-data`, `reseller-checkout-lookup`, `reseller-checkout-charge`, `reseller-api`.
+3. Página pública `src/pages/ResellerCheckout.tsx` + rota `/r/:slug`.
+4. Card **Checkout Público** em Configurações (slug, marca, API key).
+5. Verificação: build + fluxo manual de ponta a ponta em um slug de teste.
+
+## Fora do escopo (podemos fazer depois se quiser)
+
+- Login/área do cliente com senha e histórico.
+- Subdomínio próprio (`socialtv.supergestor.top`) ou CNAME de domínio.
+- Cartão de crédito recorrente.
