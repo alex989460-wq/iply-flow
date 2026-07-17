@@ -25,7 +25,7 @@ Deno.serve(async (req) => {
 
     const { data: settings } = await admin
       .from("reseller_checkout_settings")
-      .select("user_id, slug, display_name, logo_url, brand_color, headline, subheadline, enable_efi, enable_cakto, is_active")
+      .select("user_id, slug, display_name, logo_url, brand_color, headline, subheadline, enable_efi, enable_cakto, is_active, activation_cakto_url")
       .eq("slug", slug)
       .eq("is_active", true)
       .maybeSingle();
