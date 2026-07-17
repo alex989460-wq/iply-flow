@@ -8,7 +8,8 @@ import { Loader2, Check, Phone, CreditCard, QrCode, ArrowLeft, Copy, Sparkles, S
 import { toast } from 'sonner';
 
 interface Plan {
-  id: string; name: string; duration_days: number; price: number; cakto_url: string | null;
+  id: string; name: string; duration_days: number; price: number;
+  cakto_url: string | null; card_url: string | null;
   screens: number; kind: 'pix' | 'card';
 }
 interface Customer {
@@ -185,9 +186,12 @@ export default function ResellerCheckout() {
     setStep('method');
   };
 
-  const pay = async (method: 'pix' | 'cakto') => {
+  const pay = async (method: 'pix' | 'cakto' | 'cakto_card') => {
     if (!group) return;
-    const plan = method === 'pix' ? (group.pix || group.card) : (group.card || group.pix);
+    let plan: Plan | undefined;
+    if (method === 'pix') plan = group.pix || group.card;
+    else if (method === 'cakto_card') plan = group.pix?.card_url ? group.pix : (group.card || group.pix);
+    else plan = group.pix || group.card;
     if (!plan) { toast.error('Plano indisponível'); return; }
     setCreating(true);
     try {
@@ -201,7 +205,7 @@ export default function ResellerCheckout() {
       });
       const j = await res.json();
       if (!res.ok || !j.ok) throw new Error(j.error || 'Falha ao gerar cobrança');
-      if (j.method === 'cakto') { window.location.href = j.checkout_url; return; }
+      if (j.method === 'cakto' || j.method === 'cakto_card') { window.location.href = j.checkout_url; return; }
       setPix({ txid: j.txid, qr: j.qrcode_base64 || '', copy: j.pix_copia_cola || '', amount: j.amount });
       setStep('pix');
     } catch (e: any) { toast.error(e.message); }
@@ -450,25 +454,38 @@ export default function ResellerCheckout() {
               <p className="text-sm text-white/70">Plano <b className="text-white">{durationLabel(group.duration_days)}</b> — {group.screens} tela(s)</p>
               <p className="text-sm text-white/70">Renovando <b className="text-white">{selectedIds.length}</b> conta(s) ({totalSelectedScreens} tela(s))</p>
               <p className="text-sm text-white/80 font-semibold pt-1">Escolha a forma de pagamento:</p>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {data.methods.efi && group.pix && (
                   <button onClick={() => pay('pix')} disabled={creating}
                     className="rounded-xl border border-white/10 bg-[#0d0d0d] hover:border-emerald-500/60 hover:bg-emerald-500/5 p-5 flex flex-col items-center gap-2 transition-all disabled:opacity-50">
                     <div className="w-14 h-14 rounded-xl bg-emerald-500/15 flex items-center justify-center">
                       {creating ? <Loader2 className="w-6 h-6 animate-spin text-emerald-400" /> : <QrCode className="w-7 h-7 text-emerald-400" />}
                     </div>
-                    <p className="font-bold text-sm tracking-wide">PIX</p>
+                    <p className="font-bold text-sm tracking-wide">PIX INSTANTÂNEO</p>
+                    <p className="text-[10px] text-white/50 -mt-1">Aprovação imediata</p>
                     <p className="text-xl font-extrabold">{fmtBRL(pixTotal || group.pix.price)}</p>
                   </button>
                 )}
-                {data.methods.cakto && group.card?.cakto_url && (
-                  <button onClick={() => pay('cakto')} disabled={creating}
+                {data.methods.cakto && (group.pix?.card_url || group.card?.cakto_url) && (
+                  <button onClick={() => pay('cakto_card')} disabled={creating}
                     className="rounded-xl border border-white/10 bg-[#0d0d0d] hover:border-sky-500/60 hover:bg-sky-500/5 p-5 flex flex-col items-center gap-2 transition-all disabled:opacity-50">
                     <div className="w-14 h-14 rounded-xl bg-sky-500/15 flex items-center justify-center">
                       <CreditCard className="w-7 h-7 text-sky-400" />
                     </div>
-                    <p className="font-bold text-sm tracking-wide">CARTÃO</p>
-                    <p className="text-xl font-extrabold">{fmtBRL(cardTotal || group.card.price)}</p>
+                    <p className="font-bold text-sm tracking-wide">CARTÃO DE CRÉDITO</p>
+                    <p className="text-[10px] text-white/50 -mt-1">Processado pela Cakto</p>
+                    <p className="text-xl font-extrabold">{fmtBRL(cardTotal || group.pix?.price || group.card?.price || 0)}</p>
+                  </button>
+                )}
+                {data.methods.cakto && !data.methods.efi && group.pix?.cakto_url && (
+                  <button onClick={() => pay('cakto')} disabled={creating}
+                    className="rounded-xl border border-white/10 bg-[#0d0d0d] hover:border-emerald-500/60 hover:bg-emerald-500/5 p-5 flex flex-col items-center gap-2 transition-all disabled:opacity-50">
+                    <div className="w-14 h-14 rounded-xl bg-emerald-500/15 flex items-center justify-center">
+                      <QrCode className="w-7 h-7 text-emerald-400" />
+                    </div>
+                    <p className="font-bold text-sm tracking-wide">PIX (CAKTO)</p>
+                    <p className="text-[10px] text-white/50 -mt-1">Link Cakto</p>
+                    <p className="text-xl font-extrabold">{fmtBRL(pixTotal || group.pix.price)}</p>
                   </button>
                 )}
               </div>
