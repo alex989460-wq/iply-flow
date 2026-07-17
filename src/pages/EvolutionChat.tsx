@@ -983,7 +983,9 @@ export default function EvolutionChat({ embed = false }: { embed?: boolean } = {
 
 
   const thread = useMemo(
-    () => instanceMessages.filter((m) => m.phone === selectedPhone && !hiddenIds.has(m.id)),
+    () => instanceMessages
+      .filter((m) => m.phone === selectedPhone && !hiddenIds.has(m.id))
+      .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()),
     [instanceMessages, selectedPhone, hiddenIds],
   );
   const selectedContact = useMemo(() => contacts[selectedPhone || ''] || null, [contacts, selectedPhone]);
