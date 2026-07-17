@@ -86,6 +86,8 @@ function normalizeChatPhone(value: unknown) {
   const digits = String(value || '').replace(/\D/g, '');
   if (!digits) return '';
   if (digits.startsWith('55')) return digits;
+  if (digits.length >= 12) return digits;
+  if (digits.length === 11 && digits[2] !== '9') return digits;
   return `55${digits}`;
 }
 
