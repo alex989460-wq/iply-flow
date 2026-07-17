@@ -11,6 +11,11 @@ import cardLogo from '@/assets/card-logo.png.asset.json';
 const FN_BASE = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1`;
 const ANON = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 const fmtBRL = (n: number) => `R$ ${Number(n).toFixed(2).replace('.', ',')}`;
+const formatMac = (v: string) => {
+  const hex = v.toUpperCase().replace(/[^0-9A-F]/g, '').slice(0, 12);
+  return hex.match(/.{1,2}/g)?.join(':') ?? '';
+};
+const isValidMac = (v: string) => /^([0-9A-F]{2}:){5}[0-9A-F]{2}$/.test(v);
 
 interface AppItem {
   id: string; name: string; description?: string | null;
