@@ -548,7 +548,10 @@ export default function EvolutionChat({ embed = false }: { embed?: boolean } = {
         const byId = new Map<string, EvoMessage>();
         for (const m of prev) byId.set(m.id, m);
         for (const m of rows) if (!byId.has(m.id)) byId.set(m.id, m);
-        return Array.from(byId.values());
+        // Reordena por created_at ASC — sem isso, as antigas ficam no final e a conversa embaralha.
+        return Array.from(byId.values()).sort(
+          (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
+        );
       });
       if (rows.length < 500) {
         setExhaustedPhones(prev => { const n = new Set(prev); n.add(phone); return n; });
@@ -980,7 +983,9 @@ export default function EvolutionChat({ embed = false }: { embed?: boolean } = {
 
 
   const thread = useMemo(
-    () => instanceMessages.filter((m) => m.phone === selectedPhone && !hiddenIds.has(m.id)),
+    () => instanceMessages
+      .filter((m) => m.phone === selectedPhone && !hiddenIds.has(m.id))
+      .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()),
     [instanceMessages, selectedPhone, hiddenIds],
   );
   const selectedContact = useMemo(() => contacts[selectedPhone || ''] || null, [contacts, selectedPhone]);
