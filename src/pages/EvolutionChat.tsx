@@ -615,10 +615,10 @@ export default function EvolutionChat({ embed = false }: { embed?: boolean } = {
       setLoadingOlder(false);
     }
   }, [user, exhaustedPhones]);
-  const load = useCallback(async () => {
+  const load = useCallback(async (opts?: { silent?: boolean }) => {
     if (!user) return;
     const hadCache = messagesRef.current.length > 0;
-    if (!hadCache) setLoading(true);
+    if (!hadCache || !opts?.silent) setLoading(true);
     const [msgRes, contRes, presRes, stateRes] = await Promise.all([
       // Reduzido de 1500 → 800: abre muito mais rápido no celular e a UI mostra "Carregar mais antigas" se precisar.
       supabase.from('evolution_messages').select('*').eq('user_id', user.id).order('created_at', { ascending: false }).limit(800),
