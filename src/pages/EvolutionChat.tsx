@@ -2209,6 +2209,21 @@ export default function EvolutionChat({ embed = false }: { embed?: boolean } = {
             </div>
           </div>
 
+          {/* Contador de conversas estilo ZapCRM */}
+          <div className="px-3 py-2 border-b border-border flex items-center justify-between">
+            <span className="text-[11px] text-muted-foreground">
+              {conversations.length} conversa{conversations.length === 1 ? '' : 's'}
+            </span>
+            {(() => {
+              const totalUnread = conversations.reduce((n, c) => n + (c.unread || 0), 0);
+              return totalUnread > 0 ? (
+                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-[#00a884]/20 text-[#00a884] border border-[#00a884]/30">
+                  {totalUnread} nova{totalUnread > 1 ? 's' : ''}
+                </span>
+              ) : null;
+            })()}
+          </div>
+
           <div className="flex-1 overflow-auto">
             {loading ? (
               <div className="p-6 flex justify-center"><Loader2 className="w-4 h-4 animate-spin text-muted-foreground" /></div>
