@@ -2280,23 +2280,43 @@ export default function EvolutionChat({ embed = false }: { embed?: boolean } = {
                         )}
                       >
                         <Avatar className="h-9 w-9 shrink-0">
-                          {cc?.profile_pic_url && <AvatarImage src={cc.profile_pic_url} alt={displayName} />}
-                          <AvatarFallback className={cn(
-                            'text-[11px]',
-                            isNewsletter ? 'bg-gradient-to-br from-blue-500/30 to-blue-700/20 text-blue-400'
-                            : isGroup ? 'bg-gradient-to-br from-purple-500/30 to-purple-700/20 text-purple-400'
-                            : 'bg-gradient-to-br from-primary/20 to-primary/5 text-primary'
-                          )}>
-                            {isNewsletter ? '📢' : isGroup ? '👥' : initials(displayName, c.phone)}
-                          </AvatarFallback>
-                        </Avatar>
+                        <div className="relative shrink-0">
+                          <Avatar className="h-11 w-11 shrink-0 ring-0 border-0">
+                            {cc?.profile_pic_url && <AvatarImage src={cc.profile_pic_url} alt={displayName} />}
+                            <AvatarFallback
+                              className="text-[13px] font-semibold text-white"
+                              style={{
+                                backgroundColor: isNewsletter
+                                  ? '#1e88e5'
+                                  : isGroup
+                                    ? '#8e24aa'
+                                    : avatarColorFor(displayName || c.phone),
+                              }}
+                            >
+                              {isNewsletter ? '📢' : isGroup ? '👥' : initials(displayName, c.phone)}
+                            </AvatarFallback>
+                          </Avatar>
+                          {/* Ícone do canal WhatsApp no canto inferior — estilo ZapCRM */}
+                          {!isStatusEntry && !isNewsletter && (
+                            <span
+                              className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-[#0b141a] border border-border flex items-center justify-center"
+                              title="WhatsApp"
+                            >
+                              <MessageCircle className="w-2.5 h-2.5 text-[#00a884]" />
+                            </span>
+                          )}
+                        </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between gap-2">
-                            <div className="text-sm font-medium truncate flex items-center gap-1">
+                            <div className="text-sm font-semibold truncate flex items-center gap-1.5 text-foreground">
                               {isPinnedContact && <Pin className="w-3 h-3 text-emerald-500 shrink-0" />}
                               {isNewsletter && <span className="text-[9px] px-1 rounded bg-blue-500/20 text-blue-400 shrink-0">CANAL</span>}
                               {isGroup && <span className="text-[9px] px-1 rounded bg-purple-500/20 text-purple-400 shrink-0">GRUPO</span>}
-                              {displayName}
+                              <span className="truncate">{displayName}</span>
+                              {/* Headset — indicador de atendimento estilo ZapCRM */}
+                              {!isStatusEntry && !isNewsletter && !isGroup && (
+                                <Headphones className="w-3 h-3 text-[#8696a0] shrink-0" />
+                              )}
                             </div>
                             <div className="text-[10px] text-muted-foreground shrink-0">{c.last ? longRelativeTime(c.last.created_at) : 'novo'}</div>
                           </div>
@@ -2311,9 +2331,9 @@ export default function EvolutionChat({ embed = false }: { embed?: boolean } = {
                             )}
                           </div>
 
-                          {/* Protocolo estilo ZapCRM */}
+                          {/* Protocolo estilo ZapCRM (vermelho-alaranjado) */}
                           {!isStatusEntry && (
-                            <div className="text-[10px] font-mono text-cyan-400/80 mt-0.5 truncate">
+                            <div className="text-[10px] font-mono text-[#c9564e] mt-0.5 truncate tracking-wide">
                               {conversationProtocol(c.phone)}
                             </div>
                           )}
