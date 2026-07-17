@@ -55,8 +55,14 @@ const APP_COLORS: Record<string, string> = {
   ABEPLAYERTV: '#ef4444',
 };
 
-// Cache global das logos vindas do painel IBO Sol (populado pelo hook abaixo).
-const IBOSOL_LOGOS: Record<string, string> = {};
+// Cache global das logos vindas do painel IBO Sol.
+// Persiste em localStorage para não depender do token estar válido —
+// uma vez que o painel devolveu as logos, elas ficam fixas.
+const IBOSOL_LOGOS_KEY = 'ibosol_apps_logos_v1';
+const IBOSOL_LOGOS: Record<string, string> = (() => {
+  try { return JSON.parse(localStorage.getItem(IBOSOL_LOGOS_KEY) || '{}') || {}; }
+  catch { return {}; }
+})();
 
 function normKey(name: string) {
   return String(name || '').toUpperCase().replace(/\s+/g, '');
@@ -101,7 +107,7 @@ export default function ActivationApps() {
   const queryClient = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingApp, setEditingApp] = useState<any>(null);
-  const [form, setForm] = useState({ app_name: '', description: '', logo_url: '', requires_email: false, requires_mac: true, is_enabled: true });
+  const [form, setForm] = useState({ app_name: '', description: '', logo_url: '', requires_email: false, requires_mac: true, is_enabled: true, price_monthly: '' as any, price_quarterly: '' as any, price_annual: 25 as any });
 
   const { data: apps = [], isLoading } = useQuery({
     queryKey: ['activation-apps'],
@@ -146,6 +152,7 @@ export default function ActivationApps() {
             IBOSOL_LOGOS[normKey(a.name)] = a.logo;
           }
         }
+        try { localStorage.setItem(IBOSOL_LOGOS_KEY, JSON.stringify(IBOSOL_LOGOS)); } catch {}
         return list;
       } catch { return []; }
     },
@@ -338,11 +345,22 @@ export default function ActivationApps() {
 
   const saveMutation = useMutation({
     mutationFn: async (data: any) => {
+      const toNum = (v: any) => {
+        if (v === '' || v === null || v === undefined) return null;
+        const n = Number(String(v).replace(',', '.'));
+        return Number.isFinite(n) ? n : null;
+      };
+      const payload: any = {
+        ...data,
+        price_monthly: toNum(data.price_monthly),
+        price_quarterly: toNum(data.price_quarterly),
+        price_annual: toNum(data.price_annual),
+      };
       if (editingApp) {
-        const { error } = await (supabase as any).from('activation_apps').update(data).eq('id', editingApp.id);
+        const { error } = await (supabase as any).from('activation_apps').update(payload).eq('id', editingApp.id);
         if (error) throw error;
       } else {
-        const { error } = await (supabase as any).from('activation_apps').insert({ ...data, user_id: user?.id });
+        const { error } = await (supabase as any).from('activation_apps').insert({ ...payload, user_id: user?.id });
         if (error) throw error;
       }
     },
@@ -439,13 +457,19 @@ export default function ActivationApps() {
 
   function openNew() {
     setEditingApp(null);
-    setForm({ app_name: '', description: '', logo_url: '', requires_email: false, requires_mac: true, is_enabled: true });
+    setForm({ app_name: '', description: '', logo_url: '', requires_email: false, requires_mac: true, is_enabled: true, price_monthly: '', price_quarterly: '', price_annual: 25 });
     setDialogOpen(true);
   }
 
   function openEdit(app: any) {
     setEditingApp(app);
-    setForm({ app_name: app.app_name, description: app.description || '', logo_url: app.logo_url || '', requires_email: app.requires_email, requires_mac: app.requires_mac, is_enabled: app.is_enabled });
+    setForm({
+      app_name: app.app_name, description: app.description || '', logo_url: app.logo_url || '',
+      requires_email: app.requires_email, requires_mac: app.requires_mac, is_enabled: app.is_enabled,
+      price_monthly: app.price_monthly ?? '',
+      price_quarterly: app.price_quarterly ?? '',
+      price_annual: app.price_annual ?? 25,
+    });
     setDialogOpen(true);
   }
 
@@ -1083,8 +1107,30 @@ export default function ActivationApps() {
                   placeholder="https://.../logo.png (opcional)"
                 />
               </div>
-              <p className="text-xs text-muted-foreground mt-1">Cole a URL pública da logo do app. Se vazio, mostramos as iniciais coloridas.</p>
             </div>
+
+            <div className="rounded-lg border border-border/60 p-3 space-y-2 bg-muted/30">
+              <Label className="text-sm font-semibold">Valores da Licença (R$)</Label>
+              <p className="text-xs text-muted-foreground">Preços usados no checkout público de ativação. Deixe em branco para ocultar a opção.</p>
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <Label className="text-xs">Mensal</Label>
+                  <Input type="number" step="0.01" placeholder="—" value={form.price_monthly}
+                    onChange={e => setForm(f => ({ ...f, price_monthly: e.target.value }))} />
+                </div>
+                <div>
+                  <Label className="text-xs">Trimestral</Label>
+                  <Input type="number" step="0.01" placeholder="—" value={form.price_quarterly}
+                    onChange={e => setForm(f => ({ ...f, price_quarterly: e.target.value }))} />
+                </div>
+                <div>
+                  <Label className="text-xs">Anual</Label>
+                  <Input type="number" step="0.01" placeholder="25.00" value={form.price_annual}
+                    onChange={e => setForm(f => ({ ...f, price_annual: e.target.value }))} />
+                </div>
+              </div>
+            </div>
+
 
             <div className="flex items-center justify-between">
               <Label>Requer endereço MAC</Label>

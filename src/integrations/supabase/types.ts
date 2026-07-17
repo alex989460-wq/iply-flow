@@ -23,6 +23,9 @@ export type Database = {
           id: string
           is_enabled: boolean | null
           logo_url: string | null
+          price_annual: number | null
+          price_monthly: number | null
+          price_quarterly: number | null
           requires_email: boolean | null
           requires_mac: boolean | null
           sort_order: number | null
@@ -37,6 +40,9 @@ export type Database = {
           id?: string
           is_enabled?: boolean | null
           logo_url?: string | null
+          price_annual?: number | null
+          price_monthly?: number | null
+          price_quarterly?: number | null
           requires_email?: boolean | null
           requires_mac?: boolean | null
           sort_order?: number | null
@@ -51,6 +57,9 @@ export type Database = {
           id?: string
           is_enabled?: boolean | null
           logo_url?: string | null
+          price_annual?: number | null
+          price_monthly?: number | null
+          price_quarterly?: number | null
           requires_email?: boolean | null
           requires_mac?: boolean | null
           sort_order?: number | null
@@ -2335,6 +2344,7 @@ export type Database = {
       }
       reseller_checkout_settings: {
         Row: {
+          activation_cakto_url: string | null
           api_key: string
           brand_color: string
           created_at: string
@@ -2352,6 +2362,7 @@ export type Database = {
           webhook_url: string | null
         }
         Insert: {
+          activation_cakto_url?: string | null
           api_key: string
           brand_color?: string
           created_at?: string
@@ -2369,6 +2380,7 @@ export type Database = {
           webhook_url?: string | null
         }
         Update: {
+          activation_cakto_url?: string | null
           api_key?: string
           brand_color?: string
           created_at?: string

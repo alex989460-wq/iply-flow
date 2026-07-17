@@ -16,24 +16,19 @@ interface AppItem {
   id: string; name: string; description?: string | null;
   logo_url?: string | null; icon?: string | null;
   requires_mac: boolean; requires_email: boolean;
+  price_monthly: number | null;
+  price_quarterly: number | null;
+  price_annual: number | null;
 }
-interface PlanItem {
-  id: string; name: string; duration_days: number; price: number;
-  cakto_url: string | null; card_url: string | null;
-}
+type Duration = 'monthly' | 'quarterly' | 'annual';
 interface Data {
   slug: string; display_name: string | null; logo_url: string | null;
   brand_color: string; methods: { efi: boolean; cakto: boolean };
-  plans: PlanItem[]; apps: AppItem[];
+  apps: AppItem[];
+  activation_cakto_url: string | null;
 }
 
-function durationLabel(days: number) {
-  if (days <= 31) return 'MENSAL';
-  if (days <= 62) return 'BIMESTRAL';
-  if (days <= 92) return 'TRIMESTRAL';
-  if (days <= 186) return 'SEMESTRAL';
-  return 'ANUAL';
-}
+const DURATION_LABEL: Record<Duration, string> = { monthly: 'MENSAL', quarterly: 'TRIMESTRAL', annual: 'ANUAL' };
 
 export default function ResellerActivation() {
   const { slug } = useParams<{ slug: string }>();
@@ -43,7 +38,7 @@ export default function ResellerActivation() {
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
   const [app, setApp] = useState<AppItem | null>(null);
   const [form, setForm] = useState({ name: '', phone: '', mac: '', email: '' });
-  const [plan, setPlan] = useState<PlanItem | null>(null);
+  const [duration, setDuration] = useState<Duration | null>(null);
   const [creating, setCreating] = useState(false);
   const [pix, setPix] = useState<{ txid: string; qr: string; copy: string; amount: number } | null>(null);
   const [paid, setPaid] = useState(false);
@@ -85,15 +80,19 @@ export default function ResellerActivation() {
   const canContinueForm = form.name.trim() && form.phone.trim() &&
     (!app?.requires_mac || form.mac.trim()) && (!app?.requires_email || form.email.trim());
 
-  const submit = async (method: 'pix' | 'cakto' | 'cakto_card') => {
-    if (!app || !plan) return;
+  const currentPrice = app && duration
+    ? (duration === 'monthly' ? app.price_monthly : duration === 'quarterly' ? app.price_quarterly : app.price_annual)
+    : null;
+
+  const submit = async (method: 'pix' | 'cakto') => {
+    if (!app || !duration) return;
     setCreating(true);
     try {
       const res = await fetch(`${FN_BASE}/reseller-activation-create`, {
         method: 'POST',
         headers: { apikey: ANON, Authorization: `Bearer ${ANON}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          action: 'create', slug, app_id: app.id, plan_id: plan.id, method,
+          action: 'create', slug, app_id: app.id, duration, method,
           name: form.name, phone: form.phone, mac: form.mac, email: form.email,
         }),
       });
@@ -247,27 +246,28 @@ export default function ResellerActivation() {
             </div>
           </div>
         ) : (
-          /* ============ Step 3: Plan + Payment ============ */
+          /* ============ Step 3: Duration + Payment ============ */
           <div className="space-y-5">
             <div>
-              <h1 className="text-2xl font-bold">Escolha o Plano</h1>
-              <p className="text-sm text-white/60">Selecione a duração e pague para ativar</p>
+              <h1 className="text-2xl font-bold">Escolha a Duração</h1>
+              <p className="text-sm text-white/60">Selecione o período da licença e pague para ativar</p>
             </div>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-              {data.plans.map(p => {
-                const active = plan?.id === p.id;
+            <div className="grid grid-cols-3 gap-3">
+              {(['monthly','quarterly','annual'] as Duration[]).map(d => {
+                const price = d === 'monthly' ? app!.price_monthly : d === 'quarterly' ? app!.price_quarterly : app!.price_annual;
+                if (price == null) return null;
+                const active = duration === d;
                 return (
-                  <button key={p.id} onClick={() => setPlan(p)}
+                  <button key={d} onClick={() => setDuration(d)}
                     className={`rounded-xl border p-4 text-left transition-all ${active ? 'border-[var(--brand)] bg-[var(--brand)]/[0.08]' : 'border-white/10 bg-[#111] hover:border-white/25'}`}>
-                    <p className="text-[10px] font-bold tracking-widest text-white/60">{durationLabel(p.duration_days)}</p>
-                    <p className="text-xl font-extrabold mt-1"><span className="text-xs text-white/50">R$</span>{Number(p.price).toFixed(2).replace('.', ',')}</p>
-                    <p className="text-xs text-white/50 mt-1 truncate">{p.name}</p>
+                    <p className="text-[10px] font-bold tracking-widest text-white/60">{DURATION_LABEL[d]}</p>
+                    <p className="text-xl font-extrabold mt-1"><span className="text-xs text-white/50">R$</span>{Number(price).toFixed(2).replace('.', ',')}</p>
                   </button>
                 );
               })}
             </div>
 
-            {plan && (
+            {duration && currentPrice != null && (
               <div className="space-y-3 pt-2">
                 <p className="text-sm text-white/80 font-semibold">Forma de pagamento:</p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -278,17 +278,17 @@ export default function ResellerActivation() {
                         {creating ? <Loader2 className="w-6 h-6 animate-spin text-emerald-500" /> : <img src={pixLogo.url} alt="Pix" className="w-9 h-9" />}
                       </div>
                       <p className="font-bold text-sm">PIX INSTANTÂNEO</p>
-                      <p className="text-xl font-extrabold">{fmtBRL(plan.price)}</p>
+                      <p className="text-xl font-extrabold">{fmtBRL(currentPrice)}</p>
                     </button>
                   )}
-                  {data.methods.cakto && (plan.card_url || plan.cakto_url) && (
-                    <button onClick={() => submit(plan.card_url ? 'cakto_card' : 'cakto')} disabled={creating}
+                  {data.methods.cakto && data.activation_cakto_url && (
+                    <button onClick={() => submit('cakto')} disabled={creating}
                       className="group rounded-xl border border-white/10 bg-gradient-to-br from-sky-500/[0.06] to-transparent hover:border-sky-400/70 hover:from-sky-500/[0.12] p-5 flex flex-col items-center gap-2 transition-all disabled:opacity-50 hover:-translate-y-0.5">
                       <div className="w-14 h-14 rounded-xl bg-white flex items-center justify-center">
                         <img src={cardLogo.url} alt="Cartão" className="w-9 h-9" />
                       </div>
                       <p className="font-bold text-sm">CARTÃO / CAKTO</p>
-                      <p className="text-xl font-extrabold">{fmtBRL(plan.price)}</p>
+                      <p className="text-xl font-extrabold">{fmtBRL(currentPrice)}</p>
                     </button>
                   )}
                 </div>

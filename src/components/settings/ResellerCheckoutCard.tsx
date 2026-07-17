@@ -23,6 +23,7 @@ interface Settings {
   api_key: string;
   webhook_url: string;
   is_active: boolean;
+  activation_cakto_url: string;
 }
 
 const EMPTY: Settings = {
@@ -30,6 +31,7 @@ const EMPTY: Settings = {
   headline: '', subheadline: '',
   enable_efi: true, enable_cakto: true,
   api_key: '', webhook_url: '', is_active: true,
+  activation_cakto_url: '',
 };
 
 function genApiKey() {
@@ -83,6 +85,7 @@ export default function ResellerCheckoutCard() {
           subheadline: data.subheadline ?? '',
           api_key: data.api_key ?? '',
           webhook_url: data.webhook_url ?? '',
+          activation_cakto_url: data.activation_cakto_url ?? '',
         });
       }
       setLoading(false);
@@ -114,6 +117,7 @@ export default function ResellerCheckoutCard() {
         api_key: form.api_key || genApiKey(),
         webhook_url: (form.webhook_url || '').trim() || null,
         is_active: form.is_active,
+        activation_cakto_url: (form.activation_cakto_url || '').trim() || null,
       };
       const { error, data } = await (supabase.from('reseller_checkout_settings' as any).upsert(payload, { onConflict: 'user_id' }).select().single() as any);
       if (error) {
@@ -135,6 +139,7 @@ export default function ResellerCheckoutCard() {
         subheadline: data.subheadline ?? '',
         api_key: data.api_key ?? '',
         webhook_url: data.webhook_url ?? '',
+        activation_cakto_url: data.activation_cakto_url ?? '',
       });
       toast.success('Checkout público salvo!');
     } catch (e: any) {
@@ -261,6 +266,13 @@ export default function ResellerCheckoutCard() {
             <Switch checked={form.enable_cakto} onCheckedChange={(v) => setForm((f) => ({ ...f, enable_cakto: v }))} />
             <span className="text-sm">Aceitar Cakto (link do plano)</span>
           </div>
+        </div>
+
+        <div className="rounded-lg border border-dashed border-primary/30 p-3 space-y-1.5 bg-primary/[0.03]">
+          <Label className="text-sm font-semibold">Link Cakto — Ativação de Apps</Label>
+          <p className="text-xs text-muted-foreground">Link único da Cakto usado para <b>todos os apps</b> na página de ativação pública (ex: https://pay.cakto.com.br/34gb38g).</p>
+          <Input placeholder="https://pay.cakto.com.br/xxxxxxx" value={form.activation_cakto_url}
+            onChange={(e) => setForm((f) => ({ ...f, activation_cakto_url: e.target.value }))} />
         </div>
 
         {publicUrl && (
