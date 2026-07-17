@@ -226,14 +226,15 @@ export default function ResellerCheckout() {
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                     {data.plans.map((p, i) => {
                       const isPopular = i === 1 && data.plans.length >= 3;
+                      const telas = extractScreens(p.name);
                       return (
                         <button
                           key={p.id}
                           onClick={() => setSelectedPlan(p)}
-                          className="relative text-left rounded-2xl bg-black/40 hover:bg-black/60 border border-white/10 hover:border-[var(--brand)] p-5 transition-all"
+                          className="group relative text-left rounded-2xl bg-gradient-to-br from-white/[0.06] to-white/[0.02] hover:from-white/[0.1] hover:to-white/[0.04] border border-white/10 hover:border-[var(--brand)] p-5 transition-all hover:-translate-y-0.5 hover:shadow-xl hover:shadow-[var(--brand)]/20"
                         >
                           {isPopular && (
-                            <span className="absolute -top-3 left-1/2 -translate-x-1/2 text-[10px] font-bold px-3 py-1 rounded-full text-white" style={{ background: brand }}>
+                            <span className="absolute -top-3 left-1/2 -translate-x-1/2 text-[10px] font-bold px-3 py-1 rounded-full text-white shadow-lg" style={{ background: brand }}>
                               MAIS POPULAR
                             </span>
                           )}
@@ -241,7 +242,14 @@ export default function ResellerCheckout() {
                           <p className="text-3xl font-extrabold mt-2">
                             <span className="text-sm text-white/60 align-top mr-1">R$</span>{Number(p.price).toFixed(2).replace('.', ',')}
                           </p>
-                          <p className="text-xs text-white/50 mt-2">{p.duration_days} dias de acesso</p>
+                          <div className="flex items-center gap-2 mt-3 flex-wrap">
+                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/10 text-white/70">{p.duration_days} dias</span>
+                            {telas && (
+                              <span className="text-[10px] px-2 py-0.5 rounded-full bg-[var(--brand)]/20 text-white flex items-center gap-1 font-semibold">
+                                <Tv className="w-3 h-3" /> {telas} {telas === 1 ? 'tela' : 'telas'}
+                              </span>
+                            )}
+                          </div>
                         </button>
                       );
                     })}
@@ -250,37 +258,61 @@ export default function ResellerCheckout() {
               )}
 
               {selectedPlan && (
-                <div className="space-y-4">
+                <div className="space-y-5">
                   <button onClick={() => setSelectedPlan(null)} className="text-sm text-white/60 hover:text-white flex items-center gap-1">
                     <ArrowLeft className="w-4 h-4" /> Trocar plano
                   </button>
-                  <div className="text-center">
-                    <p className="text-white/60">Total</p>
-                    <p className="text-4xl font-extrabold" style={{ color: brand }}>{fmtBRL(Number(selectedCustomer.current_plan && selectedCustomer.current_plan ? selectedPlan.price : selectedPlan.price))}</p>
-                    <p className="text-xs text-white/50">{selectedPlan.name} • {selectedPlan.duration_days} dias</p>
+                  <div className="text-center py-2">
+                    <p className="text-white/60 text-sm">Total a pagar</p>
+                    <p className="text-5xl font-extrabold mt-1" style={{ color: brand }}>{fmtBRL(Number(selectedPlan.price))}</p>
+                    <p className="text-xs text-white/50 mt-1">
+                      {selectedPlan.name} • {selectedPlan.duration_days} dias
+                      {extractScreens(selectedPlan.name) ? ` • ${extractScreens(selectedPlan.name)} telas` : ''}
+                    </p>
                   </div>
-                  <div className="grid gap-3 md:grid-cols-2 pt-2">
+
+                  <div className="space-y-2 pt-2">
+                    <p className="text-xs uppercase tracking-wider text-white/50 text-center font-semibold">Escolha como pagar</p>
+
                     {data.methods.efi && (
-                      <Button
+                      <button
                         onClick={() => startPayment('pix')}
                         disabled={creating}
-                        className="h-14 text-base font-bold"
-                        style={{ background: brand }}
+                        className="w-full group relative overflow-hidden rounded-2xl p-4 border border-emerald-500/30 bg-gradient-to-br from-emerald-500/15 to-emerald-500/5 hover:from-emerald-500/25 hover:to-emerald-500/10 transition-all hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-wait text-left"
                       >
-                        {creating ? <Loader2 className="w-5 h-5 mr-2 animate-spin" /> : <QrCode className="w-5 h-5 mr-2" />}
-                        Pagar com Pix
-                      </Button>
+                        <div className="flex items-center gap-4">
+                          <div className="w-12 h-12 rounded-xl bg-emerald-500 flex items-center justify-center shrink-0 shadow-lg shadow-emerald-500/30">
+                            {creating ? <Loader2 className="w-6 h-6 text-white animate-spin" /> : <QrCode className="w-6 h-6 text-white" />}
+                          </div>
+                          <div className="flex-1">
+                            <p className="font-bold text-white flex items-center gap-2">Pix instantâneo <Zap className="w-3.5 h-3.5 text-emerald-300" /></p>
+                            <p className="text-xs text-white/60">QR Code na hora • aprovação em segundos</p>
+                          </div>
+                          <span className="text-[10px] font-bold px-2 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">RECOMENDADO</span>
+                        </div>
+                      </button>
                     )}
+
                     {data.methods.cakto && selectedPlan.cakto_url && (
-                      <Button
+                      <button
                         onClick={() => startPayment('cakto')}
                         disabled={creating}
-                        variant="outline"
-                        className="h-14 text-base font-bold border-white/20 text-white hover:bg-white/10"
+                        className="w-full group relative overflow-hidden rounded-2xl p-4 border border-white/10 bg-gradient-to-br from-white/[0.06] to-white/[0.02] hover:from-white/[0.12] hover:to-white/[0.04] transition-all hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-wait text-left"
                       >
-                        <CreditCard className="w-5 h-5 mr-2" /> Pagar com cartão / boleto
-                        <ExternalLink className="w-4 h-4 ml-2 opacity-60" />
-                      </Button>
+                        <div className="flex items-center gap-4">
+                          <div className="w-12 h-12 rounded-xl bg-white/10 flex items-center justify-center shrink-0">
+                            <CreditCard className="w-6 h-6 text-white" />
+                          </div>
+                          <div className="flex-1">
+                            <p className="font-bold text-white flex items-center gap-2">Cartão, boleto ou Pix <ExternalLink className="w-3.5 h-3.5 text-white/60" /></p>
+                            <p className="text-xs text-white/60">Checkout Cakto • parcele em até 12x no cartão</p>
+                          </div>
+                        </div>
+                      </button>
+                    )}
+
+                    {!data.methods.efi && !(data.methods.cakto && selectedPlan.cakto_url) && (
+                      <p className="text-center text-sm text-white/60 py-4">Nenhum método de pagamento disponível. Entre em contato com o suporte.</p>
                     )}
                   </div>
                 </div>
