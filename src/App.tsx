@@ -44,6 +44,7 @@ import Atendimentos from "./pages/Atendimentos";
 
 import PublicCheckout from "./pages/PublicCheckout";
 import ResellerCheckout from "./pages/ResellerCheckout";
+import ResellerActivation from "./pages/ResellerActivation";
 import BannerGenerator from "./pages/BannerGenerator";
 import RoboFlows from "./pages/RoboFlows";
 import CostCalculator from "./pages/CostCalculator";
