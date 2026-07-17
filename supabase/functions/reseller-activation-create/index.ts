@@ -142,7 +142,7 @@ Deno.serve(async (req) => {
       qrcode_base64: qrcodeBase64,
       metadata: {
         source: "reseller_activation",
-        slug, plan_id: plan.id, plan_name: plan.plan_name,
+        slug, duration, duration_label: durationLabel,
         activation_request_id: reqRow.id,
         app_id: app.id, app_name: app.app_name,
         customer_name: customerName, customer_phone: customerPhone,
