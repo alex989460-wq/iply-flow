@@ -1,53 +1,49 @@
-## Uniplay (searchdefense.top) auto-renewal
+## Contexto
 
-Boa notícia: a API do Uniplay (`gesapioffice.com`) usa apenas **JWT Bearer** — sem captcha, sem cookies de sessão. Diferente do P2Cine, **não precisa de extensão**: dá para renovar 100% pelo backend, como Rush / The Best / NATV.
+O bug de ordem das mensagens antigas já foi corrigido nesta rodada (merge agora reordena por `created_at` e o `thread` também).
 
-### Endpoints descobertos (via HAR)
-```
-POST https://gesapioffice.com/api/login
-  body {"username","password","code":""}
-  → { access_token, crypt_pass, id, owner_id, expires_in: 129600 }
+O "CRM Oficial" que aparece nos prints (`/crm-oficial/chat`) é na verdade um **iframe do ZapCRM** (`zapcrm.top/embed/inbox`) — não é código nosso. Então "igual ao CRM" significa recriar o visual do ZapCRM dentro do nosso `EvolutionChat.tsx` (3.365 linhas). Não dá pra reaproveitar componente — é reconstrução visual.
 
-GET  /api/users-iptv?reg_password=<crypt_pass>       ← lista IPTV
-GET  /api/users-p2p                                   ← lista P2P
-PUT  /api/users-iptv/{id}   body {"action":1,"credits":N}   ← estender IPTV
-PUT  /api/users-p2p/{id}    body {"action":1,"credits":N}   ← estender P2P
+## Escopo do redesign
 
-Header em toda chamada autenticada: Authorization: Bearer <access_token>
-```
+Vou refazer as 4 superfícies visuais principais do `EvolutionChat`, mantendo 100% da lógica atual (envio, webhooks, presença, reações, quick renewal, drawers de mídia/contato, gatilhos de bot, etc.).
 
-### O que será feito
+### 1. Sidebar de conversas (esquerda)
+- Header "Chat — Atendimento no estilo WhatsApp Web" com badge verde "X novas".
+- Busca em pill arredondada com ícone à esquerda + botão refresh redondo à direita.
+- Abas em pill: Todas / Não lidas / Abertas / Fechadas com contagem embaixo.
+- Selects em pill: "Todos os canais", "Etiquetas", "Todos os números".
+- Contador "N conversa(s)" + badge "X novas".
+- Item de conversa: avatar colorido por inicial, nome em bold, prévia da última msg com ícone de tipo, timestamp relativo ("4 minutos"), protocolo `#XXXXXX-XXXX` em ciano embaixo, badge verde de não lidas, menu `⋮`.
 
-1. **Nova Edge Function `uniplay-renew`** (padrão idêntico a `rush-renew` / `the-best-renew`):
-   - Login → guarda `access_token` + `crypt_pass` em memória por request.
-   - Pesquisa o `username` do cliente **na lista IPTV E na lista P2P** (as duas, sempre).
-   - Para cada match encontrado, faz `PUT` com `credits = meses do plano` (calculado por `duration_days/30`, mínimo 1).
-   - Retorna sucesso se pelo menos uma renovação passar; loga em `pending_manual_renewals` se falhar.
-   - Se cliente aparece nos dois painéis (IPTV + P2P), renova nos dois.
+### 2. Header do chat (topo direito)
+- Avatar + nome + badge do canal (ex: "WhatsApp Business (Meta)") + protocolo embaixo.
+- Botões redondos: refresh, "Fechar" (verde), busca, info, mais opções.
 
-2. **Detecção do servidor Uniplay** em `servers.host`:
-   - Palavras-chave: `uniplay`, `searchdefense`, `gesapioffice`.
-   - Adiciona no roteador de renovação existente (mesmo lugar onde já cai P2Cine/Rush/etc).
+### 3. Área de mensagens
+- Fundo escuro `#0b141a` mantido (já era WhatsApp-like).
+- Bolhas com raio maior e sombra mais sutil, tipografia 15px.
+- Separadores de dia em pill central.
+- Card verde-esmeralda para mensagens de template (com título em bold e corpo formatado como no print).
+- Ícone "🎧" ao lado do nome nas conversas que têm agente vinculado.
 
-3. **Card "Uniplay" em `ResellerApiSettings`** (aba API Externa):
-   - Campos: `uniplay_username`, `uniplay_password` (persistidos em `reseller_api_settings`).
-   - Botão "Testar login" chama `uniplay-renew` com `action:"test"` e mostra id/username retornados.
+### 4. Composer (inferior)
+- Barra em pill arredondada, ícones à esquerda (anexo, emoji, imagem), textarea limpa no meio, ícones à direita (mic, docs, escudo), botão enviar verde circular.
 
-4. **Keepalive de sessão**:
-   - Não necessário — o JWT dura 36h e sempre pegamos um novo no início de cada renovação. Sem estado a manter.
-   - Se você quiser evitar re-login em toda chamada, faço cache do token em memória do worker por ~30h (opcional; digo se quer).
+## Fora de escopo (não mudo)
+- Lógica de envio, edge functions, webhooks, realtime, cache, reações, respostas rápidas, painel Quick Renewal, drawers de contato/mídia/gatilhos de bot.
+- `EvolutionInstances`, `UnifiedChat`, `CrmOficialChat`.
+- Cores globais do design system.
 
-5. **Meses vindos do plano**: mesma regra do P2Cine — `credits = round(plans.duration_days / 30)`, respeitando `plan_name` do `pending_manual_renewals`.
+## Detalhes técnicos
 
-### Detalhes técnicos
+- Arquivo único: `src/pages/EvolutionChat.tsx`.
+- Substitui apenas os JSX blocks das 4 superfícies (sidebar ~2080-2400, header ~2410-2470, thread render ~2470-2700, composer ~2700-2850).
+- Reaproveita hooks e estados existentes (`conversations`, `thread`, `selectedPhone`, `messagesRef`, `unreadCount`, etc.).
+- Novos utilitários locais: `getInitials(name)`, `getAvatarColor(phone)`, `formatRelative(iso)`, `formatProtocol(phone, created_at)`.
+- Sem migração, sem edge function, sem novas dependências.
 
-- Colunas novas em `reseller_api_settings`: `uniplay_username text`, `uniplay_password text` (migration).
-- `uniplay-renew` recebe `{ customer_id, username, plan_name, owner_id }` e devolve `{ ok, renewed_in: ["iptv"|"p2p"], new_expiration }`.
-- Corpo do PUT: `{"action":1,"credits":<meses>}` — `action:1` é "estender" (extraído do request real do painel).
+## Risco e verificação
 
-### Fora do escopo (não vou fazer sem você confirmar)
-- Extensão de browser para Uniplay (**desnecessária** — API é direta).
-- Ajustes no fluxo do popup do P2Cine.
-- Sincronização/importação de clientes Uniplay para o SuperGestor.
-
-Confirma que posso seguir assim? Se sim, executo tudo (migration + edge function + card na aba de API Externa + roteamento).
+- Risco: quebrar interações complexas embutidas no JSX (menu de contexto, drag/drop, upload). Vou preservar todos os handlers atuais, só troco wrappers/classes/estrutura visual.
+- Verificação: `bun run build` + smoke visual do preview em `/evolution/chat` (sidebar carregando, abrir uma conversa, enviar msg, carregar antigas — ver se a ordem se mantém).
