@@ -16,16 +16,19 @@ interface AppItem {
   id: string; name: string; description?: string | null;
   logo_url?: string | null; icon?: string | null;
   requires_mac: boolean; requires_email: boolean;
+  price_monthly: number | null;
+  price_quarterly: number | null;
+  price_annual: number | null;
 }
-interface PlanItem {
-  id: string; name: string; duration_days: number; price: number;
-  cakto_url: string | null; card_url: string | null;
-}
+type Duration = 'monthly' | 'quarterly' | 'annual';
 interface Data {
   slug: string; display_name: string | null; logo_url: string | null;
   brand_color: string; methods: { efi: boolean; cakto: boolean };
-  plans: PlanItem[]; apps: AppItem[];
+  apps: AppItem[];
+  activation_cakto_url: string | null;
 }
+
+const DURATION_LABEL: Record<Duration, string> = { monthly: 'MENSAL', quarterly: 'TRIMESTRAL', annual: 'ANUAL' };
 
 function durationLabel(days: number) {
   if (days <= 31) return 'MENSAL';
