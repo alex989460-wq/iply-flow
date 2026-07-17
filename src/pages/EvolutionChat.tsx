@@ -2300,28 +2300,28 @@ export default function EvolutionChat({ embed = false }: { embed?: boolean } = {
                         )}
                       >
                         <div className="relative shrink-0">
-                          <Avatar className="h-11 w-11 shrink-0 ring-0 border-0">
+                          <Avatar className="h-11 w-11 shrink-0 ring-2 ring-background/40 shadow-md">
                             {cc?.profile_pic_url && <AvatarImage src={cc.profile_pic_url} alt={displayName} />}
                             <AvatarFallback
-                              className="text-[13px] font-semibold text-white"
+                              className="text-[13px] font-bold text-white"
                               style={{
-                                backgroundColor: isNewsletter
-                                  ? '#1e88e5'
+                                background: isNewsletter
+                                  ? 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)'
                                   : isGroup
-                                    ? '#8e24aa'
-                                    : avatarColorFor(displayName || c.phone),
+                                    ? 'linear-gradient(135deg, #a855f7 0%, #6d28d9 100%)'
+                                    : avatarGradientFor(displayName || c.phone),
                               }}
                             >
                               {isNewsletter ? '📢' : isGroup ? '👥' : initials(displayName, c.phone)}
                             </AvatarFallback>
                           </Avatar>
-                          {/* Ícone do canal WhatsApp no canto inferior — estilo ZapCRM */}
+                          {/* Ícone do canal WhatsApp no canto inferior — estilo moderno */}
                           {!isStatusEntry && !isNewsletter && (
                             <span
-                              className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-[#0b141a] border border-border flex items-center justify-center"
+                              className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-[#00a884] border-2 border-background flex items-center justify-center shadow-sm"
                               title="WhatsApp"
                             >
-                              <MessageCircle className="w-2.5 h-2.5 text-[#00a884]" />
+                              <MessageCircle className="w-2 h-2 text-white" />
                             </span>
                           )}
                         </div>
