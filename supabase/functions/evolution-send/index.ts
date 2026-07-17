@@ -15,6 +15,8 @@ function normalizePhone(p: string) {
   // Foreign numbers already include their own DDI (length >= 11).
   // Only auto-prepend BR "55" for short legacy stored numbers (DDD+number, 10-11 dígitos).
   if (digits.length >= 12) return digits;
+  // BR mobile tem 11 dígitos com '9' na 3ª posição. Se não, é estrangeiro (ex.: US 1XXXXXXXXXX).
+  if (digits.length === 11 && digits[2] !== '9') return digits;
   return `55${digits}`;
 }
 
