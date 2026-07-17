@@ -2003,8 +2003,8 @@ export default function EvolutionChat({ embed = false }: { embed?: boolean } = {
               <Zap className="w-4 h-4 text-white" />
             </div>
             <div className="flex-1 min-w-0">
-              <h2 className="font-bold text-sm leading-tight flex items-center gap-1.5">
-                Chat WhatsApp
+              <h2 className="font-bold text-base leading-tight text-foreground flex items-center gap-1.5">
+                Chat
                 <button
                   type="button"
                   onClick={() => setShowAutoReplySettings(true)}
@@ -2018,8 +2018,16 @@ export default function EvolutionChat({ embed = false }: { embed?: boolean } = {
                 >
                   🤖 {autoReply.enabled ? 'ON' : 'OFF'}
                 </button>
+                {(() => {
+                  const totalUnread = conversations.reduce((n, c) => n + (c.unread || 0), 0);
+                  return totalUnread > 0 ? (
+                    <span className="ml-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-[#00a884]/20 text-[#00a884] border border-[#00a884]/30">
+                      {totalUnread} nova{totalUnread > 1 ? 's' : ''}
+                    </span>
+                  ) : null;
+                })()}
               </h2>
-              <p className="text-[10px] text-muted-foreground leading-tight">WhatsApp Multi-Sessão</p>
+              <p className="text-[11px] text-muted-foreground leading-tight">Atendimento no estilo WhatsApp Web</p>
             </div>
             <Button asChild size="icon" variant="ghost" className="h-8 w-8 text-emerald-500 hover:text-emerald-400 hover:bg-emerald-500/10" title="Conectar / Gerenciar instâncias">
               <Link to="/evolution-instances"><QrCode className="w-4 h-4" /></Link>
