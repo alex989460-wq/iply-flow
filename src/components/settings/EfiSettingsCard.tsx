@@ -155,7 +155,7 @@ export default function EfiSettingsCard() {
         <div className="flex items-start justify-between gap-4">
           <div>
             <CardTitle className="text-lg flex items-center gap-2">
-              <Zap className="w-5 h-5 text-emerald-500" /> Efí Pix (Gerencianet)
+              <img src={pixLogo.url} alt="Pix" className="w-6 h-6" /> Efí Pix (Gerencianet)
             </CardTitle>
             <CardDescription>
               Segundo meio de pagamento no checkout público. Não afeta o Cakto — os dois convivem lado a lado.
