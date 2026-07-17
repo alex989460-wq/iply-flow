@@ -2393,16 +2393,29 @@ export default function EvolutionChat({ embed = false }: { embed?: boolean } = {
                   className="flex items-center gap-3 flex-1 min-w-0 rounded-md px-1 -mx-1 py-1 hover:bg-white/5 transition-colors focus:outline-none focus:ring-2 focus:ring-[#00a884]/40"
                   aria-label="Ver informações do contato"
                 >
-                  <Avatar className="h-10 w-10 ring-2 ring-[#00a884]/30 transition-transform hover:scale-105">
-                    {selectedContact?.profile_pic_url && <AvatarImage src={selectedContact.profile_pic_url} />}
-                    <AvatarFallback className="text-xs bg-[#00a884]/20 text-[#00a884]">
-                      {initials(selectedName, selectedPhone)}
-                    </AvatarFallback>
-                  </Avatar>
+                  <div className="relative">
+                    <Avatar className="h-10 w-10 transition-transform hover:scale-105">
+                      {selectedContact?.profile_pic_url && <AvatarImage src={selectedContact.profile_pic_url} />}
+                      <AvatarFallback
+                        className="text-xs font-semibold text-white"
+                        style={{ backgroundColor: avatarColorFor(selectedName || selectedPhone || '?') }}
+                      >
+                        {initials(selectedName, selectedPhone)}
+                      </AvatarFallback>
+                    </Avatar>
+                    {!selectedPhone?.startsWith('status:') && (
+                      <span className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-[#0b141a] border border-border flex items-center justify-center">
+                        <MessageCircle className="w-2.5 h-2.5 text-[#00a884]" />
+                      </span>
+                    )}
+                  </div>
                   <div className="flex-1 min-w-0 text-left">
                     <div className="flex items-center gap-2 min-w-0">
-                      <div className="text-sm font-semibold truncate text-[#e9edef]">
+                      <div className="text-sm font-semibold truncate text-[#e9edef] flex items-center gap-1.5">
                         {selectedName || formatPhone(selectedPhone)}
+                        {!selectedPhone?.startsWith('status:') && (
+                          <Headphones className="w-3 h-3 text-[#8696a0] shrink-0" />
+                        )}
                       </div>
                       <span className="hidden sm:inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-[#00a884]/15 text-[#00a884] border border-[#00a884]/25 shrink-0">
                         <span className="w-1.5 h-1.5 rounded-full bg-[#00a884]" />
@@ -2410,7 +2423,7 @@ export default function EvolutionChat({ embed = false }: { embed?: boolean } = {
                       </span>
                     </div>
                     {!selectedPhone?.startsWith('status:') && (
-                      <div className="text-[10px] font-mono text-cyan-400/80 truncate">
+                      <div className="text-[10px] font-mono text-[#c9564e] truncate tracking-wide">
                         {conversationProtocol(selectedPhone!)}
                       </div>
                     )}
