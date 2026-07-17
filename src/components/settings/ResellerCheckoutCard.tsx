@@ -48,7 +48,20 @@ export default function ResellerCheckoutCard() {
     if (!user) return;
     (async () => {
       const { data } = await (supabase.from('reseller_checkout_settings' as any).select('*').eq('user_id', user.id).maybeSingle() as any);
-      if (data) setForm({ ...EMPTY, ...data });
+      if (data) {
+        setForm({
+          ...EMPTY,
+          ...data,
+          slug: data.slug ?? '',
+          display_name: data.display_name ?? '',
+          logo_url: data.logo_url ?? '',
+          brand_color: data.brand_color ?? '#e11d48',
+          headline: data.headline ?? '',
+          subheadline: data.subheadline ?? '',
+          api_key: data.api_key ?? '',
+          webhook_url: data.webhook_url ?? '',
+        });
+      }
       setLoading(false);
     })();
   }, [user]);
@@ -58,7 +71,7 @@ export default function ResellerCheckoutCard() {
 
   const save = async () => {
     if (!user) return;
-    const slugClean = form.slug.trim().toLowerCase();
+    const slugClean = (form.slug || '').trim().toLowerCase();
     if (!/^[a-z0-9][a-z0-9-]{2,39}$/.test(slugClean)) {
       toast.error('Slug inválido: use 3–40 caracteres, letras minúsculas, números e hífens.');
       return;
@@ -68,15 +81,15 @@ export default function ResellerCheckoutCard() {
       const payload: any = {
         user_id: user.id,
         slug: slugClean,
-        display_name: form.display_name.trim() || null,
-        logo_url: form.logo_url.trim() || null,
+        display_name: (form.display_name || '').trim() || null,
+        logo_url: (form.logo_url || '').trim() || null,
         brand_color: form.brand_color || '#e11d48',
-        headline: form.headline.trim() || null,
-        subheadline: form.subheadline.trim() || null,
+        headline: (form.headline || '').trim() || null,
+        subheadline: (form.subheadline || '').trim() || null,
         enable_efi: form.enable_efi,
         enable_cakto: form.enable_cakto,
         api_key: form.api_key || genApiKey(),
-        webhook_url: form.webhook_url.trim() || null,
+        webhook_url: (form.webhook_url || '').trim() || null,
         is_active: form.is_active,
       };
       const { error, data } = await (supabase.from('reseller_checkout_settings' as any).upsert(payload, { onConflict: 'user_id' }).select().single() as any);
