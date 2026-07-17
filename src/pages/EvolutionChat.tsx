@@ -2415,18 +2415,18 @@ export default function EvolutionChat({ embed = false }: { embed?: boolean } = {
                   aria-label="Ver informações do contato"
                 >
                   <div className="relative">
-                    <Avatar className="h-10 w-10 transition-transform hover:scale-105">
+                    <Avatar className="h-10 w-10 ring-2 ring-white/10 shadow-md transition-transform hover:scale-105">
                       {selectedContact?.profile_pic_url && <AvatarImage src={selectedContact.profile_pic_url} />}
                       <AvatarFallback
-                        className="text-xs font-semibold text-white"
-                        style={{ backgroundColor: avatarColorFor(selectedName || selectedPhone || '?') }}
+                        className="text-xs font-bold text-white"
+                        style={{ background: avatarGradientFor(selectedName || selectedPhone || '?') }}
                       >
                         {initials(selectedName, selectedPhone)}
                       </AvatarFallback>
                     </Avatar>
                     {!selectedPhone?.startsWith('status:') && (
-                      <span className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-[#0b141a] border border-border flex items-center justify-center">
-                        <MessageCircle className="w-2.5 h-2.5 text-[#00a884]" />
+                      <span className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-[#00a884] border-2 border-[#202c33] flex items-center justify-center shadow-sm">
+                        <MessageCircle className="w-2 h-2 text-white" />
                       </span>
                     )}
                   </div>
