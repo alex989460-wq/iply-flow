@@ -268,6 +268,13 @@ export default function ResellerCheckoutCard() {
           </div>
         </div>
 
+        <div className="rounded-lg border border-dashed border-primary/30 p-3 space-y-1.5 bg-primary/[0.03]">
+          <Label className="text-sm font-semibold">Link Cakto — Ativação de Apps</Label>
+          <p className="text-xs text-muted-foreground">Link único da Cakto usado para <b>todos os apps</b> na página de ativação pública (ex: https://pay.cakto.com.br/34gb38g).</p>
+          <Input placeholder="https://pay.cakto.com.br/xxxxxxx" value={form.activation_cakto_url}
+            onChange={(e) => setForm((f) => ({ ...f, activation_cakto_url: e.target.value }))} />
+        </div>
+
         {publicUrl && (
           <div className="rounded-lg bg-muted/50 p-3 space-y-2">
             <Label className="text-xs uppercase text-muted-foreground">Link público</Label>
