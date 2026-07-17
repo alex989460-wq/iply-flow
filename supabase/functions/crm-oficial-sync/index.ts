@@ -917,7 +917,16 @@ Deno.serve(async (req) => {
       // so the conversation shows up in the chat list. Template broadcasts return
       // `conversation_id: null` and do NOT create a contact/conversation on their own.
       if (ok) {
-        const contactName = String(rawBody.contact_name || rawBody.name || "Cliente").trim() || "Cliente";
+        // Prefer explicit contact_name/name; otherwise fall back to the first template
+        // parameter when it looks like a person's name (not a date/number/phone).
+        const firstParam = String(finalParams[0] ?? "").trim();
+        const looksLikeName = firstParam
+          && !/^\d/.test(firstParam)
+          && !/^\+?\d[\d\s\-()]+$/.test(firstParam)
+          && !/^\d{1,2}\/\d{1,2}\/\d{2,4}/.test(firstParam);
+        const contactName = String(
+          rawBody.contact_name || rawBody.name || (looksLikeName ? firstParam : "") || "Cliente"
+        ).trim() || "Cliente";
         try {
           await doContact(
             { name: contactName, phone, stage: "new", notes: "Contato criado automaticamente após envio de template" },
