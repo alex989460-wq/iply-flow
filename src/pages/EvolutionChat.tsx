@@ -12,7 +12,7 @@ import {
   Loader2, Send, Zap, Plus, RefreshCw, Search, MessageSquare,
   Phone, X, Smile, Mic, Paperclip, Trash2, Image as ImageIcon, FileText, Sticker, QrCode,
   Pin, PinOff, Info, Copy, ExternalLink, MoreVertical, ArrowLeft, ChevronDown,
-  Reply, Forward, Star, StarOff, Trash, Volume2, VolumeX, BookOpen, CheckCircle2, MailOpen, Maximize2, UserPlus, Pencil, Check,
+  Reply, Forward, Star, StarOff, Trash, Volume2, VolumeX, BookOpen, CheckCircle2, MailOpen, Maximize2, UserPlus, Pencil, Check, MessageCircle, Headphones,
 } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import KnowledgeBaseDialog from '@/components/chat/KnowledgeBaseDialog';
@@ -106,6 +106,20 @@ function conversationProtocol(phone: string) {
   const hex = h.toString(16).toUpperCase().padStart(10, '0');
   return `#${hex.slice(0, 6)}-${hex.slice(6, 10)}`;
 }
+
+// Cor sólida vívida para avatar sem foto — estilo ZapCRM (vermelho, roxo, rosa, azul, laranja, verde).
+const AVATAR_PALETTE = [
+  '#e53935', '#8e24aa', '#5e35b1', '#3949ab', '#1e88e5',
+  '#00897b', '#43a047', '#fb8c00', '#f4511e', '#6d4c41',
+  '#d81b60', '#00acc1', '#c0ca33', '#7cb342', '#ff5722',
+];
+function avatarColorFor(seed: string) {
+  let h = 0;
+  for (let i = 0; i < seed.length; i++) h = ((h << 5) - h + seed.charCodeAt(i)) | 0;
+  return AVATAR_PALETTE[Math.abs(h) % AVATAR_PALETTE.length];
+}
+
+
 
 // Timestamp longo estilo ZapCRM: "4 minutos", "2 horas", "3 dias".
 function longRelativeTime(iso: string) {
@@ -2265,24 +2279,43 @@ export default function EvolutionChat({ embed = false }: { embed?: boolean } = {
                           isPinnedContact && 'bg-gradient-to-r from-emerald-500/5 to-transparent',
                         )}
                       >
-                        <Avatar className="h-9 w-9 shrink-0">
-                          {cc?.profile_pic_url && <AvatarImage src={cc.profile_pic_url} alt={displayName} />}
-                          <AvatarFallback className={cn(
-                            'text-[11px]',
-                            isNewsletter ? 'bg-gradient-to-br from-blue-500/30 to-blue-700/20 text-blue-400'
-                            : isGroup ? 'bg-gradient-to-br from-purple-500/30 to-purple-700/20 text-purple-400'
-                            : 'bg-gradient-to-br from-primary/20 to-primary/5 text-primary'
-                          )}>
-                            {isNewsletter ? '📢' : isGroup ? '👥' : initials(displayName, c.phone)}
-                          </AvatarFallback>
-                        </Avatar>
+                        <div className="relative shrink-0">
+                          <Avatar className="h-11 w-11 shrink-0 ring-0 border-0">
+                            {cc?.profile_pic_url && <AvatarImage src={cc.profile_pic_url} alt={displayName} />}
+                            <AvatarFallback
+                              className="text-[13px] font-semibold text-white"
+                              style={{
+                                backgroundColor: isNewsletter
+                                  ? '#1e88e5'
+                                  : isGroup
+                                    ? '#8e24aa'
+                                    : avatarColorFor(displayName || c.phone),
+                              }}
+                            >
+                              {isNewsletter ? '📢' : isGroup ? '👥' : initials(displayName, c.phone)}
+                            </AvatarFallback>
+                          </Avatar>
+                          {/* Ícone do canal WhatsApp no canto inferior — estilo ZapCRM */}
+                          {!isStatusEntry && !isNewsletter && (
+                            <span
+                              className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-[#0b141a] border border-border flex items-center justify-center"
+                              title="WhatsApp"
+                            >
+                              <MessageCircle className="w-2.5 h-2.5 text-[#00a884]" />
+                            </span>
+                          )}
+                        </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between gap-2">
-                            <div className="text-sm font-medium truncate flex items-center gap-1">
+                            <div className="text-sm font-semibold truncate flex items-center gap-1.5 text-foreground">
                               {isPinnedContact && <Pin className="w-3 h-3 text-emerald-500 shrink-0" />}
                               {isNewsletter && <span className="text-[9px] px-1 rounded bg-blue-500/20 text-blue-400 shrink-0">CANAL</span>}
                               {isGroup && <span className="text-[9px] px-1 rounded bg-purple-500/20 text-purple-400 shrink-0">GRUPO</span>}
-                              {displayName}
+                              <span className="truncate">{displayName}</span>
+                              {/* Headset — indicador de atendimento estilo ZapCRM */}
+                              {!isStatusEntry && !isNewsletter && !isGroup && (
+                                <Headphones className="w-3 h-3 text-[#8696a0] shrink-0" />
+                              )}
                             </div>
                             <div className="text-[10px] text-muted-foreground shrink-0">{c.last ? longRelativeTime(c.last.created_at) : 'novo'}</div>
                           </div>
@@ -2297,9 +2330,9 @@ export default function EvolutionChat({ embed = false }: { embed?: boolean } = {
                             )}
                           </div>
 
-                          {/* Protocolo estilo ZapCRM */}
+                          {/* Protocolo estilo ZapCRM (vermelho-alaranjado) */}
                           {!isStatusEntry && (
-                            <div className="text-[10px] font-mono text-cyan-400/80 mt-0.5 truncate">
+                            <div className="text-[10px] font-mono text-[#c9564e] mt-0.5 truncate tracking-wide">
                               {conversationProtocol(c.phone)}
                             </div>
                           )}
@@ -2360,16 +2393,29 @@ export default function EvolutionChat({ embed = false }: { embed?: boolean } = {
                   className="flex items-center gap-3 flex-1 min-w-0 rounded-md px-1 -mx-1 py-1 hover:bg-white/5 transition-colors focus:outline-none focus:ring-2 focus:ring-[#00a884]/40"
                   aria-label="Ver informações do contato"
                 >
-                  <Avatar className="h-10 w-10 ring-2 ring-[#00a884]/30 transition-transform hover:scale-105">
-                    {selectedContact?.profile_pic_url && <AvatarImage src={selectedContact.profile_pic_url} />}
-                    <AvatarFallback className="text-xs bg-[#00a884]/20 text-[#00a884]">
-                      {initials(selectedName, selectedPhone)}
-                    </AvatarFallback>
-                  </Avatar>
+                  <div className="relative">
+                    <Avatar className="h-10 w-10 transition-transform hover:scale-105">
+                      {selectedContact?.profile_pic_url && <AvatarImage src={selectedContact.profile_pic_url} />}
+                      <AvatarFallback
+                        className="text-xs font-semibold text-white"
+                        style={{ backgroundColor: avatarColorFor(selectedName || selectedPhone || '?') }}
+                      >
+                        {initials(selectedName, selectedPhone)}
+                      </AvatarFallback>
+                    </Avatar>
+                    {!selectedPhone?.startsWith('status:') && (
+                      <span className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-[#0b141a] border border-border flex items-center justify-center">
+                        <MessageCircle className="w-2.5 h-2.5 text-[#00a884]" />
+                      </span>
+                    )}
+                  </div>
                   <div className="flex-1 min-w-0 text-left">
                     <div className="flex items-center gap-2 min-w-0">
-                      <div className="text-sm font-semibold truncate text-[#e9edef]">
+                      <div className="text-sm font-semibold truncate text-[#e9edef] flex items-center gap-1.5">
                         {selectedName || formatPhone(selectedPhone)}
+                        {!selectedPhone?.startsWith('status:') && (
+                          <Headphones className="w-3 h-3 text-[#8696a0] shrink-0" />
+                        )}
                       </div>
                       <span className="hidden sm:inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-[#00a884]/15 text-[#00a884] border border-[#00a884]/25 shrink-0">
                         <span className="w-1.5 h-1.5 rounded-full bg-[#00a884]" />
@@ -2377,7 +2423,7 @@ export default function EvolutionChat({ embed = false }: { embed?: boolean } = {
                       </span>
                     </div>
                     {!selectedPhone?.startsWith('status:') && (
-                      <div className="text-[10px] font-mono text-cyan-400/80 truncate">
+                      <div className="text-[10px] font-mono text-[#c9564e] truncate tracking-wide">
                         {conversationProtocol(selectedPhone!)}
                       </div>
                     )}
@@ -3057,7 +3103,10 @@ export default function EvolutionChat({ embed = false }: { embed?: boolean } = {
                 <button onClick={() => selectedContact?.profile_pic_url && setAvatarPreview(selectedContact.profile_pic_url)}>
                   <Avatar className="h-28 w-28 ring-4 ring-[#00a884]/40 shadow-xl hover:scale-105 transition-transform">
                     {selectedContact?.profile_pic_url && <AvatarImage src={selectedContact.profile_pic_url} />}
-                    <AvatarFallback className="text-3xl bg-[#00a884]/20 text-[#00a884]">
+                    <AvatarFallback
+                      className="text-3xl font-semibold text-white"
+                      style={{ backgroundColor: avatarColorFor(selectedName || selectedPhone || '?') }}
+                    >
                       {initials(selectedName, selectedPhone)}
                     </AvatarFallback>
                   </Avatar>
