@@ -107,16 +107,36 @@ function conversationProtocol(phone: string) {
   return `#${hex.slice(0, 6)}-${hex.slice(6, 10)}`;
 }
 
-// Cor sólida vívida para avatar sem foto — estilo ZapCRM (vermelho, roxo, rosa, azul, laranja, verde).
-const AVATAR_PALETTE = [
-  '#e53935', '#8e24aa', '#5e35b1', '#3949ab', '#1e88e5',
-  '#00897b', '#43a047', '#fb8c00', '#f4511e', '#6d4c41',
-  '#d81b60', '#00acc1', '#c0ca33', '#7cb342', '#ff5722',
+// Paleta de avatar sem foto — pares de cores para gradiente elegante (estilo WhatsApp/CRM moderno).
+const AVATAR_PALETTE: Array<[string, string]> = [
+  ['#f43f5e', '#b91c3c'], // rose
+  ['#a855f7', '#6d28d9'], // purple
+  ['#6366f1', '#3730a3'], // indigo
+  ['#0ea5e9', '#0369a1'], // sky
+  ['#06b6d4', '#0e7490'], // cyan
+  ['#10b981', '#047857'], // emerald
+  ['#22c55e', '#15803d'], // green
+  ['#eab308', '#a16207'], // yellow
+  ['#f97316', '#c2410c'], // orange
+  ['#ef4444', '#991b1b'], // red
+  ['#ec4899', '#9d174d'], // pink
+  ['#14b8a6', '#0f766e'], // teal
+  ['#84cc16', '#4d7c0f'], // lime
+  ['#8b5cf6', '#5b21b6'], // violet
+  ['#f59e0b', '#b45309'], // amber
 ];
-function avatarColorFor(seed: string) {
+function avatarPairFor(seed: string): [string, string] {
   let h = 0;
   for (let i = 0; i < seed.length; i++) h = ((h << 5) - h + seed.charCodeAt(i)) | 0;
   return AVATAR_PALETTE[Math.abs(h) % AVATAR_PALETTE.length];
+}
+function avatarColorFor(seed: string) {
+  // Compat: retorna cor sólida (primeira do par) — usado em pontos onde só uma cor é aceita.
+  return avatarPairFor(seed)[0];
+}
+function avatarGradientFor(seed: string) {
+  const [a, b] = avatarPairFor(seed);
+  return `linear-gradient(135deg, ${a} 0%, ${b} 100%)`;
 }
 
 
