@@ -2367,9 +2367,20 @@ export default function EvolutionChat({ embed = false }: { embed?: boolean } = {
                     </AvatarFallback>
                   </Avatar>
                   <div className="flex-1 min-w-0 text-left">
-                    <div className="text-sm font-semibold truncate text-[#e9edef]">
-                      {selectedName || formatPhone(selectedPhone)}
+                    <div className="flex items-center gap-2 min-w-0">
+                      <div className="text-sm font-semibold truncate text-[#e9edef]">
+                        {selectedName || formatPhone(selectedPhone)}
+                      </div>
+                      <span className="hidden sm:inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-[#00a884]/15 text-[#00a884] border border-[#00a884]/25 shrink-0">
+                        <span className="w-1.5 h-1.5 rounded-full bg-[#00a884]" />
+                        WhatsApp (Evolution)
+                      </span>
                     </div>
+                    {!selectedPhone?.startsWith('status:') && (
+                      <div className="text-[10px] font-mono text-cyan-400/80 truncate">
+                        {conversationProtocol(selectedPhone!)}
+                      </div>
+                    )}
                     <div className="text-[11px] text-[#8696a0] flex items-center gap-1">
                       {contactTypingPresence ? (
                         <span className="text-[#00a884] font-medium animate-pulse">
