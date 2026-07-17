@@ -230,42 +230,50 @@ export default function ResellerCheckout() {
     const primary = g.pix || g.card;
     if (!primary) return null;
     return (
-      <div
+      <button
         key={g.key}
-        className={`relative rounded-2xl bg-[#131313] border ${popular ? 'border-[var(--brand)] shadow-lg shadow-[var(--brand)]/20' : 'border-white/[0.08]'} p-6 flex flex-col transition-all hover:border-white/20 hover:-translate-y-0.5`}
+        type="button"
+        onClick={() => openPlan(g)}
+        className={`group relative rounded-2xl bg-gradient-to-br from-[#161616] to-[#0f0f0f] border text-left p-6 flex flex-col transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-[#0d0d0d] ${popular ? 'border-[var(--brand)] shadow-[0_0_30px_-8px_var(--brand)]' : 'border-white/[0.08] hover:border-white/25'}`}
+        style={popular ? { boxShadow: `0 0 40px -12px ${brand}` } : undefined}
       >
+        {/* glow overlay on hover */}
+        <span
+          className="pointer-events-none absolute inset-0 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500"
+          style={{ background: `radial-gradient(600px circle at 50% 0%, ${brand}18, transparent 60%)` }}
+        />
         {popular && (
-          <span className="absolute -top-3 left-1/2 -translate-x-1/2 text-[10px] font-bold px-3 py-1 rounded-full text-white shadow-lg" style={{ background: brand }}>
+          <span className="absolute -top-3 left-1/2 -translate-x-1/2 text-[10px] font-bold px-3 py-1 rounded-full text-white shadow-lg z-10 animate-pulse" style={{ background: brand }}>
             ✨ MAIS POPULAR
           </span>
         )}
         {saveBadge && (
-          <span className="absolute -top-3 right-4 text-[10px] font-bold px-3 py-1 rounded-full bg-emerald-500 text-white shadow-lg">
+          <span className="absolute -top-3 right-4 text-[10px] font-bold px-3 py-1 rounded-full bg-emerald-500 text-white shadow-lg z-10">
             {saveBadge}
           </span>
         )}
-        <div className="flex items-center gap-2 text-white/70 text-xs font-bold tracking-widest uppercase mb-4">
+        <div className="relative flex items-center gap-2 text-white/70 text-xs font-bold tracking-widest uppercase mb-4">
           <Tv className="w-4 h-4" style={{ color: brand }} /> {durationLabel(g.duration_days)}
         </div>
-        <div className="mb-5">
+        <div className="relative mb-5">
           <p className="text-4xl font-extrabold text-white leading-none">
             <span className="text-sm text-white/50 font-normal align-top mr-1">R$</span>
             {Number(primary.price).toFixed(2).replace('.', ',')}
           </p>
         </div>
-        <ul className="space-y-2 text-sm text-white/80 mb-6 flex-1">
+        <ul className="relative space-y-2 text-sm text-white/80 mb-6 flex-1">
           <li className="flex items-center gap-2"><Check className="w-4 h-4" style={{ color: brand }} /> {g.screens} tela{g.screens > 1 ? 's' : ''} simultânea{g.screens > 1 ? 's' : ''}</li>
           <li className="flex items-center gap-2"><Check className="w-4 h-4" style={{ color: brand }} /> Canais, Filmes e Séries</li>
           <li className="flex items-center gap-2"><Check className="w-4 h-4" style={{ color: brand }} /> Qualidade HD / Full HD</li>
         </ul>
-        <Button
-          onClick={() => openPlan(g)}
-          className={`w-full h-12 font-bold tracking-wide rounded-xl ${popular ? 'text-white shadow-md' : 'bg-[#1e1e1e] hover:bg-[#2a2a2a] text-white'}`}
+        <div
+          className={`relative w-full h-12 font-bold tracking-wide rounded-xl flex items-center justify-center gap-2 transition-all ${popular ? 'text-white shadow-md' : 'bg-white/[0.04] group-hover:bg-white/[0.08] text-white'}`}
           style={popular ? { background: brand } : undefined}
         >
           ASSINAR / RENOVAR
-        </Button>
-      </div>
+          <ChevronRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
+        </div>
+      </button>
     );
   };
 
