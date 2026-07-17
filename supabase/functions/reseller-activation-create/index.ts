@@ -44,36 +44,42 @@ Deno.serve(async (req) => {
 
     const slug = String(body.slug || "").trim().toLowerCase();
     const appId = String(body.app_id || "");
-    const planId = String(body.plan_id || "");
+    const duration = String(body.duration || "monthly"); // monthly | quarterly | annual
     const method = String(body.method || "pix");
     const customerName = String(body.name || "").trim();
     const customerPhone = String(body.phone || "").trim();
     const mac = String(body.mac || "").trim().toUpperCase();
     const email = String(body.email || "").trim();
-    if (!slug || !appId || !planId || !customerName || !customerPhone) {
+    if (!slug || !appId || !customerName || !customerPhone) {
       return json({ error: "missing_params" }, 400);
     }
 
     const { data: settings } = await admin
       .from("reseller_checkout_settings")
-      .select("user_id, is_active, enable_efi, enable_cakto")
+      .select("user_id, is_active, enable_efi, enable_cakto, activation_cakto_url")
       .eq("slug", slug).maybeSingle();
     if (!settings || !settings.is_active) return json({ error: "not_found" }, 404);
     const ownerId = settings.user_id;
 
     const { data: app } = await admin
       .from("activation_apps")
-      .select("id, app_name, requires_mac, requires_email")
+      .select("id, app_name, requires_mac, requires_email, price_monthly, price_quarterly, price_annual")
       .eq("id", appId).eq("user_id", ownerId).maybeSingle();
     if (!app) return json({ error: "app_not_found" }, 404);
     if (app.requires_mac && !mac) return json({ error: "mac_required" }, 400);
     if (app.requires_email && !email) return json({ error: "email_required" }, 400);
 
-    const { data: plan } = await admin
-      .from("plans")
-      .select("id, plan_name, price, checkout_url, card_checkout_url, created_by")
-      .eq("id", planId).maybeSingle();
-    if (!plan || plan.created_by !== ownerId) return json({ error: "plan_not_found" }, 404);
+    const priceMap: Record<string, any> = {
+      monthly: app.price_monthly,
+      quarterly: app.price_quarterly,
+      annual: app.price_annual,
+    };
+    const rawPrice = priceMap[duration];
+    if (rawPrice == null) return json({ error: "duration_unavailable" }, 400);
+    const price = Number(rawPrice);
+    if (!Number.isFinite(price) || price <= 0) return json({ error: "invalid_price" }, 400);
+
+    const durationLabel = duration === 'annual' ? 'Anual' : duration === 'quarterly' ? 'Trimestral' : 'Mensal';
 
     // Register activation request as "pending".
     const { data: reqRow, error: reqErr } = await admin
@@ -85,7 +91,7 @@ Deno.serve(async (req) => {
         customer_phone: customerPhone,
         mac_address: mac || null,
         email: email || null,
-        amount: Number(plan.price),
+        amount: price,
         payment_method: method,
         status: "aguardando_pagamento",
       })
@@ -94,9 +100,7 @@ Deno.serve(async (req) => {
 
     if (method === "cakto" || method === "cakto_card") {
       if (!settings.enable_cakto) return json({ error: "cakto_disabled" }, 400);
-      const link = method === "cakto_card"
-        ? String(plan.card_checkout_url || plan.checkout_url || "").trim()
-        : String(plan.checkout_url || plan.card_checkout_url || "").trim();
+      const link = String(settings.activation_cakto_url || "").trim();
       if (!link) return json({ error: "cakto_link_missing" }, 400);
       return json({ ok: true, method, checkout_url: link, request_id: reqRow.id });
     }
