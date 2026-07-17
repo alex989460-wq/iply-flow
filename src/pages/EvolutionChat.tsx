@@ -117,6 +117,9 @@ function avatarColorFor(seed: string) {
   let h = 0;
   for (let i = 0; i < seed.length; i++) h = ((h << 5) - h + seed.charCodeAt(i)) | 0;
   return AVATAR_PALETTE[Math.abs(h) % AVATAR_PALETTE.length];
+}
+
+
 
 // Timestamp longo estilo ZapCRM: "4 minutos", "2 horas", "3 dias".
 function longRelativeTime(iso: string) {
