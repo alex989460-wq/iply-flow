@@ -2085,6 +2085,7 @@ export type Database = {
       }
       plans: {
         Row: {
+          card_checkout_url: string | null
           checkout_url: string | null
           created_at: string
           created_by: string | null
@@ -2094,6 +2095,7 @@ export type Database = {
           price: number
         }
         Insert: {
+          card_checkout_url?: string | null
           checkout_url?: string | null
           created_at?: string
           created_by?: string | null
@@ -2103,6 +2105,7 @@ export type Database = {
           price: number
         }
         Update: {
+          card_checkout_url?: string | null
           checkout_url?: string | null
           created_at?: string
           created_by?: string | null
