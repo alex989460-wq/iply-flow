@@ -107,16 +107,36 @@ function conversationProtocol(phone: string) {
   return `#${hex.slice(0, 6)}-${hex.slice(6, 10)}`;
 }
 
-// Cor sólida vívida para avatar sem foto — estilo ZapCRM (vermelho, roxo, rosa, azul, laranja, verde).
-const AVATAR_PALETTE = [
-  '#e53935', '#8e24aa', '#5e35b1', '#3949ab', '#1e88e5',
-  '#00897b', '#43a047', '#fb8c00', '#f4511e', '#6d4c41',
-  '#d81b60', '#00acc1', '#c0ca33', '#7cb342', '#ff5722',
+// Paleta de avatar sem foto — pares de cores para gradiente elegante (estilo WhatsApp/CRM moderno).
+const AVATAR_PALETTE: Array<[string, string]> = [
+  ['#f43f5e', '#b91c3c'], // rose
+  ['#a855f7', '#6d28d9'], // purple
+  ['#6366f1', '#3730a3'], // indigo
+  ['#0ea5e9', '#0369a1'], // sky
+  ['#06b6d4', '#0e7490'], // cyan
+  ['#10b981', '#047857'], // emerald
+  ['#22c55e', '#15803d'], // green
+  ['#eab308', '#a16207'], // yellow
+  ['#f97316', '#c2410c'], // orange
+  ['#ef4444', '#991b1b'], // red
+  ['#ec4899', '#9d174d'], // pink
+  ['#14b8a6', '#0f766e'], // teal
+  ['#84cc16', '#4d7c0f'], // lime
+  ['#8b5cf6', '#5b21b6'], // violet
+  ['#f59e0b', '#b45309'], // amber
 ];
-function avatarColorFor(seed: string) {
+function avatarPairFor(seed: string): [string, string] {
   let h = 0;
   for (let i = 0; i < seed.length; i++) h = ((h << 5) - h + seed.charCodeAt(i)) | 0;
   return AVATAR_PALETTE[Math.abs(h) % AVATAR_PALETTE.length];
+}
+function avatarColorFor(seed: string) {
+  // Compat: retorna cor sólida (primeira do par) — usado em pontos onde só uma cor é aceita.
+  return avatarPairFor(seed)[0];
+}
+function avatarGradientFor(seed: string) {
+  const [a, b] = avatarPairFor(seed);
+  return `linear-gradient(135deg, ${a} 0%, ${b} 100%)`;
 }
 
 
@@ -595,10 +615,10 @@ export default function EvolutionChat({ embed = false }: { embed?: boolean } = {
       setLoadingOlder(false);
     }
   }, [user, exhaustedPhones]);
-  const load = useCallback(async () => {
+  const load = useCallback(async (opts?: { silent?: boolean }) => {
     if (!user) return;
     const hadCache = messagesRef.current.length > 0;
-    if (!hadCache) setLoading(true);
+    if (!hadCache || !opts?.silent) setLoading(true);
     const [msgRes, contRes, presRes, stateRes] = await Promise.all([
       // Reduzido de 1500 → 800: abre muito mais rápido no celular e a UI mostra "Carregar mais antigas" se precisar.
       supabase.from('evolution_messages').select('*').eq('user_id', user.id).order('created_at', { ascending: false }).limit(800),
@@ -2046,7 +2066,7 @@ export default function EvolutionChat({ embed = false }: { embed?: boolean } = {
             <Button asChild size="icon" variant="ghost" className="h-8 w-8 text-emerald-500 hover:text-emerald-400 hover:bg-emerald-500/10" title="Conectar / Gerenciar instâncias">
               <Link to="/evolution-instances"><QrCode className="w-4 h-4" /></Link>
             </Button>
-            <Button size="icon" variant="ghost" className="h-8 w-8" onClick={load} title="Atualizar">
+            <Button size="icon" variant="ghost" className="h-8 w-8 hover:rotate-180 transition-transform duration-500" onClick={() => { load(); toast({ title: 'Atualizando conversas…' }); }} title="Atualizar">
               <RefreshCw className={cn('w-3.5 h-3.5', loading && 'animate-spin')} />
             </Button>
             <DropdownMenu>
@@ -2274,34 +2294,35 @@ export default function EvolutionChat({ embed = false }: { embed?: boolean } = {
                       <button
                         onClick={() => setSelectedPhone(c.phone)}
                         className={cn(
-                          'w-full text-left px-3 py-2.5 hover:bg-accent/40 transition-colors flex gap-3 items-start border-b border-border/20',
-                          active && 'bg-accent',
+                          'w-full text-left px-3 py-2.5 hover:bg-accent/40 transition-all duration-200 flex gap-3 items-start border-b border-border/20 relative',
+                          active && 'bg-accent/60 shadow-inner',
+                          active && 'before:absolute before:left-0 before:top-2 before:bottom-2 before:w-0.5 before:rounded-full before:bg-[#00a884]',
                           isPinnedContact && 'bg-gradient-to-r from-emerald-500/5 to-transparent',
                         )}
                       >
                         <div className="relative shrink-0">
-                          <Avatar className="h-11 w-11 shrink-0 ring-0 border-0">
+                          <Avatar className="h-11 w-11 shrink-0 ring-2 ring-background/40 shadow-md">
                             {cc?.profile_pic_url && <AvatarImage src={cc.profile_pic_url} alt={displayName} />}
                             <AvatarFallback
-                              className="text-[13px] font-semibold text-white"
+                              className="text-[13px] font-bold text-white"
                               style={{
-                                backgroundColor: isNewsletter
-                                  ? '#1e88e5'
+                                background: isNewsletter
+                                  ? 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)'
                                   : isGroup
-                                    ? '#8e24aa'
-                                    : avatarColorFor(displayName || c.phone),
+                                    ? 'linear-gradient(135deg, #a855f7 0%, #6d28d9 100%)'
+                                    : avatarGradientFor(displayName || c.phone),
                               }}
                             >
                               {isNewsletter ? '📢' : isGroup ? '👥' : initials(displayName, c.phone)}
                             </AvatarFallback>
                           </Avatar>
-                          {/* Ícone do canal WhatsApp no canto inferior — estilo ZapCRM */}
+                          {/* Ícone do canal WhatsApp no canto inferior — estilo moderno */}
                           {!isStatusEntry && !isNewsletter && (
                             <span
-                              className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-[#0b141a] border border-border flex items-center justify-center"
+                              className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-[#00a884] border-2 border-background flex items-center justify-center shadow-sm"
                               title="WhatsApp"
                             >
-                              <MessageCircle className="w-2.5 h-2.5 text-[#00a884]" />
+                              <MessageCircle className="w-2 h-2 text-white" />
                             </span>
                           )}
                         </div>
@@ -2394,18 +2415,18 @@ export default function EvolutionChat({ embed = false }: { embed?: boolean } = {
                   aria-label="Ver informações do contato"
                 >
                   <div className="relative">
-                    <Avatar className="h-10 w-10 transition-transform hover:scale-105">
+                    <Avatar className="h-10 w-10 ring-2 ring-white/10 shadow-md transition-transform hover:scale-105">
                       {selectedContact?.profile_pic_url && <AvatarImage src={selectedContact.profile_pic_url} />}
                       <AvatarFallback
-                        className="text-xs font-semibold text-white"
-                        style={{ backgroundColor: avatarColorFor(selectedName || selectedPhone || '?') }}
+                        className="text-xs font-bold text-white"
+                        style={{ background: avatarGradientFor(selectedName || selectedPhone || '?') }}
                       >
                         {initials(selectedName, selectedPhone)}
                       </AvatarFallback>
                     </Avatar>
                     {!selectedPhone?.startsWith('status:') && (
-                      <span className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-[#0b141a] border border-border flex items-center justify-center">
-                        <MessageCircle className="w-2.5 h-2.5 text-[#00a884]" />
+                      <span className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-[#00a884] border-2 border-[#202c33] flex items-center justify-center shadow-sm">
+                        <MessageCircle className="w-2 h-2 text-white" />
                       </span>
                     )}
                   </div>
@@ -2484,7 +2505,7 @@ export default function EvolutionChat({ embed = false }: { embed?: boolean } = {
                       <ExternalLink className="w-4 h-4 mr-2" /> Abrir no WhatsApp
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
-                    <DropdownMenuItem onClick={load}>
+                    <DropdownMenuItem onClick={() => load()}>
                       <RefreshCw className="w-4 h-4 mr-2" /> Recarregar mensagens
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={() => syncHistory(selectedPhone || undefined)} disabled={syncingHistory || !selectedPhone || selectedPhone.startsWith('status:')}>
@@ -2565,8 +2586,10 @@ export default function EvolutionChat({ embed = false }: { embed?: boolean } = {
                         <ContextMenu>
                           <ContextMenuTrigger asChild>
                             <div className={cn(
-                              'max-w-[78%] md:max-w-[65%] rounded-[10px] px-2.5 py-1.5 text-sm relative text-[#e9edef] cursor-context-menu shadow-[0_1px_0.5px_rgba(11,20,26,0.13)]',
-                              m.direction === 'out' ? 'bg-[#005c4b] rounded-tr-[2px]' : 'bg-[#202c33] rounded-tl-[2px]',
+                              'max-w-[78%] md:max-w-[65%] rounded-2xl px-3 py-1.5 text-sm relative text-[#e9edef] cursor-context-menu shadow-md backdrop-blur-sm animate-in fade-in slide-in-from-bottom-1 duration-200',
+                              m.direction === 'out'
+                                ? 'bg-gradient-to-br from-[#005c4b] to-[#00463a] rounded-tr-md'
+                                : 'bg-gradient-to-br from-[#202c33] to-[#1a252b] rounded-tl-md',
                               m._failed && 'ring-1 ring-destructive',
                               isPinned && 'ring-1 ring-[#00a884]/60',
                             )}>
@@ -2779,7 +2802,7 @@ export default function EvolutionChat({ embed = false }: { embed?: boolean } = {
               )}
 
               {/* Composer */}
-              <div className="px-2 py-2 border-t border-[#0b1115] bg-[#202c33] flex items-end gap-1.5">
+              <div className="px-3 py-2.5 border-t border-[#0b1115] bg-gradient-to-b from-[#1a252b] to-[#202c33] flex items-end gap-1.5">
                 <input ref={imgInputRef} type="file" accept="image/*" hidden onChange={onPickFile('image')} />
                 <input ref={fileInputRef} type="file" hidden onChange={onPickFile('document')} />
                 <input ref={stickerInputRef} type="file" accept="image/webp,image/png" hidden onChange={onPickFile('sticker')} />
@@ -3104,8 +3127,8 @@ export default function EvolutionChat({ embed = false }: { embed?: boolean } = {
                   <Avatar className="h-28 w-28 ring-4 ring-[#00a884]/40 shadow-xl hover:scale-105 transition-transform">
                     {selectedContact?.profile_pic_url && <AvatarImage src={selectedContact.profile_pic_url} />}
                     <AvatarFallback
-                      className="text-3xl font-semibold text-white"
-                      style={{ backgroundColor: avatarColorFor(selectedName || selectedPhone || '?') }}
+                      className="text-3xl font-bold text-white"
+                      style={{ background: avatarGradientFor(selectedName || selectedPhone || '?') }}
                     >
                       {initials(selectedName, selectedPhone)}
                     </AvatarFallback>
