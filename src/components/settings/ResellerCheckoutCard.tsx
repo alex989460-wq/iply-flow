@@ -192,8 +192,45 @@ export default function ResellerCheckoutCard() {
 
         <div className="grid md:grid-cols-2 gap-3">
           <div className="space-y-1.5">
-            <Label className="text-sm">URL do logo (opcional)</Label>
-            <Input placeholder="https://…/logo.png" value={form.logo_url} onChange={(e) => setForm((f) => ({ ...f, logo_url: e.target.value }))} />
+            <Label className="text-sm">Logo</Label>
+            <div className="flex items-center gap-3">
+              <div className="w-16 h-16 rounded-lg border border-border/60 bg-muted/40 flex items-center justify-center overflow-hidden shrink-0">
+                {form.logo_url ? (
+                  <img src={form.logo_url} alt="logo" className="w-full h-full object-contain" />
+                ) : (
+                  <Upload className="w-5 h-5 text-muted-foreground" />
+                )}
+              </div>
+              <div className="flex-1 space-y-1.5">
+                <div className="flex items-center gap-2">
+                  <label className="inline-flex">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => e.target.files?.[0] && uploadLogo(e.target.files[0])}
+                    />
+                    <Button asChild size="sm" variant="outline" disabled={uploading}>
+                      <span className="cursor-pointer">
+                        {uploading ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Upload className="w-4 h-4 mr-1" />}
+                        Enviar imagem
+                      </span>
+                    </Button>
+                  </label>
+                  {form.logo_url && (
+                    <Button size="sm" variant="ghost" onClick={() => setForm((f) => ({ ...f, logo_url: '' }))}>
+                      <X className="w-4 h-4" />
+                    </Button>
+                  )}
+                </div>
+                <Input
+                  placeholder="ou cole uma URL: https://…/logo.png"
+                  value={form.logo_url}
+                  onChange={(e) => setForm((f) => ({ ...f, logo_url: e.target.value }))}
+                  className="text-xs"
+                />
+              </div>
+            </div>
           </div>
           <div className="space-y-1.5">
             <Label className="text-sm">Cor da marca</Label>
