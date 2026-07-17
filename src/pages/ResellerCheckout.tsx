@@ -292,26 +292,48 @@ export default function ResellerCheckout() {
     || singles[1]?.key;
 
   return (
-    <div style={brandStyle} className="min-h-screen text-white bg-[#0d0d0d]">
+    <div style={brandStyle} className="min-h-screen text-white bg-[#0a0a0a] relative overflow-hidden">
+      {/* Ambient background glow */}
+      <div className="pointer-events-none absolute inset-0 opacity-60">
+        <div className="absolute -top-40 left-1/2 -translate-x-1/2 w-[900px] h-[900px] rounded-full blur-3xl" style={{ background: `radial-gradient(closest-side, ${brand}22, transparent 70%)` }} />
+      </div>
+
       {/* Header */}
-      <header className="pt-10 pb-6 text-center">
-        {data.logo_url ? (
-          <img src={data.logo_url} alt={data.display_name || ''} className="h-16 mx-auto object-contain" />
-        ) : (
-          <h1 className="text-3xl font-extrabold" style={{ color: brand }}>{data.display_name || 'Assinatura'}</h1>
-        )}
+      <header className="relative pt-8 pb-4 px-4 flex items-center justify-between max-w-6xl mx-auto">
+        <div className="flex-1" />
+        <div className="text-center">
+          {data.logo_url ? (
+            <img src={data.logo_url} alt={data.display_name || ''} className="h-14 md:h-16 mx-auto object-contain" />
+          ) : (
+            <h1 className="text-2xl md:text-3xl font-extrabold" style={{ color: brand }}>{data.display_name || 'Assinatura'}</h1>
+          )}
+        </div>
+        <div className="flex-1 flex justify-end">
+          <Link
+            to={`/r/${slug}/ativar`}
+            className="hidden sm:inline-flex items-center gap-2 px-4 py-2 text-xs font-bold tracking-wide rounded-full border border-white/15 bg-white/[0.03] hover:bg-white/[0.08] transition-all hover:border-[var(--brand)]"
+          >
+            <Smartphone className="w-4 h-4" style={{ color: brand }} /> ATIVAR APP
+          </Link>
+        </div>
       </header>
 
-      <main className="max-w-6xl mx-auto px-4 pb-20 space-y-12">
+      <main className="relative max-w-6xl mx-auto px-4 pb-20 space-y-12">
         {/* Hero title */}
         <section className="text-center space-y-3 pt-4">
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-[11px] font-bold tracking-widest border" style={{ borderColor: brand, color: brand }}>
+          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-[11px] font-bold tracking-widest border backdrop-blur-sm" style={{ borderColor: brand, color: brand, background: `${brand}0d` }}>
             <Sparkles className="w-3.5 h-3.5" /> {data.headline || 'MELHOR CUSTO-BENEFÍCIO'}
           </div>
           <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight">
             Escolha seu <span style={{ color: brand }}>Plano</span>
           </h1>
           <p className="text-white/50 text-sm">{data.subheadline || 'Assista onde e quando quiser. Cancele a qualquer momento.'}</p>
+          <Link
+            to={`/r/${slug}/ativar`}
+            className="sm:hidden inline-flex items-center gap-2 mt-2 px-4 py-2 text-xs font-bold tracking-wide rounded-full border border-white/15 bg-white/[0.03]"
+          >
+            <Smartphone className="w-4 h-4" style={{ color: brand }} /> ATIVAR APP
+          </Link>
         </section>
 
         {/* 1 tela */}
