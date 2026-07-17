@@ -99,6 +99,27 @@ function relativeTime(iso: string) {
   return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
 }
 
+// Protocolo curto estilo ZapCRM: #XXXXXX-XXXX (hash determinístico do telefone).
+function conversationProtocol(phone: string) {
+  let h = 5381;
+  for (let i = 0; i < phone.length; i++) h = ((h << 5) + h + phone.charCodeAt(i)) >>> 0;
+  const hex = h.toString(16).toUpperCase().padStart(10, '0');
+  return `#${hex.slice(0, 6)}-${hex.slice(6, 10)}`;
+}
+
+// Timestamp longo estilo ZapCRM: "4 minutos", "2 horas", "3 dias".
+function longRelativeTime(iso: string) {
+  const diffSec = (Date.now() - new Date(iso).getTime()) / 1000;
+  if (diffSec < 60) return 'menos de um minuto';
+  const min = Math.floor(diffSec / 60);
+  if (min < 60) return `${min} minuto${min > 1 ? 's' : ''}`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `${hr} hora${hr > 1 ? 's' : ''}`;
+  const dy = Math.floor(hr / 24);
+  return `${dy} dia${dy > 1 ? 's' : ''}`;
+}
+
+
 function getNestedValue(source: unknown, path: string[]): unknown {
   return path.reduce<unknown>((acc, key) => (acc && typeof acc === 'object' ? (acc as Record<string, unknown>)[key] : undefined), source);
 }
@@ -1982,8 +2003,8 @@ export default function EvolutionChat({ embed = false }: { embed?: boolean } = {
               <Zap className="w-4 h-4 text-white" />
             </div>
             <div className="flex-1 min-w-0">
-              <h2 className="font-bold text-sm leading-tight flex items-center gap-1.5">
-                Chat WhatsApp
+              <h2 className="font-bold text-base leading-tight text-foreground flex items-center gap-1.5">
+                Chat
                 <button
                   type="button"
                   onClick={() => setShowAutoReplySettings(true)}
@@ -1997,8 +2018,16 @@ export default function EvolutionChat({ embed = false }: { embed?: boolean } = {
                 >
                   🤖 {autoReply.enabled ? 'ON' : 'OFF'}
                 </button>
+                {(() => {
+                  const totalUnread = conversations.reduce((n, c) => n + (c.unread || 0), 0);
+                  return totalUnread > 0 ? (
+                    <span className="ml-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-[#00a884]/20 text-[#00a884] border border-[#00a884]/30">
+                      {totalUnread} nova{totalUnread > 1 ? 's' : ''}
+                    </span>
+                  ) : null;
+                })()}
               </h2>
-              <p className="text-[10px] text-muted-foreground leading-tight">WhatsApp Multi-Sessão</p>
+              <p className="text-[11px] text-muted-foreground leading-tight">Atendimento no estilo WhatsApp Web</p>
             </div>
             <Button asChild size="icon" variant="ghost" className="h-8 w-8 text-emerald-500 hover:text-emerald-400 hover:bg-emerald-500/10" title="Conectar / Gerenciar instâncias">
               <Link to="/evolution-instances"><QrCode className="w-4 h-4" /></Link>
@@ -2180,6 +2209,21 @@ export default function EvolutionChat({ embed = false }: { embed?: boolean } = {
             </div>
           </div>
 
+          {/* Contador de conversas estilo ZapCRM */}
+          <div className="px-3 py-2 border-b border-border flex items-center justify-between">
+            <span className="text-[11px] text-muted-foreground">
+              {conversations.length} conversa{conversations.length === 1 ? '' : 's'}
+            </span>
+            {(() => {
+              const totalUnread = conversations.reduce((n, c) => n + (c.unread || 0), 0);
+              return totalUnread > 0 ? (
+                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-[#00a884]/20 text-[#00a884] border border-[#00a884]/30">
+                  {totalUnread} nova{totalUnread > 1 ? 's' : ''}
+                </span>
+              ) : null;
+            })()}
+          </div>
+
           <div className="flex-1 overflow-auto">
             {loading ? (
               <div className="p-6 flex justify-center"><Loader2 className="w-4 h-4 animate-spin text-muted-foreground" /></div>
@@ -2240,7 +2284,7 @@ export default function EvolutionChat({ embed = false }: { embed?: boolean } = {
                               {isGroup && <span className="text-[9px] px-1 rounded bg-purple-500/20 text-purple-400 shrink-0">GRUPO</span>}
                               {displayName}
                             </div>
-                            <div className="text-[10px] text-muted-foreground shrink-0">{c.last ? relativeTime(c.last.created_at) : 'novo'}</div>
+                            <div className="text-[10px] text-muted-foreground shrink-0">{c.last ? longRelativeTime(c.last.created_at) : 'novo'}</div>
                           </div>
 
                           <div className="flex items-center justify-between gap-2 mt-0.5">
@@ -2249,9 +2293,16 @@ export default function EvolutionChat({ embed = false }: { embed?: boolean } = {
                               {c.last?.content || 'Nova conversa'}
                             </div>
                             {!active && c.unread > 0 && (
-                              <Badge className="h-4 min-w-4 px-1 text-[9px] bg-primary">{c.unread > 99 ? '99+' : c.unread}</Badge>
+                              <Badge className="h-4 min-w-4 px-1 text-[9px] bg-[#00a884] text-black hover:bg-[#00a884]">{c.unread > 99 ? '99+' : c.unread}</Badge>
                             )}
                           </div>
+
+                          {/* Protocolo estilo ZapCRM */}
+                          {!isStatusEntry && (
+                            <div className="text-[10px] font-mono text-cyan-400/80 mt-0.5 truncate">
+                              {conversationProtocol(c.phone)}
+                            </div>
+                          )}
                         </div>
                       </button>
                     </ContextMenuTrigger>
@@ -2316,9 +2367,20 @@ export default function EvolutionChat({ embed = false }: { embed?: boolean } = {
                     </AvatarFallback>
                   </Avatar>
                   <div className="flex-1 min-w-0 text-left">
-                    <div className="text-sm font-semibold truncate text-[#e9edef]">
-                      {selectedName || formatPhone(selectedPhone)}
+                    <div className="flex items-center gap-2 min-w-0">
+                      <div className="text-sm font-semibold truncate text-[#e9edef]">
+                        {selectedName || formatPhone(selectedPhone)}
+                      </div>
+                      <span className="hidden sm:inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-[#00a884]/15 text-[#00a884] border border-[#00a884]/25 shrink-0">
+                        <span className="w-1.5 h-1.5 rounded-full bg-[#00a884]" />
+                        WhatsApp (Evolution)
+                      </span>
                     </div>
+                    {!selectedPhone?.startsWith('status:') && (
+                      <div className="text-[10px] font-mono text-cyan-400/80 truncate">
+                        {conversationProtocol(selectedPhone!)}
+                      </div>
+                    )}
                     <div className="text-[11px] text-[#8696a0] flex items-center gap-1">
                       {contactTypingPresence ? (
                         <span className="text-[#00a884] font-medium animate-pulse">
