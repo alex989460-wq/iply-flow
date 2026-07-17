@@ -23,6 +23,7 @@ interface Settings {
   api_key: string;
   webhook_url: string;
   is_active: boolean;
+  activation_cakto_url: string;
 }
 
 const EMPTY: Settings = {
@@ -30,6 +31,7 @@ const EMPTY: Settings = {
   headline: '', subheadline: '',
   enable_efi: true, enable_cakto: true,
   api_key: '', webhook_url: '', is_active: true,
+  activation_cakto_url: '',
 };
 
 function genApiKey() {
