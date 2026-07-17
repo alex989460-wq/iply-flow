@@ -152,6 +152,7 @@ export default function ActivationApps() {
             IBOSOL_LOGOS[normKey(a.name)] = a.logo;
           }
         }
+        try { localStorage.setItem(IBOSOL_LOGOS_KEY, JSON.stringify(IBOSOL_LOGOS)); } catch {}
         return list;
       } catch { return []; }
     },
