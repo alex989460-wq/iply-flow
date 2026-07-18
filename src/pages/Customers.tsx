@@ -294,14 +294,17 @@ export default function Customers() {
           } else if (hasLetters) {
             filters.push(`name.ilike.%${term}%`);
             filters.push(`username.ilike.%${term}%`);
+            filters.push(`checkout_code.ilike.%${term}%`);
           } else if (digits.length >= 3) {
             filters.push(`phone.ilike.%${digits}%`);
             filters.push(`extra_phone.ilike.%${digits}%`);
             filters.push(`username.ilike.%${term}%`);
             filters.push(`name.ilike.%${term}%`);
+            filters.push(`checkout_code.ilike.%${term}%`);
           } else {
             filters.push(`name.ilike.%${term}%`);
             filters.push(`username.ilike.%${term}%`);
+            filters.push(`checkout_code.ilike.%${term}%`);
           }
           q = q.or(filters.join(','));
         }
@@ -1337,6 +1340,8 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
     switch (sortColumn) {
       case 'name':
         return dir * (a.name || '').localeCompare(b.name || '');
+      case 'checkout_code':
+        return dir * (a.checkout_code || '').localeCompare(b.checkout_code || '');
       case 'phone':
         return dir * (a.phone || '').localeCompare(b.phone || '');
       case 'server':
@@ -3081,6 +3086,9 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
                       <TableHead className="font-semibold cursor-pointer select-none hover:text-primary" onClick={() => handleSort('name')}>
                         <span className="flex items-center">Nome <SortIcon column="name" /></span>
                       </TableHead>
+                      <TableHead className="font-semibold cursor-pointer select-none hover:text-primary" onClick={() => handleSort('checkout_code')}>
+                        <span className="flex items-center">ID <SortIcon column="checkout_code" /></span>
+                      </TableHead>
                       <TableHead className="font-semibold cursor-pointer select-none hover:text-primary" onClick={() => handleSort('phone')}>
                         <span className="flex items-center">Telefone <SortIcon column="phone" /></span>
                       </TableHead>
@@ -3126,6 +3134,20 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
                         />
                       </TableCell>
                       <TableCell className="font-medium">{customer.name}</TableCell>
+                      <TableCell>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            navigator.clipboard.writeText(customer.checkout_code || customer.id);
+                            toast({ title: 'ID copiado!' });
+                          }}
+                          className="inline-flex items-center gap-1 rounded bg-primary/10 px-2 py-1 font-mono text-[11px] font-semibold text-primary hover:bg-primary/15"
+                          title="Copiar ID do checkout"
+                        >
+                          {customer.checkout_code || customer.id.slice(0, 8).toUpperCase()}
+                          <Copy className="h-3 w-3" />
+                        </button>
+                      </TableCell>
                       <TableCell>
                         <div className="flex flex-col gap-1">
                           <span className="font-mono text-xs bg-muted/50 px-2 py-1 rounded inline-flex items-center gap-1.5">
