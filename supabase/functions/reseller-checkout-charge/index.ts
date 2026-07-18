@@ -74,7 +74,7 @@ Deno.serve(async (req) => {
 
     const { data: customers } = await admin
       .from("customers")
-      .select("id, name, username, created_by, custom_price")
+      .select("id, name, username, phone, created_by, custom_price")
       .in("id", customerIds)
       .eq("created_by", ownerId);
     if (!customers || customers.length !== customerIds.length) {
@@ -87,6 +87,56 @@ Deno.serve(async (req) => {
         ? String((plan as any).card_checkout_url || plan.checkout_url || "").trim()
         : String(plan.checkout_url || (plan as any).card_checkout_url || "").trim();
       if (!link) return json({ error: "cakto_link_missing" }, 400);
+
+      // Persist the reseller's selection so the Cakto webhook renews EXACTLY
+      // the chosen customers (not every customer that shares the same phone).
+      try {
+        const KNOWN_FOREIGN_DDIS = ["971","598","595","593","591","353","351","86","81","61","58","57","56","54","52","51","49","44","41","39","34","33","32","31"];
+        const buildVariants = (raw: string): string[] => {
+          const d = String(raw || "").replace(/\D/g, "");
+          const out = new Set<string>();
+          if (!d) return [];
+          out.add(d);
+          if (d.startsWith("55") && d.length >= 12) out.add(d.slice(2));
+          else if (d.length >= 10 && d.length <= 11 && !KNOWN_FOREIGN_DDIS.some((c) => d.startsWith(c) && d.length > c.length)) out.add("55" + d);
+          const noCC = d.startsWith("55") ? d.slice(2) : d;
+          if (noCC.length === 11 && noCC[2] === "9") {
+            out.add("55" + noCC.slice(0,2) + noCC.slice(3));
+            out.add(noCC.slice(0,2) + noCC.slice(3));
+          } else if (noCC.length === 10) {
+            out.add("55" + noCC.slice(0,2) + "9" + noCC.slice(2));
+            out.add(noCC.slice(0,2) + "9" + noCC.slice(2));
+          }
+          return [...out];
+        };
+        const allVariants = new Set<string>();
+        for (const c of customers) for (const v of buildVariants((c as any).phone || "")) allVariants.add(v);
+        const variantList = [...allVariants].filter(Boolean);
+
+        if (variantList.length > 0) {
+          await admin
+            .from("pending_renewal_selections")
+            .delete()
+            .in("phone_normalized", variantList)
+            .eq("used", false);
+
+          const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+          const rows: any[] = [];
+          for (const cust of customers) {
+            const custVariants = buildVariants((cust as any).phone || "");
+            const canonical = custVariants[0] || "";
+            if (!canonical) continue;
+            rows.push({ phone_normalized: canonical, customer_id: cust.id, expires_at: expiresAt });
+          }
+          if (rows.length > 0) {
+            const { error: selErr } = await admin.from("pending_renewal_selections").insert(rows);
+            if (selErr) console.error("[reseller-checkout-charge] selection insert error", selErr);
+          }
+        }
+      } catch (e) {
+        console.error("[reseller-checkout-charge] failed to persist selection", e);
+      }
+
       return json({ ok: true, method, checkout_url: link });
     }
 
