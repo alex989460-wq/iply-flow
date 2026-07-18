@@ -2766,6 +2766,10 @@ export type Database = {
           subject: string
         }[]
       }
+      normalize_customer_username: {
+        Args: { _username: string }
+        Returns: string
+      }
     }
     Enums: {
       ai_knowledge_item_status: "pending" | "approved" | "rejected" | "merged"
