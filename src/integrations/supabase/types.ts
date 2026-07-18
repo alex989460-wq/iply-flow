@@ -1103,7 +1103,7 @@ export type Database = {
           username: string | null
         }
         Insert: {
-          checkout_code: string
+          checkout_code?: string
           created_at?: string
           created_by?: string | null
           custom_price?: number | null
