@@ -229,6 +229,9 @@ Deno.serve(async (req) => {
 
           // Cleanup the pending row.
           await admin.from("pending_new_customers").delete().eq("id", pending.id);
+
+          // Trigger external panel renewal (VPlay/NATV/The Best/Rush/XUI).
+          await triggerExternalRenewal(admin, customerId, `efi:${txid}`);
         }
       } else if (charge.pending_kind === "activation_request" && charge.pending_id) {
         // Mark activation request as paid — reseller processes it manually.
