@@ -86,13 +86,33 @@ Deno.serve(async (req) => {
       const orFuzzy = last9.length >= 8 ? `,phone.ilike.%${last9},extra_phone.ilike.%${last9}` : "";
       const { data: customers } = await admin
         .from("customers")
-        .select("id, name, phone, username, due_date, status, plan_id, screens, plans:plan_id(plan_name)")
+        .select("id, checkout_code, name, phone, username, due_date, status, plan_id, screens, plans:plan_id(plan_name)")
         .eq("created_by", ownerId)
         .or(orExact + orFuzzy)
         .limit(50);
       return json({
         customers: (customers || []).map((c: any) => ({
-          id: c.id, name: c.name, phone: c.phone, username: c.username,
+          id: c.id, checkout_code: c.checkout_code, name: c.name, phone: c.phone, username: c.username,
+          due_date: c.due_date, status: c.status, screens: c.screens,
+          current_plan: c.plans?.plan_name || null,
+        })),
+      });
+    }
+
+    // ---------------- POST /lookup-by-code ----------------
+    if (req.method === "POST" && endpoint === "lookup-by-code") {
+      const body = await req.json().catch(() => ({} as any));
+      const code = String(body.code || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+      if (!code) return json({ customers: [] });
+      const { data: customers } = await admin
+        .from("customers")
+        .select("id, checkout_code, name, phone, username, due_date, status, plan_id, screens, plans:plan_id(plan_name)")
+        .eq("created_by", ownerId)
+        .eq("checkout_code", code)
+        .limit(10);
+      return json({
+        customers: (customers || []).map((c: any) => ({
+          id: c.id, checkout_code: c.checkout_code, name: c.name, phone: c.phone, username: c.username,
           due_date: c.due_date, status: c.status, screens: c.screens,
           current_plan: c.plans?.plan_name || null,
         })),
