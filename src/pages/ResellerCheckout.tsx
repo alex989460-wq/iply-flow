@@ -16,7 +16,7 @@ interface Plan {
 }
 interface Customer {
   id: string; name: string; username: string; due_date: string; status: string;
-  current_plan: string | null; screens: number;
+  checkout_code: string; current_plan: string | null; screens: number;
 }
 interface CheckoutData {
   slug: string; display_name: string | null; logo_url: string | null; brand_color: string;
@@ -450,6 +450,9 @@ export default function ResellerCheckout() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="font-bold text-sm truncate">{c.name || c.username}</p>
+                    {c.checkout_code && (
+                      <p className="text-[10px] text-white/50 font-mono tracking-wider">ID: {c.checkout_code}</p>
+                    )}
                     <p className="text-xs text-white/60 flex items-center gap-1"><UserIcon className="w-3 h-3" /> {c.username}</p>
                     <p className="text-xs text-white/60">Venc: <b>{new Date(c.due_date).toLocaleDateString('pt-BR')}</b></p>
                     <div className="flex gap-1 mt-1.5 flex-wrap">

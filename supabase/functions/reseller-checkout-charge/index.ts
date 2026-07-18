@@ -74,7 +74,7 @@ Deno.serve(async (req) => {
 
     const { data: customers } = await admin
       .from("customers")
-      .select("id, name, username, created_by, custom_price")
+      .select("id, checkout_code, name, username, created_by, custom_price, screens")
       .in("id", customerIds)
       .eq("created_by", ownerId);
     if (!customers || customers.length !== customerIds.length) {
@@ -142,7 +142,9 @@ Deno.serve(async (req) => {
         plan_id: plan.id,
         plan_name: plan.plan_name,
         customer_ids: customers.map((c: any) => c.id),
+        checkout_codes: customers.map((c: any) => c.checkout_code).filter(Boolean),
         usernames: customers.map((c: any) => c.username || c.name),
+        screens: customers.map((c: any) => c.screens || 1),
       },
       expires_at: new Date(Date.now() + 3600_000).toISOString(),
     });

@@ -60,7 +60,7 @@ Deno.serve(async (req) => {
 
     const { data: customers } = await admin
       .from("customers")
-      .select("id, name, username, due_date, status, plan_id, screens, plans:plan_id(plan_name)")
+      .select("id, checkout_code, name, username, due_date, status, plan_id, screens, plans:plan_id(plan_name)")
       .eq("created_by", settings.user_id)
       .or(orExact + orFuzzy)
       .limit(20);
@@ -68,6 +68,7 @@ Deno.serve(async (req) => {
     return json({
       customers: (customers || []).map((c: any) => ({
         id: c.id,
+        checkout_code: c.checkout_code,
         name: maskName(c.name),
         username: c.username,
         due_date: c.due_date,
