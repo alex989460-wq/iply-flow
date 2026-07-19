@@ -200,11 +200,35 @@ export default function PublicCheckout() {
       const pendingId = await createPendingRow();
       if (!pendingId) throw new Error('Não foi possível registrar seu pedido.');
 
-      const { data, error } = await supabase.functions.invoke('efi-pix-public', {
-        body: { action: 'create-charge-for-pending', owner_id: userId, pending_id: pendingId },
-      });
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
+      // Call Efí via direct fetch so we can read the error body from the edge function
+      // (supabase.functions.invoke swallows non-2xx bodies into a generic message).
+      const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
+      const anonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+      const resp = await fetch(
+        `https://${projectId}.supabase.co/functions/v1/efi-pix-public`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            apikey: anonKey,
+            Authorization: `Bearer ${anonKey}`,
+          },
+          body: JSON.stringify({
+            action: 'create-charge-for-pending',
+            owner_id: userId,
+            pending_id: pendingId,
+          }),
+        },
+      );
+      const raw = await resp.text();
+      let data: any = null;
+      try { data = raw ? JSON.parse(raw) : null; } catch { data = { error: raw }; }
+      if (!resp.ok || data?.error) {
+        const msg = data?.error
+          ? typeof data.error === 'string' ? data.error : JSON.stringify(data.error)
+          : `HTTP ${resp.status}`;
+        throw new Error(msg);
+      }
       setEfiCharge({
         txid: data.txid,
         qrcode_base64: data.qrcode_base64,
@@ -213,7 +237,22 @@ export default function PublicCheckout() {
         status: 'pending',
       });
     } catch (err: any) {
-      toast({ title: 'Erro ao gerar Pix', description: err.message, variant: 'destructive' });
+      const raw = String(err?.message || err || '');
+      // Skip double toast — createPendingRow already showed a friendly message for these.
+      if (raw === 'duplicate_username') { setEfiSubmitting(false); return; }
+      let friendly = raw;
+      if (raw.startsWith('duplicate_pending_username')) {
+        friendly = 'Já existe um pedido pendente com este usuário. Aguarde ou entre em contato com o revendedor.';
+      } else if (raw.startsWith('duplicate_customer_username')) {
+        friendly = 'Este usuário já está cadastrado. Use o checkout de renovação.';
+      } else if (raw === 'efi_not_enabled_for_owner') {
+        friendly = 'Pagamento via Pix indisponível no momento.';
+      } else if (raw === 'plan_price_invalid' || raw === 'plan_not_found') {
+        friendly = 'Plano indisponível. Recarregue a página e tente novamente.';
+      } else if (raw === 'cob_failed') {
+        friendly = 'A operadora Pix recusou a cobrança. Tente novamente em instantes.';
+      }
+      toast({ title: 'Erro ao gerar Pix', description: friendly, variant: 'destructive' });
     } finally {
       setEfiSubmitting(false);
     }
