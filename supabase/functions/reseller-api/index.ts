@@ -137,9 +137,28 @@ Deno.serve(async (req) => {
       if (!plan || plan.created_by !== ownerId) return json({ error: "plan_not_found" }, 404);
 
       const { data: customer } = await admin
-        .from("customers").select("id, checkout_code, name, username, created_by, custom_price")
+        .from("customers").select("id, checkout_code, name, phone, extra_phone, username, created_by, custom_price")
         .eq("id", customerId).maybeSingle();
       if (!customer || customer.created_by !== ownerId) return json({ error: "customer_not_found" }, 404);
+
+      const customerPhoneVariants = Array.from(new Set([
+        ...phoneVariants(customer.phone || ""),
+        ...phoneVariants(customer.extra_phone || ""),
+      ]));
+      if (customerPhoneVariants.length > 0) {
+        const orSamePhone = customerPhoneVariants.map((v) => `phone.eq.${v},extra_phone.eq.${v}`).join(",");
+        const { count: samePhoneCount } = await admin
+          .from("customers")
+          .select("id", { count: "exact", head: true })
+          .eq("created_by", ownerId)
+          .or(orSamePhone);
+        if ((samePhoneCount || 0) > 1 && !checkoutCode) {
+          return json({
+            error: "checkout_code_required",
+            message: "Esse telefone possui mais de uma conta. Envie o checkout_code da conta selecionada para evitar renovar o usuário errado.",
+          }, 409);
+        }
+      }
 
       // External sites must not be able to renew the wrong account when the user
       // selected a different row. If the checkout code or username is sent, it
