@@ -799,9 +799,22 @@ export default function EvolutionChat({ embed = false }: { embed?: boolean } = {
     return () => { supabase.removeChannel(ch); };
   }, [user, mergeMessage, playNotificationSound]);
 
-  // Re-render every 2s so "digitando..." auto-expires after 8s of silence
+  // Re-render every 2s so "digitando..." auto-expires — MAS só se houver alguém digitando.
+  // Antes fazia setState com {...prev} incondicionalmente, o que forçava re-render do chat
+  // inteiro (800+ mensagens) a cada 2 segundos, causando trava e mensagens que "somem" durante o commit.
   useEffect(() => {
-    const t = window.setInterval(() => { presenceTickRef.current = Date.now(); setTypingByPhone(prev => ({ ...prev })); }, 2000);
+    const t = window.setInterval(() => {
+      setTypingByPhone(prev => {
+        const now = Date.now();
+        let hasActive = false;
+        for (const key in prev) {
+          if (now - prev[key].at < 8000) { hasActive = true; break; }
+        }
+        if (!hasActive) return prev; // sem digitação ativa: não re-renderiza
+        presenceTickRef.current = now;
+        return { ...prev };
+      });
+    }, 2000);
     return () => clearInterval(t);
   }, []);
 
