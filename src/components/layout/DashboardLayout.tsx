@@ -38,11 +38,11 @@ export default function DashboardLayout({ children, noPadding }: DashboardLayout
     <div className="min-h-screen bg-background">
       <Sidebar />
       <main className={cn(
-        "pt-16 lg:pt-0 min-h-screen box-border",
-        isChatRoute ? "h-[100svh] overflow-hidden transition-none" : "transition-all duration-300",
+        "pt-16 lg:pt-0 box-border",
+        isChatRoute ? "relative h-[100dvh] overflow-hidden transition-none" : "min-h-screen transition-all duration-300",
         collapsed ? "lg:ml-16" : "lg:ml-64"
       )}>
-        <div className={cn(noPadding ? (isChatRoute ? 'h-full min-h-0 overflow-hidden' : '') : 'p-3 sm:p-4 lg:p-8')}>
+        <div className={cn(noPadding ? (isChatRoute ? 'absolute inset-0 pt-16 lg:pt-0 overflow-hidden' : '') : 'p-3 sm:p-4 lg:p-8')}>
           {children}
         </div>
       </main>
