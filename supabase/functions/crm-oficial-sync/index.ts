@@ -770,6 +770,43 @@ async function doSendWhatsapp(payload: {
       status: a.status,
       body: cleanErrorPreview(a.body),
     }));
+
+    // Fallback: se o Meta retornou 132001 (template não existe no locale pedido),
+    // tenta enviar diretamente pela Meta Graph API usando locales alternativos.
+    // Isso cobre o caso em que /api/public/v1/templates?limit=250 não devolveu o
+    // template (paginação/filtro) e portanto não conseguimos resolver o locale real.
+    const attemptsRaw = ((templateResult as { attempts?: Array<{ status: number; body: unknown }> }).attempts || []);
+    const has132001 = attemptsRaw.some((a) => {
+      const s = typeof a.body === "string" ? a.body : JSON.stringify(a.body || {});
+      return /132001/.test(s) || /does not exist in the translation/i.test(s);
+    });
+    if (has132001) {
+      const tried = new Set<string>([String(lang)]);
+      const fallbackLangs = ["pt_BR", "pt_PT", "pt", "en_US", "en"].filter((l) => !tried.has(l));
+      for (const altLang of fallbackLangs) {
+        try {
+          const alt = await directMetaTemplateSend({
+            apiKey,
+            phone: payload.phone,
+            name: payload.name,
+            templateName: String(payload.template_name),
+            language: altLang,
+            components: templateComponents,
+            channelId: payload.channel_id,
+            phoneNumberId: payload.phone_number_id || payload.from_phone_number_id,
+          });
+          console.log("[crm-oficial-sync] template send fallback lang ok", { template: payload.template_name, lang: altLang });
+          return alt;
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e);
+          if (!/132001|does not exist/i.test(msg)) {
+            console.warn("[crm-oficial-sync] fallback lang", altLang, "erro não-132001:", msg);
+            break;
+          }
+        }
+      }
+    }
+
     return {
       ok: false,
       status: templateResult.status || 502,
@@ -778,6 +815,7 @@ async function doSendWhatsapp(payload: {
         attempts: attemptsSummary,
       },
     };
+
   }
 
 
