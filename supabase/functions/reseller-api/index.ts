@@ -206,14 +206,10 @@ Deno.serve(async (req) => {
           qrcode_base64: existing.qrcode_base64 || "",
         });
       }
-      if (existing?.status === "paid") {
-        return json({
-          error: "recent_payment_exists",
-          message: "Essa conta já teve um Pix confirmado recentemente. Gere uma nova cobrança apenas para a outra conta selecionada.",
-          existing_txid: existing.txid,
-          paid_at: existing.paid_at,
-        }, 409);
-      }
+      // Nota: não bloqueamos mais quando existe um Pix pago recente do mesmo
+      // plano — o cliente pode legitimamente estar comprando outra coisa
+      // (ex.: ativação de app) logo em seguida. A duplicidade real é evitada
+      // pela trava por txid no webhook.
 
       const { data: efi } = await admin
         .from("efi_settings").select("*").eq("user_id", ownerId).eq("enabled", true).maybeSingle();
