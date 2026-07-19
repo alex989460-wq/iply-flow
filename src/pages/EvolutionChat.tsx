@@ -316,7 +316,14 @@ async function fileToBase64(file: Blob): Promise<string> {
 }
 
 const EVO_CACHE_LOADED_KEY = 'evo_cache_loaded';
+const EVO_CACHE_MESSAGES_KEY = 'evo_cache_messages_v2';
 const EVO_CONTACT_SYNCED_KEY = 'evo_contacts_synced_once';
+const LIGHTWEIGHT_MESSAGE_COLUMNS = 'id, phone, contact_name, direction, content, status, message_type, media_url, media_mime, external_id, created_at, instance_name';
+
+function stripHeavyRaw(m: EvoMessage): EvoMessage {
+  if (!m || !('raw' in m)) return m;
+  return { ...m, raw: undefined };
+}
 
 export default function EvolutionChat({ embed = false }: { embed?: boolean } = {}) {
   const { user, session } = useAuth();
@@ -327,7 +334,7 @@ export default function EvolutionChat({ embed = false }: { embed?: boolean } = {
   }, []);
   // Hydrate from sessionStorage so abrir o chat (especialmente no mobile) seja instantâneo
   const cachedMessages = useMemo<EvoMessage[]>(() => {
-    try { return JSON.parse(sessionStorage.getItem('evo_cache_messages') || '[]'); } catch { return []; }
+    try { return (JSON.parse(sessionStorage.getItem(EVO_CACHE_MESSAGES_KEY) || '[]') as EvoMessage[]).map(stripHeavyRaw); } catch { return []; }
   }, []);
   const cachedContacts = useMemo<Record<string, EvoContact>>(() => {
     try { return JSON.parse(sessionStorage.getItem('evo_cache_contacts') || '{}'); } catch { return {}; }
@@ -474,6 +481,10 @@ export default function EvolutionChat({ embed = false }: { embed?: boolean } = {
     } catch { /* noop */ }
   }, []);
 
+  useEffect(() => {
+    try { sessionStorage.removeItem('evo_cache_messages'); } catch { /* remove cache antigo com raw/base64 gigante */ }
+  }, []);
+
   // Desbloqueia áudio na primeira interação do usuário (autoplay policy do Chrome/iOS)
   useEffect(() => {
     const unlock = () => {
@@ -598,7 +609,7 @@ export default function EvolutionChat({ embed = false }: { embed?: boolean } = {
       }, null);
       let query = supabase
         .from('evolution_messages')
-        .select('*')
+        .select(LIGHTWEIGHT_MESSAGE_COLUMNS)
         .eq('user_id', user.id)
         .eq('phone', phone)
         .order('created_at', { ascending: false })
@@ -609,7 +620,7 @@ export default function EvolutionChat({ embed = false }: { embed?: boolean } = {
         toast({ title: 'Erro ao carregar antigas', description: error.message, variant: 'destructive' });
         return;
       }
-      const rows = ((data || []) as unknown) as EvoMessage[];
+      const rows = (((data || []) as unknown) as EvoMessage[]).map(stripHeavyRaw);
       if (rows.length === 0) {
         setExhaustedPhones(prev => { const n = new Set(prev); n.add(phone); return n; });
         toast({ title: 'Sem mensagens mais antigas', description: 'Esta conversa já está totalmente carregada.' });
@@ -637,7 +648,8 @@ export default function EvolutionChat({ embed = false }: { embed?: boolean } = {
     if (!hadCache || !opts?.silent) setLoading(true);
     const [msgRes, contRes, presRes, stateRes] = await Promise.all([
       // Reduzido de 1500 → 800: abre muito mais rápido no celular e a UI mostra "Carregar mais antigas" se precisar.
-      supabase.from('evolution_messages').select('*').eq('user_id', user.id).order('created_at', { ascending: false }).limit(800),
+      // Não buscar `raw` aqui: ele carrega JSON/base64 enorme (média ~44KB por mensagem) e travava a abertura do chat.
+      supabase.from('evolution_messages').select(LIGHTWEIGHT_MESSAGE_COLUMNS).eq('user_id', user.id).order('created_at', { ascending: false }).limit(800),
       supabase.from('evolution_contacts').select('phone, name, profile_pic_url, needs_human, ai_category').eq('user_id', user.id),
       supabase.from('evolution_presence').select('phone, presence, last_seen_at, updated_at').eq('user_id', user.id),
       (supabase.from('evolution_conversation_state' as any) as any).select('phone,last_read_at,manual_unread').eq('user_id', user.id),
@@ -652,7 +664,7 @@ export default function EvolutionChat({ embed = false }: { embed?: boolean } = {
     const byExt = new Map<string, EvoMessage>();
     const raw = (((msgRes.data || []) as unknown) as EvoMessage[]);
     for (let i = raw.length - 1; i >= 0; i--) {
-      const m = raw[i];
+      const m = stripHeavyRaw(raw[i]);
       if (byId.has(m.id)) continue;
       if (m.external_id && byExt.has(m.external_id)) continue;
       byId.set(m.id, m);
@@ -680,7 +692,7 @@ export default function EvolutionChat({ embed = false }: { embed?: boolean } = {
     setManualUnreadPhones(unreadSet);
     try { localStorage.setItem('evo_manual_unread', JSON.stringify([...unreadSet])); } catch { /* noop */ }
     try {
-      sessionStorage.setItem('evo_cache_messages', JSON.stringify(merged.slice(-800)));
+      sessionStorage.setItem(EVO_CACHE_MESSAGES_KEY, JSON.stringify(merged.slice(-800).map(stripHeavyRaw)));
       sessionStorage.setItem('evo_cache_contacts', JSON.stringify(cmap));
       sessionStorage.setItem(EVO_CACHE_LOADED_KEY, '1');
     } catch { /* quota cheia, ignora */ }
@@ -750,7 +762,7 @@ export default function EvolutionChat({ embed = false }: { embed?: boolean } = {
     const ch = supabase
       .channel('evolution_messages_rt')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'evolution_messages', filter: `user_id=eq.${user.id}` }, (payload) => {
-        const m = payload.new as EvoMessage;
+        const m = stripHeavyRaw(payload.new as EvoMessage);
         setMessages((prev) => {
           return mergeMessage(prev, m);
         });
@@ -768,7 +780,7 @@ export default function EvolutionChat({ embed = false }: { embed?: boolean } = {
         } catch { /* noop */ }
       })
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'evolution_messages', filter: `user_id=eq.${user.id}` }, (payload) => {
-        const m = payload.new as EvoMessage;
+        const m = stripHeavyRaw(payload.new as EvoMessage);
         if (!m?.id) return;
         setMessages(prev => prev.map(x => x.id === m.id ? { ...x, ...m } : x));
       })
