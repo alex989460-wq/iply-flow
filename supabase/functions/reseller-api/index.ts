@@ -21,6 +21,8 @@ const json = (b: unknown, s = 200) =>
   new Response(JSON.stringify(b), { status: s, headers: { ...cors, "Content-Type": "application/json" } });
 
 function digits(s: string) { return String(s || "").replace(/\D/g, ""); }
+function cleanCode(s: string) { return String(s || "").toUpperCase().replace(/[^A-Z0-9]/g, ""); }
+function normalizeUsername(s: string) { return String(s || "").trim().toLowerCase(); }
 function phoneVariants(raw: string): string[] {
   const d = digits(raw);
   if (!d) return [];
@@ -123,6 +125,8 @@ Deno.serve(async (req) => {
     if (req.method === "POST" && endpoint === "charge") {
       const body = await req.json().catch(() => ({} as any));
       const customerId = String(body.customer_id || "");
+      const checkoutCode = cleanCode(body.checkout_code || body.customer_code || body.code || "");
+      const requestedUsername = normalizeUsername(body.username || "");
       const planId = String(body.plan_id || "");
       const method = String(body.method || "pix");
       if (!customerId || !planId) return json({ error: "missing_params" }, 400);
@@ -133,9 +137,38 @@ Deno.serve(async (req) => {
       if (!plan || plan.created_by !== ownerId) return json({ error: "plan_not_found" }, 404);
 
       const { data: customer } = await admin
-        .from("customers").select("id, name, username, created_by, custom_price")
+        .from("customers").select("id, checkout_code, name, phone, extra_phone, username, created_by, custom_price")
         .eq("id", customerId).maybeSingle();
       if (!customer || customer.created_by !== ownerId) return json({ error: "customer_not_found" }, 404);
+
+      const customerPhoneVariants = Array.from(new Set([
+        ...phoneVariants(customer.phone || ""),
+        ...phoneVariants(customer.extra_phone || ""),
+      ]));
+      if (customerPhoneVariants.length > 0) {
+        const orSamePhone = customerPhoneVariants.map((v) => `phone.eq.${v},extra_phone.eq.${v}`).join(",");
+        const { count: samePhoneCount } = await admin
+          .from("customers")
+          .select("id", { count: "exact", head: true })
+          .eq("created_by", ownerId)
+          .or(orSamePhone);
+        if ((samePhoneCount || 0) > 1 && !checkoutCode) {
+          return json({
+            error: "checkout_code_required",
+            message: "Esse telefone possui mais de uma conta. Envie o checkout_code da conta selecionada para evitar renovar o usuário errado.",
+          }, 409);
+        }
+      }
+
+      // External sites must not be able to renew the wrong account when the user
+      // selected a different row. If the checkout code or username is sent, it
+      // must match the customer_id exactly.
+      if (checkoutCode && cleanCode(customer.checkout_code || "") !== checkoutCode) {
+        return json({ error: "customer_code_mismatch", message: "O ID da conta selecionada não confere com o cliente enviado." }, 409);
+      }
+      if (requestedUsername && normalizeUsername(customer.username || "") !== requestedUsername) {
+        return json({ error: "customer_username_mismatch", message: "O usuário selecionado não confere com o cliente enviado." }, 409);
+      }
 
       if (method === "cakto") {
         if (!settings.enable_cakto) return json({ error: "cakto_disabled" }, 400);
@@ -148,6 +181,39 @@ Deno.serve(async (req) => {
 
       const amount = Number(customer.custom_price ?? plan.price);
       if (!isFinite(amount) || amount <= 0) return json({ error: "invalid_amount" }, 400);
+
+      // Anti-duplicate guard: if the external site accidentally sends the same
+      // customer_id twice for the same plan, do not create a second payable Pix.
+      const duplicateWindow = new Date(Date.now() - 12 * 3600_000).toISOString();
+      const { data: recentCharges } = await admin
+        .from("efi_charges")
+        .select("txid, status, amount, pix_copia_cola, qrcode_base64, created_at, paid_at, metadata")
+        .eq("owner_id", ownerId)
+        .eq("customer_id", customerId)
+        .in("status", ["pending", "paid"])
+        .gte("created_at", duplicateWindow)
+        .order("created_at", { ascending: false })
+        .limit(10);
+      const existing = (recentCharges || []).find((c: any) => String(c?.metadata?.plan_id || "") === plan.id);
+      if (existing?.status === "pending") {
+        return json({
+          ok: true,
+          method: "pix",
+          existing: true,
+          txid: existing.txid,
+          amount: Number(existing.amount),
+          pix_copia_cola: existing.pix_copia_cola || "",
+          qrcode_base64: existing.qrcode_base64 || "",
+        });
+      }
+      if (existing?.status === "paid") {
+        return json({
+          error: "recent_payment_exists",
+          message: "Essa conta já teve um Pix confirmado recentemente. Gere uma nova cobrança apenas para a outra conta selecionada.",
+          existing_txid: existing.txid,
+          paid_at: existing.paid_at,
+        }, 409);
+      }
 
       const { data: efi } = await admin
         .from("efi_settings").select("*").eq("user_id", ownerId).eq("enabled", true).maybeSingle();
@@ -179,7 +245,15 @@ Deno.serve(async (req) => {
         environment: creds.env,
         pix_copia_cola: cob.body?.pixCopiaECola || "",
         qrcode_base64: qrcodeBase64,
-        metadata: { source: "reseller_api", slug: settings.slug, plan_id: plan.id, plan_name: plan.plan_name, username: customer.username },
+        metadata: {
+          source: "reseller_api",
+          slug: settings.slug,
+          plan_id: plan.id,
+          plan_name: plan.plan_name,
+          customer_id: customer.id,
+          checkout_code: customer.checkout_code,
+          username: customer.username,
+        },
         expires_at: new Date(Date.now() + 3600_000).toISOString(),
       });
 
