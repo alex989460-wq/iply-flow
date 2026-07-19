@@ -69,8 +69,21 @@ export default function UnifiedChat() {
         </div>
 
         <div className="flex-1 min-h-0 relative">
-          <div key={tab} className="absolute inset-0 overflow-hidden">
-            {tab === "oficial" ? <CrmOficialChat embed /> : <EvolutionChat embed />}
+          <div
+            className={cn(
+              "absolute inset-0 overflow-hidden",
+              tab === "oficial" ? "block" : "hidden"
+            )}
+          >
+            <CrmOficialChat embed active={tab === "oficial"} />
+          </div>
+          <div
+            className={cn(
+              "absolute inset-0 overflow-hidden",
+              tab === "evolution" ? "block" : "hidden"
+            )}
+          >
+            <EvolutionChat embed />
           </div>
         </div>
       </div>
