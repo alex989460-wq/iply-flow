@@ -234,10 +234,65 @@ Deno.serve(async (req) => {
           await triggerExternalRenewal(admin, customerId, `efi:${txid}`);
         }
       } else if (charge.pending_kind === "activation_request" && charge.pending_id) {
-        // Mark activation request as paid — reseller processes it manually.
+        // Mark activation request as paid.
         await admin.from("activation_requests")
           .update({ status: "pago", paid_at: new Date().toISOString() })
           .eq("id", charge.pending_id);
+
+        // Fetch request details for auto-activation + notifications.
+        const { data: actReq } = await admin
+          .from("activation_requests")
+          .select("id, user_id, app_name, customer_name, customer_phone, mac_address, email, amount, payment_method")
+          .eq("id", charge.pending_id)
+          .maybeSingle();
+
+        const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
+        const SRK = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
+        // 1) Try auto-activation on the external panel (same fn Cakto uses).
+        let autoActivateOk = false;
+        let autoActivateError = "";
+        try {
+          const actRes = await fetch(`${SUPABASE_URL}/functions/v1/confirm-activation`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "Authorization": `Bearer ${SRK}` },
+            body: JSON.stringify({ request_id: charge.pending_id, auto: true }),
+          });
+          const actJson = await actRes.json().catch(() => ({}));
+          autoActivateOk = actRes.ok && actJson?.success !== false;
+          if (!autoActivateOk) autoActivateError = actJson?.error || actJson?.message || `HTTP ${actRes.status}`;
+        } catch (e) {
+          autoActivateError = e instanceof Error ? e.message : String(e);
+        }
+
+        // 2) Notify admin (owner) on WhatsApp about the paid activation.
+        try {
+          if (actReq?.user_id) {
+            const [{ data: zap }, { data: billing }] = await Promise.all([
+              admin.from("zap_responder_settings").select("selected_department_id").eq("user_id", actReq.user_id).maybeSingle(),
+              admin.from("billing_settings").select("notification_phone, meta_phone_number_id").eq("user_id", actReq.user_id).maybeSingle(),
+            ]);
+            const notifPhone = (billing as any)?.notification_phone;
+            if (zap?.selected_department_id && notifPhone) {
+              const method = (actReq.payment_method || "PIX").toString();
+              const activationMsg = `📱 *Nova Solicitação de Ativação (Efí Pix)*\n\n📦 App: *${actReq.app_name || "-"}*\n👤 Cliente: *${actReq.customer_name || "-"}*\n📞 Tel: *${actReq.customer_phone || "-"}*\n${actReq.mac_address ? `🔗 MAC: *${actReq.mac_address}*\n` : ""}${actReq.email ? `📧 Email: *${actReq.email}*\n` : ""}💰 Valor: *R$ ${Number(actReq.amount || 0).toFixed(2)}*\n💳 Pagamento: *${method}*\n\n${autoActivateOk ? "✅ Status: Ativado automaticamente" : `⏳ Status: Pendente de ativação${autoActivateError ? ` (${autoActivateError})` : ""}`}`;
+              await fetch(`${SUPABASE_URL}/functions/v1/crm-oficial-sync`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json", "Authorization": `Bearer ${SRK}` },
+                body: JSON.stringify({
+                  action: "enviar-mensagem",
+                  department_id: zap.selected_department_id,
+                  number: notifPhone,
+                  text: activationMsg,
+                  user_id: actReq.user_id,
+                  phone_number_id: (billing as any)?.meta_phone_number_id || undefined,
+                }),
+              });
+            }
+          }
+        } catch (notifErr) {
+          console.error("[efi-webhook] activation notify error", notifErr);
+        }
       } else if (charge.customer_id) {
         // Multi-customer charge (metadata.customer_ids) or single charge.
         const meta: any = charge.metadata || {};
