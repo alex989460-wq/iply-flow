@@ -202,16 +202,10 @@ serve(async (req) => {
     }
 
 
-    if (action === 'activate' && supportedApp && !autoActivationOk) {
-      return new Response(JSON.stringify({
-        success: false,
-        status: newStatus,
-        error: `Falha na ativação automática: ${autoActivationError || 'desconhecida'}`,
-      }), { status: 502, headers: jsonHeaders });
-    }
-
-
-    // Send WhatsApp message to customer
+    // Always send WhatsApp to customer, regardless of external panel result.
+    // - success → "aplicativo ativado"
+    // - failure/manual → "pagamento confirmado, ativação em andamento"
+    // - reject → "solicitação recusada"
     if (request.customer_phone && request.user_id) {
       const { data: crmSettings } = await supabaseAdmin
         .from('crm_oficial_settings')
@@ -228,10 +222,12 @@ serve(async (req) => {
         }
 
         let message = '';
-        if (action === 'activate') {
+        if (action === 'reject') {
+          message = `❌ *Solicitação de Ativação Recusada*\n\n📱 Aplicativo: *${request.app_name}*\n👤 Cliente: *${request.customer_name}*\n\nEntre em contato conosco para mais informações.`;
+        } else if (autoActivationOk) {
           message = `✅ *APLICATIVO ATIVADO COM SUCESSO*\n\nSeu acesso foi liberado e o aplicativo já está pronto para uso.\n\n📱 Aplicativo: *${request.app_name}*\n👤 Cliente: *${request.customer_name}*\n${request.mac_address ? `🖥 MAC: *${request.mac_address}*\n` : ''}${request.email ? `📧 E-mail: *${request.email}*\n` : ''}\n🎬 Agora é só abrir o aplicativo e aproveitar todo o conteúdo disponível.\n\nCaso precise de suporte, estamos à disposição.\nBom entretenimento! 🍿`;
         } else {
-          message = `❌ *Solicitação de Ativação Recusada*\n\n📱 Aplicativo: *${request.app_name}*\n👤 Cliente: *${request.customer_name}*\n\nEntre em contato conosco para mais informações.`;
+          message = `✅ *PAGAMENTO CONFIRMADO*\n\nRecebemos seu pagamento com sucesso! 🎉\n\n📱 Aplicativo: *${request.app_name}*\n👤 Cliente: *${request.customer_name}*\n${request.mac_address ? `🖥 MAC: *${request.mac_address}*\n` : ''}${request.email ? `📧 E-mail: *${request.email}*\n` : ''}\n⏳ Sua ativação está sendo processada e será concluída em instantes.\nAssim que estiver pronto, você recebe outra mensagem confirmando a liberação.\n\nObrigado pela preferência!`;
         }
 
         try {
@@ -251,15 +247,24 @@ serve(async (req) => {
               }),
             },
           );
-          console.log(`[ActivationAction] Mensagem ${action} enviada para ${customerPhone}: ok=${resp.ok}`);
+          console.log(`[ActivationAction] Mensagem ${action} enviada para ${customerPhone}: ok=${resp.ok} autoOk=${autoActivationOk}`);
         } catch (msgErr) {
           console.error('[ActivationAction] Erro ao enviar mensagem:', msgErr);
         }
       }
     }
 
-    return new Response(JSON.stringify({ 
-      success: true, 
+    if (action === 'activate' && supportedApp && !autoActivationOk) {
+      return new Response(JSON.stringify({
+        success: false,
+        status: newStatus,
+        warning: `Ativação automática falhou: ${autoActivationError || 'desconhecida'}. Cliente já foi notificado do pagamento — conclua no painel.`,
+        message: `Pagamento confirmado ao cliente. Ativação automática falhou: ${autoActivationError || 'desconhecida'} — conclua manualmente no painel do app.`,
+      }), { status: 200, headers: jsonHeaders });
+    }
+
+    return new Response(JSON.stringify({
+      success: true,
       status: newStatus,
       message: action === 'activate' ? 'Ativação concluída e cliente notificado' : 'Solicitação rejeitada e cliente notificado',
     }), { headers: jsonHeaders });
