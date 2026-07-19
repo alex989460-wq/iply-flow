@@ -14,6 +14,7 @@ interface DashboardLayoutProps {
 export default function DashboardLayout({ children, noPadding }: DashboardLayoutProps) {
   const { collapsed } = useSidebar();
   const location = useLocation();
+  const isChatRoute = location.pathname === '/chat' || location.pathname.startsWith('/chat-');
 
   // Apply the per-user panel theme ONLY inside the authenticated dashboard,
   // so the public landing page keeps its original brand colors.
@@ -26,6 +27,7 @@ export default function DashboardLayout({ children, noPadding }: DashboardLayout
 
   // Rotas que renderizam seu próprio painel de pendências (evitar duplicar).
   const hidePendingFloat = [
+    '/chat',
     '/chat-crm-oficial',
     '/crm-oficial-channels',
     '/crm-oficial-templates',
@@ -36,10 +38,11 @@ export default function DashboardLayout({ children, noPadding }: DashboardLayout
     <div className="min-h-screen bg-background">
       <Sidebar />
       <main className={cn(
-        "pt-16 lg:pt-0 min-h-screen transition-all duration-300",
+        "pt-16 lg:pt-0 min-h-screen box-border",
+        isChatRoute ? "h-[100svh] overflow-hidden transition-none" : "transition-all duration-300",
         collapsed ? "lg:ml-16" : "lg:ml-64"
       )}>
-        <div className={cn(noPadding ? '' : 'p-3 sm:p-4 lg:p-8')}>
+        <div className={cn(noPadding ? (isChatRoute ? 'h-full min-h-0 overflow-hidden' : '') : 'p-3 sm:p-4 lg:p-8')}>
           {children}
         </div>
       </main>
