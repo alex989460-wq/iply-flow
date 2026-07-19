@@ -715,6 +715,8 @@ export default function EvolutionChat({ embed = false }: { embed?: boolean } = {
         if (ownerPhone && selectedInstance?.phone && ownerPhone === selectedInstance.phone.replace(/\D/g, '')) ok = true;
       }
     }
+    // Mensagens antigas/legadas podem não ter metadados de instância; não esconda a conversa por isso.
+    if (!ok && !m.instance_name && !rawInstanceName(m.raw) && !ownerPhoneFromRaw(m.raw)) ok = true;
     cache.set(m.id, ok);
     return ok;
   }, [currentInstance, selectedInstance]);
