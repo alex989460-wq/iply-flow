@@ -62,7 +62,11 @@ export default function CrmOficialChat({ embed = false }: { embed?: boolean } = 
   const __content = (
     <>
 
-      <div className={`w-full min-h-0 overflow-hidden bg-background relative ${embed ? "h-full" : "h-[calc(100svh-4rem)] lg:h-screen"} ${isMobile ? "flex" : "grid grid-cols-[minmax(0,1fr)_420px] xl:grid-cols-[minmax(0,1fr)_460px]"}`}>
+      <div
+        className={`w-full min-h-0 overflow-hidden bg-background ${embed ? "relative h-full" : "fixed inset-x-0 top-16 bottom-0 lg:top-0"} ${isMobile ? "flex" : "grid grid-cols-[minmax(0,1fr)_420px] xl:grid-cols-[minmax(0,1fr)_460px]"}`}
+        style={!embed ? { left: isMobile ? 0 : undefined } : undefined}
+      >
+
 
         {loading ? (
           <div className="flex-1 flex items-center justify-center">
