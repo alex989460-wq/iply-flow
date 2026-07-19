@@ -721,9 +721,9 @@ export default function EvolutionChat({ embed = false }: { embed?: boolean } = {
 
   useEffect(() => {
     if (!user) return;
-    // Não recarrega automaticamente ao voltar para a página do chat: mantém o estado/cache fixo.
-    // A atualização completa fica somente no botão de recarregar.
-    if (!cacheLoaded) load();
+    // Se o cache foi marcado como carregado mas está vazio/corrompido, força buscar do banco.
+    // Isso evita a tela ficar em branco com "Nenhuma conversa" mesmo existindo mensagens.
+    if (!cacheLoaded || cachedMessages.length === 0) load();
     else setLoading(false);
     // Só busca instâncias se ainda não temos cache — evita reload ao trocar de aba/rota.
     if (instances.length === 0) loadInstances();
