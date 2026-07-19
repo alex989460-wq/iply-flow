@@ -63,9 +63,9 @@ export default function CrmOficialChat({ embed = false }: { embed?: boolean } = 
     <>
 
       <div
-        className={`w-full min-h-0 overflow-hidden bg-background ${embed ? "relative h-full" : "fixed inset-x-0 top-16 bottom-0 lg:top-0"} ${isMobile ? "flex" : "grid grid-cols-[minmax(0,1fr)_420px] xl:grid-cols-[minmax(0,1fr)_460px]"}`}
-        style={!embed ? { left: isMobile ? 0 : undefined } : undefined}
+        className={`w-full min-h-0 overflow-hidden bg-background ${embed ? "relative h-full" : "absolute inset-0"} ${isMobile ? "flex" : "grid grid-cols-[minmax(0,1fr)_420px] xl:grid-cols-[minmax(0,1fr)_460px]"}`}
       >
+
 
 
         {loading ? (
