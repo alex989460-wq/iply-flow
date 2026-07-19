@@ -11,13 +11,15 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import PendingManualRenewalsFloat from "@/components/PendingManualRenewalsFloat";
 
 const CRM_BASE = "https://zapcrm.top";
+let cachedCrmApiKey: string | null = null;
 
-export default function CrmOficialChat({ embed = false }: { embed?: boolean } = {}) {
-  const [apiKey, setApiKey] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+export default function CrmOficialChat({ embed = false, active = true }: { embed?: boolean; active?: boolean } = {}) {
+  const [apiKey, setApiKey] = useState<string | null>(cachedCrmApiKey);
+  const [loading, setLoading] = useState(!cachedCrmApiKey);
   const isMobile = useIsMobile();
   const [panelOpen, setPanelOpen] = useState(false);
   const iframeRef = useRef<HTMLIFrameElement>(null);
+  const iframeLoadedUrlRef = useRef<string | null>(null);
 
 
   useEffect(() => {
@@ -29,16 +31,22 @@ export default function CrmOficialChat({ embed = false }: { embed?: boolean } = 
         .select("api_key")
         .eq("user_id", user.id)
         .maybeSingle();
-      if (data?.api_key) setApiKey(data.api_key);
+      if (data?.api_key) {
+        cachedCrmApiKey = data.api_key;
+        setApiKey(data.api_key);
+      }
       setLoading(false);
     })();
   }, []);
 
-  // Inject the URL via ref so the API key never appears in JSX/HTML source.
+  // Inject only once per mounted iframe; after ZapCRM opens a chat internally,
+  // never force src back to /embed/inbox on normal React re-renders.
   useEffect(() => {
     if (!apiKey || !iframeRef.current) return;
     const url = `${CRM_BASE}/embed/inbox?token=${encodeURIComponent(apiKey)}`;
+    if (iframeLoadedUrlRef.current === url) return;
     iframeRef.current.src = url;
+    iframeLoadedUrlRef.current = url;
   }, [apiKey]);
 
   // Lock body scroll and disable overscroll to prevent flicker when scrolling inside iframe.
@@ -110,7 +118,7 @@ export default function CrmOficialChat({ embed = false }: { embed?: boolean } = 
 
 
             {/* Mobile: bottom sheet trigger */}
-            {isMobile && (
+            {isMobile && active && (
               <Sheet open={panelOpen} onOpenChange={setPanelOpen}>
                 <SheetTrigger asChild>
                   <Button
