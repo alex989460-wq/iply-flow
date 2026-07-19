@@ -244,6 +244,76 @@ Deno.serve(async (req) => {
         const ids: string[] = Array.isArray(meta.customer_ids) && meta.customer_ids.length
           ? meta.customer_ids
           : [charge.customer_id];
+
+        // ── Activation guard ──
+        // If the buyer recently filled an app-activation form (pending_activation_data
+        // unused + not expired) for this phone, route the payment to the app-activation
+        // flow instead of advancing the monthly subscription. Fixes the case where the
+        // external checkout collects Clouddy/IBO/etc. activation data but still POSTs a
+        // regular plan charge to reseller-api, which used to renew the wrong thing.
+        try {
+          const { data: buyerCust } = await admin
+            .from("customers")
+            .select("phone, name")
+            .eq("id", charge.customer_id)
+            .maybeSingle();
+          const buyerPhone = String(buyerCust?.phone || "").replace(/\D/g, "");
+          if (buyerPhone) {
+            const variants = new Set<string>([buyerPhone]);
+            if (buyerPhone.startsWith("55")) variants.add(buyerPhone.slice(2));
+            else variants.add("55" + buyerPhone);
+            if (buyerPhone.length >= 9) variants.add(buyerPhone.slice(-9));
+
+            const { data: pendingAct } = await admin
+              .from("pending_activation_data")
+              .select("id, app_name, customer_name, mac_address, email, phone_normalized")
+              .in("phone_normalized", [...variants])
+              .eq("used", false)
+              .gt("expires_at", new Date().toISOString())
+              .order("created_at", { ascending: false })
+              .limit(1)
+              .maybeSingle();
+
+            if (pendingAct?.app_name) {
+              const { data: app } = await admin
+                .from("activation_apps")
+                .select("user_id, app_name")
+                .ilike("app_name", pendingAct.app_name)
+                .eq("is_enabled", true)
+                .maybeSingle();
+
+              const ownerId = app?.user_id || charge.owner_id;
+              await admin.from("activation_requests").insert({
+                user_id: ownerId,
+                app_name: app?.app_name || pendingAct.app_name,
+                customer_name: pendingAct.customer_name || buyerCust?.name || null,
+                customer_phone: pendingAct.phone_normalized || buyerPhone,
+                mac_address: pendingAct.mac_address || null,
+                email: pendingAct.email || null,
+                payment_method: "PIX",
+                amount: dbAmount,
+                status: "pago",
+                cakto_payload: {
+                  source: "efi_webhook",
+                  efi_txid: txid,
+                  charge_id: charge.id,
+                  routed_from: "reseller_api_plan_charge",
+                },
+              });
+              await admin.from("pending_activation_data").update({ used: true }).eq("id", pendingAct.id);
+              await admin.from("efi_charges").update({
+                pending_kind: "activation_request",
+                metadata: { ...(charge.metadata || {}), routed_to: "activation" },
+              }).eq("id", charge.id);
+              console.log(`[efi-webhook] charge ${txid} roteado para ativação ${pendingAct.app_name} (phone ${buyerPhone})`);
+              processed++;
+              continue;
+            }
+          }
+        } catch (guardErr) {
+          console.error("[efi-webhook] activation guard error", guardErr);
+        }
+
         // Fetch per-customer price (custom_price fallback to charge.amount/N)
         const selectedPlanId = meta.plan_id ? String(meta.plan_id) : null;
         if (selectedPlanId) {
