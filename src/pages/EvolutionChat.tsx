@@ -715,15 +715,17 @@ export default function EvolutionChat({ embed = false }: { embed?: boolean } = {
         if (ownerPhone && selectedInstance?.phone && ownerPhone === selectedInstance.phone.replace(/\D/g, '')) ok = true;
       }
     }
+    // Mensagens antigas/legadas podem não ter metadados de instância; não esconda a conversa por isso.
+    if (!ok && !m.instance_name && !rawInstanceName(m.raw) && !ownerPhoneFromRaw(m.raw)) ok = true;
     cache.set(m.id, ok);
     return ok;
   }, [currentInstance, selectedInstance]);
 
   useEffect(() => {
     if (!user) return;
-    // Não recarrega automaticamente ao voltar para a página do chat: mantém o estado/cache fixo.
-    // A atualização completa fica somente no botão de recarregar.
-    if (!cacheLoaded) load();
+    // Se o cache foi marcado como carregado mas está vazio/corrompido, força buscar do banco.
+    // Isso evita a tela ficar em branco com "Nenhuma conversa" mesmo existindo mensagens.
+    if (!cacheLoaded || cachedMessages.length === 0) load();
     else setLoading(false);
     // Só busca instâncias se ainda não temos cache — evita reload ao trocar de aba/rota.
     if (instances.length === 0) loadInstances();
