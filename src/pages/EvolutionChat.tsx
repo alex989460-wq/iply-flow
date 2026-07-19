@@ -692,16 +692,31 @@ export default function EvolutionChat({ embed = false }: { embed?: boolean } = {
     return instances.find((inst) => sameInstanceName(inst.name, currentInstance)) || null;
   }, [instances, currentInstance]);
 
+  // Cache do resultado de messageBelongsToCurrentInstance por (instância + id) — evita reparsear o
+  // JSON `raw` de cada mensagem a cada render. Antes, com 800 mensagens, cada re-render (ex.: toque de
+  // presença, digitação, tick de 2s) rodava rawInstanceName/ownerPhoneFromRaw 800× → travava a UI.
+  const instanceBelongsCacheRef = useRef<Map<string, boolean>>(new Map());
+  useEffect(() => { instanceBelongsCacheRef.current = new Map(); }, [currentInstance, selectedInstance?.id, selectedInstance?.phone]);
+
   const messageBelongsToCurrentInstance = useCallback((m: EvoMessage) => {
     if (!currentInstance) return true;
-    if (sameInstanceName(m.instance_name, currentInstance)) return true;
-    if (selectedInstance?.id && sameInstanceName(m.instance_name, selectedInstance.id)) return true;
-    const rawInst = rawInstanceName(m.raw);
-    if (sameInstanceName(rawInst, currentInstance)) return true;
-    if (selectedInstance?.id && sameInstanceName(rawInst, selectedInstance.id)) return true;
-    const ownerPhone = ownerPhoneFromRaw(m.raw);
-    if (ownerPhone && selectedInstance?.phone && ownerPhone === selectedInstance.phone.replace(/\D/g, '')) return true;
-    return false;
+    const cache = instanceBelongsCacheRef.current;
+    const cached = cache.get(m.id);
+    if (cached !== undefined) return cached;
+    let ok = false;
+    if (sameInstanceName(m.instance_name, currentInstance)) ok = true;
+    else if (selectedInstance?.id && sameInstanceName(m.instance_name, selectedInstance.id)) ok = true;
+    else {
+      const rawInst = rawInstanceName(m.raw);
+      if (sameInstanceName(rawInst, currentInstance)) ok = true;
+      else if (selectedInstance?.id && sameInstanceName(rawInst, selectedInstance.id)) ok = true;
+      else {
+        const ownerPhone = ownerPhoneFromRaw(m.raw);
+        if (ownerPhone && selectedInstance?.phone && ownerPhone === selectedInstance.phone.replace(/\D/g, '')) ok = true;
+      }
+    }
+    cache.set(m.id, ok);
+    return ok;
   }, [currentInstance, selectedInstance]);
 
   useEffect(() => {
