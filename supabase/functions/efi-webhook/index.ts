@@ -338,7 +338,7 @@ Deno.serve(async (req) => {
                 .maybeSingle();
 
               const ownerId = app?.user_id || charge.owner_id;
-              await admin.from("activation_requests").insert({
+              const { data: newActReq } = await admin.from("activation_requests").insert({
                 user_id: ownerId,
                 app_name: app?.app_name || pendingAct.app_name,
                 customer_name: pendingAct.customer_name || buyerCust?.name || null,
@@ -354,13 +354,59 @@ Deno.serve(async (req) => {
                   charge_id: charge.id,
                   routed_from: "reseller_api_plan_charge",
                 },
-              });
+              }).select("id, user_id, app_name, customer_name, customer_phone, mac_address, email, amount").single();
               await admin.from("pending_activation_data").update({ used: true }).eq("id", pendingAct.id);
               await admin.from("efi_charges").update({
                 pending_kind: "activation_request",
+                pending_id: newActReq?.id || null,
                 metadata: { ...(charge.metadata || {}), routed_to: "activation" },
               }).eq("id", charge.id);
               console.log(`[efi-webhook] charge ${txid} roteado para ativação ${pendingAct.app_name} (phone ${buyerPhone})`);
+
+              // Trigger auto-activation + notify admin (same flow as normal activation_request branch).
+              if (newActReq?.id) {
+                const SB_URL = Deno.env.get("SUPABASE_URL")!;
+                const SRK = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+                let autoOk = false;
+                let autoErr = "";
+                try {
+                  const r = await fetch(`${SB_URL}/functions/v1/confirm-activation`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json", "Authorization": `Bearer ${SRK}` },
+                    body: JSON.stringify({ request_id: newActReq.id, action: "activate" }),
+                  });
+                  const j = await r.json().catch(() => ({}));
+                  autoOk = r.ok && j?.success !== false;
+                  if (!autoOk) autoErr = j?.error || j?.warning || `HTTP ${r.status}`;
+                } catch (e) {
+                  autoErr = e instanceof Error ? e.message : String(e);
+                }
+                try {
+                  const [{ data: zap }, { data: billing }] = await Promise.all([
+                    admin.from("zap_responder_settings").select("selected_department_id").eq("user_id", newActReq.user_id).maybeSingle(),
+                    admin.from("billing_settings").select("notification_phone, meta_phone_number_id").eq("user_id", newActReq.user_id).maybeSingle(),
+                  ]);
+                  const notifPhone = (billing as any)?.notification_phone;
+                  if (zap?.selected_department_id && notifPhone) {
+                    const msg = `📱 *Nova Solicitação de Ativação (Efí Pix)*\n\n📦 App: *${newActReq.app_name || "-"}*\n👤 Cliente: *${newActReq.customer_name || "-"}*\n📞 Tel: *${newActReq.customer_phone || "-"}*\n${newActReq.mac_address ? `🔗 MAC: *${newActReq.mac_address}*\n` : ""}${newActReq.email ? `📧 Email: *${newActReq.email}*\n` : ""}💰 Valor: *R$ ${Number(newActReq.amount || 0).toFixed(2)}*\n💳 Pagamento: *PIX*\n\n${autoOk ? "✅ Status: Ativado automaticamente" : `⏳ Status: Pendente de ativação${autoErr ? ` (${autoErr})` : ""}`}`;
+                    await fetch(`${SB_URL}/functions/v1/crm-oficial-sync`, {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${SRK}` },
+                      body: JSON.stringify({
+                        action: "enviar-mensagem",
+                        department_id: zap.selected_department_id,
+                        number: notifPhone,
+                        text: msg,
+                        user_id: newActReq.user_id,
+                        phone_number_id: (billing as any)?.meta_phone_number_id || undefined,
+                      }),
+                    });
+                  }
+                } catch (notifErr) {
+                  console.error("[efi-webhook] activation-guard notify error", notifErr);
+                }
+              }
+
               processed++;
               continue;
             }
