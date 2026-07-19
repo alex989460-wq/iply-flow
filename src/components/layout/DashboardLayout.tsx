@@ -26,6 +26,7 @@ export default function DashboardLayout({ children, noPadding }: DashboardLayout
 
   // Rotas que renderizam seu próprio painel de pendências (evitar duplicar).
   const hidePendingFloat = [
+    '/chat',
     '/chat-crm-oficial',
     '/crm-oficial-channels',
     '/crm-oficial-templates',

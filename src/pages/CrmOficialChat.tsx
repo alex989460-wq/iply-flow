@@ -62,7 +62,7 @@ export default function CrmOficialChat({ embed = false }: { embed?: boolean } = 
   const __content = (
     <>
 
-      <div className={`w-full flex overflow-hidden bg-background relative ${embed ? "h-full" : "h-[calc(100svh-4rem)] lg:h-screen"}`}>
+      <div className={`w-full min-h-0 flex overflow-hidden bg-background relative ${embed ? "h-full" : "h-[calc(100svh-4rem)] lg:h-screen"}`}>
 
         {loading ? (
           <div className="flex-1 flex items-center justify-center">
@@ -84,7 +84,7 @@ export default function CrmOficialChat({ embed = false }: { embed?: boolean } = 
             <iframe
               ref={iframeRef}
               title="Chat"
-              className="flex-1 h-full border-0 block min-w-0"
+              className="flex-1 h-full min-h-0 border-0 block min-w-0 shrink"
               referrerPolicy="no-referrer"
               allow="clipboard-read; clipboard-write; microphone; camera; autoplay; fullscreen; geolocation"
             />
@@ -116,7 +116,7 @@ export default function CrmOficialChat({ embed = false }: { embed?: boolean } = 
                   </Button>
 
                 </SheetTrigger>
-                <SheetContent side="bottom" className="h-[92dvh] p-0 flex flex-col">
+                <SheetContent side="bottom" className="h-[92svh] p-0 flex flex-col">
                   <div className="flex items-center justify-between px-3 py-2 border-b shrink-0">
                     <div className="flex items-center gap-2 text-sm font-semibold">
                       <Zap className="h-4 w-4 text-emerald-500" />

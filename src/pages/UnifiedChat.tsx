@@ -40,7 +40,7 @@ export default function UnifiedChat() {
 
   return (
     <DashboardLayout noPadding>
-      <div className="flex flex-col h-[calc(100dvh-4rem)] lg:h-[100dvh] bg-background">
+      <div className="flex flex-col h-[calc(100svh-4rem)] lg:h-screen overflow-hidden bg-background">
         {/* Premium segmented switcher */}
         <div className="px-3 sm:px-5 pt-3 pb-3 border-b border-border/40 bg-gradient-to-b from-background to-background/60 backdrop-blur-xl shrink-0">
           <div className="inline-flex p-1.5 rounded-2xl bg-muted/40 border border-border/60 shadow-inner gap-1">
@@ -69,10 +69,7 @@ export default function UnifiedChat() {
         </div>
 
         <div className="flex-1 min-h-0 relative">
-          <div
-            key={tab}
-            className="absolute inset-0 animate-in fade-in-50 slide-in-from-bottom-1 duration-300"
-          >
+          <div key={tab} className="absolute inset-0 overflow-hidden">
             {tab === "oficial" ? <CrmOficialChat embed /> : <EvolutionChat embed />}
           </div>
         </div>
