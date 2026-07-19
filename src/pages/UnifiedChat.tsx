@@ -13,8 +13,13 @@ export default function UnifiedChat() {
   const [params, setParams] = useSearchParams();
   const initial = (params.get("tab") as TabKey) === "evolution" ? "evolution" : "oficial";
   const [tab, setTab] = useState<TabKey>(initial);
+  const [mountedTabs, setMountedTabs] = useState<Record<TabKey, boolean>>({
+    oficial: initial === "oficial",
+    evolution: initial === "evolution",
+  });
 
   useEffect(() => {
+    setMountedTabs((current) => current[tab] ? current : { ...current, [tab]: true });
     const next = new URLSearchParams(params);
     if (next.get("tab") !== tab) {
       next.set("tab", tab);
@@ -69,8 +74,21 @@ export default function UnifiedChat() {
         </div>
 
         <div className="flex-1 min-h-0 relative">
-          <div key={tab} className="absolute inset-0 overflow-hidden">
-            {tab === "oficial" ? <CrmOficialChat embed /> : <EvolutionChat embed />}
+          <div
+            className={cn(
+              "absolute inset-0 overflow-hidden",
+              tab === "oficial" ? "block" : "hidden"
+            )}
+          >
+            {mountedTabs.oficial && <CrmOficialChat embed active={tab === "oficial"} />}
+          </div>
+          <div
+            className={cn(
+              "absolute inset-0 overflow-hidden",
+              tab === "evolution" ? "block" : "hidden"
+            )}
+          >
+            {mountedTabs.evolution && <EvolutionChat embed />}
           </div>
         </div>
       </div>
