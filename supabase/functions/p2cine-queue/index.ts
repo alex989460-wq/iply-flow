@@ -25,7 +25,7 @@ function isP2Cine(row: { server_host?: string | null; server_name?: string | nul
   const n = (row.server_name || "").toLowerCase().trim();
   const hay = `${h} ${n}`;
   return (
-    hay.includes("p2cine") || hay.includes("daily3") ||
+    hay.includes("p2cine") || hay.includes("daily3") || hay.includes("painelacesso1") ||
     h === "p2c" || n === "p2c" ||
     hay.includes(" p2c ") || hay.startsWith("p2c ") || hay.endsWith(" p2c")
   );
