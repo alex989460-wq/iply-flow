@@ -118,7 +118,7 @@ Deno.serve(async (req) => {
     const cob = await createCharge(creds, {
       txid, amount,
       description: `Ativação ${app.app_name} ${durationLabel} — ${customerName}`.slice(0, 140),
-      expiresInSec: 3600,
+      expiresInSec: 86400,
     });
     if (cob.status < 200 || cob.status >= 300) {
       console.error("[reseller-activation-create] cob failed", cob.status, cob.body);
@@ -148,7 +148,7 @@ Deno.serve(async (req) => {
         customer_name: customerName, customer_phone: customerPhone,
         mac, email,
       },
-      expires_at: new Date(Date.now() + 3600_000).toISOString(),
+      expires_at: new Date(Date.now() + 86400_000).toISOString(),
     });
 
     return json({

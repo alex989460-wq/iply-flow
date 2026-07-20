@@ -113,7 +113,7 @@ Deno.serve(async (req) => {
       txid,
       amount,
       description: `${plan.plan_name} — ${usernamesLabel}`.slice(0, 140),
-      expiresInSec: 3600,
+      expiresInSec: 86400,
     });
     if (cob.status < 200 || cob.status >= 300) {
       console.error("[reseller-checkout-charge] cob failed", cob.status, cob.body);
@@ -146,7 +146,7 @@ Deno.serve(async (req) => {
         usernames: customers.map((c: any) => c.username || c.name),
         screens: customers.map((c: any) => c.screens || 1),
       },
-      expires_at: new Date(Date.now() + 3600_000).toISOString(),
+      expires_at: new Date(Date.now() + 86400_000).toISOString(),
     });
 
     return json({

@@ -129,7 +129,7 @@ Deno.serve(async (req) => {
         pix_copia_cola: pixCopiaCola,
         qrcode_base64: qrcodeBase64,
         metadata: { description, source: "manual" },
-        expires_at: new Date(Date.now() + 3600_000).toISOString(),
+        expires_at: new Date(Date.now() + 86400_000).toISOString(),
       });
 
       return json({

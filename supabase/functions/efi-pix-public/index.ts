@@ -105,7 +105,7 @@ Deno.serve(async (req) => {
         txid,
         amount,
         description: `${plan.plan_name} — ${pending.name}`.slice(0, 140),
-        expiresInSec: 3600,
+        expiresInSec: 86400,
       });
       if (cobResp.status < 200 || cobResp.status >= 300) {
         console.error("[efi-pix-public] cob failed", cobResp.status, cobResp.body);
@@ -130,7 +130,7 @@ Deno.serve(async (req) => {
         pix_copia_cola: pixCopiaCola,
         qrcode_base64: qrcodeBase64,
         metadata: { name: pending.name, phone: pending.phone, username: pending.username, plan_id: plan.id, plan_name: plan.plan_name },
-        expires_at: new Date(Date.now() + 3600_000).toISOString(),
+        expires_at: new Date(Date.now() + 86400_000).toISOString(),
       });
 
       return json({ ok: true, txid, pix_copia_cola: pixCopiaCola, qrcode_base64: qrcodeBase64, amount });
