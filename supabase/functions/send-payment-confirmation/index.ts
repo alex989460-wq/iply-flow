@@ -117,7 +117,7 @@ Deno.serve(async (req) => {
           body: JSON.stringify({
             action: "enviar-template", template_name: tplName, number: clientMetaPhone,
             language: "pt_BR", user_id: ownerId,
-            parameters: [cust.name || "-", cust.username || "-", serverName, fmtDue],
+            parameters: [cust.name || "-", fmtDue, cust.username || "-", `R$ ${Number(amount || 0).toFixed(2)}`, planName || "-", serverName],
             phone_number_id: billingPhoneNumberId,
           }),
         });
