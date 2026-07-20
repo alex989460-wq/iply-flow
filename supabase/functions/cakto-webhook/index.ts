@@ -2360,9 +2360,11 @@ serve(async (req) => {
                 user_id: matchedCustomer.created_by,
                 parameters: [
                   matchedCustomer.name || '-',
-                  tplDisplayUsername,
-                  tplServerName,
                   tplFormattedDue,
+                  tplDisplayUsername,
+                  `R$ ${Number(amountNumeric || 0).toFixed(2)}`,
+                  matchedPlanName || '-',
+                  tplServerName,
                 ],
                 phone_number_id: billingPhoneNumberId,
               }),
