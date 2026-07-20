@@ -19,6 +19,7 @@ import MassBroadcast from "./pages/MassBroadcast";
 import BolaoBroadcast from "./pages/BolaoBroadcast";
 import Chat from "./pages/Chat";
 import Settings from "./pages/Settings";
+import BillingSettings from "./pages/BillingSettings";
 import Resellers from "./pages/Resellers";
 
 
@@ -129,6 +130,7 @@ function AppRoutes() {
 
 
       <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
+      <Route path="/billing-settings" element={<ProtectedRoute><BillingSettings /></ProtectedRoute>} />
       <Route path="/resellers" element={<ProtectedRoute><Resellers /></ProtectedRoute>} />
       <Route path="/sub-resellers" element={<Navigate to="/resellers" replace />} />
       <Route path="/expenses" element={<ProtectedRoute><Expenses /></ProtectedRoute>} />

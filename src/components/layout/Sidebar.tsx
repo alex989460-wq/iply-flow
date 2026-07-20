@@ -51,6 +51,7 @@ const menuItems: Array<{
   { icon: Users2, label: 'Clientes', path: '/customers', adminOnly: false },
   { icon: Wallet, label: 'Pagamentos', path: '/payments', adminOnly: false },
   { icon: Receipt, label: 'Cobranças', path: '/billing', adminOnly: false },
+  { icon: Wallet, label: 'Config. Cobrança', path: '/billing-settings', adminOnly: false },
   { icon: Megaphone, label: 'Disparo em Massa', path: '/mass-broadcast', adminOnly: false },
   { icon: Trophy, label: 'Disparo Janela 24h', path: '/bolao-broadcast', adminOnly: false },
   { icon: UserPlus, label: 'Captura de Leads', path: '/lead-capture', adminOnly: false },
