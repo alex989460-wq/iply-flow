@@ -102,7 +102,7 @@ export default function Settings() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [showToken, setShowToken] = useState(false);
-  const [activeTab, setActiveTab] = useState('cobranca');
+  const [activeTab, setActiveTab] = useState('crm_oficial');
   
   // Zap Responder settings
   const [settings, setSettings] = useState({
@@ -661,11 +661,6 @@ export default function Settings() {
 
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="flex w-full flex-wrap gap-1 h-auto justify-start">
-            <TabsTrigger value="cobranca" className="flex items-center gap-2">
-              <CreditCard className="w-4 h-4 text-green-500" />
-              <span className="hidden sm:inline">Cobrança</span>
-              <span className="sm:hidden">Cobr.</span>
-            </TabsTrigger>
             <TabsTrigger value="crm_oficial" className="flex items-center gap-2">
               <Zap className="w-4 h-4 text-emerald-500" />
               <span className="hidden sm:inline">CRM Oficial</span>
@@ -721,12 +716,7 @@ export default function Settings() {
             </TabsContent>
           )}
 
-          {/* Cobrança Tab */}
-          <TabsContent value="cobranca" className="mt-6 space-y-6">
-            <BillingSettingsCard />
-            <EfiSettingsCard />
-            <ResellerCheckoutCard />
-          </TabsContent>
+          {/* Cobrança movida para o menu lateral: /billing-settings */}
 
 
 

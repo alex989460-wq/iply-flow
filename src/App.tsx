@@ -130,6 +130,7 @@ function AppRoutes() {
 
 
       <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
+      <Route path="/billing-settings" element={<ProtectedRoute><BillingSettings /></ProtectedRoute>} />
       <Route path="/resellers" element={<ProtectedRoute><Resellers /></ProtectedRoute>} />
       <Route path="/sub-resellers" element={<Navigate to="/resellers" replace />} />
       <Route path="/expenses" element={<ProtectedRoute><Expenses /></ProtectedRoute>} />
