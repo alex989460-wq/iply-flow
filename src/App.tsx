@@ -19,6 +19,7 @@ import MassBroadcast from "./pages/MassBroadcast";
 import BolaoBroadcast from "./pages/BolaoBroadcast";
 import Chat from "./pages/Chat";
 import Settings from "./pages/Settings";
+import BillingSettings from "./pages/BillingSettings";
 import Resellers from "./pages/Resellers";
 
 
