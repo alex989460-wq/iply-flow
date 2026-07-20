@@ -104,7 +104,7 @@ Deno.serve(async (req) => {
       if (!isFinite(amount) || amount <= 0) return json({ error: "amount_invalid" }, 400);
 
       const txid = newTxid();
-      const cobResp = await createCharge(creds, { txid, amount, description, expiresInSec: 3600 });
+      const cobResp = await createCharge(creds, { txid, amount, description, expiresInSec: 86400 });
       if (cobResp.status < 200 || cobResp.status >= 300) {
         return json({ error: "cob_failed", status: cobResp.status, body: cobResp.body }, 400);
       }
@@ -129,7 +129,7 @@ Deno.serve(async (req) => {
         pix_copia_cola: pixCopiaCola,
         qrcode_base64: qrcodeBase64,
         metadata: { description, source: "manual" },
-        expires_at: new Date(Date.now() + 3600_000).toISOString(),
+        expires_at: new Date(Date.now() + 86400_000).toISOString(),
       });
 
       return json({

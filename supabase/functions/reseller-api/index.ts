@@ -220,7 +220,7 @@ Deno.serve(async (req) => {
       const cob = await createCharge(creds, {
         txid, amount,
         description: `${plan.plan_name} — ${customer.username || customer.name}`.slice(0, 140),
-        expiresInSec: 3600,
+        expiresInSec: 86400,
       });
       if (cob.status < 200 || cob.status >= 300) {
         return json({ error: "cob_failed", status: cob.status, body: cob.body }, 400);
@@ -250,7 +250,7 @@ Deno.serve(async (req) => {
           checkout_code: customer.checkout_code,
           username: customer.username,
         },
-        expires_at: new Date(Date.now() + 3600_000).toISOString(),
+        expires_at: new Date(Date.now() + 86400_000).toISOString(),
       });
 
       return json({
