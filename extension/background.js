@@ -1,8 +1,17 @@
-// SuperGestor Panel Auto-Renew - background service worker (v1.8.0)
+// SuperGestor Panel Auto-Renew - background service worker (v1.9.0)
 const QUEUE_URL = "https://fphqfgxfeaylldpxjqan.supabase.co/functions/v1/p2cine-queue";
 const SUPABASE_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZwaHFmZ3hmZWF5bGxkcHhqcWFuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY5OTYwMDAsImV4cCI6MjA4MjU3MjAwMH0.PsIJenRZEAWTlxbdGYvJWrBUfiIifPn9Q_UVeUyrFs8";
 const POLL_SECONDS = 20;
-const PANEL_BASE = "https://daily3.news";
+// P2Cine roda em dois dominios com o mesmo painel: daily3.news e painelacesso1.com.
+// A extensao aceita qualquer aba logada em um deles.
+const P2CINE_PANEL_URLS = [
+  "https://daily3.news/*",
+  "https://*.daily3.news/*",
+  "https://painelacesso1.com/*",
+  "https://*.painelacesso1.com/*",
+];
+const P2CINE_PANEL_BASES = ["https://daily3.news", "https://painelacesso1.com"];
+const PANEL_BASE = "https://painelacesso1.com";
 const CLIENTS_PAGE = `${PANEL_BASE}/clients/`;
 const UNIPLAY_PANEL_URL = "https://searchdefense.top/";
 const UNIPLAY_PANEL_URLS = ["https://searchdefense.top/*", "http://searchdefense.top/*"];
@@ -12,6 +21,11 @@ const UNIPLAY_REG_PASS_KEY = "120asidj0sad0912j90d12";
 const IBOSOL_PANEL_URL = "https://ibosol.com/multi-apps-activation";
 const IBOSOL_PANEL_URLS = ["https://ibosol.com/*", "https://*.ibosol.com/*"];
 const IBOSOL_API_BASE = "https://backend-apis.ibosol.com/api";
+
+function isClientsPageUrl(url) {
+  if (!url) return false;
+  return P2CINE_PANEL_BASES.some((b) => url.startsWith(`${b}/clients/`));
+}
 
 
 async function getConfig() {
@@ -98,8 +112,8 @@ async function openHiddenTab(url) {
 }
 
 async function getPanelTab(requireClientsPage = false, { autoOpen = true } = {}) {
-  const tabs = await chrome.tabs.query({ url: ["https://daily3.news/*", "https://*.daily3.news/*"] });
-  let tab = tabs.find((t) => t.url?.startsWith(CLIENTS_PAGE)) || tabs[0];
+  const tabs = await chrome.tabs.query({ url: P2CINE_PANEL_URLS });
+  let tab = tabs.find((t) => isClientsPageUrl(t.url)) || tabs[0];
 
   if (!tab?.id) {
     if (!autoOpen) return { error: "no_tab" };
@@ -108,9 +122,12 @@ async function getPanelTab(requireClientsPage = false, { autoOpen = true } = {})
     return { tabId: opened.tabId, opened: true };
   }
 
-  if (requireClientsPage && !tab.url?.startsWith(CLIENTS_PAGE)) {
+  if (requireClientsPage && !isClientsPageUrl(tab.url)) {
+    // Mantem o dominio da aba logada (daily3.news OU painelacesso1.com)
+    let origin = PANEL_BASE;
+    try { origin = new URL(tab.url).origin; } catch {}
     const wait = waitForTabComplete(tab.id);
-    tab = await chrome.tabs.update(tab.id, { url: CLIENTS_PAGE });
+    tab = await chrome.tabs.update(tab.id, { url: `${origin}/clients/` });
     await wait;
   }
   return { tabId: tab.id };
@@ -621,7 +638,7 @@ async function notifyOnce(id, title, message) {
 async function checkPanelsStatus() {
   // P2Cine: tenta encontrar aba SEM abrir automaticamente
   let p2cineLogged = false, p2cineOpen = false;
-  const p2Tabs = await chrome.tabs.query({ url: ["https://daily3.news/*", "https://*.daily3.news/*"] });
+  const p2Tabs = await chrome.tabs.query({ url: P2CINE_PANEL_URLS });
   p2cineOpen = p2Tabs.length > 0;
   if (p2cineOpen) {
     const r = await runInPanel(async () => {
@@ -689,7 +706,7 @@ async function checkPanelsStatus() {
 
 async function openPanels() {
   const opened = [];
-  const p2 = await chrome.tabs.query({ url: ["https://daily3.news/*", "https://*.daily3.news/*"] });
+  const p2 = await chrome.tabs.query({ url: P2CINE_PANEL_URLS });
   if (p2.length === 0) { await chrome.tabs.create({ url: CLIENTS_PAGE, active: false }); opened.push("p2cine"); }
   const up = await chrome.tabs.query({ url: UNIPLAY_PANEL_URLS });
   if (up.length === 0) { await chrome.tabs.create({ url: UNIPLAY_PANEL_URL, active: false }); opened.push("uniplay"); }
