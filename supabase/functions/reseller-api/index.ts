@@ -4,7 +4,7 @@
 // Endpoints:
 //   GET  /plans
 //   POST /lookup           { phone }
-//   POST /charge           { customer_id, plan_id, method: "pix"|"cakto" }
+//   POST /charge           { customer_id | checkout_code | phone, plan_id, method: "pix"|"cakto" }
 //   GET  /charge/:txid
 //
 // Base path (relative to Supabase functions):
@@ -31,6 +31,21 @@ function phoneVariants(raw: string): string[] {
   if (!d.startsWith("55") && (d.length === 10 || d.length === 11)) set.add("55" + d);
   if (d.length >= 9) set.add(d.slice(-9));
   return Array.from(set);
+}
+
+async function findCustomersByPhone(admin: any, ownerId: string, rawPhone: string) {
+  const variants = phoneVariants(rawPhone);
+  if (variants.length === 0) return [];
+  const orExact = variants.map((v) => `phone.eq.${v},extra_phone.eq.${v}`).join(",");
+  const last9 = digits(rawPhone).slice(-9);
+  const orFuzzy = last9.length >= 8 ? `,phone.ilike.%${last9},extra_phone.ilike.%${last9}` : "";
+  const { data } = await admin
+    .from("customers")
+    .select("id, checkout_code, name, phone, extra_phone, username, due_date, status, plan_id, screens, custom_price, created_by, plans:plan_id(plan_name)")
+    .eq("created_by", ownerId)
+    .or(orExact + orFuzzy)
+    .limit(50);
+  return data || [];
 }
 
 Deno.serve(async (req) => {
@@ -81,17 +96,7 @@ Deno.serve(async (req) => {
     if (req.method === "POST" && endpoint === "lookup") {
       const body = await req.json().catch(() => ({} as any));
       const phone = String(body.phone || "");
-      const variants = phoneVariants(phone);
-      if (variants.length === 0) return json({ customers: [] });
-      const orExact = variants.map((v) => `phone.eq.${v},extra_phone.eq.${v}`).join(",");
-      const last9 = digits(phone).slice(-9);
-      const orFuzzy = last9.length >= 8 ? `,phone.ilike.%${last9},extra_phone.ilike.%${last9}` : "";
-      const { data: customers } = await admin
-        .from("customers")
-        .select("id, checkout_code, name, phone, username, due_date, status, plan_id, screens, plans:plan_id(plan_name)")
-        .eq("created_by", ownerId)
-        .or(orExact + orFuzzy)
-        .limit(50);
+      const customers = await findCustomersByPhone(admin, ownerId, phone);
       return json({
         customers: (customers || []).map((c: any) => ({
           id: c.id, checkout_code: c.checkout_code, name: c.name, phone: c.phone, username: c.username,
@@ -127,19 +132,48 @@ Deno.serve(async (req) => {
       const customerId = String(body.customer_id || "");
       const checkoutCode = cleanCode(body.checkout_code || body.customer_code || body.code || "");
       const requestedUsername = normalizeUsername(body.username || "");
+      const requestedPhone = String(body.phone || body.customer_phone || "");
       const planId = String(body.plan_id || "");
       const method = String(body.method || "pix");
-      if (!customerId || !planId) return json({ error: "missing_params" }, 400);
+      if (!planId) return json({ error: "missing_params" }, 400);
 
       const { data: plan } = await admin
         .from("plans").select("id, plan_name, price, checkout_url, created_by")
         .eq("id", planId).maybeSingle();
       if (!plan || plan.created_by !== ownerId) return json({ error: "plan_not_found" }, 404);
 
-      const { data: customer } = await admin
-        .from("customers").select("id, checkout_code, name, phone, extra_phone, username, created_by, custom_price")
-        .eq("id", customerId).maybeSingle();
-      if (!customer || customer.created_by !== ownerId) return json({ error: "customer_not_found" }, 404);
+      let customer: any = null;
+
+      if (customerId) {
+        const { data } = await admin
+          .from("customers").select("id, checkout_code, name, phone, extra_phone, username, created_by, custom_price")
+          .eq("id", customerId).maybeSingle();
+        if (!data || data.created_by !== ownerId) return json({ error: "customer_not_found" }, 404);
+        customer = data;
+      } else if (checkoutCode) {
+        const { data } = await admin
+          .from("customers").select("id, checkout_code, name, phone, extra_phone, username, created_by, custom_price")
+          .eq("created_by", ownerId)
+          .eq("checkout_code", checkoutCode)
+          .maybeSingle();
+        if (!data) return json({ error: "customer_not_found" }, 404);
+        customer = data;
+      } else if (requestedPhone) {
+        let matches = await findCustomersByPhone(admin, ownerId, requestedPhone);
+        if (requestedUsername) {
+          matches = matches.filter((c: any) => normalizeUsername(c.username || "") === requestedUsername);
+        }
+        if (matches.length === 0) return json({ error: "customer_not_found" }, 404);
+        if (matches.length > 1) {
+          return json({
+            error: "checkout_code_required",
+            message: "Esse telefone possui mais de uma conta. Envie o checkout_code, customer_id ou username da conta selecionada para evitar renovar o usuário errado.",
+          }, 409);
+        }
+        customer = matches[0];
+      } else {
+        return json({ error: "missing_customer_identifier" }, 400);
+      }
 
       const customerPhoneVariants = Array.from(new Set([
         ...phoneVariants(customer.phone || ""),
@@ -152,10 +186,10 @@ Deno.serve(async (req) => {
           .select("id", { count: "exact", head: true })
           .eq("created_by", ownerId)
           .or(orSamePhone);
-        if ((samePhoneCount || 0) > 1 && !checkoutCode) {
+        if ((samePhoneCount || 0) > 1 && !checkoutCode && !requestedUsername) {
           return json({
             error: "checkout_code_required",
-            message: "Esse telefone possui mais de uma conta. Envie o checkout_code da conta selecionada para evitar renovar o usuário errado.",
+            message: "Esse telefone possui mais de uma conta. Envie o checkout_code ou username da conta selecionada para evitar renovar o usuário errado.",
           }, 409);
         }
       }
