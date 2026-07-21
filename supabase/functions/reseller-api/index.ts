@@ -129,12 +129,12 @@ Deno.serve(async (req) => {
     // ---------------- POST /charge ----------------
     if (req.method === "POST" && endpoint === "charge") {
       const body = await req.json().catch(() => ({} as any));
-      const customerId = String(body.customer_id || "");
+      const customerId = String(body.customer_id || body.customerId || body.id || body.customer?.id || "");
       const checkoutCode = cleanCode(body.checkout_code || body.customer_code || body.code || "");
       const requestedUsername = normalizeUsername(body.username || "");
-      const requestedPhone = String(body.phone || body.customer_phone || "");
-      const planId = String(body.plan_id || "");
-      const method = String(body.method || "pix");
+      const requestedPhone = String(body.phone || body.customer_phone || body.whatsapp || body.customer?.phone || "");
+      const planId = String(body.plan_id || body.planId || body.plan?.id || "");
+      const method = String(body.method || body.payment_method || "pix");
       if (!planId) return json({ error: "missing_params" }, 400);
 
       const { data: plan } = await admin
