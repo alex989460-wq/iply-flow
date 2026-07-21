@@ -3,7 +3,7 @@
 //   - "pix": creates a single Efí Pix cob summing all selected customers.
 //   - "cakto": returns the plan's Cakto checkout URL (must be preconfigured).
 // Actions:
-//   action = "create" -> creates the charge  (accepts customer_id or customer_ids[])
+//   action = "create" -> creates the charge  (accepts customer_id, customer_ids[], checkout_code or phone)
 //   action = "poll"   -> polls Efí charge status by txid
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { buildCredentials, createCharge, getQrCode, newTxid } from "../_shared/efi-client.ts";
@@ -21,6 +21,19 @@ function stripDataPrefix(s: string): string {
   if (!s) return "";
   const idx = s.indexOf("base64,");
   return idx >= 0 ? s.slice(idx + 7) : s;
+}
+
+function digits(s: string) { return String(s || "").replace(/\D/g, ""); }
+function cleanCode(s: string) { return String(s || "").toUpperCase().replace(/[^A-Z0-9]/g, ""); }
+function normalizeUsername(s: string) { return String(s || "").trim().toLowerCase(); }
+function phoneVariants(raw: string): string[] {
+  const d = digits(raw);
+  if (!d) return [];
+  const set = new Set<string>([d]);
+  if (d.startsWith("55") && d.length >= 12) set.add(d.slice(2));
+  if (!d.startsWith("55") && (d.length === 10 || d.length === 11)) set.add("55" + d);
+  if (d.length >= 9) set.add(d.slice(-9));
+  return Array.from(set);
 }
 
 Deno.serve(async (req) => {
@@ -50,11 +63,14 @@ Deno.serve(async (req) => {
     const slug = String(body.slug || "").trim().toLowerCase();
     const rawIds: string[] = Array.isArray(body.customer_ids) && body.customer_ids.length
       ? body.customer_ids.map((x: any) => String(x))
-      : (body.customer_id ? [String(body.customer_id)] : []);
-    const customerIds = Array.from(new Set(rawIds.filter(Boolean)));
+      : (body.customer_id || body.customerId || body.id || body.customer?.id ? [String(body.customer_id || body.customerId || body.id || body.customer?.id)] : []);
+    let customerIds = Array.from(new Set(rawIds.filter(Boolean)));
+    const checkoutCode = cleanCode(body.checkout_code || body.customer_code || body.code || "");
+    const requestedUsername = normalizeUsername(body.username || "");
+    const requestedPhone = String(body.phone || body.customer_phone || body.whatsapp || body.customer?.phone || "");
     const planId = String(body.plan_id || "");
     const method = String(body.method || "pix");
-    if (!slug || customerIds.length === 0 || !planId) return json({ error: "missing_params" }, 400);
+    if (!slug || !planId) return json({ error: "missing_params" }, 400);
 
     const { data: settings } = await admin
       .from("reseller_checkout_settings")
@@ -71,6 +87,42 @@ Deno.serve(async (req) => {
       .eq("id", planId)
       .maybeSingle();
     if (!plan || plan.created_by !== ownerId) return json({ error: "plan_not_found" }, 404);
+
+    if (customerIds.length === 0 && checkoutCode) {
+      const { data: byCode } = await admin
+        .from("customers")
+        .select("id")
+        .eq("created_by", ownerId)
+        .eq("checkout_code", checkoutCode)
+        .maybeSingle();
+      if (byCode?.id) customerIds = [byCode.id];
+    }
+
+    if (customerIds.length === 0 && requestedPhone) {
+      const variants = phoneVariants(requestedPhone);
+      if (variants.length > 0) {
+        const orExact = variants.map((v) => `phone.eq.${v},extra_phone.eq.${v}`).join(",");
+        const last9 = digits(requestedPhone).slice(-9);
+        const orFuzzy = last9.length >= 8 ? `,phone.ilike.%${last9},extra_phone.ilike.%${last9}` : "";
+        const { data: matches } = await admin
+          .from("customers")
+          .select("id, username")
+          .eq("created_by", ownerId)
+          .or(orExact + orFuzzy)
+          .limit(50);
+        let filtered = matches || [];
+        if (requestedUsername) filtered = filtered.filter((c: any) => normalizeUsername(c.username || "") === requestedUsername);
+        if (filtered.length === 1) customerIds = [filtered[0].id];
+        if (filtered.length > 1) {
+          return json({
+            error: "checkout_code_required",
+            message: "Esse telefone possui mais de uma conta. Envie o ID/código ou usuário da conta selecionada para gerar o Pix correto.",
+          }, 409);
+        }
+      }
+    }
+
+    if (customerIds.length === 0) return json({ error: "customer_not_found" }, 404);
 
     const { data: customers } = await admin
       .from("customers")
