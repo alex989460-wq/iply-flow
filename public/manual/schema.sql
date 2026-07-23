@@ -3,6 +3,13 @@
 -- Gerado automaticamente do projeto Supabase conectado
 -- Execute este SQL no SQL Editor da Supabase
 -- ============================================================
+-- ATENÇÃO: este arquivo instala somente a ESTRUTURA do sistema.
+-- Ele NÃO migra clientes, planos, servidores, configurações, arquivos,
+-- usuários de login, senhas, admins ou revendedores existentes.
+-- Para recuperar acessos/dados antigos, use também:
+--   public/manual/access-repair.sql
+--   public/manual/data-migration-guide.md
+-- ============================================================
 
 -- Extensões necessárias
 CREATE EXTENSION IF NOT EXISTS pgcrypto;

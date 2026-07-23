@@ -212,12 +212,13 @@ code:not(pre code) { background: var(--surface-2); padding: 2px 8px; border-radi
       <a href="#instalacao"><span class="num">3</span> Passo a Passo</a>
       <a href="#supabase"><span class="num">4</span> Configuração Supabase</a>
       <a href="#banco"><span class="num">5</span> Banco de Dados</a>
-      <a href="#sql"><span class="num">6</span> SQL Completo</a>
-      <a href="#storage"><span class="num">7</span> Storage</a>
-      <a href="#env"><span class="num">8</span> Variáveis de Ambiente</a>
-      <a href="#testes"><span class="num">9</span> Testando</a>
-      <a href="#problemas"><span class="num">10</span> Solução de Problemas</a>
-      <a href="#faq"><span class="num">11</span> FAQ</a>
+      <a href="#migracao"><span class="num">6</span> Migração e Acessos</a>
+      <a href="#sql"><span class="num">7</span> SQL Completo</a>
+      <a href="#storage"><span class="num">8</span> Storage</a>
+      <a href="#env"><span class="num">9</span> Variáveis de Ambiente</a>
+      <a href="#testes"><span class="num">10</span> Testando</a>
+      <a href="#problemas"><span class="num">11</span> Solução de Problemas</a>
+      <a href="#faq"><span class="num">12</span> FAQ</a>
     </nav>
   </aside>
 
@@ -296,7 +297,7 @@ code:not(pre code) { background: var(--surface-2); padding: 2px 8px; border-radi
 
         <div class="step">
           <div class="step-header"><div class="step-badge">5</div><div class="step-title">Executar o SQL completo</div></div>
-          <p>Vá até a <a href="#sql">seção 6 (SQL Completo)</a> deste manual, clique em <strong>Copiar SQL</strong>, cole no SQL Editor da Supabase e clique em <strong>Run</strong> (ou <kbd>Ctrl+Enter</kbd>).</p>
+          <p>Vá até a <a href="#sql">seção 7 (SQL Completo)</a> deste manual, clique em <strong>Copiar SQL</strong>, cole no SQL Editor da Supabase e clique em <strong>Run</strong> (ou <kbd>Ctrl+Enter</kbd>).</p>
           <div class="alert alert-warning"><span class="alert-icon">⚠️</span><div><strong>Erros comuns</strong>Se aparecer "extension vector does not exist", vá em <strong>Database → Extensions</strong> e ative <code>vector</code>, <code>pgcrypto</code>, <code>uuid-ossp</code> e <code>http</code> manualmente antes de reexecutar.</div></div>
           <div class="alert alert-info"><span class="alert-icon">💡</span><div><strong>Dica</strong>Se o script for muito grande, execute em blocos: primeiro os enums e tabelas, depois constraints, funções, triggers e policies.</div></div>
         </div>
@@ -354,6 +355,7 @@ npm run build</pre></div>
           <div class="step-header"><div class="step-badge">10</div><div class="step-title">Verificar funcionamento</div></div>
           <p>Cadastre-se na tela de login. O <strong>primeiro usuário criado vira automaticamente admin</strong> (trigger <code>auto_grant_first_admin</code>). Faça um tour rápido pelo Dashboard, Clientes e Configurações.</p>
           <div class="alert alert-success"><span class="alert-icon">🎉</span><div><strong>Parabéns!</strong>Se você chegou até aqui e o dashboard abriu, a instalação foi concluída com sucesso.</div></div>
+          <div class="alert alert-warning"><span class="alert-icon">📦</span><div><strong>Instalação nova x migração</strong>Se você precisa entrar com emails antigos e ver clientes/revendedores já existentes, não basta executar o schema. Siga também a <a href="#migracao">seção 6 (Migração e Acessos)</a>.</div></div>
         </div>
       </section>
 
@@ -440,10 +442,84 @@ npm run build</pre></div>
 
       </section>
 
+      <section id="migracao">
+        <h2><span class="step-num">6</span> Migração e Acessos</h2>
+        <p class="subtitle">Como recuperar clientes, planos, revendedores e login antigo depois de instalar em um novo backend.</p>
+        <div class="alert alert-danger"><span class="alert-icon">⚠️</span><div><strong>Importante</strong>O <code>schema.sql</code> cria a estrutura do sistema, mas não copia clientes, planos, servidores, arquivos, usuários de login, senhas, admins ou revendedores antigos. Esses dados precisam ser migrados separadamente.</div></div>
+
+        <div class="grid-2">
+          <div class="card">
+            <h3>🔐 Por que meu email admin não entra?</h3>
+            <p>Os usuários de autenticação ficam em uma área protegida do backend. Ao criar um projeto novo, o email antigo não existe automaticamente e a senha antiga não é reaproveitada por SQL comum.</p>
+            <ul>
+              <li>Crie/cadastre o admin com o mesmo email usado antes.</li>
+              <li>Depois execute <code>access-repair.sql</code> informando esse email.</li>
+              <li>O script cria/ajusta <code>profiles</code>, <code>user_roles</code> e <code>reseller_access</code>.</li>
+            </ul>
+          </div>
+          <div class="card">
+            <h3>👥 Por que os revendedores não acessam?</h3>
+            <p>Cada revendedor também precisa existir no Auth do novo projeto. O vínculo de acesso depende do novo <code>auth.users.id</code>, não apenas do email visível na tela.</p>
+            <ul>
+              <li>Cadastre ou convide cada revendedor com o mesmo email antigo.</li>
+              <li>Preencha a lista de emails no <code>access-repair.sql</code>.</li>
+              <li>Execute o script e confira a validade em <code>reseller_access</code>.</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>🗄️ Por que meus clientes/dados não aparecem?</h3>
+          <p>As regras de segurança mostram dados pelo dono. Se os dados foram importados com UUID antigo, as telas ficam vazias mesmo que as linhas existam no banco.</p>
+          <p>As colunas críticas são: <code>user_id</code>, <code>created_by</code>, <code>owner_id</code>, <code>parent_reseller_id</code>, <code>used_by</code> e <code>approved_by</code>.</p>
+          <div class="alert alert-info"><span class="alert-icon">💡</span><div><strong>Regra prática</strong>Depois de criar os usuários no novo projeto, mapeie <code>email → novo auth.users.id</code> e reatribua os clientes/configurações ao UUID novo do admin ou do revendedor correto.</div></div>
+        </div>
+
+        <div class="step">
+          <div class="step-header"><div class="step-badge">1</div><div class="step-title">Baixe os scripts auxiliares</div></div>
+          <p>Use estes arquivos junto com o <code>schema.sql</code>:</p>
+          <p>
+            <a href="manual/access-repair.sql" download class="btn">📥 Baixar access-repair.sql</a>
+            <a href="manual/data-migration-guide.md" download class="btn secondary">📄 Baixar guia de migração</a>
+          </p>
+        </div>
+
+        <div class="step">
+          <div class="step-header"><div class="step-badge">2</div><div class="step-title">Ordem correta</div></div>
+          <ol>
+            <li>Execute <code>schema.sql</code> no projeto novo.</li>
+            <li>Crie/cadastre o admin no Auth com o mesmo email antigo.</li>
+            <li>Edite e execute <code>access-repair.sql</code> com o email do admin.</li>
+            <li>Crie/cadastre os revendedores no Auth com os mesmos emails antigos.</li>
+            <li>Edite a lista de revendedores no <code>access-repair.sql</code> e execute novamente.</li>
+            <li>Importe os dados antigos por tabela.</li>
+            <li>Atualize os campos de dono para apontar aos novos UUIDs.</li>
+          </ol>
+        </div>
+
+        <div class="code-block">
+          <div class="code-header"><div class="dots"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span></div><span>conferência de usuários e acessos</span><div class="code-actions"><button class="code-btn" onclick="copyBlock(this)">📋 Copiar</button></div></div>
+          <div class="code-body"><pre class="code-content">SELECT
+  u.email,
+  p.full_name,
+  array_agg(DISTINCT ur.role) FILTER (WHERE ur.role IS NOT NULL) AS roles,
+  ra.is_active,
+  ra.access_expires_at,
+  ra.credits
+FROM auth.users u
+LEFT JOIN public.profiles p ON p.user_id = u.id
+LEFT JOIN public.user_roles ur ON ur.user_id = u.id
+LEFT JOIN public.reseller_access ra ON ra.user_id = u.id
+GROUP BY u.email, p.full_name, ra.is_active, ra.access_expires_at, ra.credits
+ORDER BY u.email;</pre></div>
+        </div>
+      </section>
+
       <section id="sql">
-        <h2><span class="step-num">6</span> SQL Completo</h2>
-        <p class="subtitle">Execute este script inteiro no SQL Editor da Supabase. Contém tudo: extensões, enums, tabelas, constraints, índices, funções, triggers, RLS, policies, buckets e policies de storage.</p>
+        <h2><span class="step-num">7</span> SQL Completo</h2>
+        <p class="subtitle">Execute este script inteiro no SQL Editor da Supabase. Contém extensões, enums, tabelas, constraints, índices, funções, triggers, RLS, policies, buckets e policies de storage.</p>
         <div class="alert alert-warning"><span class="alert-icon">⚠️</span><div><strong>Antes de executar</strong>Certifique-se que o projeto Supabase está vazio (recém criado). Rodar este SQL em um projeto com dados pode causar conflitos.</div></div>
+        <div class="alert alert-info"><span class="alert-icon">📌</span><div><strong>Este SQL não migra dados</strong>Para ver clientes antigos e acessar com admin/revendedores existentes, siga a <a href="#migracao">seção 6</a> depois de instalar a estrutura.</div></div>
         <div class="code-block" id="sql-block">
           <div class="code-header">
             <div class="dots"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span></div>
@@ -460,6 +536,13 @@ npm run build</pre></div>
 -- SUPER GESTOR — ESQUEMA COMPLETO DO BANCO DE DADOS
 -- Gerado automaticamente do projeto Supabase conectado
 -- Execute este SQL no SQL Editor da Supabase
+-- ============================================================
+-- ATENÇÃO: este arquivo instala somente a ESTRUTURA do sistema.
+-- Ele NÃO migra clientes, planos, servidores, configurações, arquivos,
+-- usuários de login, senhas, admins ou revendedores existentes.
+-- Para recuperar acessos/dados antigos, use também:
+--   public/manual/access-repair.sql
+--   public/manual/data-migration-guide.md
 -- ============================================================
 
 -- Extensões necessárias
@@ -2321,7 +2404,7 @@ CREATE POLICY &quot;stickers_update_own&quot; ON storage.objects FOR UPDATE TO a
       </section>
 
       <section id="storage">
-        <h2><span class="step-num">7</span> Storage</h2>
+        <h2><span class="step-num">8</span> Storage</h2>
         <p class="subtitle">Buckets, permissões e estrutura de pastas.</p>
         
 <div class="bucket-card"><h4>reseller-assets</h4><span class="badge badge-public">Público</span><p>Logos de revendedores, imagens de checkout e uploads de templates. Leitura pública, escrita restrita ao dono (path começa com o user_id).</p></div>
@@ -2343,7 +2426,7 @@ evolution-stickers/
       </section>
 
       <section id="env">
-        <h2><span class="step-num">8</span> Variáveis de Ambiente</h2>
+        <h2><span class="step-num">9</span> Variáveis de Ambiente</h2>
         <p class="subtitle">Todas as variáveis usadas pelo projeto, onde obter e como preencher.</p>
         <h3>Frontend (arquivo <code>.env</code> na raiz)</h3>
         <table class="env-table">
@@ -2377,7 +2460,7 @@ evolution-stickers/
       </section>
 
       <section id="testes">
-        <h2><span class="step-num">9</span> Testando a Instalação</h2>
+        <h2><span class="step-num">10</span> Testando a Instalação</h2>
         <p class="subtitle">Checklist rápido para validar que tudo funciona.</p>
         <div class="card">
           <h3>✅ Checklist</h3>
@@ -2396,7 +2479,7 @@ evolution-stickers/
       </section>
 
       <section id="problemas">
-        <h2><span class="step-num">10</span> Solução de Problemas</h2>
+        <h2><span class="step-num">11</span> Solução de Problemas</h2>
         <p class="subtitle">Erros mais comuns e como resolver.</p>
 
         <div class="troubleshoot"><h4>ERROR: extension "vector" does not exist</h4><p><strong>Causa:</strong> a extensão pgvector não está ativada.</p><p><strong>Solução:</strong> vá em <strong>Database → Extensions</strong>, procure por <code>vector</code> e clique em <strong>Enable</strong>. Reexecute o SQL.</p></div>
@@ -2409,16 +2492,22 @@ evolution-stickers/
 
         <div class="troubleshoot"><h4>Row-level security policy violation</h4><p><strong>Causa:</strong> usuário tentando acessar dados sem role/policy adequada.</p><p><strong>Solução:</strong> confirme que o primeiro usuário virou admin. Cheque a tabela <code>user_roles</code> — deve haver uma linha com <code>role='admin'</code>.</p></div>
 
+        <div class="troubleshoot"><h4>Login antigo não funciona ou revendedor não acessa</h4><p><strong>Causa:</strong> usuários de login e senhas não são migrados pelo <code>schema.sql</code>.</p><p><strong>Solução:</strong> crie/cadastre os emails no Auth do novo projeto e execute <code>manual/access-repair.sql</code> para recriar perfil, role e acesso de revendedor.</p></div>
+
+        <div class="troubleshoot"><h4>Clientes existem no banco, mas não aparecem no sistema</h4><p><strong>Causa:</strong> dados importados ficaram vinculados ao UUID antigo do dono.</p><p><strong>Solução:</strong> mapeie o email do revendedor para o novo <code>auth.users.id</code> e atualize colunas como <code>created_by</code>, <code>user_id</code> e <code>owner_id</code>. Veja a seção <a href="#migracao">Migração e Acessos</a>.</p></div>
+
         <div class="troubleshoot"><h4>Edge Function não responde</h4><p><strong>Causa:</strong> secrets não configurados no painel.</p><p><strong>Solução:</strong> em Project Settings → Edge Functions → Secrets, adicione as credenciais necessárias para a função (ver seção 8).</p></div>
       </section>
 
       <section id="faq">
-        <h2><span class="step-num">11</span> FAQ</h2>
+        <h2><span class="step-num">12</span> FAQ</h2>
         <p class="subtitle">Perguntas frequentes.</p>
         <details class="faq"><summary>Posso rodar o sistema totalmente grátis?</summary><div class="content">Sim, o plano Free da Supabase é suficiente para começar. Você pagará apenas se ultrapassar os limites (500MB de banco, 1GB de storage, 500k invocações de Edge Function/mês).</div></details>
         <details class="faq"><summary>Posso usar outro banco em vez da Supabase?</summary><div class="content">Tecnicamente sim, pois é PostgreSQL puro. Mas você perderá Auth, Storage, Realtime e Edge Functions — que exigiriam reescrita significativa. Não recomendado.</div></details>
         <details class="faq"><summary>Como faço backup do banco?</summary><div class="content">A Supabase faz backups automáticos diários no plano Pro. No Free, use o botão de export ou implemente a Edge Function <code>auto-backup</code> já inclusa no projeto.</div></details>
         <details class="faq"><summary>Como adiciono um segundo administrador?</summary><div class="content">Após o primeiro admin, use o SQL:<br><code>INSERT INTO public.user_roles (user_id, role) VALUES ('uuid-do-usuario', 'admin');</code></div></details>
+        <details class="faq"><summary>Por que meus clientes antigos não aparecem depois da instalação?</summary><div class="content">Porque o schema instala a estrutura, mas não importa dados. Além disso, clientes e configurações precisam estar vinculados ao novo UUID do dono nas colunas <code>created_by</code>, <code>user_id</code> ou <code>owner_id</code>.</div></details>
+        <details class="faq"><summary>Consigo reaproveitar as senhas antigas dos revendedores?</summary><div class="content">Não por SQL comum. Por segurança, os usuários devem ser criados/convidados novamente no Auth do novo projeto, usando o mesmo email e definindo nova senha ou fluxo de recuperação.</div></details>
         <details class="faq"><summary>Preciso saber programar para usar?</summary><div class="content">Não para uso do sistema. Para instalar, basta seguir este manual passo a passo. Para customizar, é útil saber React + TypeScript.</div></details>
         <details class="faq"><summary>Como atualizar para uma nova versão?</summary><div class="content">Git pull do repositório, <code>npm install</code> e execute apenas as novas migrations SQL fornecidas no changelog. Nunca reexecute o schema completo em produção.</div></details>
         <details class="faq"><summary>Posso fazer deploy em produção onde?</summary><div class="content">Recomendamos Vercel, Netlify ou Cloudflare Pages para o frontend. O backend (Supabase) já é gerenciado.</div></details>
