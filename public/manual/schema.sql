@@ -840,8 +840,8 @@ ALTER TABLE public.activation_requests ADD CONSTRAINT activation_requests_pkey P
 ALTER TABLE public.ai_knowledge_candidates ADD CONSTRAINT ai_knowledge_candidates_status_check CHECK ((status = ANY (ARRAY['pending'::text, 'approved'::text, 'rejected'::text, 'merged'::text])));
 ALTER TABLE public.ai_knowledge_candidates ADD CONSTRAINT ai_knowledge_candidates_pkey PRIMARY KEY (id);
 ALTER TABLE public.ai_knowledge_entries ADD CONSTRAINT ai_knowledge_entries_pkey PRIMARY KEY (id);
-ALTER TABLE public.ai_knowledge_items ADD CONSTRAINT ai_knowledge_items_merged_into_id_fkey FOREIGN KEY (merged_into_id) REFERENCES ai_knowledge_items(id) ON DELETE SET NULL;
 ALTER TABLE public.ai_knowledge_items ADD CONSTRAINT ai_knowledge_items_pkey PRIMARY KEY (id);
+ALTER TABLE public.ai_knowledge_items ADD CONSTRAINT ai_knowledge_items_merged_into_id_fkey FOREIGN KEY (merged_into_id) REFERENCES ai_knowledge_items(id) ON DELETE SET NULL;
 ALTER TABLE public.ai_training_conversations ADD CONSTRAINT ai_training_conversations_source_check CHECK ((source = ANY (ARRAY['evolution'::text, 'oficial'::text])));
 ALTER TABLE public.ai_training_conversations ADD CONSTRAINT ai_training_conversations_pkey PRIMARY KEY (id);
 ALTER TABLE public.ai_training_jobs ADD CONSTRAINT ai_training_jobs_kind_check CHECK ((kind = ANY (ARRAY['import'::text, 'analyze'::text])));
