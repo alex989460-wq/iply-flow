@@ -262,15 +262,23 @@ serve(async (req) => {
         console.log(`[MetaTemplates] CRM create payload:`, JSON.stringify(payload).slice(0, 2000));
         let r = await crmFetch("/api/public/v1/templates", crmApiKey, { method: "POST", body: JSON.stringify(payload) });
 
-        // CRM proxy sometimes rejects `parameter_format` with generic "Invalid parameter".
-        // Meta auto-detects the format from body_text_named_params / body_text_examples,
-        // so retry once without the top-level parameter_format.
-        const errText = JSON.stringify(r.body || "").toLowerCase();
-        if (!r.ok && payload.parameter_format && (errText.includes("invalid parameter") || r.status === 400 || r.status === 502)) {
-          console.warn("[MetaTemplates] Retrying create without parameter_format after error:", r.status, errText.slice(0, 200));
+        const errText = () => JSON.stringify(r.body || "").toLowerCase();
+
+        // Retry without parameter_format (CRM proxy sometimes rejects it).
+        if (!r.ok && payload.parameter_format && (errText().includes("invalid parameter") || r.status === 400 || r.status === 502)) {
+          console.warn("[MetaTemplates] Retry without parameter_format:", r.status);
           const retryPayload = { ...payload };
           delete retryPayload.parameter_format;
           r = await crmFetch("/api/public/v1/templates", crmApiKey, { method: "POST", body: JSON.stringify(retryPayload) });
+        }
+
+        // Fallback: convert NAMED variables to POSITIONAL (CRM proxy may not support named params).
+        if (!r.ok && (errText().includes("invalid parameter") || r.status === 400 || r.status === 502)) {
+          const converted = convertNamedToPositional(payload);
+          if (converted) {
+            console.warn("[MetaTemplates] Retry as POSITIONAL:", r.status);
+            r = await crmFetch("/api/public/v1/templates", crmApiKey, { method: "POST", body: JSON.stringify(converted) });
+          }
         }
 
         if (!r.ok) {
