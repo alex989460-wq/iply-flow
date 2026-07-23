@@ -1,0 +1,2494 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Manual de Instalação — Super Gestor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #f7f8fb;
+  --surface: #ffffff;
+  --surface-2: #f1f3f8;
+  --border: #e5e7ef;
+  --text: #0f172a;
+  --text-muted: #64748b;
+  --primary: #f97316;
+  --primary-dark: #ea580c;
+  --primary-soft: #fff1e6;
+  --success: #10b981;
+  --warning: #f59e0b;
+  --danger: #ef4444;
+  --info: #3b82f6;
+  --code-bg: #0f172a;
+  --code-fg: #e2e8f0;
+  --radius: 14px;
+  --shadow-sm: 0 1px 2px rgba(15,23,42,.04), 0 1px 3px rgba(15,23,42,.06);
+  --shadow-md: 0 4px 12px rgba(15,23,42,.06), 0 2px 4px rgba(15,23,42,.04);
+  --shadow-lg: 0 20px 40px -12px rgba(15,23,42,.15);
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+body {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.65;
+  -webkit-font-smoothing: antialiased;
+}
+code, pre { font-family: 'JetBrains Mono', ui-monospace, monospace; }
+
+/* Layout */
+.app { display: flex; min-height: 100vh; }
+.sidebar {
+  width: 300px; background: var(--surface); border-right: 1px solid var(--border);
+  position: sticky; top: 0; height: 100vh; overflow-y: auto; padding: 24px 0;
+  flex-shrink: 0; box-shadow: var(--shadow-sm);
+}
+.brand { padding: 0 24px 20px; border-bottom: 1px solid var(--border); }
+.brand h1 { font-size: 18px; font-weight: 800; background: linear-gradient(135deg,var(--primary),var(--primary-dark)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+.brand p { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+.progress-wrap { padding: 16px 24px; border-bottom: 1px solid var(--border); }
+.progress-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; display:flex; justify-content:space-between; }
+.progress { height: 6px; background: var(--surface-2); border-radius: 999px; overflow: hidden; }
+.progress-bar { height: 100%; background: linear-gradient(90deg,var(--primary),var(--primary-dark)); width: 0%; transition: width .4s ease; border-radius: 999px; }
+.nav { padding: 12px 0; }
+.nav a {
+  display: flex; align-items: center; gap: 10px; padding: 10px 24px;
+  color: var(--text-muted); text-decoration: none; font-size: 14px; font-weight: 500;
+  border-left: 3px solid transparent; transition: all .15s;
+}
+.nav a:hover { background: var(--surface-2); color: var(--text); }
+.nav a.active { background: var(--primary-soft); color: var(--primary-dark); border-left-color: var(--primary); font-weight: 600; }
+.nav a .num { display:inline-flex; width:24px; height:24px; align-items:center; justify-content:center; background:var(--surface-2); border-radius:6px; font-size:11px; font-weight:700; color:var(--text-muted); }
+.nav a.active .num { background: var(--primary); color: white; }
+
+.main { flex: 1; max-width: calc(100% - 300px); }
+.container { max-width: 960px; margin: 0 auto; padding: 48px 40px 120px; }
+
+.hero {
+  background: linear-gradient(135deg, #ffffff 0%, #fff8f2 100%);
+  border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 48px; margin-bottom: 32px; box-shadow: var(--shadow-md);
+  position: relative; overflow: hidden;
+}
+.hero::before {
+  content: ''; position: absolute; top: -50%; right: -10%; width: 400px; height: 400px;
+  background: radial-gradient(circle, rgba(249,115,22,.12) 0%, transparent 70%);
+  border-radius: 50%;
+}
+.hero-content { position: relative; }
+.hero .eyebrow { display:inline-block; padding: 4px 12px; background: var(--primary-soft); color: var(--primary-dark); border-radius: 999px; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 16px; }
+.hero h1 { font-size: 42px; font-weight: 800; letter-spacing: -0.03em; margin-bottom: 12px; }
+.hero p.lead { font-size: 18px; color: var(--text-muted); max-width: 640px; margin-bottom: 24px; }
+.hero .meta { display: flex; gap: 24px; flex-wrap: wrap; margin-bottom: 32px; font-size: 14px; color: var(--text-muted); }
+.hero .meta strong { color: var(--text); }
+.btn {
+  display: inline-flex; align-items: center; gap: 8px; padding: 12px 24px;
+  background: var(--primary); color: white; border: none; border-radius: 10px;
+  font-weight: 600; font-size: 15px; cursor: pointer; text-decoration: none;
+  transition: all .2s; box-shadow: 0 4px 14px rgba(249,115,22,.35);
+}
+.btn:hover { background: var(--primary-dark); transform: translateY(-1px); box-shadow: 0 6px 20px rgba(249,115,22,.45); }
+.btn.secondary { background: white; color: var(--text); border: 1px solid var(--border); box-shadow: var(--shadow-sm); }
+.btn.secondary:hover { background: var(--surface-2); }
+
+section { margin-bottom: 56px; scroll-margin-top: 24px; }
+section > h2 { font-size: 30px; font-weight: 800; letter-spacing: -0.02em; margin-bottom: 8px; display:flex; align-items:center; gap:12px; }
+section > h2 .step-num { display:inline-flex; width:40px; height:40px; align-items:center; justify-content:center; background: linear-gradient(135deg,var(--primary),var(--primary-dark)); color:white; border-radius:12px; font-size:16px; box-shadow: 0 4px 12px rgba(249,115,22,.35); }
+section > .subtitle { color: var(--text-muted); font-size: 16px; margin-bottom: 24px; }
+h3 { font-size: 20px; font-weight: 700; margin: 28px 0 12px; }
+h4 { font-size: 16px; font-weight: 700; margin: 20px 0 8px; }
+p { margin-bottom: 12px; color: #334155; }
+ul, ol { margin: 8px 0 16px 24px; }
+li { margin-bottom: 6px; color: #334155; }
+
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; margin-bottom: 16px; box-shadow: var(--shadow-sm); }
+.card:hover { box-shadow: var(--shadow-md); }
+
+.step {
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 28px; margin-bottom: 20px; box-shadow: var(--shadow-sm); position: relative;
+  transition: all .2s;
+}
+.step:hover { border-color: #d4d8e3; box-shadow: var(--shadow-md); }
+.step-header { display:flex; align-items:center; gap: 16px; margin-bottom: 16px; }
+.step-badge { display:inline-flex; width:44px; height:44px; align-items:center; justify-content:center; background: var(--primary-soft); color: var(--primary-dark); border-radius: 12px; font-weight: 800; font-size: 18px; flex-shrink: 0; }
+.step-title { font-size: 20px; font-weight: 700; }
+
+.alert { padding: 16px 20px; border-radius: 12px; margin: 16px 0; border-left: 4px solid; display:flex; gap: 12px; align-items:flex-start; }
+.alert-info { background: #eff6ff; border-color: var(--info); color: #1e40af; }
+.alert-warning { background: #fffbeb; border-color: var(--warning); color: #92400e; }
+.alert-danger { background: #fef2f2; border-color: var(--danger); color: #991b1b; }
+.alert-success { background: #ecfdf5; border-color: var(--success); color: #065f46; }
+.alert-icon { font-size: 20px; flex-shrink: 0; }
+.alert strong { display:block; margin-bottom: 4px; }
+
+code:not(pre code) { background: var(--surface-2); padding: 2px 8px; border-radius: 6px; font-size: 0.88em; color: var(--primary-dark); border: 1px solid var(--border); }
+
+.code-block { position: relative; margin: 16px 0; border-radius: 12px; overflow: hidden; border: 1px solid #1e293b; box-shadow: var(--shadow-md); }
+.code-header { display:flex; justify-content:space-between; align-items:center; padding: 10px 16px; background: #1e293b; color: #94a3b8; font-size: 12px; font-family: 'JetBrains Mono', monospace; }
+.code-header .dots { display:flex; gap:6px; }
+.code-header .dot { width:12px; height:12px; border-radius:50%; }
+.code-header .dot.r { background:#ef4444; } .code-header .dot.y { background:#f59e0b; } .code-header .dot.g { background:#10b981; }
+.code-actions { display:flex; gap:8px; }
+.code-btn { padding: 4px 10px; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.1); border-radius: 6px; color: #cbd5e1; font-size: 11px; cursor: pointer; transition: all .15s; }
+.code-btn:hover { background: rgba(255,255,255,.12); color: white; }
+.code-body { display: flex; background: var(--code-bg); max-height: 500px; overflow: auto; }
+.code-body.expanded { max-height: none; }
+.line-numbers { padding: 16px 12px; background: rgba(255,255,255,.02); color: #475569; text-align: right; user-select: none; font-size: 13px; line-height: 1.6; font-family: 'JetBrains Mono', monospace; border-right: 1px solid rgba(255,255,255,.05); }
+.code-content { padding: 16px 20px; color: var(--code-fg); font-size: 13px; line-height: 1.6; overflow-x: auto; flex: 1; white-space: pre; }
+.code-content .kw { color: #f472b6; } .code-content .str { color: #86efac; } .code-content .com { color: #64748b; font-style: italic; } .code-content .fn { color: #fbbf24; } .code-content .num { color: #93c5fd; }
+
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+@media (max-width: 768px) { .grid-2, .grid-3 { grid-template-columns: 1fr; } }
+
+.req-card { padding: 20px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; }
+.req-card .icon { font-size: 28px; margin-bottom: 8px; }
+.req-card h4 { margin: 0 0 6px; }
+.req-card p { font-size: 14px; color: var(--text-muted); margin: 0; }
+
+.tbl { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; margin-bottom: 8px; overflow: hidden; }
+.tbl summary { padding: 12px 16px; cursor: pointer; display:flex; justify-content:space-between; align-items:center; font-weight: 600; }
+.tbl summary:hover { background: var(--surface-2); }
+.tbl .tname { font-family: 'JetBrains Mono', monospace; color: var(--primary-dark); font-size: 14px; }
+.tbl .tcount { font-size: 12px; color: var(--text-muted); background: var(--surface-2); padding: 2px 10px; border-radius: 999px; }
+.tbl .cols { padding: 12px 16px 16px 40px; background: var(--surface-2); margin: 0; }
+.tbl .cols li { font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #475569; margin-bottom: 3px; }
+
+.bucket-card { padding: 20px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; margin-bottom: 12px; position: relative; }
+.bucket-card h4 { font-family: 'JetBrains Mono', monospace; color: var(--primary-dark); margin: 0 0 6px; }
+.bucket-card p { font-size: 14px; margin: 8px 0 0; color: var(--text-muted); }
+.badge { position: absolute; top: 20px; right: 20px; padding: 4px 10px; border-radius: 999px; font-size: 11px; font-weight: 600; }
+.badge-public { background: #dcfce7; color: #166534; }
+.badge-private { background: #fee2e2; color: #991b1b; }
+
+.env-table { width: 100%; border-collapse: separate; border-spacing: 0; margin: 16px 0; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+.env-table th, .env-table td { padding: 12px 16px; text-align: left; border-bottom: 1px solid var(--border); font-size: 14px; }
+.env-table th { background: var(--surface-2); font-weight: 700; font-size: 12px; text-transform: uppercase; color: var(--text-muted); letter-spacing: 0.5px; }
+.env-table tr:last-child td { border-bottom: none; }
+.env-table code { font-size: 12px; }
+
+.faq { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; margin-bottom: 10px; }
+.faq summary { padding: 16px 20px; cursor: pointer; font-weight: 600; display:flex; justify-content:space-between; align-items:center; }
+.faq summary:hover { color: var(--primary-dark); }
+.faq summary::after { content: '+'; font-size: 20px; color: var(--text-muted); }
+.faq[open] summary::after { content: '−'; }
+.faq .content { padding: 0 20px 20px; color: var(--text-muted); }
+
+.troubleshoot { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px; margin-bottom: 12px; border-left: 4px solid var(--danger); }
+.troubleshoot h4 { color: var(--danger); font-family: 'JetBrains Mono', monospace; font-size: 15px; margin: 0 0 8px; }
+
+/* Mobile */
+.menu-toggle { display: none; position: fixed; top: 16px; left: 16px; z-index: 100; padding: 10px 14px; background: var(--primary); color:white; border:none; border-radius:8px; font-weight:600; cursor:pointer; box-shadow: var(--shadow-md); }
+@media (max-width: 900px) {
+  .menu-toggle { display: block; }
+  .sidebar { position: fixed; top: 0; left: 0; z-index: 90; transform: translateX(-100%); transition: transform .3s; height:100vh; }
+  .sidebar.open { transform: translateX(0); }
+  .main { max-width: 100%; }
+  .container { padding: 72px 20px 80px; }
+  .hero { padding: 32px 24px; }
+  .hero h1 { font-size: 30px; }
+}
+</style>
+</head>
+<body>
+<button class="menu-toggle" onclick="document.querySelector('.sidebar').classList.toggle('open')">☰ Menu</button>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand">
+      <h1>📘 Super Gestor</h1>
+      <p>Manual de Instalação Completo</p>
+    </div>
+    <div class="progress-wrap">
+      <div class="progress-label"><span>Progresso</span><span id="progress-percent">0%</span></div>
+      <div class="progress"><div class="progress-bar" id="progress-bar"></div></div>
+    </div>
+    <nav class="nav" id="nav">
+      <a href="#inicio"><span class="num">1</span> Início</a>
+      <a href="#requisitos"><span class="num">2</span> Requisitos</a>
+      <a href="#instalacao"><span class="num">3</span> Passo a Passo</a>
+      <a href="#supabase"><span class="num">4</span> Configuração Supabase</a>
+      <a href="#banco"><span class="num">5</span> Banco de Dados</a>
+      <a href="#sql"><span class="num">6</span> SQL Completo</a>
+      <a href="#storage"><span class="num">7</span> Storage</a>
+      <a href="#env"><span class="num">8</span> Variáveis de Ambiente</a>
+      <a href="#testes"><span class="num">9</span> Testando</a>
+      <a href="#problemas"><span class="num">10</span> Solução de Problemas</a>
+      <a href="#faq"><span class="num">11</span> FAQ</a>
+    </nav>
+  </aside>
+
+  <main class="main">
+    <div class="container">
+
+      <section id="inicio">
+        <div class="hero">
+          <div class="hero-content">
+            <span class="eyebrow">Manual Oficial de Instalação</span>
+            <h1>Super Gestor</h1>
+            <p class="lead">Sistema completo de gestão de revendedores IPTV com CRM WhatsApp, cobrança automática via Pix (Efí/Cakto), ativação de apps e integrações com múltiplos painéis.</p>
+            <div class="meta">
+              <span><strong>Versão:</strong> 1.0.0</span>
+              <span><strong>Data:</strong> 23/07/2026</span>
+              <span><strong>Stack:</strong> React + Vite + Supabase</span>
+              <span><strong>Licença:</strong> Proprietária</span>
+            </div>
+            <a href="#requisitos" class="btn">🚀 Iniciar Instalação →</a>
+            <a href="manual/schema.sql" download class="btn secondary">📥 Baixar schema.sql</a>
+          </div>
+        </div>
+
+        <div class="grid-3">
+          <div class="req-card"><div class="icon">⏱️</div><h4>~30 min</h4><p>Tempo estimado de instalação completa do zero.</p></div>
+          <div class="req-card"><div class="icon">🎯</div><h4>Passo a passo</h4><p>10 etapas numeradas, pensadas para iniciantes.</p></div>
+          <div class="req-card"><div class="icon">🛡️</div><h4>Seguro</h4><p>Row Level Security ativado em todas as tabelas sensíveis.</p></div>
+        </div>
+      </section>
+
+      <section id="requisitos">
+        <h2><span class="step-num">2</span> Requisitos</h2>
+        <p class="subtitle">Antes de começar, garanta que você tem tudo pronto:</p>
+        <div class="grid-2">
+          <div class="req-card"><div class="icon">☁️</div><h4>Conta Supabase</h4><p>Grátis em <a href="https://supabase.com" target="_blank">supabase.com</a>. Usada como banco, auth, storage e edge functions.</p></div>
+          <div class="req-card"><div class="icon">💻</div><h4>Node.js 18+</h4><p>Baixe em <a href="https://nodejs.org" target="_blank">nodejs.org</a>. Necessário para rodar o projeto localmente.</p></div>
+          <div class="req-card"><div class="icon">📦</div><h4>Gerenciador de pacotes</h4><p><code>npm</code>, <code>bun</code> ou <code>pnpm</code>. Recomendamos <code>bun</code> para maior velocidade.</p></div>
+          <div class="req-card"><div class="icon">🌐</div><h4>Navegador moderno</h4><p>Chrome, Edge, Firefox ou Safari nas versões mais recentes.</p></div>
+          <div class="req-card"><div class="icon">🔑</div><h4>Contas opcionais</h4><p>Efí Bank (Pix), Cakto (checkout), Meta Business (WhatsApp), Evolution API — apenas se for usar essas integrações.</p></div>
+          <div class="req-card"><div class="icon">🧠</div><h4>Conhecimentos básicos</h4><p>Copiar/colar código, executar comandos no terminal, navegar em painéis web.</p></div>
+        </div>
+      </section>
+
+      <section id="instalacao">
+        <h2><span class="step-num">3</span> Passo a Passo da Instalação</h2>
+        <p class="subtitle">Siga as etapas em ordem. Cada uma leva de 2 a 5 minutos.</p>
+
+        <div class="step">
+          <div class="step-header"><div class="step-badge">1</div><div class="step-title">Criar conta na Supabase</div></div>
+          <p>Acesse <a href="https://supabase.com" target="_blank">supabase.com</a> e clique em <strong>Start your project</strong>. Você pode cadastrar-se com GitHub, Google ou email.</p>
+          <div class="alert alert-info"><span class="alert-icon">💡</span><div><strong>Dica</strong>Use uma conta de email profissional que você acesse com frequência. Todos os avisos importantes chegam por email.</div></div>
+        </div>
+
+        <div class="step">
+          <div class="step-header"><div class="step-badge">2</div><div class="step-title">Criar novo projeto</div></div>
+          <p>No painel da Supabase, clique em <strong>New Project</strong> e preencha:</p>
+          <ul>
+            <li><strong>Name:</strong> super-gestor (ou o nome que preferir)</li>
+            <li><strong>Database Password:</strong> gere uma senha forte e <strong>guarde em local seguro</strong></li>
+            <li><strong>Region:</strong> escolha a mais próxima dos seus usuários (South America - São Paulo)</li>
+            <li><strong>Pricing Plan:</strong> Free para começar</li>
+          </ul>
+          <div class="alert alert-danger"><span class="alert-icon">⚠️</span><div><strong>Atenção</strong>A senha do banco NÃO pode ser recuperada. Anote-a em um gerenciador de senhas antes de continuar.</div></div>
+        </div>
+
+        <div class="step">
+          <div class="step-header"><div class="step-badge">3</div><div class="step-title">Aguardar criação do banco</div></div>
+          <p>A Supabase leva de 1 a 3 minutos para provisionar seu projeto. Uma tela de loading será exibida — não feche a aba.</p>
+          <div class="alert alert-success"><span class="alert-icon">✅</span><div><strong>Pronto quando…</strong>Você for redirecionado para o dashboard do projeto com o menu lateral (Table Editor, SQL Editor, Auth, Storage, etc.).</div></div>
+        </div>
+
+        <div class="step">
+          <div class="step-header"><div class="step-badge">4</div><div class="step-title">Abrir o SQL Editor</div></div>
+          <p>No menu lateral esquerdo, clique no ícone <strong>SQL Editor</strong> (parece um <code>&gt;_</code>). Em seguida clique em <strong>+ New query</strong> para abrir uma nova aba de edição.</p>
+        </div>
+
+        <div class="step">
+          <div class="step-header"><div class="step-badge">5</div><div class="step-title">Executar o SQL completo</div></div>
+          <p>Vá até a <a href="#sql">seção 6 (SQL Completo)</a> deste manual, clique em <strong>Copiar SQL</strong>, cole no SQL Editor da Supabase e clique em <strong>Run</strong> (ou <kbd>Ctrl+Enter</kbd>).</p>
+          <div class="alert alert-warning"><span class="alert-icon">⚠️</span><div><strong>Erros comuns</strong>Se aparecer "extension vector does not exist", vá em <strong>Database → Extensions</strong> e ative <code>vector</code>, <code>pgcrypto</code>, <code>uuid-ossp</code> e <code>http</code> manualmente antes de reexecutar.</div></div>
+          <div class="alert alert-info"><span class="alert-icon">💡</span><div><strong>Dica</strong>Se o script for muito grande, execute em blocos: primeiro os enums e tabelas, depois constraints, funções, triggers e policies.</div></div>
+        </div>
+
+        <div class="step">
+          <div class="step-header"><div class="step-badge">6</div><div class="step-title">Configurar Storage</div></div>
+          <p>O SQL da etapa 5 já cria os 3 buckets automaticamente. Confirme em <strong>Storage → Buckets</strong>:</p>
+          <ul><li><code>reseller-assets</code> (público)</li><li><code>evolution-media</code> (privado)</li><li><code>evolution-stickers</code> (privado)</li></ul>
+          <p>Detalhes na <a href="#storage">seção 7</a>.</p>
+        </div>
+
+        <div class="step">
+          <div class="step-header"><div class="step-badge">7</div><div class="step-title">Copiar as chaves da Supabase</div></div>
+          <p>No menu <strong>Project Settings → API</strong>, copie:</p>
+          <ul>
+            <li><strong>Project URL</strong> — algo como <code>https://xxxx.supabase.co</code></li>
+            <li><strong>anon / public key</strong> — chave pública, segura para o frontend</li>
+            <li><strong>service_role key</strong> — chave secreta, <strong>NUNCA</strong> exposta no frontend</li>
+          </ul>
+          <div class="alert alert-danger"><span class="alert-icon">🔒</span><div><strong>Segurança</strong>A <code>service_role key</code> ignora todas as políticas de RLS. Use somente em Edge Functions ou backend seguro.</div></div>
+        </div>
+
+        <div class="step">
+          <div class="step-header"><div class="step-badge">8</div><div class="step-title">Configurar variáveis de ambiente</div></div>
+          <p>Na raiz do projeto, crie um arquivo <code>.env</code> com o conteúdo:</p>
+          <div class="code-block">
+            <div class="code-header"><div class="dots"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span></div><span>.env</span><div class="code-actions"><button class="code-btn" onclick="copyBlock(this)">📋 Copiar</button></div></div>
+            <div class="code-body"><pre class="code-content">VITE_SUPABASE_URL="https://SEU-PROJETO.supabase.co"
+VITE_SUPABASE_PUBLISHABLE_KEY="sua-anon-key-aqui"
+VITE_SUPABASE_PROJECT_ID="SEU-PROJETO"</pre></div>
+          </div>
+          <p>Veja todas as variáveis na <a href="#env">seção 8</a>.</p>
+        </div>
+
+        <div class="step">
+          <div class="step-header"><div class="step-badge">9</div><div class="step-title">Executar o projeto</div></div>
+          <p>No terminal, dentro da pasta do projeto:</p>
+          <div class="code-block">
+            <div class="code-header"><div class="dots"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span></div><span>terminal</span><div class="code-actions"><button class="code-btn" onclick="copyBlock(this)">📋 Copiar</button></div></div>
+            <div class="code-body"><pre class="code-content"># instalar dependências
+npm install
+# ou: bun install
+
+# rodar em desenvolvimento
+npm run dev
+# ou: bun dev
+
+# build de produção
+npm run build</pre></div>
+          </div>
+          <p>Abra <code>http://localhost:8080</code> no navegador.</p>
+        </div>
+
+        <div class="step">
+          <div class="step-header"><div class="step-badge">10</div><div class="step-title">Verificar funcionamento</div></div>
+          <p>Cadastre-se na tela de login. O <strong>primeiro usuário criado vira automaticamente admin</strong> (trigger <code>auto_grant_first_admin</code>). Faça um tour rápido pelo Dashboard, Clientes e Configurações.</p>
+          <div class="alert alert-success"><span class="alert-icon">🎉</span><div><strong>Parabéns!</strong>Se você chegou até aqui e o dashboard abriu, a instalação foi concluída com sucesso.</div></div>
+        </div>
+      </section>
+
+      <section id="supabase">
+        <h2><span class="step-num">4</span> Configuração da Supabase</h2>
+        <p class="subtitle">Onde encontrar cada chave e como usá-la corretamente.</p>
+        <div class="card">
+          <h3>🔗 Project URL</h3>
+          <p>Em <strong>Project Settings → API → Project URL</strong>. Formato: <code>https://[project-ref].supabase.co</code>. Vai na variável <code>VITE_SUPABASE_URL</code>.</p>
+          <h3>🔑 Anon Key (publishable)</h3>
+          <p>Em <strong>Project Settings → API → Project API keys → anon public</strong>. É segura para uso no navegador — todas as regras de acesso são controladas por RLS. Vai na variável <code>VITE_SUPABASE_PUBLISHABLE_KEY</code>.</p>
+          <h3>🛡️ Service Role Key</h3>
+          <p>Em <strong>Project Settings → API → service_role (secret)</strong>. Concede acesso total ignorando RLS. Guarde <strong>apenas</strong> em Edge Functions como secret (<code>SUPABASE_SERVICE_ROLE_KEY</code>). Nunca no frontend.</p>
+        </div>
+      </section>
+
+      <section id="banco">
+        <h2><span class="step-num">5</span> Banco de Dados</h2>
+        <p class="subtitle">Esquema extraído automaticamente do projeto Supabase conectado.</p>
+        <div class="grid-3">
+          <div class="req-card"><div class="icon">🗄️</div><h4>59 tabelas</h4><p>Todas com RLS habilitado e políticas específicas.</p></div>
+          <div class="req-card"><div class="icon">⚙️</div><h4>Funções e Triggers</h4><p>Renovação automática de vencimentos, backups e RLS helpers.</p></div>
+          <div class="req-card"><div class="icon">📦</div><h4>3 buckets</h4><p>Storage configurado para logos, mídia WhatsApp e figurinhas.</p></div>
+        </div>
+        <h3>Tabelas do schema <code>public</code></h3>
+        <details class="tbl"><summary><span class="tname">table_name</span><span class="tcount">1 colunas</span></summary><ul class="cols"><li><code>string_agg</code></li></ul></details>
+<details class="tbl"><summary><span class="tname">activation_apps</span><span class="tcount">15 colunas</span></summary><ul class="cols"><li><code>id:uuid NOT NULL</code></li><li><code>user_id:uuid NOT NULL</code></li><li><code>app_name:text NOT NULL</code></li><li><code>description:text</code></li><li><code>icon:text</code></li><li><code>requires_email:boolean</code></li><li><code>requires_mac:boolean</code></li><li><code>is_enabled:boolean</code></li><li><code>sort_order:integer</code></li><li><code>created_at:timestamp with time zone NOT NULL</code></li><li><code>updated_at:timestamp with time zone NOT NULL</code></li><li><code>logo_url:text</code></li><li><code>price_monthly:numeric</code></li><li><code>price_quarterly:numeric</code></li><li><code>price_annual:numeric</code></li></ul></details>
+<details class="tbl"><summary><span class="tname">activation_panel_credentials</span><span class="tcount">9 colunas</span></summary><ul class="cols"><li><code>id:uuid NOT NULL</code></li><li><code>user_id:uuid NOT NULL</code></li><li><code>panel_type:text NOT NULL</code></li><li><code>username:text NOT NULL</code></li><li><code>password:text NOT NULL</code></li><li><code>is_enabled:boolean NOT NULL</code></li><li><code>extra:jsonb NOT NULL</code></li><li><code>created_at:timestamp with time zone NOT NULL</code></li><li><code>updated_at:timestamp with time zone NOT NULL</code></li></ul></details>
+<details class="tbl"><summary><span class="tname">activation_requests</span><span class="tcount">13 colunas</span></summary><ul class="cols"><li><code>id:uuid NOT NULL</code></li><li><code>user_id:uuid</code></li><li><code>app_name:text NOT NULL</code></li><li><code>customer_name:text NOT NULL</code></li><li><code>customer_phone:text</code></li><li><code>mac_address:text</code></li><li><code>email:text</code></li><li><code>payment_method:text</code></li><li><code>amount:numeric</code></li><li><code>status:text NOT NULL</code></li><li><code>cakto_payload:jsonb</code></li><li><code>created_at:timestamp with time zone NOT NULL</code></li><li><code>updated_at:timestamp with time zone NOT NULL</code></li></ul></details>
+<details class="tbl"><summary><span class="tname">ai_knowledge_candidates</span><span class="tcount">18 colunas</span></summary><ul class="cols"><li><code>id:uuid NOT NULL</code></li><li><code>user_id:uuid NOT NULL</code></li><li><code>canonical_question:text NOT NULL</code></li><li><code>similar_questions:ARRAY</code></li><li><code>best_answer:text NOT NULL</code></li><li><code>category:text</code></li><li><code>tags:ARRAY</code></li><li><code>keywords:ARRAY</code></li><li><code>confidence:numeric</code></li><li><code>usage_count:integer</code></li><li><code>success_count:integer</code></li><li><code>success_rate:numeric</code></li><li><code>last_used_at:timestamp with time zone</code></li><li><code>status:text NOT NULL</code></li><li><code>source_conversation_ids:ARRAY</code></li><li><code>embedding:USER-DEFINED</code></li><li><code>created_at:timestamp with time zone NOT NULL</code></li><li><code>updated_at:timestamp with time zone NOT NULL</code></li></ul></details>
+<details class="tbl"><summary><span class="tname">ai_knowledge_entries</span><span class="tcount">19 colunas</span></summary><ul class="cols"><li><code>id:uuid NOT NULL</code></li><li><code>user_id:uuid NOT NULL</code></li><li><code>title:text NOT NULL</code></li><li><code>category:text NOT NULL</code></li><li><code>keywords:ARRAY NOT NULL</code></li><li><code>response_template:text NOT NULL</code></li><li><code>requires_human:boolean NOT NULL</code></li><li><code>is_enabled:boolean NOT NULL</code></li><li><code>sort_order:integer NOT NULL</code></li><li><code>created_at:timestamp with time zone NOT NULL</code></li><li><code>updated_at:timestamp with time zone NOT NULL</code></li><li><code>media_url:text</code></li><li><code>media_mime:text</code></li><li><code>media_type:text</code></li><li><code>media_filename:text</code></li><li><code>embedding:USER-DEFINED</code></li><li><code>canonical_question:text</code></li><li><code>success_rate:numeric</code></li><li><code>usage_count:integer</code></li></ul></details>
+<details class="tbl"><summary><span class="tname">ai_knowledge_items</span><span class="tcount">28 colunas</span></summary><ul class="cols"><li><code>id:uuid NOT NULL</code></li><li><code>user_id:uuid NOT NULL</code></li><li><code>kind:USER-DEFINED NOT NULL</code></li><li><code>subject:text NOT NULL</code></li><li><code>problem:text</code></li><li><code>solution:text</code></li><li><code>steps:jsonb</code></li><li><code>flow_nodes:jsonb</code></li><li><code>category:text NOT NULL</code></li><li><code>devices:ARRAY NOT NULL</code></li><li><code>apps:ARRAY NOT NULL</code></li><li><code>tags:ARRAY NOT NULL</code></li><li><code>keywords:ARRAY NOT NULL</code></li><li><code>usage_count:integer NOT NULL</code></li><li><code>resolved_count:integer NOT NULL</code></li><li><code>success_rate:numeric NOT NULL</code></li><li><code>confidence:numeric NOT NULL</code></li><li><code>last_used_at:timestamp with time zone</code></li><li><code>operators:jsonb NOT NULL</code></li><li><code>source_conversation_ids:ARRAY NOT NULL</code></li><li><code>status:USER-DEFINED NOT NULL</code></li><li><code>merged_into_id:uuid</code></li><li><code>embedding:USER-DEFINED</code></li><li><code>approved_at:timestamp with time zone</code></li><li><code>approved_by:uuid</code></li><li><code>knowledge_entry_id:uuid</code></li><li><code>created_at:timestamp with time zone NOT NULL</code></li><li><code>updated_at:timestamp with time zone NOT NULL</code></li></ul></details>
+<details class="tbl"><summary><span class="tname">ai_training_conversations</span><span class="tcount">26 colunas</span></summary><ul class="cols"><li><code>id:uuid NOT NULL</code></li><li><code>user_id:uuid NOT NULL</code></li><li><code>source:text NOT NULL</code></li><li><code>contact_phone:text</code></li><li><code>contact_name:text</code></li><li><code>operator_id:uuid</code></li><li><code>started_at:timestamp with time zone</code></li><li><code>ended_at:timestamp with time zone</code></li><li><code>duration_seconds:integer</code></li><li><code>message_count:integer</code></li><li><code>status:text</code></li><li><code>tags:ARRAY</code></li><li><code>outcome:text</code></li><li><code>raw:jsonb NOT NULL</code></li><li><code>analyzed_at:timestamp with time zone</code></li><li><code>created_at:timestamp with time zone NOT NULL</code></li><li><code>updated_at:timestamp with time zone NOT NULL</code></li><li><code>problem_summary:text</code></li><li><code>solution_summary:text</code></li><li><code>resolved:boolean</code></li><li><code>device:text</code></li><li><code>app:text</code></li><li><code>category:text</code></li><li><code>signal_quality:text</code></li><li><code>operator_name:text</code></li><li><code>analysis_version:integer</code></li></ul></details>
+<details class="tbl"><summary><span class="tname">ai_training_jobs</span><span class="tcount">12 colunas</span></summary><ul class="cols"><li><code>id:uuid NOT NULL</code></li><li><code>user_id:uuid NOT NULL</code></li><li><code>kind:text NOT NULL</code></li><li><code>source:text</code></li><li><code>status:text NOT NULL</code></li><li><code>total:integer</code></li><li><code>processed:integer</code></li><li><code>errors:integer</code></li><li><code>message:text</code></li><li><code>started_at:timestamp with time zone NOT NULL</code></li><li><code>finished_at:timestamp with time zone</code></li><li><code>created_at:timestamp with time zone NOT NULL</code></li></ul></details>
+<details class="tbl"><summary><span class="tname">auto_replies</span><span class="tcount">9 colunas</span></summary><ul class="cols"><li><code>id:uuid NOT NULL</code></li><li><code>user_id:uuid NOT NULL</code></li><li><code>trigger_keyword:text NOT NULL</code></li><li><code>reply_message:text NOT NULL</code></li><li><code>match_type:text NOT NULL</code></li><li><code>is_enabled:boolean NOT NULL</code></li><li><code>priority:integer NOT NULL</code></li><li><code>created_at:timestamp with time zone NOT NULL</code></li><li><code>updated_at:timestamp with time zone NOT NULL</code></li></ul></details>
+<details class="tbl"><summary><span class="tname">billing_logs</span><span class="tcount">7 colunas</span></summary><ul class="cols"><li><code>id:uuid NOT NULL</code></li><li><code>customer_id:uuid NOT NULL</code></li><li><code>billing_type:USER-DEFINED NOT NULL</code></li><li><code>message:text NOT NULL</code></li><li><code>sent_at:timestamp with time zone NOT NULL</code></li><li><code>whatsapp_status:text</code></li><li><code>sent_date_br:date</code></li></ul></details>
+<details class="tbl"><summary><span class="tname">billing_schedule</span><span class="tcount">14 colunas</span></summary><ul class="cols"><li><code>id:uuid NOT NULL</code></li><li><code>user_id:uuid NOT NULL</code></li><li><code>is_enabled:boolean NOT NULL</code></li><li><code>send_time:time without time zone NOT NULL</code></li><li><code>send_d_minus_1:boolean NOT NULL</code></li><li><code>send_d0:boolean NOT NULL</code></li><li><code>send_d_plus_1:boolean NOT NULL</code></li><li><code>last_run_at:timestamp with time zone</code></li><li><code>last_run_status:text</code></li><li><code>created_at:timestamp with time zone NOT NULL</code></li><li><code>updated_at:timestamp with time zone NOT NULL</code></li><li><code>template_d_minus_1:text</code></li><li><code>template_d0:text</code></li><li><code>template_d_plus_1:text</code></li></ul></details>
+<details class="tbl"><summary><span class="tname">billing_settings</span><span class="tcount">24 colunas</span></summary><ul class="cols"><li><code>id:uuid NOT NULL</code></li><li><code>user_id:uuid NOT NULL</code></li><li><code>pix_key:text</code></li><li><code>pix_key_type:text</code></li><li><code>monthly_price:numeric</code></li><li><code>quarterly_price:numeric</code></li><li><code>semiannual_price:numeric</code></li><li><code>annual_price:numeric</code></li><li><code>custom_message:text</code></li><li><code>created_at:timestamp with time zone NOT NULL</code></li><li><code>updated_at:timestamp with time zone NOT NULL</code></li><li><code>vplay_integration_url:text</code></li><li><code>vplay_key_message:text</code></li><li><code>meta_template_name:text</code></li><li><code>notification_phone:text</code></li><li><code>renewal_message_template:text</code></li><li><code>renewal_image_url:text</code></li><li><code>use_evolution_billing:boolean NOT NULL</code></li><li><code>evolution_instance:text</code></li><li><code>evolution_msg_d_minus_1:text</code></li><li><code>evolution_msg_d0:text</code></li><li><code>evolution_msg_d_plus_1:text</code></li><li><code>renewal_notification_target:text NOT NULL</code></li><li><code>meta_phone_number_id:text</code></li></ul></details>
+<details class="tbl"><summary><span class="tname">bot_flow_sessions</span><span class="tcount">9 colunas</span></summary><ul class="cols"><li><code>id:uuid NOT NULL</code></li><li><code>owner_id:uuid NOT NULL</code></li><li><code>phone:text NOT NULL</code></li><li><code>flow_id:uuid NOT NULL</code></li><li><code>current_step_id:text</code></li><li><code>variables:jsonb NOT NULL</code></li><li><code>expires_at:timestamp with time zone NOT NULL</code></li><li><code>created_at:timestamp with time zone NOT NULL</code></li><li><code>updated_at:timestamp with time zone NOT NULL</code></li></ul></details>
+<details class="tbl"><summary><span class="tname">bot_flows</span><span class="tcount">9 colunas</span></summary><ul class="cols"><li><code>id:uuid NOT NULL</code></li><li><code>owner_id:uuid NOT NULL</code></li><li><code>name:text NOT NULL</code></li><li><code>enabled:boolean NOT NULL</code></li><li><code>trigger_keywords:ARRAY NOT NULL</code></li><li><code>start_step_id:text</code></li><li><code>steps:jsonb NOT NULL</code></li><li><code>created_at:timestamp with time zone NOT NULL</code></li><li><code>updated_at:timestamp with time zone NOT NULL</code></li></ul></details>
+<details class="tbl"><summary><span class="tname">bot_triggers</span><span class="tcount">10 colunas</span></summary><ul class="cols"><li><code>id:uuid NOT NULL</code></li><li><code>user_id:uuid NOT NULL</code></li><li><code>trigger_type:text NOT NULL</code></li><li><code>is_enabled:boolean NOT NULL</code></li><li><code>days_offset:integer</code></li><li><code>bot_department_id:text</code></li><li><code>bot_department_name:text</code></li><li><code>message_template:text</code></li><li><code>created_at:timestamp with time zone NOT NULL</code></li><li><code>updated_at:timestamp with time zone NOT NULL</code></li></ul></details>
+<details class="tbl"><summary><span class="tname">broadcast_logs</span><span class="tcount">9 colunas</span></summary><ul class="cols"><li><code>id:uuid NOT NULL</code></li><li><code>customer_id:uuid NOT NULL</code></li><li><code>phone_normalized:text NOT NULL</code></li><li><code>template_name:text NOT NULL</code></li><li><code>last_status:text NOT NULL</code></li><li><code>last_error:text</code></li><li><code>last_sent_at:timestamp with time zone</code></li><li><code>created_at:timestamp with time zone NOT NULL</code></li><li><code>updated_at:timestamp with time zone NOT NULL</code></li></ul></details>
+<details class="tbl"><summary><span class="tname">cakto_processed_events</span><span class="tcount">3 colunas</span></summary><ul class="cols"><li><code>cakto_id:text NOT NULL</code></li><li><code>owner_id:uuid</code></li><li><code>created_at:timestamp with time zone NOT NULL</code></li></ul></details>
+<details class="tbl"><summary><span class="tname">crm_oficial_billing_schedule</span><span class="tcount">24 colunas</span></summary><ul class="cols"><li><code>id:uuid NOT NULL</code></li><li><code>user_id:uuid NOT NULL</code></li><li><code>is_enabled:boolean NOT NULL</code></li><li><code>send_time:time without time zone NOT NULL</code></li><li><code>send_d_minus_1:boolean NOT NULL</code></li><li><code>send_d0:boolean NOT NULL</code></li><li><code>send_d_plus_1:boolean NOT NULL</code></li><li><code>message_d_minus_1:text NOT NULL</code></li><li><code>message_d0:text NOT NULL</code></li><li><code>message_d_plus_1:text NOT NULL</code></li><li><code>min_delay_seconds:integer NOT NULL</code></li><li><code>max_delay_seconds:integer NOT NULL</code></li><li><code>last_run_at:timestamp with time zone</code></li><li><code>last_run_status:text</code></li><li><code>created_at:timestamp with time zone NOT NULL</code></li><li><code>updated_at:timestamp with time zone NOT NULL</code></li><li><code>template_d_minus_1:text</code></li><li><code>template_d0:text</code></li><li><code>template_d_plus_1:text</code></li><li><code>template_lang_d_minus_1:text</code></li><li><code>template_lang_d0:text</code></li><li><code>template_lang_d_plus_1:text</code></li><li><code>channel_id:text</code></li><li><code>phone_number_id:text</code></li></ul></details>
+<details class="tbl"><summary><span class="tname">crm_oficial_hidden_templates</span><span class="tcount">8 colunas</span></summary><ul class="cols"><li><code>id:uuid NOT NULL</code></li><li><code>user_id:uuid NOT NULL</code></li><li><code>template_id:text</code></li><li><code>template_name:text NOT NULL</code></li><li><code>language:text</code></li><li><code>reason:text</code></li><li><code>created_at:timestamp with time zone NOT NULL</code></li><li><code>updated_at:timestamp with time zone NOT NULL</code></li></ul></details>
+<details class="tbl"><summary><span class="tname">crm_oficial_settings</span><span class="tcount">11 colunas</span></summary><ul class="cols"><li><code>id:uuid NOT NULL</code></li><li><code>user_id:uuid NOT NULL</code></li><li><code>api_key:text</code></li><li><code>enabled:boolean NOT NULL</code></li><li><code>auto_signup:boolean NOT NULL</code></li><li><code>auto_test_chat:boolean NOT NULL</code></li><li><code>auto_renew_notify:boolean NOT NULL</code></li><li><code>last_test_at:timestamp with time zone</code></li><li><code>last_test_ok:boolean</code></li><li><code>created_at:timestamp with time zone NOT NULL</code></li><li><code>updated_at:timestamp with time zone NOT NULL</code></li></ul></details>
+<details class="tbl"><summary><span class="tname">customer_backups</span><span class="tcount">5 colunas</span></summary><ul class="cols"><li><code>id:uuid NOT NULL</code></li><li><code>created_at:timestamp with time zone NOT NULL</code></li><li><code>backup_data:jsonb NOT NULL</code></li><li><code>total_customers:integer NOT NULL</code></li><li><code>backup_type:text NOT NULL</code></li></ul></details>
+<details class="tbl"><summary><span class="tname">customers</span><span class="tcount">18 colunas</span></summary><ul class="cols"><li><code>id:uuid NOT NULL</code></li><li><code>name:text NOT NULL</code></li><li><code>phone:text NOT NULL</code></li><li><code>server_id:uuid</code></li><li><code>plan_id:uuid</code></li><li><code>start_date:date NOT NULL</code></li><li><code>due_date:date NOT NULL</code></li><li><code>status:USER-DEFINED NOT NULL</code></li><li><code>notes:text</code></li><li><code>created_at:timestamp with time zone NOT NULL</code></li><li><code>created_by:uuid</code></li><li><code>custom_price:numeric</code></li><li><code>username:text</code></li><li><code>screens:integer NOT NULL</code></li><li><code>extra_months:integer NOT NULL</code></li><li><code>password:text</code></li><li><code>extra_phone:text</code></li><li><code>checkout_code:text NOT NULL</code></li></ul></details>
+<details class="tbl"><summary><span class="tname">departments</span><span class="tcount">7 colunas</span></summary><ul class="cols"><li><code>id:uuid NOT NULL</code></li><li><code>user_id:uuid NOT NULL</code></li><li><code>name:text NOT NULL</code></li><li><code>description:text</code></li><li><code>is_default:boolean</code></li><li><code>created_at:timestamp with time zone NOT NULL</code></li><li><code>updated_at:timestamp with time zone NOT NULL</code></li></ul></details>
+<details class="tbl"><summary><span class="tname">device_tokens</span><span class="tcount">8 colunas</span></summary><ul class="cols"><li><code>id:uuid NOT NULL</code></li><li><code>user_id:uuid NOT NULL</code></li><li><code>token:text NOT NULL</code></li><li><code>platform:text NOT NULL</code></li><li><code>device_name:text</code></li><li><code>last_seen_at:timestamp with time zone NOT NULL</code></li><li><code>created_at:timestamp with time zone NOT NULL</code></li><li><code>updated_at:timestamp with time zone NOT NULL</code></li></ul></details>
+<details class="tbl"><summary><span class="tname">efi_charges</span><span class="tcount">16 colunas</span></summary><ul class="cols"><li><code>id:uuid NOT NULL</code></li><li><code>owner_id:uuid NOT NULL</code></li><li><code>customer_id:uuid</code></li><li><code>pending_id:uuid</code></li><li><code>pending_kind:text</code></li><li><code>txid:text NOT NULL</code></li><li><code>amount:numeric NOT NULL</code></li><li><code>status:text NOT NULL</code></li><li><code>environment:text NOT NULL</code></li><li><code>pix_copia_cola:text</code></li><li><code>qrcode_base64:text</code></li><li><code>metadata:jsonb NOT NULL</code></li><li><code>paid_at:timestamp with time zone</code></li><li><code>expires_at:timestamp with time zone</code></li><li><code>created_at:timestamp with time zone NOT NULL</code></li><li><code>updated_at:timestamp with time zone NOT NULL</code></li></ul></details>
+<details class="tbl"><summary><span class="tname">efi_settings</span><span class="tcount">14 colunas</span></summary><ul class="cols"><li><code>id:uuid NOT NULL</code></li><li><code>user_id:uuid NOT NULL</code></li><li><code>enabled:boolean NOT NULL</code></li><li><code>environment:text NOT NULL</code></li><li><code>client_id:text</code></li><li><code>client_secret:text</code></li><li><code>pix_key:text</code></li><li><code>cert_p12_base64:text</code></li><li><code>cert_password:text NOT NULL</code></li><li><code>webhook_configured_at:timestamp with time zone</code></li><li><code>last_verified_at:timestamp with time zone</code></li><li><code>last_error:text</code></li><li><code>created_at:timestamp with time zone NOT NULL</code></li><li><code>updated_at:timestamp with time zone NOT NULL</code></li></ul></details>
+<details class="tbl"><summary><span class="tname">evolution_billing_schedule</span><span class="tcount">20 colunas</span></summary><ul class="cols"><li><code>id:uuid NOT NULL</code></li><li><code>user_id:uuid NOT NULL</code></li><li><code>is_enabled:boolean NOT NULL</code></li><li><code>send_time:time without time zone NOT NULL</code></li><li><code>send_d_minus_1:boolean NOT NULL</code></li><li><code>send_d0:boolean NOT NULL</code></li><li><code>send_d_plus_1:boolean NOT NULL</code></li><li><code>message_d_minus_1:text</code></li><li><code>message_d0:text</code></li><li><code>message_d_plus_1:text</code></li><li><code>min_delay_seconds:integer NOT NULL</code></li><li><code>max_delay_seconds:integer NOT NULL</code></li><li><code>last_run_at:timestamp with time zone</code></li><li><code>last_run_status:text</code></li><li><code>created_at:timestamp with time zone NOT NULL</code></li><li><code>updated_at:timestamp with time zone NOT NULL</code></li><li><code>image_url:text</code></li><li><code>renew_button_enabled:boolean NOT NULL</code></li><li><code>renew_button_label:text</code></li><li><code>renew_button_url:text</code></li></ul></details>
+<details class="tbl"><summary><span class="tname">evolution_contacts</span><span class="tcount">10 colunas</span></summary><ul class="cols"><li><code>id:uuid NOT NULL</code></li><li><code>user_id:uuid NOT NULL</code></li><li><code>phone:text NOT NULL</code></li><li><code>name:text</code></li><li><code>profile_pic_url:text</code></li><li><code>created_at:timestamp with time zone NOT NULL</code></li><li><code>updated_at:timestamp with time zone NOT NULL</code></li><li><code>ai_category:text</code></li><li><code>needs_human:boolean NOT NULL</code></li><li><code>last_classified_at:timestamp with time zone</code></li></ul></details>
+<details class="tbl"><summary><span class="tname">evolution_conversation_state</span><span class="tcount">7 colunas</span></summary><ul class="cols"><li><code>id:uuid NOT NULL</code></li><li><code>user_id:uuid NOT NULL</code></li><li><code>phone:text NOT NULL</code></li><li><code>last_read_at:timestamp with time zone</code></li><li><code>manual_unread:boolean NOT NULL</code></li><li><code>created_at:timestamp with time zone NOT NULL</code></li><li><code>updated_at:timestamp with time zone NOT NULL</code></li></ul></details>
+<details class="tbl"><summary><span class="tname">evolution_messages</span><span class="tcount">16 colunas</span></summary><ul class="cols"><li><code>id:uuid NOT NULL</code></li><li><code>user_id:uuid NOT NULL</code></li><li><code>remote_jid:text NOT NULL</code></li><li><code>phone:text NOT NULL</code></li><li><code>contact_name:text</code></li><li><code>direction:text NOT NULL</code></li><li><code>content:text NOT NULL</code></li><li><code>message_type:text NOT NULL</code></li><li><code>external_id:text</code></li><li><code>status:text NOT NULL</code></li><li><code>raw:jsonb</code></li><li><code>created_at:timestamp with time zone NOT NULL</code></li><li><code>media_url:text</code></li><li><code>media_mime:text</code></li><li><code>profile_pic_url:text</code></li><li><code>instance_name:text</code></li></ul></details>
+<details class="tbl"><summary><span class="tname">evolution_presence</span><span class="tcount">6 colunas</span></summary><ul class="cols"><li><code>id:uuid NOT NULL</code></li><li><code>user_id:uuid NOT NULL</code></li><li><code>phone:text NOT NULL</code></li><li><code>presence:text NOT NULL</code></li><li><code>updated_at:timestamp with time zone NOT NULL</code></li><li><code>last_seen_at:timestamp with time zone</code></li></ul></details>
+<details class="tbl"><summary><span class="tname">evolution_settings</span><span class="tcount">20 colunas</span></summary><ul class="cols"><li><code>id:uuid NOT NULL</code></li><li><code>user_id:uuid NOT NULL</code></li><li><code>is_enabled:boolean NOT NULL</code></li><li><code>base_url:text NOT NULL</code></li><li><code>api_key:text NOT NULL</code></li><li><code>instance_name:text NOT NULL</code></li><li><code>webhook_token:text NOT NULL</code></li><li><code>created_at:timestamp with time zone NOT NULL</code></li><li><code>updated_at:timestamp with time zone NOT NULL</code></li><li><code>autoreply_enabled:boolean NOT NULL</code></li><li><code>autoreply_system_prompt:text NOT NULL</code></li><li><code>autoreply_only_outside_hours:boolean NOT NULL</code></li><li><code>autoreply_business_start:text NOT NULL</code></li><li><code>autoreply_business_end:text NOT NULL</code></li><li><code>autoreply_disabled_phones:ARRAY NOT NULL</code></li><li><code>autoreply_model:text NOT NULL</code></li><li><code>history_cutoff_at:timestamp with time zone</code></li><li><code>autoreply_absence_enabled:boolean NOT NULL</code></li><li><code>autoreply_absence_message:text NOT NULL</code></li><li><code>autoreply_absence_cooldown_hours:integer NOT NULL</code></li></ul></details>
+<details class="tbl"><summary><span class="tname">evolution_stickers</span><span class="tcount">5 colunas</span></summary><ul class="cols"><li><code>id:uuid NOT NULL</code></li><li><code>user_id:uuid NOT NULL</code></li><li><code>storage_path:text NOT NULL</code></li><li><code>mime_type:text NOT NULL</code></li><li><code>created_at:timestamp with time zone NOT NULL</code></li></ul></details>
+<details class="tbl"><summary><span class="tname">expenses</span><span class="tcount">15 colunas</span></summary><ul class="cols"><li><code>id:uuid NOT NULL</code></li><li><code>user_id:uuid NOT NULL</code></li><li><code>category:text NOT NULL</code></li><li><code>description:text NOT NULL</code></li><li><code>amount:numeric NOT NULL</code></li><li><code>due_date:date</code></li><li><code>paid:boolean NOT NULL</code></li><li><code>paid_at:timestamp with time zone</code></li><li><code>recurring:boolean NOT NULL</code></li><li><code>recurring_day:integer</code></li><li><code>icon:text</code></li><li><code>color:text</code></li><li><code>notes:text</code></li><li><code>created_at:timestamp with time zone NOT NULL</code></li><li><code>updated_at:timestamp with time zone NOT NULL</code></li></ul></details>
+<details class="tbl"><summary><span class="tname">goals_settings</span><span class="tcount">7 colunas</span></summary><ul class="cols"><li><code>id:uuid NOT NULL</code></li><li><code>user_id:uuid NOT NULL</code></li><li><code>customers_goal:integer NOT NULL</code></li><li><code>revenue_goal:numeric NOT NULL</code></li><li><code>projection_goal:numeric NOT NULL</code></li><li><code>created_at:timestamp with time zone NOT NULL</code></li><li><code>updated_at:timestamp with time zone NOT NULL</code></li></ul></details>
+<details class="tbl"><summary><span class="tname">message_logs</span><span class="tcount">12 colunas</span></summary><ul class="cols"><li><code>id:uuid NOT NULL</code></li><li><code>user_id:uuid</code></li><li><code>customer_id:uuid</code></li><li><code>customer_name:text</code></li><li><code>customer_phone:text</code></li><li><code>message_type:text NOT NULL</code></li><li><code>source:text NOT NULL</code></li><li><code>status:text NOT NULL</code></li><li><code>error_message:text</code></li><li><code>whatsapp_response:jsonb</code></li><li><code>metadata:jsonb</code></li><li><code>created_at:timestamp with time zone NOT NULL</code></li></ul></details>
+<details class="tbl"><summary><span class="tname">panel_links</span><span class="tcount">7 colunas</span></summary><ul class="cols"><li><code>id:uuid NOT NULL</code></li><li><code>name:text NOT NULL</code></li><li><code>url:text NOT NULL</code></li><li><code>icon:text</code></li><li><code>sort_order:integer</code></li><li><code>created_at:timestamp with time zone NOT NULL</code></li><li><code>updated_at:timestamp with time zone NOT NULL</code></li></ul></details>
+<details class="tbl"><summary><span class="tname">payment_confirmations</span><span class="tcount">10 colunas</span></summary><ul class="cols"><li><code>id:uuid NOT NULL</code></li><li><code>customer_id:uuid</code></li><li><code>customer_name:text NOT NULL</code></li><li><code>customer_phone:text</code></li><li><code>amount:numeric NOT NULL</code></li><li><code>plan_name:text</code></li><li><code>duration_days:integer NOT NULL</code></li><li><code>new_due_date:date NOT NULL</code></li><li><code>status:text NOT NULL</code></li><li><code>created_at:timestamp with time zone NOT NULL</code></li></ul></details>
+<details class="tbl"><summary><span class="tname">payments</span><span class="tcount">8 colunas</span></summary><ul class="cols"><li><code>id:uuid NOT NULL</code></li><li><code>customer_id:uuid NOT NULL</code></li><li><code>amount:numeric NOT NULL</code></li><li><code>payment_date:date NOT NULL</code></li><li><code>method:USER-DEFINED NOT NULL</code></li><li><code>confirmed:boolean NOT NULL</code></li><li><code>created_at:timestamp with time zone NOT NULL</code></li><li><code>source:text NOT NULL</code></li></ul></details>
+<details class="tbl"><summary><span class="tname">pending_activation_data</span><span class="tcount">9 colunas</span></summary><ul class="cols"><li><code>id:uuid NOT NULL</code></li><li><code>phone_normalized:text NOT NULL</code></li><li><code>app_name:text NOT NULL</code></li><li><code>customer_name:text NOT NULL</code></li><li><code>mac_address:text</code></li><li><code>email:text</code></li><li><code>used:boolean NOT NULL</code></li><li><code>expires_at:timestamp with time zone NOT NULL</code></li><li><code>created_at:timestamp with time zone NOT NULL</code></li></ul></details>
+<details class="tbl"><summary><span class="tname">pending_manual_renewals</span><span class="tcount">17 colunas</span></summary><ul class="cols"><li><code>id:uuid NOT NULL</code></li><li><code>owner_id:uuid NOT NULL</code></li><li><code>customer_id:uuid</code></li><li><code>customer_name:text NOT NULL</code></li><li><code>customer_phone:text</code></li><li><code>username:text</code></li><li><code>server_id:uuid</code></li><li><code>server_name:text</code></li><li><code>server_host:text</code></li><li><code>plan_name:text</code></li><li><code>amount:numeric</code></li><li><code>new_due_date:date</code></li><li><code>reason:text NOT NULL</code></li><li><code>error_details:jsonb</code></li><li><code>source:text</code></li><li><code>created_at:timestamp with time zone NOT NULL</code></li><li><code>locked_at:timestamp with time zone</code></li></ul></details>
+<details class="tbl"><summary><span class="tname">pending_new_customers</span><span class="tcount">11 colunas</span></summary><ul class="cols"><li><code>id:uuid NOT NULL</code></li><li><code>owner_id:uuid NOT NULL</code></li><li><code>name:text NOT NULL</code></li><li><code>phone:text NOT NULL</code></li><li><code>username:text NOT NULL</code></li><li><code>server_id:uuid</code></li><li><code>plan_id:uuid</code></li><li><code>checkout_url:text</code></li><li><code>used:boolean</code></li><li><code>expires_at:timestamp with time zone</code></li><li><code>created_at:timestamp with time zone</code></li></ul></details>
+<details class="tbl"><summary><span class="tname">pending_renewal_selections</span><span class="tcount">6 colunas</span></summary><ul class="cols"><li><code>id:uuid NOT NULL</code></li><li><code>phone_normalized:text NOT NULL</code></li><li><code>customer_id:uuid NOT NULL</code></li><li><code>created_at:timestamp with time zone NOT NULL</code></li><li><code>expires_at:timestamp with time zone NOT NULL</code></li><li><code>used:boolean NOT NULL</code></li></ul></details>
+<details class="tbl"><summary><span class="tname">plans</span><span class="tcount">8 colunas</span></summary><ul class="cols"><li><code>id:uuid NOT NULL</code></li><li><code>plan_name:text NOT NULL</code></li><li><code>duration_days:integer NOT NULL</code></li><li><code>price:numeric NOT NULL</code></li><li><code>created_at:timestamp with time zone NOT NULL</code></li><li><code>created_by:uuid</code></li><li><code>checkout_url:text</code></li><li><code>card_checkout_url:text</code></li></ul></details>
+<details class="tbl"><summary><span class="tname">profiles</span><span class="tcount">4 colunas</span></summary><ul class="cols"><li><code>id:uuid NOT NULL</code></li><li><code>user_id:uuid NOT NULL</code></li><li><code>full_name:text</code></li><li><code>created_at:timestamp with time zone NOT NULL</code></li></ul></details>
+<details class="tbl"><summary><span class="tname">quick_messages</span><span class="tcount">9 colunas</span></summary><ul class="cols"><li><code>id:uuid NOT NULL</code></li><li><code>title:text NOT NULL</code></li><li><code>category:text NOT NULL</code></li><li><code>content:text NOT NULL</code></li><li><code>icon:text</code></li><li><code>sort_order:integer</code></li><li><code>created_at:timestamp with time zone NOT NULL</code></li><li><code>updated_at:timestamp with time zone NOT NULL</code></li><li><code>created_by:uuid</code></li></ul></details>
+<details class="tbl"><summary><span class="tname">reseller_access</span><span class="tcount">11 colunas</span></summary><ul class="cols"><li><code>id:uuid NOT NULL</code></li><li><code>user_id:uuid NOT NULL</code></li><li><code>email:text NOT NULL</code></li><li><code>full_name:text</code></li><li><code>access_expires_at:timestamp with time zone NOT NULL</code></li><li><code>is_active:boolean NOT NULL</code></li><li><code>created_at:timestamp with time zone NOT NULL</code></li><li><code>updated_at:timestamp with time zone NOT NULL</code></li><li><code>parent_reseller_id:uuid</code></li><li><code>credits:integer NOT NULL</code></li><li><code>max_evolution_instances:integer NOT NULL</code></li></ul></details>
+<details class="tbl"><summary><span class="tname">reseller_access_codes</span><span class="tcount">7 colunas</span></summary><ul class="cols"><li><code>id:uuid NOT NULL</code></li><li><code>code:text NOT NULL</code></li><li><code>days:integer NOT NULL</code></li><li><code>created_by:uuid NOT NULL</code></li><li><code>used_by:uuid</code></li><li><code>used_at:timestamp with time zone</code></li><li><code>created_at:timestamp with time zone NOT NULL</code></li></ul></details>
+<details class="tbl"><summary><span class="tname">reseller_api_settings</span><span class="tcount">21 colunas</span></summary><ul class="cols"><li><code>id:uuid NOT NULL</code></li><li><code>user_id:uuid NOT NULL</code></li><li><code>cakto_webhook_secret:text</code></li><li><code>natv_api_key:text</code></li><li><code>natv_base_url:text</code></li><li><code>created_at:timestamp with time zone NOT NULL</code></li><li><code>updated_at:timestamp with time zone NOT NULL</code></li><li><code>cakto_client_id:text</code></li><li><code>cakto_client_secret:text</code></li><li><code>the_best_base_url:text</code></li><li><code>the_best_username:text</code></li><li><code>the_best_password:text</code></li><li><code>rush_username:text</code></li><li><code>rush_password:text</code></li><li><code>rush_token:text</code></li><li><code>rush_base_url:text</code></li><li><code>natv2_api_key:text</code></li><li><code>natv2_base_url:text</code></li><li><code>uniplay_username:text</code></li><li><code>uniplay_password:text</code></li><li><code>uniplay_base_url:text</code></li></ul></details>
+<details class="tbl"><summary><span class="tname">reseller_checkout_settings</span><span class="tcount">16 colunas</span></summary><ul class="cols"><li><code>id:uuid NOT NULL</code></li><li><code>user_id:uuid NOT NULL</code></li><li><code>slug:text NOT NULL</code></li><li><code>display_name:text</code></li><li><code>logo_url:text</code></li><li><code>brand_color:text NOT NULL</code></li><li><code>headline:text</code></li><li><code>subheadline:text</code></li><li><code>enable_efi:boolean NOT NULL</code></li><li><code>enable_cakto:boolean NOT NULL</code></li><li><code>api_key:text NOT NULL</code></li><li><code>webhook_url:text</code></li><li><code>is_active:boolean NOT NULL</code></li><li><code>created_at:timestamp with time zone NOT NULL</code></li><li><code>updated_at:timestamp with time zone NOT NULL</code></li><li><code>activation_cakto_url:text</code></li></ul></details>
+<details class="tbl"><summary><span class="tname">servers</span><span class="tcount">9 colunas</span></summary><ul class="cols"><li><code>id:uuid NOT NULL</code></li><li><code>server_name:text NOT NULL</code></li><li><code>host:text NOT NULL</code></li><li><code>description:text</code></li><li><code>status:USER-DEFINED NOT NULL</code></li><li><code>created_at:timestamp with time zone NOT NULL</code></li><li><code>created_by:uuid</code></li><li><code>auto_renew:boolean NOT NULL</code></li><li><code>is_public:boolean</code></li></ul></details>
+<details class="tbl"><summary><span class="tname">user_evolution_instances</span><span class="tcount">13 colunas</span></summary><ul class="cols"><li><code>id:uuid NOT NULL</code></li><li><code>user_id:uuid NOT NULL</code></li><li><code>instance_name:text NOT NULL</code></li><li><code>instance_id:text</code></li><li><code>created_at:timestamp with time zone NOT NULL</code></li><li><code>advanced_settings:jsonb NOT NULL</code></li><li><code>webhook_events:ARRAY NOT NULL</code></li><li><code>webhook_enabled:boolean NOT NULL</code></li><li><code>settings_updated_at:timestamp with time zone</code></li><li><code>profile_pic_url:text</code></li><li><code>profile_name:text</code></li><li><code>owner_phone:text</code></li><li><code>profile_updated_at:timestamp with time zone</code></li></ul></details>
+<details class="tbl"><summary><span class="tname">user_roles</span><span class="tcount">4 colunas</span></summary><ul class="cols"><li><code>id:uuid NOT NULL</code></li><li><code>user_id:uuid NOT NULL</code></li><li><code>role:USER-DEFINED NOT NULL</code></li><li><code>created_at:timestamp with time zone NOT NULL</code></li></ul></details>
+<details class="tbl"><summary><span class="tname">vplay_servers</span><span class="tcount">8 colunas</span></summary><ul class="cols"><li><code>id:uuid NOT NULL</code></li><li><code>user_id:uuid NOT NULL</code></li><li><code>server_name:text NOT NULL</code></li><li><code>integration_url:text NOT NULL</code></li><li><code>key_message:text NOT NULL</code></li><li><code>is_default:boolean NOT NULL</code></li><li><code>created_at:timestamp with time zone NOT NULL</code></li><li><code>updated_at:timestamp with time zone NOT NULL</code></li></ul></details>
+<details class="tbl"><summary><span class="tname">webhook_logs</span><span class="tcount">10 colunas</span></summary><ul class="cols"><li><code>id:uuid NOT NULL</code></li><li><code>user_id:uuid</code></li><li><code>event_type:text NOT NULL</code></li><li><code>phone_from:text</code></li><li><code>phone_to:text</code></li><li><code>message_content:text</code></li><li><code>raw_payload:jsonb</code></li><li><code>processed:boolean NOT NULL</code></li><li><code>auto_reply_sent:boolean NOT NULL</code></li><li><code>created_at:timestamp with time zone NOT NULL</code></li></ul></details>
+<details class="tbl"><summary><span class="tname">xui_one_settings</span><span class="tcount">8 colunas</span></summary><ul class="cols"><li><code>id:uuid NOT NULL</code></li><li><code>user_id:uuid NOT NULL</code></li><li><code>base_url:text NOT NULL</code></li><li><code>api_key:text NOT NULL</code></li><li><code>access_code:text NOT NULL</code></li><li><code>is_enabled:boolean NOT NULL</code></li><li><code>created_at:timestamp with time zone NOT NULL</code></li><li><code>updated_at:timestamp with time zone NOT NULL</code></li></ul></details>
+<details class="tbl"><summary><span class="tname">zap_responder_settings</span><span class="tcount">20 colunas</span></summary><ul class="cols"><li><code>id:uuid NOT NULL</code></li><li><code>api_base_url:text NOT NULL</code></li><li><code>selected_session_id:text</code></li><li><code>selected_session_name:text</code></li><li><code>selected_session_phone:text</code></li><li><code>created_at:timestamp with time zone NOT NULL</code></li><li><code>updated_at:timestamp with time zone NOT NULL</code></li><li><code>selected_department_id:text</code></li><li><code>selected_department_name:text</code></li><li><code>user_id:uuid</code></li><li><code>zap_api_token:text</code></li><li><code>api_type:text NOT NULL</code></li><li><code>instance_name:text</code></li><li><code>meta_access_token:text</code></li><li><code>meta_token_expires_at:timestamp with time zone</code></li><li><code>meta_user_id:text</code></li><li><code>meta_business_id:text</code></li><li><code>meta_phone_number_id:text</code></li><li><code>meta_display_phone:text</code></li><li><code>meta_connected_at:timestamp with time zone</code></li></ul></details>
+
+      </section>
+
+      <section id="sql">
+        <h2><span class="step-num">6</span> SQL Completo</h2>
+        <p class="subtitle">Execute este script inteiro no SQL Editor da Supabase. Contém tudo: extensões, enums, tabelas, constraints, índices, funções, triggers, RLS, policies, buckets e policies de storage.</p>
+        <div class="alert alert-warning"><span class="alert-icon">⚠️</span><div><strong>Antes de executar</strong>Certifique-se que o projeto Supabase está vazio (recém criado). Rodar este SQL em um projeto com dados pode causar conflitos.</div></div>
+        <div class="code-block" id="sql-block">
+          <div class="code-header">
+            <div class="dots"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span></div>
+            <span>schema.sql · 105,314 caracteres · 1,858 linhas</span>
+            <div class="code-actions">
+              <button class="code-btn" onclick="copySQL()">📋 Copiar SQL</button>
+              <button class="code-btn" onclick="selectAllSQL()">🔲 Selecionar tudo</button>
+              <button class="code-btn" onclick="toggleExpand()">↕️ Expandir</button>
+              <a href="manual/schema.sql" download class="code-btn">⬇️ Baixar</a>
+            </div>
+          </div>
+          <div class="code-body" id="sql-body">
+            <pre class="code-content" id="sql-content">-- ============================================================
+-- SUPER GESTOR — ESQUEMA COMPLETO DO BANCO DE DADOS
+-- Gerado automaticamente do projeto Supabase conectado
+-- Execute este SQL no SQL Editor da Supabase
+-- ============================================================
+
+-- Extensões necessárias
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+CREATE EXTENSION IF NOT EXISTS &quot;uuid-ossp&quot;;
+CREATE EXTENSION IF NOT EXISTS vector;
+CREATE EXTENSION IF NOT EXISTS http WITH SCHEMA extensions;
+
+-- ============================================================
+-- TIPOS ENUM
+-- ============================================================
+CREATE TYPE public.ai_knowledge_item_status AS ENUM (&#x27;pending&#x27;,&#x27;approved&#x27;,&#x27;rejected&#x27;,&#x27;merged&#x27;);
+CREATE TYPE public.ai_knowledge_kind AS ENUM (&#x27;procedure&#x27;,&#x27;flow&#x27;,&#x27;intent&#x27;,&#x27;official_answer&#x27;,&#x27;business_rule&#x27;,&#x27;tutorial&#x27;);
+CREATE TYPE public.app_role AS ENUM (&#x27;admin&#x27;,&#x27;user&#x27;);
+CREATE TYPE public.billing_type AS ENUM (&#x27;D-1&#x27;,&#x27;D0&#x27;,&#x27;D+1&#x27;);
+CREATE TYPE public.customer_status AS ENUM (&#x27;ativa&#x27;,&#x27;inativa&#x27;,&#x27;suspensa&#x27;,&#x27;bloqueado&#x27;);
+CREATE TYPE public.payment_method AS ENUM (&#x27;pix&#x27;,&#x27;dinheiro&#x27;,&#x27;transferencia&#x27;,&#x27;cartao_credito&#x27;);
+CREATE TYPE public.server_status AS ENUM (&#x27;online&#x27;,&#x27;offline&#x27;,&#x27;manutencao&#x27;);
+
+
+-- ============================================================
+-- TABELAS
+-- ============================================================
+CREATE TABLE public.activation_apps (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  app_name text NOT NULL,
+  description text,
+  icon text DEFAULT &#x27;Smartphone&#x27;::text,
+  requires_email boolean DEFAULT false,
+  requires_mac boolean DEFAULT true,
+  is_enabled boolean DEFAULT true,
+  sort_order integer DEFAULT 0,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  logo_url text,
+  price_monthly numeric,
+  price_quarterly numeric,
+  price_annual numeric DEFAULT 25.00
+);
+CREATE TABLE public.activation_panel_credentials (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  panel_type text NOT NULL,
+  username text NOT NULL DEFAULT &#x27;&#x27;::text,
+  password text NOT NULL DEFAULT &#x27;&#x27;::text,
+  is_enabled boolean NOT NULL DEFAULT true,
+  extra jsonb NOT NULL DEFAULT &#x27;{}&#x27;::jsonb,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now()
+);
+CREATE TABLE public.activation_requests (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid,
+  app_name text NOT NULL,
+  customer_name text NOT NULL,
+  customer_phone text,
+  mac_address text,
+  email text,
+  payment_method text,
+  amount numeric DEFAULT 0,
+  status text NOT NULL DEFAULT &#x27;pending&#x27;::text,
+  cakto_payload jsonb,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now()
+);
+CREATE TABLE public.ai_knowledge_candidates (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  canonical_question text NOT NULL,
+  similar_questions ARRAY DEFAULT &#x27;{}&#x27;::text[],
+  best_answer text NOT NULL,
+  category text DEFAULT &#x27;outros&#x27;::text,
+  tags ARRAY DEFAULT &#x27;{}&#x27;::text[],
+  keywords ARRAY DEFAULT &#x27;{}&#x27;::text[],
+  confidence numeric DEFAULT 0.5,
+  usage_count integer DEFAULT 1,
+  success_count integer DEFAULT 0,
+  success_rate numeric DEFAULT 0,
+  last_used_at timestamp with time zone,
+  status text NOT NULL DEFAULT &#x27;pending&#x27;::text,
+  source_conversation_ids ARRAY DEFAULT &#x27;{}&#x27;::uuid[],
+  embedding vector,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now()
+);
+CREATE TABLE public.ai_knowledge_entries (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  title text NOT NULL,
+  category text NOT NULL DEFAULT &#x27;outros&#x27;::text,
+  keywords ARRAY NOT NULL DEFAULT &#x27;{}&#x27;::text[],
+  response_template text NOT NULL,
+  requires_human boolean NOT NULL DEFAULT false,
+  is_enabled boolean NOT NULL DEFAULT true,
+  sort_order integer NOT NULL DEFAULT 0,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  media_url text,
+  media_mime text,
+  media_type text,
+  media_filename text,
+  embedding vector,
+  canonical_question text,
+  success_rate numeric DEFAULT 0,
+  usage_count integer DEFAULT 0
+);
+CREATE TABLE public.ai_knowledge_items (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  kind ai_knowledge_kind NOT NULL,
+  subject text NOT NULL,
+  problem text,
+  solution text,
+  steps jsonb DEFAULT &#x27;[]&#x27;::jsonb,
+  flow_nodes jsonb DEFAULT &#x27;[]&#x27;::jsonb,
+  category text NOT NULL DEFAULT &#x27;outros&#x27;::text,
+  devices ARRAY NOT NULL DEFAULT &#x27;{}&#x27;::text[],
+  apps ARRAY NOT NULL DEFAULT &#x27;{}&#x27;::text[],
+  tags ARRAY NOT NULL DEFAULT &#x27;{}&#x27;::text[],
+  keywords ARRAY NOT NULL DEFAULT &#x27;{}&#x27;::text[],
+  usage_count integer NOT NULL DEFAULT 1,
+  resolved_count integer NOT NULL DEFAULT 0,
+  success_rate numeric NOT NULL DEFAULT 0,
+  confidence numeric NOT NULL DEFAULT 0.4,
+  last_used_at timestamp with time zone,
+  operators jsonb NOT NULL DEFAULT &#x27;[]&#x27;::jsonb,
+  source_conversation_ids ARRAY NOT NULL DEFAULT &#x27;{}&#x27;::uuid[],
+  status ai_knowledge_item_status NOT NULL DEFAULT &#x27;pending&#x27;::ai_knowledge_item_status,
+  merged_into_id uuid,
+  embedding vector,
+  approved_at timestamp with time zone,
+  approved_by uuid,
+  knowledge_entry_id uuid,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now()
+);
+CREATE TABLE public.ai_training_conversations (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  source text NOT NULL,
+  contact_phone text,
+  contact_name text,
+  operator_id uuid,
+  started_at timestamp with time zone,
+  ended_at timestamp with time zone,
+  duration_seconds integer,
+  message_count integer DEFAULT 0,
+  status text DEFAULT &#x27;imported&#x27;::text,
+  tags ARRAY DEFAULT &#x27;{}&#x27;::text[],
+  outcome text,
+  raw jsonb NOT NULL DEFAULT &#x27;[]&#x27;::jsonb,
+  analyzed_at timestamp with time zone,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  problem_summary text,
+  solution_summary text,
+  resolved boolean,
+  device text,
+  app text,
+  category text,
+  signal_quality text,
+  operator_name text,
+  analysis_version integer DEFAULT 2
+);
+CREATE TABLE public.ai_training_jobs (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  kind text NOT NULL,
+  source text,
+  status text NOT NULL DEFAULT &#x27;running&#x27;::text,
+  total integer DEFAULT 0,
+  processed integer DEFAULT 0,
+  errors integer DEFAULT 0,
+  message text,
+  started_at timestamp with time zone NOT NULL DEFAULT now(),
+  finished_at timestamp with time zone,
+  created_at timestamp with time zone NOT NULL DEFAULT now()
+);
+CREATE TABLE public.auto_replies (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  trigger_keyword text NOT NULL,
+  reply_message text NOT NULL,
+  match_type text NOT NULL DEFAULT &#x27;contains&#x27;::text,
+  is_enabled boolean NOT NULL DEFAULT true,
+  priority integer NOT NULL DEFAULT 0,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now()
+);
+CREATE TABLE public.billing_logs (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  customer_id uuid NOT NULL,
+  billing_type billing_type NOT NULL,
+  message text NOT NULL,
+  sent_at timestamp with time zone NOT NULL DEFAULT now(),
+  whatsapp_status text,
+  sent_date_br date
+);
+CREATE TABLE public.billing_schedule (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  is_enabled boolean NOT NULL DEFAULT false,
+  send_time time without time zone NOT NULL DEFAULT &#x27;09:00:00&#x27;::time without time zone,
+  send_d_minus_1 boolean NOT NULL DEFAULT true,
+  send_d0 boolean NOT NULL DEFAULT true,
+  send_d_plus_1 boolean NOT NULL DEFAULT true,
+  last_run_at timestamp with time zone,
+  last_run_status text,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  template_d_minus_1 text DEFAULT &#x27;vence_amanha&#x27;::text,
+  template_d0 text DEFAULT &#x27;hoje01&#x27;::text,
+  template_d_plus_1 text DEFAULT &#x27;vencido&#x27;::text
+);
+CREATE TABLE public.billing_settings (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  pix_key text DEFAULT &#x27;&#x27;::text,
+  pix_key_type text DEFAULT &#x27;celular&#x27;::text,
+  monthly_price numeric DEFAULT 35.00,
+  quarterly_price numeric DEFAULT 90.00,
+  semiannual_price numeric DEFAULT 175.00,
+  annual_price numeric DEFAULT 300.00,
+  custom_message text,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  vplay_integration_url text,
+  vplay_key_message text DEFAULT &#x27;XCLOUD&#x27;::text,
+  meta_template_name text DEFAULT &#x27;pedido_aprovado&#x27;::text,
+  notification_phone text DEFAULT &#x27;&#x27;::text,
+  renewal_message_template text DEFAULT &#x27;✅ Olá, *{{nome}}*. Obrigado por confirmar seu pagamento. Segue abaixo os dados da sua assinatura:
+
+==========================
+📅 Próx. Vencimento: *{{vencimento}} - {{hora}} hrs*
+💰 Valor: *{{valor}}*
+👤 Usuário: *{{usuario}}*
+📦 Plano: *{{plano}}*
+🔌 Status: *Ativo*
+💎 Obs: -
+⚡: *{{servidor}}*
+==========================&#x27;::text,
+  renewal_image_url text DEFAULT &#x27;&#x27;::text,
+  use_evolution_billing boolean NOT NULL DEFAULT false,
+  evolution_instance text,
+  evolution_msg_d_minus_1 text,
+  evolution_msg_d0 text,
+  evolution_msg_d_plus_1 text,
+  renewal_notification_target text NOT NULL DEFAULT &#x27;both&#x27;::text,
+  meta_phone_number_id text
+);
+CREATE TABLE public.bot_flow_sessions (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  owner_id uuid NOT NULL,
+  phone text NOT NULL,
+  flow_id uuid NOT NULL,
+  current_step_id text,
+  variables jsonb NOT NULL DEFAULT &#x27;{}&#x27;::jsonb,
+  expires_at timestamp with time zone NOT NULL DEFAULT (now() + &#x27;24:00:00&#x27;::interval),
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now()
+);
+CREATE TABLE public.bot_flows (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  owner_id uuid NOT NULL,
+  name text NOT NULL,
+  enabled boolean NOT NULL DEFAULT true,
+  trigger_keywords ARRAY NOT NULL DEFAULT &#x27;{}&#x27;::text[],
+  start_step_id text,
+  steps jsonb NOT NULL DEFAULT &#x27;[]&#x27;::jsonb,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now()
+);
+CREATE TABLE public.bot_triggers (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  trigger_type text NOT NULL,
+  is_enabled boolean NOT NULL DEFAULT false,
+  days_offset integer DEFAULT 0,
+  bot_department_id text,
+  bot_department_name text,
+  message_template text,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now()
+);
+CREATE TABLE public.broadcast_logs (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  customer_id uuid NOT NULL,
+  phone_normalized text NOT NULL,
+  template_name text NOT NULL,
+  last_status text NOT NULL DEFAULT &#x27;sent&#x27;::text,
+  last_error text,
+  last_sent_at timestamp with time zone,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now()
+);
+CREATE TABLE public.cakto_processed_events (
+  cakto_id text NOT NULL,
+  owner_id uuid,
+  created_at timestamp with time zone NOT NULL DEFAULT now()
+);
+CREATE TABLE public.crm_oficial_billing_schedule (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  is_enabled boolean NOT NULL DEFAULT false,
+  send_time time without time zone NOT NULL DEFAULT &#x27;09:00:00&#x27;::time without time zone,
+  send_d_minus_1 boolean NOT NULL DEFAULT true,
+  send_d0 boolean NOT NULL DEFAULT true,
+  send_d_plus_1 boolean NOT NULL DEFAULT true,
+  message_d_minus_1 text NOT NULL DEFAULT &#x27;Olá {{nome}}, sua mensalidade vence amanhã ({{vencimento}}). Valor: {{valor}}.&#x27;::text,
+  message_d0 text NOT NULL DEFAULT &#x27;Olá {{nome}}, sua mensalidade vence hoje ({{vencimento}}). Valor: {{valor}}.&#x27;::text,
+  message_d_plus_1 text NOT NULL DEFAULT &#x27;Olá {{nome}}, sua mensalidade venceu ontem ({{vencimento}}). Regularize hoje para evitar bloqueio.&#x27;::text,
+  min_delay_seconds integer NOT NULL DEFAULT 15,
+  max_delay_seconds integer NOT NULL DEFAULT 30,
+  last_run_at timestamp with time zone,
+  last_run_status text,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  template_d_minus_1 text,
+  template_d0 text,
+  template_d_plus_1 text,
+  template_lang_d_minus_1 text,
+  template_lang_d0 text,
+  template_lang_d_plus_1 text,
+  channel_id text,
+  phone_number_id text
+);
+CREATE TABLE public.crm_oficial_hidden_templates (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  template_id text,
+  template_name text NOT NULL,
+  language text,
+  reason text,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now()
+);
+CREATE TABLE public.crm_oficial_settings (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  api_key text,
+  enabled boolean NOT NULL DEFAULT false,
+  auto_signup boolean NOT NULL DEFAULT true,
+  auto_test_chat boolean NOT NULL DEFAULT true,
+  auto_renew_notify boolean NOT NULL DEFAULT true,
+  last_test_at timestamp with time zone,
+  last_test_ok boolean,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now()
+);
+CREATE TABLE public.customer_backups (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  backup_data jsonb NOT NULL,
+  total_customers integer NOT NULL DEFAULT 0,
+  backup_type text NOT NULL DEFAULT &#x27;auto&#x27;::text
+);
+CREATE TABLE public.customers (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  name text NOT NULL,
+  phone text NOT NULL,
+  server_id uuid,
+  plan_id uuid,
+  start_date date NOT NULL DEFAULT CURRENT_DATE,
+  due_date date NOT NULL,
+  status customer_status NOT NULL DEFAULT &#x27;ativa&#x27;::customer_status,
+  notes text,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  created_by uuid,
+  custom_price numeric,
+  username text,
+  screens integer NOT NULL DEFAULT 1,
+  extra_months integer NOT NULL DEFAULT 0,
+  password text,
+  extra_phone text,
+  checkout_code text NOT NULL DEFAULT upper(substr(replace((gen_random_uuid())::text, &#x27;-&#x27;::text, &#x27;&#x27;::text), 1, 10))
+);
+CREATE TABLE public.departments (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  name text NOT NULL,
+  description text,
+  is_default boolean DEFAULT false,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now()
+);
+CREATE TABLE public.device_tokens (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  token text NOT NULL,
+  platform text NOT NULL,
+  device_name text,
+  last_seen_at timestamp with time zone NOT NULL DEFAULT now(),
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now()
+);
+CREATE TABLE public.efi_charges (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  owner_id uuid NOT NULL,
+  customer_id uuid,
+  pending_id uuid,
+  pending_kind text,
+  txid text NOT NULL,
+  amount numeric NOT NULL,
+  status text NOT NULL DEFAULT &#x27;pending&#x27;::text,
+  environment text NOT NULL,
+  pix_copia_cola text,
+  qrcode_base64 text,
+  metadata jsonb NOT NULL DEFAULT &#x27;{}&#x27;::jsonb,
+  paid_at timestamp with time zone,
+  expires_at timestamp with time zone,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now()
+);
+CREATE TABLE public.efi_settings (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  enabled boolean NOT NULL DEFAULT false,
+  environment text NOT NULL DEFAULT &#x27;sandbox&#x27;::text,
+  client_id text,
+  client_secret text,
+  pix_key text,
+  cert_p12_base64 text,
+  cert_password text NOT NULL DEFAULT &#x27;&#x27;::text,
+  webhook_configured_at timestamp with time zone,
+  last_verified_at timestamp with time zone,
+  last_error text,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now()
+);
+CREATE TABLE public.evolution_billing_schedule (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  is_enabled boolean NOT NULL DEFAULT false,
+  send_time time without time zone NOT NULL DEFAULT &#x27;09:00:00&#x27;::time without time zone,
+  send_d_minus_1 boolean NOT NULL DEFAULT true,
+  send_d0 boolean NOT NULL DEFAULT true,
+  send_d_plus_1 boolean NOT NULL DEFAULT true,
+  message_d_minus_1 text DEFAULT &#x27;Olá {{nome}}, sua assinatura vence amanhã ({{vencimento}}). Renove para continuar usando! 📺&#x27;::text,
+  message_d0 text DEFAULT &#x27;Olá {{nome}}, sua assinatura vence HOJE ({{vencimento}}). Renove agora! ⚠️&#x27;::text,
+  message_d_plus_1 text DEFAULT &#x27;Olá {{nome}}, sua assinatura venceu ontem ({{vencimento}}). Regularize hoje! 🚨&#x27;::text,
+  min_delay_seconds integer NOT NULL DEFAULT 15,
+  max_delay_seconds integer NOT NULL DEFAULT 30,
+  last_run_at timestamp with time zone,
+  last_run_status text,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  image_url text,
+  renew_button_enabled boolean NOT NULL DEFAULT false,
+  renew_button_label text DEFAULT &#x27;Renovar agora&#x27;::text,
+  renew_button_url text
+);
+CREATE TABLE public.evolution_contacts (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  phone text NOT NULL,
+  name text,
+  profile_pic_url text,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  ai_category text,
+  needs_human boolean NOT NULL DEFAULT false,
+  last_classified_at timestamp with time zone
+);
+CREATE TABLE public.evolution_conversation_state (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  phone text NOT NULL,
+  last_read_at timestamp with time zone,
+  manual_unread boolean NOT NULL DEFAULT false,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now()
+);
+CREATE TABLE public.evolution_messages (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  remote_jid text NOT NULL,
+  phone text NOT NULL,
+  contact_name text,
+  direction text NOT NULL,
+  content text NOT NULL DEFAULT &#x27;&#x27;::text,
+  message_type text NOT NULL DEFAULT &#x27;text&#x27;::text,
+  external_id text,
+  status text NOT NULL DEFAULT &#x27;sent&#x27;::text,
+  raw jsonb,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  media_url text,
+  media_mime text,
+  profile_pic_url text,
+  instance_name text
+);
+CREATE TABLE public.evolution_presence (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  phone text NOT NULL,
+  presence text NOT NULL DEFAULT &#x27;available&#x27;::text,
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  last_seen_at timestamp with time zone
+);
+CREATE TABLE public.evolution_settings (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  is_enabled boolean NOT NULL DEFAULT false,
+  base_url text NOT NULL DEFAULT &#x27;&#x27;::text,
+  api_key text NOT NULL DEFAULT &#x27;&#x27;::text,
+  instance_name text NOT NULL DEFAULT &#x27;&#x27;::text,
+  webhook_token text NOT NULL DEFAULT replace((gen_random_uuid())::text, &#x27;-&#x27;::text, &#x27;&#x27;::text),
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  autoreply_enabled boolean NOT NULL DEFAULT false,
+  autoreply_system_prompt text NOT NULL DEFAULT &#x27;Você é um atendente de suporte cordial e objetivo de uma loja de IPTV. Responda em português, de forma curta (máx. 2 parágrafos), educada e profissional. Se a pessoa pedir algo que você não saiba (preços específicos, status de pagamento, ativação, problema técnico complexo) avise que vai chamar um humano. Nunca invente dados de cliente.&#x27;::text,
+  autoreply_only_outside_hours boolean NOT NULL DEFAULT false,
+  autoreply_business_start text NOT NULL DEFAULT &#x27;08:00&#x27;::text,
+  autoreply_business_end text NOT NULL DEFAULT &#x27;18:00&#x27;::text,
+  autoreply_disabled_phones ARRAY NOT NULL DEFAULT &#x27;{}&#x27;::text[],
+  autoreply_model text NOT NULL DEFAULT &#x27;google/gemini-3-flash-preview&#x27;::text,
+  history_cutoff_at timestamp with time zone,
+  autoreply_absence_enabled boolean NOT NULL DEFAULT false,
+  autoreply_absence_message text NOT NULL DEFAULT &#x27;Olá! No momento estamos fora do horário de atendimento. Assim que possível responderemos sua mensagem. 🙏&#x27;::text,
+  autoreply_absence_cooldown_hours integer NOT NULL DEFAULT 6
+);
+CREATE TABLE public.evolution_stickers (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  storage_path text NOT NULL,
+  mime_type text NOT NULL DEFAULT &#x27;image/webp&#x27;::text,
+  created_at timestamp with time zone NOT NULL DEFAULT now()
+);
+CREATE TABLE public.expenses (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  category text NOT NULL,
+  description text NOT NULL,
+  amount numeric NOT NULL,
+  due_date date,
+  paid boolean NOT NULL DEFAULT false,
+  paid_at timestamp with time zone,
+  recurring boolean NOT NULL DEFAULT false,
+  recurring_day integer,
+  icon text DEFAULT &#x27;Receipt&#x27;::text,
+  color text DEFAULT &#x27;primary&#x27;::text,
+  notes text,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now()
+);
+CREATE TABLE public.goals_settings (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  customers_goal integer NOT NULL DEFAULT 200,
+  revenue_goal numeric NOT NULL DEFAULT 10000,
+  projection_goal numeric NOT NULL DEFAULT 15000,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now()
+);
+CREATE TABLE public.message_logs (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid,
+  customer_id uuid,
+  customer_name text,
+  customer_phone text,
+  message_type text NOT NULL DEFAULT &#x27;confirmation&#x27;::text,
+  source text NOT NULL DEFAULT &#x27;cakto&#x27;::text,
+  status text NOT NULL DEFAULT &#x27;pending&#x27;::text,
+  error_message text,
+  whatsapp_response jsonb,
+  metadata jsonb,
+  created_at timestamp with time zone NOT NULL DEFAULT now()
+);
+CREATE TABLE public.panel_links (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  name text NOT NULL,
+  url text NOT NULL,
+  icon text DEFAULT &#x27;ExternalLink&#x27;::text,
+  sort_order integer DEFAULT 0,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now()
+);
+CREATE TABLE public.payment_confirmations (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  customer_id uuid,
+  customer_name text NOT NULL,
+  customer_phone text,
+  amount numeric NOT NULL DEFAULT 0,
+  plan_name text,
+  duration_days integer NOT NULL DEFAULT 30,
+  new_due_date date NOT NULL,
+  status text NOT NULL DEFAULT &#x27;approved&#x27;::text,
+  created_at timestamp with time zone NOT NULL DEFAULT now()
+);
+CREATE TABLE public.payments (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  customer_id uuid NOT NULL,
+  amount numeric NOT NULL,
+  payment_date date NOT NULL DEFAULT CURRENT_DATE,
+  method payment_method NOT NULL DEFAULT &#x27;pix&#x27;::payment_method,
+  confirmed boolean NOT NULL DEFAULT false,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  source text NOT NULL DEFAULT &#x27;manual&#x27;::text
+);
+CREATE TABLE public.pending_activation_data (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  phone_normalized text NOT NULL,
+  app_name text NOT NULL,
+  customer_name text NOT NULL,
+  mac_address text,
+  email text,
+  used boolean NOT NULL DEFAULT false,
+  expires_at timestamp with time zone NOT NULL DEFAULT (now() + &#x27;01:00:00&#x27;::interval),
+  created_at timestamp with time zone NOT NULL DEFAULT now()
+);
+CREATE TABLE public.pending_manual_renewals (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  owner_id uuid NOT NULL,
+  customer_id uuid,
+  customer_name text NOT NULL,
+  customer_phone text,
+  username text,
+  server_id uuid,
+  server_name text,
+  server_host text,
+  plan_name text,
+  amount numeric DEFAULT 0,
+  new_due_date date,
+  reason text NOT NULL DEFAULT &#x27;manual&#x27;::text,
+  error_details jsonb,
+  source text DEFAULT &#x27;cakto&#x27;::text,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  locked_at timestamp with time zone
+);
+CREATE TABLE public.pending_new_customers (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  owner_id uuid NOT NULL,
+  name text NOT NULL,
+  phone text NOT NULL,
+  username text NOT NULL,
+  server_id uuid,
+  plan_id uuid,
+  checkout_url text,
+  used boolean DEFAULT false,
+  expires_at timestamp with time zone DEFAULT (now() + &#x27;7 days&#x27;::interval),
+  created_at timestamp with time zone DEFAULT now()
+);
+CREATE TABLE public.pending_renewal_selections (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  phone_normalized text NOT NULL,
+  customer_id uuid NOT NULL,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  expires_at timestamp with time zone NOT NULL DEFAULT (now() + &#x27;7 days&#x27;::interval),
+  used boolean NOT NULL DEFAULT false
+);
+CREATE TABLE public.plans (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  plan_name text NOT NULL,
+  duration_days integer NOT NULL,
+  price numeric NOT NULL,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  created_by uuid,
+  checkout_url text DEFAULT &#x27;&#x27;::text,
+  card_checkout_url text
+);
+CREATE TABLE public.profiles (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  full_name text,
+  created_at timestamp with time zone NOT NULL DEFAULT now()
+);
+CREATE TABLE public.quick_messages (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  title text NOT NULL,
+  category text NOT NULL,
+  content text NOT NULL,
+  icon text DEFAULT &#x27;MessageSquare&#x27;::text,
+  sort_order integer DEFAULT 0,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  created_by uuid
+);
+CREATE TABLE public.reseller_access (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  email text NOT NULL,
+  full_name text,
+  access_expires_at timestamp with time zone NOT NULL DEFAULT (now() + &#x27;30 days&#x27;::interval),
+  is_active boolean NOT NULL DEFAULT true,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  parent_reseller_id uuid,
+  credits integer NOT NULL DEFAULT 0,
+  max_evolution_instances integer NOT NULL DEFAULT 1
+);
+CREATE TABLE public.reseller_access_codes (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  code text NOT NULL,
+  days integer NOT NULL DEFAULT 30,
+  created_by uuid NOT NULL,
+  used_by uuid,
+  used_at timestamp with time zone,
+  created_at timestamp with time zone NOT NULL DEFAULT now()
+);
+CREATE TABLE public.reseller_api_settings (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  cakto_webhook_secret text DEFAULT &#x27;&#x27;::text,
+  natv_api_key text DEFAULT &#x27;&#x27;::text,
+  natv_base_url text DEFAULT &#x27;&#x27;::text,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  cakto_client_id text DEFAULT &#x27;&#x27;::text,
+  cakto_client_secret text DEFAULT &#x27;&#x27;::text,
+  the_best_base_url text DEFAULT &#x27;&#x27;::text,
+  the_best_username text DEFAULT &#x27;&#x27;::text,
+  the_best_password text DEFAULT &#x27;&#x27;::text,
+  rush_username text DEFAULT &#x27;&#x27;::text,
+  rush_password text DEFAULT &#x27;&#x27;::text,
+  rush_token text DEFAULT &#x27;&#x27;::text,
+  rush_base_url text DEFAULT &#x27;&#x27;::text,
+  natv2_api_key text,
+  natv2_base_url text,
+  uniplay_username text,
+  uniplay_password text,
+  uniplay_base_url text
+);
+CREATE TABLE public.reseller_checkout_settings (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  slug text NOT NULL,
+  display_name text,
+  logo_url text,
+  brand_color text NOT NULL DEFAULT &#x27;#e11d48&#x27;::text,
+  headline text,
+  subheadline text,
+  enable_efi boolean NOT NULL DEFAULT true,
+  enable_cakto boolean NOT NULL DEFAULT true,
+  api_key text NOT NULL,
+  webhook_url text,
+  is_active boolean NOT NULL DEFAULT true,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  activation_cakto_url text
+);
+CREATE TABLE public.servers (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  server_name text NOT NULL,
+  host text NOT NULL,
+  description text,
+  status server_status NOT NULL DEFAULT &#x27;online&#x27;::server_status,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  created_by uuid,
+  auto_renew boolean NOT NULL DEFAULT false,
+  is_public boolean DEFAULT false
+);
+CREATE TABLE public.user_evolution_instances (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  instance_name text NOT NULL,
+  instance_id text,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  advanced_settings jsonb NOT NULL DEFAULT &#x27;{}&#x27;::jsonb,
+  webhook_events ARRAY NOT NULL DEFAULT ARRAY[&#x27;MESSAGE&#x27;::text, &#x27;SEND_MESSAGE&#x27;::text, &#x27;CONNECTION&#x27;::text, &#x27;PRESENCE&#x27;::text, &#x27;CHAT_PRESENCE&#x27;::text],
+  webhook_enabled boolean NOT NULL DEFAULT true,
+  settings_updated_at timestamp with time zone,
+  profile_pic_url text,
+  profile_name text,
+  owner_phone text,
+  profile_updated_at timestamp with time zone
+);
+CREATE TABLE public.user_roles (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  role app_role NOT NULL DEFAULT &#x27;user&#x27;::app_role,
+  created_at timestamp with time zone NOT NULL DEFAULT now()
+);
+CREATE TABLE public.vplay_servers (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  server_name text NOT NULL,
+  integration_url text NOT NULL,
+  key_message text NOT NULL DEFAULT &#x27;XCLOUD&#x27;::text,
+  is_default boolean NOT NULL DEFAULT false,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now()
+);
+CREATE TABLE public.webhook_logs (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid,
+  event_type text NOT NULL,
+  phone_from text,
+  phone_to text,
+  message_content text,
+  raw_payload jsonb,
+  processed boolean NOT NULL DEFAULT false,
+  auto_reply_sent boolean NOT NULL DEFAULT false,
+  created_at timestamp with time zone NOT NULL DEFAULT now()
+);
+CREATE TABLE public.xui_one_settings (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  base_url text NOT NULL DEFAULT &#x27;&#x27;::text,
+  api_key text NOT NULL DEFAULT &#x27;&#x27;::text,
+  access_code text NOT NULL DEFAULT &#x27;&#x27;::text,
+  is_enabled boolean NOT NULL DEFAULT false,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now()
+);
+CREATE TABLE public.zap_responder_settings (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  api_base_url text NOT NULL DEFAULT &#x27;https://api.zapresponder.com.br/v1&#x27;::text,
+  selected_session_id text,
+  selected_session_name text,
+  selected_session_phone text,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  selected_department_id text,
+  selected_department_name text,
+  user_id uuid,
+  zap_api_token text,
+  api_type text NOT NULL DEFAULT &#x27;zap_responder&#x27;::text,
+  instance_name text,
+  meta_access_token text,
+  meta_token_expires_at timestamp with time zone,
+  meta_user_id text,
+  meta_business_id text,
+  meta_phone_number_id text,
+  meta_display_phone text,
+  meta_connected_at timestamp with time zone
+);
+
+
+-- ============================================================
+-- CONSTRAINTS (PK, FK, UNIQUE, CHECK)
+-- ============================================================
+ALTER TABLE public.activation_apps ADD CONSTRAINT activation_apps_pkey PRIMARY KEY (id);
+ALTER TABLE public.activation_panel_credentials ADD CONSTRAINT activation_panel_credentials_pkey PRIMARY KEY (id);
+ALTER TABLE public.activation_panel_credentials ADD CONSTRAINT activation_panel_credentials_user_id_panel_type_key UNIQUE (user_id, panel_type);
+ALTER TABLE public.activation_requests ADD CONSTRAINT activation_requests_pkey PRIMARY KEY (id);
+ALTER TABLE public.ai_knowledge_candidates ADD CONSTRAINT ai_knowledge_candidates_status_check CHECK ((status = ANY (ARRAY[&#x27;pending&#x27;::text, &#x27;approved&#x27;::text, &#x27;rejected&#x27;::text, &#x27;merged&#x27;::text])));
+ALTER TABLE public.ai_knowledge_candidates ADD CONSTRAINT ai_knowledge_candidates_pkey PRIMARY KEY (id);
+ALTER TABLE public.ai_knowledge_entries ADD CONSTRAINT ai_knowledge_entries_pkey PRIMARY KEY (id);
+ALTER TABLE public.ai_knowledge_items ADD CONSTRAINT ai_knowledge_items_merged_into_id_fkey FOREIGN KEY (merged_into_id) REFERENCES ai_knowledge_items(id) ON DELETE SET NULL;
+ALTER TABLE public.ai_knowledge_items ADD CONSTRAINT ai_knowledge_items_pkey PRIMARY KEY (id);
+ALTER TABLE public.ai_training_conversations ADD CONSTRAINT ai_training_conversations_source_check CHECK ((source = ANY (ARRAY[&#x27;evolution&#x27;::text, &#x27;oficial&#x27;::text])));
+ALTER TABLE public.ai_training_conversations ADD CONSTRAINT ai_training_conversations_pkey PRIMARY KEY (id);
+ALTER TABLE public.ai_training_jobs ADD CONSTRAINT ai_training_jobs_kind_check CHECK ((kind = ANY (ARRAY[&#x27;import&#x27;::text, &#x27;analyze&#x27;::text])));
+ALTER TABLE public.ai_training_jobs ADD CONSTRAINT ai_training_jobs_pkey PRIMARY KEY (id);
+ALTER TABLE public.auto_replies ADD CONSTRAINT auto_replies_pkey PRIMARY KEY (id);
+ALTER TABLE public.billing_logs ADD CONSTRAINT billing_logs_customer_id_fkey FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE CASCADE;
+ALTER TABLE public.billing_logs ADD CONSTRAINT billing_logs_pkey PRIMARY KEY (id);
+ALTER TABLE public.billing_schedule ADD CONSTRAINT billing_schedule_pkey PRIMARY KEY (id);
+ALTER TABLE public.billing_schedule ADD CONSTRAINT unique_user_schedule UNIQUE (user_id);
+ALTER TABLE public.billing_settings ADD CONSTRAINT billing_settings_renewal_notification_target_check CHECK ((renewal_notification_target = ANY (ARRAY[&#x27;admin&#x27;::text, &#x27;both&#x27;::text])));
+ALTER TABLE public.billing_settings ADD CONSTRAINT billing_settings_pkey PRIMARY KEY (id);
+ALTER TABLE public.billing_settings ADD CONSTRAINT billing_settings_user_id_key UNIQUE (user_id);
+ALTER TABLE public.bot_flow_sessions ADD CONSTRAINT bot_flow_sessions_flow_id_fkey FOREIGN KEY (flow_id) REFERENCES bot_flows(id) ON DELETE CASCADE;
+ALTER TABLE public.bot_flow_sessions ADD CONSTRAINT bot_flow_sessions_pkey PRIMARY KEY (id);
+ALTER TABLE public.bot_flow_sessions ADD CONSTRAINT bot_flow_sessions_owner_id_phone_key UNIQUE (owner_id, phone);
+ALTER TABLE public.bot_flows ADD CONSTRAINT bot_flows_pkey PRIMARY KEY (id);
+ALTER TABLE public.bot_triggers ADD CONSTRAINT bot_triggers_trigger_type_check CHECK ((trigger_type = ANY (ARRAY[&#x27;inadimplente&#x27;::text, &#x27;boas_vindas&#x27;::text, &#x27;renovacao&#x27;::text, &#x27;lembrete&#x27;::text])));
+ALTER TABLE public.bot_triggers ADD CONSTRAINT bot_triggers_pkey PRIMARY KEY (id);
+ALTER TABLE public.bot_triggers ADD CONSTRAINT bot_triggers_user_id_trigger_type_key UNIQUE (user_id, trigger_type);
+ALTER TABLE public.broadcast_logs ADD CONSTRAINT broadcast_logs_customer_id_fkey FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE CASCADE;
+ALTER TABLE public.broadcast_logs ADD CONSTRAINT broadcast_logs_pkey PRIMARY KEY (id);
+ALTER TABLE public.broadcast_logs ADD CONSTRAINT broadcast_logs_phone_template_unique UNIQUE (phone_normalized, template_name);
+ALTER TABLE public.cakto_processed_events ADD CONSTRAINT cakto_processed_events_pkey PRIMARY KEY (cakto_id);
+ALTER TABLE public.crm_oficial_billing_schedule ADD CONSTRAINT crm_oficial_billing_schedule_pkey PRIMARY KEY (id);
+ALTER TABLE public.crm_oficial_billing_schedule ADD CONSTRAINT crm_oficial_billing_schedule_user_id_key UNIQUE (user_id);
+ALTER TABLE public.crm_oficial_hidden_templates ADD CONSTRAINT crm_oficial_hidden_templates_target_check CHECK (((template_id IS NOT NULL) OR (template_name IS NOT NULL)));
+ALTER TABLE public.crm_oficial_hidden_templates ADD CONSTRAINT crm_oficial_hidden_templates_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
+ALTER TABLE public.crm_oficial_hidden_templates ADD CONSTRAINT crm_oficial_hidden_templates_pkey PRIMARY KEY (id);
+ALTER TABLE public.crm_oficial_hidden_templates ADD CONSTRAINT crm_oficial_hidden_templates_unique UNIQUE (user_id, template_name, language);
+ALTER TABLE public.crm_oficial_settings ADD CONSTRAINT crm_oficial_settings_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
+ALTER TABLE public.crm_oficial_settings ADD CONSTRAINT crm_oficial_settings_pkey PRIMARY KEY (id);
+ALTER TABLE public.crm_oficial_settings ADD CONSTRAINT crm_oficial_settings_user_id_key UNIQUE (user_id);
+ALTER TABLE public.customer_backups ADD CONSTRAINT customer_backups_pkey PRIMARY KEY (id);
+ALTER TABLE public.customers ADD CONSTRAINT customers_created_by_profiles_fkey FOREIGN KEY (created_by) REFERENCES profiles(user_id) ON DELETE SET NULL;
+ALTER TABLE public.customers ADD CONSTRAINT customers_server_id_fkey FOREIGN KEY (server_id) REFERENCES servers(id) ON DELETE SET NULL;
+ALTER TABLE public.customers ADD CONSTRAINT customers_plan_id_fkey FOREIGN KEY (plan_id) REFERENCES plans(id) ON DELETE SET NULL;
+ALTER TABLE public.customers ADD CONSTRAINT customers_pkey PRIMARY KEY (id);
+ALTER TABLE public.departments ADD CONSTRAINT departments_pkey PRIMARY KEY (id);
+ALTER TABLE public.device_tokens ADD CONSTRAINT device_tokens_platform_check CHECK ((platform = ANY (ARRAY[&#x27;ios&#x27;::text, &#x27;android&#x27;::text, &#x27;web&#x27;::text])));
+ALTER TABLE public.device_tokens ADD CONSTRAINT device_tokens_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
+ALTER TABLE public.device_tokens ADD CONSTRAINT device_tokens_pkey PRIMARY KEY (id);
+ALTER TABLE public.device_tokens ADD CONSTRAINT device_tokens_user_id_token_key UNIQUE (user_id, token);
+ALTER TABLE public.efi_charges ADD CONSTRAINT efi_charges_status_check CHECK ((status = ANY (ARRAY[&#x27;pending&#x27;::text, &#x27;paid&#x27;::text, &#x27;expired&#x27;::text, &#x27;cancelled&#x27;::text])));
+ALTER TABLE public.efi_charges ADD CONSTRAINT efi_charges_pending_kind_check CHECK ((pending_kind = ANY (ARRAY[&#x27;new_customer&#x27;::text, &#x27;manual_renewal&#x27;::text, &#x27;manual&#x27;::text])));
+ALTER TABLE public.efi_charges ADD CONSTRAINT efi_charges_pkey PRIMARY KEY (id);
+ALTER TABLE public.efi_charges ADD CONSTRAINT efi_charges_txid_key UNIQUE (txid);
+ALTER TABLE public.efi_settings ADD CONSTRAINT efi_settings_environment_check CHECK ((environment = ANY (ARRAY[&#x27;sandbox&#x27;::text, &#x27;production&#x27;::text])));
+ALTER TABLE public.efi_settings ADD CONSTRAINT efi_settings_pkey PRIMARY KEY (id);
+ALTER TABLE public.efi_settings ADD CONSTRAINT efi_settings_user_id_key UNIQUE (user_id);
+ALTER TABLE public.evolution_billing_schedule ADD CONSTRAINT evolution_billing_schedule_pkey PRIMARY KEY (id);
+ALTER TABLE public.evolution_billing_schedule ADD CONSTRAINT evolution_billing_schedule_user_id_key UNIQUE (user_id);
+ALTER TABLE public.evolution_contacts ADD CONSTRAINT evolution_contacts_pkey PRIMARY KEY (id);
+ALTER TABLE public.evolution_contacts ADD CONSTRAINT evolution_contacts_user_id_phone_key UNIQUE (user_id, phone);
+ALTER TABLE public.evolution_conversation_state ADD CONSTRAINT evolution_conversation_state_pkey PRIMARY KEY (id);
+ALTER TABLE public.evolution_conversation_state ADD CONSTRAINT evolution_conversation_state_user_id_phone_key UNIQUE (user_id, phone);
+ALTER TABLE public.evolution_messages ADD CONSTRAINT evolution_messages_direction_check CHECK ((direction = ANY (ARRAY[&#x27;in&#x27;::text, &#x27;out&#x27;::text])));
+ALTER TABLE public.evolution_messages ADD CONSTRAINT evolution_messages_pkey PRIMARY KEY (id);
+ALTER TABLE public.evolution_presence ADD CONSTRAINT evolution_presence_pkey PRIMARY KEY (id);
+ALTER TABLE public.evolution_presence ADD CONSTRAINT evolution_presence_user_id_phone_key UNIQUE (user_id, phone);
+ALTER TABLE public.evolution_settings ADD CONSTRAINT evolution_settings_pkey PRIMARY KEY (id);
+ALTER TABLE public.evolution_settings ADD CONSTRAINT evolution_settings_user_id_key UNIQUE (user_id);
+ALTER TABLE public.evolution_stickers ADD CONSTRAINT evolution_stickers_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
+ALTER TABLE public.evolution_stickers ADD CONSTRAINT evolution_stickers_pkey PRIMARY KEY (id);
+ALTER TABLE public.expenses ADD CONSTRAINT expenses_pkey PRIMARY KEY (id);
+ALTER TABLE public.goals_settings ADD CONSTRAINT goals_settings_pkey PRIMARY KEY (id);
+ALTER TABLE public.goals_settings ADD CONSTRAINT goals_settings_user_id_key UNIQUE (user_id);
+ALTER TABLE public.message_logs ADD CONSTRAINT message_logs_customer_id_fkey FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE SET NULL;
+ALTER TABLE public.message_logs ADD CONSTRAINT message_logs_pkey PRIMARY KEY (id);
+ALTER TABLE public.panel_links ADD CONSTRAINT panel_links_pkey PRIMARY KEY (id);
+ALTER TABLE public.payment_confirmations ADD CONSTRAINT payment_confirmations_customer_id_fkey FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE SET NULL;
+ALTER TABLE public.payment_confirmations ADD CONSTRAINT payment_confirmations_pkey PRIMARY KEY (id);
+ALTER TABLE public.payments ADD CONSTRAINT payments_customer_id_fkey FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE CASCADE;
+ALTER TABLE public.payments ADD CONSTRAINT payments_pkey PRIMARY KEY (id);
+ALTER TABLE public.pending_activation_data ADD CONSTRAINT pending_activation_data_pkey PRIMARY KEY (id);
+ALTER TABLE public.pending_manual_renewals ADD CONSTRAINT pending_manual_renewals_pkey PRIMARY KEY (id);
+ALTER TABLE public.pending_new_customers ADD CONSTRAINT pending_new_customers_plan_id_fkey FOREIGN KEY (plan_id) REFERENCES plans(id);
+ALTER TABLE public.pending_new_customers ADD CONSTRAINT pending_new_customers_server_id_fkey FOREIGN KEY (server_id) REFERENCES servers(id);
+ALTER TABLE public.pending_new_customers ADD CONSTRAINT pending_new_customers_pkey PRIMARY KEY (id);
+ALTER TABLE public.pending_renewal_selections ADD CONSTRAINT pending_renewal_selections_customer_id_fkey FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE CASCADE;
+ALTER TABLE public.pending_renewal_selections ADD CONSTRAINT pending_renewal_selections_pkey PRIMARY KEY (id);
+ALTER TABLE public.plans ADD CONSTRAINT plans_created_by_fkey FOREIGN KEY (created_by) REFERENCES profiles(user_id);
+ALTER TABLE public.plans ADD CONSTRAINT plans_pkey PRIMARY KEY (id);
+ALTER TABLE public.profiles ADD CONSTRAINT profiles_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
+ALTER TABLE public.profiles ADD CONSTRAINT profiles_pkey PRIMARY KEY (id);
+ALTER TABLE public.profiles ADD CONSTRAINT profiles_user_id_key UNIQUE (user_id);
+ALTER TABLE public.quick_messages ADD CONSTRAINT quick_messages_created_by_fkey FOREIGN KEY (created_by) REFERENCES auth.users(id);
+ALTER TABLE public.quick_messages ADD CONSTRAINT quick_messages_pkey PRIMARY KEY (id);
+ALTER TABLE public.reseller_access ADD CONSTRAINT reseller_access_parent_reseller_id_fkey FOREIGN KEY (parent_reseller_id) REFERENCES reseller_access(user_id) ON DELETE SET NULL;
+ALTER TABLE public.reseller_access ADD CONSTRAINT reseller_access_pkey PRIMARY KEY (id);
+ALTER TABLE public.reseller_access ADD CONSTRAINT reseller_access_user_id_key UNIQUE (user_id);
+ALTER TABLE public.reseller_access_codes ADD CONSTRAINT reseller_access_codes_pkey PRIMARY KEY (id);
+ALTER TABLE public.reseller_access_codes ADD CONSTRAINT reseller_access_codes_code_key UNIQUE (code);
+ALTER TABLE public.reseller_api_settings ADD CONSTRAINT reseller_api_settings_pkey PRIMARY KEY (id);
+ALTER TABLE public.reseller_api_settings ADD CONSTRAINT reseller_api_settings_user_id_key UNIQUE (user_id);
+ALTER TABLE public.reseller_checkout_settings ADD CONSTRAINT reseller_checkout_slug_format CHECK ((slug ~ &#x27;^[a-z0-9][a-z0-9-]{2,39}$&#x27;::text));
+ALTER TABLE public.reseller_checkout_settings ADD CONSTRAINT reseller_checkout_settings_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
+ALTER TABLE public.reseller_checkout_settings ADD CONSTRAINT reseller_checkout_settings_pkey PRIMARY KEY (id);
+ALTER TABLE public.reseller_checkout_settings ADD CONSTRAINT reseller_checkout_settings_api_key_key UNIQUE (api_key);
+ALTER TABLE public.reseller_checkout_settings ADD CONSTRAINT reseller_checkout_settings_slug_key UNIQUE (slug);
+ALTER TABLE public.reseller_checkout_settings ADD CONSTRAINT reseller_checkout_settings_user_id_key UNIQUE (user_id);
+ALTER TABLE public.servers ADD CONSTRAINT servers_created_by_fkey FOREIGN KEY (created_by) REFERENCES profiles(user_id);
+ALTER TABLE public.servers ADD CONSTRAINT servers_pkey PRIMARY KEY (id);
+ALTER TABLE public.user_evolution_instances ADD CONSTRAINT user_evolution_instances_pkey PRIMARY KEY (id);
+ALTER TABLE public.user_evolution_instances ADD CONSTRAINT user_evolution_instances_instance_name_key UNIQUE (instance_name);
+ALTER TABLE public.user_roles ADD CONSTRAINT user_roles_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
+ALTER TABLE public.user_roles ADD CONSTRAINT user_roles_pkey PRIMARY KEY (id);
+ALTER TABLE public.user_roles ADD CONSTRAINT user_roles_user_id_role_key UNIQUE (user_id, role);
+ALTER TABLE public.vplay_servers ADD CONSTRAINT vplay_servers_pkey PRIMARY KEY (id);
+ALTER TABLE public.webhook_logs ADD CONSTRAINT webhook_logs_pkey PRIMARY KEY (id);
+ALTER TABLE public.xui_one_settings ADD CONSTRAINT xui_one_settings_pkey PRIMARY KEY (id);
+ALTER TABLE public.xui_one_settings ADD CONSTRAINT xui_one_settings_user_id_key UNIQUE (user_id);
+ALTER TABLE public.zap_responder_settings ADD CONSTRAINT zap_responder_settings_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
+ALTER TABLE public.zap_responder_settings ADD CONSTRAINT zap_responder_settings_pkey PRIMARY KEY (id);
+
+
+-- ============================================================
+-- ÍNDICES
+-- ============================================================
+CREATE UNIQUE INDEX activation_panel_credentials_user_id_panel_type_key ON public.activation_panel_credentials USING btree (user_id, panel_type);
+CREATE INDEX ai_knowledge_candidates_user_status ON public.ai_knowledge_candidates USING btree (user_id, status);
+CREATE INDEX ai_knowledge_candidates_embedding ON public.ai_knowledge_candidates USING hnsw (embedding vector_cosine_ops);
+CREATE INDEX idx_ai_kb_user ON public.ai_knowledge_entries USING btree (user_id, sort_order);
+CREATE INDEX ai_knowledge_entries_embedding ON public.ai_knowledge_entries USING hnsw (embedding vector_cosine_ops);
+CREATE INDEX idx_ai_ki_usage ON public.ai_knowledge_items USING btree (user_id, usage_count DESC);
+CREATE INDEX ai_ki_embedding_idx ON public.ai_knowledge_items USING hnsw (embedding vector_cosine_ops);
+CREATE INDEX idx_ai_ki_user_status ON public.ai_knowledge_items USING btree (user_id, status, kind);
+CREATE UNIQUE INDEX ai_training_conversations_dedup_idx ON public.ai_training_conversations USING btree (user_id, source, contact_phone, started_at, ended_at);
+CREATE INDEX ai_training_conversations_user_analyzed ON public.ai_training_conversations USING btree (user_id, analyzed_at);
+CREATE INDEX idx_ai_training_conversations_user_pending_created ON public.ai_training_conversations USING btree (user_id, created_at) WHERE (analyzed_at IS NULL);
+CREATE INDEX ai_training_conversations_user_source ON public.ai_training_conversations USING btree (user_id, source);
+CREATE INDEX ai_training_jobs_user ON public.ai_training_jobs USING btree (user_id, created_at DESC);
+CREATE INDEX idx_auto_replies_user_enabled ON public.auto_replies USING btree (user_id, is_enabled);
+CREATE INDEX idx_auto_replies_keyword ON public.auto_replies USING btree (trigger_keyword);
+CREATE INDEX idx_billing_logs_sent_date_status_customer ON public.billing_logs USING btree (sent_date_br, whatsapp_status, customer_id);
+CREATE UNIQUE INDEX billing_logs_one_sent_per_day_idx ON public.billing_logs USING btree (customer_id, billing_type, sent_date_br) WHERE (whatsapp_status = ANY (ARRAY[&#x27;pending&#x27;::text, &#x27;sent&#x27;::text]));
+CREATE UNIQUE INDEX unique_user_schedule ON public.billing_schedule USING btree (user_id);
+CREATE UNIQUE INDEX billing_settings_user_id_key ON public.billing_settings USING btree (user_id);
+CREATE INDEX bot_flow_sessions_expires_idx ON public.bot_flow_sessions USING btree (expires_at);
+CREATE INDEX bot_flow_sessions_owner_phone_idx ON public.bot_flow_sessions USING btree (owner_id, phone);
+CREATE UNIQUE INDEX bot_flow_sessions_owner_id_phone_key ON public.bot_flow_sessions USING btree (owner_id, phone);
+CREATE INDEX bot_flows_owner_idx ON public.bot_flows USING btree (owner_id);
+CREATE UNIQUE INDEX bot_triggers_user_id_trigger_type_key ON public.bot_triggers USING btree (user_id, trigger_type);
+CREATE INDEX idx_broadcast_logs_template_status ON public.broadcast_logs USING btree (template_name, last_status);
+CREATE UNIQUE INDEX broadcast_logs_phone_template_unique ON public.broadcast_logs USING btree (phone_normalized, template_name);
+CREATE UNIQUE INDEX crm_oficial_billing_schedule_user_id_key ON public.crm_oficial_billing_schedule USING btree (user_id);
+CREATE UNIQUE INDEX crm_oficial_hidden_templates_unique ON public.crm_oficial_hidden_templates USING btree (user_id, template_name, language);
+CREATE UNIQUE INDEX crm_oficial_settings_user_id_key ON public.crm_oficial_settings USING btree (user_id);
+CREATE UNIQUE INDEX customers_created_by_checkout_code_key ON public.customers USING btree (created_by, checkout_code);
+CREATE UNIQUE INDEX device_tokens_user_id_token_key ON public.device_tokens USING btree (user_id, token);
+CREATE INDEX idx_device_tokens_user ON public.device_tokens USING btree (user_id);
+CREATE INDEX efi_charges_owner_idx ON public.efi_charges USING btree (owner_id);
+CREATE INDEX efi_charges_customer_idx ON public.efi_charges USING btree (customer_id);
+CREATE UNIQUE INDEX efi_charges_txid_key ON public.efi_charges USING btree (txid);
+CREATE INDEX efi_charges_status_idx ON public.efi_charges USING btree (status);
+CREATE UNIQUE INDEX efi_settings_user_id_key ON public.efi_settings USING btree (user_id);
+CREATE UNIQUE INDEX evolution_billing_schedule_user_id_key ON public.evolution_billing_schedule USING btree (user_id);
+CREATE INDEX idx_evo_contacts_needs_human ON public.evolution_contacts USING btree (user_id, needs_human) WHERE (needs_human = true);
+CREATE UNIQUE INDEX evolution_contacts_user_id_phone_key ON public.evolution_contacts USING btree (user_id, phone);
+CREATE UNIQUE INDEX evolution_conversation_state_user_id_phone_key ON public.evolution_conversation_state USING btree (user_id, phone);
+CREATE UNIQUE INDEX idx_evolution_messages_user_external_unique ON public.evolution_messages USING btree (user_id, external_id) WHERE (external_id IS NOT NULL);
+CREATE INDEX idx_evo_msg_user_instance ON public.evolution_messages USING btree (user_id, instance_name, created_at DESC);
+CREATE INDEX idx_evolution_messages_user_created_at_id ON public.evolution_messages USING btree (user_id, created_at, id);
+CREATE INDEX idx_evo_msg_user_phone ON public.evolution_messages USING btree (user_id, phone, created_at DESC);
+CREATE UNIQUE INDEX evolution_presence_user_id_phone_key ON public.evolution_presence USING btree (user_id, phone);
+CREATE UNIQUE INDEX evolution_settings_user_id_key ON public.evolution_settings USING btree (user_id);
+CREATE INDEX evolution_stickers_user_idx ON public.evolution_stickers USING btree (user_id, created_at DESC);
+CREATE UNIQUE INDEX goals_settings_user_id_key ON public.goals_settings USING btree (user_id);
+CREATE INDEX idx_message_logs_user_id ON public.message_logs USING btree (user_id);
+CREATE INDEX idx_message_logs_status ON public.message_logs USING btree (status);
+CREATE INDEX idx_message_logs_created_at ON public.message_logs USING btree (created_at DESC);
+CREATE INDEX idx_pmr_owner ON public.pending_manual_renewals USING btree (owner_id, created_at DESC);
+CREATE INDEX idx_pmr_locked_at ON public.pending_manual_renewals USING btree (locked_at);
+CREATE INDEX idx_pending_renewal_phone ON public.pending_renewal_selections USING btree (phone_normalized, used, expires_at);
+CREATE UNIQUE INDEX profiles_user_id_key ON public.profiles USING btree (user_id);
+CREATE INDEX idx_reseller_access_parent ON public.reseller_access USING btree (parent_reseller_id);
+CREATE UNIQUE INDEX reseller_access_user_id_key ON public.reseller_access USING btree (user_id);
+CREATE UNIQUE INDEX reseller_access_codes_code_key ON public.reseller_access_codes USING btree (code);
+CREATE UNIQUE INDEX reseller_api_settings_user_id_key ON public.reseller_api_settings USING btree (user_id);
+CREATE INDEX idx_reseller_checkout_api_key ON public.reseller_checkout_settings USING btree (api_key);
+CREATE INDEX idx_reseller_checkout_slug ON public.reseller_checkout_settings USING btree (slug);
+CREATE UNIQUE INDEX reseller_checkout_settings_api_key_key ON public.reseller_checkout_settings USING btree (api_key);
+CREATE UNIQUE INDEX reseller_checkout_settings_slug_key ON public.reseller_checkout_settings USING btree (slug);
+CREATE UNIQUE INDEX reseller_checkout_settings_user_id_key ON public.reseller_checkout_settings USING btree (user_id);
+CREATE UNIQUE INDEX user_evolution_instances_instance_name_key ON public.user_evolution_instances USING btree (instance_name);
+CREATE UNIQUE INDEX user_roles_user_id_role_key ON public.user_roles USING btree (user_id, role);
+CREATE INDEX idx_webhook_logs_user_created ON public.webhook_logs USING btree (user_id, created_at DESC);
+CREATE UNIQUE INDEX xui_one_settings_user_id_key ON public.xui_one_settings USING btree (user_id);
+CREATE INDEX idx_zap_responder_settings_selected_department_id ON public.zap_responder_settings USING btree (selected_department_id);
+CREATE UNIQUE INDEX idx_zap_responder_settings_user_id ON public.zap_responder_settings USING btree (user_id) WHERE (user_id IS NOT NULL);
+
+
+-- ============================================================
+-- FUNÇÕES (apenas plpgsql/sql do projeto)
+-- ============================================================
+CREATE OR REPLACE FUNCTION public.auto_grant_first_admin()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO &#x27;public&#x27;
+AS $function$
+BEGIN
+  -- Check if this is the first user (no admin exists)
+  IF NOT EXISTS (SELECT 1 FROM public.user_roles WHERE role = &#x27;admin&#x27;) THEN
+    INSERT INTO public.user_roles (user_id, role)
+    VALUES (NEW.user_id, &#x27;admin&#x27;);
+  END IF;
+  RETURN NEW;
+END;
+$function$
+
+CREATE OR REPLACE FUNCTION public.batch_update_customers_natv()
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO &#x27;public&#x27;
+AS $function$
+BEGIN
+  -- This is a one-time function to batch update NATV customers
+  -- It will be dropped after execution
+  NULL;
+END;
+$function$
+
+CREATE OR REPLACE FUNCTION public.bulk_update_customers(usernames text[], server_ids uuid[], due_dates date[], statuses text[], screen_counts integer[], plan_ids uuid[])
+ RETURNS integer
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO &#x27;public&#x27;
+AS $function$
+DECLARE
+  updated_count int := 0;
+  i int;
+BEGIN
+  FOR i IN 1..array_length(usernames, 1) LOOP
+    UPDATE customers SET
+      server_id = server_ids[i],
+      due_date = COALESCE(due_dates[i], due_date),
+      status = statuses[i]::customer_status,
+      screens = screen_counts[i],
+      plan_id = plan_ids[i]
+    WHERE username = usernames[i];
+    IF FOUND THEN updated_count := updated_count + 1; END IF;
+  END LOOP;
+  RETURN updated_count;
+END;
+$function$
+
+CREATE OR REPLACE FUNCTION public.cleanup_old_backups()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO &#x27;public&#x27;
+AS $function$
+BEGIN
+  DELETE FROM public.customer_backups
+  WHERE id NOT IN (
+    SELECT id FROM public.customer_backups
+    ORDER BY created_at DESC
+    LIMIT 144
+  );
+  RETURN NEW;
+END;
+$function$
+
+CREATE OR REPLACE FUNCTION public.create_reseller_access()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO &#x27;public&#x27;
+AS $function$
+DECLARE
+  user_email text;
+BEGIN
+  -- Get the user&#x27;s email from auth.users
+  SELECT email INTO user_email FROM auth.users WHERE id = NEW.user_id;
+  
+  -- Only create reseller_access if user is not admin
+  IF NOT EXISTS (SELECT 1 FROM public.user_roles WHERE user_id = NEW.user_id AND role = &#x27;admin&#x27;) THEN
+    INSERT INTO public.reseller_access (user_id, email, full_name, access_expires_at)
+    VALUES (NEW.user_id, COALESCE(user_email, &#x27;&#x27;), NEW.full_name, now() + interval &#x27;30 days&#x27;);
+  END IF;
+  
+  RETURN NEW;
+END;
+$function$
+
+CREATE OR REPLACE FUNCTION public.ensure_customer_checkout_code()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SET search_path TO &#x27;public&#x27;
+AS $function$
+BEGIN
+  IF NEW.checkout_code IS NULL OR btrim(NEW.checkout_code) = &#x27;&#x27; THEN
+    NEW.checkout_code := upper(substr(replace(gen_random_uuid()::text, &#x27;-&#x27;, &#x27;&#x27;), 1, 10));
+  ELSE
+    NEW.checkout_code := upper(regexp_replace(NEW.checkout_code, &#x27;[^A-Za-z0-9]&#x27;, &#x27;&#x27;, &#x27;g&#x27;));
+  END IF;
+  RETURN NEW;
+END;
+$function$
+
+CREATE OR REPLACE FUNCTION public.get_dashboard_stats_optimized()
+ RETURNS json
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO &#x27;public&#x27;
+AS $function$
+DECLARE
+  result JSON;
+  sp_now TIMESTAMP := (NOW() AT TIME ZONE &#x27;America/Sao_Paulo&#x27;);
+  today_date DATE := sp_now::date;
+  tomorrow_date DATE := (sp_now + interval &#x27;1 day&#x27;)::date;
+  yesterday_date DATE := (sp_now - interval &#x27;1 day&#x27;)::date;
+  month_start DATE := date_trunc(&#x27;month&#x27;, sp_now)::date;
+  current_user_id UUID := auth.uid();
+BEGIN
+  SELECT json_build_object(
+    &#x27;totalCustomers&#x27;, COALESCE(SUM(1), 0),
+    &#x27;activeCustomers&#x27;, COALESCE(SUM(CASE WHEN status = &#x27;ativa&#x27; AND due_date &gt;= today_date THEN 1 ELSE 0 END), 0),
+    &#x27;inactiveCustomers&#x27;, COALESCE(SUM(CASE WHEN status = &#x27;inativa&#x27; THEN 1 ELSE 0 END), 0),
+    &#x27;suspendedCustomers&#x27;, COALESCE(SUM(CASE WHEN status = &#x27;suspensa&#x27; THEN 1 ELSE 0 END), 0),
+    &#x27;dueTodayCustomers&#x27;, COALESCE(SUM(CASE WHEN due_date = today_date AND status IN (&#x27;ativa&#x27;,&#x27;inativa&#x27;) THEN 1 ELSE 0 END), 0),
+    &#x27;dueTomorrowCustomers&#x27;, COALESCE(SUM(CASE WHEN due_date = tomorrow_date AND status IN (&#x27;ativa&#x27;,&#x27;inativa&#x27;) THEN 1 ELSE 0 END), 0),
+    &#x27;overdueOneDayCustomers&#x27;, COALESCE(SUM(CASE WHEN due_date = yesterday_date AND status IN (&#x27;ativa&#x27;,&#x27;inativa&#x27;) THEN 1 ELSE 0 END), 0),
+    &#x27;overdueCustomers&#x27;, COALESCE(SUM(CASE WHEN due_date &lt; today_date AND status IN (&#x27;ativa&#x27;,&#x27;inativa&#x27;) THEN 1 ELSE 0 END), 0),
+    &#x27;newCustomersThisMonth&#x27;, COALESCE(SUM(CASE WHEN created_at &gt;= month_start THEN 1 ELSE 0 END), 0),
+    &#x27;monthlyProjection&#x27;, COALESCE(SUM(
+      CASE WHEN status = &#x27;ativa&#x27; AND due_date &gt;= today_date THEN 
+        COALESCE(custom_price, (SELECT price FROM plans WHERE plans.id = customers.plan_id), 0)
+      ELSE 0 END
+    ), 0)
+  ) INTO result
+  FROM customers
+  WHERE created_by = current_user_id OR is_admin();
+  
+  RETURN result;
+END;
+$function$
+
+CREATE OR REPLACE FUNCTION public.get_monthly_revenue()
+ RETURNS json
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO &#x27;public&#x27;
+AS $function$
+DECLARE
+  result JSON;
+  sp_now TIMESTAMP := (NOW() AT TIME ZONE &#x27;America/Sao_Paulo&#x27;);
+  month_start DATE := date_trunc(&#x27;month&#x27;, sp_now)::date;
+  today_date DATE := sp_now::date;
+  current_user_id UUID := auth.uid();
+BEGIN
+  SELECT json_build_object(
+    &#x27;monthlyRevenue&#x27;, COALESCE(SUM(amount), 0),
+    &#x27;todayRevenue&#x27;, COALESCE(SUM(CASE WHEN payment_date = today_date THEN amount ELSE 0 END), 0),
+    &#x27;todayPaymentCount&#x27;, COALESCE(SUM(CASE WHEN payment_date = today_date THEN 1 ELSE 0 END), 0)
+  ) INTO result
+  FROM payments p
+  WHERE payment_date &gt;= month_start
+    AND EXISTS (
+      SELECT 1 FROM customers c 
+      WHERE c.id = p.customer_id 
+        AND (c.created_by = current_user_id OR is_admin())
+    );
+  
+  RETURN result;
+END;
+$function$
+
+CREATE OR REPLACE FUNCTION public.get_plan_distribution()
+ RETURNS json
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO &#x27;public&#x27;
+AS $function$
+DECLARE
+  current_user_id UUID := auth.uid();
+BEGIN
+  RETURN (
+    SELECT COALESCE(json_agg(
+      json_build_object(
+        &#x27;name&#x27;, COALESCE(plan_name, &#x27;Sem plano&#x27;),
+        &#x27;value&#x27;, count
+      )
+    ), &#x27;[]&#x27;::json)
+    FROM (
+      SELECT 
+        pl.plan_name,
+        COUNT(c.id) as count
+      FROM customers c
+      LEFT JOIN plans pl ON pl.id = c.plan_id
+      WHERE c.created_by = current_user_id OR is_admin()
+      GROUP BY pl.plan_name
+      ORDER BY count DESC
+    ) sub
+  );
+END;
+$function$
+
+CREATE OR REPLACE FUNCTION public.get_server_distribution()
+ RETURNS json
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO &#x27;public&#x27;
+AS $function$
+DECLARE
+  current_user_id UUID := auth.uid();
+BEGIN
+  RETURN (
+    SELECT COALESCE(
+      json_agg(
+        json_build_object(
+          &#x27;name&#x27;, COALESCE(server_name, &#x27;Sem servidor&#x27;),
+          &#x27;customers&#x27;, count
+        )
+      ),
+      &#x27;[]&#x27;::json
+    )
+    FROM (
+      SELECT
+        s.server_name,
+        COUNT(c.id) AS count
+      FROM customers c
+      LEFT JOIN servers s ON s.id = c.server_id
+      WHERE (c.created_by = current_user_id OR is_admin())
+        AND c.status = &#x27;ativa&#x27;
+      GROUP BY s.server_name
+      ORDER BY count DESC
+    ) sub
+  );
+END;
+$function$
+
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO &#x27;public&#x27;
+AS $function$
+BEGIN
+  INSERT INTO public.profiles (user_id, full_name)
+  VALUES (NEW.id, NEW.raw_user_meta_data -&gt;&gt; &#x27;full_name&#x27;);
+  RETURN NEW;
+END;
+$function$
+
+CREATE OR REPLACE FUNCTION public.has_role(_user_id uuid, _role app_role)
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO &#x27;public&#x27;
+AS $function$
+  SELECT EXISTS (
+    SELECT 1 FROM public.user_roles
+    WHERE user_id = _user_id AND role = _role
+  )
+$function$
+
+CREATE OR REPLACE FUNCTION public.is_admin()
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO &#x27;public&#x27;
+AS $function$
+  SELECT public.has_role(auth.uid(), &#x27;admin&#x27;)
+$function$
+
+CREATE OR REPLACE FUNCTION public.match_ai_knowledge_candidates(_user_id uuid, query_embedding vector, match_threshold double precision DEFAULT 0.86, match_count integer DEFAULT 3)
+ RETURNS TABLE(id uuid, canonical_question text, similarity double precision)
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO &#x27;public&#x27;
+AS $function$
+  SELECT c.id, c.canonical_question, 1 - (c.embedding &lt;=&gt; query_embedding) AS similarity
+  FROM public.ai_knowledge_candidates c
+  WHERE c.user_id = _user_id
+    AND c.embedding IS NOT NULL
+    AND 1 - (c.embedding &lt;=&gt; query_embedding) &gt;= match_threshold
+  ORDER BY c.embedding &lt;=&gt; query_embedding
+  LIMIT match_count;
+$function$
+
+CREATE OR REPLACE FUNCTION public.match_ai_knowledge_entries(_user_id uuid, query_embedding vector, match_threshold double precision DEFAULT 0.82, match_count integer DEFAULT 1)
+ RETURNS TABLE(id uuid, title text, category text, response_template text, media_url text, media_mime text, media_type text, media_filename text, requires_human boolean, similarity double precision)
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO &#x27;public&#x27;
+AS $function$
+  SELECT e.id, e.title, e.category, e.response_template,
+         e.media_url, e.media_mime, e.media_type, e.media_filename,
+         e.requires_human,
+         1 - (e.embedding &lt;=&gt; query_embedding) AS similarity
+  FROM public.ai_knowledge_entries e
+  WHERE e.user_id = _user_id
+    AND e.is_enabled = true
+    AND e.embedding IS NOT NULL
+    AND 1 - (e.embedding &lt;=&gt; query_embedding) &gt;= match_threshold
+  ORDER BY e.embedding &lt;=&gt; query_embedding
+  LIMIT match_count;
+$function$
+
+CREATE OR REPLACE FUNCTION public.match_ai_knowledge_items(_user_id uuid, _kind ai_knowledge_kind, _category text, query_embedding vector, match_threshold double precision DEFAULT 0.86, match_count integer DEFAULT 1)
+ RETURNS TABLE(id uuid, subject text, similarity double precision)
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO &#x27;public&#x27;
+AS $function$
+  SELECT i.id, i.subject, 1 - (i.embedding &lt;=&gt; query_embedding) AS similarity
+  FROM public.ai_knowledge_items i
+  WHERE i.user_id = _user_id
+    AND i.kind = _kind
+    AND (i.category = _category OR _category IS NULL)
+    AND i.status IN (&#x27;pending&#x27;,&#x27;approved&#x27;)
+    AND i.embedding IS NOT NULL
+    AND 1 - (i.embedding &lt;=&gt; query_embedding) &gt;= match_threshold
+  ORDER BY i.embedding &lt;=&gt; query_embedding
+  LIMIT match_count;
+$function$
+
+CREATE OR REPLACE FUNCTION public.normalize_customer_username(_username text)
+ RETURNS text
+ LANGUAGE sql
+ IMMUTABLE
+ SET search_path TO &#x27;public&#x27;
+AS $function$
+  SELECT nullif(lower(btrim(coalesce(_username, &#x27;&#x27;))), &#x27;&#x27;)
+$function$
+
+CREATE OR REPLACE FUNCTION public.notify_pending_manual_renewal()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO &#x27;public&#x27;
+AS $function$
+BEGIN
+  PERFORM extensions.http_post(
+    url := &#x27;https://fphqfgxfeaylldpxjqan.supabase.co/functions/v1/send-push&#x27;,
+    headers := jsonb_build_object(&#x27;Content-Type&#x27;,&#x27;application/json&#x27;),
+    body := jsonb_build_object(
+      &#x27;type&#x27;, &#x27;pending_manual_renewal&#x27;,
+      &#x27;owner_id&#x27;, NEW.owner_id,
+      &#x27;title&#x27;, &#x27;Pendência de renovação&#x27;,
+      &#x27;body&#x27;, COALESCE(NEW.customer_name,&#x27;Cliente&#x27;) || &#x27; — &#x27; || COALESCE(NEW.server_name,&#x27;&#x27;),
+      &#x27;data&#x27;, jsonb_build_object(
+        &#x27;pending_id&#x27;, NEW.id,
+        &#x27;customer_id&#x27;, NEW.customer_id,
+        &#x27;username&#x27;, NEW.username
+      )
+    )
+  );
+  RETURN NEW;
+EXCEPTION WHEN OTHERS THEN
+  RETURN NEW;
+END;
+$function$
+
+CREATE OR REPLACE FUNCTION public.prevent_duplicate_customer_username()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO &#x27;public&#x27;
+AS $function$
+DECLARE
+  normalized_username text;
+  conflict_name text;
+BEGIN
+  normalized_username := public.normalize_customer_username(NEW.username);
+  IF normalized_username IS NULL OR NEW.created_by IS NULL THEN
+    RETURN NEW;
+  END IF;
+
+  SELECT c.name INTO conflict_name
+  FROM public.customers c
+  WHERE c.created_by = NEW.created_by
+    AND public.normalize_customer_username(c.username) = normalized_username
+    AND c.id &lt;&gt; COALESCE(NEW.id, &#x27;00000000-0000-0000-0000-000000000000&#x27;::uuid)
+  LIMIT 1;
+
+  IF conflict_name IS NOT NULL THEN
+    RAISE EXCEPTION &#x27;duplicate_customer_username:%&#x27;, normalized_username
+      USING ERRCODE = &#x27;23505&#x27;, DETAIL = &#x27;Já existe cliente com este usuário para este revendedor.&#x27;;
+  END IF;
+
+  RETURN NEW;
+END;
+$function$
+
+CREATE OR REPLACE FUNCTION public.prevent_duplicate_pending_customer_username()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO &#x27;public&#x27;
+AS $function$
+DECLARE
+  normalized_username text;
+BEGIN
+  normalized_username := public.normalize_customer_username(NEW.username);
+  IF normalized_username IS NULL OR NEW.owner_id IS NULL THEN
+    RETURN NEW;
+  END IF;
+
+  IF EXISTS (
+    SELECT 1
+    FROM public.customers c
+    WHERE c.created_by = NEW.owner_id
+      AND public.normalize_customer_username(c.username) = normalized_username
+  ) THEN
+    RAISE EXCEPTION &#x27;duplicate_customer_username:%&#x27;, normalized_username
+      USING ERRCODE = &#x27;23505&#x27;, DETAIL = &#x27;Este usuário já existe. Use a renovação de cliente existente.&#x27;;
+  END IF;
+
+  IF EXISTS (
+    SELECT 1
+    FROM public.pending_new_customers p
+    WHERE p.owner_id = NEW.owner_id
+      AND public.normalize_customer_username(p.username) = normalized_username
+      AND p.id &lt;&gt; COALESCE(NEW.id, &#x27;00000000-0000-0000-0000-000000000000&#x27;::uuid)
+  ) THEN
+    RAISE EXCEPTION &#x27;duplicate_pending_username:%&#x27;, normalized_username
+      USING ERRCODE = &#x27;23505&#x27;, DETAIL = &#x27;Já existe um pedido pendente para este usuário.&#x27;;
+  END IF;
+
+  RETURN NEW;
+END;
+$function$
+
+CREATE OR REPLACE FUNCTION public.renew_customer_due_date()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO &#x27;public&#x27;
+AS $function$
+DECLARE
+  plan_duration INTEGER;
+  months_to_add INTEGER;
+  current_due DATE;
+  new_due DATE;
+  original_day INTEGER;
+  sp_today DATE := (now() AT TIME ZONE &#x27;America/Sao_Paulo&#x27;)::date;
+  should_process BOOLEAN := false;
+BEGIN
+  IF NEW.confirmed = true THEN
+    IF TG_OP = &#x27;INSERT&#x27; THEN
+      should_process := true;
+    ELSIF TG_OP = &#x27;UPDATE&#x27; AND OLD.confirmed = false THEN
+      should_process := true;
+    END IF;
+  END IF;
+
+  IF should_process THEN
+    SELECT duration_days INTO plan_duration
+    FROM public.plans p
+    JOIN public.customers c ON c.plan_id = p.id
+    WHERE c.id = NEW.customer_id;
+    
+    IF plan_duration IS NOT NULL THEN
+      CASE plan_duration
+        WHEN 30 THEN months_to_add := 1;
+        WHEN 90 THEN months_to_add := 3;
+        WHEN 180 THEN months_to_add := 6;
+        WHEN 365 THEN months_to_add := 12;
+        ELSE months_to_add := NULL;
+      END CASE;
+
+      SELECT due_date INTO current_due FROM public.customers WHERE id = NEW.customer_id;
+      
+      IF current_due IS NULL OR current_due &lt; sp_today THEN
+        current_due := sp_today;
+      END IF;
+
+      IF months_to_add IS NOT NULL THEN
+        original_day := EXTRACT(DAY FROM current_due);
+        new_due := current_due + (months_to_add || &#x27; months&#x27;)::interval;
+        IF EXTRACT(DAY FROM new_due) &lt;&gt; original_day THEN
+          new_due := (date_trunc(&#x27;month&#x27;, new_due))::date - 1;
+        END IF;
+      ELSE
+        new_due := current_due + (plan_duration || &#x27; days&#x27;)::interval;
+      END IF;
+
+      UPDATE public.customers
+      SET due_date = new_due, status = &#x27;ativa&#x27;
+      WHERE id = NEW.customer_id;
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$function$
+
+CREATE OR REPLACE FUNCTION public.set_billing_log_sent_date_br()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SET search_path TO &#x27;public&#x27;
+AS $function$
+BEGIN
+  NEW.sent_date_br := (COALESCE(NEW.sent_at, now()) AT TIME ZONE &#x27;America/Sao_Paulo&#x27;)::date;
+  RETURN NEW;
+END;
+$function$
+
+CREATE OR REPLACE FUNCTION public.update_updated_at_column()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SET search_path TO &#x27;public&#x27;
+AS $function$
+BEGIN
+  NEW.updated_at = now();
+  RETURN NEW;
+END;
+$function$
+
+
+
+-- ============================================================
+-- TRIGGERS
+-- ============================================================
+CREATE TRIGGER trg_activation_panel_credentials_updated_at BEFORE UPDATE ON public.activation_panel_credentials FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER trg_ai_knowledge_candidates_updated BEFORE UPDATE ON public.ai_knowledge_candidates FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER ai_knowledge_entries_updated_at BEFORE UPDATE ON public.ai_knowledge_entries FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER ai_ki_updated_at BEFORE UPDATE ON public.ai_knowledge_items FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER trg_ai_training_conversations_updated BEFORE UPDATE ON public.ai_training_conversations FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_auto_replies_updated_at BEFORE UPDATE ON public.auto_replies FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER set_billing_log_sent_date_br_trigger BEFORE INSERT OR UPDATE OF sent_at ON public.billing_logs FOR EACH ROW EXECUTE FUNCTION set_billing_log_sent_date_br();
+CREATE TRIGGER update_billing_schedule_updated_at BEFORE UPDATE ON public.billing_schedule FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_billing_settings_updated_at BEFORE UPDATE ON public.billing_settings FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER trg_bot_flow_sessions_updated BEFORE UPDATE ON public.bot_flow_sessions FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER trg_bot_flows_updated BEFORE UPDATE ON public.bot_flows FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_bot_triggers_updated_at BEFORE UPDATE ON public.bot_triggers FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_broadcast_logs_updated_at BEFORE UPDATE ON public.broadcast_logs FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER trg_crm_oficial_billing_schedule_updated_at BEFORE UPDATE ON public.crm_oficial_billing_schedule FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_crm_oficial_hidden_templates_updated_at BEFORE UPDATE ON public.crm_oficial_hidden_templates FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_crm_oficial_settings_updated_at BEFORE UPDATE ON public.crm_oficial_settings FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER trigger_cleanup_backups AFTER INSERT ON public.customer_backups FOR EACH STATEMENT EXECUTE FUNCTION cleanup_old_backups();
+CREATE TRIGGER trg_prevent_duplicate_customer_username BEFORE INSERT OR UPDATE OF username, created_by ON public.customers FOR EACH ROW EXECUTE FUNCTION prevent_duplicate_customer_username();
+CREATE TRIGGER ensure_customer_checkout_code_trigger BEFORE INSERT OR UPDATE OF checkout_code ON public.customers FOR EACH ROW EXECUTE FUNCTION ensure_customer_checkout_code();
+CREATE TRIGGER update_departments_updated_at BEFORE UPDATE ON public.departments FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_device_tokens_updated_at BEFORE UPDATE ON public.device_tokens FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER efi_charges_updated_at BEFORE UPDATE ON public.efi_charges FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER efi_settings_updated_at BEFORE UPDATE ON public.efi_settings FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_evolution_billing_schedule_updated_at BEFORE UPDATE ON public.evolution_billing_schedule FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER trg_evolution_contacts_updated BEFORE UPDATE ON public.evolution_contacts FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_evolution_conversation_state_updated_at BEFORE UPDATE ON public.evolution_conversation_state FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER trg_evolution_settings_updated BEFORE UPDATE ON public.evolution_settings FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_expenses_updated_at BEFORE UPDATE ON public.expenses FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_panel_links_updated_at BEFORE UPDATE ON public.panel_links FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER on_payment_confirmed AFTER INSERT OR UPDATE OF confirmed ON public.payments FOR EACH ROW EXECUTE FUNCTION renew_customer_due_date();
+CREATE TRIGGER trg_notify_pending_manual_renewal AFTER INSERT ON public.pending_manual_renewals FOR EACH ROW EXECUTE FUNCTION notify_pending_manual_renewal();
+CREATE TRIGGER trg_prevent_duplicate_pending_customer_username BEFORE INSERT OR UPDATE OF username, owner_id ON public.pending_new_customers FOR EACH ROW EXECUTE FUNCTION prevent_duplicate_pending_customer_username();
+CREATE TRIGGER create_reseller_access_trigger AFTER INSERT ON public.profiles FOR EACH ROW EXECUTE FUNCTION create_reseller_access();
+CREATE TRIGGER grant_first_admin AFTER INSERT ON public.profiles FOR EACH ROW EXECUTE FUNCTION auto_grant_first_admin();
+CREATE TRIGGER update_quick_messages_updated_at BEFORE UPDATE ON public.quick_messages FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_reseller_access_updated_at BEFORE UPDATE ON public.reseller_access FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_reseller_api_settings_updated_at BEFORE UPDATE ON public.reseller_api_settings FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER trg_reseller_checkout_settings_updated_at BEFORE UPDATE ON public.reseller_checkout_settings FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_vplay_servers_updated_at BEFORE UPDATE ON public.vplay_servers FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_xui_one_settings_updated_at BEFORE UPDATE ON public.xui_one_settings FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+
+-- ============================================================
+-- ROW LEVEL SECURITY
+-- ============================================================
+ALTER TABLE public.activation_apps ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.activation_panel_credentials ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.activation_requests ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.ai_knowledge_candidates ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.ai_knowledge_entries ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.ai_knowledge_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.ai_training_conversations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.ai_training_jobs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.auto_replies ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.billing_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.billing_schedule ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.billing_settings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.bot_flow_sessions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.bot_flows ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.bot_triggers ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.broadcast_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.cakto_processed_events ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.crm_oficial_billing_schedule ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.crm_oficial_hidden_templates ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.crm_oficial_settings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.customer_backups ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.customers ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.departments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.device_tokens ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.efi_charges ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.efi_settings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.evolution_billing_schedule ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.evolution_contacts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.evolution_conversation_state ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.evolution_messages ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.evolution_presence ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.evolution_settings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.evolution_stickers ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.expenses ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.goals_settings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.message_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.panel_links ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.payment_confirmations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.payments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.pending_activation_data ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.pending_manual_renewals ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.pending_new_customers ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.pending_renewal_selections ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.plans ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.quick_messages ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.reseller_access ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.reseller_access_codes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.reseller_api_settings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.reseller_checkout_settings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.servers ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.user_evolution_instances ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.user_roles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.vplay_servers ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.webhook_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.xui_one_settings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.zap_responder_settings ENABLE ROW LEVEL SECURITY;
+
+
+-- ============================================================
+-- POLICIES (RLS)
+-- ============================================================
+CREATE POLICY &quot;Users can delete own activation_apps&quot; ON public.activation_apps FOR DELETE TO public USING ((auth.uid() = user_id));
+CREATE POLICY &quot;Users can insert own activation_apps&quot; ON public.activation_apps FOR INSERT TO public WITH CHECK ((auth.uid() = user_id));
+CREATE POLICY &quot;Users can update own activation_apps&quot; ON public.activation_apps FOR UPDATE TO public USING ((auth.uid() = user_id));
+CREATE POLICY &quot;Users can view own activation_apps&quot; ON public.activation_apps FOR SELECT TO public USING ((auth.uid() = user_id));
+CREATE POLICY &quot;Users manage own panel credentials&quot; ON public.activation_panel_credentials FOR ALL TO public USING (((auth.uid() = user_id) OR is_admin())) WITH CHECK (((auth.uid() = user_id) OR is_admin()));
+CREATE POLICY &quot;Service can insert activation_requests&quot; ON public.activation_requests FOR INSERT TO public WITH CHECK (true);
+CREATE POLICY &quot;Users can delete own activation_requests&quot; ON public.activation_requests FOR DELETE TO public USING (((auth.uid() = user_id) OR is_admin()));
+CREATE POLICY &quot;Users can update own activation_requests&quot; ON public.activation_requests FOR UPDATE TO public USING (((auth.uid() = user_id) OR is_admin()));
+CREATE POLICY &quot;Users can view own activation_requests&quot; ON public.activation_requests FOR SELECT TO public USING (((auth.uid() = user_id) OR is_admin()));
+CREATE POLICY &quot;own candidates&quot; ON public.ai_knowledge_candidates FOR ALL TO public USING (((auth.uid() = user_id) OR is_admin())) WITH CHECK (((auth.uid() = user_id) OR is_admin()));
+CREATE POLICY &quot;Users manage own ai_knowledge_entries&quot; ON public.ai_knowledge_entries FOR ALL TO public USING ((auth.uid() = user_id)) WITH CHECK ((auth.uid() = user_id));
+CREATE POLICY &quot;Users manage own ai_knowledge_items&quot; ON public.ai_knowledge_items FOR ALL TO public USING ((auth.uid() = user_id)) WITH CHECK ((auth.uid() = user_id));
+CREATE POLICY &quot;own conversations&quot; ON public.ai_training_conversations FOR ALL TO public USING (((auth.uid() = user_id) OR is_admin())) WITH CHECK (((auth.uid() = user_id) OR is_admin()));
+CREATE POLICY &quot;own training jobs&quot; ON public.ai_training_jobs FOR ALL TO public USING (((auth.uid() = user_id) OR is_admin())) WITH CHECK (((auth.uid() = user_id) OR is_admin()));
+CREATE POLICY &quot;Users can delete own auto_replies&quot; ON public.auto_replies FOR DELETE TO public USING ((auth.uid() = user_id));
+CREATE POLICY &quot;Users can insert own auto_replies&quot; ON public.auto_replies FOR INSERT TO public WITH CHECK ((auth.uid() = user_id));
+CREATE POLICY &quot;Users can update own auto_replies&quot; ON public.auto_replies FOR UPDATE TO public USING ((auth.uid() = user_id));
+CREATE POLICY &quot;Users can view own auto_replies&quot; ON public.auto_replies FOR SELECT TO public USING ((auth.uid() = user_id));
+CREATE POLICY &quot;Admins can delete billing_logs&quot; ON public.billing_logs FOR DELETE TO public USING (is_admin());
+CREATE POLICY &quot;Admins can insert billing_logs&quot; ON public.billing_logs FOR INSERT TO authenticated WITH CHECK (is_admin());
+CREATE POLICY &quot;Admins can view billing_logs&quot; ON public.billing_logs FOR SELECT TO authenticated USING (is_admin());
+CREATE POLICY &quot;Users can delete own schedule&quot; ON public.billing_schedule FOR DELETE TO public USING (((auth.uid() = user_id) OR is_admin()));
+CREATE POLICY &quot;Users can insert own schedule&quot; ON public.billing_schedule FOR INSERT TO public WITH CHECK (((auth.uid() = user_id) OR is_admin()));
+CREATE POLICY &quot;Users can update own schedule&quot; ON public.billing_schedule FOR UPDATE TO public USING (((auth.uid() = user_id) OR is_admin()));
+CREATE POLICY &quot;Users can view own schedule&quot; ON public.billing_schedule FOR SELECT TO public USING (((auth.uid() = user_id) OR is_admin()));
+CREATE POLICY &quot;Users can delete own billing_settings&quot; ON public.billing_settings FOR DELETE TO public USING ((auth.uid() = user_id));
+CREATE POLICY &quot;Users can insert own billing_settings&quot; ON public.billing_settings FOR INSERT TO public WITH CHECK ((auth.uid() = user_id));
+CREATE POLICY &quot;Users can update own billing_settings&quot; ON public.billing_settings FOR UPDATE TO public USING ((auth.uid() = user_id));
+CREATE POLICY &quot;Users can view own billing_settings&quot; ON public.billing_settings FOR SELECT TO public USING ((auth.uid() = user_id));
+CREATE POLICY &quot;Users manage own bot flow sessions&quot; ON public.bot_flow_sessions FOR ALL TO authenticated USING ((auth.uid() = owner_id)) WITH CHECK ((auth.uid() = owner_id));
+CREATE POLICY &quot;owners manage own flows&quot; ON public.bot_flows FOR ALL TO authenticated USING (((owner_id = auth.uid()) OR is_admin())) WITH CHECK (((owner_id = auth.uid()) OR is_admin()));
+CREATE POLICY &quot;Users can delete own bot_triggers&quot; ON public.bot_triggers FOR DELETE TO public USING ((auth.uid() = user_id));
+CREATE POLICY &quot;Users can insert own bot_triggers&quot; ON public.bot_triggers FOR INSERT TO public WITH CHECK ((auth.uid() = user_id));
+CREATE POLICY &quot;Users can update own bot_triggers&quot; ON public.bot_triggers FOR UPDATE TO public USING ((auth.uid() = user_id));
+CREATE POLICY &quot;Users can view own bot_triggers&quot; ON public.bot_triggers FOR SELECT TO public USING ((auth.uid() = user_id));
+CREATE POLICY &quot;Admins can delete broadcast_logs&quot; ON public.broadcast_logs FOR DELETE TO public USING (is_admin());
+CREATE POLICY &quot;Admins can insert broadcast_logs&quot; ON public.broadcast_logs FOR INSERT TO public WITH CHECK (is_admin());
+CREATE POLICY &quot;Admins can update broadcast_logs&quot; ON public.broadcast_logs FOR UPDATE TO public USING (is_admin());
+CREATE POLICY &quot;Admins can view broadcast_logs&quot; ON public.broadcast_logs FOR SELECT TO public USING (is_admin());
+CREATE POLICY &quot;Service can manage cakto_processed_events&quot; ON public.cakto_processed_events FOR ALL TO public USING (true) WITH CHECK (true);
+CREATE POLICY &quot;Users manage own crm billing schedule&quot; ON public.crm_oficial_billing_schedule FOR ALL TO public USING ((auth.uid() = user_id)) WITH CHECK ((auth.uid() = user_id));
+CREATE POLICY &quot;Users manage their own hidden CRM templates&quot; ON public.crm_oficial_hidden_templates FOR ALL TO authenticated USING ((auth.uid() = user_id)) WITH CHECK ((auth.uid() = user_id));
+CREATE POLICY &quot;Admins manage all crm_oficial_settings&quot; ON public.crm_oficial_settings FOR ALL TO public USING (is_admin()) WITH CHECK (is_admin());
+CREATE POLICY &quot;Users manage their own crm_oficial_settings&quot; ON public.crm_oficial_settings FOR ALL TO public USING ((auth.uid() = user_id)) WITH CHECK ((auth.uid() = user_id));
+CREATE POLICY &quot;Admins can manage backups&quot; ON public.customer_backups FOR ALL TO authenticated USING (is_admin()) WITH CHECK (is_admin());
+CREATE POLICY &quot;Users can delete own customers&quot; ON public.customers FOR DELETE TO public USING ((is_admin() OR (auth.uid() = created_by)));
+CREATE POLICY &quot;Users can insert own customers&quot; ON public.customers FOR INSERT TO public WITH CHECK (((auth.uid() = created_by) OR is_admin()));
+CREATE POLICY &quot;Users can update own customers&quot; ON public.customers FOR UPDATE TO public USING ((is_admin() OR (auth.uid() = created_by)));
+CREATE POLICY &quot;Users can view own customers&quot; ON public.customers FOR SELECT TO public USING ((auth.uid() = created_by));
+CREATE POLICY &quot;Users can create their own departments&quot; ON public.departments FOR INSERT TO public WITH CHECK ((auth.uid() = user_id));
+CREATE POLICY &quot;Users can delete their own departments&quot; ON public.departments FOR DELETE TO public USING ((auth.uid() = user_id));
+CREATE POLICY &quot;Users can update their own departments&quot; ON public.departments FOR UPDATE TO public USING ((auth.uid() = user_id));
+CREATE POLICY &quot;Users can view their own departments&quot; ON public.departments FOR SELECT TO public USING ((auth.uid() = user_id));
+CREATE POLICY &quot;Users manage their own device tokens&quot; ON public.device_tokens FOR ALL TO public USING ((auth.uid() = user_id)) WITH CHECK ((auth.uid() = user_id));
+CREATE POLICY &quot;Owners delete own charges&quot; ON public.efi_charges FOR DELETE TO public USING (((auth.uid() = owner_id) OR is_admin()));
+CREATE POLICY &quot;Owners insert own charges&quot; ON public.efi_charges FOR INSERT TO public WITH CHECK (((auth.uid() = owner_id) OR is_admin()));
+CREATE POLICY &quot;Owners update own charges&quot; ON public.efi_charges FOR UPDATE TO public USING (((auth.uid() = owner_id) OR is_admin())) WITH CHECK (((auth.uid() = owner_id) OR is_admin()));
+CREATE POLICY &quot;Owners view own charges&quot; ON public.efi_charges FOR SELECT TO public USING (((auth.uid() = owner_id) OR is_admin()));
+CREATE POLICY &quot;Admins manage all efi settings&quot; ON public.efi_settings FOR ALL TO public USING (is_admin()) WITH CHECK (is_admin());
+CREATE POLICY &quot;Users manage own efi settings&quot; ON public.efi_settings FOR ALL TO public USING ((auth.uid() = user_id)) WITH CHECK ((auth.uid() = user_id));
+CREATE POLICY &quot;Users manage own evolution_billing_schedule&quot; ON public.evolution_billing_schedule FOR ALL TO authenticated USING (((auth.uid() = user_id) OR is_admin())) WITH CHECK (((auth.uid() = user_id) OR is_admin()));
+CREATE POLICY &quot;Users manage own evolution_contacts&quot; ON public.evolution_contacts FOR ALL TO authenticated USING ((auth.uid() = user_id)) WITH CHECK ((auth.uid() = user_id));
+CREATE POLICY &quot;Users manage own evolution conversation state&quot; ON public.evolution_conversation_state FOR ALL TO authenticated USING ((auth.uid() = user_id)) WITH CHECK ((auth.uid() = user_id));
+CREATE POLICY &quot;Owner deletes own evolution_messages&quot; ON public.evolution_messages FOR DELETE TO public USING ((auth.uid() = user_id));
+CREATE POLICY &quot;Owner views own evolution_messages&quot; ON public.evolution_messages FOR SELECT TO public USING ((auth.uid() = user_id));
+CREATE POLICY &quot;Service inserts evolution_messages&quot; ON public.evolution_messages FOR INSERT TO public WITH CHECK (true);
+CREATE POLICY &quot;Service updates evolution_messages&quot; ON public.evolution_messages FOR UPDATE TO public USING (true) WITH CHECK (true);
+CREATE POLICY &quot;Service manages presence&quot; ON public.evolution_presence FOR ALL TO public USING (true) WITH CHECK (true);
+CREATE POLICY &quot;Users view own presence&quot; ON public.evolution_presence FOR SELECT TO public USING ((auth.uid() = user_id));
+CREATE POLICY &quot;Users manage own evolution_settings&quot; ON public.evolution_settings FOR ALL TO public USING ((auth.uid() = user_id)) WITH CHECK ((auth.uid() = user_id));
+CREATE POLICY &quot;stickers_own&quot; ON public.evolution_stickers FOR ALL TO authenticated USING ((auth.uid() = user_id)) WITH CHECK ((auth.uid() = user_id));
+CREATE POLICY &quot;Only admins can delete expenses&quot; ON public.expenses FOR DELETE TO public USING ((is_admin() AND (auth.uid() = user_id)));
+CREATE POLICY &quot;Only admins can insert expenses&quot; ON public.expenses FOR INSERT TO public WITH CHECK ((is_admin() AND (auth.uid() = user_id)));
+CREATE POLICY &quot;Only admins can update expenses&quot; ON public.expenses FOR UPDATE TO public USING ((is_admin() AND (auth.uid() = user_id)));
+CREATE POLICY &quot;Only admins can view expenses&quot; ON public.expenses FOR SELECT TO public USING ((is_admin() AND (auth.uid() = user_id)));
+CREATE POLICY &quot;Users can delete own goals&quot; ON public.goals_settings FOR DELETE TO public USING ((auth.uid() = user_id));
+CREATE POLICY &quot;Users can insert own goals&quot; ON public.goals_settings FOR INSERT TO public WITH CHECK ((auth.uid() = user_id));
+CREATE POLICY &quot;Users can update own goals&quot; ON public.goals_settings FOR UPDATE TO public USING ((auth.uid() = user_id));
+CREATE POLICY &quot;Users can view own goals&quot; ON public.goals_settings FOR SELECT TO public USING ((auth.uid() = user_id));
+CREATE POLICY &quot;Admins can delete message_logs&quot; ON public.message_logs FOR DELETE TO public USING (is_admin());
+CREATE POLICY &quot;Admins can view all message_logs&quot; ON public.message_logs FOR SELECT TO public USING (is_admin());
+CREATE POLICY &quot;Service can insert message_logs&quot; ON public.message_logs FOR INSERT TO public WITH CHECK (true);
+CREATE POLICY &quot;Admins can manage panel_links&quot; ON public.panel_links FOR ALL TO public USING (is_admin());
+CREATE POLICY &quot;Authenticated users can view panel_links&quot; ON public.panel_links FOR SELECT TO public USING (true);
+CREATE POLICY &quot;Anyone can view payment confirmations by id&quot; ON public.payment_confirmations FOR SELECT TO public USING (true);
+CREATE POLICY &quot;Users can delete payments for own customers&quot; ON public.payments FOR DELETE TO public USING ((is_admin() OR (EXISTS ( SELECT 1
+   FROM customers
+  WHERE ((customers.id = payments.customer_id) AND (customers.created_by = auth.uid()))))));
+CREATE POLICY &quot;Users can insert payments for own customers&quot; ON public.payments FOR INSERT TO public WITH CHECK ((is_admin() OR (EXISTS ( SELECT 1
+   FROM customers
+  WHERE ((customers.id = payments.customer_id) AND (customers.created_by = auth.uid()))))));
+CREATE POLICY &quot;Users can update payments for own customers&quot; ON public.payments FOR UPDATE TO public USING ((is_admin() OR (EXISTS ( SELECT 1
+   FROM customers
+  WHERE ((customers.id = payments.customer_id) AND (customers.created_by = auth.uid()))))));
+CREATE POLICY &quot;Users can view payments for own customers&quot; ON public.payments FOR SELECT TO public USING ((is_admin() OR (EXISTS ( SELECT 1
+   FROM customers
+  WHERE ((customers.id = payments.customer_id) AND (customers.created_by = auth.uid()))))));
+CREATE POLICY &quot;Anyone can insert pending_activation_data&quot; ON public.pending_activation_data FOR INSERT TO public WITH CHECK (true);
+CREATE POLICY &quot;Anyone can read pending_activation_data&quot; ON public.pending_activation_data FOR SELECT TO public USING (true);
+CREATE POLICY &quot;Anyone can update pending_activation_data&quot; ON public.pending_activation_data FOR UPDATE TO public USING (true);
+CREATE POLICY &quot;Owners can delete own pending manual renewals&quot; ON public.pending_manual_renewals FOR DELETE TO public USING (((auth.uid() = owner_id) OR is_admin()));
+CREATE POLICY &quot;Owners can insert own pending manual renewals&quot; ON public.pending_manual_renewals FOR INSERT TO authenticated WITH CHECK (((auth.uid() = owner_id) OR is_admin()));
+CREATE POLICY &quot;Owners can update own pending manual renewals&quot; ON public.pending_manual_renewals FOR UPDATE TO public USING (((auth.uid() = owner_id) OR is_admin()));
+CREATE POLICY &quot;Owners can view own pending manual renewals&quot; ON public.pending_manual_renewals FOR SELECT TO public USING (((auth.uid() = owner_id) OR is_admin()));
+CREATE POLICY &quot;Anyone can insert pending_new_customers&quot; ON public.pending_new_customers FOR INSERT TO public WITH CHECK (true);
+CREATE POLICY &quot;Anyone can read pending_new_customers&quot; ON public.pending_new_customers FOR SELECT TO public USING (true);
+CREATE POLICY &quot;Anyone can update pending_new_customers&quot; ON public.pending_new_customers FOR UPDATE TO public USING (true);
+CREATE POLICY &quot;Users can delete own plans&quot; ON public.plans FOR DELETE TO public USING ((is_admin() OR (auth.uid() = created_by)));
+CREATE POLICY &quot;Users can insert own plans&quot; ON public.plans FOR INSERT TO public WITH CHECK (((auth.uid() = created_by) OR is_admin()));
+CREATE POLICY &quot;Users can update own plans&quot; ON public.plans FOR UPDATE TO public USING ((is_admin() OR (auth.uid() = created_by)));
+CREATE POLICY &quot;Users can view own plans&quot; ON public.plans FOR SELECT TO public USING ((auth.uid() = created_by));
+CREATE POLICY &quot;Users can insert own profile&quot; ON public.profiles FOR INSERT TO authenticated WITH CHECK ((user_id = auth.uid()));
+CREATE POLICY &quot;Users can update own profile&quot; ON public.profiles FOR UPDATE TO authenticated USING ((user_id = auth.uid()));
+CREATE POLICY &quot;Users can view own profile&quot; ON public.profiles FOR SELECT TO authenticated USING ((user_id = auth.uid()));
+CREATE POLICY &quot;Users can delete own quick_messages&quot; ON public.quick_messages FOR DELETE TO public USING ((auth.uid() = created_by));
+CREATE POLICY &quot;Users can insert own quick_messages&quot; ON public.quick_messages FOR INSERT TO public WITH CHECK ((auth.uid() = created_by));
+CREATE POLICY &quot;Users can update own quick_messages&quot; ON public.quick_messages FOR UPDATE TO public USING ((auth.uid() = created_by));
+CREATE POLICY &quot;Users can view own quick_messages&quot; ON public.quick_messages FOR SELECT TO public USING ((auth.uid() = created_by));
+CREATE POLICY &quot;Admins can manage reseller_access limits&quot; ON public.reseller_access FOR UPDATE TO public USING (is_admin());
+CREATE POLICY &quot;Resellers can create sub-resellers&quot; ON public.reseller_access FOR INSERT TO public WITH CHECK ((is_admin() OR ((parent_reseller_id = auth.uid()) AND (( SELECT reseller_access_1.credits
+   FROM reseller_access reseller_access_1
+  WHERE (reseller_access_1.user_id = auth.uid())) &gt;= 1))));
+CREATE POLICY &quot;Resellers can delete their sub-resellers&quot; ON public.reseller_access FOR DELETE TO public USING ((is_admin() OR (parent_reseller_id = auth.uid())));
+CREATE POLICY &quot;Resellers can update their sub-resellers&quot; ON public.reseller_access FOR UPDATE TO public USING ((is_admin() OR (parent_reseller_id = auth.uid())));
+CREATE POLICY &quot;Resellers can view their sub-resellers&quot; ON public.reseller_access FOR SELECT TO public USING (((parent_reseller_id = auth.uid()) OR (user_id = auth.uid()) OR is_admin()));
+CREATE POLICY &quot;Users can view own access&quot; ON public.reseller_access FOR SELECT TO public USING ((auth.uid() = user_id));
+CREATE POLICY &quot;Delete own unused access codes&quot; ON public.reseller_access_codes FOR DELETE TO authenticated USING ((((created_by = auth.uid()) AND (used_by IS NULL)) OR has_role(auth.uid(), &#x27;admin&#x27;::app_role)));
+CREATE POLICY &quot;Insert own access codes&quot; ON public.reseller_access_codes FOR INSERT TO authenticated WITH CHECK ((created_by = auth.uid()));
+CREATE POLICY &quot;Update access codes admin only&quot; ON public.reseller_access_codes FOR UPDATE TO authenticated USING (has_role(auth.uid(), &#x27;admin&#x27;::app_role)) WITH CHECK (has_role(auth.uid(), &#x27;admin&#x27;::app_role));
+CREATE POLICY &quot;View own access codes&quot; ON public.reseller_access_codes FOR SELECT TO authenticated USING (((created_by = auth.uid()) OR has_role(auth.uid(), &#x27;admin&#x27;::app_role)));
+CREATE POLICY &quot;Users can delete own api settings&quot; ON public.reseller_api_settings FOR DELETE TO public USING ((auth.uid() = user_id));
+CREATE POLICY &quot;Users can insert own api settings&quot; ON public.reseller_api_settings FOR INSERT TO public WITH CHECK ((auth.uid() = user_id));
+CREATE POLICY &quot;Users can update own api settings&quot; ON public.reseller_api_settings FOR UPDATE TO public USING ((auth.uid() = user_id));
+CREATE POLICY &quot;Users can view own api settings&quot; ON public.reseller_api_settings FOR SELECT TO public USING ((auth.uid() = user_id));
+CREATE POLICY &quot;Admins manage all checkout settings&quot; ON public.reseller_checkout_settings FOR ALL TO authenticated USING (is_admin()) WITH CHECK (is_admin());
+CREATE POLICY &quot;Owner manages checkout settings&quot; ON public.reseller_checkout_settings FOR ALL TO authenticated USING ((auth.uid() = user_id)) WITH CHECK ((auth.uid() = user_id));
+CREATE POLICY &quot;Users can delete own servers&quot; ON public.servers FOR DELETE TO public USING ((is_admin() OR (auth.uid() = created_by)));
+CREATE POLICY &quot;Users can insert own servers&quot; ON public.servers FOR INSERT TO public WITH CHECK (((auth.uid() = created_by) OR is_admin()));
+CREATE POLICY &quot;Users can update own servers&quot; ON public.servers FOR UPDATE TO public USING ((is_admin() OR (auth.uid() = created_by)));
+CREATE POLICY &quot;Users can view own servers&quot; ON public.servers FOR SELECT TO public USING ((auth.uid() = created_by));
+CREATE POLICY &quot;Admins update evo instances&quot; ON public.user_evolution_instances FOR UPDATE TO public USING (is_admin());
+CREATE POLICY &quot;Users delete own evo instances&quot; ON public.user_evolution_instances FOR DELETE TO public USING (((auth.uid() = user_id) OR is_admin()));
+CREATE POLICY &quot;Users insert own evo instances&quot; ON public.user_evolution_instances FOR INSERT TO public WITH CHECK (((auth.uid() = user_id) OR is_admin()));
+CREATE POLICY &quot;Users view own evo instances&quot; ON public.user_evolution_instances FOR SELECT TO public USING (((auth.uid() = user_id) OR is_admin()));
+CREATE POLICY &quot;Users can view own roles&quot; ON public.user_roles FOR SELECT TO authenticated USING ((user_id = auth.uid()));
+CREATE POLICY &quot;Users can delete own vplay_servers&quot; ON public.vplay_servers FOR DELETE TO public USING ((auth.uid() = user_id));
+CREATE POLICY &quot;Users can insert own vplay_servers&quot; ON public.vplay_servers FOR INSERT TO public WITH CHECK ((auth.uid() = user_id));
+CREATE POLICY &quot;Users can update own vplay_servers&quot; ON public.vplay_servers FOR UPDATE TO public USING ((auth.uid() = user_id));
+CREATE POLICY &quot;Users can view own vplay_servers&quot; ON public.vplay_servers FOR SELECT TO public USING ((auth.uid() = user_id));
+CREATE POLICY &quot;Service can insert webhook_logs&quot; ON public.webhook_logs FOR INSERT TO public WITH CHECK (true);
+CREATE POLICY &quot;Users can view own webhook_logs&quot; ON public.webhook_logs FOR SELECT TO public USING (((auth.uid() = user_id) OR is_admin()));
+CREATE POLICY &quot;Users can delete own xui_one_settings&quot; ON public.xui_one_settings FOR DELETE TO public USING ((auth.uid() = user_id));
+CREATE POLICY &quot;Users can insert own xui_one_settings&quot; ON public.xui_one_settings FOR INSERT TO public WITH CHECK ((auth.uid() = user_id));
+CREATE POLICY &quot;Users can update own xui_one_settings&quot; ON public.xui_one_settings FOR UPDATE TO public USING ((auth.uid() = user_id));
+CREATE POLICY &quot;Users can view own xui_one_settings&quot; ON public.xui_one_settings FOR SELECT TO public USING ((auth.uid() = user_id));
+CREATE POLICY &quot;Users can delete own zap_responder_settings&quot; ON public.zap_responder_settings FOR DELETE TO public USING (((auth.uid() = user_id) OR is_admin()));
+CREATE POLICY &quot;Users can insert own zap_responder_settings&quot; ON public.zap_responder_settings FOR INSERT TO public WITH CHECK (((auth.uid() = user_id) OR is_admin()));
+CREATE POLICY &quot;Users can update own zap_responder_settings&quot; ON public.zap_responder_settings FOR UPDATE TO public USING (((auth.uid() = user_id) OR is_admin()));
+CREATE POLICY &quot;Users can view own zap_responder_settings&quot; ON public.zap_responder_settings FOR SELECT TO public USING (((auth.uid() = user_id) OR is_admin()));
+
+
+-- ============================================================
+-- STORAGE BUCKETS
+-- ============================================================
+INSERT INTO storage.buckets (id, name, public) VALUES
+  (&#x27;reseller-assets&#x27;,&#x27;reseller-assets&#x27;, true),
+  (&#x27;evolution-media&#x27;,&#x27;evolution-media&#x27;, false),
+  (&#x27;evolution-stickers&#x27;,&#x27;evolution-stickers&#x27;, false)
+ON CONFLICT (id) DO NOTHING;
+
+-- Policies de Storage
+CREATE POLICY &quot;Authenticated can update meta-template-uploads&quot; ON storage.objects FOR UPDATE TO authenticated USING (((bucket_id = &#x27;reseller-assets&#x27;::text) AND ((storage.foldername(name))[1] = &#x27;meta-template-uploads&#x27;::text)));
+CREATE POLICY &quot;Authenticated can upload meta-template-uploads&quot; ON storage.objects FOR INSERT TO authenticated WITH CHECK (((bucket_id = &#x27;reseller-assets&#x27;::text) AND ((storage.foldername(name))[1] = &#x27;meta-template-uploads&#x27;::text)));
+CREATE POLICY &quot;Public read access for reseller assets&quot; ON storage.objects FOR SELECT TO public USING ((bucket_id = &#x27;reseller-assets&#x27;::text));
+CREATE POLICY &quot;Public read reseller-assets&quot; ON storage.objects FOR SELECT TO anon,authenticated USING ((bucket_id = &#x27;reseller-assets&#x27;::text));
+CREATE POLICY &quot;Users can delete own evolution media&quot; ON storage.objects FOR DELETE TO authenticated USING (((bucket_id = &#x27;evolution-media&#x27;::text) AND ((auth.uid())::text = (storage.foldername(name))[1])));
+CREATE POLICY &quot;Users can delete own reseller assets&quot; ON storage.objects FOR DELETE TO public USING (((bucket_id = &#x27;reseller-assets&#x27;::text) AND ((auth.uid())::text = (storage.foldername(name))[1])));
+CREATE POLICY &quot;Users can read own evolution media&quot; ON storage.objects FOR SELECT TO authenticated USING (((bucket_id = &#x27;evolution-media&#x27;::text) AND ((auth.uid())::text = (storage.foldername(name))[1])));
+CREATE POLICY &quot;Users can update own evolution media&quot; ON storage.objects FOR UPDATE TO authenticated USING (((bucket_id = &#x27;evolution-media&#x27;::text) AND ((auth.uid())::text = (storage.foldername(name))[1]))) WITH CHECK (((bucket_id = &#x27;evolution-media&#x27;::text) AND ((auth.uid())::text = (storage.foldername(name))[1])));
+CREATE POLICY &quot;Users can update own reseller assets&quot; ON storage.objects FOR UPDATE TO public USING (((bucket_id = &#x27;reseller-assets&#x27;::text) AND ((auth.uid())::text = (storage.foldername(name))[1])));
+CREATE POLICY &quot;Users can upload own evolution media&quot; ON storage.objects FOR INSERT TO authenticated WITH CHECK (((bucket_id = &#x27;evolution-media&#x27;::text) AND ((auth.uid())::text = (storage.foldername(name))[1])));
+CREATE POLICY &quot;Users can upload own reseller assets&quot; ON storage.objects FOR INSERT TO public WITH CHECK (((bucket_id = &#x27;reseller-assets&#x27;::text) AND ((auth.uid())::text = (storage.foldername(name))[1])));
+CREATE POLICY &quot;stickers_delete_own&quot; ON storage.objects FOR DELETE TO authenticated USING (((bucket_id = &#x27;evolution-stickers&#x27;::text) AND ((auth.uid())::text = (storage.foldername(name))[1])));
+CREATE POLICY &quot;stickers_insert_own&quot; ON storage.objects FOR INSERT TO authenticated WITH CHECK (((bucket_id = &#x27;evolution-stickers&#x27;::text) AND ((auth.uid())::text = (storage.foldername(name))[1])));
+CREATE POLICY &quot;stickers_select_own&quot; ON storage.objects FOR SELECT TO authenticated USING (((bucket_id = &#x27;evolution-stickers&#x27;::text) AND ((auth.uid())::text = (storage.foldername(name))[1])));
+CREATE POLICY &quot;stickers_update_own&quot; ON storage.objects FOR UPDATE TO authenticated USING (((bucket_id = &#x27;evolution-stickers&#x27;::text) AND ((auth.uid())::text = (storage.foldername(name))[1])));
+
+
+-- ============================================================
+-- FIM DO SCRIPT
+-- ============================================================
+</pre>
+          </div>
+        </div>
+        <div class="alert alert-info"><span class="alert-icon">📌</span><div><strong>Como executar</strong>1) Abra o SQL Editor da Supabase → New query. 2) Cole o script. 3) Pressione <kbd>Ctrl+Enter</kbd> (ou Cmd+Enter no Mac). 4) Aguarde a mensagem "Success. No rows returned".</div></div>
+      </section>
+
+      <section id="storage">
+        <h2><span class="step-num">7</span> Storage</h2>
+        <p class="subtitle">Buckets, permissões e estrutura de pastas.</p>
+        
+<div class="bucket-card"><h4>reseller-assets</h4><span class="badge badge-public">Público</span><p>Logos de revendedores, imagens de checkout e uploads de templates. Leitura pública, escrita restrita ao dono (path começa com o user_id).</p></div>
+<div class="bucket-card"><h4>evolution-media</h4><span class="badge badge-private">Privado</span><p>Mídias enviadas/recebidas via WhatsApp Evolution (imagens, áudios, vídeos, documentos). Acesso somente pelo dono.</p></div>
+<div class="bucket-card"><h4>evolution-stickers</h4><span class="badge badge-private">Privado</span><p>Figurinhas usadas na integração Evolution. Acesso somente pelo dono.</p></div>
+
+        <h3>🗂️ Estrutura de pastas recomendada</h3>
+        <div class="code-block"><div class="code-header"><div class="dots"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span></div><span>estrutura</span></div><div class="code-body"><pre class="code-content">reseller-assets/
+├── {user_id}/logo.png              # logo do revendedor
+├── {user_id}/checkout-banner.jpg   # banner do checkout público
+└── meta-template-uploads/            # imagens de templates Meta
+
+evolution-media/
+└── {user_id}/YYYY/MM/arquivo.ext   # mídias do WhatsApp
+
+evolution-stickers/
+└── {user_id}/sticker.webp</pre></div></div>
+        <div class="alert alert-info"><span class="alert-icon">🔐</span><div><strong>Permissões</strong>As policies de storage exigem que o primeiro segmento do path seja o <code>auth.uid()</code> do usuário. Isso garante isolamento total entre revendedores.</div></div>
+      </section>
+
+      <section id="env">
+        <h2><span class="step-num">8</span> Variáveis de Ambiente</h2>
+        <p class="subtitle">Todas as variáveis usadas pelo projeto, onde obter e como preencher.</p>
+        <h3>Frontend (arquivo <code>.env</code> na raiz)</h3>
+        <table class="env-table">
+          <thead><tr><th>Variável</th><th>Descrição</th><th>Onde encontrar</th></tr></thead>
+          <tbody>
+            <tr><td><code>VITE_SUPABASE_URL</code></td><td>URL do projeto Supabase</td><td>Project Settings → API</td></tr>
+            <tr><td><code>VITE_SUPABASE_PUBLISHABLE_KEY</code></td><td>Chave pública (anon)</td><td>Project Settings → API</td></tr>
+            <tr><td><code>VITE_SUPABASE_PROJECT_ID</code></td><td>Referência do projeto (subdomínio)</td><td>Parte inicial da URL</td></tr>
+          </tbody>
+        </table>
+        <h3>Edge Functions (secrets no painel Supabase)</h3>
+        <p>Configure em <strong>Project Settings → Edge Functions → Secrets</strong>. Adicione somente as que forem usar:</p>
+        <table class="env-table">
+          <thead><tr><th>Secret</th><th>Para que serve</th></tr></thead>
+          <tbody>
+            <tr><td><code>SUPABASE_SERVICE_ROLE_KEY</code></td><td>Chave admin (auto-injetada pela Supabase)</td></tr>
+            <tr><td><code>LOVABLE_API_KEY</code></td><td>Lovable AI Gateway (opcional, para IA)</td></tr>
+            <tr><td><code>META_APP_ID</code> / <code>META_APP_SECRET</code></td><td>WhatsApp Cloud API (Meta Business)</td></tr>
+            <tr><td><code>CAKTO_WEBHOOK_SECRET</code></td><td>Assinatura de webhooks da Cakto</td></tr>
+            <tr><td><code>CRM_OFICIAL_API_KEY</code></td><td>Integração com ZapCRM Oficial</td></tr>
+            <tr><td><code>ZAP_RESPONDER_TOKEN</code></td><td>Provider alternativo de WhatsApp</td></tr>
+            <tr><td><code>NATV_API_KEY</code> / <code>NATV_BASE_URL</code></td><td>Painel NATV IPTV</td></tr>
+            <tr><td><code>XUI_MYSQL_*</code></td><td>Credenciais MySQL do painel XUI One</td></tr>
+            <tr><td><code>VPLAY_MYSQL_*</code></td><td>Credenciais MySQL do painel Vplay</td></tr>
+            <tr><td><code>THE_BEST_API_KEY</code></td><td>Painel The Best</td></tr>
+            <tr><td><code>RECAPTCHA_SECRET_KEY</code></td><td>Proteção contra bots no checkout público</td></tr>
+            <tr><td><code>P2CINE_EXTENSION_TOKEN</code></td><td>Token usado pela extensão Chrome P2Cine</td></tr>
+          </tbody>
+        </table>
+        <div class="alert alert-info"><span class="alert-icon">💡</span><div><strong>Dica</strong>Você não precisa configurar todos os secrets logo de cara. Adicione apenas os relativos às integrações que for utilizar.</div></div>
+      </section>
+
+      <section id="testes">
+        <h2><span class="step-num">9</span> Testando a Instalação</h2>
+        <p class="subtitle">Checklist rápido para validar que tudo funciona.</p>
+        <div class="card">
+          <h3>✅ Checklist</h3>
+          <ol>
+            <li>O comando <code>npm run dev</code> inicia sem erros e o navegador abre em <code>localhost:8080</code>.</li>
+            <li>A tela de <strong>login/cadastro</strong> aparece corretamente.</li>
+            <li>Você consegue criar uma conta — o primeiro usuário vira admin automaticamente.</li>
+            <li>Após login, o <strong>Dashboard</strong> abre mostrando cards de estatísticas (mesmo zerados).</li>
+            <li>Menu lateral navega entre Clientes, Servidores, Planos, Chat, Cobrança e Configurações.</li>
+            <li>Em <strong>Configurações</strong>, você consegue criar um plano e um servidor de teste.</li>
+            <li>Consegue cadastrar um cliente manualmente na aba <strong>Clientes</strong>.</li>
+            <li>No painel Supabase, em <strong>Table Editor</strong>, você vê a linha inserida na tabela <code>customers</code>.</li>
+            <li>No <strong>Storage</strong>, o upload de um logo em Configurações → Checkout aparece no bucket <code>reseller-assets</code>.</li>
+          </ol>
+        </div>
+      </section>
+
+      <section id="problemas">
+        <h2><span class="step-num">10</span> Solução de Problemas</h2>
+        <p class="subtitle">Erros mais comuns e como resolver.</p>
+
+        <div class="troubleshoot"><h4>ERROR: extension "vector" does not exist</h4><p><strong>Causa:</strong> a extensão pgvector não está ativada.</p><p><strong>Solução:</strong> vá em <strong>Database → Extensions</strong>, procure por <code>vector</code> e clique em <strong>Enable</strong>. Reexecute o SQL.</p></div>
+
+        <div class="troubleshoot"><h4>permission denied for table X</h4><p><strong>Causa:</strong> faltam <code>GRANT</code>s no schema public.</p><p><strong>Solução:</strong> o SQL fornecido já inclui os grants padrão via policies. Se persistir, execute:<br><code>GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO authenticated;</code></p></div>
+
+        <div class="troubleshoot"><h4>Tela em branco após npm run dev</h4><p><strong>Causa:</strong> variáveis do <code>.env</code> ausentes ou incorretas.</p><p><strong>Solução:</strong> abra o console (F12), procure por "SUPABASE_URL is undefined". Confirme que o <code>.env</code> existe na raiz do projeto e reinicie o dev server.</p></div>
+
+        <div class="troubleshoot"><h4>Cannot read properties of undefined (reading 'auth')</h4><p><strong>Causa:</strong> chave anon inválida ou URL errada.</p><p><strong>Solução:</strong> confira novamente as chaves em Supabase → Project Settings → API. Copie exatamente sem espaços extras.</p></div>
+
+        <div class="troubleshoot"><h4>Row-level security policy violation</h4><p><strong>Causa:</strong> usuário tentando acessar dados sem role/policy adequada.</p><p><strong>Solução:</strong> confirme que o primeiro usuário virou admin. Cheque a tabela <code>user_roles</code> — deve haver uma linha com <code>role='admin'</code>.</p></div>
+
+        <div class="troubleshoot"><h4>Edge Function não responde</h4><p><strong>Causa:</strong> secrets não configurados no painel.</p><p><strong>Solução:</strong> em Project Settings → Edge Functions → Secrets, adicione as credenciais necessárias para a função (ver seção 8).</p></div>
+      </section>
+
+      <section id="faq">
+        <h2><span class="step-num">11</span> FAQ</h2>
+        <p class="subtitle">Perguntas frequentes.</p>
+        <details class="faq"><summary>Posso rodar o sistema totalmente grátis?</summary><div class="content">Sim, o plano Free da Supabase é suficiente para começar. Você pagará apenas se ultrapassar os limites (500MB de banco, 1GB de storage, 500k invocações de Edge Function/mês).</div></details>
+        <details class="faq"><summary>Posso usar outro banco em vez da Supabase?</summary><div class="content">Tecnicamente sim, pois é PostgreSQL puro. Mas você perderá Auth, Storage, Realtime e Edge Functions — que exigiriam reescrita significativa. Não recomendado.</div></details>
+        <details class="faq"><summary>Como faço backup do banco?</summary><div class="content">A Supabase faz backups automáticos diários no plano Pro. No Free, use o botão de export ou implemente a Edge Function <code>auto-backup</code> já inclusa no projeto.</div></details>
+        <details class="faq"><summary>Como adiciono um segundo administrador?</summary><div class="content">Após o primeiro admin, use o SQL:<br><code>INSERT INTO public.user_roles (user_id, role) VALUES ('uuid-do-usuario', 'admin');</code></div></details>
+        <details class="faq"><summary>Preciso saber programar para usar?</summary><div class="content">Não para uso do sistema. Para instalar, basta seguir este manual passo a passo. Para customizar, é útil saber React + TypeScript.</div></details>
+        <details class="faq"><summary>Como atualizar para uma nova versão?</summary><div class="content">Git pull do repositório, <code>npm install</code> e execute apenas as novas migrations SQL fornecidas no changelog. Nunca reexecute o schema completo em produção.</div></details>
+        <details class="faq"><summary>Posso fazer deploy em produção onde?</summary><div class="content">Recomendamos Vercel, Netlify ou Cloudflare Pages para o frontend. O backend (Supabase) já é gerenciado.</div></details>
+        <details class="faq"><summary>Como faço quando algo dá errado que não está no manual?</summary><div class="content">Verifique os logs em Supabase → Logs → Edge Functions e no console do navegador (F12). A grande maioria dos erros mostra uma mensagem que aponta a causa.</div></details>
+      </section>
+
+    </div>
+  </main>
+</div>
+
+<script>
+// Nav active + progress
+const sections = document.querySelectorAll('section');
+const navLinks = document.querySelectorAll('.nav a');
+const progressBar = document.getElementById('progress-bar');
+const progressPercent = document.getElementById('progress-percent');
+
+function updateActive() {
+  let current = 'inicio';
+  sections.forEach(s => {
+    const rect = s.getBoundingClientRect();
+    if (rect.top <= 100) current = s.id;
+  });
+  navLinks.forEach(a => {
+    a.classList.toggle('active', a.getAttribute('href') === '#' + current);
+  });
+  // progress based on scroll
+  const scrolled = window.scrollY;
+  const height = document.documentElement.scrollHeight - window.innerHeight;
+  const pct = Math.min(100, Math.max(0, (scrolled / height) * 100));
+  progressBar.style.width = pct + '%';
+  progressPercent.textContent = Math.round(pct) + '%';
+}
+window.addEventListener('scroll', updateActive);
+updateActive();
+
+// Copy SQL
+function copySQL() {
+  const el = document.getElementById('sql-content');
+  navigator.clipboard.writeText(el.textContent).then(() => {
+    const btn = event.target;
+    const original = btn.textContent;
+    btn.textContent = '✅ Copiado!';
+    setTimeout(() => btn.textContent = original, 1800);
+  });
+}
+function selectAllSQL() {
+  const el = document.getElementById('sql-content');
+  const range = document.createRange();
+  range.selectNodeContents(el);
+  const sel = window.getSelection();
+  sel.removeAllRanges();
+  sel.addRange(range);
+}
+function toggleExpand() {
+  document.getElementById('sql-body').classList.toggle('expanded');
+}
+function copyBlock(btn) {
+  const pre = btn.closest('.code-block').querySelector('.code-content');
+  navigator.clipboard.writeText(pre.textContent).then(() => {
+    const orig = btn.textContent;
+    btn.textContent = '✅ Copiado!';
+    setTimeout(() => btn.textContent = orig, 1500);
+  });
+}
+
+// close mobile menu on nav click
+navLinks.forEach(a => a.addEventListener('click', () => {
+  document.querySelector('.sidebar').classList.remove('open');
+}));
+</script>
+</body>
+</html>
