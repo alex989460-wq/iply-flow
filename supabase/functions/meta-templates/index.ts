@@ -19,6 +19,52 @@ function json(data: unknown, status = 200) {
   });
 }
 
+/**
+ * Convert a NAMED-variable template payload to POSITIONAL form.
+ * Some CRM/Meta proxies reject body_text_named_params, so we rewrite
+ * {{name}} → {{1}} and provide body_text examples instead.
+ */
+function convertNamedToPositional(payload: any): any | null {
+  try {
+    const components = Array.isArray(payload?.components) ? payload.components : null;
+    if (!components) return null;
+    const bodyIdx = components.findIndex((c: any) => c?.type === "BODY");
+    if (bodyIdx < 0) return null;
+    const body = components[bodyIdx];
+    const text: string = String(body?.text || "");
+    const named = body?.example?.body_text_named_params;
+    if (!Array.isArray(named) || named.length === 0) return null;
+
+    // Build ordered list of unique variable names as they first appear in the text.
+    const order: string[] = [];
+    const re = /\{\{\s*([a-zA-Z_][a-zA-Z0-9_]{0,23})\s*\}\}/g;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(text)) !== null) {
+      if (!order.includes(m[1])) order.push(m[1]);
+    }
+    if (order.length === 0) return null;
+
+    let newText = text;
+    order.forEach((name, i) => {
+      const rx = new RegExp(`\\{\\{\\s*${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*\\}\\}`, "g");
+      newText = newText.replace(rx, `{{${i + 1}}}`);
+    });
+
+    const examples = order.map((name) => {
+      const found = named.find((p: any) => String(p?.param_name || "").toLowerCase() === name.toLowerCase());
+      return String(found?.example || name);
+    });
+
+    const newBody = { type: "BODY", text: newText, example: { body_text: [examples] } };
+    const newComponents = components.map((c: any, i: number) => (i === bodyIdx ? newBody : c));
+    const newPayload = { ...payload, components: newComponents };
+    delete newPayload.parameter_format;
+    return newPayload;
+  } catch {
+    return null;
+  }
+}
+
 async function fetchWithTimeout(input: string, init: RequestInit = {}, timeoutMs = 30_000) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -262,15 +308,23 @@ serve(async (req) => {
         console.log(`[MetaTemplates] CRM create payload:`, JSON.stringify(payload).slice(0, 2000));
         let r = await crmFetch("/api/public/v1/templates", crmApiKey, { method: "POST", body: JSON.stringify(payload) });
 
-        // CRM proxy sometimes rejects `parameter_format` with generic "Invalid parameter".
-        // Meta auto-detects the format from body_text_named_params / body_text_examples,
-        // so retry once without the top-level parameter_format.
-        const errText = JSON.stringify(r.body || "").toLowerCase();
-        if (!r.ok && payload.parameter_format && (errText.includes("invalid parameter") || r.status === 400 || r.status === 502)) {
-          console.warn("[MetaTemplates] Retrying create without parameter_format after error:", r.status, errText.slice(0, 200));
+        const errText = () => JSON.stringify(r.body || "").toLowerCase();
+
+        // Retry without parameter_format (CRM proxy sometimes rejects it).
+        if (!r.ok && payload.parameter_format && (errText().includes("invalid parameter") || r.status === 400 || r.status === 502)) {
+          console.warn("[MetaTemplates] Retry without parameter_format:", r.status);
           const retryPayload = { ...payload };
           delete retryPayload.parameter_format;
           r = await crmFetch("/api/public/v1/templates", crmApiKey, { method: "POST", body: JSON.stringify(retryPayload) });
+        }
+
+        // Fallback: convert NAMED variables to POSITIONAL (CRM proxy may not support named params).
+        if (!r.ok && (errText().includes("invalid parameter") || r.status === 400 || r.status === 502)) {
+          const converted = convertNamedToPositional(payload);
+          if (converted) {
+            console.warn("[MetaTemplates] Retry as POSITIONAL:", r.status);
+            r = await crmFetch("/api/public/v1/templates", crmApiKey, { method: "POST", body: JSON.stringify(converted) });
+          }
         }
 
         if (!r.ok) {
