@@ -19,6 +19,52 @@ function json(data: unknown, status = 200) {
   });
 }
 
+/**
+ * Convert a NAMED-variable template payload to POSITIONAL form.
+ * Some CRM/Meta proxies reject body_text_named_params, so we rewrite
+ * {{name}} → {{1}} and provide body_text examples instead.
+ */
+function convertNamedToPositional(payload: any): any | null {
+  try {
+    const components = Array.isArray(payload?.components) ? payload.components : null;
+    if (!components) return null;
+    const bodyIdx = components.findIndex((c: any) => c?.type === "BODY");
+    if (bodyIdx < 0) return null;
+    const body = components[bodyIdx];
+    const text: string = String(body?.text || "");
+    const named = body?.example?.body_text_named_params;
+    if (!Array.isArray(named) || named.length === 0) return null;
+
+    // Build ordered list of unique variable names as they first appear in the text.
+    const order: string[] = [];
+    const re = /\{\{\s*([a-zA-Z_][a-zA-Z0-9_]{0,23})\s*\}\}/g;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(text)) !== null) {
+      if (!order.includes(m[1])) order.push(m[1]);
+    }
+    if (order.length === 0) return null;
+
+    let newText = text;
+    order.forEach((name, i) => {
+      const rx = new RegExp(`\\{\\{\\s*${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*\\}\\}`, "g");
+      newText = newText.replace(rx, `{{${i + 1}}}`);
+    });
+
+    const examples = order.map((name) => {
+      const found = named.find((p: any) => String(p?.param_name || "").toLowerCase() === name.toLowerCase());
+      return String(found?.example || name);
+    });
+
+    const newBody = { type: "BODY", text: newText, example: { body_text: [examples] } };
+    const newComponents = components.map((c: any, i: number) => (i === bodyIdx ? newBody : c));
+    const newPayload = { ...payload, components: newComponents };
+    delete newPayload.parameter_format;
+    return newPayload;
+  } catch {
+    return null;
+  }
+}
+
 async function fetchWithTimeout(input: string, init: RequestInit = {}, timeoutMs = 30_000) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
