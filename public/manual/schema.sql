@@ -84,7 +84,7 @@ CREATE TABLE public.ai_knowledge_candidates (
   last_used_at timestamp with time zone,
   status text NOT NULL DEFAULT 'pending'::text,
   source_conversation_ids uuid[] DEFAULT '{}'::uuid[],
-  embedding vector,
+  embedding vector(1536),
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   updated_at timestamp with time zone NOT NULL DEFAULT now()
 );
@@ -104,7 +104,7 @@ CREATE TABLE public.ai_knowledge_entries (
   media_mime text,
   media_type text,
   media_filename text,
-  embedding vector,
+  embedding vector(1536),
   canonical_question text,
   success_rate numeric DEFAULT 0,
   usage_count integer DEFAULT 0
@@ -132,7 +132,7 @@ CREATE TABLE public.ai_knowledge_items (
   source_conversation_ids uuid[] NOT NULL DEFAULT '{}'::uuid[],
   status ai_knowledge_item_status NOT NULL DEFAULT 'pending'::ai_knowledge_item_status,
   merged_into_id uuid,
-  embedding vector,
+  embedding vector(1536),
   approved_at timestamp with time zone,
   approved_by uuid,
   knowledge_entry_id uuid,
@@ -1431,7 +1431,7 @@ AS $function$
   SELECT public.has_role(auth.uid(), 'admin')
 $function$;
 
-CREATE OR REPLACE FUNCTION public.match_ai_knowledge_candidates(_user_id uuid, query_embedding vector, match_threshold double precision DEFAULT 0.86, match_count integer DEFAULT 3)
+CREATE OR REPLACE FUNCTION public.match_ai_knowledge_candidates(_user_id uuid, query_embedding vector(1536), match_threshold double precision DEFAULT 0.86, match_count integer DEFAULT 3)
  RETURNS TABLE(id uuid, canonical_question text, similarity double precision)
  LANGUAGE sql
  STABLE SECURITY DEFINER
@@ -1446,7 +1446,7 @@ AS $function$
   LIMIT match_count;
 $function$;
 
-CREATE OR REPLACE FUNCTION public.match_ai_knowledge_entries(_user_id uuid, query_embedding vector, match_threshold double precision DEFAULT 0.82, match_count integer DEFAULT 1)
+CREATE OR REPLACE FUNCTION public.match_ai_knowledge_entries(_user_id uuid, query_embedding vector(1536), match_threshold double precision DEFAULT 0.82, match_count integer DEFAULT 1)
  RETURNS TABLE(id uuid, title text, category text, response_template text, media_url text, media_mime text, media_type text, media_filename text, requires_human boolean, similarity double precision)
  LANGUAGE sql
  STABLE SECURITY DEFINER
@@ -1465,7 +1465,7 @@ AS $function$
   LIMIT match_count;
 $function$;
 
-CREATE OR REPLACE FUNCTION public.match_ai_knowledge_items(_user_id uuid, _kind ai_knowledge_kind, _category text, query_embedding vector, match_threshold double precision DEFAULT 0.86, match_count integer DEFAULT 1)
+CREATE OR REPLACE FUNCTION public.match_ai_knowledge_items(_user_id uuid, _kind ai_knowledge_kind, _category text, query_embedding vector(1536), match_threshold double precision DEFAULT 0.86, match_count integer DEFAULT 1)
  RETURNS TABLE(id uuid, subject text, similarity double precision)
  LANGUAGE sql
  STABLE SECURITY DEFINER
