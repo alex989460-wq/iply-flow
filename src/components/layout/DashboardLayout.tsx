@@ -25,14 +25,8 @@ export default function DashboardLayout({ children, noPadding }: DashboardLayout
     return () => resetThemeVars();
   }, []);
 
-  // Rotas que renderizam seu próprio painel de pendências (evitar duplicar).
-  const hidePendingFloat = [
-    '/chat',
-    '/chat-crm-oficial',
-    '/crm-oficial-channels',
-    '/crm-oficial-templates',
-    '/crm-oficial-chatbots',
-  ].some(path => location.pathname.startsWith(path));
+  // Sempre exibir o painel flutuante de pendências em todas as rotas.
+  const hidePendingFloat = false;
 
   return (
     <div className="min-h-screen bg-background">
