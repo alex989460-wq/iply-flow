@@ -1050,7 +1050,7 @@ BEGIN
   END IF;
   RETURN NEW;
 END;
-$function$
+$function$;
 
 CREATE OR REPLACE FUNCTION public.batch_update_customers_natv()
  RETURNS void
@@ -1063,7 +1063,7 @@ BEGIN
   -- It will be dropped after execution
   NULL;
 END;
-$function$
+$function$;
 
 CREATE OR REPLACE FUNCTION public.bulk_update_customers(usernames text[], server_ids uuid[], due_dates date[], statuses text[], screen_counts integer[], plan_ids uuid[])
  RETURNS integer
@@ -1087,7 +1087,7 @@ BEGIN
   END LOOP;
   RETURN updated_count;
 END;
-$function$
+$function$;
 
 CREATE OR REPLACE FUNCTION public.cleanup_old_backups()
  RETURNS trigger
@@ -1104,7 +1104,7 @@ BEGIN
   );
   RETURN NEW;
 END;
-$function$
+$function$;
 
 CREATE OR REPLACE FUNCTION public.create_reseller_access()
  RETURNS trigger
@@ -1126,7 +1126,7 @@ BEGIN
   
   RETURN NEW;
 END;
-$function$
+$function$;
 
 CREATE OR REPLACE FUNCTION public.ensure_customer_checkout_code()
  RETURNS trigger
@@ -1141,7 +1141,7 @@ BEGIN
   END IF;
   RETURN NEW;
 END;
-$function$
+$function$;
 
 CREATE OR REPLACE FUNCTION public.get_dashboard_stats_optimized()
  RETURNS json
@@ -1179,7 +1179,7 @@ BEGIN
   
   RETURN result;
 END;
-$function$
+$function$;
 
 CREATE OR REPLACE FUNCTION public.get_monthly_revenue()
  RETURNS json
@@ -1209,7 +1209,7 @@ BEGIN
   
   RETURN result;
 END;
-$function$
+$function$;
 
 CREATE OR REPLACE FUNCTION public.get_plan_distribution()
  RETURNS json
@@ -1239,7 +1239,7 @@ BEGIN
     ) sub
   );
 END;
-$function$
+$function$;
 
 CREATE OR REPLACE FUNCTION public.get_server_distribution()
  RETURNS json
@@ -1273,7 +1273,7 @@ BEGIN
     ) sub
   );
 END;
-$function$
+$function$;
 
 CREATE OR REPLACE FUNCTION public.handle_new_user()
  RETURNS trigger
@@ -1286,7 +1286,7 @@ BEGIN
   VALUES (NEW.id, NEW.raw_user_meta_data ->> 'full_name');
   RETURN NEW;
 END;
-$function$
+$function$;
 
 CREATE OR REPLACE FUNCTION public.has_role(_user_id uuid, _role app_role)
  RETURNS boolean
@@ -1298,7 +1298,7 @@ AS $function$
     SELECT 1 FROM public.user_roles
     WHERE user_id = _user_id AND role = _role
   )
-$function$
+$function$;
 
 CREATE OR REPLACE FUNCTION public.is_admin()
  RETURNS boolean
@@ -1307,7 +1307,7 @@ CREATE OR REPLACE FUNCTION public.is_admin()
  SET search_path TO 'public'
 AS $function$
   SELECT public.has_role(auth.uid(), 'admin')
-$function$
+$function$;
 
 CREATE OR REPLACE FUNCTION public.match_ai_knowledge_candidates(_user_id uuid, query_embedding vector, match_threshold double precision DEFAULT 0.86, match_count integer DEFAULT 3)
  RETURNS TABLE(id uuid, canonical_question text, similarity double precision)
@@ -1322,7 +1322,7 @@ AS $function$
     AND 1 - (c.embedding <=> query_embedding) >= match_threshold
   ORDER BY c.embedding <=> query_embedding
   LIMIT match_count;
-$function$
+$function$;
 
 CREATE OR REPLACE FUNCTION public.match_ai_knowledge_entries(_user_id uuid, query_embedding vector, match_threshold double precision DEFAULT 0.82, match_count integer DEFAULT 1)
  RETURNS TABLE(id uuid, title text, category text, response_template text, media_url text, media_mime text, media_type text, media_filename text, requires_human boolean, similarity double precision)
@@ -1341,7 +1341,7 @@ AS $function$
     AND 1 - (e.embedding <=> query_embedding) >= match_threshold
   ORDER BY e.embedding <=> query_embedding
   LIMIT match_count;
-$function$
+$function$;
 
 CREATE OR REPLACE FUNCTION public.match_ai_knowledge_items(_user_id uuid, _kind ai_knowledge_kind, _category text, query_embedding vector, match_threshold double precision DEFAULT 0.86, match_count integer DEFAULT 1)
  RETURNS TABLE(id uuid, subject text, similarity double precision)
@@ -1359,7 +1359,7 @@ AS $function$
     AND 1 - (i.embedding <=> query_embedding) >= match_threshold
   ORDER BY i.embedding <=> query_embedding
   LIMIT match_count;
-$function$
+$function$;
 
 CREATE OR REPLACE FUNCTION public.normalize_customer_username(_username text)
  RETURNS text
@@ -1368,7 +1368,7 @@ CREATE OR REPLACE FUNCTION public.normalize_customer_username(_username text)
  SET search_path TO 'public'
 AS $function$
   SELECT nullif(lower(btrim(coalesce(_username, ''))), '')
-$function$
+$function$;
 
 CREATE OR REPLACE FUNCTION public.notify_pending_manual_renewal()
  RETURNS trigger
@@ -1396,7 +1396,7 @@ BEGIN
 EXCEPTION WHEN OTHERS THEN
   RETURN NEW;
 END;
-$function$
+$function$;
 
 CREATE OR REPLACE FUNCTION public.prevent_duplicate_customer_username()
  RETURNS trigger
@@ -1427,7 +1427,7 @@ BEGIN
 
   RETURN NEW;
 END;
-$function$
+$function$;
 
 CREATE OR REPLACE FUNCTION public.prevent_duplicate_pending_customer_username()
  RETURNS trigger
@@ -1466,7 +1466,7 @@ BEGIN
 
   RETURN NEW;
 END;
-$function$
+$function$;
 
 CREATE OR REPLACE FUNCTION public.renew_customer_due_date()
  RETURNS trigger
@@ -1529,7 +1529,7 @@ BEGIN
   END IF;
   RETURN NEW;
 END;
-$function$
+$function$;
 
 CREATE OR REPLACE FUNCTION public.set_billing_log_sent_date_br()
  RETURNS trigger
@@ -1540,7 +1540,7 @@ BEGIN
   NEW.sent_date_br := (COALESCE(NEW.sent_at, now()) AT TIME ZONE 'America/Sao_Paulo')::date;
   RETURN NEW;
 END;
-$function$
+$function$;
 
 CREATE OR REPLACE FUNCTION public.update_updated_at_column()
  RETURNS trigger
@@ -1551,7 +1551,7 @@ BEGIN
   NEW.updated_at = now();
   RETURN NEW;
 END;
-$function$
+$function$;
 
 
 
