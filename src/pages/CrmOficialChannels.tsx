@@ -15,6 +15,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { AlertCircle, ArrowRight, Globe, Loader2, Plus, RefreshCw, Star, Zap, Trash2, ShieldCheck, Power } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import EmbeddedSignupButton from '@/components/crm/EmbeddedSignupButton';
+import AddChannelEmbedDialog from '@/components/crm/AddChannelEmbedDialog';
 import { ProviderBadge } from '@/components/ui/provider-badge';
 import { MetaLogo } from '@/components/ui/meta-logo';
 import logoSg from '@/assets/logo-sg.png';
@@ -397,16 +398,22 @@ export default function CrmOficialChannels() {
           })}
 
           {/* Add new channel tile */}
-          <button
-            type="button"
-            onClick={() => openCreate('whatsapp_cloud')}
-            disabled={!apiKey}
-            className="rounded-2xl border-2 border-dashed border-border/60 bg-card/20 p-8 flex flex-col items-center justify-center gap-2 text-muted-foreground hover:border-blue-500/50 hover:text-blue-400 hover:bg-blue-500/5 transition min-h-[280px] disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <Plus className="w-8 h-8" />
-            <span className="font-medium">Adicionar novo canal</span>
-          </button>
+          <AddChannelEmbedDialog
+            apiKey={apiKey}
+            onCreated={() => loadChannels(apiKey)}
+            trigger={
+              <button
+                type="button"
+                disabled={!apiKey}
+                className="rounded-2xl border-2 border-dashed border-border/60 bg-card/20 p-8 flex flex-col items-center justify-center gap-2 text-muted-foreground hover:border-blue-500/50 hover:text-blue-400 hover:bg-blue-500/5 transition min-h-[280px] disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Plus className="w-8 h-8" />
+                <span className="font-medium">Adicionar novo canal</span>
+              </button>
+            }
+          />
         </div>
+
 
         {/* Create/edit modal */}
         <Dialog open={modalOpen} onOpenChange={setModalOpen}>
