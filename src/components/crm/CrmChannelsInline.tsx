@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Loader2, RefreshCw, Star, ExternalLink, Plus, Zap } from 'lucide-react';
+import { MetaLogo } from '@/components/ui/meta-logo';
+import whatsappLogo from '@/assets/whatsapp-logo.png.asset.json';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -21,6 +23,9 @@ interface WAChannel {
   primary?: boolean;
   is_primary?: boolean;
   avatar_url?: string | null;
+  official?: boolean;
+  instance_name?: string;
+  evolution_status?: string;
 }
 
 function pick(...values: unknown[]) {
@@ -49,7 +54,12 @@ function normalize(body: any): WAChannel[] {
         c?.profile?.phone, c?.business?.phone_number,
       );
       const phone = rawPhone && rawPhone.replace(/\D/g, '').length <= 15 && rawPhone !== phoneId ? rawPhone : '';
+      const kind = String(c.kind || c.type || 'whatsapp_cloud').toLowerCase();
+      const official = !(kind.includes('evolution') || kind.includes('baileys') || !!c.evolution_instance_name || !!c.evolution_status);
       return {
+        official,
+        instance_name: pick(c.evolution_instance_name, c.instance_name, c.instance),
+        evolution_status: pick(c.evolution_status, c.status),
         id: String(c.id || phoneId || `wa-${i}`),
         name: pick(c.name, c.title, c.verified_name),
         verified_name: pick(c.verified_name, c.business_name, c.name),
@@ -59,7 +69,9 @@ function normalize(body: any): WAChannel[] {
         quality_rating: pick(c.quality_rating, c.qualityRating),
         avatar_url: pick(c.avatar_url, c.profile_pic_url, c.profile_picture_url, c.picture),
         primary: !!(c.primary || c.is_primary || c.id === 'primary'),
-        is_active: Boolean(c.is_active ?? c.active ?? c.connected ?? c.primary),
+        is_active: official
+          ? Boolean(c.is_active ?? c.active ?? c.connected ?? c.primary)
+          : pick(c.evolution_status) === 'open' || Boolean(c.is_active ?? c.connected),
       };
     })
     .sort((a: WAChannel, b: WAChannel) => Number(!!b.primary) - Number(!!a.primary));
@@ -114,8 +126,8 @@ export default function CrmChannelsInline() {
         <div className="flex items-center gap-2">
           <Zap className="w-5 h-5 text-emerald-500" />
           <div>
-            <h3 className="text-base font-semibold">Canais oficiais (API Oficial)</h3>
-            <p className="text-xs text-muted-foreground">WhatsApp Cloud sincronizados com seu CRM Oficial.</p>
+            <h3 className="text-base font-semibold">Conexões WhatsApp</h3>
+            <p className="text-xs text-muted-foreground">Canais oficiais (Meta) e não oficiais sincronizados com seu CRM.</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -132,24 +144,40 @@ export default function CrmChannelsInline() {
 
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
         {channels.map((ch) => (
           <div
             key={ch.id}
-            className="rounded-2xl border border-border/60 bg-card/50 backdrop-blur-sm p-5 space-y-4 hover:border-emerald-500/40 transition"
+            className={cn(
+              'group relative overflow-hidden rounded-2xl border bg-card/60 backdrop-blur-xl p-5 space-y-4 transition-all hover:-translate-y-0.5',
+              ch.official
+                ? 'border-blue-500/25 hover:border-blue-500/50 hover:shadow-xl hover:shadow-blue-500/10'
+                : 'border-emerald-500/25 hover:border-emerald-500/50 hover:shadow-xl hover:shadow-emerald-500/10',
+              (ch.primary) && 'ring-1 ring-amber-500/40',
+            )}
           >
+            <div className={cn(
+              'absolute inset-x-0 top-0 h-0.5',
+              ch.official ? 'bg-gradient-to-r from-blue-500 to-primary' : 'bg-gradient-to-r from-emerald-500 to-teal-400',
+            )} />
+
             <div className="flex items-start justify-between gap-3">
               <div className="flex items-center gap-3 min-w-0">
                 <div className="relative shrink-0">
                   {ch.avatar_url ? (
-                    <img src={ch.avatar_url} alt={ch.verified_name || ch.name || 'WhatsApp'} className="w-12 h-12 rounded-full object-cover" />
+                    <img src={ch.avatar_url} alt={ch.verified_name || ch.name || 'WhatsApp'} className="w-12 h-12 rounded-full object-cover ring-2 ring-border/60" />
                   ) : (
-                    <div className="w-12 h-12 rounded-full bg-gradient-to-br from-emerald-500/30 to-emerald-600/40 flex items-center justify-center text-emerald-300 font-bold text-lg">
+                    <div className={cn(
+                      'w-12 h-12 rounded-full flex items-center justify-center font-bold text-lg',
+                      ch.official ? 'bg-blue-500/20 text-blue-300' : 'bg-emerald-500/20 text-emerald-300',
+                    )}>
                       {(ch.verified_name || ch.name || 'W').slice(0, 1).toUpperCase()}
                     </div>
                   )}
-                  <span className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-emerald-500 border-2 border-card flex items-center justify-center">
-                    <Zap className="w-2 h-2 text-white" />
+                  <span className="absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full bg-background border border-border grid place-items-center overflow-hidden">
+                    {ch.official
+                      ? <MetaLogo className="w-3 h-3" />
+                      : <img src={whatsappLogo.url} alt="WhatsApp" className="w-3.5 h-3.5 object-contain" />}
                   </span>
                 </div>
                 <div className="min-w-0">
@@ -161,7 +189,7 @@ export default function CrmChannelsInline() {
                       </span>
                     )}
                   </div>
-                  <p className="text-xs text-emerald-400 font-mono truncate">{ch.display_phone_number || ch.phone_number || '—'}</p>
+                  <p className="text-xs text-muted-foreground font-mono truncate">{ch.display_phone_number || ch.phone_number || 'Número não informado'}</p>
                 </div>
               </div>
               <span className={cn(
@@ -169,21 +197,41 @@ export default function CrmChannelsInline() {
                 ch.is_active ? 'text-emerald-400' : 'text-muted-foreground'
               )}>
                 <span className={cn('w-1.5 h-1.5 rounded-full', ch.is_active ? 'bg-emerald-400 animate-pulse' : 'bg-muted-foreground')} />
-                {ch.is_active ? 'Conectado' : 'Inativo'}
+                {ch.is_active ? 'Conectado' : (ch.evolution_status || 'Inativo')}
               </span>
             </div>
 
+            <span className={cn(
+              'inline-flex items-center gap-1.5 text-[11px] font-semibold px-2 py-1 rounded-full border',
+              ch.official
+                ? 'bg-blue-500/10 text-blue-300 border-blue-500/30'
+                : 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30',
+            )}>
+              {ch.official
+                ? <><MetaLogo className="w-3.5 h-3.5" /> API Oficial (Meta)</>
+                : <><img src={whatsappLogo.url} alt="WhatsApp" className="w-3.5 h-3.5 object-contain" /> WhatsApp não oficial</>}
+            </span>
+
             <div className="grid grid-cols-2 gap-2">
-              <div className="rounded-lg border border-border/40 bg-background/40 p-3">
-                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Phone ID</p>
-                <p className="font-mono text-xs truncate">{ch.phone_number_id || '—'}</p>
-              </div>
-              <div className="rounded-lg border border-border/40 bg-background/40 p-3">
-                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Qualidade</p>
-                <p className={cn('font-bold text-sm', qualityClass(ch.quality_rating))}>
-                  {(ch.quality_rating || '—').toUpperCase()}
-                </p>
-              </div>
+              {ch.official ? (
+                <>
+                  <div className="rounded-lg border border-border/40 bg-background/40 p-3">
+                    <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Phone ID</p>
+                    <p className="font-mono text-xs truncate">{ch.phone_number_id || '—'}</p>
+                  </div>
+                  <div className="rounded-lg border border-border/40 bg-background/40 p-3">
+                    <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Qualidade</p>
+                    <p className={cn('font-bold text-sm', qualityClass(ch.quality_rating))}>
+                      {(ch.quality_rating || '—').toUpperCase()}
+                    </p>
+                  </div>
+                </>
+              ) : (
+                <div className="col-span-2 rounded-lg border border-border/40 bg-background/40 p-3">
+                  <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Instância</p>
+                  <p className="font-mono text-xs truncate">{ch.instance_name || '—'}</p>
+                </div>
+              )}
             </div>
           </div>
         ))}
