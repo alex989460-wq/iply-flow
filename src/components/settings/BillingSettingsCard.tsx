@@ -146,17 +146,38 @@ export default function BillingSettingsCard() {
     evolution_msg_d_plus_1: '',
   });
 
-  // Load Evolution instances for the picker
+  // Load Evolution instances for the picker.
+  // Fallback: se a revenda não tem credenciais próprias da Evolution, reaproveita
+  // os canais não oficiais (QR Code) já conectados no CRM Oficial.
   const { data: evoInstances = [] } = useQuery({
     queryKey: ['evo-instances-billing', user?.id],
     queryFn: async () => {
+      let list: Array<{ name: string; phone?: string; state?: string }> = [];
       try {
         const { data } = await supabase.functions.invoke('evolution-send', {
           body: { action: 'list-instances' },
         });
-        return (data?.instances || []) as Array<{ name: string; phone?: string; state?: string }>;
+        list = (data?.instances || []) as Array<{ name: string; phone?: string; state?: string }>;
       } catch {
-        return [];
+        list = [];
+      }
+      if (list.length > 0) return list;
+      try {
+        const { data } = await supabase.functions.invoke('crm-oficial-sync', {
+          body: { action: 'list-channels' },
+        });
+        const raw = data?.results?.channels?.body || data?.channels?.body || data?.results?.channels || data?.channels || [];
+        const arr = Array.isArray(raw) ? raw : (raw?.channels || raw?.whatsapp || raw?.data || raw?.items || []);
+        return (arr || [])
+          .filter((c: any) => String(c?.kind || '').includes('evolution'))
+          .map((c: any) => ({
+            name: String(c?.instance_name || c?.name || ''),
+            phone: String(c?.display_phone_number || c?.phone_number || c?.phone || ''),
+            state: c?.status === 'connected' || c?.is_active ? 'open' : 'close',
+          }))
+          .filter((c: any) => !!c.name);
+      } catch {
+        return list;
       }
     },
     enabled: !!user?.id,
