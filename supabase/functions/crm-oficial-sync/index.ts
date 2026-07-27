@@ -18,7 +18,7 @@ const CRM_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJz
 type Action =
   | "signup" | "test-chat" | "renew-notify" | "ping"
   | "list-conversations" | "list-messages" | "send-whatsapp" | "mark-read"
-  | "list-contacts" | "list-channels" | "create-channel" | "set-primary-channel" | "delete-channel" | "embedded-signup" | "get-media"
+  | "list-contacts" | "list-channels" | "create-channel" | "channel-qr" | "set-primary-channel" | "delete-channel" | "embedded-signup" | "get-media"
   | "upload-media"
   | "list-templates" | "create-template" | "update-template" | "delete-template"
   | "list-chatbots" | "create-chatbot" | "update-chatbot" | "delete-chatbot"
@@ -1220,13 +1220,23 @@ Deno.serve(async (req) => {
 
     if (action === "create-channel") {
       const payload = (data?.channel as Record<string, unknown>) || {};
-      if (!payload.kind) throw new Error("kind é obrigatório (whatsapp_cloud | webchat)");
+      if (!payload.kind) throw new Error("kind é obrigatório (whatsapp_cloud | whatsapp_evolution | webchat)");
       results.channel = await crmFetch("/api/public/v1/channels", {
         method: "POST",
         body: JSON.stringify(payload),
         apiKey,
       });
     }
+
+    if (action === "channel-qr") {
+      const channelId = String((data as any)?.channel_id || (data as any)?.id || "");
+      if (!channelId) throw new Error("channel_id é obrigatório");
+      results.qr = await crmFetch(`/api/public/v1/channels-qr?channel_id=${encodeURIComponent(channelId)}`, {
+        method: "GET",
+        apiKey,
+      });
+    }
+
 
     if (action === "set-primary-channel") {
       const channelId = String((data as any)?.channel_id || (data as any)?.id || "");
