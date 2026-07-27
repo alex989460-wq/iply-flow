@@ -471,7 +471,7 @@ serve(async (req) => {
     let accessToken = zapSettings?.meta_access_token ? String(zapSettings.meta_access_token) : "";
     let wabaId = zapSettings?.meta_business_id ? String(zapSettings.meta_business_id) : "";
 
-    if (!accessToken || !wabaId) {
+    if ((!accessToken || !wabaId) && callerIsAdmin) {
       const { data: anyMeta } = await supabase
         .from("zap_responder_settings")
         .select("meta_access_token, meta_business_id")
