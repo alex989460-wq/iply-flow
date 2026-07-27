@@ -118,6 +118,7 @@ export default function CrmChannelsInline() {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <AddChannelEmbedDialog apiKey={apiKey} onCreated={() => load(apiKey)} />
           <EmbeddedSignupButton apiKey={apiKey} onCreated={() => load(apiKey)} />
           <Button variant="outline" size="sm" onClick={() => load(apiKey)} disabled={refreshing}>
             {refreshing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />}
@@ -127,6 +128,7 @@ export default function CrmChannelsInline() {
             <Link to="/crm-oficial-channels"><ExternalLink className="w-4 h-4 mr-1" /> Avançado</Link>
           </Button>
         </div>
+
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -185,13 +187,20 @@ export default function CrmChannelsInline() {
           </div>
         ))}
 
-        <Link
-          to="/crm-oficial-channels"
-          className="rounded-2xl border-2 border-dashed border-border/60 bg-card/20 p-8 flex flex-col items-center justify-center gap-2 text-muted-foreground hover:border-emerald-500/50 hover:text-emerald-400 hover:bg-emerald-500/5 transition min-h-[180px]"
-        >
-          <Plus className="w-8 h-8" />
-          <span className="font-medium">Adicionar novo canal</span>
-        </Link>
+        <AddChannelEmbedDialog
+          apiKey={apiKey}
+          onCreated={() => load(apiKey)}
+          trigger={
+            <button
+              type="button"
+              className="rounded-2xl border-2 border-dashed border-border/60 bg-card/20 p-8 flex flex-col items-center justify-center gap-2 text-muted-foreground hover:border-emerald-500/50 hover:text-emerald-400 hover:bg-emerald-500/5 transition min-h-[180px]"
+            >
+              <Plus className="w-8 h-8" />
+              <span className="font-medium">Adicionar novo canal</span>
+            </button>
+          }
+        />
+
       </div>
     </div>
   );
