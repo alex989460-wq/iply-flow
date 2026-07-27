@@ -58,6 +58,7 @@ const MANAGED_VARS = [
 export function resetThemeVars() {
   const s = document.documentElement.style;
   MANAGED_VARS.forEach((v) => s.removeProperty(v));
+  if (document.body) document.body.style.fontFamily = '';
 }
 
 type Hsl = { h: number; s: number; l: number };
