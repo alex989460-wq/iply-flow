@@ -5,10 +5,17 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Palette, RotateCcw, Save } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { DEFAULT_THEME, PanelTheme, applyTheme, clearTheme, loadTheme, saveTheme } from '@/lib/panel-theme';
+import { DEFAULT_THEME, PanelTheme, PanelStyle, applyTheme, clearTheme, loadTheme, saveTheme } from '@/lib/panel-theme';
+
+const STYLES: Array<{ id: PanelStyle; label: string; hint: string }> = [
+  { id: 'zapcrm', label: 'ZapCRM', hint: 'Cantos arredondados, Inter, glow forte' },
+  { id: 'default', label: 'Padrão', hint: 'Equilibrado, fonte Roboto' },
+  { id: 'soft', label: 'Suave', hint: 'Bordas bem arredondadas' },
+  { id: 'sharp', label: 'Compacto', hint: 'Cantos retos, visual denso' },
+];
 
 const PRESETS: Array<{ name: string; theme: PanelTheme }> = [
-  { name: 'ZapCRM (Template)', theme: { primary: '#12c98a', background: '#050a09', accent: '#a9f3d4' } },
+  { name: 'ZapCRM (Template)', theme: { primary: '#12c98a', background: '#050a09', accent: '#a9f3d4', style: 'zapcrm' } },
   { name: 'Laranja Clássico', theme: { primary: '#e8590c', background: '#0a0a0a', accent: '#fde68a' } },
 
   { name: 'Esmeralda', theme: { primary: '#10b981', background: '#06120e', accent: '#a7f3d0' } },
@@ -47,7 +54,7 @@ export default function PanelThemeCard() {
 
   const save = () => {
     saveTheme(theme);
-    toast({ title: 'Cores salvas', description: 'Aparência do painel atualizada.' });
+    toast({ title: 'Design salvo', description: 'Cores, cantos, sombras e fonte do painel atualizados.' });
   };
 
   const reset = () => {
@@ -63,7 +70,7 @@ export default function PanelThemeCard() {
           <Palette className="w-5 h-5 text-primary" /> Aparência do painel
         </CardTitle>
         <CardDescription>
-          Personalize as cores do seu painel. Salvo localmente neste navegador.
+          Personalize cores, superfícies, cantos, sombras e tipografia do painel. Salvo localmente neste navegador.
         </CardDescription>
       </CardHeader>
 
@@ -91,6 +98,28 @@ export default function PanelThemeCard() {
               </div>
             </div>
           ))}
+        </div>
+
+        <div className="space-y-2">
+          <Label className="text-xs uppercase tracking-wide text-muted-foreground">Estilo do design</Label>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+            {STYLES.map((st) => {
+              const active = (theme.style ?? 'default') === st.id;
+              return (
+                <button
+                  key={st.id}
+                  type="button"
+                  onClick={() => preview({ ...theme, style: st.id })}
+                  className={`rounded-xl border p-3 text-left transition-all hover:border-primary/50 ${
+                    active ? 'border-primary ring-2 ring-primary/40 bg-primary/5' : 'border-border/60'
+                  }`}
+                >
+                  <div className="text-sm font-semibold">{st.label}</div>
+                  <div className="text-[11px] text-muted-foreground leading-tight mt-0.5">{st.hint}</div>
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         <div className="space-y-2">
@@ -131,7 +160,7 @@ export default function PanelThemeCard() {
             <RotateCcw className="w-4 h-4 mr-2" /> Restaurar padrão
           </Button>
           <Button onClick={save}>
-            <Save className="w-4 h-4 mr-2" /> Salvar cores
+            <Save className="w-4 h-4 mr-2" /> Salvar design
           </Button>
         </div>
 
