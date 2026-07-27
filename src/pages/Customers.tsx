@@ -1511,16 +1511,13 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
     setSelectedCrmTemplate('');
     const evoDefault = !!billingSettings?.use_evolution_billing;
     setUseEvolutionForBilling(evoDefault);
-    const defaultChannel = evoDefault ? 'evolution' : crmSettings?.enabled && crmSettings?.api_key ? 'crm' : 'zap';
+    const defaultChannel: 'evolution' | 'crm' = evoDefault ? 'evolution' : 'crm';
     setBillingChannel(defaultChannel);
     setSelectedEvoTemplateKey('D0');
     setIsSendBillingOpen(true);
     if (defaultChannel === 'crm') {
       refetchCrmChannels();
       if (crmTemplates.length === 0) await fetchCrmTemplates();
-    }
-    if (defaultChannel === 'zap' && templates.length === 0 && zapSettings?.selected_department_id) {
-      await fetchTemplates();
     }
   };
 
