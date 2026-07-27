@@ -3,12 +3,12 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { ArrowLeft, ArrowRight, CheckCircle2, Loader2, Plus, QrCode, ShieldCheck, Zap } from 'lucide-react';
+import { ArrowLeft, ArrowRight, CheckCircle2, Loader2, Plus, QrCode, ShieldCheck } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { MetaLogo } from '@/components/ui/meta-logo';
 import whatsappLogo from '@/assets/whatsapp-logo.png.asset.json';
-import { cn } from '@/lib/utils';
+
 
 interface Props {
   apiKey: string;
