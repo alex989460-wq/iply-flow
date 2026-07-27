@@ -1145,7 +1145,44 @@ Deno.serve(async (req) => {
     const data = parsed.data ?? {};
     if (!action) throw new Error("action é obrigatório");
 
-    const apiKey = (data?.apiKey as string | undefined) || undefined;
+    // ── ISOLAMENTO MULTI-TENANT ────────────────────────────────────────────
+    // Nunca usar a chave global (env) para um usuário logado que não seja admin,
+    // senão a revenda enxerga os canais/templates/números do admin.
+    let apiKey = (data?.apiKey as string | undefined) || undefined;
+    if (!apiKey) {
+      const authHeader = req.headers.get("Authorization") || "";
+      const jwt = authHeader.replace(/^Bearer\s+/i, "").trim();
+      const supaUrl = Deno.env.get("SUPABASE_URL")!;
+      const svc = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+      if (jwt && jwt !== svc) {
+        const authed = createClient(supaUrl, svc);
+        const { data: userData } = await authed.auth.getUser(jwt);
+        const uid = userData?.user?.id;
+        if (uid) {
+          const { data: row } = await authed
+            .from("crm_oficial_settings")
+            .select("api_key")
+            .eq("user_id", uid)
+            .maybeSingle();
+          const ownKey = (row?.api_key || "").trim();
+          if (ownKey) {
+            apiKey = ownKey;
+          } else {
+            const { data: adminRole } = await authed
+              .from("user_roles")
+              .select("role")
+              .eq("user_id", uid)
+              .eq("role", "admin")
+              .maybeSingle();
+            if (!adminRole) {
+              throw new Error(
+                "Chave do CRM Oficial não configurada para este usuário. Cadastre sua chave em Configurações → CRM Oficial.",
+              );
+            }
+          }
+        }
+      }
+    }
     const results: Record<string, unknown> = {};
 
     if (action === "ping") {
