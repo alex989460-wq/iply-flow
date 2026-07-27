@@ -22,7 +22,7 @@ import logoSg from '@/assets/logo-sg.png';
 
 interface WhatsAppChannel {
   id: string;
-  kind: 'whatsapp_cloud';
+  kind: 'whatsapp_cloud' | 'whatsapp_evolution';
   name?: string;
   phone_number?: string;
   display_phone_number?: string;
@@ -34,6 +34,8 @@ interface WhatsAppChannel {
   primary?: boolean;
   is_primary?: boolean;
   avatar_url?: string | null;
+  evolution_status?: string;
+  instance_name?: string;
 }
 interface WebchatChannel {
   id: string;
@@ -42,6 +44,7 @@ interface WebchatChannel {
   title?: string;
   enabled?: boolean;
 }
+
 
 function qualityClass(q?: string) {
   const v = (q || '').toUpperCase();
