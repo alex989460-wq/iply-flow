@@ -3340,11 +3340,10 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="zap">API oficial / Zap Responder</SelectItem>
-                    <SelectItem value="evolution">WhatsApp (Evolution — {billingSettings?.evolution_instance || 'não configurado'})</SelectItem>
-                    <SelectItem value="crm" disabled={!crmSettings?.enabled || !crmSettings?.api_key}>
-                      CRM Oficial (templates Meta — {primaryCrmChannel?.display_phone_number || primaryCrmChannel?.phone_number || 'canal principal'})
+                    <SelectItem value="crm">
+                      API Oficial (WhatsApp — {primaryCrmChannel?.display_phone_number || primaryCrmChannel?.phone_number || 'canal principal'})
                     </SelectItem>
+                    <SelectItem value="evolution">WhatsApp não oficial (Evolution — {billingSettings?.evolution_instance || 'não configurado'})</SelectItem>
                   </SelectContent>
                 </Select>
                 {billingChannel === 'crm' && (
