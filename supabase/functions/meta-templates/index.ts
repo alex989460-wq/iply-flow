@@ -277,7 +277,19 @@ serve(async (req) => {
         .maybeSingle();
       if (data?.api_key) crmApiKey = String(data.api_key);
     }
-    if (!crmApiKey) crmApiKey = (Deno.env.get("CRM_OFICIAL_API_KEY") || "").trim();
+    // Só o admin pode cair na chave global (env). Revendas usam exclusivamente
+    // a própria chave — senão enxergariam os templates/números do admin.
+    let callerIsAdmin = false;
+    {
+      const { data: adminRole } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user.id)
+        .eq("role", "admin")
+        .maybeSingle();
+      callerIsAdmin = !!adminRole;
+    }
+    if (!crmApiKey && callerIsAdmin) crmApiKey = (Deno.env.get("CRM_OFICIAL_API_KEY") || "").trim();
 
     // ============================================================
     // Route list/create/update/delete through CRM Oficial REST API
@@ -459,7 +471,7 @@ serve(async (req) => {
     let accessToken = zapSettings?.meta_access_token ? String(zapSettings.meta_access_token) : "";
     let wabaId = zapSettings?.meta_business_id ? String(zapSettings.meta_business_id) : "";
 
-    if (!accessToken || !wabaId) {
+    if ((!accessToken || !wabaId) && callerIsAdmin) {
       const { data: anyMeta } = await supabase
         .from("zap_responder_settings")
         .select("meta_access_token, meta_business_id")

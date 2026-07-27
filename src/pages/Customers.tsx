@@ -1511,16 +1511,13 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
     setSelectedCrmTemplate('');
     const evoDefault = !!billingSettings?.use_evolution_billing;
     setUseEvolutionForBilling(evoDefault);
-    const defaultChannel = evoDefault ? 'evolution' : crmSettings?.enabled && crmSettings?.api_key ? 'crm' : 'zap';
+    const defaultChannel: 'evolution' | 'crm' = evoDefault ? 'evolution' : 'crm';
     setBillingChannel(defaultChannel);
     setSelectedEvoTemplateKey('D0');
     setIsSendBillingOpen(true);
     if (defaultChannel === 'crm') {
       refetchCrmChannels();
       if (crmTemplates.length === 0) await fetchCrmTemplates();
-    }
-    if (defaultChannel === 'zap' && templates.length === 0 && zapSettings?.selected_department_id) {
-      await fetchTemplates();
     }
   };
 
@@ -3343,11 +3340,10 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="zap">API oficial / Zap Responder</SelectItem>
-                    <SelectItem value="evolution">WhatsApp (Evolution — {billingSettings?.evolution_instance || 'não configurado'})</SelectItem>
-                    <SelectItem value="crm" disabled={!crmSettings?.enabled || !crmSettings?.api_key}>
-                      CRM Oficial (templates Meta — {primaryCrmChannel?.display_phone_number || primaryCrmChannel?.phone_number || 'canal principal'})
+                    <SelectItem value="crm">
+                      API Oficial (WhatsApp — {primaryCrmChannel?.display_phone_number || primaryCrmChannel?.phone_number || 'canal principal'})
                     </SelectItem>
+                    <SelectItem value="evolution">WhatsApp não oficial (Evolution — {billingSettings?.evolution_instance || 'não configurado'})</SelectItem>
                   </SelectContent>
                 </Select>
                 {billingChannel === 'crm' && (
