@@ -77,18 +77,37 @@ function normalizeChannelLists(body: any) {
       : body?.webchat
         ? [body.webchat]
         : [];
-  const whatsapp = whats.map((c: any, index: number) => ({
-    ...c,
-    id: String(c.id || (c.primary ? 'primary' : '') || c.phone_number_id || `whatsapp-${index}`),
-    kind: 'whatsapp_cloud' as const,
-    name: pickString(c.name, c.title, c.verified_name, c.display_name),
-    verified_name: pickString(c.verified_name, c.verifiedName, c.business_name, c.name),
-    display_phone_number: pickString(c.display_phone_number, c.displayPhoneNumber, c.phone_display),
-    phone_number: pickString(c.phone_number, c.phone, c.number),
-    avatar_url: pickString(c.avatar_url, c.profile_pic_url, c.profile_picture_url, c.picture),
-    primary: !!(c.primary || c.is_primary || c.id === 'primary'),
-    is_active: Boolean(c.is_active ?? c.active ?? c.connected ?? c.primary),
-  })) as WhatsAppChannel[];
+  const whatsapp = whats.map((c: any, index: number) => {
+    const rawKind = String(c.kind || c.type || 'whatsapp_cloud').toLowerCase();
+    const isEvolution = rawKind.includes('evolution') || rawKind.includes('baileys') || !!c.instance_name || !!c.evolution_status;
+    const phoneId = pickString(c.phone_number_id, c.phoneNumberId);
+    const rawPhone = pickString(
+      c.display_phone_number, c.displayPhoneNumber, c.phone_display,
+      c.phone_number, c.phoneNumber, c.phone, c.number, c.msisdn, c.wa_id,
+    );
+    const phone = rawPhone && rawPhone !== phoneId && rawPhone.replace(/\D/g, '').length <= 15
+      ? (rawPhone.startsWith('+') ? rawPhone : `+${rawPhone.replace(/\D/g, '')}`)
+      : '';
+    const evolutionStatus = pickString(c.evolution_status, c.status, c.state);
+    return {
+      ...c,
+      id: String(c.id || (c.primary ? 'primary' : '') || phoneId || `whatsapp-${index}`),
+      kind: (isEvolution ? 'whatsapp_evolution' : 'whatsapp_cloud') as WhatsAppChannel['kind'],
+      name: pickString(c.name, c.title, c.verified_name, c.display_name),
+      verified_name: pickString(c.verified_name, c.verifiedName, c.business_name, c.name),
+      display_phone_number: phone,
+      phone_number: phone,
+      phone_number_id: isEvolution ? '' : phoneId,
+      instance_name: pickString(c.instance_name, c.instance, c.instanceName),
+      evolution_status: evolutionStatus,
+      avatar_url: pickString(c.avatar_url, c.profile_pic_url, c.profile_picture_url, c.picture),
+      primary: !!(c.primary || c.is_primary || c.id === 'primary'),
+      is_active: isEvolution
+        ? evolutionStatus === 'open' || Boolean(c.is_active ?? c.connected)
+        : Boolean(c.is_active ?? c.active ?? c.connected ?? c.primary),
+    };
+  }) as WhatsAppChannel[];
+
   return { whatsapp: whatsapp.sort((a, b) => Number(!!b.primary || !!b.is_primary) - Number(!!a.primary || !!a.is_primary)), webchat: webRaw[0] || null };
 }
 
