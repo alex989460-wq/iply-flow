@@ -313,81 +313,114 @@ export default function CrmOficialChannels() {
           </Alert>
         )}
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
           {whatsapp.map((ch) => {
             const isPrimary = !!(ch.is_primary || ch.primary);
+            const isOfficial = ch.kind !== 'whatsapp_evolution';
+            const phone = ch.display_phone_number || ch.phone_number;
             return (
               <div
                 key={ch.id}
                 className={cn(
-                  'relative overflow-hidden rounded-2xl border bg-background/55 backdrop-blur-xl transition-all hover:shadow-2xl hover:shadow-blue-500/20 hover:-translate-y-1',
-                  isPrimary ? 'ring-2 ring-blue-500/50 border-blue-500/40' : 'border-white/10',
+                  'group relative overflow-hidden rounded-3xl border bg-card/60 backdrop-blur-xl transition-all hover:-translate-y-1',
+                  isOfficial ? 'hover:shadow-2xl hover:shadow-blue-500/20' : 'hover:shadow-2xl hover:shadow-emerald-500/20',
+                  isPrimary
+                    ? 'ring-2 ring-amber-500/50 border-amber-500/40'
+                    : isOfficial ? 'border-blue-500/20' : 'border-emerald-500/20',
                 )}
               >
+                <div
+                  className={cn(
+                    'absolute inset-x-0 top-0 h-1',
+                    isOfficial ? 'bg-gradient-to-r from-blue-500 to-primary' : 'bg-gradient-to-r from-emerald-500 to-teal-400',
+                  )}
+                />
+
                 {isPrimary && (
-                  <div className="absolute top-2 right-2 z-10 bg-amber-500/90 text-white text-[10px] font-bold px-2 py-0.5 rounded-md flex items-center gap-1 shadow-lg">
+                  <div className="absolute top-3 right-3 z-10 bg-amber-500 text-white text-[10px] font-bold px-2.5 py-1 rounded-full flex items-center gap-1 shadow-lg">
                     <Star className="w-3 h-3 fill-white" /> PRINCIPAL
                   </div>
                 )}
 
-                {/* Avatar quadrado grande com watermark Meta */}
-                <div className="relative w-full aspect-square bg-gradient-to-br from-muted to-muted/50 overflow-hidden flex items-center justify-center">
+                {/* Cabeçalho visual */}
+                <div className="relative w-full h-52 overflow-hidden flex items-center justify-center bg-gradient-to-br from-muted/60 to-background">
                   {ch.avatar_url ? (
                     <img
                       src={ch.avatar_url}
-                      alt={ch.verified_name || ch.name || 'WhatsApp'}
-                      className="w-full h-full object-cover"
+                      alt={ch.verified_name || ch.name || 'Canal WhatsApp'}
+                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                       onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
                     />
                   ) : (
-                    <div className="absolute inset-0 w-full h-full flex items-center justify-center bg-gradient-to-br from-blue-500/10 to-primary/10">
-                      <img src={logoSg} className="w-40 h-40 object-contain opacity-80" alt="Super Gestor" />
+                    <div className={cn(
+                      'absolute inset-0 flex items-center justify-center',
+                      isOfficial ? 'bg-gradient-to-br from-blue-500/10 to-primary/10' : 'bg-gradient-to-br from-emerald-500/10 to-teal-500/10',
+                    )}>
+                      <img src={logoSg} className="w-28 h-28 object-contain opacity-70" alt="Super Gestor" />
                     </div>
                   )}
-                  {/* Meta logo em destaque no canto */}
-                  <div className="absolute bottom-2 left-2 flex items-center gap-1.5 bg-black/60 backdrop-blur-md rounded-full px-2 py-1 border border-white/10">
-                    <MetaLogo className="w-4 h-4" />
-                    <span className="text-[10px] font-semibold text-white/90">Meta API</span>
+                  <div className="absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-background/90 to-transparent" />
+                  <div className="absolute bottom-3 left-3 flex items-center gap-1.5 bg-background/80 backdrop-blur-md rounded-full px-2.5 py-1 border border-border/60">
+                    {isOfficial ? <MetaLogo className="w-4 h-4" /> : <QrCode className="w-3.5 h-3.5 text-emerald-400" />}
+                    <span className="text-[10px] font-semibold">
+                      {isOfficial ? 'API Oficial (Meta)' : 'Não oficial (QR Code)'}
+                    </span>
                   </div>
                 </div>
 
-                <div className="p-4 space-y-3">
+                <div className="p-5 space-y-4">
                   <div>
-                    <div className="font-bold text-lg leading-tight truncate">
-                      {ch.verified_name || ch.name || 'WhatsApp'}
+                    <div className="font-bold text-xl leading-tight truncate">
+                      {ch.verified_name || ch.name || (isOfficial ? 'WhatsApp Cloud' : 'WhatsApp QR')}
                     </div>
-                    <div className="mt-1.5">
-                      <ProviderBadge provider="meta" />
-                    </div>
-                    <div className="flex items-center justify-between mt-2">
+                    <div className="mt-2 flex items-center gap-2 flex-wrap">
+                      {isOfficial ? (
+                        <ProviderBadge provider="meta" />
+                      ) : (
+                        <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold px-2 py-1 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                          <QrCode className="w-3 h-3" /> Conexão via QR Code
+                        </span>
+                      )}
                       <span className={cn(
                         'text-xs font-medium flex items-center gap-1.5',
-                        ch.is_active ? 'text-emerald-400' : 'text-muted-foreground'
+                        ch.is_active ? 'text-emerald-400' : 'text-muted-foreground',
                       )}>
                         <span className={cn('w-1.5 h-1.5 rounded-full', ch.is_active ? 'bg-emerald-400 animate-pulse' : 'bg-muted-foreground')} />
-                        {ch.is_active ? 'Conectado' : 'Inativo'}
-                      </span>
-                      <span className="text-xs text-emerald-400 font-mono truncate">
-                        {ch.display_phone_number || ch.phone_number || '—'}
+                        {ch.is_active ? 'Conectado' : isOfficial ? 'Inativo' : (ch.evolution_status || 'Aguardando conexão')}
                       </span>
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-2">
-                    <div className="rounded-lg border border-border/40 bg-background/40 p-2">
-                      <p className="text-[9px] uppercase tracking-wide text-muted-foreground">Phone ID</p>
-                      <p className="font-mono text-[11px] truncate">{ch.phone_number_id || '—'}</p>
-                    </div>
-                    <div className="rounded-lg border border-border/40 bg-background/40 p-2">
-                      <p className="text-[9px] uppercase tracking-wide text-muted-foreground">Qualidade</p>
-                      <p className={cn('font-bold text-xs', qualityClass(ch.quality_rating))}>
-                        {(ch.quality_rating || '—').toUpperCase()}
+                  <div className="grid grid-cols-2 gap-2.5">
+                    <div className="rounded-xl border border-border/40 bg-background/50 p-3">
+                      <p className="text-[9px] uppercase tracking-wide text-muted-foreground">Número</p>
+                      <p className="font-mono text-xs truncate">
+                        {phone || (isOfficial ? 'Não informado pela Meta' : 'Aguardando leitura do QR')}
                       </p>
                     </div>
+                    {isOfficial ? (
+                      <div className="rounded-xl border border-border/40 bg-background/50 p-3">
+                        <p className="text-[9px] uppercase tracking-wide text-muted-foreground">Qualidade Meta</p>
+                        <p className={cn('font-bold text-xs', qualityClass(ch.quality_rating))}>
+                          {(ch.quality_rating || 'SEM DADOS').toUpperCase()}
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="rounded-xl border border-border/40 bg-background/50 p-3">
+                        <p className="text-[9px] uppercase tracking-wide text-muted-foreground">Instância</p>
+                        <p className="font-mono text-[11px] truncate">{ch.instance_name || '—'}</p>
+                      </div>
+                    )}
+                    {isOfficial && (
+                      <div className="col-span-2 rounded-xl border border-border/40 bg-background/50 p-3">
+                        <p className="text-[9px] uppercase tracking-wide text-muted-foreground">Phone Number ID</p>
+                        <p className="font-mono text-[11px] truncate">{ch.phone_number_id || '—'}</p>
+                      </div>
+                    )}
                   </div>
 
                   <div className="flex items-center gap-2 pt-1">
-                    {!isPrimary && (
+                    {!isPrimary && isOfficial && (
                       <Button
                         size="sm"
                         variant="outline"
@@ -396,6 +429,12 @@ export default function CrmOficialChannels() {
                       >
                         <Star className="w-3.5 h-3.5" />
                         Definir principal
+                      </Button>
+                    )}
+                    {!isPrimary && !isOfficial && (
+                      <Button size="sm" variant="outline" className="flex-1 gap-1.5" disabled>
+                        <QrCode className="w-3.5 h-3.5 text-emerald-400" />
+                        Canal não oficial
                       </Button>
                     )}
                     {isPrimary && (
@@ -418,6 +457,7 @@ export default function CrmOficialChannels() {
               </div>
             );
           })}
+
 
           {/* Add new channel tile */}
           <AddChannelEmbedDialog
