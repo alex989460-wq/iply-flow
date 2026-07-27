@@ -6,6 +6,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { Link } from 'react-router-dom';
 import EmbeddedSignupButton from '@/components/crm/EmbeddedSignupButton';
+import AddChannelEmbedDialog from '@/components/crm/AddChannelEmbedDialog';
 import { cn } from '@/lib/utils';
 
 interface WAChannel {
