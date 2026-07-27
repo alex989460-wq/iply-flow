@@ -1221,21 +1221,55 @@ Deno.serve(async (req) => {
     if (action === "create-channel") {
       const payload = (data?.channel as Record<string, unknown>) || {};
       if (!payload.kind) throw new Error("kind é obrigatório (whatsapp_cloud | whatsapp_evolution | webchat)");
-      results.channel = await crmFetch("/api/public/v1/channels", {
+      const isEvolution = String(payload.kind).includes("evolution");
+
+      const doCreate = () => crmFetch("/api/public/v1/channels", {
         method: "POST",
         body: JSON.stringify(payload),
         apiKey,
       });
+
+      let created = await doCreate();
+
+      // A Evolution costuma demorar a responder e o proxy devolve 500 mesmo tendo criado a instância.
+      if (!created.ok && isEvolution) {
+        for (let attempt = 0; attempt < 3 && !created.ok; attempt++) {
+          await new Promise((r) => setTimeout(r, 3500));
+          // Se a instância já foi criada, encontramos pelo nome na listagem.
+          const list = await crmFetch("/api/public/v1/channels", { method: "GET", apiKey });
+          const raw = (list.body as any) || {};
+          const arr: any[] = Array.isArray(raw) ? raw : (raw.channels || raw.whatsapp || []);
+          const match = arr.find((c) =>
+            String(c?.kind || "").includes("evolution") &&
+            String(c?.name || "").trim().toLowerCase() === String(payload.name || "").trim().toLowerCase()
+          );
+          if (match) {
+            created = { ok: true, status: 200, body: { channel: match, id: match.id, recovered: true } };
+            break;
+          }
+          created = await doCreate();
+        }
+      }
+      results.channel = created;
     }
 
     if (action === "channel-qr") {
       const channelId = String((data as any)?.channel_id || (data as any)?.id || "");
       if (!channelId) throw new Error("channel_id é obrigatório");
-      results.qr = await crmFetch(`/api/public/v1/channels-qr?channel_id=${encodeURIComponent(channelId)}`, {
+      let qr = await crmFetch(`/api/public/v1/channels-qr?channel_id=${encodeURIComponent(channelId)}`, {
         method: "GET",
         apiKey,
       });
+      for (let attempt = 0; attempt < 2 && !qr.ok; attempt++) {
+        await new Promise((r) => setTimeout(r, 2500));
+        qr = await crmFetch(`/api/public/v1/channels-qr?channel_id=${encodeURIComponent(channelId)}`, {
+          method: "GET",
+          apiKey,
+        });
+      }
+      results.qr = qr;
     }
+
 
 
     if (action === "set-primary-channel") {

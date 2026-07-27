@@ -74,10 +74,19 @@ export default function AddChannelEmbedDialog({ apiKey, onCreated, trigger }: Pr
     setSaving(true); setError(null);
     try {
       const res = await call('create-channel', { channel: { kind: 'whatsapp_evolution', name: qrName.trim() } });
-      const body = res?.results?.channel?.body;
-      if (!res?.results?.channel?.ok) throw new Error(`Falha ao gerar QR (status ${res?.results?.channel?.status ?? '?'})`);
-      setQrChannelId(body?.channel?.id ?? body?.id ?? null);
-      setQrImage(body?.qr ?? null);
+      const result = res?.results?.channel;
+      const body = result?.body;
+      const id = body?.channel?.id ?? body?.id ?? null;
+      if (!result?.ok || !id) {
+        const apiMsg = typeof body === 'object' && body ? (body as any).error : null;
+        throw new Error(
+          apiMsg
+            ? `${apiMsg} (o servidor do WhatsApp está lento — aguarde alguns segundos e clique em "Gerar QR" novamente)`
+            : `Falha ao gerar QR (status ${result?.status ?? '?'})`,
+        );
+      }
+      setQrChannelId(id);
+      setQrImage(body?.qr ?? body?.channel?.qr ?? null);
       setQrState('connecting');
       onCreated?.();
     } catch (e: any) {
@@ -86,6 +95,7 @@ export default function AddChannelEmbedDialog({ apiKey, onCreated, trigger }: Pr
       setSaving(false);
     }
   };
+
 
   // Polling do QR até conectar
   useEffect(() => {

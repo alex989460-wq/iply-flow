@@ -8,7 +8,9 @@ import { useToast } from '@/hooks/use-toast';
 import { DEFAULT_THEME, PanelTheme, applyTheme, clearTheme, loadTheme, saveTheme } from '@/lib/panel-theme';
 
 const PRESETS: Array<{ name: string; theme: PanelTheme }> = [
+  { name: 'ZapCRM (Template)', theme: { primary: '#12c98a', background: '#050a09', accent: '#a9f3d4' } },
   { name: 'Laranja Clássico', theme: { primary: '#e8590c', background: '#0a0a0a', accent: '#fde68a' } },
+
   { name: 'Esmeralda', theme: { primary: '#10b981', background: '#06120e', accent: '#a7f3d0' } },
   { name: 'Azul Royal', theme: { primary: '#3b82f6', background: '#0a0f1e', accent: '#bfdbfe' } },
   { name: 'Roxo Neon', theme: { primary: '#8b5cf6', background: '#0f0a1e', accent: '#ddd6fe' } },
