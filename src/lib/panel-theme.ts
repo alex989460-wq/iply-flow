@@ -180,11 +180,12 @@ export function applyTheme(t: PanelTheme) {
 
   // Shape + typography per style
   root.setProperty('--radius', RADIUS[style] ?? RADIUS.default);
-  if (style === 'zapcrm') {
-    root.setProperty('--font-sans', "'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif");
-  } else {
-    root.removeProperty('--font-sans');
-  }
+  const font =
+    style === 'zapcrm'
+      ? "'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif"
+      : '';
+  root.setProperty('--font-sans', font || "'Roboto', ui-sans-serif, system-ui, sans-serif");
+  if (document.body) document.body.style.fontFamily = font;
 }
 
 export function bootstrapTheme() {
