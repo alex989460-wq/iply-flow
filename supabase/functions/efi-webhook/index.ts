@@ -66,7 +66,12 @@ async function triggerExternalRenewal(admin: any, customerId: string, source: st
     result = await post("vplay-renew", { username: customer.username.trim(), new_due_date: customer.due_date, customer_id: customer.id });
   } else if (haystack.includes("rush")) {
     result = await post("rush-renew", { username: customer.username.trim(), months, customer_id: customer.id, screens: customer.screens || 1 });
-  } else if (haystack.includes("uniplay") || haystack.includes("searchdefense") || haystack.includes("gesapioffice")) {
+  } else if (
+    haystack.includes("uniplay") || haystack.includes("searchdefense") || haystack.includes("gesapioffice") ||
+    haystack.includes("p2cine") || haystack.includes("daily3") || haystack.includes("painelacesso") ||
+    /\bp2c\b/.test(haystack)
+  ) {
+    const isUni = haystack.includes("uniplay") || haystack.includes("searchdefense") || haystack.includes("gesapioffice");
     const { error } = await admin.from("pending_manual_renewals").insert({
       owner_id: customer.created_by,
       customer_id: customer.id,
@@ -79,7 +84,7 @@ async function triggerExternalRenewal(admin: any, customerId: string, source: st
       plan_name: customer.plans?.plan_name || null,
       amount: 0,
       new_due_date: customer.due_date,
-      reason: "uniplay_extension_pending",
+      reason: isUni ? "uniplay_extension_pending" : "p2cine_extension_pending",
       source,
       error_details: { message: "Aguardando extensão para concluir renovação externa" },
     });
