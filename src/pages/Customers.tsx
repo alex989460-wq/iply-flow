@@ -1136,7 +1136,7 @@ export default function Customers() {
               } else {
                 console.log(`[Rush] ${latestCustomer.name} renovado`);
               }
-            } else if (isUniplay) {
+            } else if (isUniplay || isP2Cine) {
               const { error: queueError } = await supabase.from('pending_manual_renewals' as any).insert({
                 owner_id: user?.id,
                 customer_id: latestCustomer.id,
@@ -1149,12 +1149,14 @@ export default function Customers() {
                 plan_name: plan.plan_name,
                 amount,
                 new_due_date: newDueDateStr,
-                reason: 'uniplay_extension_pending',
-                source: 'frontend_uniplay_bulk_renew',
-                error_details: { message: 'Aguardando extensão SuperGestor 1.6.0 em aba logada no searchdefense.top' },
+                reason: isP2Cine ? 'p2cine_extension_pending' : 'uniplay_extension_pending',
+                source: isP2Cine ? 'frontend_p2cine_bulk_renew' : 'frontend_uniplay_bulk_renew',
+                error_details: { message: isP2Cine
+                  ? 'Aguardando extensão SuperGestor em aba logada no daily3.news / painelacesso1.com'
+                  : 'Aguardando extensão SuperGestor em aba logada no searchdefense.top' },
               });
-              if (queueError) console.warn(`[Uniplay] Falha ao enviar ${latestCustomer.name} para extensão:`, queueError.message);
-              else console.log(`[Uniplay] ${latestCustomer.name} enviado para fila da extensão`);
+              if (queueError) console.warn(`[Extensão] Falha ao enviar ${latestCustomer.name}:`, queueError.message);
+              else console.log(`[Extensão] ${latestCustomer.name} enviado para fila da extensão`);
             } else {
               const { data: xuiResult, error: xuiError } = await supabase.functions.invoke('xui-renew', {
                 body: { username: latestCustomer.username.trim(), new_due_date: newDueDateStr, customer_id: latestCustomer.id },
@@ -1184,6 +1186,14 @@ export default function Customers() {
         if (paymentError) {
           console.error('Payment error for', customer.name, paymentError);
         }
+
+        // The confirmed payment fires the renew_customer_due_date trigger, which would
+        // advance the due date a second time. Re-assert the date calculated above.
+        await supabase
+          .from('customers')
+          .update({ due_date: newDueDateStr })
+          .eq('id', customer.id);
+
         
         // Send WhatsApp message if enabled
         if (sendConfirmationMessage && zapSettings?.selected_department_id) {
