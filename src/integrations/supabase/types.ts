@@ -1789,6 +1789,30 @@ export type Database = {
           },
         ]
       }
+      meta_template_cache: {
+        Row: {
+          definition: Json
+          id: string
+          language: string
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          definition: Json
+          id?: string
+          language: string
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          definition?: Json
+          id?: string
+          language?: string
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       panel_links: {
         Row: {
           created_at: string

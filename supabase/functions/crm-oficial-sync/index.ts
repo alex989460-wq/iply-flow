@@ -421,23 +421,95 @@ async function fetchOfficialTemplateHeaderImage(templateName: string, language: 
   return extractOfficialTemplateHeaderImage(selected);
 }
 
+// Busca a definição do template diretamente na Graph API (filtrando por nome),
+// usado quando a listagem do CRM falha (ex.: rate limit #80008).
+async function fetchTemplateFromGraph(templateName: string, apiKey?: string): Promise<any[]> {
+  try {
+    const { accessToken } = await getCrmOwnerSession(apiKey);
+    const channels = await crmRest(
+      `channels?select=phone_number_id,system_user_token,waba_id,is_active,created_at&kind=eq.whatsapp_cloud&is_active=eq.true&order=created_at.desc`,
+      accessToken,
+    ) as any[];
+    const creds = channels.find((c) => c?.waba_id && c?.system_user_token);
+    if (!creds) return [];
+    const res = await fetch(
+      `https://graph.facebook.com/v21.0/${creds.waba_id}/message_templates?name=${encodeURIComponent(templateName)}&limit=50`,
+      { headers: { Authorization: `Bearer ${creds.system_user_token}` } },
+    );
+    const j = await res.json().catch(() => ({}));
+    if (!res.ok || !Array.isArray(j?.data)) return [];
+    return j.data.filter((t: any) => String(t?.name || "") === templateName);
+  } catch { return []; }
+}
+
+// Cache local de definições de templates: a Meta bloqueia a listagem com (#80008)
+// quando há muitas chamadas, e sem a definição o idioma cai no default pt_BR e o
+// envio falha com 132001. Guardamos a última definição conhecida no banco.
+
+function templateCacheClient() {
+  const url = Deno.env.get("SUPABASE_URL") || "";
+  const key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+  if (!url || !key) return null;
+  return createClient(url, key, { auth: { persistSession: false } });
+}
+
+async function readTemplateCache(templateName: string, language: string): Promise<any | null> {
+  try {
+    const db = templateCacheClient();
+    if (!db) return null;
+    let q = db.from("meta_template_cache").select("language, definition").eq("name", templateName);
+    if (language) q = q.eq("language", language);
+    const { data } = await q.order("updated_at", { ascending: false }).limit(1);
+    const row = (data as any[] | null)?.[0];
+    if (row?.definition) return row.definition;
+    if (language) {
+      const { data: any2 } = await db.from("meta_template_cache").select("definition")
+        .eq("name", templateName).order("updated_at", { ascending: false }).limit(1);
+      return (any2 as any[] | null)?.[0]?.definition || null;
+    }
+    return null;
+  } catch { return null; }
+}
+
+async function writeTemplateCache(templateName: string, definition: any) {
+  try {
+    const db = templateCacheClient();
+    if (!db || !definition) return;
+    const lang = String(definition?.language || definition?.language_code || definition?.lang || "");
+    if (!lang) return;
+    await db.from("meta_template_cache").upsert(
+      { name: templateName, language: lang, definition, updated_at: new Date().toISOString() },
+      { onConflict: "name,language" },
+    );
+  } catch { /* best effort */ }
+}
+
 // Returns the full template definition (components + parameter_format) so we
 // can build correct body params (positional vs named) for sendTemplate.
 async function fetchOfficialTemplate(templateName: string, language: string, apiKey?: string): Promise<any | null> {
-  try {
-    const result = await crmFetchWithKeyFallback("/api/public/v1/templates?limit=250", { method: "GET" }, apiKey);
-    const templates = normalizeListTemplatesBody(result.body);
-    const matches = templates.filter((t: any) => String(t?.name || t?.template_name || "") === templateName);
-    if (matches.length === 0) return null;
+  const pick = async (matches: any[]) => {
+    if (!matches.length) return null;
+    for (const m of matches) await writeTemplateCache(templateName, m);
     const langHit = matches.find((t: any) => {
       const lang = String(t?.language || t?.language_code || t?.lang || "");
       return !language || lang === language;
-    }) || matches[0];
-    return matches.find((t: any) => t === langHit && String(t?.status || "").toUpperCase() === "APPROVED") || langHit;
-  } catch {
-    return null;
-  }
+    }) || matches.find((t: any) => String(t?.status || "").toUpperCase() === "APPROVED") || matches[0];
+    return langHit;
+  };
+
+  let matches: any[] = [];
+  try {
+    const result = await crmFetchWithKeyFallback("/api/public/v1/templates?limit=250", { method: "GET" }, apiKey);
+    const templates = normalizeListTemplatesBody(result.body);
+    matches = templates.filter((t: any) => String(t?.name || t?.template_name || "") === templateName);
+  } catch { /* segue para fallbacks */ }
+
+  if (!matches.length) matches = await fetchTemplateFromGraph(templateName, apiKey);
+  if (!matches.length) return await readTemplateCache(templateName, language);
+  return await pick(matches);
 }
+
+
 
 function getTemplateBodyParamNames(template: any): string[] {
   const components = Array.isArray(template?.components) ? template.components : [];
@@ -751,7 +823,20 @@ async function doSendWhatsapp(payload: {
       status: templateResult.status,
       attempts: (templateResult as { attempts?: Array<{ status: number; body: unknown }> }).attempts?.map((a) => ({ status: a.status, body: a.body })),
     });
-    if (templateResult.ok) return templateResult;
+    if (templateResult.ok) {
+      // Memoriza o locale que funcionou: assim, se a listagem da Meta estiver
+      // bloqueada por rate limit (#80008), continuamos usando o idioma correto.
+      await writeTemplateCache(String(payload.template_name), {
+        name: payload.template_name,
+        language: lang,
+        components: officialTemplate?.components || null,
+        parameter_format: officialTemplate?.parameter_format || null,
+        status: "APPROVED",
+        source: "send_success",
+      });
+      return templateResult;
+    }
+
     if (hasMissingTemplateScope(templateResult)) {
       const scopeError = missingTemplateScopeResult(templateResult);
       return {
@@ -782,8 +867,27 @@ async function doSendWhatsapp(payload: {
     });
     if (has132001) {
       const tried = new Set<string>([String(lang)]);
-      const fallbackLangs = ["pt_BR", "pt_PT", "pt", "en_US", "en"].filter((l) => !tried.has(l));
+      const fallbackLangs = ["pt_BR", "pt_PT", "pt", "en_US", "en", "es"].filter((l) => !tried.has(l));
       for (const altLang of fallbackLangs) {
+        // 1) Retenta pelos endpoints do CRM (caminho que já funciona) com o locale alternativo.
+        const altPayload = {
+          ...officialPayload,
+          template_language: altLang,
+          templateLanguage: altLang,
+          language: altLang,
+        };
+        const altViaCrm = await firstOk([
+          () => crmFetch("/api/public/v1/whatsapp-template-send", { method: "POST", body: JSON.stringify(altPayload), apiKey }),
+          () => crmFetch("/api/public/v1/whatsapp/message", { method: "POST", body: JSON.stringify(altPayload), apiKey }),
+        ]);
+        if (altViaCrm.ok) {
+          console.log("[crm-oficial-sync] template fallback lang OK via CRM", { template: payload.template_name, lang: altLang });
+          return altViaCrm;
+        }
+        const altText = JSON.stringify((altViaCrm as { attempts?: unknown }).attempts || altViaCrm.body || "");
+        const altIs132001 = /132001|does not exist in the translation/i.test(altText);
+
+        // 2) Tenta direto pela Graph API (quando o CRM tem canal Cloud configurado).
         try {
           const alt = await directMetaTemplateSend({
             apiKey,
@@ -795,17 +899,18 @@ async function doSendWhatsapp(payload: {
             channelId: payload.channel_id,
             phoneNumberId: payload.phone_number_id || payload.from_phone_number_id,
           });
-          console.log("[crm-oficial-sync] template send fallback lang ok", { template: payload.template_name, lang: altLang });
+          console.log("[crm-oficial-sync] template fallback lang OK via Meta direto", { template: payload.template_name, lang: altLang });
           return alt;
         } catch (e) {
           const msg = e instanceof Error ? e.message : String(e);
-          if (!/132001|does not exist/i.test(msg)) {
-            console.warn("[crm-oficial-sync] fallback lang", altLang, "erro não-132001:", msg);
-            break;
-          }
+          console.warn("[crm-oficial-sync] fallback lang", altLang, "falhou:", msg);
+          // Só interrompe se o erro não for de locale E o CRM também não indicou 132001,
+          // ou seja, quando o problema é o conteúdo/parâmetros e não o idioma.
+          if (!/132001|does not exist/i.test(msg) && !altIs132001 && !/não configurado no CRM/i.test(msg)) break;
         }
       }
     }
+
 
     return {
       ok: false,
