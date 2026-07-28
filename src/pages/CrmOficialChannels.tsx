@@ -288,12 +288,12 @@ export default function CrmOficialChannels() {
           </div>
           <div className="flex items-center gap-2">
             <AddChannelEmbedDialog apiKey={apiKey} onCreated={() => loadChannels(apiKey)} />
-            <EmbeddedSignupButton apiKey={apiKey} onCreated={() => loadChannels(apiKey)} />
             <Button variant="outline" size="sm" onClick={() => loadChannels(apiKey)} disabled={!apiKey || refreshing}>
               {refreshing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />}
               Atualizar
             </Button>
           </div>
+
         </div>
 
         {!apiKey && (
