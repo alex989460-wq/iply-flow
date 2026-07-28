@@ -494,6 +494,9 @@ export default function QuickRenewalPanel({ isMobile = false, onClose, initialPh
           const isNatv = !isNatv2 && (sn.includes('natv') || sh.includes('pixbot') || sh.includes('natv'));
           const isVplay = sn.includes('vplay') || sh.includes('vplay');
           const isRush = sn.includes('rush') || sh.includes('rush');
+          const extHay = `${sn} ${sh}`;
+          const isUniplay = extHay.includes('uniplay') || extHay.includes('searchdefense') || extHay.includes('gesapioffice');
+          const isP2Cine = extHay.includes('p2cine') || extHay.includes('daily3') || extHay.includes('painelacesso') || /\bp2c\b/.test(extHay);
 
           if (isNatv2) {
             const months = Math.max(1, Math.round(durationDays / 30));
