@@ -57,39 +57,61 @@ Deno.serve(async (req) => {
 
   try {
     if (req.method === "GET") {
+      // Filter panel rows on the server so P2Cine/Uniplay items are never pushed out
+      // of the window by unrelated pending rows (previous limit(50) hid them).
+      const like = [
+        "server_host.ilike.%p2cine%", "server_name.ilike.%p2cine%",
+        "server_host.ilike.%daily3%", "server_name.ilike.%daily3%",
+        "server_host.ilike.%painelacesso%", "server_name.ilike.%painelacesso%",
+        "server_host.ilike.%uniplay%", "server_name.ilike.%uniplay%",
+        "server_host.ilike.%searchdefense%", "server_name.ilike.%searchdefense%",
+        "server_host.ilike.%gesapioffice%", "server_name.ilike.%gesapioffice%",
+        "server_host.ilike.%p2c%", "server_name.ilike.%p2c%",
+      ].join(",");
+
       const { data, error } = await supabase
         .from("pending_manual_renewals")
         .select("id, customer_id, customer_name, username, server_host, server_name, plan_name, new_due_date, created_at, owner_id")
+        .or(like)
         .order("created_at", { ascending: true })
-        .limit(50);
+        .limit(30);
       if (error) throw error;
 
       const candidates = (data ?? []).filter((row) => isP2Cine(row) || isUniplay(row));
+      if (candidates.length === 0) return json({ item: null });
 
       // Skip and cleanup any pending row whose customer was renewed in the last 12h
       // (prevents the extension from double-renewing after Cakto/webhook already paid it).
+      // Single batched query instead of one round-trip per row (was causing timeouts/502).
       const cutoff = new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString();
+      const customerIds = candidates.map((r) => r.customer_id).filter(Boolean) as string[];
+      const paidRecently = new Set<string>();
+      if (customerIds.length) {
+        const { data: recent } = await supabase
+          .from("payments")
+          .select("customer_id, created_at, source")
+          .in("customer_id", customerIds)
+          .eq("confirmed", true)
+          .gte("created_at", cutoff);
+        for (const p of recent ?? []) paidRecently.add(String(p.customer_id));
+      }
+
       let next: any = null;
+      const staleIds: string[] = [];
       for (const row of candidates) {
-        if (row.customer_id) {
-          const { data: recentPay } = await supabase
-            .from("payments")
-            .select("id, created_at, source")
-            .eq("customer_id", row.customer_id)
-            .eq("confirmed", true)
-            .gte("created_at", cutoff)
-            .limit(1)
-            .maybeSingle();
-          if (recentPay) {
-            console.log(`[p2cine-queue] skipping ${row.id} (${row.customer_name}) — already paid at ${recentPay.created_at} via ${recentPay.source}`);
-            await supabase.from("pending_manual_renewals").delete().eq("id", row.id);
-            continue;
-          }
+        if (row.customer_id && paidRecently.has(String(row.customer_id))) {
+          console.log(`[p2cine-queue] skipping ${row.id} (${row.customer_name}) — already paid in the last 12h`);
+          staleIds.push(row.id);
+          continue;
         }
         next = row;
         break;
       }
+      if (staleIds.length) {
+        await supabase.from("pending_manual_renewals").delete().in("id", staleIds);
+      }
       if (!next) return json({ item: null });
+
 
       const panelType = isUniplay(next) ? "uniplay" : "p2cine";
 
