@@ -119,27 +119,9 @@ export default function CrmOficialChannels() {
   const [enabled, setEnabled] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [saving, setSaving] = useState(false);
   const [whatsapp, setWhatsapp] = useState<WhatsAppChannel[]>([]);
   const [webchat, setWebchat] = useState<WebchatChannel | null>(null);
 
-  const [modalOpen, setModalOpen] = useState(false);
-  const [modalKind, setModalKind] = useState<'whatsapp_cloud' | 'webchat'>('whatsapp_cloud');
-
-  const [wa, setWa] = useState({
-    name: '',
-    phone_number_id: '',
-    system_user_token: '',
-    waba_id: '',
-    verify_token: '',
-  });
-  const [wc, setWc] = useState({
-    title: 'Fale conosco',
-    brand_color: '#10b981',
-    welcome_message: 'Olá! Como podemos te ajudar?',
-    position: 'bottom-right',
-    enabled: true,
-  });
 
   const loadChannels = useCallback(async (key: string) => {
     if (!key) return;
