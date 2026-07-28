@@ -494,6 +494,9 @@ export default function QuickRenewalPanel({ isMobile = false, onClose, initialPh
           const isNatv = !isNatv2 && (sn.includes('natv') || sh.includes('pixbot') || sh.includes('natv'));
           const isVplay = sn.includes('vplay') || sh.includes('vplay');
           const isRush = sn.includes('rush') || sh.includes('rush');
+          const extHay = `${sn} ${sh}`;
+          const isUniplay = extHay.includes('uniplay') || extHay.includes('searchdefense') || extHay.includes('gesapioffice');
+          const isP2Cine = extHay.includes('p2cine') || extHay.includes('daily3') || extHay.includes('painelacesso') || /\bp2c\b/.test(extHay);
 
           if (isNatv2) {
             const months = Math.max(1, Math.round(durationDays / 30));
@@ -564,6 +567,27 @@ export default function QuickRenewalPanel({ isMobile = false, onClose, initialPh
             } else {
               console.log('[Rush] Sucesso:', rushResult);
             }
+          } else if (isUniplay || isP2Cine) {
+            const { error: queueError } = await supabase.from('pending_manual_renewals' as any).insert({
+              owner_id: (customer as any).created_by || user?.id,
+              customer_id: customer.id,
+              customer_name: customer.name,
+              customer_phone: customer.phone,
+              username: xuiUsername,
+              server_id: (customer as any).server_id || customer.server?.id || null,
+              server_name: serverName,
+              server_host: serverHost,
+              plan_name: planName,
+              amount,
+              new_due_date: newDueDateStr,
+              reason: isP2Cine ? 'p2cine_extension_pending' : 'uniplay_extension_pending',
+              source: isP2Cine ? 'frontend_p2cine_quick_renew' : 'frontend_uniplay_quick_renew',
+              error_details: { message: isP2Cine
+                ? 'Aguardando extensão SuperGestor em aba logada no daily3.news / painelacesso1.com'
+                : 'Aguardando extensão SuperGestor em aba logada no searchdefense.top' },
+            });
+            if (queueError) console.error('[Extensão] Erro ao enfileirar:', queueError);
+            else toast.info('Renovação enviada para a extensão do navegador.');
           } else {
             const { data: xuiResult, error: xuiError } = await supabase.functions.invoke('xui-renew', {
               body: { username: xuiUsername, new_due_date: newDueDateStr, customer_id: customer.id },

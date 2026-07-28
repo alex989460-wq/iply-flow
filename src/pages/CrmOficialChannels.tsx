@@ -281,12 +281,28 @@ export default function CrmOficialChannels() {
                 {/* Cabeçalho visual */}
                 <div className="relative w-full h-52 overflow-hidden flex items-center justify-center bg-gradient-to-br from-muted/60 to-background">
                   {ch.avatar_url ? (
-                    <img
-                      src={ch.avatar_url}
-                      alt={ch.verified_name || ch.name || 'Canal WhatsApp'}
-                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                      onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
-                    />
+                    <>
+                      {/* Blurred backdrop absorbs the low resolution of WhatsApp profile pics */}
+                      <img
+                        src={ch.avatar_url}
+                        alt=""
+                        aria-hidden
+                        className="absolute inset-0 w-full h-full object-cover scale-125 blur-2xl opacity-50"
+                      />
+                      <div className={cn(
+                        'absolute inset-0',
+                        isOfficial ? 'bg-gradient-to-br from-blue-500/20 to-primary/10' : 'bg-gradient-to-br from-emerald-500/20 to-teal-500/10',
+                      )} />
+                      {/* Crisp avatar rendered at (close to) its native resolution */}
+                      <img
+                        src={ch.avatar_url}
+                        alt={ch.verified_name || ch.name || 'Canal WhatsApp'}
+                        loading="lazy"
+                        decoding="async"
+                        className="relative w-24 h-24 rounded-full object-cover ring-4 ring-background/70 shadow-xl transition-transform duration-500 group-hover:scale-105"
+                        onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+                      />
+                    </>
                   ) : (
                     <div className={cn(
                       'absolute inset-0 flex items-center justify-center',

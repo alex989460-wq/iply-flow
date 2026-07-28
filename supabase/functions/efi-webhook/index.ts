@@ -66,7 +66,12 @@ async function triggerExternalRenewal(admin: any, customerId: string, source: st
     result = await post("vplay-renew", { username: customer.username.trim(), new_due_date: customer.due_date, customer_id: customer.id });
   } else if (haystack.includes("rush")) {
     result = await post("rush-renew", { username: customer.username.trim(), months, customer_id: customer.id, screens: customer.screens || 1 });
-  } else if (haystack.includes("uniplay") || haystack.includes("searchdefense") || haystack.includes("gesapioffice")) {
+  } else if (
+    haystack.includes("uniplay") || haystack.includes("searchdefense") || haystack.includes("gesapioffice") ||
+    haystack.includes("p2cine") || haystack.includes("daily3") || haystack.includes("painelacesso") ||
+    /\bp2c\b/.test(haystack)
+  ) {
+    const isUni = haystack.includes("uniplay") || haystack.includes("searchdefense") || haystack.includes("gesapioffice");
     const { error } = await admin.from("pending_manual_renewals").insert({
       owner_id: customer.created_by,
       customer_id: customer.id,
@@ -79,7 +84,7 @@ async function triggerExternalRenewal(admin: any, customerId: string, source: st
       plan_name: customer.plans?.plan_name || null,
       amount: 0,
       new_due_date: customer.due_date,
-      reason: "uniplay_extension_pending",
+      reason: isUni ? "uniplay_extension_pending" : "p2cine_extension_pending",
       source,
       error_details: { message: "Aguardando extensão para concluir renovação externa" },
     });
@@ -265,6 +270,32 @@ Deno.serve(async (req) => {
           autoActivateError = e instanceof Error ? e.message : String(e);
         }
 
+        // 1b) If auto-activation failed, surface it in the pending panel.
+        if (!autoActivateOk && actReq?.user_id) {
+          await admin.from("pending_manual_renewals").insert({
+            owner_id: actReq.user_id,
+            customer_id: null,
+            customer_name: actReq.customer_name || "Ativação de App",
+            customer_phone: actReq.customer_phone || null,
+            username: null,
+            server_name: actReq.app_name || null,
+            plan_name: actReq.app_name || null,
+            amount: actReq.amount || 0,
+            reason: "app_activation",
+            source: `efi:${txid}`,
+            error_details: {
+              app_name: actReq.app_name,
+              mac_address: actReq.mac_address,
+              email: actReq.email,
+              message: autoActivateError || "Falha na ativação automática",
+            },
+          }).then(({ error }) => {
+            if (error) console.error("[efi-webhook] pending activation insert error", error);
+          });
+        }
+
+
+
         // 2) Notify admin (owner) on WhatsApp about the paid activation.
         try {
           if (actReq?.user_id) {
@@ -380,6 +411,26 @@ Deno.serve(async (req) => {
                   if (!autoOk) autoErr = j?.error || j?.warning || `HTTP ${r.status}`;
                 } catch (e) {
                   autoErr = e instanceof Error ? e.message : String(e);
+                }
+                if (!autoOk) {
+                  const { error: pendErr } = await admin.from("pending_manual_renewals").insert({
+                    owner_id: newActReq.user_id,
+                    customer_id: null,
+                    customer_name: newActReq.customer_name || "Ativação de App",
+                    customer_phone: newActReq.customer_phone || null,
+                    server_name: newActReq.app_name || null,
+                    plan_name: newActReq.app_name || null,
+                    amount: newActReq.amount || 0,
+                    reason: "app_activation",
+                    source: `efi:${txid}`,
+                    error_details: {
+                      app_name: newActReq.app_name,
+                      mac_address: newActReq.mac_address,
+                      email: newActReq.email,
+                      message: autoErr || "Falha na ativação automática",
+                    },
+                  });
+                  if (pendErr) console.error("[efi-webhook] pending activation insert error", pendErr);
                 }
                 try {
                   const [{ data: zap }, { data: billing }] = await Promise.all([
