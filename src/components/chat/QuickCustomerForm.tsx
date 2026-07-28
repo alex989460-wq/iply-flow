@@ -190,6 +190,10 @@ export default function QuickCustomerForm({ onSuccess, onCancel, initialPhone = 
         });
         if (paymentError) {
           console.error('Erro ao criar pagamento:', paymentError);
+        } else {
+          // The confirmed payment triggers renew_customer_due_date, which would add
+          // another period on top of the date already set at creation. Re-assert it.
+          await supabase.from('customers').update({ due_date: dueDate }).eq('id', newCustomer.id);
         }
       }
 
