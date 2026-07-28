@@ -1330,11 +1330,15 @@ Deno.serve(async (req) => {
     if (action === "delete-channel") {
       const channelId = String((data as any)?.channel_id || (data as any)?.id || "");
       if (!channelId) throw new Error("channel_id é obrigatório");
-      results.channel = await crmFetch(`/api/public/v1/channels/${channelId}`, {
-        method: "DELETE",
-        apiKey,
-      });
+      const encoded = encodeURIComponent(channelId);
+      results.channel = await firstOk(
+        authKeys(apiKey).flatMap((key) => [
+          () => crmFetch(`/api/public/v1/channels?id=${encoded}`, { method: "DELETE", apiKey: key }),
+          () => crmFetch(`/api/public/v1/channels/${encoded}`, { method: "DELETE", apiKey: key }),
+        ]),
+      );
     }
+
 
     if (action === "embedded-signup") {
       const { code, phone_number_id, waba_id, config_id, app_id } = (data || {}) as {
