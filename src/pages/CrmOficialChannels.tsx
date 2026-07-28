@@ -184,48 +184,8 @@ export default function CrmOficialChannels() {
     })();
   }, [user, loadChannels]);
 
-  const openCreate = (kind: 'whatsapp_cloud' | 'webchat') => {
-    setModalKind(kind);
-    setModalOpen(true);
-  };
 
-  const submit = async () => {
-    setSaving(true);
-    try {
-      const channel =
-        modalKind === 'whatsapp_cloud'
-          ? { kind: 'whatsapp_cloud', ...wa }
-          : { kind: 'webchat', ...wc };
-      if (modalKind === 'whatsapp_cloud') {
-        if (!wa.name || !wa.phone_number_id || !wa.system_user_token) {
-          toast({ title: 'Campos obrigatórios', description: 'Nome, Phone Number ID e System User Token.', variant: 'destructive' });
-          setSaving(false);
-          return;
-        }
-      }
-      const { data, error } = await supabase.functions.invoke('crm-oficial-sync', {
-        body: { action: 'create-channel', data: { apiKey, channel } },
-      });
-      if (error) throw error;
-      const ok = !!data?.results?.channel?.ok;
-      toast({
-        title: ok ? 'Canal salvo' : 'Falha',
-        description: ok ? 'Canal sincronizado no CRM Oficial.' : `Status ${data?.results?.channel?.status}`,
-        variant: ok ? 'default' : 'destructive',
-      });
-      if (ok) {
-        setModalOpen(false);
-        if (modalKind === 'whatsapp_cloud') {
-          setWa({ name: '', phone_number_id: '', system_user_token: '', waba_id: '', verify_token: '' });
-        }
-        loadChannels(apiKey);
-      }
-    } catch (e: any) {
-      toast({ title: 'Erro', description: e.message, variant: 'destructive' });
-    } finally {
-      setSaving(false);
-    }
-  };
+
 
   const setPrimary = async (ch: WhatsAppChannel) => {
     try {
