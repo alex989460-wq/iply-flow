@@ -701,6 +701,8 @@ export default function Customers() {
           const isVplay = serverName.toLowerCase().includes('vplay') || serverHost.toLowerCase().includes('vplay');
           const isRush = serverName.toLowerCase().includes('rush') || serverHost.toLowerCase().includes('rush');
           const isUniplay = serverName.toLowerCase().includes('uniplay') || serverHost.toLowerCase().includes('uniplay') || serverHost.toLowerCase().includes('searchdefense') || serverHost.toLowerCase().includes('gesapioffice');
+          const p2Hay = `${serverName} ${serverHost}`.toLowerCase();
+          const isP2Cine = p2Hay.includes('p2cine') || p2Hay.includes('daily3') || p2Hay.includes('painelacesso') || /\bp2c\b/.test(p2Hay);
           
           if (isTheBest) {
             const months = Math.max(1, Math.round(plan.duration_days / 30));
