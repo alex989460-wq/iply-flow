@@ -412,6 +412,26 @@ Deno.serve(async (req) => {
                 } catch (e) {
                   autoErr = e instanceof Error ? e.message : String(e);
                 }
+                if (!autoOk) {
+                  const { error: pendErr } = await admin.from("pending_manual_renewals").insert({
+                    owner_id: newActReq.user_id,
+                    customer_id: null,
+                    customer_name: newActReq.customer_name || "Ativação de App",
+                    customer_phone: newActReq.customer_phone || null,
+                    server_name: newActReq.app_name || null,
+                    plan_name: newActReq.app_name || null,
+                    amount: newActReq.amount || 0,
+                    reason: "app_activation",
+                    source: `efi:${txid}`,
+                    error_details: {
+                      app_name: newActReq.app_name,
+                      mac_address: newActReq.mac_address,
+                      email: newActReq.email,
+                      message: autoErr || "Falha na ativação automática",
+                    },
+                  });
+                  if (pendErr) console.error("[efi-webhook] pending activation insert error", pendErr);
+                }
                 try {
                   const [{ data: zap }, { data: billing }] = await Promise.all([
                     admin.from("zap_responder_settings").select("selected_department_id").eq("user_id", newActReq.user_id).maybeSingle(),
