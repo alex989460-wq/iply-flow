@@ -1,25 +1,18 @@
 import { useEffect, useState, useCallback } from 'react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Switch } from '@/components/ui/switch';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
-import { AlertCircle, ArrowRight, Globe, Loader2, Plus, QrCode, RefreshCw, Star, Zap, Trash2, ShieldCheck, Power } from 'lucide-react';
+import { AlertCircle, Loader2, Plus, RefreshCw, Star, Zap, Trash2, ShieldCheck } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import EmbeddedSignupButton from '@/components/crm/EmbeddedSignupButton';
 import AddChannelEmbedDialog from '@/components/crm/AddChannelEmbedDialog';
 import { ProviderBadge } from '@/components/ui/provider-badge';
 import { MetaLogo } from '@/components/ui/meta-logo';
 import logoSg from '@/assets/logo-sg.png';
 import whatsappLogo from '@/assets/whatsapp-logo.png.asset.json';
+
 
 interface WhatsAppChannel {
   id: string;
