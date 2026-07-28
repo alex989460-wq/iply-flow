@@ -1,25 +1,18 @@
 import { useEffect, useState, useCallback } from 'react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Switch } from '@/components/ui/switch';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
-import { AlertCircle, ArrowRight, Globe, Loader2, Plus, QrCode, RefreshCw, Star, Zap, Trash2, ShieldCheck, Power } from 'lucide-react';
+import { AlertCircle, Loader2, Plus, RefreshCw, Star, Zap, Trash2, ShieldCheck } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import EmbeddedSignupButton from '@/components/crm/EmbeddedSignupButton';
 import AddChannelEmbedDialog from '@/components/crm/AddChannelEmbedDialog';
 import { ProviderBadge } from '@/components/ui/provider-badge';
 import { MetaLogo } from '@/components/ui/meta-logo';
 import logoSg from '@/assets/logo-sg.png';
 import whatsappLogo from '@/assets/whatsapp-logo.png.asset.json';
+
 
 interface WhatsAppChannel {
   id: string;
@@ -119,27 +112,9 @@ export default function CrmOficialChannels() {
   const [enabled, setEnabled] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [saving, setSaving] = useState(false);
   const [whatsapp, setWhatsapp] = useState<WhatsAppChannel[]>([]);
   const [webchat, setWebchat] = useState<WebchatChannel | null>(null);
 
-  const [modalOpen, setModalOpen] = useState(false);
-  const [modalKind, setModalKind] = useState<'whatsapp_cloud' | 'webchat'>('whatsapp_cloud');
-
-  const [wa, setWa] = useState({
-    name: '',
-    phone_number_id: '',
-    system_user_token: '',
-    waba_id: '',
-    verify_token: '',
-  });
-  const [wc, setWc] = useState({
-    title: 'Fale conosco',
-    brand_color: '#10b981',
-    welcome_message: 'Olá! Como podemos te ajudar?',
-    position: 'bottom-right',
-    enabled: true,
-  });
 
   const loadChannels = useCallback(async (key: string) => {
     if (!key) return;
@@ -184,48 +159,8 @@ export default function CrmOficialChannels() {
     })();
   }, [user, loadChannels]);
 
-  const openCreate = (kind: 'whatsapp_cloud' | 'webchat') => {
-    setModalKind(kind);
-    setModalOpen(true);
-  };
 
-  const submit = async () => {
-    setSaving(true);
-    try {
-      const channel =
-        modalKind === 'whatsapp_cloud'
-          ? { kind: 'whatsapp_cloud', ...wa }
-          : { kind: 'webchat', ...wc };
-      if (modalKind === 'whatsapp_cloud') {
-        if (!wa.name || !wa.phone_number_id || !wa.system_user_token) {
-          toast({ title: 'Campos obrigatórios', description: 'Nome, Phone Number ID e System User Token.', variant: 'destructive' });
-          setSaving(false);
-          return;
-        }
-      }
-      const { data, error } = await supabase.functions.invoke('crm-oficial-sync', {
-        body: { action: 'create-channel', data: { apiKey, channel } },
-      });
-      if (error) throw error;
-      const ok = !!data?.results?.channel?.ok;
-      toast({
-        title: ok ? 'Canal salvo' : 'Falha',
-        description: ok ? 'Canal sincronizado no CRM Oficial.' : `Status ${data?.results?.channel?.status}`,
-        variant: ok ? 'default' : 'destructive',
-      });
-      if (ok) {
-        setModalOpen(false);
-        if (modalKind === 'whatsapp_cloud') {
-          setWa({ name: '', phone_number_id: '', system_user_token: '', waba_id: '', verify_token: '' });
-        }
-        loadChannels(apiKey);
-      }
-    } catch (e: any) {
-      toast({ title: 'Erro', description: e.message, variant: 'destructive' });
-    } finally {
-      setSaving(false);
-    }
-  };
+
 
   const setPrimary = async (ch: WhatsAppChannel) => {
     try {
@@ -288,12 +223,12 @@ export default function CrmOficialChannels() {
           </div>
           <div className="flex items-center gap-2">
             <AddChannelEmbedDialog apiKey={apiKey} onCreated={() => loadChannels(apiKey)} />
-            <EmbeddedSignupButton apiKey={apiKey} onCreated={() => loadChannels(apiKey)} />
             <Button variant="outline" size="sm" onClick={() => loadChannels(apiKey)} disabled={!apiKey || refreshing}>
               {refreshing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />}
               Atualizar
             </Button>
           </div>
+
         </div>
 
         {!apiKey && (
@@ -478,48 +413,7 @@ export default function CrmOficialChannels() {
         </div>
 
 
-        {/* Create/edit modal */}
-        <Dialog open={modalOpen} onOpenChange={setModalOpen}>
-          <DialogContent className="max-w-2xl">
-            <DialogHeader>
-              <DialogTitle>Adicionar canal WhatsApp Cloud</DialogTitle>
-              <DialogDescription>POST /api/public/v1/channels — escopo channels:write</DialogDescription>
-            </DialogHeader>
 
-            <div className="space-y-3 pt-4">
-              <div className="grid md:grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <Label>Nome do canal *</Label>
-                  <Input value={wa.name} onChange={(e) => setWa({ ...wa, name: e.target.value })} placeholder="Atendimento Comercial" />
-                </div>
-                <div className="space-y-1.5">
-                  <Label>Phone Number ID *</Label>
-                  <Input value={wa.phone_number_id} onChange={(e) => setWa({ ...wa, phone_number_id: e.target.value })} placeholder="123456789012345" />
-                </div>
-                <div className="space-y-1.5 md:col-span-2">
-                  <Label>System User Token *</Label>
-                  <Input type="password" value={wa.system_user_token} onChange={(e) => setWa({ ...wa, system_user_token: e.target.value })} placeholder="EAAG..." className="font-mono text-xs" />
-                </div>
-                <div className="space-y-1.5">
-                  <Label>WABA ID</Label>
-                  <Input value={wa.waba_id} onChange={(e) => setWa({ ...wa, waba_id: e.target.value })} placeholder="987654321" />
-                </div>
-                <div className="space-y-1.5">
-                  <Label>Verify Token</Label>
-                  <Input value={wa.verify_token} onChange={(e) => setWa({ ...wa, verify_token: e.target.value })} placeholder="meu_token_webhook" />
-                </div>
-              </div>
-            </div>
-
-            <div className="flex justify-end gap-2 pt-2">
-              <Button variant="ghost" onClick={() => setModalOpen(false)}>Cancelar</Button>
-              <Button onClick={submit} disabled={saving || !apiKey} className="bg-emerald-500 hover:bg-emerald-600">
-                {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Plus className="w-4 h-4 mr-2" />}
-                Salvar canal
-              </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
       </div>
     </DashboardLayout>
   );
