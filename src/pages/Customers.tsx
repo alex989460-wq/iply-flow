@@ -748,12 +748,14 @@ export default function Customers() {
               plan_name: plan.plan_name,
               amount,
               new_due_date: newDueDateStr,
-              reason: 'uniplay_extension_pending',
-              source: 'frontend_uniplay_renew',
-              error_details: { message: 'Aguardando extensão SuperGestor 1.6.0 em aba logada no searchdefense.top' },
+              reason: isP2Cine ? 'p2cine_extension_pending' : 'uniplay_extension_pending',
+              source: isP2Cine ? 'frontend_p2cine_renew' : 'frontend_uniplay_renew',
+              error_details: { message: isP2Cine
+                ? 'Aguardando extensão SuperGestor em aba logada no daily3.news / painelacesso1.com'
+                : 'Aguardando extensão SuperGestor em aba logada no searchdefense.top' },
             });
-            if (queueError) console.error('[Uniplay] Erro ao enviar para extensão:', queueError);
-            else console.log('[Uniplay] Enviado para fila da extensão');
+            if (queueError) console.error('[Extensão] Erro ao enviar para fila:', queueError);
+            else console.log('[Extensão] Enviado para fila da extensão');
           } else {
             const { data: xuiResult, error: xuiError } = await supabase.functions.invoke('xui-renew', {
               body: { username: customer.username.trim(), new_due_date: newDueDateStr, customer_id: customer.id },
