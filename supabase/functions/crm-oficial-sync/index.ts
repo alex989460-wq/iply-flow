@@ -823,7 +823,20 @@ async function doSendWhatsapp(payload: {
       status: templateResult.status,
       attempts: (templateResult as { attempts?: Array<{ status: number; body: unknown }> }).attempts?.map((a) => ({ status: a.status, body: a.body })),
     });
-    if (templateResult.ok) return templateResult;
+    if (templateResult.ok) {
+      // Memoriza o locale que funcionou: assim, se a listagem da Meta estiver
+      // bloqueada por rate limit (#80008), continuamos usando o idioma correto.
+      await writeTemplateCache(String(payload.template_name), {
+        name: payload.template_name,
+        language: lang,
+        components: officialTemplate?.components || null,
+        parameter_format: officialTemplate?.parameter_format || null,
+        status: "APPROVED",
+        source: "send_success",
+      });
+      return templateResult;
+    }
+
     if (hasMissingTemplateScope(templateResult)) {
       const scopeError = missingTemplateScopeResult(templateResult);
       return {
