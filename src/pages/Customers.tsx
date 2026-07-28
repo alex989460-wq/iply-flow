@@ -735,7 +735,7 @@ export default function Customers() {
             if (rushError) console.error('[Rush] Erro:', rushError);
             else if (!rushResult?.success) console.warn('[Rush] Falha:', rushResult?.error);
             else console.log('[Rush] Renovado:', rushResult);
-          } else if (isUniplay) {
+          } else if (isUniplay || isP2Cine) {
             const { error: queueError } = await supabase.from('pending_manual_renewals' as any).insert({
               owner_id: customer.created_by || user?.id,
               customer_id: customer.id,
