@@ -7,7 +7,6 @@ import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { Link } from 'react-router-dom';
-import EmbeddedSignupButton from '@/components/crm/EmbeddedSignupButton';
 import AddChannelEmbedDialog from '@/components/crm/AddChannelEmbedDialog';
 import { cn } from '@/lib/utils';
 
@@ -132,7 +131,6 @@ export default function CrmChannelsInline() {
         </div>
         <div className="flex items-center gap-2">
           <AddChannelEmbedDialog apiKey={apiKey} onCreated={() => load(apiKey)} />
-          <EmbeddedSignupButton apiKey={apiKey} onCreated={() => load(apiKey)} />
           <Button variant="outline" size="sm" onClick={() => load(apiKey)} disabled={refreshing}>
             {refreshing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />}
             Atualizar
