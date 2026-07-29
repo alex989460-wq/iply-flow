@@ -62,6 +62,50 @@ export default function EvolutionInstances() {
   const avatarFetchRef = useRef<Set<string>>(new Set());
   const [brokenAvatars, setBrokenAvatars] = useState<Set<string>>(new Set());
 
+  // --- Servidor Evolution (permite escolher entre os servidores disponíveis) ---
+  const EVO_SERVERS = [
+    { label: 'Evolution Go (Servidor 1)', url: 'https://evolution.fluyd.top' },
+    { label: 'Evolution API (Servidor 2)', url: 'https://evolutionapi.fluyd.top' },
+  ];
+  const [srvUrl, setSrvUrl] = useState('');
+  const [srvKey, setSrvKey] = useState('');
+  const [srvSaving, setSrvSaving] = useState(false);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    (async () => {
+      const { data } = await supabase
+        .from('evolution_settings')
+        .select('base_url, api_key')
+        .eq('user_id', user.id)
+        .maybeSingle();
+      setSrvUrl(String(data?.base_url || '').replace(/\/$/, ''));
+      setSrvKey(String(data?.api_key || ''));
+    })();
+  }, [user?.id]);
+
+  const saveServer = async () => {
+    if (!user?.id) return;
+    if (!srvUrl || !srvKey) {
+      toast({ title: 'Preencha o servidor e a chave', variant: 'destructive' });
+      return;
+    }
+    setSrvSaving(true);
+    const { error } = await supabase
+      .from('evolution_settings')
+      .upsert(
+        { user_id: user.id, base_url: srvUrl.replace(/\/$/, ''), api_key: srvKey, is_enabled: true },
+        { onConflict: 'user_id' },
+      );
+    setSrvSaving(false);
+    if (error) {
+      toast({ title: 'Erro ao salvar servidor', description: error.message, variant: 'destructive' });
+      return;
+    }
+    toast({ title: 'Servidor atualizado', description: 'Buscando instâncias deste servidor...' });
+    fetchInstances();
+  };
+
   const KNOWN_KEY = user?.id ? `evo_known_instances_${user.id}` : '';
 
   // Load known names from localStorage
@@ -436,6 +480,59 @@ export default function EvolutionInstances() {
             </AlertDescription>
           </Alert>
         )}
+
+        {/* Servidor Evolution */}
+        <Card className="border-primary/15 bg-background/50 backdrop-blur-xl shadow-xl">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Server className="w-4 h-4 text-primary" /> Servidor Evolution
+            </CardTitle>
+            <CardDescription>
+              Escolha em qual servidor a instância será criada/conectada. Cada servidor tem sua própria chave.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="grid sm:grid-cols-2 gap-2">
+              {EVO_SERVERS.map((s) => {
+                const active = srvUrl.replace(/\/$/, '') === s.url;
+                return (
+                  <button
+                    key={s.url}
+                    type="button"
+                    onClick={() => setSrvUrl(s.url)}
+                    className={`text-left rounded-xl border p-3 transition ${
+                      active
+                        ? 'border-primary bg-primary/10 shadow-sm'
+                        : 'border-border/60 bg-background/40 hover:border-primary/40'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 text-sm font-semibold">
+                      {active ? <CheckCircle2 className="w-4 h-4 text-primary" /> : <Server className="w-4 h-4 text-muted-foreground" />}
+                      {s.label}
+                    </div>
+                    <div className="text-[11px] text-muted-foreground mt-1 break-all">{s.url}</div>
+                  </button>
+                );
+              })}
+            </div>
+            <div className="grid sm:grid-cols-2 gap-2">
+              <div>
+                <Label className="text-xs">URL do servidor</Label>
+                <Input value={srvUrl} onChange={(e) => setSrvUrl(e.target.value)} placeholder="https://..." />
+              </div>
+              <div>
+                <Label className="text-xs">Chave (API Key) deste servidor</Label>
+                <Input value={srvKey} onChange={(e) => setSrvKey(e.target.value)} placeholder="sua chave global" type="password" />
+              </div>
+            </div>
+            <div className="flex justify-end">
+              <Button onClick={saveServer} disabled={srvSaving} size="sm" className="gap-2">
+                {srvSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                Salvar e listar instâncias
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Create */}
         <Card className="border-emerald-500/15 bg-background/50 backdrop-blur-xl shadow-xl">
