@@ -12,8 +12,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 
 const PRESET_SERVERS = [
-  { label: 'Servidor 1 (antigo)', url: 'http://evolution.fluyd.top:4000' },
-  { label: 'Servidor 2 (novo)', url: 'https://evolutionapi.fluyd.top' },
+  { label: 'Servidor 1', url: 'https://evolution.fluyd.top' },
+  { label: 'Servidor 2', url: 'https://evolutionapi.fluyd.top' },
 ];
 
 export default function EvolutionApiCard() {
