@@ -723,7 +723,37 @@ export default function Resellers() {
                         </Badge>
                       </div>
 
+                      {(() => {
+                        const own = countsByOwner.get(reseller.user_id) || { total: 0, active: 0 };
+                        const tree = getTreeStats(reseller.user_id);
+                        return (
+                          <div className="flex items-center gap-2 pl-2">
+                            <div className="flex-1 rounded-lg border border-primary/20 bg-primary/5 px-2.5 py-1.5">
+                              <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Clientes próprios</p>
+                              <p className="text-sm font-bold tabular-nums text-primary">
+                                {own.total}
+                                <span className="ml-1 text-[10px] font-medium text-muted-foreground">
+                                  ({own.active} ativos)
+                                </span>
+                              </p>
+                            </div>
+                            <div className="flex-1 rounded-lg border border-border/60 bg-muted/50 px-2.5 py-1.5">
+                              <p className="flex items-center gap-1 text-[10px] uppercase tracking-wide text-muted-foreground">
+                                <Network className="h-3 w-3" /> Árvore
+                              </p>
+                              <p className="text-sm font-bold tabular-nums">
+                                {tree.total}
+                                <span className="ml-1 text-[10px] font-medium text-muted-foreground">
+                                  ({tree.subs} sub{tree.subs === 1 ? '' : 's'})
+                                </span>
+                              </p>
+                            </div>
+                          </div>
+                        );
+                      })()}
+
                       <div className="grid grid-cols-2 gap-2 pl-2 text-xs">
+
                         <div className="rounded-lg bg-muted/50 px-2.5 py-1.5">
                           <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Créditos</p>
                           <p className="font-semibold tabular-nums">{reseller.credits}</p>
