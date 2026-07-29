@@ -3,8 +3,60 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-cron-secret',
 };
+
+const CUSTOMER_COLUMNS =
+  'id, name, phone, username, server_id, plan_id, due_date, status, screens, custom_price, notes, extra_months, created_by, start_date, created_at';
+
+async function fetchAllCustomers(admin: any, ownerId: string | null) {
+  const rows: any[] = [];
+  let from = 0;
+  const pageSize = 1000;
+  while (true) {
+    let q = admin.from('customers').select(CUSTOMER_COLUMNS).range(from, from + pageSize - 1);
+    if (ownerId) q = q.eq('created_by', ownerId);
+    const { data, error } = await q;
+    if (error) throw new Error(error.message);
+    if (!data || data.length === 0) break;
+    rows.push(...data);
+    if (data.length < pageSize) break;
+    from += pageSize;
+  }
+  return rows;
+}
+
+async function sendToTelegram(fileName: string, content: string, caption: string) {
+  const token = Deno.env.get('TELEGRAM_BOT_TOKEN');
+  const chatId = Deno.env.get('TELEGRAM_CHAT_ID');
+  if (!token || !chatId) {
+    return { ok: false, error: 'TELEGRAM_BOT_TOKEN/TELEGRAM_CHAT_ID não configurados' };
+  }
+
+  const form = new FormData();
+  form.append('chat_id', chatId);
+  form.append('caption', caption);
+  form.append(
+    'document',
+    new Blob([content], { type: 'application/json' }),
+    fileName,
+  );
+
+  const res = await fetch(`https://api.telegram.org/bot${token}/sendDocument`, {
+    method: 'POST',
+    body: form,
+  });
+  const body = await res.text();
+  if (!res.ok) {
+    console.error(`[Backup] Telegram falhou [${res.status}]: ${body}`);
+    return { ok: false, error: `Telegram ${res.status}: ${body}` };
+  }
+  try {
+    const parsed = JSON.parse(body);
+    if (parsed?.ok === false) return { ok: false, error: parsed?.description || 'Telegram error' };
+  } catch { /* ignore */ }
+  return { ok: true };
+}
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -14,16 +66,44 @@ serve(async (req) => {
 
   try {
     const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabaseAdmin = createClient(Deno.env.get('SUPABASE_URL')!, serviceRoleKey, {
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
       auth: { autoRefreshToken: false, persistSession: false },
     });
 
     let body: any = {};
-    try { body = await req.json(); } catch {}
+    try { body = await req.json(); } catch { /* no body */ }
 
-    // RESTORE action
+    // ---- AuthN/AuthZ ----
+    const cronSecret = Deno.env.get('BACKUP_CRON_SECRET');
+    const providedCron = req.headers.get('x-cron-secret');
+    const isCron = !!cronSecret && !!providedCron && providedCron === cronSecret;
+
+    let userId: string | null = null;
+    let isAdmin = false;
+
+    if (!isCron) {
+      const authHeader = req.headers.get('Authorization') || '';
+      const jwt = authHeader.replace('Bearer ', '');
+      const userClient = createClient(supabaseUrl, Deno.env.get('SUPABASE_ANON_KEY')!, {
+        global: { headers: { Authorization: `Bearer ${jwt}` } },
+        auth: { autoRefreshToken: false, persistSession: false },
+      });
+      const { data: userData } = await userClient.auth.getUser();
+      userId = userData?.user?.id ?? null;
+      if (!userId) {
+        return new Response(JSON.stringify({ error: 'Não autenticado' }), { status: 401, headers: jsonHeaders });
+      }
+      const { data: adminCheck } = await supabaseAdmin.rpc('has_role', { _user_id: userId, _role: 'admin' });
+      isAdmin = adminCheck === true;
+    }
+
+    // ---- RESTORE (admin only) ----
     if (body?.action === 'restore' && body?.backup_id) {
-      // Fetch backup
+      if (!isAdmin) {
+        return new Response(JSON.stringify({ error: 'Apenas administradores podem restaurar' }), { status: 403, headers: jsonHeaders });
+      }
+
       const { data: backup, error: bErr } = await supabaseAdmin
         .from('customer_backups')
         .select('backup_data, total_customers')
@@ -34,48 +114,24 @@ serve(async (req) => {
         return new Response(JSON.stringify({ error: 'Backup não encontrado' }), { status: 404, headers: jsonHeaders });
       }
 
-      const customers = backup.backup_data as any[];
-
-      // Safety backup first
-      const allCustomers: any[] = [];
-      let from = 0;
-      const pageSize = 1000;
-      while (true) {
-        const { data } = await supabaseAdmin
-          .from('customers')
-          .select('id, name, phone, username, server_id, plan_id, due_date, status, screens, custom_price, notes, extra_months, created_by, start_date, created_at, password')
-          .range(from, from + pageSize - 1);
-        if (!data || data.length === 0) break;
-        allCustomers.push(...data);
-        if (data.length < pageSize) break;
-        from += pageSize;
+      const customers = (backup.backup_data as any[]) || [];
+      if (!Array.isArray(customers) || customers.length === 0) {
+        return new Response(JSON.stringify({ error: 'Backup sem dados (backups enviados ao Telegram não podem ser restaurados por aqui)' }), { status: 400, headers: jsonHeaders });
       }
 
+      // Safety snapshot before wiping
+      const allCustomers = await fetchAllCustomers(supabaseAdmin, null);
       await supabaseAdmin.from('customer_backups').insert({
         backup_data: allCustomers,
         total_customers: allCustomers.length,
         backup_type: 'pre_restore',
       });
 
-      // Delete all current customers
-      // We need to delete in batches by fetching IDs
-      const idsToDelete: string[] = [];
-      from = 0;
-      while (true) {
-        const { data } = await supabaseAdmin.from('customers').select('id').range(from, from + 999);
-        if (!data || data.length === 0) break;
-        idsToDelete.push(...data.map(d => d.id));
-        if (data.length < 1000) break;
-        from += 1000;
-      }
-
-      // Delete in batches of 500
+      const idsToDelete = allCustomers.map((c: any) => c.id);
       for (let i = 0; i < idsToDelete.length; i += 500) {
-        const batch = idsToDelete.slice(i, i + 500);
-        await supabaseAdmin.from('customers').delete().in('id', batch);
+        await supabaseAdmin.from('customers').delete().in('id', idsToDelete.slice(i, i + 500));
       }
 
-      // Re-insert from backup in batches
       let inserted = 0;
       for (let i = 0; i < customers.length; i += 100) {
         const batch = customers.slice(i, i + 100).map((c: any) => ({
@@ -83,7 +139,6 @@ serve(async (req) => {
           name: c.name,
           phone: c.phone,
           username: c.username || null,
-          password: c.password || null,
           server_id: c.server_id || null,
           plan_id: c.plan_id || null,
           due_date: c.due_date,
@@ -96,55 +151,50 @@ serve(async (req) => {
           start_date: c.start_date || c.due_date,
           created_at: c.created_at || new Date().toISOString(),
         }));
-
         const { error: insErr } = await supabaseAdmin.from('customers').insert(batch);
-        if (insErr) {
-          console.error(`[Restore] Batch ${i} error:`, insErr);
-        } else {
-          inserted += batch.length;
-        }
+        if (insErr) console.error(`[Restore] Batch ${i} erro:`, insErr);
+        else inserted += batch.length;
       }
 
-      console.log(`[Restore] ${inserted}/${customers.length} clientes restaurados`);
-      return new Response(JSON.stringify({
-        success: true,
-        restored: inserted,
-        total: customers.length,
-      }), { headers: jsonHeaders });
+      return new Response(JSON.stringify({ success: true, restored: inserted, total: customers.length }), { headers: jsonHeaders });
     }
 
-    // DEFAULT: Create backup
-    const allCustomers: any[] = [];
-    let from = 0;
-    const pageSize = 1000;
-    while (true) {
-      const { data } = await supabaseAdmin
-        .from('customers')
-        .select('id, name, phone, username, server_id, plan_id, due_date, status, screens, custom_price, notes, extra_months, created_by, start_date, created_at, password')
-        .range(from, from + pageSize - 1);
-      if (!data || data.length === 0) break;
-      allCustomers.push(...data);
-      if (data.length < pageSize) break;
-      from += pageSize;
+    // ---- BACKUP ----
+    // Cron => base completa enviada ao Telegram.
+    // Usuário logado => somente os próprios clientes (admin pode pedir tudo).
+    const ownerFilter = isCron ? null : (isAdmin && body?.scope === 'all' ? null : userId);
+    const customers = await fetchAllCustomers(supabaseAdmin, ownerFilter);
+
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const fileName = `backup-clientes-${stamp}.json`;
+    const payload = JSON.stringify(
+      { generated_at: new Date().toISOString(), total: customers.length, customers },
+      null,
+      2,
+    );
+
+    const tg = await sendToTelegram(
+      fileName,
+      payload,
+      `🔐 Backup automático\n📅 ${new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}\n👥 ${customers.length} clientes`,
+    );
+
+    // Log leve (sem payload) para não pesar o banco
+    await supabaseAdmin.from('customer_backups').insert({
+      backup_data: [],
+      total_customers: customers.length,
+      backup_type: tg.ok ? 'telegram' : 'telegram_failed',
+    });
+
+    if (!tg.ok) {
+      return new Response(JSON.stringify({ error: tg.error, total_customers: customers.length }), { status: 502, headers: jsonHeaders });
     }
 
-    const { error } = await supabaseAdmin
-      .from('customer_backups')
-      .insert({
-        backup_data: allCustomers,
-        total_customers: allCustomers.length,
-        backup_type: body?.backup_type || 'auto',
-      });
-
-    if (error) {
-      console.error('[Backup] Erro ao salvar:', error);
-      return new Response(JSON.stringify({ error: error.message }), { status: 500, headers: jsonHeaders });
-    }
-
-    console.log(`[Backup] ${allCustomers.length} clientes salvos`);
-    return new Response(JSON.stringify({ 
-      success: true, 
-      total_customers: allCustomers.length,
+    console.log(`[Backup] ${customers.length} clientes enviados ao Telegram`);
+    return new Response(JSON.stringify({
+      success: true,
+      total_customers: customers.length,
+      file: fileName,
       timestamp: new Date().toISOString(),
     }), { headers: jsonHeaders });
   } catch (error: unknown) {
