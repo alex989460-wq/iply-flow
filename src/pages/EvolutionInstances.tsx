@@ -47,7 +47,7 @@ function stateBadge(state: string) {
 
 export default function EvolutionInstances() {
   const { toast } = useToast();
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
   const [loading, setLoading] = useState(true);
   const [instances, setInstances] = useState<InstanceRow[]>([]);
   const [current, setCurrent] = useState<string>('');
@@ -65,8 +65,8 @@ export default function EvolutionInstances() {
 
   // --- Servidor Evolution (permite escolher entre os servidores disponíveis) ---
   const EVO_SERVERS = [
-    { label: 'Evolution Go (Servidor 1)', url: 'https://evolution.fluyd.top' },
-    { label: 'Evolution API (Servidor 2)', url: 'https://evolutionapi.fluyd.top' },
+    { label: 'Servidor 1', url: 'https://evolution.fluyd.top' },
+    { label: 'Servidor 2', url: 'https://evolutionapi.fluyd.top' },
   ];
   const [srvUrl, setSrvUrl] = useState('');
   const [srvKey, setSrvKey] = useState('');
@@ -103,23 +103,31 @@ export default function EvolutionInstances() {
 
   const applyServer = async () => {
     if (!user?.id) return false;
-    if (!srvUrl || !srvKey) {
-      toast({ title: 'Selecione o servidor e informe a chave', variant: 'destructive' });
+    if (!srvUrl) {
+      toast({ title: 'Selecione o servidor', variant: 'destructive' });
+      return false;
+    }
+    // Resellers don't configure keys — the admin panel key is used automatically.
+    if (isAdmin && !srvKey) {
+      toast({ title: 'Informe a chave do servidor', variant: 'destructive' });
       return false;
     }
     const url = srvUrl.replace(/\/$/, '');
+    const payload = { user_id: user.id, base_url: url, is_enabled: true, ...(srvKey ? { api_key: srvKey } : {}) };
     const { error } = await supabase
       .from('evolution_settings')
-      .upsert({ user_id: user.id, base_url: url, api_key: srvKey, is_enabled: true }, { onConflict: 'user_id' });
+      .upsert(payload, { onConflict: 'user_id' });
     if (error) {
       toast({ title: 'Erro ao salvar servidor', description: error.message, variant: 'destructive' });
       return false;
     }
-    setServerKeys((prev) => {
-      const next = { ...prev, [url]: srvKey };
-      try { localStorage.setItem('evo_server_keys', JSON.stringify(next)); } catch {}
-      return next;
-    });
+    if (srvKey) {
+      setServerKeys((prev) => {
+        const next = { ...prev, [url]: srvKey };
+        try { localStorage.setItem('evo_server_keys', JSON.stringify(next)); } catch {}
+        return next;
+      });
+    }
     return true;
   };
 
@@ -503,13 +511,12 @@ export default function EvolutionInstances() {
                       {active ? <CheckCircle2 className="w-4 h-4 text-primary" /> : <Server className="w-4 h-4 text-muted-foreground" />}
                       {s.label}
                     </div>
-                    <div className="text-[11px] text-muted-foreground mt-1 break-all">{s.url}</div>
                   </button>
                 );
               })}
             </div>
 
-            {!srvKey && (
+            {isAdmin && !srvKey && (
               <div>
                 <Label className="text-xs">Chave (API Key) deste servidor</Label>
                 <Input value={srvKey} onChange={(e) => setSrvKey(e.target.value)} placeholder="chave global do servidor" type="password" />
