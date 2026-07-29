@@ -62,6 +62,50 @@ export default function EvolutionInstances() {
   const avatarFetchRef = useRef<Set<string>>(new Set());
   const [brokenAvatars, setBrokenAvatars] = useState<Set<string>>(new Set());
 
+  // --- Servidor Evolution (permite escolher entre os servidores disponíveis) ---
+  const EVO_SERVERS = [
+    { label: 'Evolution Go (Servidor 1)', url: 'https://evolution.fluyd.top' },
+    { label: 'Evolution API (Servidor 2)', url: 'https://evolutionapi.fluyd.top' },
+  ];
+  const [srvUrl, setSrvUrl] = useState('');
+  const [srvKey, setSrvKey] = useState('');
+  const [srvSaving, setSrvSaving] = useState(false);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    (async () => {
+      const { data } = await supabase
+        .from('evolution_settings')
+        .select('base_url, api_key')
+        .eq('user_id', user.id)
+        .maybeSingle();
+      setSrvUrl(String(data?.base_url || '').replace(/\/$/, ''));
+      setSrvKey(String(data?.api_key || ''));
+    })();
+  }, [user?.id]);
+
+  const saveServer = async () => {
+    if (!user?.id) return;
+    if (!srvUrl || !srvKey) {
+      toast({ title: 'Preencha o servidor e a chave', variant: 'destructive' });
+      return;
+    }
+    setSrvSaving(true);
+    const { error } = await supabase
+      .from('evolution_settings')
+      .upsert(
+        { user_id: user.id, base_url: srvUrl.replace(/\/$/, ''), api_key: srvKey, is_enabled: true },
+        { onConflict: 'user_id' },
+      );
+    setSrvSaving(false);
+    if (error) {
+      toast({ title: 'Erro ao salvar servidor', description: error.message, variant: 'destructive' });
+      return;
+    }
+    toast({ title: 'Servidor atualizado', description: 'Buscando instâncias deste servidor...' });
+    fetchInstances();
+  };
+
   const KNOWN_KEY = user?.id ? `evo_known_instances_${user.id}` : '';
 
   // Load known names from localStorage
