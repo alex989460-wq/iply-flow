@@ -334,6 +334,14 @@ serve(async (req) => {
       return new Response(JSON.stringify({ error: tg.error, total_customers: customers.length }), { status: 502, headers: jsonHeaders });
     }
 
+    if (settingsId) {
+      await supabaseAdmin.from('backup_settings')
+        .update({ last_run_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+        .eq('id', settingsId);
+    }
+
+
+
     console.log(`[Backup] ${customers.length} clientes enviados ao Telegram`);
     return new Response(JSON.stringify({
       success: true,
