@@ -113,8 +113,7 @@ export default function EvolutionInstances() {
       return false;
     }
     const url = srvUrl.replace(/\/$/, '');
-    const payload: Record<string, unknown> = { user_id: user.id, base_url: url, is_enabled: true };
-    if (srvKey) payload.api_key = srvKey;
+    const payload = { user_id: user.id, base_url: url, is_enabled: true, ...(srvKey ? { api_key: srvKey } : {}) };
     const { error } = await supabase
       .from('evolution_settings')
       .upsert(payload, { onConflict: 'user_id' });
