@@ -47,7 +47,7 @@ function stateBadge(state: string) {
 
 export default function EvolutionInstances() {
   const { toast } = useToast();
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
   const [loading, setLoading] = useState(true);
   const [instances, setInstances] = useState<InstanceRow[]>([]);
   const [current, setCurrent] = useState<string>('');
