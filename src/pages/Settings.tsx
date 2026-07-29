@@ -102,7 +102,7 @@ export default function Settings() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [showToken, setShowToken] = useState(false);
-  const [activeTab, setActiveTab] = useState('crm_oficial');
+  const [activeTab, setActiveTab] = useState('aparencia');
   
   // Zap Responder settings
   const [settings, setSettings] = useState({
@@ -661,11 +661,13 @@ export default function Settings() {
 
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="flex w-full flex-wrap gap-1 h-auto justify-start">
-            <TabsTrigger value="crm_oficial" className="flex items-center gap-2">
-              <Zap className="w-4 h-4 text-emerald-500" />
-              <span className="hidden sm:inline">CRM Oficial</span>
-              <span className="sm:hidden">CRM</span>
-            </TabsTrigger>
+            {isAdmin && (
+              <TabsTrigger value="crm_oficial" className="flex items-center gap-2">
+                <Zap className="w-4 h-4 text-emerald-500" />
+                <span className="hidden sm:inline">CRM Oficial</span>
+                <span className="sm:hidden">CRM</span>
+              </TabsTrigger>
+            )}
             <TabsTrigger value="aparencia" className="flex items-center gap-2">
               <Palette className="w-4 h-4 text-pink-500" />
               <span className="hidden sm:inline">Aparência</span>
@@ -698,9 +700,11 @@ export default function Settings() {
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="crm_oficial" className="mt-6">
-            <CrmOficialCard />
-          </TabsContent>
+          {isAdmin && (
+            <TabsContent value="crm_oficial" className="mt-6">
+              <CrmOficialCard />
+            </TabsContent>
+          )}
 
 
 
