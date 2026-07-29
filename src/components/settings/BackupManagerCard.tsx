@@ -216,8 +216,9 @@ export default function BackupManagerCard() {
                 Backups Automáticos
               </CardTitle>
               <CardDescription>
-                Backups gerados automaticamente a cada 10 minutos. Últimas 24h preservadas.
+                Backup completo enviado ao Telegram no intervalo configurado abaixo.
               </CardDescription>
+
             </div>
             <div className="flex gap-2">
               <Button variant="outline" size="sm" onClick={fetchBackups} disabled={loading}>
