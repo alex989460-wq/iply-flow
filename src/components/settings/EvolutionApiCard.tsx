@@ -11,6 +11,11 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 
+const PRESET_SERVERS = [
+  { label: 'Servidor 1 (antigo)', url: 'http://evolution.fluyd.top:4000' },
+  { label: 'Servidor 2 (novo)', url: 'https://evolutionapi.fluyd.top' },
+];
+
 export default function EvolutionApiCard() {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -165,7 +170,23 @@ export default function EvolutionApiCard() {
               value={form.base_url}
               onChange={(e) => setForm((f) => ({ ...f, base_url: e.target.value }))}
             />
+            <div className="flex flex-wrap gap-2 pt-1">
+              <span className="text-[11px] text-muted-foreground self-center">Servidores disponíveis:</span>
+              {PRESET_SERVERS.map((s) => (
+                <Button
+                  key={s.url}
+                  type="button"
+                  size="sm"
+                  variant={form.base_url.replace(/\/$/, '') === s.url ? 'default' : 'outline'}
+                  className="h-7 text-[11px]"
+                  onClick={() => setForm((f) => ({ ...f, base_url: s.url }))}
+                >
+                  {s.label}
+                </Button>
+              ))}
+            </div>
           </div>
+
           <div className="space-y-1">
             <Label>API Key global</Label>
             <div className="flex gap-2">
