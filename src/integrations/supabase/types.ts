@@ -550,6 +550,30 @@ export type Database = {
         }
         Relationships: []
       }
+      backup_settings: {
+        Row: {
+          enabled: boolean
+          id: string
+          interval_hours: number
+          last_run_at: string | null
+          updated_at: string
+        }
+        Insert: {
+          enabled?: boolean
+          id?: string
+          interval_hours?: number
+          last_run_at?: string | null
+          updated_at?: string
+        }
+        Update: {
+          enabled?: boolean
+          id?: string
+          interval_hours?: number
+          last_run_at?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       billing_logs: {
         Row: {
           billing_type: Database["public"]["Enums"]["billing_type"]
