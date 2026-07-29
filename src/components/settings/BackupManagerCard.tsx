@@ -1,13 +1,16 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { Database, RefreshCw, RotateCcw, Loader2, Clock, Users, Shield, AlertTriangle } from 'lucide-react';
+import { Database, RefreshCw, RotateCcw, Loader2, Clock, Users, Shield, AlertTriangle, Upload, Save } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
@@ -17,6 +20,8 @@ interface Backup {
   total_customers: number;
   backup_type: string;
 }
+
+const INTERVALS = [1, 2, 3, 6, 12, 24];
 
 export default function BackupManagerCard() {
   const { toast } = useToast();
@@ -28,9 +33,91 @@ export default function BackupManagerCard() {
   const [confirmText, setConfirmText] = useState('');
   const [showRestoreDialog, setShowRestoreDialog] = useState(false);
 
+  // Configuração de agendamento
+  const [settingsId, setSettingsId] = useState<string | null>(null);
+  const [enabled, setEnabled] = useState(true);
+  const [intervalHours, setIntervalHours] = useState('3');
+  const [lastRunAt, setLastRunAt] = useState<string | null>(null);
+  const [savingSettings, setSavingSettings] = useState(false);
+
+  // Importação
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [importMode, setImportMode] = useState<'merge' | 'replace'>('merge');
+  const [importing, setImporting] = useState(false);
+
   useEffect(() => {
     fetchBackups();
+    fetchSettings();
   }, []);
+
+  const fetchSettings = async () => {
+    const { data } = await supabase
+      .from('backup_settings')
+      .select('id, enabled, interval_hours, last_run_at')
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (data) {
+      setSettingsId(data.id);
+      setEnabled(data.enabled);
+      setIntervalHours(String(data.interval_hours));
+      setLastRunAt(data.last_run_at);
+    }
+  };
+
+  const saveSettings = async () => {
+    setSavingSettings(true);
+    try {
+      const payload = {
+        enabled,
+        interval_hours: Number(intervalHours),
+        updated_at: new Date().toISOString(),
+      };
+      const { error } = settingsId
+        ? await supabase.from('backup_settings').update(payload).eq('id', settingsId)
+        : await supabase.from('backup_settings').insert(payload);
+      if (error) throw error;
+      toast({ title: 'Configuração salva', description: `Backup automático a cada ${intervalHours}h.` });
+      fetchSettings();
+    } catch (err: any) {
+      toast({ title: 'Erro', description: err.message, variant: 'destructive' });
+    } finally {
+      setSavingSettings(false);
+    }
+  };
+
+  const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+
+    setImporting(true);
+    try {
+      const text = await file.text();
+      const parsed = JSON.parse(text);
+      const customers = Array.isArray(parsed) ? parsed : parsed?.customers;
+      if (!Array.isArray(customers) || customers.length === 0) {
+        throw new Error('Arquivo inválido: nenhum cliente encontrado.');
+      }
+
+      const { data, error } = await supabase.functions.invoke('auto-backup', {
+        body: { action: 'import', customers, mode: importMode },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+
+      toast({
+        title: 'Importação concluída!',
+        description: `${data?.imported || 0} de ${data?.total || customers.length} clientes importados.`,
+      });
+      fetchBackups();
+    } catch (err: any) {
+      toast({ title: 'Erro na importação', description: err.message, variant: 'destructive' });
+    } finally {
+      setImporting(false);
+    }
+  };
+
 
   const fetchBackups = async () => {
     setLoading(true);
