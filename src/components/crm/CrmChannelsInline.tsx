@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Loader2, RefreshCw, Star, ExternalLink, Plus, Zap } from 'lucide-react';
+import { Loader2, RefreshCw, Star, ExternalLink, Plus, Zap, Settings } from 'lucide-react';
 import { MetaLogo } from '@/components/ui/meta-logo';
 import whatsappLogo from '@/assets/whatsapp-logo.png.asset.json';
 import { useAuth } from '@/contexts/AuthContext';
