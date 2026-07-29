@@ -38,6 +38,34 @@ export default function Auth() {
   const navigate = useNavigate();
   const { toast } = useToast();
 
+  const provisionCrmOficial = async (userId: string | undefined, options?: { silent?: boolean }) => {
+    if (!userId) return false;
+    try {
+      const { data, error } = await supabase.functions.invoke('crm-oficial-sync', {
+        body: { action: 'signup', data: { email, password, full_name: fullName || email.split('@')[0], local_user_id: userId } },
+      });
+      if (error) throw error;
+      const apiKeyOk = data?.results?.api_key?.ok === true;
+      const saved = data?.results?.api_key?.saved === true;
+      if (!apiKeyOk || !saved) {
+        const details = data?.results?.api_key?.body?.error || data?.results?.api_key?.save_error || data?.error || 'Não foi possível gerar a chave automática.';
+        if (!options?.silent) {
+          toast({ title: 'ZapCRM não conectou automaticamente', description: String(details), variant: 'destructive' });
+        }
+        return false;
+      }
+      if (!options?.silent) {
+        toast({ title: 'ZapCRM conectado', description: 'Conta e chave de API criadas automaticamente.' });
+      }
+      return true;
+    } catch (e: any) {
+      if (!options?.silent) {
+        toast({ title: 'ZapCRM não conectou automaticamente', description: e?.message || 'Tente novamente.', variant: 'destructive' });
+      }
+      return false;
+    }
+  };
+
   // Show access denied reason from context if exists
   useEffect(() => {
     if (accessDeniedReason) {
@@ -97,6 +125,17 @@ export default function Auth() {
             variant: 'destructive',
           });
         } else {
+          const { data: { user: currentUser } } = await supabase.auth.getUser();
+          if (currentUser) {
+            const { data: crmSettings } = await supabase
+              .from('crm_oficial_settings')
+              .select('api_key')
+              .eq('user_id', currentUser.id)
+              .maybeSingle();
+            if (!crmSettings?.api_key) {
+              await provisionCrmOficial(currentUser.id, { silent: true });
+            }
+          }
           toast({
             title: 'Bem-vindo!',
             description: 'Login realizado com sucesso.',
@@ -104,7 +143,7 @@ export default function Auth() {
           navigate('/dashboard');
         }
       } else {
-        const { error } = await signUp(email, password, fullName);
+        const { error, userId } = await signUp(email, password, fullName);
         if (error) {
           toast({
             title: 'Erro ao criar conta',
@@ -114,21 +153,7 @@ export default function Auth() {
             variant: 'destructive',
           });
         } else {
-          // Provisiona automaticamente a conta no ZapCRM + cria a linha de
-          // configurações do CRM Oficial para o novo usuário (não bloqueante).
-          try {
-            await supabase.functions.invoke('crm-oficial-sync', {
-              body: { action: 'signup', data: { email, password, full_name: fullName } },
-            });
-            const { data: { user: newUser } } = await supabase.auth.getUser();
-            if (newUser) {
-              await supabase
-                .from('crm_oficial_settings')
-                .upsert({ user_id: newUser.id, enabled: false }, { onConflict: 'user_id' });
-            }
-          } catch (e) {
-            console.error('CRM Oficial provisioning failed (ignored):', e);
-          }
+          await provisionCrmOficial(userId);
           toast({
             title: 'Conta criada!',
             description: 'Você tem 7 dias de teste. Após isso, precisará de ativação.',

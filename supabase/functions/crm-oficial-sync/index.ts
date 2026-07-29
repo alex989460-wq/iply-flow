@@ -151,6 +151,84 @@ async function crmRest(path: string, accessToken: string, init: RequestInit = {}
   return body;
 }
 
+function randomApiToken() {
+  const bytes = new Uint8Array(32);
+  crypto.getRandomValues(bytes);
+  let bin = "";
+  for (const byte of bytes) bin += String.fromCharCode(byte);
+  return `zc_${btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "")}`;
+}
+
+async function sha256Hex(value: string) {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
+  return Array.from(new Uint8Array(digest)).map((byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+async function createCrmSession(email: string, password: string) {
+  const response = await fetch(`${CRM_SUPABASE_URL}/auth/v1/token?grant_type=password`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", apikey: CRM_SUPABASE_ANON_KEY },
+    body: JSON.stringify({ email, password }),
+  });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok || !body?.access_token || !body?.user?.id) {
+    return { ok: false, status: response.status, body };
+  }
+  return { ok: true, status: response.status, body, accessToken: String(body.access_token), ownerId: String(body.user.id) };
+}
+
+async function createCrmIntegrationKey(email: string, password: string) {
+  const session = await createCrmSession(email, password);
+  if (!session.ok || !session.accessToken || !session.ownerId) return session;
+
+  const rawToken = randomApiToken();
+  const tokenHash = await sha256Hex(rawToken);
+  const response = await fetch(`${CRM_SUPABASE_URL}/rest/v1/integration_api_keys?select=id,name,token_prefix,scopes`, {
+    method: "POST",
+    headers: {
+      apikey: CRM_SUPABASE_ANON_KEY,
+      Authorization: `Bearer ${session.accessToken}`,
+      "Content-Type": "application/json",
+      Prefer: "return=representation",
+    },
+    body: JSON.stringify({
+      owner_id: session.ownerId,
+      name: "SuperGestor",
+      token_hash: tokenHash,
+      token_prefix: rawToken.slice(0, 6),
+    }),
+  });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) return { ok: false, status: response.status, body };
+  return { ok: true, status: response.status, body, apiKey: rawToken };
+}
+
+async function getAuthorizedLocalUserId(req: Request, requestedUserId?: string) {
+  const userId = String(requestedUserId || "").trim();
+  if (!userId) return "";
+  const authHeader = req.headers.get("Authorization") || "";
+  const jwt = authHeader.replace(/^Bearer\s+/i, "").trim();
+  const supaUrl = Deno.env.get("SUPABASE_URL") || "";
+  const svc = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+  if (!jwt || !supaUrl || !svc) return "";
+  if (jwt === svc) return userId;
+  const authed = createClient(supaUrl, svc);
+  const { data } = await authed.auth.getUser(jwt);
+  return data?.user?.id === userId ? userId : "";
+}
+
+async function persistLocalCrmKey(userId: string, apiKey: string) {
+  const supaUrl = Deno.env.get("SUPABASE_URL") || "";
+  const svc = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+  if (!supaUrl || !svc || !userId || !apiKey) return { ok: false, error: "backend indisponível" };
+  const admin = createClient(supaUrl, svc);
+  const { error } = await admin
+    .from("crm_oficial_settings")
+    .upsert({ user_id: userId, api_key: apiKey, enabled: true, updated_at: new Date().toISOString() }, { onConflict: "user_id" });
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
+}
+
 async function directMetaMediaSend(args: {
   apiKey?: string;
   phone: string;
@@ -1298,9 +1376,24 @@ Deno.serve(async (req) => {
 
 
     if (action === "signup") {
-      const { email, password, full_name } = data as { email: string; password: string; full_name?: string };
+      const { email, password, full_name, local_user_id } = data as { email: string; password: string; full_name?: string; local_user_id?: string };
       if (!email || !password) throw new Error("email e password são obrigatórios");
       results.signup = await doSignup({ email, password, full_name }, apiKey);
+
+      // Cria automaticamente a chave de API do ZapCRM e salva no gestor para o usuário local.
+      // Se a conta já existir no ZapCRM, o login com a mesma senha ainda permite gerar a chave.
+      const createdKey = await createCrmIntegrationKey(email, password);
+      results.api_key = createdKey.ok
+        ? { ok: true, status: createdKey.status, saved: false }
+        : { ok: false, status: createdKey.status, body: createdKey.body };
+
+      if (createdKey.ok && createdKey.apiKey) {
+        const authorizedUserId = await getAuthorizedLocalUserId(req, local_user_id);
+        if (authorizedUserId) {
+          const saved = await persistLocalCrmKey(authorizedUserId, createdKey.apiKey);
+          results.api_key = { ok: true, status: createdKey.status, saved: saved.ok, save_error: saved.ok ? undefined : saved.error };
+        }
+      }
     }
 
     if (action === "test-chat") {
