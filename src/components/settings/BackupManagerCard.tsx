@@ -232,7 +232,82 @@ export default function BackupManagerCard() {
             </div>
           </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
+          {/* Agendamento */}
+          <div className="rounded-lg border border-border p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <Label className="text-sm font-medium">Backup automático</Label>
+                <p className="text-xs text-muted-foreground">
+                  {lastRunAt
+                    ? `Último envio: ${format(new Date(lastRunAt), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}`
+                    : 'Nenhum envio automático registrado ainda'}
+                </p>
+              </div>
+              <Switch checked={enabled} onCheckedChange={setEnabled} />
+            </div>
+            <div className="flex flex-wrap items-end gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs">Gerar a cada</Label>
+                <Select value={intervalHours} onValueChange={setIntervalHours}>
+                  <SelectTrigger className="w-36">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {INTERVALS.map((h) => (
+                      <SelectItem key={h} value={String(h)}>{h} hora{h > 1 ? 's' : ''}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <Button size="sm" onClick={saveSettings} disabled={savingSettings}>
+                {savingSettings ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Save className="w-4 h-4 mr-1" />}
+                Salvar
+              </Button>
+            </div>
+          </div>
+
+          {/* Importar backup */}
+          <div className="rounded-lg border border-border p-4 space-y-3">
+            <div>
+              <Label className="text-sm font-medium">Importar backup (.json)</Label>
+              <p className="text-xs text-muted-foreground">
+                Envie o arquivo recebido no Telegram para restaurar os clientes.
+              </p>
+            </div>
+            <div className="flex flex-wrap items-end gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs">Modo</Label>
+                <Select value={importMode} onValueChange={(v) => setImportMode(v as 'merge' | 'replace')}>
+                  <SelectTrigger className="w-52">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="merge">Mesclar (atualiza/adiciona)</SelectItem>
+                    <SelectItem value="replace">Substituir tudo</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="application/json,.json"
+                className="hidden"
+                onChange={handleImportFile}
+              />
+              <Button size="sm" variant="outline" onClick={() => fileInputRef.current?.click()} disabled={importing}>
+                {importing ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Upload className="w-4 h-4 mr-1" />}
+                Escolher arquivo
+              </Button>
+            </div>
+            {importMode === 'replace' && (
+              <p className="text-xs text-amber-500 flex items-center gap-1">
+                <AlertTriangle className="w-3 h-3" /> Apaga todos os clientes atuais antes de importar (um backup de segurança é criado).
+              </p>
+            )}
+          </div>
+
+
           {loading ? (
             <div className="flex items-center justify-center py-8">
               <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
