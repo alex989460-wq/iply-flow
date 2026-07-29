@@ -28,35 +28,61 @@ async function fetchAllCustomers(admin: any, ownerId: string | null) {
 
 async function sendToTelegram(fileName: string, content: string, caption: string) {
   const token = Deno.env.get('TELEGRAM_BOT_TOKEN');
-  const chatId = Deno.env.get('TELEGRAM_CHAT_ID');
-  if (!token || !chatId) {
+  const rawChatId = (Deno.env.get('TELEGRAM_CHAT_ID') || '').trim();
+  if (!token || !rawChatId) {
     return { ok: false, error: 'TELEGRAM_BOT_TOKEN/TELEGRAM_CHAT_ID não configurados' };
   }
 
-  const form = new FormData();
-  form.append('chat_id', chatId);
-  form.append('caption', caption);
-  form.append(
-    'document',
-    new Blob([content], { type: 'application/json' }),
-    fileName,
-  );
-
-  const res = await fetch(`https://api.telegram.org/bot${token}/sendDocument`, {
-    method: 'POST',
-    body: form,
-  });
-  const body = await res.text();
-  if (!res.ok) {
-    console.error(`[Backup] Telegram falhou [${res.status}]: ${body}`);
-    return { ok: false, error: `Telegram ${res.status}: ${body}` };
+  // Suporta "chatId:threadId" para tópicos de grupo (ex.: -1001234567890:12)
+  let baseId = rawChatId;
+  let threadId: string | null = null;
+  const parts = rawChatId.split(':');
+  if (parts.length === 2 && /^-?\d+$/.test(parts[0]) && /^\d+$/.test(parts[1])) {
+    baseId = parts[0];
+    threadId = parts[1];
   }
-  try {
-    const parsed = JSON.parse(body);
-    if (parsed?.ok === false) return { ok: false, error: parsed?.description || 'Telegram error' };
-  } catch { /* ignore */ }
-  return { ok: true };
+
+  // Variações: como informado, com "-" (grupo antigo) e com "-100" (supergrupo/canal)
+  const candidates: string[] = [baseId];
+  if (/^\d+$/.test(baseId)) {
+    candidates.push(`-${baseId}`, `-100${baseId}`);
+  } else if (/^-\d+$/.test(baseId) && !baseId.startsWith('-100')) {
+    candidates.push(`-100${baseId.slice(1)}`);
+  }
+
+  let lastError = '';
+  for (const chatId of candidates) {
+    const form = new FormData();
+    form.append('chat_id', chatId);
+    form.append('caption', caption);
+    if (threadId) form.append('message_thread_id', threadId);
+    form.append('document', new Blob([content], { type: 'application/json' }), fileName);
+
+    const res = await fetch(`https://api.telegram.org/bot${token}/sendDocument`, {
+      method: 'POST',
+      body: form,
+    });
+    const body = await res.text();
+
+    let parsed: any = null;
+    try { parsed = JSON.parse(body); } catch { /* ignore */ }
+
+    if (res.ok && parsed?.ok !== false) {
+      if (chatId !== rawChatId) console.log(`[Backup] Telegram enviado usando chat_id ajustado: ${chatId}`);
+      return { ok: true };
+    }
+
+    lastError = `Telegram ${res.status}: ${parsed?.description || body}`;
+    console.error(`[Backup] Falha com chat_id ${chatId} -> ${lastError}`);
+
+    // Só vale tentar outra variação quando o chat não foi encontrado
+    const desc = String(parsed?.description || '').toLowerCase();
+    if (!desc.includes('chat not found')) break;
+  }
+
+  return { ok: false, error: lastError };
 }
+
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
