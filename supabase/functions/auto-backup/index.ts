@@ -139,6 +139,30 @@ serve(async (req) => {
       isAdmin = adminCheck === true;
     }
 
+    // ---- DIAGNÓSTICO TELEGRAM (cron/admin) ----
+    if (body?.action === 'telegram_diag') {
+      if (!isCron && !isAdmin) {
+        return new Response(JSON.stringify({ error: 'Sem permissão' }), { status: 403, headers: jsonHeaders });
+      }
+      const token = Deno.env.get('TELEGRAM_BOT_TOKEN') || '';
+      const configured = (Deno.env.get('TELEGRAM_CHAT_ID') || '').trim();
+      const meRes = await fetch(`https://api.telegram.org/bot${token}/getMe`);
+      const me = await meRes.json();
+      const upRes = await fetch(`https://api.telegram.org/bot${token}/getUpdates`);
+      const up = await upRes.json();
+      const chats = (up?.result || []).map((u: any) => {
+        const m = u.message || u.channel_post || u.my_chat_member || u.edited_message;
+        return m?.chat ? { id: m.chat.id, type: m.chat.type, title: m.chat.title || m.chat.username } : null;
+      }).filter(Boolean);
+      return new Response(JSON.stringify({
+        bot: me?.result?.username || null,
+        configured_chat_id: configured,
+        chats_visiveis: chats,
+        updates_ok: up?.ok,
+      }), { headers: jsonHeaders });
+    }
+
+
     // ---- RESTORE (admin only) ----
     if (body?.action === 'restore' && body?.backup_id) {
       if (!isAdmin) {
