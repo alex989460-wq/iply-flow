@@ -700,9 +700,11 @@ export default function Settings() {
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="crm_oficial" className="mt-6">
-            <CrmOficialCard />
-          </TabsContent>
+          {isAdmin && (
+            <TabsContent value="crm_oficial" className="mt-6">
+              <CrmOficialCard />
+            </TabsContent>
+          )}
 
 
 
