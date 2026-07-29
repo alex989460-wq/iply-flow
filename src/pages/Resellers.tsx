@@ -543,8 +543,10 @@ export default function Resellers() {
     { key: 'ativos', label: 'Acessos ativos', value: activeCount, icon: CheckCircle, tone: 'text-success', ring: 'bg-success/10', filter: 'ativos' as const },
     { key: 'expirando', label: 'Vencendo em 7 dias', value: expiringSoonCount, icon: Clock, tone: 'text-warning', ring: 'bg-warning/10', filter: 'expirando' as const },
     { key: 'inativos', label: 'Expirados / inativos', value: expiredCount, icon: Ban, tone: 'text-destructive', ring: 'bg-destructive/10', filter: 'inativos' as const },
+    { key: 'clientes', label: 'Clientes na rede', value: totalCustomersAll, icon: Users2, tone: 'text-primary', ring: 'bg-primary/10', filter: 'todos' as const },
     { key: 'creditos', label: 'Créditos em circulação', value: totalCredits, icon: Coins, tone: 'text-primary', ring: 'bg-primary/10', filter: 'todos' as const },
   ];
+
 
   const filterTabs: Array<{ id: typeof statusFilter; label: string; count: number }> = [
     { id: 'todos', label: 'Todos', count: resellers?.length || 0 },
