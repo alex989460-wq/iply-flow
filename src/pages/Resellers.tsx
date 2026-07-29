@@ -14,7 +14,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { format, addDays, isPast, differenceInDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Users, RefreshCw, Search, Calendar, Ban, CheckCircle, Clock, Pencil, Eye, EyeOff, UserPlus, Coins, Plus, Smartphone, Trash2 } from "lucide-react";
+import { Users, RefreshCw, Search, Calendar, Ban, CheckCircle, Clock, Pencil, Eye, EyeOff, UserPlus, Coins, Plus, Smartphone, Trash2, Network, Users2 } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Navigate } from "react-router-dom";
 import { z } from "zod";
@@ -110,6 +110,16 @@ export default function Resellers() {
     },
     enabled: !isAdmin,
   });
+
+  const { data: customerCounts } = useQuery({
+    queryKey: ['reseller-customer-counts'],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any).rpc('get_reseller_customer_counts');
+      if (error) throw error;
+      return (data || []) as Array<{ owner_id: string; total_customers: number; active_customers: number }>;
+    },
+  });
+
 
 
   const renewMutation = useMutation({
@@ -486,6 +496,40 @@ export default function Resellers() {
     return p ? (p.full_name || p.email) : '—';
   };
 
+  // ---- Contagem de clientes (próprios + árvore de sub-revendas) ----
+  const countsByOwner = new Map<string, { total: number; active: number }>();
+  (customerCounts || []).forEach(c =>
+    countsByOwner.set(c.owner_id, { total: Number(c.total_customers) || 0, active: Number(c.active_customers) || 0 })
+  );
+
+  const childrenByParent = new Map<string, string[]>();
+  (resellers || []).forEach(r => {
+    if (!r.parent_reseller_id) return;
+    const list = childrenByParent.get(r.parent_reseller_id) || [];
+    list.push(r.user_id);
+    childrenByParent.set(r.parent_reseller_id, list);
+  });
+
+  const getTreeStats = (userId: string, seen = new Set<string>()): { total: number; active: number; subs: number } => {
+    if (seen.has(userId)) return { total: 0, active: 0, subs: 0 };
+    seen.add(userId);
+    const own = countsByOwner.get(userId) || { total: 0, active: 0 };
+    let total = own.total;
+    let active = own.active;
+    let subs = 0;
+    for (const child of childrenByParent.get(userId) || []) {
+      const s = getTreeStats(child, seen);
+      total += s.total;
+      active += s.active;
+      subs += 1 + s.subs;
+    }
+    return { total, active, subs };
+  };
+
+  const totalCustomersAll = (customerCounts || []).reduce((s, c) => s + (Number(c.total_customers) || 0), 0);
+
+
+
   const activeCount = resellers?.filter(r => r.is_active && !isPast(new Date(r.access_expires_at))).length || 0;
   const expiredCount = resellers?.filter(r => !r.is_active || isPast(new Date(r.access_expires_at))).length || 0;
   const expiringSoonCount = resellers?.filter(r => {
@@ -499,8 +543,10 @@ export default function Resellers() {
     { key: 'ativos', label: 'Acessos ativos', value: activeCount, icon: CheckCircle, tone: 'text-success', ring: 'bg-success/10', filter: 'ativos' as const },
     { key: 'expirando', label: 'Vencendo em 7 dias', value: expiringSoonCount, icon: Clock, tone: 'text-warning', ring: 'bg-warning/10', filter: 'expirando' as const },
     { key: 'inativos', label: 'Expirados / inativos', value: expiredCount, icon: Ban, tone: 'text-destructive', ring: 'bg-destructive/10', filter: 'inativos' as const },
+    { key: 'clientes', label: 'Clientes na rede', value: totalCustomersAll, icon: Users2, tone: 'text-primary', ring: 'bg-primary/10', filter: 'todos' as const },
     { key: 'creditos', label: 'Créditos em circulação', value: totalCredits, icon: Coins, tone: 'text-primary', ring: 'bg-primary/10', filter: 'todos' as const },
   ];
+
 
   const filterTabs: Array<{ id: typeof statusFilter; label: string; count: number }> = [
     { id: 'todos', label: 'Todos', count: resellers?.length || 0 },
@@ -556,7 +602,7 @@ export default function Resellers() {
         </div>
 
         {/* Stats Cards */}
-        <div className="grid gap-3 grid-cols-2 lg:grid-cols-5 stagger-children">
+        <div className="grid gap-3 grid-cols-2 lg:grid-cols-6 stagger-children">
           {statCards.map((s) => (
             <button
               key={s.key}
@@ -677,7 +723,37 @@ export default function Resellers() {
                         </Badge>
                       </div>
 
+                      {(() => {
+                        const own = countsByOwner.get(reseller.user_id) || { total: 0, active: 0 };
+                        const tree = getTreeStats(reseller.user_id);
+                        return (
+                          <div className="flex items-center gap-2 pl-2">
+                            <div className="flex-1 rounded-lg border border-primary/20 bg-primary/5 px-2.5 py-1.5">
+                              <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Clientes próprios</p>
+                              <p className="text-sm font-bold tabular-nums text-primary">
+                                {own.total}
+                                <span className="ml-1 text-[10px] font-medium text-muted-foreground">
+                                  ({own.active} ativos)
+                                </span>
+                              </p>
+                            </div>
+                            <div className="flex-1 rounded-lg border border-border/60 bg-muted/50 px-2.5 py-1.5">
+                              <p className="flex items-center gap-1 text-[10px] uppercase tracking-wide text-muted-foreground">
+                                <Network className="h-3 w-3" /> Árvore
+                              </p>
+                              <p className="text-sm font-bold tabular-nums">
+                                {tree.total}
+                                <span className="ml-1 text-[10px] font-medium text-muted-foreground">
+                                  ({tree.subs} sub{tree.subs === 1 ? '' : 's'})
+                                </span>
+                              </p>
+                            </div>
+                          </div>
+                        );
+                      })()}
+
                       <div className="grid grid-cols-2 gap-2 pl-2 text-xs">
+
                         <div className="rounded-lg bg-muted/50 px-2.5 py-1.5">
                           <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Créditos</p>
                           <p className="font-semibold tabular-nums">{reseller.credits}</p>

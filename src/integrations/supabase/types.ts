@@ -2757,6 +2757,14 @@ export type Database = {
       get_dashboard_stats_optimized: { Args: never; Returns: Json }
       get_monthly_revenue: { Args: never; Returns: Json }
       get_plan_distribution: { Args: never; Returns: Json }
+      get_reseller_customer_counts: {
+        Args: never
+        Returns: {
+          active_customers: number
+          owner_id: string
+          total_customers: number
+        }[]
+      }
       get_server_distribution: { Args: never; Returns: Json }
       has_role: {
         Args: {
