@@ -65,8 +65,8 @@ export default function EvolutionInstances() {
 
   // --- Servidor Evolution (permite escolher entre os servidores disponíveis) ---
   const EVO_SERVERS = [
-    { label: 'Evolution Go (Servidor 1)', url: 'https://evolution.fluyd.top' },
-    { label: 'Evolution API (Servidor 2)', url: 'https://evolutionapi.fluyd.top' },
+    { label: 'Servidor 1', url: 'https://evolution.fluyd.top' },
+    { label: 'Servidor 2', url: 'https://evolutionapi.fluyd.top' },
   ];
   const [srvUrl, setSrvUrl] = useState('');
   const [srvKey, setSrvKey] = useState('');
