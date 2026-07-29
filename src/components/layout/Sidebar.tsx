@@ -71,6 +71,7 @@ const menuItems: Array<{
 
   { icon: ScrollText, label: 'Logs de Mensagens', path: '/message-logs', adminOnly: true },
   { icon: UserCog, label: 'Revendas', path: '/resellers', adminOnly: false },
+  { icon: GraduationCap, label: 'Tutoriais', path: '/tutoriais', adminOnly: false },
   { icon: Cog, label: 'Configurações', path: '/settings', adminOnly: false },
 ];
 
