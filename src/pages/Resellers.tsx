@@ -602,7 +602,7 @@ export default function Resellers() {
         </div>
 
         {/* Stats Cards */}
-        <div className="grid gap-3 grid-cols-2 lg:grid-cols-5 stagger-children">
+        <div className="grid gap-3 grid-cols-2 lg:grid-cols-6 stagger-children">
           {statCards.map((s) => (
             <button
               key={s.key}
