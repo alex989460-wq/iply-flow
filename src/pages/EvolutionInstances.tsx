@@ -780,15 +780,38 @@ export default function EvolutionInstances() {
                 </div>
               ))}
               {advanced.rejectCall && (
-                <div className="space-y-1">
+                <div className="space-y-2 p-3 rounded-lg border border-border/60 bg-muted/20">
                   <Label className="text-xs">Mensagem ao rejeitar chamada (opcional)</Label>
                   <Input
                     placeholder="Ex: No momento não atendo chamadas, envie uma mensagem."
                     value={advanced.msgCall}
                     onChange={(e) => setAdvanced((a) => ({ ...a, msgCall: e.target.value }))}
                   />
+                  <div className="flex flex-wrap gap-1.5">
+                    {[
+                      'Olá! No momento não atendo chamadas. Me envie uma mensagem que eu respondo por aqui. 😊',
+                      'Chamadas estão desativadas neste número. Por favor, escreva sua dúvida por mensagem.',
+                      'Não consigo atender ligações. Envie sua mensagem com nome e usuário que já te ajudo!',
+                    ].map((tpl, i) => (
+                      <button
+                        key={i}
+                        type="button"
+                        onClick={() => setAdvanced((a) => ({ ...a, msgCall: tpl }))}
+                        className="text-[11px] px-2 py-1 rounded-full border border-border/60 hover:bg-muted transition"
+                      >
+                        Modelo {i + 1}
+                      </button>
+                    ))}
+                  </div>
+                  {advanced.msgCall.trim() && (
+                    <div className="rounded-lg bg-emerald-500/10 border border-emerald-500/30 p-2.5">
+                      <p className="text-[10px] uppercase tracking-wide text-muted-foreground mb-1">Prévia</p>
+                      <p className="text-xs whitespace-pre-wrap">{advanced.msgCall}</p>
+                    </div>
+                  )}
                 </div>
               )}
+
             </div>
 
             <div className="space-y-3">
