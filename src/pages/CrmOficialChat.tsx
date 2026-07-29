@@ -11,11 +11,14 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import PendingManualRenewalsFloat from "@/components/PendingManualRenewalsFloat";
 
 const CRM_BASE = "https://zapcrm.top";
-let cachedCrmApiKey: string | null = null;
+// Cache é sempre atrelado ao usuário logado para nunca reaproveitar
+// a chave (e portanto o inbox) de outra revenda na mesma aba.
+let cachedCrm: { userId: string; apiKey: string } | null = null;
 
 export default function CrmOficialChat({ embed = false, active = true }: { embed?: boolean; active?: boolean } = {}) {
-  const [apiKey, setApiKey] = useState<string | null>(cachedCrmApiKey);
-  const [loading, setLoading] = useState(!cachedCrmApiKey);
+  const [userId, setUserId] = useState<string | null>(null);
+  const [apiKey, setApiKey] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
   const isMobile = useIsMobile();
   const [panelOpen, setPanelOpen] = useState(false);
   const iframeRef = useRef<HTMLIFrameElement>(null);
@@ -23,21 +26,56 @@ export default function CrmOficialChat({ embed = false, active = true }: { embed
 
 
   useEffect(() => {
+    let cancelled = false;
     (async () => {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) { setLoading(false); return; }
+      if (cancelled) return;
+      if (!user) {
+        cachedCrm = null;
+        setUserId(null);
+        setApiKey(null);
+        setLoading(false);
+        return;
+      }
+      setUserId(user.id);
+      if (cachedCrm?.userId === user.id) {
+        setApiKey(cachedCrm.apiKey);
+        setLoading(false);
+        return;
+      }
+      // Usuário diferente do cache: descarta a chave anterior imediatamente.
+      cachedCrm = null;
+      setApiKey(null);
+      iframeLoadedUrlRef.current = null;
       const { data } = await supabase
         .from("crm_oficial_settings")
         .select("api_key")
         .eq("user_id", user.id)
         .maybeSingle();
+      if (cancelled) return;
       if (data?.api_key) {
-        cachedCrmApiKey = data.api_key;
+        cachedCrm = { userId: user.id, apiKey: data.api_key };
         setApiKey(data.api_key);
       }
       setLoading(false);
     })();
+    return () => { cancelled = true; };
   }, []);
+
+  // Limpa o cache/iframe quando a sessão muda (logout ou troca de conta).
+  useEffect(() => {
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+      const nextId = session?.user?.id ?? null;
+      if (nextId !== userId) {
+        cachedCrm = null;
+        iframeLoadedUrlRef.current = null;
+        if (iframeRef.current) iframeRef.current.src = "about:blank";
+        setApiKey(null);
+        setUserId(nextId);
+      }
+    });
+    return () => sub.subscription.unsubscribe();
+  }, [userId]);
 
   // Inject only once per mounted iframe; after ZapCRM opens a chat internally,
   // never force src back to /embed/inbox on normal React re-renders.
@@ -48,6 +86,7 @@ export default function CrmOficialChat({ embed = false, active = true }: { embed
     iframeRef.current.src = url;
     iframeLoadedUrlRef.current = url;
   }, [apiKey]);
+
 
   // Lock body scroll and disable overscroll to prevent flicker when scrolling inside iframe.
   useEffect(() => {
