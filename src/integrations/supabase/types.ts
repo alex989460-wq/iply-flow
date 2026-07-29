@@ -2494,6 +2494,54 @@ export type Database = {
           },
         ]
       }
+      tutorials: {
+        Row: {
+          category: string
+          created_at: string
+          created_by: string | null
+          description: string | null
+          duration_seconds: number | null
+          id: string
+          is_published: boolean
+          sort_order: number
+          steps: Json
+          thumbnail_url: string | null
+          title: string
+          updated_at: string
+          video_url: string | null
+        }
+        Insert: {
+          category?: string
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          duration_seconds?: number | null
+          id?: string
+          is_published?: boolean
+          sort_order?: number
+          steps?: Json
+          thumbnail_url?: string | null
+          title: string
+          updated_at?: string
+          video_url?: string | null
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          duration_seconds?: number | null
+          id?: string
+          is_published?: boolean
+          sort_order?: number
+          steps?: Json
+          thumbnail_url?: string | null
+          title?: string
+          updated_at?: string
+          video_url?: string | null
+        }
+        Relationships: []
+      }
       user_evolution_instances: {
         Row: {
           advanced_settings: Json
