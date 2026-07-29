@@ -224,11 +224,90 @@ serve(async (req) => {
       return new Response(JSON.stringify({ success: true, restored: inserted, total: customers.length }), { headers: jsonHeaders });
     }
 
+    // ---- IMPORTAR BACKUP (arquivo JSON, admin only) ----
+    if (body?.action === 'import' && Array.isArray(body?.customers)) {
+      if (!isAdmin) {
+        return new Response(JSON.stringify({ error: 'Apenas administradores podem importar' }), { status: 403, headers: jsonHeaders });
+      }
+
+      const incoming = body.customers as any[];
+      if (incoming.length === 0) {
+        return new Response(JSON.stringify({ error: 'Arquivo sem clientes' }), { status: 400, headers: jsonHeaders });
+      }
+
+      const mode = body?.mode === 'replace' ? 'replace' : 'merge';
+
+      // Snapshot de segurança antes de qualquer alteração
+      const before = await fetchAllCustomers(supabaseAdmin, null);
+      await supabaseAdmin.from('customer_backups').insert({
+        backup_data: before,
+        total_customers: before.length,
+        backup_type: 'pre_import',
+      });
+
+      if (mode === 'replace') {
+        const ids = before.map((c: any) => c.id);
+        for (let i = 0; i < ids.length; i += 500) {
+          await supabaseAdmin.from('customers').delete().in('id', ids.slice(i, i + 500));
+        }
+      }
+
+      let saved = 0;
+      const errors: string[] = [];
+      for (let i = 0; i < incoming.length; i += 100) {
+        const batch = incoming.slice(i, i + 100).map((c: any) => ({
+          id: c.id,
+          name: c.name,
+          phone: c.phone,
+          username: c.username || null,
+          server_id: c.server_id || null,
+          plan_id: c.plan_id || null,
+          due_date: c.due_date,
+          status: c.status || 'ativa',
+          screens: c.screens || 1,
+          custom_price: c.custom_price ?? null,
+          notes: c.notes || null,
+          extra_months: c.extra_months || 0,
+          created_by: c.created_by || null,
+          start_date: c.start_date || c.due_date,
+          created_at: c.created_at || new Date().toISOString(),
+        })).filter((c: any) => c.id && c.name && c.due_date);
+
+        const { error: upErr } = await supabaseAdmin.from('customers').upsert(batch, { onConflict: 'id' });
+        if (upErr) errors.push(upErr.message);
+        else saved += batch.length;
+      }
+
+      return new Response(JSON.stringify({ success: true, imported: saved, total: incoming.length, mode, errors: errors.slice(0, 3) }), { headers: jsonHeaders });
+    }
+
     // ---- BACKUP ----
-    // Cron => base completa enviada ao Telegram.
+    // Cron => respeita o intervalo configurado e envia a base completa ao Telegram.
     // Usuário logado => somente os próprios clientes (admin pode pedir tudo).
+    let settingsId: string | null = null;
+    if (isCron) {
+      const { data: cfg } = await supabaseAdmin
+        .from('backup_settings')
+        .select('id, enabled, interval_hours, last_run_at')
+        .order('updated_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (cfg) {
+        settingsId = cfg.id;
+        if (!cfg.enabled) {
+          return new Response(JSON.stringify({ skipped: true, reason: 'disabled' }), { headers: jsonHeaders });
+        }
+        const intervalMs = Math.max(1, cfg.interval_hours || 3) * 3600_000;
+        if (cfg.last_run_at && Date.now() - new Date(cfg.last_run_at).getTime() < intervalMs - 60_000) {
+          return new Response(JSON.stringify({ skipped: true, reason: 'interval_not_reached' }), { headers: jsonHeaders });
+        }
+      }
+    }
+
     const ownerFilter = isCron ? null : (isAdmin && body?.scope === 'all' ? null : userId);
     const customers = await fetchAllCustomers(supabaseAdmin, ownerFilter);
+
 
     const stamp = new Date().toISOString().replace(/[:.]/g, '-');
     const fileName = `backup-clientes-${stamp}.json`;
@@ -254,6 +333,14 @@ serve(async (req) => {
     if (!tg.ok) {
       return new Response(JSON.stringify({ error: tg.error, total_customers: customers.length }), { status: 502, headers: jsonHeaders });
     }
+
+    if (settingsId) {
+      await supabaseAdmin.from('backup_settings')
+        .update({ last_run_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+        .eq('id', settingsId);
+    }
+
+
 
     console.log(`[Backup] ${customers.length} clientes enviados ao Telegram`);
     return new Response(JSON.stringify({
