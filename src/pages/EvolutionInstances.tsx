@@ -21,6 +21,7 @@ import logoSg from '@/assets/logo-sg.png';
 import whatsappBg from '@/assets/whatsapp-bg.jpg';
 import CrmChannelsInline from '@/components/crm/CrmChannelsInline';
 import { ProviderBadge } from '@/components/ui/provider-badge';
+import { useSearchParams } from 'react-router-dom';
 
 
 
@@ -187,6 +188,16 @@ export default function EvolutionInstances() {
     }
     setLoadingSettings(false);
   };
+
+  const [searchParams, setSearchParams] = useSearchParams();
+  const autoSettings = searchParams.get('settings');
+  useEffect(() => {
+    if (!autoSettings) return;
+    openSettings(autoSettings);
+    searchParams.delete('settings');
+    setSearchParams(searchParams, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoSettings]);
 
   const toggleEvent = (ev: string) => {
     setWebhookEvents((prev) => {
