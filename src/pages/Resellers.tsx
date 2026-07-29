@@ -111,6 +111,16 @@ export default function Resellers() {
     enabled: !isAdmin,
   });
 
+  const { data: customerCounts } = useQuery({
+    queryKey: ['reseller-customer-counts'],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any).rpc('get_reseller_customer_counts');
+      if (error) throw error;
+      return (data || []) as Array<{ owner_id: string; total_customers: number; active_customers: number }>;
+    },
+  });
+
+
 
   const renewMutation = useMutation({
     mutationFn: async ({ id, days }: { id: string; days: number }) => {
