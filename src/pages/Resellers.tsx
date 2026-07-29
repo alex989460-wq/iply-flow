@@ -496,6 +496,40 @@ export default function Resellers() {
     return p ? (p.full_name || p.email) : '—';
   };
 
+  // ---- Contagem de clientes (próprios + árvore de sub-revendas) ----
+  const countsByOwner = new Map<string, { total: number; active: number }>();
+  (customerCounts || []).forEach(c =>
+    countsByOwner.set(c.owner_id, { total: Number(c.total_customers) || 0, active: Number(c.active_customers) || 0 })
+  );
+
+  const childrenByParent = new Map<string, string[]>();
+  (resellers || []).forEach(r => {
+    if (!r.parent_reseller_id) return;
+    const list = childrenByParent.get(r.parent_reseller_id) || [];
+    list.push(r.user_id);
+    childrenByParent.set(r.parent_reseller_id, list);
+  });
+
+  const getTreeStats = (userId: string, seen = new Set<string>()): { total: number; active: number; subs: number } => {
+    if (seen.has(userId)) return { total: 0, active: 0, subs: 0 };
+    seen.add(userId);
+    const own = countsByOwner.get(userId) || { total: 0, active: 0 };
+    let total = own.total;
+    let active = own.active;
+    let subs = 0;
+    for (const child of childrenByParent.get(userId) || []) {
+      const s = getTreeStats(child, seen);
+      total += s.total;
+      active += s.active;
+      subs += 1 + s.subs;
+    }
+    return { total, active, subs };
+  };
+
+  const totalCustomersAll = (customerCounts || []).reduce((s, c) => s + (Number(c.total_customers) || 0), 0);
+
+
+
   const activeCount = resellers?.filter(r => r.is_active && !isPast(new Date(r.access_expires_at))).length || 0;
   const expiredCount = resellers?.filter(r => !r.is_active || isPast(new Date(r.access_expires_at))).length || 0;
   const expiringSoonCount = resellers?.filter(r => {
