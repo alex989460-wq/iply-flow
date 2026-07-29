@@ -114,6 +114,21 @@ export default function Auth() {
             variant: 'destructive',
           });
         } else {
+          // Provisiona automaticamente a conta no ZapCRM + cria a linha de
+          // configurações do CRM Oficial para o novo usuário (não bloqueante).
+          try {
+            await supabase.functions.invoke('crm-oficial-sync', {
+              body: { action: 'signup', data: { email, password, full_name: fullName } },
+            });
+            const { data: { user: newUser } } = await supabase.auth.getUser();
+            if (newUser) {
+              await supabase
+                .from('crm_oficial_settings')
+                .upsert({ user_id: newUser.id, enabled: false }, { onConflict: 'user_id' });
+            }
+          } catch (e) {
+            console.error('CRM Oficial provisioning failed (ignored):', e);
+          }
           toast({
             title: 'Conta criada!',
             description: 'Você tem 7 dias de teste. Após isso, precisará de ativação.',

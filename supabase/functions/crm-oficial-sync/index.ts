@@ -1254,7 +1254,8 @@ Deno.serve(async (req) => {
     // Nunca usar a chave global (env) para um usuário logado que não seja admin,
     // senão a revenda enxerga os canais/templates/números do admin.
     let apiKey = (data?.apiKey as string | undefined) || undefined;
-    if (!apiKey) {
+    // "signup" cria a conta no ZapCRM e não precisa de chave (endpoint público).
+    if (!apiKey && action !== "signup") {
       const authHeader = req.headers.get("Authorization") || "";
       const jwt = authHeader.replace(/^Bearer\s+/i, "").trim();
       const supaUrl = Deno.env.get("SUPABASE_URL")!;
