@@ -102,7 +102,7 @@ export default function Settings() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [showToken, setShowToken] = useState(false);
-  const [activeTab, setActiveTab] = useState('crm_oficial');
+  const [activeTab, setActiveTab] = useState('aparencia');
   
   // Zap Responder settings
   const [settings, setSettings] = useState({
