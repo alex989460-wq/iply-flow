@@ -345,6 +345,8 @@ export default function EvolutionInstances() {
       return;
     }
     setCreating(true);
+    if (!(await applyServer())) { setCreating(false); return; }
+
     const { data, error } = await supabase.functions.invoke('evolution-send', {
       body: { action: 'create-instance', name: raw },
     });
