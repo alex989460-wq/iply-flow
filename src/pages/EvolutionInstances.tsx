@@ -69,7 +69,14 @@ export default function EvolutionInstances() {
   ];
   const [srvUrl, setSrvUrl] = useState('');
   const [srvKey, setSrvKey] = useState('');
-  const [srvSaving, setSrvSaving] = useState(false);
+  const [serverKeys, setServerKeys] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('evo_server_keys');
+      if (raw) setServerKeys(JSON.parse(raw));
+    } catch {}
+  }, []);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -79,32 +86,42 @@ export default function EvolutionInstances() {
         .select('base_url, api_key')
         .eq('user_id', user.id)
         .maybeSingle();
-      setSrvUrl(String(data?.base_url || '').replace(/\/$/, ''));
-      setSrvKey(String(data?.api_key || ''));
+      const url = String(data?.base_url || '').replace(/\/$/, '');
+      const key = String(data?.api_key || '');
+      setSrvUrl(url);
+      setSrvKey(key);
+      if (url && key) {
+        setServerKeys((prev) => {
+          const next = { ...prev, [url]: key };
+          try { localStorage.setItem('evo_server_keys', JSON.stringify(next)); } catch {}
+          return next;
+        });
+      }
     })();
   }, [user?.id]);
 
-  const saveServer = async () => {
-    if (!user?.id) return;
+  const applyServer = async () => {
+    if (!user?.id) return false;
     if (!srvUrl || !srvKey) {
-      toast({ title: 'Preencha o servidor e a chave', variant: 'destructive' });
-      return;
+      toast({ title: 'Selecione o servidor e informe a chave', variant: 'destructive' });
+      return false;
     }
-    setSrvSaving(true);
+    const url = srvUrl.replace(/\/$/, '');
     const { error } = await supabase
       .from('evolution_settings')
-      .upsert(
-        { user_id: user.id, base_url: srvUrl.replace(/\/$/, ''), api_key: srvKey, is_enabled: true },
-        { onConflict: 'user_id' },
-      );
-    setSrvSaving(false);
+      .upsert({ user_id: user.id, base_url: url, api_key: srvKey, is_enabled: true }, { onConflict: 'user_id' });
     if (error) {
       toast({ title: 'Erro ao salvar servidor', description: error.message, variant: 'destructive' });
-      return;
+      return false;
     }
-    toast({ title: 'Servidor atualizado', description: 'Buscando instâncias deste servidor...' });
-    fetchInstances();
+    setServerKeys((prev) => {
+      const next = { ...prev, [url]: srvKey };
+      try { localStorage.setItem('evo_server_keys', JSON.stringify(next)); } catch {}
+      return next;
+    });
+    return true;
   };
+
 
   const KNOWN_KEY = user?.id ? `evo_known_instances_${user.id}` : '';
 
