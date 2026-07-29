@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Loader2, RefreshCw, Star, ExternalLink, Plus, Zap } from 'lucide-react';
+import { Loader2, RefreshCw, Star, ExternalLink, Plus, Zap, Settings } from 'lucide-react';
 import { MetaLogo } from '@/components/ui/meta-logo';
 import whatsappLogo from '@/assets/whatsapp-logo.png.asset.json';
 import { useAuth } from '@/contexts/AuthContext';
@@ -231,6 +231,15 @@ export default function CrmChannelsInline() {
                 </div>
               )}
             </div>
+
+            {!ch.official && (
+              <Button asChild size="sm" variant="outline" className="w-full">
+                <Link to={`/evolution-instances?settings=${encodeURIComponent(ch.instance_name || ch.name || '')}`}>
+                  <Settings className="w-4 h-4 mr-2" /> Funções / Configurações
+                </Link>
+              </Button>
+            )}
+
           </div>
         ))}
 

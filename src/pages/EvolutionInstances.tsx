@@ -21,6 +21,7 @@ import logoSg from '@/assets/logo-sg.png';
 import whatsappBg from '@/assets/whatsapp-bg.jpg';
 import CrmChannelsInline from '@/components/crm/CrmChannelsInline';
 import { ProviderBadge } from '@/components/ui/provider-badge';
+import { useSearchParams } from 'react-router-dom';
 
 
 
@@ -188,6 +189,16 @@ export default function EvolutionInstances() {
     setLoadingSettings(false);
   };
 
+  const [searchParams, setSearchParams] = useSearchParams();
+  const autoSettings = searchParams.get('settings');
+  useEffect(() => {
+    if (!autoSettings) return;
+    openSettings(autoSettings);
+    searchParams.delete('settings');
+    setSearchParams(searchParams, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoSettings]);
+
   const toggleEvent = (ev: string) => {
     setWebhookEvents((prev) => {
       if (ev === 'ALL') return prev.includes('ALL') ? [] : ['ALL'];
@@ -335,15 +346,6 @@ export default function EvolutionInstances() {
       toast({ title: 'Nome obrigatório', description: 'Informe um nome para a instância.', variant: 'destructive' });
       return;
     }
-    // If reseller has previously-used names that are now missing, force reuse of one of them.
-    if (missingNames.length > 0 && !missingNames.includes(raw) && !knownNames.includes(raw)) {
-      toast({
-        title: 'Use um nome existente',
-        description: `Para preservar seu histórico, reutilize um dos nomes já usados antes: ${missingNames.join(', ')}.`,
-        variant: 'destructive',
-      });
-      return;
-    }
     setCreating(true);
     if (!(await applyServer())) { setCreating(false); return; }
 
@@ -473,32 +475,6 @@ export default function EvolutionInstances() {
           </Alert>
         )}
 
-        {/* Missing-name warning (deleted instance not yet recreated) */}
-        {missingNames.length > 0 && (
-          <Alert className="border-amber-500/40 bg-amber-500/10">
-            <AlertTriangle className="w-4 h-4 text-amber-400" />
-            <AlertTitle className="text-amber-300">Reutilize o nome anterior</AlertTitle>
-            <AlertDescription className="text-xs text-amber-100/90 space-y-2 mt-1">
-              <div>
-                Você excluiu instâncias que ainda não foram recriadas. Para não perder o vínculo com o histórico,
-                recrie usando exatamente o mesmo nome:
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {missingNames.map((n) => (
-                  <Button
-                    key={n}
-                    size="sm"
-                    variant="outline"
-                    className="h-7 text-xs border-amber-500/50 bg-amber-500/10 hover:bg-amber-500/20"
-                    onClick={() => { setNewName(n); createInstance(n); }}
-                  >
-                    <Plus className="w-3 h-3 mr-1" /> Recriar "{n}"
-                  </Button>
-                ))}
-              </div>
-            </AlertDescription>
-          </Alert>
-        )}
 
         {/* Create */}
         <Card className="border-emerald-500/15 bg-background/50 backdrop-blur-xl shadow-xl">
