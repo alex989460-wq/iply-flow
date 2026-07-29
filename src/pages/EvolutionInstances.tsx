@@ -481,15 +481,13 @@ export default function EvolutionInstances() {
           </Alert>
         )}
 
-        {/* Servidor Evolution */}
-        <Card className="border-primary/15 bg-background/50 backdrop-blur-xl shadow-xl">
+        {/* Create */}
+        <Card className="border-emerald-500/15 bg-background/50 backdrop-blur-xl shadow-xl">
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2 text-base">
-              <Server className="w-4 h-4 text-primary" /> Servidor Evolution
+              <Plus className="w-4 h-4 text-primary" /> Nova instância
             </CardTitle>
-            <CardDescription>
-              Escolha em qual servidor a instância será criada/conectada. Cada servidor tem sua própria chave.
-            </CardDescription>
+            <CardDescription>Escolha o servidor (1 ou 2) e o nome da instância.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="grid sm:grid-cols-2 gap-2">
@@ -499,7 +497,7 @@ export default function EvolutionInstances() {
                   <button
                     key={s.url}
                     type="button"
-                    onClick={() => setSrvUrl(s.url)}
+                    onClick={() => { setSrvUrl(s.url); setSrvKey(serverKeys[s.url] || ''); }}
                     className={`text-left rounded-xl border p-3 transition ${
                       active
                         ? 'border-primary bg-primary/10 shadow-sm'
@@ -515,34 +513,13 @@ export default function EvolutionInstances() {
                 );
               })}
             </div>
-            <div className="grid sm:grid-cols-2 gap-2">
-              <div>
-                <Label className="text-xs">URL do servidor</Label>
-                <Input value={srvUrl} onChange={(e) => setSrvUrl(e.target.value)} placeholder="https://..." />
-              </div>
+
+            {!srvKey && (
               <div>
                 <Label className="text-xs">Chave (API Key) deste servidor</Label>
-                <Input value={srvKey} onChange={(e) => setSrvKey(e.target.value)} placeholder="sua chave global" type="password" />
+                <Input value={srvKey} onChange={(e) => setSrvKey(e.target.value)} placeholder="chave global do servidor" type="password" />
               </div>
-            </div>
-            <div className="flex justify-end">
-              <Button onClick={saveServer} disabled={srvSaving} size="sm" className="gap-2">
-                {srvSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                Salvar e listar instâncias
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Create */}
-        <Card className="border-emerald-500/15 bg-background/50 backdrop-blur-xl shadow-xl">
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Plus className="w-4 h-4 text-primary" /> Nova instância
-            </CardTitle>
-            <CardDescription>Apenas escolha um nome.</CardDescription>
-          </CardHeader>
-          <CardContent>
+            )}
 
             <div className="flex flex-col sm:flex-row gap-2">
               <div className="flex-1">
@@ -561,6 +538,7 @@ export default function EvolutionInstances() {
             </div>
           </CardContent>
         </Card>
+
 
         {/* List */}
         {loading ? (
