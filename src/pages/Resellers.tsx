@@ -18,6 +18,8 @@ import { Users, RefreshCw, Search, Calendar, Ban, CheckCircle, Clock, Pencil, Ey
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Navigate } from "react-router-dom";
 import { z } from "zod";
+import { cn } from "@/lib/utils";
+
 
 interface ResellerAccess {
   id: string;
@@ -78,6 +80,8 @@ export default function Resellers() {
   const [isAddCreditsDialogOpen, setIsAddCreditsDialogOpen] = useState(false);
   const [creditsToAdd, setCreditsToAdd] = useState("10");
   const [resellerToDelete, setResellerToDelete] = useState<ResellerAccess | null>(null);
+  const [statusFilter, setStatusFilter] = useState<'todos' | 'ativos' | 'expirando' | 'inativos'>('todos');
+
   
   const { data: resellers, isLoading } = useQuery({
     queryKey: ['reseller-access'],
@@ -457,9 +461,21 @@ export default function Resellers() {
     return { label: "Ativo", variant: "default" as const, icon: CheckCircle };
   };
 
+  const matchesStatus = (r: ResellerAccess) => {
+    const expired = !r.is_active || isPast(new Date(r.access_expires_at));
+    const daysLeft = differenceInDays(new Date(r.access_expires_at), new Date());
+    switch (statusFilter) {
+      case 'ativos': return !expired;
+      case 'expirando': return !expired && daysLeft <= 7;
+      case 'inativos': return expired;
+      default: return true;
+    }
+  };
+
   const filteredResellers = resellers?.filter(reseller =>
-    reseller.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    reseller.full_name?.toLowerCase().includes(searchTerm.toLowerCase())
+    (reseller.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      reseller.full_name?.toLowerCase().includes(searchTerm.toLowerCase())) &&
+    matchesStatus(reseller)
   );
 
   const resellerByUserId = new Map<string, ResellerAccess>();
@@ -472,247 +488,309 @@ export default function Resellers() {
 
   const activeCount = resellers?.filter(r => r.is_active && !isPast(new Date(r.access_expires_at))).length || 0;
   const expiredCount = resellers?.filter(r => !r.is_active || isPast(new Date(r.access_expires_at))).length || 0;
+  const expiringSoonCount = resellers?.filter(r => {
+    if (!r.is_active || isPast(new Date(r.access_expires_at))) return false;
+    return differenceInDays(new Date(r.access_expires_at), new Date()) <= 7;
+  }).length || 0;
+  const totalCredits = resellers?.reduce((sum, r) => sum + (r.credits || 0), 0) || 0;
 
+  const statCards = [
+    { key: 'total', label: 'Revendedores', value: resellers?.length || 0, icon: Users, tone: 'text-primary', ring: 'bg-primary/10', filter: 'todos' as const },
+    { key: 'ativos', label: 'Acessos ativos', value: activeCount, icon: CheckCircle, tone: 'text-success', ring: 'bg-success/10', filter: 'ativos' as const },
+    { key: 'expirando', label: 'Vencendo em 7 dias', value: expiringSoonCount, icon: Clock, tone: 'text-warning', ring: 'bg-warning/10', filter: 'expirando' as const },
+    { key: 'inativos', label: 'Expirados / inativos', value: expiredCount, icon: Ban, tone: 'text-destructive', ring: 'bg-destructive/10', filter: 'inativos' as const },
+    { key: 'creditos', label: 'Créditos em circulação', value: totalCredits, icon: Coins, tone: 'text-primary', ring: 'bg-primary/10', filter: 'todos' as const },
+  ];
+
+  const filterTabs: Array<{ id: typeof statusFilter; label: string; count: number }> = [
+    { id: 'todos', label: 'Todos', count: resellers?.length || 0 },
+    { id: 'ativos', label: 'Ativos', count: activeCount },
+    { id: 'expirando', label: 'Vencendo', count: expiringSoonCount },
+    { id: 'inativos', label: 'Inativos', count: expiredCount },
+  ];
 
   return (
     <DashboardLayout>
       <div className="space-y-6 animate-fade-in">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight">{isAdmin ? 'Revendedores' : 'Minhas Revendas'}</h1>
-            <p className="text-muted-foreground">
-              {isAdmin
-                ? 'Gerencie o acesso dos revendedores ao sistema'
-                : 'Crie sub-revendas e renove o acesso deles usando seus créditos (1 crédito = 30 dias)'}
-            </p>
-          </div>
-          <div className="flex items-center gap-3">
-            {!isAdmin && (
-              <Badge variant="outline" className="gap-1 text-base py-1.5 px-3">
-                <Coins className="h-4 w-4" />
-                {myAccess?.credits ?? 0} créditos
-              </Badge>
-            )}
-            <Button onClick={() => setIsCreateDialogOpen(true)}>
-              <UserPlus className="h-4 w-4 mr-2" />
-              {isAdmin ? 'Cadastrar Revendedor' : 'Criar Sub-Revenda'}
-            </Button>
+        {/* Hero header */}
+        <div className="relative overflow-hidden rounded-2xl border border-border/60 bg-gradient-to-br from-primary/15 via-background to-background p-6 shadow-sm">
+          <div className="pointer-events-none absolute -right-16 -top-20 h-56 w-56 rounded-full bg-primary/20 blur-3xl" />
+          <div className="relative flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <div className="flex items-start gap-4">
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/15 text-primary shadow-inner">
+                <Users className="h-6 w-6" />
+              </div>
+              <div>
+                <h1 className="text-2xl md:text-3xl font-bold tracking-tight">
+                  {isAdmin ? 'Central de Revendas' : 'Minhas Revendas'}
+                </h1>
+                <p className="text-sm text-muted-foreground max-w-xl">
+                  {isAdmin
+                    ? 'Ative, renove, credite e controle totalmente o acesso de cada revenda.'
+                    : 'Crie sub-revendas e renove o acesso deles usando seus créditos (1 crédito = 30 dias)'}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              {!isAdmin && (
+                <Badge variant="outline" className="gap-1 text-base py-1.5 px-3 bg-card/60 backdrop-blur">
+                  <Coins className="h-4 w-4" />
+                  {myAccess?.credits ?? 0} créditos
+                </Badge>
+              )}
+              <Button
+                onClick={() => queryClient.invalidateQueries({ queryKey: ['reseller-access'] })}
+                variant="outline"
+                size="icon"
+                title="Atualizar"
+                className="bg-card/60 backdrop-blur"
+              >
+                <RefreshCw className={cn("h-4 w-4", isLoading && "animate-spin")} />
+              </Button>
+              <Button onClick={() => setIsCreateDialogOpen(true)} className="shadow-md">
+                <UserPlus className="h-4 w-4 mr-2" />
+                {isAdmin ? 'Cadastrar Revendedor' : 'Criar Sub-Revenda'}
+              </Button>
+            </div>
           </div>
         </div>
-
 
         {/* Stats Cards */}
-        <div className="grid gap-4 md:grid-cols-3 stagger-children">
-          <Card className="card-hover-lift">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total de Revendedores</CardTitle>
-              <Users className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{resellers?.length || 0}</div>
-            </CardContent>
-          </Card>
-          
-          <Card className="card-hover-lift">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Acessos Ativos</CardTitle>
-              <CheckCircle className="h-4 w-4 text-success" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-success">{activeCount}</div>
-            </CardContent>
-          </Card>
-          
-          <Card className="card-hover-lift">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Acessos Expirados/Inativos</CardTitle>
-              <Ban className="h-4 w-4 text-destructive" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-destructive">{expiredCount}</div>
-            </CardContent>
-          </Card>
+        <div className="grid gap-3 grid-cols-2 lg:grid-cols-5 stagger-children">
+          {statCards.map((s) => (
+            <button
+              key={s.key}
+              onClick={() => setStatusFilter(s.filter)}
+              className={cn(
+                "group text-left rounded-xl border border-border/60 bg-card p-4 transition-all duration-200",
+                "hover:-translate-y-0.5 hover:shadow-lg hover:border-primary/40",
+                statusFilter === s.filter && s.key !== 'creditos' && "border-primary/60 ring-1 ring-primary/30"
+              )}
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-medium text-muted-foreground">{s.label}</span>
+                <span className={cn("flex h-8 w-8 items-center justify-center rounded-lg", s.ring, s.tone)}>
+                  <s.icon className="h-4 w-4" />
+                </span>
+              </div>
+              <div className={cn("mt-2 text-2xl font-bold tabular-nums", s.tone)}>{s.value}</div>
+            </button>
+          ))}
         </div>
 
-        {/* Resellers Table */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Lista de Revendedores</CardTitle>
-            <CardDescription>
-              Visualize e gerencie todos os revendedores cadastrados no sistema
-            </CardDescription>
-            <div className="relative mt-4">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                placeholder="Buscar por email ou nome..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 max-w-sm"
-              />
+        {/* Resellers list */}
+        <Card className="border-border/60 shadow-sm">
+          <CardHeader className="gap-4">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <CardTitle>Lista de Revendedores</CardTitle>
+                <CardDescription>
+                  {filteredResellers?.length || 0} revenda(s) exibida(s)
+                </CardDescription>
+              </div>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                <div className="inline-flex rounded-lg border border-border/60 bg-muted/40 p-1">
+                  {filterTabs.map(t => (
+                    <button
+                      key={t.id}
+                      onClick={() => setStatusFilter(t.id)}
+                      className={cn(
+                        "px-3 py-1.5 text-xs font-medium rounded-md transition-all",
+                        statusFilter === t.id
+                          ? "bg-background text-foreground shadow-sm"
+                          : "text-muted-foreground hover:text-foreground"
+                      )}
+                    >
+                      {t.label}
+                      <span className="ml-1.5 opacity-60 tabular-nums">{t.count}</span>
+                    </button>
+                  ))}
+                </div>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    placeholder="Buscar por email ou nome..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-10 sm:w-64"
+                  />
+                </div>
+              </div>
             </div>
           </CardHeader>
           <CardContent>
             {isLoading ? (
-              <div className="flex justify-center py-8">
-                <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
+              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <div key={i} className="h-40 rounded-xl border border-border/60 bg-muted/30 animate-pulse" />
+                ))}
               </div>
             ) : filteredResellers?.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
-                {searchTerm ? "Nenhum revendedor encontrado com esse termo" : "Nenhum revendedor cadastrado ainda"}
+              <div className="flex flex-col items-center gap-2 py-12 text-center">
+                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted">
+                  <Users className="h-5 w-5 text-muted-foreground" />
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  {searchTerm ? "Nenhum revendedor encontrado com esse termo" : "Nenhum revendedor nesse filtro"}
+                </p>
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Email</TableHead>
-                      <TableHead>Nome</TableHead>
-                      <TableHead>Revenda de</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Créditos</TableHead>
-                      <TableHead>Expira em</TableHead>
-                      <TableHead>Cadastrado em</TableHead>
-                      <TableHead className="text-right">Ações</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredResellers?.map((reseller) => {
-                      const status = getAccessStatus(reseller.access_expires_at, reseller.is_active);
-                      const StatusIcon = status.icon;
-                      const isMySub = reseller.parent_reseller_id === currentUserId;
-                      const canManage = isAdmin || isMySub;
+              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                {filteredResellers?.map((reseller) => {
+                  const status = getAccessStatus(reseller.access_expires_at, reseller.is_active);
+                  const StatusIcon = status.icon;
+                  const isMySub = reseller.parent_reseller_id === currentUserId;
+                  const canManage = isAdmin || isMySub;
+                  const isSelf = reseller.user_id === currentUserId;
+                  const expired = !reseller.is_active || isPast(new Date(reseller.access_expires_at));
+                  const initials = (reseller.full_name || reseller.email)
+                    .split(' ')
+                    .map(p => p[0])
+                    .slice(0, 2)
+                    .join('')
+                    .toUpperCase();
 
-                      return (
-                        <TableRow key={reseller.id} className="table-row-hover">
-                          <TableCell className="font-medium">{reseller.email}</TableCell>
-                          <TableCell>{reseller.full_name || "-"}</TableCell>
-                          <TableCell className="text-sm text-muted-foreground">
-                            {getParentLabel(reseller.parent_reseller_id)}
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant={status.variant} className="gap-1">
-                              <StatusIcon className="h-3 w-3" />
-                              {status.label}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant="outline" className="gap-1">
-                              <Coins className="h-3 w-3" />
-                              {reseller.credits}
-                            </Badge>
-                          </TableCell>
+                  return (
+                    <div
+                      key={reseller.id}
+                      className={cn(
+                        "group relative flex flex-col gap-3 rounded-xl border border-border/60 bg-card p-4 transition-all duration-200",
+                        "hover:-translate-y-0.5 hover:shadow-lg hover:border-primary/40"
+                      )}
+                    >
+                      <span className={cn(
+                        "absolute inset-y-3 left-0 w-1 rounded-r-full",
+                        expired ? "bg-destructive/70" : "bg-success/70"
+                      )} />
 
-                          <TableCell>
+                      <div className="flex items-start gap-3 pl-2">
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary">
+                          {initials}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate font-semibold leading-tight">{reseller.full_name || 'Sem nome'}</p>
+                          <p className="truncate text-xs text-muted-foreground">{reseller.email}</p>
+                        </div>
+                        <Badge variant={status.variant} className="gap-1 shrink-0">
+                          <StatusIcon className="h-3 w-3" />
+                          {status.label}
+                        </Badge>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2 pl-2 text-xs">
+                        <div className="rounded-lg bg-muted/50 px-2.5 py-1.5">
+                          <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Créditos</p>
+                          <p className="font-semibold tabular-nums">{reseller.credits}</p>
+                        </div>
+                        <div className="rounded-lg bg-muted/50 px-2.5 py-1.5">
+                          <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Expira em</p>
+                          <p className="font-semibold tabular-nums">
                             {format(new Date(reseller.access_expires_at), "dd/MM/yyyy", { locale: ptBR })}
-                          </TableCell>
-                          <TableCell>
+                          </p>
+                        </div>
+                        <div className="rounded-lg bg-muted/50 px-2.5 py-1.5">
+                          <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Revenda de</p>
+                          <p className="truncate font-medium">{getParentLabel(reseller.parent_reseller_id)}</p>
+                        </div>
+                        <div className="rounded-lg bg-muted/50 px-2.5 py-1.5">
+                          <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Cadastro</p>
+                          <p className="font-medium tabular-nums">
                             {format(new Date(reseller.created_at), "dd/MM/yyyy", { locale: ptBR })}
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <div className="flex justify-end gap-2 flex-wrap">
-                              {canManage && reseller.user_id !== currentUserId && (
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => handleAddCredits(reseller)}
-                                >
-                                  <Plus className="h-4 w-4 mr-1" />
-                                  Créditos
-                                </Button>
-                              )}
-                              {isAdmin && (
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => handleEdit(reseller)}
-                                >
-                                  <Pencil className="h-4 w-4 mr-1" />
-                                  Editar
-                                </Button>
-                              )}
-                              {canManage && reseller.user_id !== currentUserId && (
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => handleRenew(reseller)}
-                                  title={isAdmin ? 'Renovar acesso' : 'Renovar (1 crédito = 30 dias)'}
-                                >
-                                  <Calendar className="h-4 w-4 mr-1" />
-                                  Renovar
-                                </Button>
-                              )}
-                              {isAdmin && (
-                                <>
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={async () => {
-                                      const current = reseller.max_evolution_instances ?? 1;
-                                      const input = prompt(`Máximo de instâncias WhatsApp para ${reseller.email}:`, String(current));
-                                      if (input === null) return;
-                                      const value = parseInt(input, 10);
-                                      if (isNaN(value) || value < 0) {
-                                        toast({ title: 'Valor inválido', description: 'Informe um número >= 0', variant: 'destructive' });
-                                        return;
-                                      }
-                                      const { error } = await supabase
-                                        .from('reseller_access')
-                                        .update({ max_evolution_instances: value })
-                                        .eq('id', reseller.id);
-                                      if (error) {
-                                        toast({ title: 'Erro', description: error.message, variant: 'destructive' });
-                                      } else {
-                                        toast({ title: 'Atualizado', description: `Limite: ${value} instância(s)` });
-                                        queryClient.invalidateQueries({ queryKey: ['reseller-access'] });
-                                      }
-                                    }}
-                                    title={`Limite atual: ${reseller.max_evolution_instances ?? 1} instância(s)`}
-                                  >
-                                    <Smartphone className="h-4 w-4 mr-1" />
-                                    WhatsApp ({reseller.max_evolution_instances ?? 1})
-                                  </Button>
-                                  <Button
-                                    variant={reseller.is_active ? "destructive" : "default"}
-                                    size="sm"
-                                    onClick={() => toggleActiveMutation.mutate({ id: reseller.id, isActive: reseller.is_active })}
-                                  >
-                                    {reseller.is_active ? (
-                                      <>
-                                        <Ban className="h-4 w-4 mr-1" />
-                                        Desativar
-                                      </>
-                                    ) : (
-                                      <>
-                                        <CheckCircle className="h-4 w-4 mr-1" />
-                                        Ativar
-                                      </>
-                                    )}
-                                  </Button>
-                                </>
-                              )}
-                              {canManage && reseller.user_id !== currentUserId && (
-                                <Button
-                                  variant="destructive"
-                                  size="sm"
-                                  onClick={() => setResellerToDelete(reseller)}
-                                  title="Excluir revendedor"
-                                >
-                                  <Trash2 className="h-4 w-4 mr-1" />
-                                  Excluir
-                                </Button>
-                              )}
-                            </div>
+                          </p>
+                        </div>
+                      </div>
 
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
+                      <div className="flex flex-wrap gap-1.5 pl-2 pt-1 border-t border-border/50">
+                        {canManage && !isSelf && (
+                          <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => handleAddCredits(reseller)}>
+                            <Plus className="h-3.5 w-3.5 mr-1" />
+                            Créditos
+                          </Button>
+                        )}
+                        {canManage && !isSelf && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-8 text-xs"
+                            onClick={() => handleRenew(reseller)}
+                            title={isAdmin ? 'Renovar acesso' : 'Renovar (1 crédito = 30 dias)'}
+                          >
+                            <Calendar className="h-3.5 w-3.5 mr-1" />
+                            Renovar
+                          </Button>
+                        )}
+                        {isAdmin && (
+                          <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => handleEdit(reseller)}>
+                            <Pencil className="h-3.5 w-3.5 mr-1" />
+                            Editar
+                          </Button>
+                        )}
+                        {isAdmin && (
+                          <>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-8 text-xs"
+                              onClick={async () => {
+                                const current = reseller.max_evolution_instances ?? 1;
+                                const input = prompt(`Máximo de instâncias WhatsApp para ${reseller.email}:`, String(current));
+                                if (input === null) return;
+                                const value = parseInt(input, 10);
+                                if (isNaN(value) || value < 0) {
+                                  toast({ title: 'Valor inválido', description: 'Informe um número >= 0', variant: 'destructive' });
+                                  return;
+                                }
+                                const { error } = await supabase
+                                  .from('reseller_access')
+                                  .update({ max_evolution_instances: value })
+                                  .eq('id', reseller.id);
+                                if (error) {
+                                  toast({ title: 'Erro', description: error.message, variant: 'destructive' });
+                                } else {
+                                  toast({ title: 'Atualizado', description: `Limite: ${value} instância(s)` });
+                                  queryClient.invalidateQueries({ queryKey: ['reseller-access'] });
+                                }
+                              }}
+                              title={`Limite atual: ${reseller.max_evolution_instances ?? 1} instância(s)`}
+                            >
+                              <Smartphone className="h-3.5 w-3.5 mr-1" />
+                              {reseller.max_evolution_instances ?? 1}
+                            </Button>
+                            <Button
+                              variant={reseller.is_active ? "outline" : "default"}
+                              size="sm"
+                              className={cn("h-8 text-xs", reseller.is_active && "text-destructive hover:text-destructive")}
+                              onClick={() => toggleActiveMutation.mutate({ id: reseller.id, isActive: reseller.is_active })}
+                            >
+                              {reseller.is_active ? (
+                                <><Ban className="h-3.5 w-3.5 mr-1" />Desativar</>
+                              ) : (
+                                <><CheckCircle className="h-3.5 w-3.5 mr-1" />Ativar</>
+                              )}
+                            </Button>
+                          </>
+                        )}
+                        {canManage && !isSelf && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 w-8 p-0 text-destructive hover:bg-destructive/10"
+                            onClick={() => setResellerToDelete(reseller)}
+                            title="Excluir revendedor"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </CardContent>
         </Card>
+
+
 
 
         {/* Delete confirmation */}
