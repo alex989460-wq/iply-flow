@@ -51,37 +51,52 @@ async function sendToTelegram(fileName: string, content: string, caption: string
   }
 
   let lastError = '';
+  const sanitize = (msg: string) => msg.replaceAll(token, '***');
+
   for (const chatId of candidates) {
-    const form = new FormData();
-    form.append('chat_id', chatId);
-    form.append('caption', caption);
-    if (threadId) form.append('message_thread_id', threadId);
-    form.append('document', new Blob([content], { type: 'application/json' }), fileName);
+    let chatNotFound = false;
 
-    const res = await fetch(`https://api.telegram.org/bot${token}/sendDocument`, {
-      method: 'POST',
-      body: form,
-    });
-    const body = await res.text();
+    // Retry para falhas de rede transitórias (connection reset)
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      const form = new FormData();
+      form.append('chat_id', chatId);
+      form.append('caption', caption);
+      if (threadId) form.append('message_thread_id', threadId);
+      form.append('document', new Blob([content], { type: 'application/json' }), fileName);
 
-    let parsed: any = null;
-    try { parsed = JSON.parse(body); } catch { /* ignore */ }
+      try {
+        const res = await fetch(`https://api.telegram.org/bot${token}/sendDocument`, {
+          method: 'POST',
+          body: form,
+        });
+        const body = await res.text();
 
-    if (res.ok && parsed?.ok !== false) {
-      if (chatId !== rawChatId) console.log(`[Backup] Telegram enviado usando chat_id ajustado: ${chatId}`);
-      return { ok: true };
+        let parsed: any = null;
+        try { parsed = JSON.parse(body); } catch { /* ignore */ }
+
+        if (res.ok && parsed?.ok !== false) {
+          if (chatId !== rawChatId) console.log(`[Backup] Telegram enviado usando chat_id ajustado: ${chatId}`);
+          return { ok: true };
+        }
+
+        lastError = sanitize(`Telegram ${res.status}: ${parsed?.description || body}`);
+        chatNotFound = String(parsed?.description || '').toLowerCase().includes('chat not found');
+        console.error(`[Backup] Falha com chat_id ${chatId} -> ${lastError}`);
+        break; // resposta da API: não adianta repetir a mesma tentativa
+      } catch (e) {
+        lastError = sanitize(`Falha de rede: ${e instanceof Error ? e.message : String(e)}`);
+        console.error(`[Backup] Tentativa ${attempt} falhou -> ${lastError}`);
+        if (attempt < 3) await new Promise((r) => setTimeout(r, 1500 * attempt));
+      }
     }
 
-    lastError = `Telegram ${res.status}: ${parsed?.description || body}`;
-    console.error(`[Backup] Falha com chat_id ${chatId} -> ${lastError}`);
-
     // Só vale tentar outra variação quando o chat não foi encontrado
-    const desc = String(parsed?.description || '').toLowerCase();
-    if (!desc.includes('chat not found')) break;
+    if (!chatNotFound) break;
   }
 
   return { ok: false, error: lastError };
 }
+
 
 
 serve(async (req) => {
@@ -123,6 +138,30 @@ serve(async (req) => {
       const { data: adminCheck } = await supabaseAdmin.rpc('has_role', { _user_id: userId, _role: 'admin' });
       isAdmin = adminCheck === true;
     }
+
+    // ---- DIAGNÓSTICO TELEGRAM (cron/admin) ----
+    if (body?.action === 'telegram_diag') {
+      if (!isCron && !isAdmin) {
+        return new Response(JSON.stringify({ error: 'Sem permissão' }), { status: 403, headers: jsonHeaders });
+      }
+      const token = Deno.env.get('TELEGRAM_BOT_TOKEN') || '';
+      const configured = (Deno.env.get('TELEGRAM_CHAT_ID') || '').trim();
+      const meRes = await fetch(`https://api.telegram.org/bot${token}/getMe`);
+      const me = await meRes.json();
+      const upRes = await fetch(`https://api.telegram.org/bot${token}/getUpdates`);
+      const up = await upRes.json();
+      const chats = (up?.result || []).map((u: any) => {
+        const m = u.message || u.channel_post || u.my_chat_member || u.edited_message;
+        return m?.chat ? { id: m.chat.id, type: m.chat.type, title: m.chat.title || m.chat.username } : null;
+      }).filter(Boolean);
+      return new Response(JSON.stringify({
+        bot: me?.result?.username || null,
+        configured_chat_id: configured,
+        chats_visiveis: chats,
+        updates_ok: up?.ok,
+      }), { headers: jsonHeaders });
+    }
+
 
     // ---- RESTORE (admin only) ----
     if (body?.action === 'restore' && body?.backup_id) {
