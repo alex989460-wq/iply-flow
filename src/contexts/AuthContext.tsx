@@ -9,7 +9,7 @@ interface AuthContextType {
   isAdmin: boolean;
   accessDeniedReason: string | null;
   signIn: (email: string, password: string) => Promise<{ error: Error | null; accessDenied?: boolean; accessDeniedMessage?: string }>;
-  signUp: (email: string, password: string, fullName: string) => Promise<{ error: Error | null }>;
+  signUp: (email: string, password: string, fullName: string) => Promise<{ error: Error | null; userId?: string }>;
   signOut: () => Promise<void>;
   checkResellerAccess: (userId: string) => Promise<{ hasAccess: boolean; reason?: string }>;
 }
@@ -206,7 +206,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
     }
 
-    return { error };
+    return { error, userId: data.user?.id };
   };
 
   const signOut = async () => {
