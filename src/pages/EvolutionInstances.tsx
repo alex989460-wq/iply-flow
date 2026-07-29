@@ -511,13 +511,12 @@ export default function EvolutionInstances() {
                       {active ? <CheckCircle2 className="w-4 h-4 text-primary" /> : <Server className="w-4 h-4 text-muted-foreground" />}
                       {s.label}
                     </div>
-                    <div className="text-[11px] text-muted-foreground mt-1 break-all">{s.url}</div>
                   </button>
                 );
               })}
             </div>
 
-            {!srvKey && (
+            {isAdmin && !srvKey && (
               <div>
                 <Label className="text-xs">Chave (API Key) deste servidor</Label>
                 <Input value={srvKey} onChange={(e) => setSrvKey(e.target.value)} placeholder="chave global do servidor" type="password" />
