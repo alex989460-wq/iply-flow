@@ -51,6 +51,7 @@ import RoboFlows from "./pages/RoboFlows";
 import CostCalculator from "./pages/CostCalculator";
 import LeadCapture from "./pages/LeadCapture";
 import AiTraining from "./pages/AiTraining";
+import Tutorials from "./pages/Tutorials";
 import { Loader2 } from "lucide-react";
 import { useOneSignal } from "@/hooks/useOneSignal";
 
