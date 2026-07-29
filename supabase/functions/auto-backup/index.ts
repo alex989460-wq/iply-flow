@@ -51,37 +51,52 @@ async function sendToTelegram(fileName: string, content: string, caption: string
   }
 
   let lastError = '';
+  const sanitize = (msg: string) => msg.replaceAll(token, '***');
+
   for (const chatId of candidates) {
-    const form = new FormData();
-    form.append('chat_id', chatId);
-    form.append('caption', caption);
-    if (threadId) form.append('message_thread_id', threadId);
-    form.append('document', new Blob([content], { type: 'application/json' }), fileName);
+    let chatNotFound = false;
 
-    const res = await fetch(`https://api.telegram.org/bot${token}/sendDocument`, {
-      method: 'POST',
-      body: form,
-    });
-    const body = await res.text();
+    // Retry para falhas de rede transitórias (connection reset)
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      const form = new FormData();
+      form.append('chat_id', chatId);
+      form.append('caption', caption);
+      if (threadId) form.append('message_thread_id', threadId);
+      form.append('document', new Blob([content], { type: 'application/json' }), fileName);
 
-    let parsed: any = null;
-    try { parsed = JSON.parse(body); } catch { /* ignore */ }
+      try {
+        const res = await fetch(`https://api.telegram.org/bot${token}/sendDocument`, {
+          method: 'POST',
+          body: form,
+        });
+        const body = await res.text();
 
-    if (res.ok && parsed?.ok !== false) {
-      if (chatId !== rawChatId) console.log(`[Backup] Telegram enviado usando chat_id ajustado: ${chatId}`);
-      return { ok: true };
+        let parsed: any = null;
+        try { parsed = JSON.parse(body); } catch { /* ignore */ }
+
+        if (res.ok && parsed?.ok !== false) {
+          if (chatId !== rawChatId) console.log(`[Backup] Telegram enviado usando chat_id ajustado: ${chatId}`);
+          return { ok: true };
+        }
+
+        lastError = sanitize(`Telegram ${res.status}: ${parsed?.description || body}`);
+        chatNotFound = String(parsed?.description || '').toLowerCase().includes('chat not found');
+        console.error(`[Backup] Falha com chat_id ${chatId} -> ${lastError}`);
+        break; // resposta da API: não adianta repetir a mesma tentativa
+      } catch (e) {
+        lastError = sanitize(`Falha de rede: ${e instanceof Error ? e.message : String(e)}`);
+        console.error(`[Backup] Tentativa ${attempt} falhou -> ${lastError}`);
+        if (attempt < 3) await new Promise((r) => setTimeout(r, 1500 * attempt));
+      }
     }
 
-    lastError = `Telegram ${res.status}: ${parsed?.description || body}`;
-    console.error(`[Backup] Falha com chat_id ${chatId} -> ${lastError}`);
-
     // Só vale tentar outra variação quando o chat não foi encontrado
-    const desc = String(parsed?.description || '').toLowerCase();
-    if (!desc.includes('chat not found')) break;
+    if (!chatNotFound) break;
   }
 
   return { ok: false, error: lastError };
 }
+
 
 
 serve(async (req) => {
