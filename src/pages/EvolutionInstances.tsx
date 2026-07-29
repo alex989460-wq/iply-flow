@@ -69,7 +69,14 @@ export default function EvolutionInstances() {
   ];
   const [srvUrl, setSrvUrl] = useState('');
   const [srvKey, setSrvKey] = useState('');
-  const [srvSaving, setSrvSaving] = useState(false);
+  const [serverKeys, setServerKeys] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('evo_server_keys');
+      if (raw) setServerKeys(JSON.parse(raw));
+    } catch {}
+  }, []);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -79,32 +86,42 @@ export default function EvolutionInstances() {
         .select('base_url, api_key')
         .eq('user_id', user.id)
         .maybeSingle();
-      setSrvUrl(String(data?.base_url || '').replace(/\/$/, ''));
-      setSrvKey(String(data?.api_key || ''));
+      const url = String(data?.base_url || '').replace(/\/$/, '');
+      const key = String(data?.api_key || '');
+      setSrvUrl(url);
+      setSrvKey(key);
+      if (url && key) {
+        setServerKeys((prev) => {
+          const next = { ...prev, [url]: key };
+          try { localStorage.setItem('evo_server_keys', JSON.stringify(next)); } catch {}
+          return next;
+        });
+      }
     })();
   }, [user?.id]);
 
-  const saveServer = async () => {
-    if (!user?.id) return;
+  const applyServer = async () => {
+    if (!user?.id) return false;
     if (!srvUrl || !srvKey) {
-      toast({ title: 'Preencha o servidor e a chave', variant: 'destructive' });
-      return;
+      toast({ title: 'Selecione o servidor e informe a chave', variant: 'destructive' });
+      return false;
     }
-    setSrvSaving(true);
+    const url = srvUrl.replace(/\/$/, '');
     const { error } = await supabase
       .from('evolution_settings')
-      .upsert(
-        { user_id: user.id, base_url: srvUrl.replace(/\/$/, ''), api_key: srvKey, is_enabled: true },
-        { onConflict: 'user_id' },
-      );
-    setSrvSaving(false);
+      .upsert({ user_id: user.id, base_url: url, api_key: srvKey, is_enabled: true }, { onConflict: 'user_id' });
     if (error) {
       toast({ title: 'Erro ao salvar servidor', description: error.message, variant: 'destructive' });
-      return;
+      return false;
     }
-    toast({ title: 'Servidor atualizado', description: 'Buscando instâncias deste servidor...' });
-    fetchInstances();
+    setServerKeys((prev) => {
+      const next = { ...prev, [url]: srvKey };
+      try { localStorage.setItem('evo_server_keys', JSON.stringify(next)); } catch {}
+      return next;
+    });
+    return true;
   };
+
 
   const KNOWN_KEY = user?.id ? `evo_known_instances_${user.id}` : '';
 
@@ -328,6 +345,8 @@ export default function EvolutionInstances() {
       return;
     }
     setCreating(true);
+    if (!(await applyServer())) { setCreating(false); return; }
+
     const { data, error } = await supabase.functions.invoke('evolution-send', {
       body: { action: 'create-instance', name: raw },
     });
@@ -481,15 +500,13 @@ export default function EvolutionInstances() {
           </Alert>
         )}
 
-        {/* Servidor Evolution */}
-        <Card className="border-primary/15 bg-background/50 backdrop-blur-xl shadow-xl">
+        {/* Create */}
+        <Card className="border-emerald-500/15 bg-background/50 backdrop-blur-xl shadow-xl">
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2 text-base">
-              <Server className="w-4 h-4 text-primary" /> Servidor Evolution
+              <Plus className="w-4 h-4 text-primary" /> Nova instância
             </CardTitle>
-            <CardDescription>
-              Escolha em qual servidor a instância será criada/conectada. Cada servidor tem sua própria chave.
-            </CardDescription>
+            <CardDescription>Escolha o servidor (1 ou 2) e o nome da instância.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="grid sm:grid-cols-2 gap-2">
@@ -499,7 +516,7 @@ export default function EvolutionInstances() {
                   <button
                     key={s.url}
                     type="button"
-                    onClick={() => setSrvUrl(s.url)}
+                    onClick={() => { setSrvUrl(s.url); setSrvKey(serverKeys[s.url] || ''); }}
                     className={`text-left rounded-xl border p-3 transition ${
                       active
                         ? 'border-primary bg-primary/10 shadow-sm'
@@ -515,34 +532,13 @@ export default function EvolutionInstances() {
                 );
               })}
             </div>
-            <div className="grid sm:grid-cols-2 gap-2">
-              <div>
-                <Label className="text-xs">URL do servidor</Label>
-                <Input value={srvUrl} onChange={(e) => setSrvUrl(e.target.value)} placeholder="https://..." />
-              </div>
+
+            {!srvKey && (
               <div>
                 <Label className="text-xs">Chave (API Key) deste servidor</Label>
-                <Input value={srvKey} onChange={(e) => setSrvKey(e.target.value)} placeholder="sua chave global" type="password" />
+                <Input value={srvKey} onChange={(e) => setSrvKey(e.target.value)} placeholder="chave global do servidor" type="password" />
               </div>
-            </div>
-            <div className="flex justify-end">
-              <Button onClick={saveServer} disabled={srvSaving} size="sm" className="gap-2">
-                {srvSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                Salvar e listar instâncias
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Create */}
-        <Card className="border-emerald-500/15 bg-background/50 backdrop-blur-xl shadow-xl">
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Plus className="w-4 h-4 text-primary" /> Nova instância
-            </CardTitle>
-            <CardDescription>Apenas escolha um nome.</CardDescription>
-          </CardHeader>
-          <CardContent>
+            )}
 
             <div className="flex flex-col sm:flex-row gap-2">
               <div className="flex-1">
@@ -561,6 +557,7 @@ export default function EvolutionInstances() {
             </div>
           </CardContent>
         </Card>
+
 
         {/* List */}
         {loading ? (
