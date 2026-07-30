@@ -14,17 +14,19 @@ export default function RecaptchaSettingsCard() {
   const [saving, setSaving] = useState(false);
   const [enabled, setEnabled] = useState(false);
   const [siteKey, setSiteKey] = useState('');
+  const [trialDays, setTrialDays] = useState('30');
 
   useEffect(() => {
     (async () => {
       const { data } = await supabase
         .from('platform_settings')
-        .select('recaptcha_enabled, recaptcha_site_key')
+        .select('recaptcha_enabled, recaptcha_site_key, trial_days')
         .eq('singleton', true)
         .maybeSingle();
       if (data) {
         setEnabled(!!data.recaptcha_enabled);
         setSiteKey(data.recaptcha_site_key ?? '');
+        setTrialDays(String(data.trial_days ?? 30));
       }
       setLoading(false);
     })();
@@ -39,12 +41,22 @@ export default function RecaptchaSettingsCard() {
       });
       return;
     }
+    const days = Number(trialDays);
+    if (!Number.isFinite(days) || days < 0 || days > 3650) {
+      toast({
+        title: 'Dias inválidos',
+        description: 'Informe um número entre 0 e 3650 dias.',
+        variant: 'destructive',
+      });
+      return;
+    }
     setSaving(true);
     const { error } = await supabase
       .from('platform_settings')
       .update({
         recaptcha_enabled: enabled,
         recaptcha_site_key: siteKey.trim() || null,
+        trial_days: Math.round(days),
       })
       .eq('singleton', true);
     setSaving(false);
@@ -52,8 +64,9 @@ export default function RecaptchaSettingsCard() {
       toast({ title: 'Erro ao salvar', description: error.message, variant: 'destructive' });
       return;
     }
-    toast({ title: 'Configurações salvas', description: 'Cloudflare Turnstile atualizado com sucesso.' });
+    toast({ title: 'Configurações salvas', description: 'Plataforma atualizada com sucesso.' });
   };
+
 
   if (loading) {
     return (
