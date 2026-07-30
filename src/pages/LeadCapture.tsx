@@ -138,7 +138,7 @@ export default function LeadCapture() {
     const digits = seedPhone.replace(/\D/g, '');
     const { phone } = normalize(digits);
     if (!phone || !phone.startsWith('55') || phone.length !== 13) {
-      toast({ title: 'Semente inválida', description: 'Use um celular brasileiro completo, ex.: 5541991758392', variant: 'destructive' });
+      toast({ title: 'Semente inválida', description: 'Use um celular brasileiro completo com DDD e DDI 55.', variant: 'destructive' });
       return;
     }
     const ddd = phone.slice(2, 4);
@@ -473,7 +473,7 @@ export default function LeadCapture() {
             <CardDescription>Cole os números (qualquer formato) ou faça upload de CSV/TXT. Validamos DDD e formato celular brasileiro.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            <Textarea value={raw} onChange={(e) => setRaw(e.target.value)} rows={6} placeholder="41999999999&#10;(11) 98888-7777&#10;..." />
+            <Textarea value={raw} onChange={(e) => setRaw(e.target.value)} rows={6} placeholder="" />
             <div className="flex flex-wrap gap-2 items-center">
               <Button onClick={parsePhones} variant="secondary" size="sm"><Search className="w-4 h-4 mr-1" />Validar lista</Button>
               <label className="cursor-pointer">
