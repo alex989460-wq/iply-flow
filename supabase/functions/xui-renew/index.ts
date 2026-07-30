@@ -164,10 +164,11 @@ serve(async (req) => {
         if (supabaseAdmin) {
           const { data: customerData } = await supabaseAdmin
             .from('customers')
-            .select('id, created_by, plan_id')
+            .select('id, created_by, plan_id, screens')
             .eq('id', customer_id)
             .maybeSingle();
 
+          let monthsCharged = 1;
           if (customerData?.plan_id) {
             const { data: planData } = await supabaseAdmin
               .from('plans')
@@ -176,9 +177,13 @@ serve(async (req) => {
               .maybeSingle();
 
             if (planData?.duration_days) {
-              creditsToDeduct = Math.max(1, Math.round(planData.duration_days / 30));
+              monthsCharged = Math.max(1, Math.round(planData.duration_days / 30));
             }
           }
+          // Telas adicionais: cada tela extra custa 0,5 crédito por mês renovado
+          const extraScreens = Math.max(0, (Number(customerData?.screens) || 1) - 1);
+          creditsToDeduct = monthsCharged + extraScreens * 0.5 * monthsCharged;
+
 
           // Tentar descontar no backend
           if (customerData?.created_by) {
