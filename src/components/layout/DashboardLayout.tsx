@@ -41,6 +41,8 @@ export default function DashboardLayout({ children, noPadding }: DashboardLayout
         </div>
       </main>
       {!hidePendingFloat && <PendingManualRenewalsFloat />}
+      <InstallAppFloat />
+
     </div>
   );
 }
