@@ -365,7 +365,79 @@ export default function SendPlaylistDialog({
               Usa o login do seu painel Duplecast salvo em Ativação de Apps → Painéis.
             </p>
           </TabsContent>
+
+          <TabsContent value="bobplayer" className="space-y-3 pt-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>MAC do aparelho</Label>
+                <Input
+                  value={mac}
+                  onChange={(e) => setMac(formatMac(e.target.value))}
+                  placeholder="aa:bb:cc:dd:ee:ff"
+                  className="font-mono"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Device Key</Label>
+                <Input
+                  value={deviceKey}
+                  onChange={(e) => setDeviceKey(e.target.value)}
+                  placeholder="senha exibida no app"
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>Nome da lista</Label>
+                <Input value={playlistName} onChange={(e) => setPlaylistName(e.target.value)} placeholder="Minha Lista" />
+              </div>
+              <div className="space-y-1.5">
+                <Label>PIN (opcional)</Label>
+                <Input value={pin} onChange={(e) => setPin(e.target.value)} placeholder="ex: 102030" />
+              </div>
+            </div>
+            {listField}
+            <div className="space-y-1.5">
+              <Label>EPG (opcional)</Label>
+              <Input
+                value={epgUrl}
+                onChange={(e) => setEpgUrl(e.target.value)}
+                placeholder="Deixe vazio para usar a mesma URL da lista"
+                className="font-mono text-[11px]"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Captcha do Bob Player</Label>
+              <div className="flex items-center gap-2">
+                <div className="h-[60px] w-[170px] rounded-lg border border-border/60 bg-muted/40 overflow-hidden flex items-center justify-center [&>svg]:h-full [&>svg]:w-full">
+                  {loadingCaptcha ? (
+                    <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+                  ) : captchaSvg ? (
+                    <div
+                      className="h-full w-full [&>svg]:h-full [&>svg]:w-full"
+                      dangerouslySetInnerHTML={{ __html: captchaSvg }}
+                    />
+                  ) : (
+                    <span className="text-[11px] text-muted-foreground">sem captcha</span>
+                  )}
+                </div>
+                <Button type="button" size="icon" variant="outline" onClick={loadCaptcha} disabled={loadingCaptcha}>
+                  <RefreshCw className={loadingCaptcha ? 'w-4 h-4 animate-spin' : 'w-4 h-4'} />
+                </Button>
+                <Input
+                  value={captcha}
+                  onChange={(e) => setCaptcha(e.target.value)}
+                  placeholder="digite o código"
+                  className="font-mono uppercase"
+                />
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                O Bob Player exige captcha a cada envio. Se falhar, gere um novo e tente de novo.
+              </p>
+            </div>
+          </TabsContent>
         </Tabs>
+
 
         <Button className="w-full" onClick={handleSend} disabled={sending || !canSend}>
           {sending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Send className="w-4 h-4 mr-2" />}
