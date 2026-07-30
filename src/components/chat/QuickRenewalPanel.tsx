@@ -140,6 +140,8 @@ export default function QuickRenewalPanel({ isMobile = false, onClose, initialPh
     setSearchTerm(initialPhone.replace(/\D/g, ''));
   }, [initialPhone]);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [isSendPlaylistOpen, setIsSendPlaylistOpen] = useState(false);
+
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('pix');
   const [isLinksOpen, setIsLinksOpen] = useState(true);
   const [editingMessage, setEditingMessage] = useState<QuickMessage | null>(null);
