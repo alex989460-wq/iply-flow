@@ -3,6 +3,7 @@ import BillingSettingsCard from '@/components/settings/BillingSettingsCard';
 import EfiSettingsCard from '@/components/settings/EfiSettingsCard';
 import ResellerCheckoutCard from '@/components/settings/ResellerCheckoutCard';
 import { EvolutionBillingScheduleCard } from '@/components/billing/EvolutionBillingScheduleCard';
+import { EvolutionBillingTemplatesCard } from '@/components/billing/EvolutionBillingTemplatesCard';
 import { Receipt } from 'lucide-react';
 
 
