@@ -22,8 +22,7 @@ export default function BillingSettings() {
         </div>
 
         <BillingSettingsCard />
-        <EvolutionBillingTemplatesCard />
-        <EvolutionBillingScheduleCard />
+
 
         <EfiSettingsCard />
         <ResellerCheckoutCard />
