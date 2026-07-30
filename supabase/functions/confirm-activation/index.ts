@@ -192,19 +192,63 @@ serve(async (req) => {
       updated_at: new Date().toISOString(),
     }).eq('id', request_id);
 
-    // Auto-clear matching pending_manual_renewals entry when activation succeeded/rejected
-    if (newStatus === 'completed' || newStatus === 'rejected') {
-      try {
-        await supabaseAdmin
-          .from('pending_manual_renewals')
-          .delete()
-          .eq('owner_id', request.user_id)
-          .eq('reason', 'app_activation')
-          .eq('customer_phone', request.customer_phone);
-      } catch (delErr) {
-        console.error('[ActivationAction] Erro ao dar baixa em pending_manual_renewals:', delErr);
-      }
+    // ── Pendências manuais: baixa automática no sucesso / abertura na falha ──
+    const phoneDigits = String(request.customer_phone || '').replace(/\D/g, '');
+    const phoneVariants = new Set<string>();
+    if (phoneDigits) {
+      phoneVariants.add(phoneDigits);
+      phoneVariants.add(phoneDigits.startsWith('55') ? phoneDigits.slice(2) : '55' + phoneDigits);
+      if (phoneDigits.length >= 8) phoneVariants.add(phoneDigits.slice(-8));
     }
+
+    try {
+      const { data: openPendings } = await supabaseAdmin
+        .from('pending_manual_renewals')
+        .select('id, customer_phone, plan_name, server_name')
+        .eq('owner_id', request.user_id)
+        .eq('reason', 'app_activation');
+
+      const matches = (openPendings || []).filter((p: any) => {
+        const pd = String(p.customer_phone || '').replace(/\D/g, '');
+        const samePhone = pd && [...phoneVariants].some(v => pd === v || pd.endsWith(v.slice(-8)));
+        const sameApp =
+          String(p.plan_name || p.server_name || '').toUpperCase() ===
+          String(request.app_name || '').toUpperCase();
+        return samePhone || (!pd && sameApp);
+      });
+
+      if (newStatus === 'completed' || newStatus === 'rejected') {
+        if (matches.length) {
+          await supabaseAdmin
+            .from('pending_manual_renewals')
+            .delete()
+            .in('id', matches.map((m: any) => m.id));
+        }
+      } else if (newStatus === 'failed' && request.user_id && !matches.length) {
+        // Ativação automática falhou → garante que apareça no painel de pendências.
+        await supabaseAdmin.from('pending_manual_renewals').insert({
+          owner_id: request.user_id,
+          customer_id: null,
+          customer_name: request.customer_name || 'Ativação de App',
+          customer_phone: request.customer_phone || null,
+          server_name: request.app_name || null,
+          plan_name: request.app_name || null,
+          amount: request.amount || 0,
+          reason: 'app_activation',
+          source,
+          error_details: {
+            app_name: request.app_name,
+            mac_address: request.mac_address,
+            email: request.email,
+            request_id,
+            message: autoActivationError || 'Falha na ativação automática',
+          },
+        });
+      }
+    } catch (pendErr) {
+      console.error('[ActivationAction] Erro ao sincronizar pending_manual_renewals:', pendErr);
+    }
+
 
 
     // Always send WhatsApp to customer, regardless of external panel result.
