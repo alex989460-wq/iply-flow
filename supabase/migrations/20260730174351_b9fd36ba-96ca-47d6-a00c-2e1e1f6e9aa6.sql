@@ -1,0 +1,1 @@
+UPDATE public.platform_settings SET recaptcha_site_key = '0x4AAAAAAECGnxmLnP8otNNR', recaptcha_enabled = true WHERE singleton = true;
