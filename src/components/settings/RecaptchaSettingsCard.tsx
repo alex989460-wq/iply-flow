@@ -88,6 +88,12 @@ export default function RecaptchaSettingsCard() {
           <Switch checked={enabled} onCheckedChange={setEnabled} />
         </div>
 
+        {enabled && !siteKey.trim() && (
+          <p className="text-xs text-destructive">
+            reCAPTCHA marcado como ativo, mas sem Chave do site — ele não será exibido no login até você preencher a chave abaixo.
+          </p>
+        )}
+
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="space-y-1.5">
             <Label className="text-xs">Chave do site (v3)</Label>
