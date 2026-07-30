@@ -14,11 +14,16 @@ serve(async (req) => {
   const jsonHeaders = { ...corsHeaders, 'Content-Type': 'application/json' };
 
   try {
-    const { request_id, action } = await req.json();
-    
+    const payload = await req.json();
+    const request_id = payload?.request_id;
+    // `auto: true` (webhooks) equivale a uma ativação.
+    const action = payload?.action || (payload?.auto ? 'activate' : null);
+    const source = String(payload?.source || 'confirm-activation');
+
     if (!request_id || !action) {
       return new Response(JSON.stringify({ error: 'request_id e action são obrigatórios' }), { status: 400, headers: jsonHeaders });
     }
+
 
     const supabaseAdmin = createClient(
       Deno.env.get('SUPABASE_URL')!,
