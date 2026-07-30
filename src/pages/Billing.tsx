@@ -69,6 +69,8 @@ import { SendProgressModal } from '@/components/billing/SendProgressModal';
 import { BillingReportsTab } from '@/components/billing/BillingReportsTab';
 
 import { CrmOficialBillingScheduleCard } from '@/components/billing/CrmOficialBillingScheduleCard';
+import { EvolutionBillingScheduleCard } from '@/components/billing/EvolutionBillingScheduleCard';
+import { EvolutionBillingTemplatesCard } from '@/components/billing/EvolutionBillingTemplatesCard';
 import CrmChannelsInline from '@/components/crm/CrmChannelsInline';
 
 import { Link } from 'react-router-dom';
@@ -1077,9 +1079,13 @@ export default function Billing() {
         </div>
 
         <Tabs defaultValue="config" className="space-y-4">
-          <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 h-auto">
+          <TabsList className="grid w-full grid-cols-2 sm:grid-cols-5 h-auto">
             <TabsTrigger value="config" className="text-xs sm:text-sm py-2">Config</TabsTrigger>
             <TabsTrigger value="templates" className="text-xs sm:text-sm py-2">Templates</TabsTrigger>
+            <TabsTrigger value="templates-nao-oficial" className="text-xs sm:text-sm py-2">
+              <span className="hidden sm:inline">Template Não Oficial</span>
+              <span className="sm:hidden">Não Oficial</span>
+            </TabsTrigger>
             <TabsTrigger value="relatorios" className="text-xs sm:text-sm py-2 flex items-center gap-1">
               <BarChart3 className="w-3 h-3 sm:w-4 sm:h-4" />
               <span className="hidden sm:inline">Relatórios</span>
@@ -1088,10 +1094,17 @@ export default function Billing() {
             <TabsTrigger value="historico" className="text-xs sm:text-sm py-2">Histórico</TabsTrigger>
           </TabsList>
 
+          {/* Tab: Template Não Oficial */}
+          <TabsContent value="templates-nao-oficial" className="space-y-4">
+            <EvolutionBillingTemplatesCard />
+          </TabsContent>
+
           {/* Tab: Configuração */}
           <TabsContent value="config" className="space-y-4">
             {/* Billing Schedule Cards */}
             <CrmOficialBillingScheduleCard />
+            <EvolutionBillingScheduleCard />
+
             <div className="flex flex-wrap gap-2 rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-3">
               <Button variant="outline" size="sm" asChild>
                 <Link to="/crm-oficial-templates"><FileText className="w-4 h-4 mr-2" /> Templates CRM Oficial</Link>
