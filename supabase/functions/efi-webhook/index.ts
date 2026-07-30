@@ -290,29 +290,9 @@ Deno.serve(async (req) => {
         }
 
 
-        // 1b) If auto-activation failed, surface it in the pending panel.
-        if (!autoActivateOk && actReq?.user_id) {
-          await admin.from("pending_manual_renewals").insert({
-            owner_id: actReq.user_id,
-            customer_id: null,
-            customer_name: actReq.customer_name || "Ativação de App",
-            customer_phone: actReq.customer_phone || null,
-            username: null,
-            server_name: actReq.app_name || null,
-            plan_name: actReq.app_name || null,
-            amount: actReq.amount || 0,
-            reason: "app_activation",
-            source: `efi:${txid}`,
-            error_details: {
-              app_name: actReq.app_name,
-              mac_address: actReq.mac_address,
-              email: actReq.email,
-              message: autoActivateError || "Falha na ativação automática",
-            },
-          }).then(({ error }) => {
-            if (error) console.error("[efi-webhook] pending activation insert error", error);
-          });
-        }
+        // 1b) A pendência (quando a ativação automática falha) é criada dentro de
+        //     confirm-activation, que também dá baixa quando concluída manualmente.
+
 
 
 
