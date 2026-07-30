@@ -123,15 +123,17 @@ export default function CrmChannelsInline() {
           .map((c) => (c.instance_name || c.name || '').toLowerCase()),
       );
       const merged = [
-        // Descarta canais não oficiais vindos do CRM que não existem mais no servidor.
-        ...crmChannels.filter(
-          (c) =>
-            c.official ||
-            liveNames.size === 0 ||
-            liveNames.has((c.instance_name || c.name || '').toLowerCase()),
-        ),
+        // Mantém todos os canais do CRM (o CRM pode usar outro servidor Evolution).
+        // Só descarta "fantasmas": não oficiais sem número e inexistentes no servidor local.
+        ...crmChannels.filter((c) => {
+          if (c.official) return true;
+          const hasPhone = !!(c.phone_number || c.display_phone_number);
+          if (hasPhone) return true;
+          return liveNames.has((c.instance_name || c.name || '').toLowerCase());
+        }),
         ...localChannels.filter((c) => !seen.has((c.instance_name || '').toLowerCase())),
       ];
+
       setChannels(merged);
 
     } catch (e: any) {
