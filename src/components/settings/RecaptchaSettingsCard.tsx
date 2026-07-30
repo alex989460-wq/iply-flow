@@ -83,10 +83,10 @@ export default function RecaptchaSettingsCard() {
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-base">
           <ShieldCheck className="w-5 h-5 text-primary" />
-          Proteção Cloudflare Turnstile
+          Segurança e cadastro da plataforma
         </CardTitle>
         <CardDescription>
-          Ative a verificação anti-robô no login e cadastro. A chave secreta permanece protegida no backend.
+          Verificação anti-robô no login/cadastro e período de teste grátis de novas contas.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -113,6 +113,22 @@ export default function RecaptchaSettingsCard() {
               className="font-mono text-xs"
             />
         </div>
+
+        <div className="space-y-1.5 rounded-lg border border-border/60 p-3">
+          <Label className="text-sm font-medium">Dias grátis ao criar conta</Label>
+          <p className="text-xs text-muted-foreground">
+            Período de teste aplicado automaticamente a cada nova revenda cadastrada.
+          </p>
+          <Input
+            type="number"
+            min={0}
+            max={3650}
+            value={trialDays}
+            onChange={(e) => setTrialDays(e.target.value)}
+            className="w-32"
+          />
+        </div>
+
 
         <Button onClick={save} disabled={saving} className="w-full sm:w-auto">
           {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
