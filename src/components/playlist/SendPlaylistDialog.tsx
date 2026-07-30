@@ -255,10 +255,11 @@ export default function SendPlaylistDialog({
         </DialogHeader>
 
         <Tabs value={tab} onValueChange={(v) => setTab(v as any)}>
-          <TabsList className="grid grid-cols-3 w-full">
+          <TabsList className="grid grid-cols-4 w-full">
             <TabsTrigger value="clouddy">Clouddy</TabsTrigger>
             <TabsTrigger value="ibopro">IBO Pro</TabsTrigger>
             <TabsTrigger value="duplecast">Duplecast</TabsTrigger>
+            <TabsTrigger value="bobplayer">Bob Player</TabsTrigger>
           </TabsList>
 
           <TabsContent value="clouddy" className="space-y-3 pt-3">
