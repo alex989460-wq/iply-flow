@@ -10,7 +10,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { ListPlus, Send, Loader2 } from 'lucide-react';
+import { ListPlus, Send, Loader2, RefreshCw } from 'lucide-react';
 
 export type PlaylistTemplate = {
   id: string;
@@ -63,7 +63,7 @@ export default function SendPlaylistDialog({
   defaultListUrl = '',
   defaultMac = '',
 }: Props) {
-  const [tab, setTab] = useState<'clouddy' | 'ibopro' | 'duplecast'>('clouddy');
+  const [tab, setTab] = useState<'clouddy' | 'ibopro' | 'duplecast' | 'bobplayer'>('clouddy');
   const [listUrl, setListUrl] = useState(defaultListUrl);
   const [epgUrl, setEpgUrl] = useState('');
   const [email, setEmail] = useState(defaultEmail);
@@ -77,7 +77,37 @@ export default function SendPlaylistDialog({
   const [playlistName, setPlaylistName] = useState('');
   const [pin, setPin] = useState('');
 
+  // Bob Player (captcha)
+  const [captcha, setCaptcha] = useState('');
+  const [captchaSvg, setCaptchaSvg] = useState('');
+  const [captchaToken, setCaptchaToken] = useState('');
+  const [loadingCaptcha, setLoadingCaptcha] = useState(false);
+
   const [templateId, setTemplateId] = useState<string>('');
+
+  const loadCaptcha = async () => {
+    setLoadingCaptcha(true);
+    setCaptcha('');
+    try {
+      const { data, error } = await supabase.functions.invoke('send-playlist', {
+        body: { provider: 'bobplayer', action: 'bob-captcha' },
+      });
+      if (error) throw error;
+      if ((data as any)?.error) throw new Error((data as any).error);
+      setCaptchaSvg((data as any).svg || '');
+      setCaptchaToken((data as any).token || '');
+    } catch (e: any) {
+      toast.error(e?.message || 'Falha ao carregar o captcha');
+    } finally {
+      setLoadingCaptcha(false);
+    }
+  };
+
+  useEffect(() => {
+    if (open && tab === 'bobplayer' && !captchaSvg) loadCaptcha();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, tab]);
+
 
   const { data: templates = [] } = useQuery({
     queryKey: ['playlist-templates'],
@@ -123,15 +153,29 @@ export default function SendPlaylistDialog({
   const canSend = useMemo(() => {
     if (!listUrl.trim()) return false;
     if (tab === 'clouddy') return !!email.trim();
-    return mac.replace(/[^0-9a-f]/gi, '').length === 12 && !!deviceKey.trim();
-  }, [tab, listUrl, email, mac, deviceKey]);
+    const macOk = mac.replace(/[^0-9a-f]/gi, '').length === 12 && !!deviceKey.trim();
+    if (tab === 'bobplayer') return macOk && !!captcha.trim() && !!captchaToken;
+    return macOk;
+  }, [tab, listUrl, email, mac, deviceKey, captcha, captchaToken]);
 
   const handleSend = async () => {
     if (!canSend) return toast.error('Preencha os campos obrigatórios.');
     setSending(true);
     try {
       const body =
-        tab === 'duplecast'
+        tab === 'bobplayer'
+          ? {
+              provider: 'bobplayer',
+              mac: formatMac(mac),
+              device_key: deviceKey.trim(),
+              playlist_name: playlistName.trim() || 'Lista',
+              m3u_url: listUrl.trim(),
+              epg_url: epgUrl.trim() || undefined,
+              pin: pin.trim() || undefined,
+              captcha: captcha.trim(),
+              captcha_token: captchaToken,
+            }
+          : tab === 'duplecast'
           ? {
               provider: 'duplecast',
               mac: formatMac(mac).toUpperCase(),
@@ -159,6 +203,7 @@ export default function SendPlaylistDialog({
               pin: pin.trim() || undefined,
               is_protected: !!pin.trim(),
             };
+
 
       const { data, error } = await supabase.functions.invoke('send-playlist', { body });
       if (error) throw error;
@@ -210,10 +255,11 @@ export default function SendPlaylistDialog({
         </DialogHeader>
 
         <Tabs value={tab} onValueChange={(v) => setTab(v as any)}>
-          <TabsList className="grid grid-cols-3 w-full">
+          <TabsList className="grid grid-cols-4 w-full">
             <TabsTrigger value="clouddy">Clouddy</TabsTrigger>
             <TabsTrigger value="ibopro">IBO Pro</TabsTrigger>
             <TabsTrigger value="duplecast">Duplecast</TabsTrigger>
+            <TabsTrigger value="bobplayer">Bob Player</TabsTrigger>
           </TabsList>
 
           <TabsContent value="clouddy" className="space-y-3 pt-3">
@@ -320,7 +366,79 @@ export default function SendPlaylistDialog({
               Usa o login do seu painel Duplecast salvo em Ativação de Apps → Painéis.
             </p>
           </TabsContent>
+
+          <TabsContent value="bobplayer" className="space-y-3 pt-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>MAC do aparelho</Label>
+                <Input
+                  value={mac}
+                  onChange={(e) => setMac(formatMac(e.target.value))}
+                  placeholder="aa:bb:cc:dd:ee:ff"
+                  className="font-mono"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Device Key</Label>
+                <Input
+                  value={deviceKey}
+                  onChange={(e) => setDeviceKey(e.target.value)}
+                  placeholder="senha exibida no app"
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>Nome da lista</Label>
+                <Input value={playlistName} onChange={(e) => setPlaylistName(e.target.value)} placeholder="Minha Lista" />
+              </div>
+              <div className="space-y-1.5">
+                <Label>PIN (opcional)</Label>
+                <Input value={pin} onChange={(e) => setPin(e.target.value)} placeholder="ex: 102030" />
+              </div>
+            </div>
+            {listField}
+            <div className="space-y-1.5">
+              <Label>EPG (opcional)</Label>
+              <Input
+                value={epgUrl}
+                onChange={(e) => setEpgUrl(e.target.value)}
+                placeholder="Deixe vazio para usar a mesma URL da lista"
+                className="font-mono text-[11px]"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Captcha do Bob Player</Label>
+              <div className="flex items-center gap-2">
+                <div className="h-[60px] w-[170px] rounded-lg border border-border/60 bg-muted/40 overflow-hidden flex items-center justify-center [&>svg]:h-full [&>svg]:w-full">
+                  {loadingCaptcha ? (
+                    <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+                  ) : captchaSvg ? (
+                    <div
+                      className="h-full w-full [&>svg]:h-full [&>svg]:w-full"
+                      dangerouslySetInnerHTML={{ __html: captchaSvg }}
+                    />
+                  ) : (
+                    <span className="text-[11px] text-muted-foreground">sem captcha</span>
+                  )}
+                </div>
+                <Button type="button" size="icon" variant="outline" onClick={loadCaptcha} disabled={loadingCaptcha}>
+                  <RefreshCw className={loadingCaptcha ? 'w-4 h-4 animate-spin' : 'w-4 h-4'} />
+                </Button>
+                <Input
+                  value={captcha}
+                  onChange={(e) => setCaptcha(e.target.value)}
+                  placeholder="digite o código"
+                  className="font-mono uppercase"
+                />
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                O Bob Player exige captcha a cada envio. Se falhar, gere um novo e tente de novo.
+              </p>
+            </div>
+          </TabsContent>
         </Tabs>
+
 
         <Button className="w-full" onClick={handleSend} disabled={sending || !canSend}>
           {sending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Send className="w-4 h-4 mr-2" />}
