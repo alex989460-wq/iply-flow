@@ -1561,12 +1561,16 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
     setUseEvolutionForBilling(evoDefault);
     const defaultChannel: 'evolution' | 'crm' = evoDefault ? 'evolution' : 'crm';
     setBillingChannel(defaultChannel);
-    setSelectedEvoTemplateKey('D0');
+    const firstRule = (evoBillingRules || [])[0];
+    setSelectedEvoTemplateKey(firstRule?.id ? String(firstRule.id) : 'D0');
+    setSelectedEvoInstance(billingSettings?.evolution_instance || '');
     setIsSendBillingOpen(true);
+    if (!billingSettings?.evolution_instance) refetchEvoInstances();
     if (defaultChannel === 'crm') {
       refetchCrmChannels();
       if (crmTemplates.length === 0) await fetchCrmTemplates();
     }
+
   };
 
   const renderEvolutionTemplate = (tpl: string, c: any): string => {
