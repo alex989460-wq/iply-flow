@@ -993,6 +993,8 @@ Obrigado pela preferência! 🙏`;
       return;
     }
 
+    const serverType = (selectedVplayServer as any).server_type || 'vplay';
+    const isNatvServer = serverType === 'natv' || serverType === 'natv2';
     const vplayUrl = selectedVplayServer.integration_url;
     const keyMessage = selectedVplayServer.key_message || 'XCLOUD';
     const testName = vplayTestName.trim() || 'Cliente';
@@ -1001,6 +1003,21 @@ Obrigado pela preferência! 🙏`;
     setVplayTestResult(null);
 
     try {
+      if (isNatvServer) {
+        const { data, error } = await supabase.functions.invoke('natv-generate-test', {
+          body: {
+            serverId: selectedVplayServer.id,
+            username: vplayTestName.trim(),
+            minutes: String((selectedVplayServer as any).test_minutes || 60),
+          },
+        });
+        if (error) throw new Error(error.message || 'Erro na edge function');
+        if ((data as any)?.error) throw new Error((data as any).error);
+        setVplayTestResult((data as any)?.message || JSON.stringify(data));
+        toast.success('Teste gerado com sucesso!');
+        return;
+      }
+
       console.log('[Vplay] Calling edge function with URL:', vplayUrl);
 
       const { data, error } = await supabase.functions.invoke('vplay-generate-test', {
@@ -2116,7 +2133,7 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                 <Play className="h-4 w-4 text-violet-500" />
               </div>
               <div className="flex-1">
-                <h3 className="text-sm font-semibold text-violet-600 dark:text-violet-400">Gerar Teste Vplay</h3>
+                <h3 className="text-sm font-semibold text-violet-600 dark:text-violet-400">Gerar Teste</h3>
                 <p className="text-[10px] text-muted-foreground">
                   {vplayServers.length > 0 ? `${vplayServers.length} servidor${vplayServers.length > 1 ? 'es' : ''} configurado${vplayServers.length > 1 ? 's' : ''}` : 'Nenhum servidor'}
                 </p>
@@ -2126,7 +2143,7 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                 size="icon"
                 className="h-7 w-7 rounded-full hover:bg-violet-500/10"
                 onClick={() => window.location.href = '/settings'}
-                title="Configurar Servidores Vplay"
+                title="Configurar Servidores de Teste"
               >
                 <Settings className="h-3.5 w-3.5 text-violet-500" />
               </Button>
@@ -2180,7 +2197,7 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
               
               {vplayServers.length === 0 && (
                 <p className="text-[10px] text-amber-500 text-center">
-                  Configure servidores em Configurações &gt; Gerador Vplay
+                  Configure servidores em Configurações &gt; Gerador de Teste
                 </p>
               )}
             </div>
