@@ -24,7 +24,7 @@ Deno.serve(async (req) => {
 
     const { data: settings } = await supabase
       .from('platform_settings')
-      .select('recaptcha_enabled, recaptcha_min_score')
+      .select('recaptcha_enabled')
       .eq('singleton', true)
       .maybeSingle();
 
@@ -33,42 +33,38 @@ Deno.serve(async (req) => {
       return json({ success: true, skipped: true, reason: 'disabled' });
     }
 
-    const secret = Deno.env.get('RECAPTCHA_SECRET_KEY') ?? '';
+    const secret = Deno.env.get('TURNSTILE_SECRET_KEY') ?? '';
     if (!secret) {
-      return json({ success: false, error: 'reCAPTCHA não configurado no servidor.' }, 400);
+      return json({ success: false, error: 'Cloudflare Turnstile não configurado no servidor.' }, 503);
     }
 
     if (!token) {
-      return json({ success: false, error: 'Token do reCAPTCHA ausente.' }, 400);
+      return json({ success: false, error: 'Token do Turnstile ausente.' }, 400);
     }
 
-    const params = new URLSearchParams({ secret, response: token });
-    const resp = await fetch('https://www.google.com/recaptcha/api/siteverify', {
+    const remoteIp = (req.headers.get('x-forwarded-for') ?? '').split(',')[0]?.trim();
+    const requestId = crypto.randomUUID();
+    const params = new URLSearchParams({ secret, response: token, idempotency_key: requestId });
+    if (remoteIp) params.set('remoteip', remoteIp);
+    const resp = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: params.toString(),
     });
     const result = await resp.json().catch(() => ({}));
 
-    const minScore = Number(settings?.recaptcha_min_score ?? 0.5);
-    const score = typeof result?.score === 'number' ? result.score : 1;
-
     if (!result?.success) {
       return json(
-        { success: false, error: 'Falha na verificação do reCAPTCHA.', codes: result?.['error-codes'] ?? [] },
+        { success: false, error: 'Falha na verificação do Cloudflare Turnstile.', codes: result?.['error-codes'] ?? [] },
         400,
       );
     }
 
     if (action && result?.action && result.action !== action) {
-      return json({ success: false, error: 'Ação do reCAPTCHA inválida.' }, 400);
+      return json({ success: false, error: 'Ação do Turnstile inválida.' }, 400);
     }
 
-    if (score < minScore) {
-      return json({ success: false, error: 'Atividade suspeita detectada. Tente novamente.', score }, 400);
-    }
-
-    return json({ success: true, score });
+    return json({ success: true });
   } catch (e) {
     return json({ success: false, error: (e as Error).message }, 500);
   }
