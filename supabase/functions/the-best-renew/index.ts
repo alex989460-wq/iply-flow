@@ -257,12 +257,14 @@ serve(async (req) => {
 
         const { data: customerData } = await supabaseAdmin
           .from('customers')
-          .select('id, created_by, plan_id')
+          .select('id, created_by, plan_id, screens')
           .eq('id', customer_id)
           .maybeSingle();
 
         if (customerData?.created_by) {
-          let creditsToDeduct = renewMonths;
+          const extraScreens = Math.max(0, (Number(customerData?.screens) || 1) - 1);
+          let creditsToDeduct = renewMonths + extraScreens * 0.5 * renewMonths;
+
           const { data: ownerAccess } = await supabaseAdmin
             .from('reseller_access')
             .select('id, credits')

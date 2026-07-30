@@ -1,0 +1,3 @@
+DROP POLICY "Resellers can create sub-resellers" ON public.reseller_access;
+ALTER TABLE public.reseller_access ALTER COLUMN credits TYPE numeric(12,2) USING credits::numeric;
+CREATE POLICY "Resellers can create sub-resellers" ON public.reseller_access FOR INSERT TO authenticated WITH CHECK (is_admin() OR ((parent_reseller_id = auth.uid()) AND ((SELECT ra.credits FROM public.reseller_access ra WHERE ra.user_id = auth.uid()) >= 1)));
