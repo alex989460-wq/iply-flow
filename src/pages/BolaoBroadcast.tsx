@@ -274,16 +274,36 @@ export default function BolaoBroadcast() {
                 Atualizar lista
               </Button>
             </div>
+            <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
+              <Select value={channelId} onValueChange={setChannelId} disabled={loadingChannels || channels.length === 0}>
+                <SelectTrigger className="w-full sm:w-80">
+                  <SelectValue placeholder={loadingChannels ? 'Carregando canais...' : 'Selecione o canal de envio'} />
+                </SelectTrigger>
+                <SelectContent>
+                  {channels.map((ch) => (
+                    <SelectItem key={ch.id} value={ch.id}>
+                      {ch.name || ch.verified_name || ch.id}
+                      {ch.display_phone_number ? ` · ${ch.display_phone_number}` : ''}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button variant="outline" size="sm" onClick={loadChannels} disabled={loadingChannels}>
+                {loadingChannels ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <RefreshCw className="w-4 h-4 mr-1" />}
+                Atualizar canais
+              </Button>
+            </div>
             <div className="flex items-center gap-3">
               <Badge variant="secondary" className="text-base px-3 py-1">
                 {loading ? '...' : targets.length} destinatários
               </Badge>
-              {departmentId ? (
+              {channelId || departmentId ? (
                 <span className="text-xs text-emerald-500">✓ Envio via API Oficial (CRM Oficial)</span>
               ) : (
-                <span className="text-xs text-destructive">⚠ Configure o canal em Configurações → CRM Oficial</span>
+                <span className="text-xs text-destructive">⚠ Nenhum canal encontrado — cadastre em CRM Oficial → Canais</span>
               )}
             </div>
+
           </CardContent>
         </Card>
 
