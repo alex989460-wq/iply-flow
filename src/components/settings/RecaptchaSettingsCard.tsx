@@ -33,6 +33,14 @@ export default function RecaptchaSettingsCard() {
   }, []);
 
   const save = async () => {
+    if (enabled && !siteKey.trim()) {
+      toast({
+        title: 'Chave do site obrigatória',
+        description: 'Informe a Chave do site (v3) do Google para ativar o reCAPTCHA.',
+        variant: 'destructive',
+      });
+      return;
+    }
     setSaving(true);
     const { error } = await supabase
       .from('platform_settings')
@@ -79,6 +87,12 @@ export default function RecaptchaSettingsCard() {
           </div>
           <Switch checked={enabled} onCheckedChange={setEnabled} />
         </div>
+
+        {enabled && !siteKey.trim() && (
+          <p className="text-xs text-destructive">
+            reCAPTCHA marcado como ativo, mas sem Chave do site — ele não será exibido no login até você preencher a chave abaixo.
+          </p>
+        )}
 
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="space-y-1.5">

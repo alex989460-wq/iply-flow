@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
-import { Mail, Lock, User, Loader2, AlertCircle, Eye, EyeOff, Shield, KeyRound } from 'lucide-react';
+import { Mail, Lock, User, Loader2, AlertCircle, Eye, EyeOff, Shield, ShieldCheck, KeyRound } from 'lucide-react';
 import { z } from 'zod';
 import logoSg from '@/assets/logo-sg.png';
 import { supabase } from '@/integrations/supabase/client';
@@ -378,9 +378,16 @@ export default function Auth() {
         </div>
 
         {/* Footer */}
+        {recaptcha.enabled && (
+          <p className="text-center text-[11px] text-muted-foreground mt-4 flex items-center justify-center gap-1.5">
+            <ShieldCheck className="w-3.5 h-3.5 text-primary" />
+            Protegido por reCAPTCHA
+          </p>
+        )}
         <p className="text-center text-xs text-muted-foreground mt-6">
           Ao continuar, você concorda com nossos termos de uso.
         </p>
+
       </div>
     </div>
   );
