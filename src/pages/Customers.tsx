@@ -3579,7 +3579,7 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
                 disabled={
                   isSendingBilling ||
                   (billingChannel === 'evolution'
-                    ? !billingSettings?.evolution_instance
+                    ? (!selectedEvoInstance && !billingSettings?.evolution_instance) || !selectedEvoTemplateKey
                     : billingChannel === 'crm'
                       ? !selectedCrmTemplate || !primaryCrmChannel
                       : !selectedTemplate)
