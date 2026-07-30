@@ -153,15 +153,29 @@ export default function SendPlaylistDialog({
   const canSend = useMemo(() => {
     if (!listUrl.trim()) return false;
     if (tab === 'clouddy') return !!email.trim();
-    return mac.replace(/[^0-9a-f]/gi, '').length === 12 && !!deviceKey.trim();
-  }, [tab, listUrl, email, mac, deviceKey]);
+    const macOk = mac.replace(/[^0-9a-f]/gi, '').length === 12 && !!deviceKey.trim();
+    if (tab === 'bobplayer') return macOk && !!captcha.trim() && !!captchaToken;
+    return macOk;
+  }, [tab, listUrl, email, mac, deviceKey, captcha, captchaToken]);
 
   const handleSend = async () => {
     if (!canSend) return toast.error('Preencha os campos obrigatórios.');
     setSending(true);
     try {
       const body =
-        tab === 'duplecast'
+        tab === 'bobplayer'
+          ? {
+              provider: 'bobplayer',
+              mac: formatMac(mac),
+              device_key: deviceKey.trim(),
+              playlist_name: playlistName.trim() || 'Lista',
+              m3u_url: listUrl.trim(),
+              epg_url: epgUrl.trim() || undefined,
+              pin: pin.trim() || undefined,
+              captcha: captcha.trim(),
+              captcha_token: captchaToken,
+            }
+          : tab === 'duplecast'
           ? {
               provider: 'duplecast',
               mac: formatMac(mac).toUpperCase(),
@@ -189,6 +203,7 @@ export default function SendPlaylistDialog({
               pin: pin.trim() || undefined,
               is_protected: !!pin.trim(),
             };
+
 
       const { data, error } = await supabase.functions.invoke('send-playlist', { body });
       if (error) throw error;
