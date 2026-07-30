@@ -100,6 +100,20 @@ export function EvolutionBillingScheduleCard() {
     onError: (e: any) => toast({ title: 'Erro', description: e.message, variant: 'destructive' }),
   });
 
+  const toggleRule = useMutation({
+    mutationFn: async ({ id, value }: { id: string; value: boolean }) => {
+      const { error } = await supabase
+        .from('evolution_billing_rules')
+        .update({ is_enabled: value })
+        .eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['evo-billing-rules'] });
+    },
+    onError: (e: any) => toast({ title: 'Erro', description: e.message, variant: 'destructive' }),
+  });
+
   const sendNow = useMutation({
     mutationFn: async () => {
       if (!user?.id) throw new Error('Sem usuário');
