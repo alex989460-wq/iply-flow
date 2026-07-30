@@ -337,8 +337,8 @@ Deno.serve(async (req) => {
 
         let result: any;
         try {
-          if (sched.image_url) {
-            result = await sendEvoImage(baseUrl, apiKey, instance, instAuth, phone, sched.image_url, text);
+          if (rule.image_url) {
+            result = await sendEvoImage(baseUrl, apiKey, instance, instAuth, phone, rule.image_url, text);
             if (!result.ok) {
               result = await sendEvoText(baseUrl, apiKey, instance, instAuth, phone, text);
             }
