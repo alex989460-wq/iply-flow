@@ -2265,6 +2265,54 @@ export type Database = {
         }
         Relationships: []
       }
+      playlist_templates: {
+        Row: {
+          created_at: string
+          default_host: string | null
+          epg_url_template: string | null
+          id: string
+          is_default: boolean
+          m3u_url_template: string
+          name: string
+          pin: string | null
+          playlist_name: string
+          send_tv: boolean
+          send_vod: boolean
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          default_host?: string | null
+          epg_url_template?: string | null
+          id?: string
+          is_default?: boolean
+          m3u_url_template: string
+          name: string
+          pin?: string | null
+          playlist_name?: string
+          send_tv?: boolean
+          send_vod?: boolean
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          default_host?: string | null
+          epg_url_template?: string | null
+          id?: string
+          is_default?: boolean
+          m3u_url_template?: string
+          name?: string
+          pin?: string | null
+          playlist_name?: string
+          send_tv?: boolean
+          send_vod?: boolean
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string
