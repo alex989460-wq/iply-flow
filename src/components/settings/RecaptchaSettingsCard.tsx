@@ -33,6 +33,14 @@ export default function RecaptchaSettingsCard() {
   }, []);
 
   const save = async () => {
+    if (enabled && !siteKey.trim()) {
+      toast({
+        title: 'Chave do site obrigatória',
+        description: 'Informe a Chave do site (v3) do Google para ativar o reCAPTCHA.',
+        variant: 'destructive',
+      });
+      return;
+    }
     setSaving(true);
     const { error } = await supabase
       .from('platform_settings')
