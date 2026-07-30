@@ -1,0 +1,2 @@
+ALTER TABLE public.efi_charges DROP CONSTRAINT IF EXISTS efi_charges_pending_kind_check;
+ALTER TABLE public.efi_charges ADD CONSTRAINT efi_charges_pending_kind_check CHECK (pending_kind = ANY (ARRAY['new_customer'::text,'manual_renewal'::text,'manual'::text,'activation_request'::text]));

@@ -131,7 +131,7 @@ Deno.serve(async (req) => {
       if (qr.status === 200 && qr.body?.imagemQrcode) qrcodeBase64 = stripDataPrefix(qr.body.imagemQrcode);
     }
 
-    await admin.from("efi_charges").insert({
+    const { error: chargeErr } = await admin.from("efi_charges").insert({
       owner_id: ownerId,
       customer_id: null,
       pending_id: reqRow.id,
@@ -150,6 +150,20 @@ Deno.serve(async (req) => {
       },
       expires_at: new Date(Date.now() + 86400_000).toISOString(),
     });
+    if (chargeErr) {
+      // Critical: without the charge row the webhook cannot link the payment.
+      console.error("[reseller-activation-create] falha ao salvar efi_charges", chargeErr);
+      await admin.from("pending_manual_renewals").insert({
+        owner_id: ownerId,
+        customer_name: `⚠️ Falha ao registrar cobrança — ${customerName}`,
+        reason: "activation_charge_insert_failed",
+        source: "reseller-activation-create",
+        customer_phone: customerPhone,
+        error_details: { txid, amount, app: app.app_name, email, error: chargeErr.message },
+      });
+      return json({ error: "charge_save_failed", detail: chargeErr.message }, 500);
+    }
+
 
     return json({
       ok: true, method: "pix", txid, amount,

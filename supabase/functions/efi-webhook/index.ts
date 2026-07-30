@@ -155,8 +155,27 @@ Deno.serve(async (req) => {
 
       if (!charge) {
         console.warn(`[efi-webhook] txid desconhecido: ${txid}`);
+        // Safety net: never lose a paid Pix. Register a manual pending entry so
+        // the reseller sees it in "Pendências" instead of it vanishing silently.
+        try {
+          const { data: owners } = await admin
+            .from("efi_settings").select("user_id").eq("enabled", true).limit(2);
+          const ownerId = owners && owners.length === 1 ? owners[0].user_id : null;
+          if (ownerId) {
+            await admin.from("pending_manual_renewals").insert({
+              owner_id: ownerId,
+              customer_name: "⚠️ Pix pago sem cobrança registrada",
+              reason: "efi_unknown_txid",
+              source: "efi-webhook",
+              error_details: { txid, valor, endToEndId },
+            });
+          }
+        } catch (e) {
+          console.error("[efi-webhook] falha ao registrar pendência de txid desconhecido", e);
+        }
         continue;
       }
+
       if (charge.status === "paid") {
         // Idempotency: Efí may retry the same event.
         processed++;
