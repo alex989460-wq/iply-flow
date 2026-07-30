@@ -404,7 +404,7 @@ Deno.serve(async (req) => {
                   const r = await fetch(`${SB_URL}/functions/v1/confirm-activation`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json", "Authorization": `Bearer ${SRK}` },
-                    body: JSON.stringify({ request_id: newActReq.id, action: "activate" }),
+                    body: JSON.stringify({ request_id: newActReq.id, action: "activate", source: `efi:${txid}` }),
                   });
                   const j = await r.json().catch(() => ({}));
                   autoOk = r.ok && j?.success !== false;
@@ -412,26 +412,8 @@ Deno.serve(async (req) => {
                 } catch (e) {
                   autoErr = e instanceof Error ? e.message : String(e);
                 }
-                if (!autoOk) {
-                  const { error: pendErr } = await admin.from("pending_manual_renewals").insert({
-                    owner_id: newActReq.user_id,
-                    customer_id: null,
-                    customer_name: newActReq.customer_name || "Ativação de App",
-                    customer_phone: newActReq.customer_phone || null,
-                    server_name: newActReq.app_name || null,
-                    plan_name: newActReq.app_name || null,
-                    amount: newActReq.amount || 0,
-                    reason: "app_activation",
-                    source: `efi:${txid}`,
-                    error_details: {
-                      app_name: newActReq.app_name,
-                      mac_address: newActReq.mac_address,
-                      email: newActReq.email,
-                      message: autoErr || "Falha na ativação automática",
-                    },
-                  });
-                  if (pendErr) console.error("[efi-webhook] pending activation insert error", pendErr);
-                }
+                // A pendência manual é registrada dentro de confirm-activation.
+
                 try {
                   const [{ data: zap }, { data: billing }] = await Promise.all([
                     admin.from("zap_responder_settings").select("selected_department_id").eq("user_id", newActReq.user_id).maybeSingle(),
