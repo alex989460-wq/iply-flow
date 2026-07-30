@@ -2613,32 +2613,41 @@ export type Database = {
       }
       vplay_servers: {
         Row: {
+          api_key: string | null
           created_at: string
           id: string
-          integration_url: string
+          integration_url: string | null
           is_default: boolean
-          key_message: string
+          key_message: string | null
           server_name: string
+          server_type: string
+          test_minutes: number
           updated_at: string
           user_id: string
         }
         Insert: {
+          api_key?: string | null
           created_at?: string
           id?: string
-          integration_url: string
+          integration_url?: string | null
           is_default?: boolean
-          key_message?: string
+          key_message?: string | null
           server_name: string
+          server_type?: string
+          test_minutes?: number
           updated_at?: string
           user_id: string
         }
         Update: {
+          api_key?: string | null
           created_at?: string
           id?: string
-          integration_url?: string
+          integration_url?: string | null
           is_default?: boolean
-          key_message?: string
+          key_message?: string | null
           server_name?: string
+          server_type?: string
+          test_minutes?: number
           updated_at?: string
           user_id?: string
         }
