@@ -130,7 +130,8 @@ export function EvolutionBillingScheduleCard() {
     );
   }
 
-  const active = (rules || []).filter(r => r.is_enabled);
+  const allRules = rules || [];
+  const active = allRules.filter(r => r.is_enabled);
 
   return (
     <Card className="glass-card border-border/50 border-l-4 border-l-emerald-500">
