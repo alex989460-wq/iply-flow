@@ -25,6 +25,7 @@ export default function BillingSettings() {
 
         <BillingSettingsCard />
         <EvolutionBillingTemplatesCard />
+        <EvolutionBillingScheduleCard />
 
         <EfiSettingsCard />
         <ResellerCheckoutCard />
