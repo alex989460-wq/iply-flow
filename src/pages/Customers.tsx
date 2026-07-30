@@ -406,6 +406,36 @@ export default function Customers() {
     },
   });
 
+  // Modelos de cobrança não oficial (aba "Template Não Oficial")
+  const { data: evoBillingRules = [] } = useQuery({
+    queryKey: ['evo-billing-rules-customers'],
+    queryFn: async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return [];
+      const { data, error } = await (supabase
+        .from('evolution_billing_rules' as any)
+        .select('*')
+        .eq('user_id', user.id)
+        .order('sort_order', { ascending: true }) as any);
+      if (error) throw error;
+      return (data || []) as any[];
+    },
+  });
+
+  // Instâncias Evolution conectadas (para escolher na hora do envio)
+  const { data: evoInstances = [], refetch: refetchEvoInstances } = useQuery({
+    queryKey: ['evo-instances-customers'],
+    queryFn: async () => {
+      const { data, error } = await supabase.functions.invoke('evolution-send', {
+        body: { action: 'list-instances' },
+      });
+      if (error) return [];
+      return (data?.instances || []) as any[];
+    },
+  });
+
+
+
   const { data: crmSettings } = useQuery({
     queryKey: ['crm-oficial-settings-customers'],
     queryFn: async () => {
