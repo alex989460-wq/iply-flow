@@ -519,12 +519,20 @@ export default function ActivationApps() {
               <Zap className="w-3.5 h-3.5 mr-1" /> Ativação Manual
             </TabsTrigger>
             <TabsTrigger value="apps">Apps Configurados</TabsTrigger>
+            <TabsTrigger value="playlists">
+              <ListPlus className="w-3.5 h-3.5 mr-1" /> Enviar Lista
+            </TabsTrigger>
             <TabsTrigger value="panels">
               <Settings2 className="w-3.5 h-3.5 mr-1" /> Painéis
             </TabsTrigger>
           </TabsList>
 
+          <TabsContent value="playlists">
+            <PlaylistTemplatesCard />
+          </TabsContent>
+
           <TabsContent value="manual">
+
             <Card>
               <CardHeader>
                 <CardTitle className="text-lg flex items-center gap-2">
