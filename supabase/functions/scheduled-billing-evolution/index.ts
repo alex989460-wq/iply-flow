@@ -292,7 +292,8 @@ Deno.serve(async (req) => {
 
       for (let i = 0; i < batch.length; i++) {
         const c = batch[i];
-        const tpl = tplMap[c.billingType as string];
+        const rule: Rule = c.rule;
+        const tpl = rule.message || 'Olá {{nome}}, sua assinatura vence em {{vencimento}}.';
         const vencDate = new Date(c.due_date + 'T12:00:00');
         const price = c.custom_price ?? c.plan?.price ?? 0;
         const vars: Record<string, string> = {
@@ -305,13 +306,13 @@ Deno.serve(async (req) => {
           status: c.status || '-',
           telas: String(c.screens || 1),
           servidor: c.server?.server_name || '-',
-          link: sched.renew_button_url || '',
+          link: rule.button_url || '',
         };
         let text = renderTemplate(tpl, vars);
 
-        if (sched.renew_button_enabled && sched.renew_button_url) {
-          const label = sched.renew_button_label || 'Renovar agora';
-          text += `\n\n👉 *${label}:* ${sched.renew_button_url}`;
+        if (rule.button_enabled && rule.button_url) {
+          const label = rule.button_label || 'Renovar agora';
+          text += `\n\n👉 *${label}:* ${rule.button_url}`;
         }
 
         const phone = normalizePhone(c.phone);
