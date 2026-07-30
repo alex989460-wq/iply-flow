@@ -173,6 +173,7 @@ export default function BolaoBroadcast() {
 
   useEffect(() => {
     loadDepartment();
+    loadChannels();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
@@ -182,8 +183,8 @@ export default function BolaoBroadcast() {
   }, [source]);
 
   async function handleSend() {
-    if (!departmentId) {
-      toast({ title: 'Departamento não configurado', description: 'Configure o departamento do Zap Responder em Configurações.', variant: 'destructive' });
+    if (!departmentId && !channelId) {
+      toast({ title: 'Canal não configurado', description: 'Selecione um canal do CRM Oficial ou configure o departamento em Configurações.', variant: 'destructive' });
       return;
     }
     if (targets.length === 0) {
@@ -200,19 +201,35 @@ export default function BolaoBroadcast() {
       const c = targets[i];
       const number = c.phone.startsWith('55') ? c.phone : `55${c.phone}`;
       try {
-        const { data, error } = await supabase.functions.invoke('zap-responder', {
-          body: {
-            action: 'enviar-mensagem',
-            department_id: departmentId,
-            number,
-            text,
-            image_url: imageUrl || undefined,
-          },
-        });
-        const ok = !error && data?.success;
-        setLogs((prev) => [...prev, { phone: number, ok, error: error?.message || data?.error }]);
+        const { data, error } = channelId
+          ? await supabase.functions.invoke('crm-oficial-sync', {
+              body: {
+                action: 'send-whatsapp',
+                data: {
+                  phone: number,
+                  name: c.name,
+                  channel_id: channelId,
+                  body: text || undefined,
+                  media_url: imageUrl || undefined,
+                  caption: imageUrl ? text || undefined : undefined,
+                  media_type: imageUrl ? 'image' : undefined,
+                },
+              },
+            })
+          : await supabase.functions.invoke('zap-responder', {
+              body: {
+                action: 'enviar-mensagem',
+                department_id: departmentId,
+                number,
+                text,
+                image_url: imageUrl || undefined,
+              },
+            });
+        const ok = !error && (channelId ? (data as any)?.results?.send?.ok !== false : (data as any)?.success);
+        setLogs((prev) => [...prev, { phone: number, ok, error: error?.message || (data as any)?.error }]);
         setProgress((p) => ({ ...p, sent: p.sent + (ok ? 1 : 0), errors: p.errors + (ok ? 0 : 1) }));
       } catch (e: any) {
+
         setLogs((prev) => [...prev, { phone: number, ok: false, error: e.message }]);
         setProgress((p) => ({ ...p, errors: p.errors + 1 }));
       }
