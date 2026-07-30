@@ -69,6 +69,8 @@ import { SendProgressModal } from '@/components/billing/SendProgressModal';
 import { BillingReportsTab } from '@/components/billing/BillingReportsTab';
 
 import { CrmOficialBillingScheduleCard } from '@/components/billing/CrmOficialBillingScheduleCard';
+import { EvolutionBillingScheduleCard } from '@/components/billing/EvolutionBillingScheduleCard';
+import { EvolutionBillingTemplatesCard } from '@/components/billing/EvolutionBillingTemplatesCard';
 import CrmChannelsInline from '@/components/crm/CrmChannelsInline';
 
 import { Link } from 'react-router-dom';
