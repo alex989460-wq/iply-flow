@@ -1341,6 +1341,16 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
         open={isBillingSettingsOpen} 
         onOpenChange={setIsBillingSettingsOpen} 
       />
+
+      {/* Envio de lista para apps */}
+      <SendPlaylistDialog
+        open={isSendPlaylistOpen}
+        onOpenChange={setIsSendPlaylistOpen}
+        defaultUsername={selectedCustomer?.username || ''}
+        defaultPassword={selectedCustomer?.password || ''}
+        defaultHost={selectedCustomer?.server?.host || ''}
+      />
+
       {isMobile && (
         <div className="p-4 space-y-3">
           <div className="flex items-center gap-2">
