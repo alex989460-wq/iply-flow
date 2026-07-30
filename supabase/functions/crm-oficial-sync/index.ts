@@ -1494,6 +1494,11 @@ Deno.serve(async (req) => {
       const payload = (data?.channel as Record<string, unknown>) || {};
       if (!payload.kind) throw new Error("kind é obrigatório (whatsapp_cloud | whatsapp_evolution | webchat)");
       const isEvolution = String(payload.kind).includes("evolution");
+      if (String(payload.kind).includes("cloud") || isEvolution) {
+        await enforceChannelQuota(isEvolution ? "evolution" : "official");
+      }
+
+
 
       const doCreate = () => crmFetch("/api/public/v1/channels", {
         method: "POST",
