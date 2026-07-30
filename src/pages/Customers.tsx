@@ -3426,25 +3426,61 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
               </div>
 
               {billingChannel === 'evolution' && (
-                <div className="space-y-2">
-                  <Label>Tipo de mensagem</Label>
-                  <Select value={selectedEvoTemplateKey} onValueChange={(v: any) => setSelectedEvoTemplateKey(v)}>
-                    <SelectTrigger className="bg-secondary/50">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="D-1">Vence amanhã (D-1)</SelectItem>
-                      <SelectItem value="D0">Vence hoje (D0)</SelectItem>
-                      <SelectItem value="D+1">Vencido (D+1)</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  {!billingSettings?.evolution_instance && (
-                    <p className="text-[11px] text-destructive">
-                      Configure a instância em Configurações → Cobrança.
-                    </p>
-                  )}
+                <div className="space-y-3">
+                  <div className="space-y-2">
+                    <Label>Instância WhatsApp</Label>
+                    <Select value={selectedEvoInstance} onValueChange={(v) => setSelectedEvoInstance(v)}>
+                      <SelectTrigger className="bg-secondary/50">
+                        <SelectValue placeholder="Selecione a instância conectada" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {(evoInstances as any[]).map((inst: any) => (
+                          <SelectItem key={inst.name} value={inst.name}>
+                            {inst.name}{inst.phone ? ` • ${inst.phone}` : ''}
+                          </SelectItem>
+                        ))}
+                        {(evoInstances as any[]).length === 0 && billingSettings?.evolution_instance && (
+                          <SelectItem value={billingSettings.evolution_instance}>{billingSettings.evolution_instance}</SelectItem>
+                        )}
+                      </SelectContent>
+                    </Select>
+                    {(evoInstances as any[]).length === 0 && !billingSettings?.evolution_instance && (
+                      <p className="text-[11px] text-destructive">
+                        Nenhuma instância encontrada. Conecte uma em Conexões WhatsApp.
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Mensagem</Label>
+                    <Select value={selectedEvoTemplateKey} onValueChange={(v: any) => setSelectedEvoTemplateKey(v)}>
+                      <SelectTrigger className="bg-secondary/50">
+                        <SelectValue placeholder="Selecione a mensagem" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {(evoBillingRules as any[]).map((rule: any) => (
+                          <SelectItem key={rule.id} value={String(rule.id)}>
+                            {rule.label}{rule.image_url ? ' 🖼️' : ''}
+                          </SelectItem>
+                        ))}
+                        {(evoBillingRules as any[]).length === 0 && (
+                          <>
+                            <SelectItem value="D-1">Vence amanhã (D-1)</SelectItem>
+                            <SelectItem value="D0">Vence hoje (D0)</SelectItem>
+                            <SelectItem value="D+1">Vencido (D+1)</SelectItem>
+                          </>
+                        )}
+                      </SelectContent>
+                    </Select>
+                    {(evoBillingRules as any[]).length === 0 && (
+                      <p className="text-[11px] text-muted-foreground">
+                        Crie modelos personalizados na aba "Template Não Oficial".
+                      </p>
+                    )}
+                  </div>
                 </div>
               )}
+
 
               {billingChannel === 'zap' && (
                 <div className="space-y-2">
