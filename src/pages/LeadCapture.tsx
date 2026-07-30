@@ -138,7 +138,7 @@ export default function LeadCapture() {
     const digits = seedPhone.replace(/\D/g, '');
     const { phone } = normalize(digits);
     if (!phone || !phone.startsWith('55') || phone.length !== 13) {
-      toast({ title: 'Semente inválida', description: 'Use um celular brasileiro completo, ex.: 5541991758392', variant: 'destructive' });
+      toast({ title: 'Semente inválida', description: 'Use um celular brasileiro completo com DDD e DDI 55.', variant: 'destructive' });
       return;
     }
     const ddd = phone.slice(2, 4);
@@ -425,7 +425,7 @@ export default function LeadCapture() {
               <Wand2 className="w-4 h-4 text-primary" /> Gerador de leads por DDD/prefixo
             </CardTitle>
             <CardDescription>
-              Informe um telefone semente (ex.: <code>5541991758392</code>) e o sistema gera centenas/milhares de números
+              Informe um telefone semente e o sistema gera centenas/milhares de números
               com o <strong>mesmo DDD e mesmo prefixo de operadora</strong>, variando apenas os últimos 4 dígitos. Validação real
               de existência no WhatsApp é feita no primeiro envio (sem custo de conversa quando o número não existe).
             </CardDescription>
@@ -434,8 +434,9 @@ export default function LeadCapture() {
             <div className="grid sm:grid-cols-[1fr_140px_160px_auto] gap-2 items-end">
               <div className="space-y-1">
                 <Label className="text-xs">Telefone semente</Label>
-                <Input value={seedPhone} onChange={(e) => setSeedPhone(e.target.value)} placeholder="5541991758392" />
+                <Input value={seedPhone} onChange={(e) => setSeedPhone(e.target.value)} placeholder="" />
               </div>
+
               <div className="space-y-1">
                 <Label className="text-xs">Quantidade</Label>
                 <Input type="number" min={1} max={isAdmin ? 50000 : 2000} value={seedCount}
@@ -472,7 +473,7 @@ export default function LeadCapture() {
             <CardDescription>Cole os números (qualquer formato) ou faça upload de CSV/TXT. Validamos DDD e formato celular brasileiro.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            <Textarea value={raw} onChange={(e) => setRaw(e.target.value)} rows={6} placeholder="41999999999&#10;(11) 98888-7777&#10;..." />
+            <Textarea value={raw} onChange={(e) => setRaw(e.target.value)} rows={6} placeholder="" />
             <div className="flex flex-wrap gap-2 items-center">
               <Button onClick={parsePhones} variant="secondary" size="sm"><Search className="w-4 h-4 mr-1" />Validar lista</Button>
               <label className="cursor-pointer">

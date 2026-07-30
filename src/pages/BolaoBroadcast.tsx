@@ -33,6 +33,34 @@ function normalizePhone(raw?: string | null): string | null {
   return noCC;
 }
 
+interface CrmChannel {
+  id: string;
+  name?: string;
+  phone_number_id?: string;
+  display_phone_number?: string;
+  verified_name?: string;
+  kind?: string;
+}
+
+function normalizeChannels(body: any): CrmChannel[] {
+  const list = Array.isArray(body) ? body : Array.isArray(body?.channels) ? body.channels : [];
+  const raw = list.length
+    ? list
+    : Array.isArray(body?.whatsapp)
+      ? body.whatsapp
+      : body?.whatsapp
+        ? [body.whatsapp]
+        : [];
+  return raw.map((c: any, i: number) => ({
+    ...c,
+    id: String(c.id || c.phone_number_id || `channel-${i}`),
+    name: c.name || c.title || c.verified_name || c.display_name || c.display_phone_number,
+    verified_name: c.verified_name || c.business_name || c.name,
+    display_phone_number: c.display_phone_number || c.phone_display || c.phone_number || c.phone,
+    kind: c.kind || c.type || 'whatsapp_cloud',
+  }));
+}
+
 export default function BolaoBroadcast() {
   const { toast } = useToast();
   const { user } = useAuth();
@@ -45,6 +73,9 @@ export default function BolaoBroadcast() {
   const [sending, setSending] = useState(false);
   const [progress, setProgress] = useState({ sent: 0, errors: 0, total: 0 });
   const [logs, setLogs] = useState<{ phone: string; ok: boolean; error?: string }[]>([]);
+  const [channels, setChannels] = useState<CrmChannel[]>([]);
+  const [channelId, setChannelId] = useState<string>('');
+  const [loadingChannels, setLoadingChannels] = useState(false);
 
   async function loadDepartment() {
     if (!user) return;
@@ -55,6 +86,30 @@ export default function BolaoBroadcast() {
       .maybeSingle();
     if (zap?.selected_department_id) setDepartmentId(zap.selected_department_id);
   }
+
+  async function loadChannels() {
+    if (!user) return;
+    setLoadingChannels(true);
+    try {
+      const { data: crm } = await supabase
+        .from('crm_oficial_settings')
+        .select('api_key, enabled')
+        .eq('user_id', user.id)
+        .maybeSingle();
+      const { data, error } = await supabase.functions.invoke('crm-oficial-sync', {
+        body: { action: 'list-channels', data: { apiKey: crm?.api_key } },
+      });
+      if (error) throw error;
+      const list = normalizeChannels((data as any)?.results?.channels?.body);
+      setChannels(list);
+      setChannelId((prev) => prev || list[0]?.id || '');
+    } catch (e: any) {
+      console.error('[bolao] canais', e);
+    } finally {
+      setLoadingChannels(false);
+    }
+  }
+
 
   async function loadTargets() {
     setLoading(true);
@@ -118,6 +173,7 @@ export default function BolaoBroadcast() {
 
   useEffect(() => {
     loadDepartment();
+    loadChannels();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
@@ -127,8 +183,8 @@ export default function BolaoBroadcast() {
   }, [source]);
 
   async function handleSend() {
-    if (!departmentId) {
-      toast({ title: 'Departamento não configurado', description: 'Configure o departamento do Zap Responder em Configurações.', variant: 'destructive' });
+    if (!departmentId && !channelId) {
+      toast({ title: 'Canal não configurado', description: 'Selecione um canal do CRM Oficial ou configure o departamento em Configurações.', variant: 'destructive' });
       return;
     }
     if (targets.length === 0) {
@@ -145,19 +201,35 @@ export default function BolaoBroadcast() {
       const c = targets[i];
       const number = c.phone.startsWith('55') ? c.phone : `55${c.phone}`;
       try {
-        const { data, error } = await supabase.functions.invoke('zap-responder', {
-          body: {
-            action: 'enviar-mensagem',
-            department_id: departmentId,
-            number,
-            text,
-            image_url: imageUrl || undefined,
-          },
-        });
-        const ok = !error && data?.success;
-        setLogs((prev) => [...prev, { phone: number, ok, error: error?.message || data?.error }]);
+        const { data, error } = channelId
+          ? await supabase.functions.invoke('crm-oficial-sync', {
+              body: {
+                action: 'send-whatsapp',
+                data: {
+                  phone: number,
+                  name: c.name,
+                  channel_id: channelId,
+                  body: text || undefined,
+                  media_url: imageUrl || undefined,
+                  caption: imageUrl ? text || undefined : undefined,
+                  media_type: imageUrl ? 'image' : undefined,
+                },
+              },
+            })
+          : await supabase.functions.invoke('zap-responder', {
+              body: {
+                action: 'enviar-mensagem',
+                department_id: departmentId,
+                number,
+                text,
+                image_url: imageUrl || undefined,
+              },
+            });
+        const ok = !error && (channelId ? (data as any)?.results?.send?.ok !== false : (data as any)?.success);
+        setLogs((prev) => [...prev, { phone: number, ok, error: error?.message || (data as any)?.error }]);
         setProgress((p) => ({ ...p, sent: p.sent + (ok ? 1 : 0), errors: p.errors + (ok ? 0 : 1) }));
       } catch (e: any) {
+
         setLogs((prev) => [...prev, { phone: number, ok: false, error: e.message }]);
         setProgress((p) => ({ ...p, errors: p.errors + 1 }));
       }
@@ -202,16 +274,36 @@ export default function BolaoBroadcast() {
                 Atualizar lista
               </Button>
             </div>
+            <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
+              <Select value={channelId} onValueChange={setChannelId} disabled={loadingChannels || channels.length === 0}>
+                <SelectTrigger className="w-full sm:w-80">
+                  <SelectValue placeholder={loadingChannels ? 'Carregando canais...' : 'Selecione o canal de envio'} />
+                </SelectTrigger>
+                <SelectContent>
+                  {channels.map((ch) => (
+                    <SelectItem key={ch.id} value={ch.id}>
+                      {ch.name || ch.verified_name || ch.id}
+                      {ch.display_phone_number ? ` · ${ch.display_phone_number}` : ''}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button variant="outline" size="sm" onClick={loadChannels} disabled={loadingChannels}>
+                {loadingChannels ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <RefreshCw className="w-4 h-4 mr-1" />}
+                Atualizar canais
+              </Button>
+            </div>
             <div className="flex items-center gap-3">
               <Badge variant="secondary" className="text-base px-3 py-1">
                 {loading ? '...' : targets.length} destinatários
               </Badge>
-              {departmentId ? (
+              {channelId || departmentId ? (
                 <span className="text-xs text-emerald-500">✓ Envio via API Oficial (CRM Oficial)</span>
               ) : (
-                <span className="text-xs text-destructive">⚠ Configure o canal em Configurações → CRM Oficial</span>
+                <span className="text-xs text-destructive">⚠ Nenhum canal encontrado — cadastre em CRM Oficial → Canais</span>
               )}
             </div>
+
           </CardContent>
         </Card>
 
