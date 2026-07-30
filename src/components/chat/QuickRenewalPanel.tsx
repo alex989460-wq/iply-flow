@@ -1298,6 +1298,16 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
               </Button>
               <Button
                 variant="ghost"
+                size="icon"
+                className="h-7 w-7 rounded-full hover:bg-primary/10"
+                onClick={() => setIsSendPlaylistOpen(true)}
+                title="Enviar lista para o app"
+              >
+                <ListPlus className="h-3.5 w-3.5" />
+              </Button>
+
+              <Button
+                variant="ghost"
                 size="sm"
                 className="h-7 text-xs gap-1"
                 onClick={() => {
