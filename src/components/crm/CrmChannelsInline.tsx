@@ -136,6 +136,31 @@ export default function CrmChannelsInline() {
 
       setChannels(merged);
 
+      // Importa automaticamente as instâncias criadas pelo embed do CRM que ainda
+      // não estão registradas neste sistema, para aparecerem em Conexões/Chat e
+      // para o webhook passar a receber as mensagens.
+      const toClaim = merged
+        .filter((c) => !c.official)
+        .map((c) => (c.instance_name || '').trim())
+        .filter((n) => n && !liveNames.has(n.toLowerCase()));
+      if (toClaim.length) {
+        const claimed = await Promise.all(
+          toClaim.map((n) =>
+            supabase.functions
+              .invoke('evolution-send', { body: { action: 'claim-instance', name: n } })
+              .then((r) => !!r.data?.ok)
+              .catch(() => false),
+          ),
+        );
+        if (claimed.some(Boolean)) {
+          toast({
+            title: 'Conexão importada',
+            description: 'Instância do CRM vinculada a este sistema. Atualize o chat para receber mensagens.',
+          });
+        }
+      }
+
+
     } catch (e: any) {
       toast({ title: 'Erro ao listar canais oficiais', description: e.message, variant: 'destructive' });
     } finally {
