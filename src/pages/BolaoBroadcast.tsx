@@ -33,6 +33,34 @@ function normalizePhone(raw?: string | null): string | null {
   return noCC;
 }
 
+interface CrmChannel {
+  id: string;
+  name?: string;
+  phone_number_id?: string;
+  display_phone_number?: string;
+  verified_name?: string;
+  kind?: string;
+}
+
+function normalizeChannels(body: any): CrmChannel[] {
+  const list = Array.isArray(body) ? body : Array.isArray(body?.channels) ? body.channels : [];
+  const raw = list.length
+    ? list
+    : Array.isArray(body?.whatsapp)
+      ? body.whatsapp
+      : body?.whatsapp
+        ? [body.whatsapp]
+        : [];
+  return raw.map((c: any, i: number) => ({
+    ...c,
+    id: String(c.id || c.phone_number_id || `channel-${i}`),
+    name: c.name || c.title || c.verified_name || c.display_name || c.display_phone_number,
+    verified_name: c.verified_name || c.business_name || c.name,
+    display_phone_number: c.display_phone_number || c.phone_display || c.phone_number || c.phone,
+    kind: c.kind || c.type || 'whatsapp_cloud',
+  }));
+}
+
 export default function BolaoBroadcast() {
   const { toast } = useToast();
   const { user } = useAuth();
@@ -45,6 +73,9 @@ export default function BolaoBroadcast() {
   const [sending, setSending] = useState(false);
   const [progress, setProgress] = useState({ sent: 0, errors: 0, total: 0 });
   const [logs, setLogs] = useState<{ phone: string; ok: boolean; error?: string }[]>([]);
+  const [channels, setChannels] = useState<CrmChannel[]>([]);
+  const [channelId, setChannelId] = useState<string>('');
+  const [loadingChannels, setLoadingChannels] = useState(false);
 
   async function loadDepartment() {
     if (!user) return;
@@ -55,6 +86,30 @@ export default function BolaoBroadcast() {
       .maybeSingle();
     if (zap?.selected_department_id) setDepartmentId(zap.selected_department_id);
   }
+
+  async function loadChannels() {
+    if (!user) return;
+    setLoadingChannels(true);
+    try {
+      const { data: crm } = await supabase
+        .from('crm_oficial_settings')
+        .select('api_key, enabled')
+        .eq('user_id', user.id)
+        .maybeSingle();
+      const { data, error } = await supabase.functions.invoke('crm-oficial-sync', {
+        body: { action: 'list-channels', data: { apiKey: crm?.api_key } },
+      });
+      if (error) throw error;
+      const list = normalizeChannels((data as any)?.results?.channels?.body);
+      setChannels(list);
+      setChannelId((prev) => prev || list[0]?.id || '');
+    } catch (e: any) {
+      console.error('[bolao] canais', e);
+    } finally {
+      setLoadingChannels(false);
+    }
+  }
+
 
   async function loadTargets() {
     setLoading(true);
