@@ -14,8 +14,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { Plus, Pencil, Trash2, Smartphone, Mail, Monitor, Clock, CheckCircle2, XCircle, AlertCircle, Settings2, Eye, EyeOff, Zap } from 'lucide-react';
+import { Plus, Pencil, Trash2, Smartphone, Mail, Monitor, Clock, CheckCircle2, XCircle, AlertCircle, Settings2, Eye, EyeOff, Zap, ListPlus } from 'lucide-react';
 import { format } from 'date-fns';
+import PlaylistTemplatesCard from '@/components/playlist/PlaylistTemplatesCard';
+
 
 // Logos conhecidas (URL pública) por nome de app (uppercase).
 const APP_LOGOS: Record<string, string> = {
