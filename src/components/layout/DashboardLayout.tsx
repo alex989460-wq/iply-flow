@@ -4,6 +4,7 @@ import Sidebar from './Sidebar';
 import { cn } from '@/lib/utils';
 import { useSidebar } from '@/contexts/SidebarContext';
 import PendingManualRenewalsFloat from '@/components/PendingManualRenewalsFloat';
+import InstallAppFloat from '@/components/InstallAppFloat';
 import { applyTheme, resetThemeVars, loadTheme } from '@/lib/panel-theme';
 
 interface DashboardLayoutProps {
