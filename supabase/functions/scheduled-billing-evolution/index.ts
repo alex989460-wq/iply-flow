@@ -184,14 +184,63 @@ Deno.serve(async (req) => {
       const instance = String(evo.instance_name);
       const instAuth = await resolveInstanceAuth(baseUrl, apiKey, instance);
 
-      const today = getRelativeDateSaoPaulo(0);
-      const yesterday = getRelativeDateSaoPaulo(-1);
-      const tomorrow = getRelativeDateSaoPaulo(1);
+      // ---- Rules: custom message types (evolution_billing_rules) with legacy fallback ----
+      const { data: customRules } = await supabase
+        .from('evolution_billing_rules')
+        .select('*')
+        .eq('user_id', sched.user_id)
+        .eq('is_enabled', true)
+        .order('sort_order', { ascending: true });
 
-      const types: string[] = [];
-      if (sched.send_d_minus_1) types.push('D-1');
-      if (sched.send_d0) types.push('D0');
-      if (sched.send_d_plus_1) types.push('D+1');
+      type Rule = {
+        days_offset: number;
+        message: string;
+        image_url: string | null;
+        button_enabled: boolean;
+        button_label: string | null;
+        button_url: string | null;
+      };
+
+      let rules: Rule[] = (customRules || []).map((r: any) => ({
+        days_offset: Number(r.days_offset) || 0,
+        message: r.message || '',
+        image_url: r.image_url || null,
+        button_enabled: !!r.button_enabled,
+        button_label: r.button_label || null,
+        button_url: r.button_url || null,
+      }));
+
+      if (rules.length === 0) {
+        const legacy: Array<[boolean, number, string, string]> = [
+          [!!sched.send_d_minus_1, 1, sched.message_d_minus_1 || 'Olá {{nome}}, vence amanhã ({{vencimento}}).', 'D-1'],
+          [!!sched.send_d0, 0, sched.message_d0 || 'Olá {{nome}}, vence hoje ({{vencimento}}).', 'D0'],
+          [!!sched.send_d_plus_1, -1, sched.message_d_plus_1 || 'Olá {{nome}}, venceu ontem ({{vencimento}}).', 'D+1'],
+        ];
+        rules = legacy.filter(([on]) => on).map(([, off, msg]) => ({
+          days_offset: off,
+          message: msg,
+          image_url: sched.image_url || null,
+          button_enabled: !!sched.renew_button_enabled,
+          button_label: sched.renew_button_label || null,
+          button_url: sched.renew_button_url || null,
+        }));
+      }
+
+      if (rules.length === 0) {
+        results.push({ user_id: sched.user_id, sent: 0, errors: 0, skipped: 'no_rules' });
+        continue;
+      }
+
+      // due_date => rule
+      const ruleByDate = new Map<string, Rule>();
+      for (const r of rules) {
+        const d = getRelativeDateSaoPaulo(r.days_offset);
+        if (!ruleByDate.has(d)) ruleByDate.set(d, r);
+      }
+      const targetDates = Array.from(ruleByDate.keys());
+      const today = getRelativeDateSaoPaulo(0);
+
+      const billingTypeFor = (offset: number) => (offset > 0 ? 'D-1' : offset === 0 ? 'D0' : 'D+1');
 
       const { data: customers } = await supabase
         .from('customers')
@@ -203,7 +252,7 @@ Deno.serve(async (req) => {
         `)
         .in('status', ['ativa', 'inativa'])
         .eq('created_by', sched.user_id)
-        .in('due_date', [yesterday, today, tomorrow]);
+        .in('due_date', targetDates);
 
       // Pre-fetch today's billing_logs to skip customers already processed (resume across cron ticks)
       const { data: existingLogs } = await supabase
@@ -215,13 +264,11 @@ Deno.serve(async (req) => {
 
       const list: any[] = [];
       for (const c of customers || []) {
-        let bt: string | null = null;
-        if (c.due_date === tomorrow) bt = 'D-1';
-        else if (c.due_date === today) bt = 'D0';
-        else if (c.due_date === yesterday) bt = 'D+1';
-        if (!bt || !types.includes(bt)) continue;
+        const rule = ruleByDate.get(c.due_date as string);
+        if (!rule) continue;
+        const bt = billingTypeFor(rule.days_offset);
         if (alreadyDone.has(`${c.id}|${bt}`)) continue;
-        list.push({ ...c, billingType: bt });
+        list.push({ ...c, billingType: bt, rule });
       }
 
       const totalPending = list.length;
@@ -240,17 +287,13 @@ Deno.serve(async (req) => {
       const minDelay = Math.max(5, sched.min_delay_seconds || 8) * 1000;
       const maxDelay = Math.max(minDelay / 1000, sched.max_delay_seconds || 15) * 1000;
 
-      const tplMap: Record<string, string> = {
-        'D-1': sched.message_d_minus_1 || 'Olá {{nome}}, vence amanhã ({{vencimento}}).',
-        'D0': sched.message_d0 || 'Olá {{nome}}, vence hoje ({{vencimento}}).',
-        'D+1': sched.message_d_plus_1 || 'Olá {{nome}}, venceu ontem ({{vencimento}}).',
-      };
 
       let sent = 0, errors = 0;
 
       for (let i = 0; i < batch.length; i++) {
         const c = batch[i];
-        const tpl = tplMap[c.billingType as string];
+        const rule: Rule = c.rule;
+        const tpl = rule.message || 'Olá {{nome}}, sua assinatura vence em {{vencimento}}.';
         const vencDate = new Date(c.due_date + 'T12:00:00');
         const price = c.custom_price ?? c.plan?.price ?? 0;
         const vars: Record<string, string> = {
@@ -263,13 +306,13 @@ Deno.serve(async (req) => {
           status: c.status || '-',
           telas: String(c.screens || 1),
           servidor: c.server?.server_name || '-',
-          link: sched.renew_button_url || '',
+          link: rule.button_url || '',
         };
         let text = renderTemplate(tpl, vars);
 
-        if (sched.renew_button_enabled && sched.renew_button_url) {
-          const label = sched.renew_button_label || 'Renovar agora';
-          text += `\n\n👉 *${label}:* ${sched.renew_button_url}`;
+        if (rule.button_enabled && rule.button_url) {
+          const label = rule.button_label || 'Renovar agora';
+          text += `\n\n👉 *${label}:* ${rule.button_url}`;
         }
 
         const phone = normalizePhone(c.phone);
@@ -294,8 +337,8 @@ Deno.serve(async (req) => {
 
         let result: any;
         try {
-          if (sched.image_url) {
-            result = await sendEvoImage(baseUrl, apiKey, instance, instAuth, phone, sched.image_url, text);
+          if (rule.image_url) {
+            result = await sendEvoImage(baseUrl, apiKey, instance, instAuth, phone, rule.image_url, text);
             if (!result.ok) {
               result = await sendEvoText(baseUrl, apiKey, instance, instAuth, phone, text);
             }

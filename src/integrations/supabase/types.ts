@@ -1361,6 +1361,54 @@ export type Database = {
         }
         Relationships: []
       }
+      evolution_billing_rules: {
+        Row: {
+          button_enabled: boolean
+          button_label: string | null
+          button_url: string | null
+          created_at: string
+          days_offset: number
+          id: string
+          image_url: string | null
+          is_enabled: boolean
+          label: string
+          message: string
+          sort_order: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          button_enabled?: boolean
+          button_label?: string | null
+          button_url?: string | null
+          created_at?: string
+          days_offset?: number
+          id?: string
+          image_url?: string | null
+          is_enabled?: boolean
+          label: string
+          message?: string
+          sort_order?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          button_enabled?: boolean
+          button_label?: string | null
+          button_url?: string | null
+          created_at?: string
+          days_offset?: number
+          id?: string
+          image_url?: string | null
+          is_enabled?: boolean
+          label?: string
+          message?: string
+          sort_order?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       evolution_billing_schedule: {
         Row: {
           created_at: string

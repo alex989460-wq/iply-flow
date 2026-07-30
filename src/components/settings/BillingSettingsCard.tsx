@@ -686,24 +686,12 @@ export default function BillingSettingsCard() {
               <p className="text-xs text-muted-foreground">Deixe vazio para usar a instância ativa padrão.</p>
             </div>
 
-            {[
-              { key: 'evolution_msg_d_minus_1', label: 'Mensagem D-1 (vence amanhã)', ph: 'Olá {{nome}}, seu plano vence amanhã ({{vencimento}}). PIX: {{pix}}' },
-              { key: 'evolution_msg_d0', label: 'Mensagem D0 (vence hoje)', ph: 'Olá {{nome}}, seu plano vence hoje ({{vencimento}}). PIX: {{pix}}' },
-              { key: 'evolution_msg_d_plus_1', label: 'Mensagem D+1 (vencido)', ph: 'Olá {{nome}}, seu plano venceu em {{vencimento}}. PIX: {{pix}}' },
-            ].map(({ key, label, ph }) => (
-              <div key={key} className="space-y-2">
-                <Label className="text-sm">{label}</Label>
-                <Textarea
-                  placeholder={ph}
-                  value={(formData as any)[key] || ''}
-                  onChange={(e) => setFormData({ ...formData, [key]: e.target.value })}
-                  className="min-h-[90px] font-mono text-sm"
-                />
-              </div>
-            ))}
-            <p className="text-xs text-muted-foreground">
-              Variáveis: {'{{nome}}'}, {'{{vencimento}}'}, {'{{usuario}}'}, {'{{plano}}'}, {'{{valor}}'}, {'{{servidor}}'}, {'{{pix}}'}, {'{{telefone}}'}.
+            <p className="text-xs text-muted-foreground p-2 rounded-md border border-border/60 bg-muted/30">
+              As mensagens, imagens e horários da cobrança não oficial são configurados abaixo, no card
+              <strong> “Cobrança Automática via API Não Oficial”</strong> — lá você cria quantos tipos de mensagem quiser,
+              cada um com sua própria imagem.
             </p>
+
           </CardContent>
         )}
       </Card>
