@@ -102,6 +102,33 @@ export function normalizeMac(raw: string): string {
   return clean.match(/.{2}/g)!.join(":");
 }
 
+// ───────────────────────── Duplecast (sessão do painel do revendedor) ─────────────────────────
+class CookieJar {
+  private jar = new Map<string, string>();
+  absorb(resp: Response) {
+    // Deno expõe múltiplos Set-Cookie via getSetCookie()
+    const raws: string[] = (resp.headers as any).getSetCookie?.() ??
+      (resp.headers.get("set-cookie") ? [resp.headers.get("set-cookie")!] : []);
+    for (const raw of raws) {
+      const [pair] = raw.split(";");
+      const idx = pair.indexOf("=");
+      if (idx > 0) this.jar.set(pair.slice(0, idx).trim(), pair.slice(idx + 1).trim());
+    }
+  }
+  header() {
+    return [...this.jar.entries()].map(([k, v]) => `${k}=${v}`).join("; ");
+  }
+}
+
+function extractCsrf(html: string): string {
+  return (
+    html.match(/name=["']_csrf_token["'][^>]*value=["']([^"']+)["']/i)?.[1] ||
+    html.match(/value=["']([^"']+)["'][^>]*name=["']_csrf_token["']/i)?.[1] ||
+    ""
+  );
+}
+
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   const jsonHeaders = { ...corsHeaders, "Content-Type": "application/json" };
