@@ -2240,6 +2240,7 @@ export type Database = {
           recaptcha_min_score: number
           recaptcha_site_key: string | null
           singleton: boolean
+          trial_days: number
           updated_at: string
         }
         Insert: {
@@ -2249,6 +2250,7 @@ export type Database = {
           recaptcha_min_score?: number
           recaptcha_site_key?: string | null
           singleton?: boolean
+          trial_days?: number
           updated_at?: string
         }
         Update: {
@@ -2258,6 +2260,7 @@ export type Database = {
           recaptcha_min_score?: number
           recaptcha_site_key?: string | null
           singleton?: boolean
+          trial_days?: number
           updated_at?: string
         }
         Relationships: []

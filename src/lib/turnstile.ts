@@ -27,7 +27,22 @@ export interface TurnstileConfig {
 let scriptPromise: Promise<void> | null = null;
 let currentWidgetId: string | null = null;
 
+// O widget da Cloudflare não é servido dentro do iframe de preview do editor
+// (hostnames de preview / localhost). Nesses casos a verificação é ignorada.
+function isPreviewEnvironment(): boolean {
+  if (typeof window === 'undefined') return false;
+  const host = window.location.hostname;
+  return (
+    host === 'localhost' ||
+    host === '127.0.0.1' ||
+    host.endsWith('.lovableproject.com') ||
+    host.includes('id-preview--') ||
+    host.includes('-preview--')
+  );
+}
+
 export async function fetchTurnstileConfig(): Promise<TurnstileConfig> {
+  if (isPreviewEnvironment()) return { enabled: false, siteKey: null };
   try {
     const { data } = await supabase
       .from('platform_settings')

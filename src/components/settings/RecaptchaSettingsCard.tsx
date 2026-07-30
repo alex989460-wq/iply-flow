@@ -14,17 +14,19 @@ export default function RecaptchaSettingsCard() {
   const [saving, setSaving] = useState(false);
   const [enabled, setEnabled] = useState(false);
   const [siteKey, setSiteKey] = useState('');
+  const [trialDays, setTrialDays] = useState('30');
 
   useEffect(() => {
     (async () => {
       const { data } = await supabase
         .from('platform_settings')
-        .select('recaptcha_enabled, recaptcha_site_key')
+        .select('recaptcha_enabled, recaptcha_site_key, trial_days')
         .eq('singleton', true)
         .maybeSingle();
       if (data) {
         setEnabled(!!data.recaptcha_enabled);
         setSiteKey(data.recaptcha_site_key ?? '');
+        setTrialDays(String(data.trial_days ?? 30));
       }
       setLoading(false);
     })();
@@ -39,12 +41,22 @@ export default function RecaptchaSettingsCard() {
       });
       return;
     }
+    const days = Number(trialDays);
+    if (!Number.isFinite(days) || days < 0 || days > 3650) {
+      toast({
+        title: 'Dias inválidos',
+        description: 'Informe um número entre 0 e 3650 dias.',
+        variant: 'destructive',
+      });
+      return;
+    }
     setSaving(true);
     const { error } = await supabase
       .from('platform_settings')
       .update({
         recaptcha_enabled: enabled,
         recaptcha_site_key: siteKey.trim() || null,
+        trial_days: Math.round(days),
       })
       .eq('singleton', true);
     setSaving(false);
@@ -52,8 +64,9 @@ export default function RecaptchaSettingsCard() {
       toast({ title: 'Erro ao salvar', description: error.message, variant: 'destructive' });
       return;
     }
-    toast({ title: 'Configurações salvas', description: 'Cloudflare Turnstile atualizado com sucesso.' });
+    toast({ title: 'Configurações salvas', description: 'Plataforma atualizada com sucesso.' });
   };
+
 
   if (loading) {
     return (
@@ -70,10 +83,10 @@ export default function RecaptchaSettingsCard() {
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-base">
           <ShieldCheck className="w-5 h-5 text-primary" />
-          Proteção Cloudflare Turnstile
+          Segurança e cadastro da plataforma
         </CardTitle>
         <CardDescription>
-          Ative a verificação anti-robô no login e cadastro. A chave secreta permanece protegida no backend.
+          Verificação anti-robô no login/cadastro e período de teste grátis de novas contas.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -100,6 +113,22 @@ export default function RecaptchaSettingsCard() {
               className="font-mono text-xs"
             />
         </div>
+
+        <div className="space-y-1.5 rounded-lg border border-border/60 p-3">
+          <Label className="text-sm font-medium">Dias grátis ao criar conta</Label>
+          <p className="text-xs text-muted-foreground">
+            Período de teste aplicado automaticamente a cada nova revenda cadastrada.
+          </p>
+          <Input
+            type="number"
+            min={0}
+            max={3650}
+            value={trialDays}
+            onChange={(e) => setTrialDays(e.target.value)}
+            className="w-32"
+          />
+        </div>
+
 
         <Button onClick={save} disabled={saving} className="w-full sm:w-auto">
           {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
