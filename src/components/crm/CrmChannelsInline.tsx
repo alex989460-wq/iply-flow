@@ -88,44 +88,52 @@ export default function CrmChannelsInline() {
     if (!key) return;
     setRefreshing(true);
     try {
-      const [crmRes, localRes] = await Promise.all([
+      const [crmRes, liveRes] = await Promise.all([
         supabase.functions.invoke('crm-oficial-sync', {
           body: { action: 'list-channels', data: { apiKey: key } },
         }),
-        supabase
-          .from('user_evolution_instances')
-          .select('id, instance_name, profile_name, profile_pic_url, owner_phone')
-          .order('created_at', { ascending: true }),
+        supabase.functions.invoke('evolution-send', {
+          body: { action: 'list-instances' },
+        }),
       ]);
 
       if (crmRes.error) throw crmRes.error;
       const body = crmRes.data?.results?.channels?.body;
       const crmChannels = crmRes.data?.results?.channels?.ok && body ? normalize(body) : [];
 
-      // Mescla as instâncias não oficiais salvas localmente (Evolution) para reaproveitar as conexões.
-      const localChannels: WAChannel[] = (localRes.data ?? []).map((i: any) => ({
+      // Só mostra instâncias não oficiais que realmente existem no servidor Evolution.
+      const liveInstances: any[] = liveRes.data?.ok ? (liveRes.data.instances || []) : [];
+      const localChannels: WAChannel[] = liveInstances.map((i: any) => ({
         official: false,
-        id: `local-${i.id}`,
-        instance_name: i.instance_name,
-        name: i.profile_name || i.instance_name,
-        verified_name: i.profile_name || i.instance_name,
-        display_phone_number: i.owner_phone || '',
-        phone_number: i.owner_phone || '',
-        avatar_url: i.profile_pic_url || null,
+        id: `local-${i.id || i.name}`,
+        instance_name: i.name,
+        name: i.profile_name || i.name,
+        verified_name: i.profile_name || i.name,
+        display_phone_number: i.phone || '',
+        phone_number: i.phone || '',
+        avatar_url: i.profile_pic || null,
         is_active: true,
-        evolution_status: 'open',
+        evolution_status: i.state || 'close',
       }));
 
+      const liveNames = new Set(liveInstances.map((i: any) => String(i.name || '').toLowerCase()));
       const seen = new Set(
         crmChannels
           .filter((c) => !c.official)
           .map((c) => (c.instance_name || c.name || '').toLowerCase()),
       );
       const merged = [
-        ...crmChannels,
+        // Descarta canais não oficiais vindos do CRM que não existem mais no servidor.
+        ...crmChannels.filter(
+          (c) =>
+            c.official ||
+            liveNames.size === 0 ||
+            liveNames.has((c.instance_name || c.name || '').toLowerCase()),
+        ),
         ...localChannels.filter((c) => !seen.has((c.instance_name || '').toLowerCase())),
       ];
       setChannels(merged);
+
     } catch (e: any) {
       toast({ title: 'Erro ao listar canais oficiais', description: e.message, variant: 'destructive' });
     } finally {
