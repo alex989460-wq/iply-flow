@@ -378,9 +378,16 @@ export default function Auth() {
         </div>
 
         {/* Footer */}
+        {recaptcha.enabled && (
+          <p className="text-center text-[11px] text-muted-foreground mt-4 flex items-center justify-center gap-1.5">
+            <ShieldCheck className="w-3.5 h-3.5 text-primary" />
+            Protegido por reCAPTCHA
+          </p>
+        )}
         <p className="text-center text-xs text-muted-foreground mt-6">
           Ao continuar, você concorda com nossos termos de uso.
         </p>
+
       </div>
     </div>
   );
