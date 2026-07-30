@@ -31,8 +31,11 @@ interface VplayServer {
   id: string;
   user_id: string;
   server_name: string;
-  integration_url: string;
-  key_message: string;
+  integration_url: string | null;
+  key_message: string | null;
+  server_type: string;
+  api_key: string | null;
+  test_minutes: number;
   is_default: boolean;
   created_at: string;
   updated_at: string;
@@ -46,10 +49,14 @@ export default function VplayServersManager() {
   const [deleteServer, setDeleteServer] = useState<VplayServer | null>(null);
   const [formData, setFormData] = useState({
     server_name: '',
+    server_type: 'vplay',
     integration_url: '',
     key_message: 'XCLOUD',
+    api_key: '',
+    test_minutes: 60,
     is_default: false,
   });
+  const isNatv = formData.server_type === 'natv' || formData.server_type === 'natv2';
 
   // Fetch vplay servers
   const { data: servers = [], isLoading } = useQuery({
@@ -87,8 +94,11 @@ export default function VplayServersManager() {
           .from('vplay_servers')
           .update({
             server_name: data.server_name,
-            integration_url: data.integration_url,
-            key_message: data.key_message,
+            server_type: data.server_type,
+            integration_url: data.integration_url || null,
+            key_message: data.key_message || null,
+            api_key: data.api_key || null,
+            test_minutes: data.test_minutes,
             is_default: data.is_default,
           })
           .eq('id', data.id);
@@ -101,8 +111,11 @@ export default function VplayServersManager() {
           .insert({
             user_id: user.id,
             server_name: data.server_name,
-            integration_url: data.integration_url,
-            key_message: data.key_message,
+            server_type: data.server_type,
+            integration_url: data.integration_url || null,
+            key_message: data.key_message || null,
+            api_key: data.api_key || null,
+            test_minutes: data.test_minutes,
             is_default: data.is_default || servers.length === 0, // First server is default
           });
         
@@ -172,8 +185,11 @@ export default function VplayServersManager() {
     setEditingServer(null);
     setFormData({
       server_name: '',
+      server_type: 'vplay',
       integration_url: '',
       key_message: 'XCLOUD',
+      api_key: '',
+      test_minutes: 60,
       is_default: false,
     });
   };
@@ -182,8 +198,11 @@ export default function VplayServersManager() {
     setEditingServer(server);
     setFormData({
       server_name: server.server_name,
-      integration_url: server.integration_url,
-      key_message: server.key_message,
+      server_type: server.server_type || 'vplay',
+      integration_url: server.integration_url || '',
+      key_message: server.key_message || 'XCLOUD',
+      api_key: server.api_key || '',
+      test_minutes: server.test_minutes || 60,
       is_default: server.is_default,
     });
     setIsDialogOpen(true);
@@ -196,12 +215,18 @@ export default function VplayServersManager() {
       toast.error('Nome do servidor é obrigatório');
       return;
     }
-    if (!formData.integration_url.trim()) {
-      toast.error('URL de integração é obrigatória');
-      return;
-    }
-    if (!formData.integration_url.startsWith('http')) {
-      toast.error('URL deve começar com http:// ou https://');
+    const natv = formData.server_type === 'natv' || formData.server_type === 'natv2';
+    if (!natv) {
+      if (!formData.integration_url.trim()) {
+        toast.error('URL de integração é obrigatória');
+        return;
+      }
+      if (!formData.integration_url.startsWith('http')) {
+        toast.error('URL deve começar com http:// ou https://');
+        return;
+      }
+    } else if (formData.integration_url.trim() && !formData.integration_url.startsWith('http')) {
+      toast.error('URL da API deve começar com http:// ou https://');
       return;
     }
 
@@ -224,10 +249,10 @@ export default function VplayServersManager() {
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Server className="w-5 h-5 text-violet-500" />
-          Gerador de Testes Vplay
+          Gerador de Teste
         </CardTitle>
         <CardDescription>
-          Configure seus servidores Vplay para geração automática de testes
+          Configure seus painéis (Vplay por webhook ou NATV via API) para gerar testes automaticamente
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -245,7 +270,7 @@ export default function VplayServersManager() {
           <DialogContent>
             <DialogHeader>
               <DialogTitle>
-                {editingServer ? 'Editar Servidor' : 'Novo Servidor Vplay'}
+                {editingServer ? 'Editar Servidor' : 'Novo Servidor de Teste'}
               </DialogTitle>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
@@ -260,18 +285,66 @@ export default function VplayServersManager() {
               </div>
               
               <div className="space-y-2">
-                <Label htmlFor="integration_url">URL de Integração *</Label>
+                <Label htmlFor="server_type">Tipo do Painel *</Label>
+                <select
+                  id="server_type"
+                  className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm"
+                  value={formData.server_type}
+                  onChange={(e) => setFormData({ ...formData, server_type: e.target.value })}
+                >
+                  <option value="vplay">Vplay (webhook de integração)</option>
+                  <option value="natv">NATV (API)</option>
+                  <option value="natv2">NATV² (API)</option>
+                </select>
+                <p className="text-xs text-muted-foreground">
+                  Use NATV para painéis que geram teste via API (quando não for Vplay, P2Cine ou The Best).
+                </p>
+              </div>
+
+              {isNatv && (
+                <div className="space-y-2">
+                  <Label htmlFor="test_minutes">Duração do teste</Label>
+                  <select
+                    id="test_minutes"
+                    className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm"
+                    value={String(formData.test_minutes)}
+                    onChange={(e) => setFormData({ ...formData, test_minutes: Number(e.target.value) })}
+                  >
+                    {[15, 30, 60, 120, 180, 240, 300, 360].map((m) => (
+                      <option key={m} value={m}>{m} minutos</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {isNatv && (
+                <div className="space-y-2">
+                  <Label htmlFor="api_key">Chave da API (opcional)</Label>
+                  <Input
+                    id="api_key"
+                    placeholder="Deixe vazio para usar a chave NATV de APIs Externas"
+                    value={formData.api_key}
+                    onChange={(e) => setFormData({ ...formData, api_key: e.target.value })}
+                  />
+                </div>
+              )}
+
+              <div className="space-y-2">
+                <Label htmlFor="integration_url">{isNatv ? 'URL da API' : 'URL de Integração *'}</Label>
                 <Input
                   id="integration_url"
-                  placeholder="https://gestorvplay.com/chatbot/1234"
+                  placeholder={isNatv ? 'https://revenda.pixbot.link/api' : 'https://gestorvplay.com/chatbot/1234'}
                   value={formData.integration_url}
                   onChange={(e) => setFormData({ ...formData, integration_url: e.target.value })}
                 />
                 <p className="text-xs text-muted-foreground">
-                  URL do webhook de integração do seu painel Vplay
+                  {isNatv
+                    ? 'Base da API NATV. Se vazio, usa a URL configurada em APIs Externas.'
+                    : 'URL do webhook de integração do seu painel Vplay'}
                 </p>
               </div>
               
+              {!isNatv && (
               <div className="space-y-2">
                 <Label htmlFor="key_message">Chave/Palavra de Ativação</Label>
                 <Input
@@ -284,6 +357,7 @@ export default function VplayServersManager() {
                   Palavra que ativa a geração de teste no Vplay (ex: XC, XCLOUD, TESTE)
                 </p>
               </div>
+              )}
 
               <div className="flex gap-2 pt-2">
                 <Button
@@ -343,7 +417,9 @@ export default function VplayServersManager() {
                       )}
                     </div>
                     <p className="text-xs text-muted-foreground truncate">
-                      Chave: {server.key_message}
+                      {server.server_type === 'vplay' || !server.server_type
+                        ? `Vplay • Chave: ${server.key_message || '-'}`
+                        : `${server.server_type === 'natv2' ? 'NATV²' : 'NATV'} • API • ${server.test_minutes || 60} min`}
                     </p>
                   </div>
                 </div>

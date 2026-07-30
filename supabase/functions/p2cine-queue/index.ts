@@ -80,27 +80,40 @@ Deno.serve(async (req) => {
       const candidates = (data ?? []).filter((row) => isP2Cine(row) || isUniplay(row));
       if (candidates.length === 0) return json({ item: null });
 
-      // Skip and cleanup any pending row whose customer was renewed in the last 12h
-      // (prevents the extension from double-renewing after Cakto/webhook already paid it).
-      // Single batched query instead of one round-trip per row (was causing timeouts/502).
-      const cutoff = new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString();
+      // A pendência SEMPRE nasce depois de um pagamento (é a falha da renovação no
+      // painel externo). Por isso só consideramos duplicidade quando existe um
+      // pagamento confirmado registrado DEPOIS da criação da pendência — aí sim
+      // outra origem já renovou. Antes disso a pendência era apagada sozinha e a
+      // extensão nunca era acionada.
+      const oldest = candidates.reduce(
+        (min, r) => (r.created_at < min ? r.created_at : min),
+        candidates[0].created_at as string,
+      );
       const customerIds = candidates.map((r) => r.customer_id).filter(Boolean) as string[];
-      const paidRecently = new Set<string>();
+      const paidAfter = new Map<string, string>();
       if (customerIds.length) {
         const { data: recent } = await supabase
           .from("payments")
           .select("customer_id, created_at, source")
           .in("customer_id", customerIds)
           .eq("confirmed", true)
-          .gte("created_at", cutoff);
-        for (const p of recent ?? []) paidRecently.add(String(p.customer_id));
+          .gte("created_at", oldest);
+        for (const p of recent ?? []) {
+          const prev = paidAfter.get(String(p.customer_id));
+          if (!prev || String(p.created_at) > prev) paidAfter.set(String(p.customer_id), String(p.created_at));
+        }
       }
+
+      // Tolerância: pagamento e criação da pendência acontecem no mesmo webhook,
+      // com segundos de diferença. Só invalida se veio bem depois (>10 min).
+      const GRACE_MS = 10 * 60 * 1000;
 
       let next: any = null;
       const staleIds: string[] = [];
       for (const row of candidates) {
-        if (row.customer_id && paidRecently.has(String(row.customer_id))) {
-          console.log(`[p2cine-queue] skipping ${row.id} (${row.customer_name}) — already paid in the last 12h`);
+        const paidAt = row.customer_id ? paidAfter.get(String(row.customer_id)) : undefined;
+        if (paidAt && new Date(paidAt).getTime() - new Date(row.created_at).getTime() > GRACE_MS) {
+          console.log(`[p2cine-queue] skipping ${row.id} (${row.customer_name}) — pago em ${paidAt}, depois da pendência`);
           staleIds.push(row.id);
           continue;
         }
@@ -111,6 +124,8 @@ Deno.serve(async (req) => {
         await supabase.from("pending_manual_renewals").delete().in("id", staleIds);
       }
       if (!next) return json({ item: null });
+
+
 
 
       const panelType = isUniplay(next) ? "uniplay" : "p2cine";

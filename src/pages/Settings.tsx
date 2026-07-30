@@ -685,8 +685,8 @@ export default function Settings() {
             </TabsTrigger>
             <TabsTrigger value="vplay_test" className="flex items-center gap-2">
               <Server className="w-4 h-4 text-violet-500" />
-              <span className="hidden sm:inline">Gerador Vplay</span>
-              <span className="sm:hidden">Vplay</span>
+              <span className="hidden sm:inline">Gerador de Teste</span>
+              <span className="sm:hidden">Teste</span>
             </TabsTrigger>
             <TabsTrigger value="metas" className="flex items-center gap-2">
               <Target className="w-4 h-4 text-amber-500" />
