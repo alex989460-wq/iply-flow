@@ -10,6 +10,8 @@ import { Mail, Lock, User, Loader2, AlertCircle, Eye, EyeOff, Shield, KeyRound }
 import { z } from 'zod';
 import logoSg from '@/assets/logo-sg.png';
 import { supabase } from '@/integrations/supabase/client';
+import { fetchRecaptchaConfig, getRecaptchaToken, verifyRecaptcha, type RecaptchaConfig } from '@/lib/recaptcha';
+
 
 
 const loginSchema = z.object({
@@ -32,6 +34,15 @@ export default function Auth() {
   const [accessDeniedMessage, setAccessDeniedMessage] = useState<string | null>(null);
   const [redeemCode, setRedeemCode] = useState('');
   const [redeeming, setRedeeming] = useState(false);
+  const [recaptcha, setRecaptcha] = useState<RecaptchaConfig>({ enabled: false, siteKey: null });
+
+  useEffect(() => {
+    fetchRecaptchaConfig().then((cfg) => {
+      setRecaptcha(cfg);
+      if (cfg.enabled && cfg.siteKey) getRecaptchaToken(cfg, 'preload');
+    });
+  }, []);
+
 
   
   const { signIn, signUp, accessDeniedReason } = useAuth();
