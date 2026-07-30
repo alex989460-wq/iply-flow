@@ -19,6 +19,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Navigate } from "react-router-dom";
 import { z } from "zod";
 import { cn } from "@/lib/utils";
+import TrialDaysCard from "@/components/settings/TrialDaysCard";
 
 
 interface ResellerAccess {
