@@ -24,17 +24,21 @@ export default function PaymentConfirmation() {
   const [notFound, setNotFound] = useState(false);
 
   useEffect(() => {
-    if (!id) return;
-    supabase
-      .from("payment_confirmations")
-      .select("*")
-      .eq("id", id)
-      .maybeSingle()
-      .then(({ data: row }) => {
-        if (row) setData(row as PaymentData);
+    if (!id) {
+      setNotFound(true);
+      setLoading(false);
+      return;
+    }
+
+    supabase.functions
+      .invoke("payment-confirmation-public", { body: { id } })
+      .then(({ data: response, error }) => {
+        const row = response?.data;
+        if (!error && row) setData(row as PaymentData);
         else setNotFound(true);
-        setLoading(false);
-      });
+      })
+      .catch(() => setNotFound(true))
+      .finally(() => setLoading(false));
   }, [id]);
 
   if (loading) {
