@@ -425,7 +425,7 @@ export default function LeadCapture() {
               <Wand2 className="w-4 h-4 text-primary" /> Gerador de leads por DDD/prefixo
             </CardTitle>
             <CardDescription>
-              Informe um telefone semente (ex.: <code>5541991758392</code>) e o sistema gera centenas/milhares de números
+              Informe um telefone semente e o sistema gera centenas/milhares de números
               com o <strong>mesmo DDD e mesmo prefixo de operadora</strong>, variando apenas os últimos 4 dígitos. Validação real
               de existência no WhatsApp é feita no primeiro envio (sem custo de conversa quando o número não existe).
             </CardDescription>
@@ -434,8 +434,9 @@ export default function LeadCapture() {
             <div className="grid sm:grid-cols-[1fr_140px_160px_auto] gap-2 items-end">
               <div className="space-y-1">
                 <Label className="text-xs">Telefone semente</Label>
-                <Input value={seedPhone} onChange={(e) => setSeedPhone(e.target.value)} placeholder="5541991758392" />
+                <Input value={seedPhone} onChange={(e) => setSeedPhone(e.target.value)} placeholder="" />
               </div>
+
               <div className="space-y-1">
                 <Label className="text-xs">Quantidade</Label>
                 <Input type="number" min={1} max={isAdmin ? 50000 : 2000} value={seedCount}
