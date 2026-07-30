@@ -2232,6 +2232,36 @@ export type Database = {
           },
         ]
       }
+      platform_settings: {
+        Row: {
+          created_at: string
+          id: string
+          recaptcha_enabled: boolean
+          recaptcha_min_score: number
+          recaptcha_site_key: string | null
+          singleton: boolean
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          recaptcha_enabled?: boolean
+          recaptcha_min_score?: number
+          recaptcha_site_key?: string | null
+          singleton?: boolean
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          recaptcha_enabled?: boolean
+          recaptcha_min_score?: number
+          recaptcha_site_key?: string | null
+          singleton?: boolean
+          updated_at?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string

@@ -10,6 +10,8 @@ import { Mail, Lock, User, Loader2, AlertCircle, Eye, EyeOff, Shield, KeyRound }
 import { z } from 'zod';
 import logoSg from '@/assets/logo-sg.png';
 import { supabase } from '@/integrations/supabase/client';
+import { fetchRecaptchaConfig, getRecaptchaToken, verifyRecaptcha, type RecaptchaConfig } from '@/lib/recaptcha';
+
 
 
 const loginSchema = z.object({
@@ -32,6 +34,15 @@ export default function Auth() {
   const [accessDeniedMessage, setAccessDeniedMessage] = useState<string | null>(null);
   const [redeemCode, setRedeemCode] = useState('');
   const [redeeming, setRedeeming] = useState(false);
+  const [recaptcha, setRecaptcha] = useState<RecaptchaConfig>({ enabled: false, siteKey: null });
+
+  useEffect(() => {
+    fetchRecaptchaConfig().then((cfg) => {
+      setRecaptcha(cfg);
+      if (cfg.enabled && cfg.siteKey) getRecaptchaToken(cfg, 'preload');
+    });
+  }, []);
+
 
   
   const { signIn, signUp, accessDeniedReason } = useAuth();
@@ -102,10 +113,23 @@ export default function Auth() {
     
     if (!validateForm()) return;
 
-    // reCAPTCHA opcional: se carregou, exige token; se não carregou (domínio não autorizado / bloqueio de rede), libera o login para não travar o acesso.
-    
-    
+    // reCAPTCHA: ativado/desativado pelo painel admin. A validação final é feita no servidor.
+    if (recaptcha.enabled) {
+      try {
+        const token = await getRecaptchaToken(recaptcha, isLogin ? 'login' : 'signup');
+        await verifyRecaptcha(token, isLogin ? 'login' : 'signup');
+      } catch (err: any) {
+        toast({
+          title: 'Verificação de segurança falhou',
+          description: err?.message || 'Tente novamente.',
+          variant: 'destructive',
+        });
+        return;
+      }
+    }
+
     setLoading(true);
+
 
     try {
       if (isLogin) {

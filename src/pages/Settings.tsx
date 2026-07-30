@@ -21,6 +21,8 @@ import BillingSettingsCard from '@/components/settings/BillingSettingsCard';
 import BackupManagerCard from '@/components/settings/BackupManagerCard';
 import EvolutionApiCard from '@/components/settings/EvolutionApiCard';
 import CrmOficialCard from '@/components/settings/CrmOficialCard';
+import RecaptchaSettingsCard from '@/components/settings/RecaptchaSettingsCard';
+
 import EfiSettingsCard from '@/components/settings/EfiSettingsCard';
 import ResellerCheckoutCard from '@/components/settings/ResellerCheckoutCard';
 import PanelThemeCard from '@/components/settings/PanelThemeCard';
@@ -701,10 +703,12 @@ export default function Settings() {
           </TabsList>
 
           {isAdmin && (
-            <TabsContent value="crm_oficial" className="mt-6">
+            <TabsContent value="crm_oficial" className="mt-6 space-y-6">
+              <RecaptchaSettingsCard />
               <CrmOficialCard />
             </TabsContent>
           )}
+
 
 
 
