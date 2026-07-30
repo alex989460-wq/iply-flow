@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -6,11 +6,11 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
-import { Mail, Lock, User, Loader2, AlertCircle, Eye, EyeOff, Shield, ShieldCheck, KeyRound } from 'lucide-react';
+import { Mail, Lock, User, Loader2, AlertCircle, Eye, EyeOff, ShieldCheck } from 'lucide-react';
 import { z } from 'zod';
 import logoSg from '@/assets/logo-sg.png';
 import { supabase } from '@/integrations/supabase/client';
-import { fetchRecaptchaConfig, getRecaptchaToken, verifyRecaptcha, type RecaptchaConfig } from '@/lib/recaptcha';
+import { fetchTurnstileConfig, getTurnstileToken, verifyTurnstile, type TurnstileConfig } from '@/lib/turnstile';
 
 
 
@@ -34,13 +34,11 @@ export default function Auth() {
   const [accessDeniedMessage, setAccessDeniedMessage] = useState<string | null>(null);
   const [redeemCode, setRedeemCode] = useState('');
   const [redeeming, setRedeeming] = useState(false);
-  const [recaptcha, setRecaptcha] = useState<RecaptchaConfig>({ enabled: false, siteKey: null });
+  const [turnstile, setTurnstile] = useState<TurnstileConfig>({ enabled: false, siteKey: null });
+  const turnstileContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    fetchRecaptchaConfig().then((cfg) => {
-      setRecaptcha(cfg);
-      if (cfg.enabled && cfg.siteKey) getRecaptchaToken(cfg, 'preload');
-    });
+    fetchTurnstileConfig().then(setTurnstile);
   }, []);
 
 
@@ -113,11 +111,12 @@ export default function Auth() {
     
     if (!validateForm()) return;
 
-    // reCAPTCHA: ativado/desativado pelo painel admin. A validação final é feita no servidor.
-    if (recaptcha.enabled) {
+    // Cloudflare Turnstile: ativado/desativado pelo painel admin e validado no servidor.
+    if (turnstile.enabled) {
       try {
-        const token = await getRecaptchaToken(recaptcha, isLogin ? 'login' : 'signup');
-        await verifyRecaptcha(token, isLogin ? 'login' : 'signup');
+        const action = isLogin ? 'login' : 'signup';
+        const token = await getTurnstileToken(turnstile, action, turnstileContainerRef.current);
+        await verifyTurnstile(token, action);
       } catch (err: any) {
         toast({
           title: 'Verificação de segurança falhou',
@@ -350,6 +349,9 @@ export default function Auth() {
                 'Criar Conta'
               )}
             </Button>
+            {turnstile.enabled && (
+              <div ref={turnstileContainerRef} className="flex min-h-1 justify-center" aria-label="Verificação Cloudflare Turnstile" />
+            )}
           </form>
 
           <div className="mt-6 text-center">
@@ -378,10 +380,10 @@ export default function Auth() {
         </div>
 
         {/* Footer */}
-        {recaptcha.enabled && (
+        {turnstile.enabled && (
           <p className="text-center text-[11px] text-muted-foreground mt-4 flex items-center justify-center gap-1.5">
             <ShieldCheck className="w-3.5 h-3.5 text-primary" />
-            Protegido por reCAPTCHA
+            Protegido por Cloudflare Turnstile
           </p>
         )}
         <p className="text-center text-xs text-muted-foreground mt-6">

@@ -14,19 +14,17 @@ export default function RecaptchaSettingsCard() {
   const [saving, setSaving] = useState(false);
   const [enabled, setEnabled] = useState(false);
   const [siteKey, setSiteKey] = useState('');
-  const [minScore, setMinScore] = useState('0.5');
 
   useEffect(() => {
     (async () => {
       const { data } = await supabase
         .from('platform_settings')
-        .select('recaptcha_enabled, recaptcha_site_key, recaptcha_min_score')
+        .select('recaptcha_enabled, recaptcha_site_key')
         .eq('singleton', true)
         .maybeSingle();
       if (data) {
         setEnabled(!!data.recaptcha_enabled);
         setSiteKey(data.recaptcha_site_key ?? '');
-        setMinScore(String(data.recaptcha_min_score ?? 0.5));
       }
       setLoading(false);
     })();
@@ -36,7 +34,7 @@ export default function RecaptchaSettingsCard() {
     if (enabled && !siteKey.trim()) {
       toast({
         title: 'Chave do site obrigatória',
-        description: 'Informe a Chave do site (v3) do Google para ativar o reCAPTCHA.',
+        description: 'Informe a Chave do site do widget Cloudflare Turnstile.',
         variant: 'destructive',
       });
       return;
@@ -47,7 +45,6 @@ export default function RecaptchaSettingsCard() {
       .update({
         recaptcha_enabled: enabled,
         recaptcha_site_key: siteKey.trim() || null,
-        recaptcha_min_score: Number(minScore) || 0.5,
       })
       .eq('singleton', true);
     setSaving(false);
@@ -55,7 +52,7 @@ export default function RecaptchaSettingsCard() {
       toast({ title: 'Erro ao salvar', description: error.message, variant: 'destructive' });
       return;
     }
-    toast({ title: 'Configurações salvas', description: 'reCAPTCHA atualizado com sucesso.' });
+    toast({ title: 'Configurações salvas', description: 'Cloudflare Turnstile atualizado com sucesso.' });
   };
 
   if (loading) {
@@ -73,16 +70,16 @@ export default function RecaptchaSettingsCard() {
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-base">
           <ShieldCheck className="w-5 h-5 text-primary" />
-          Proteção reCAPTCHA (Google)
+          Proteção Cloudflare Turnstile
         </CardTitle>
         <CardDescription>
-          Ative a verificação anti-robô no login e cadastro. A validação é feita no servidor usando a chave secreta já salva.
+          Ative a verificação anti-robô no login e cadastro. A chave secreta permanece protegida no backend.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="flex items-center justify-between rounded-lg border border-border/60 p-3">
           <div>
-            <Label className="text-sm font-medium">Ativar reCAPTCHA</Label>
+            <Label className="text-sm font-medium">Ativar Turnstile</Label>
             <p className="text-xs text-muted-foreground">Quando desativado, o login funciona normalmente sem verificação.</p>
           </div>
           <Switch checked={enabled} onCheckedChange={setEnabled} />
@@ -90,31 +87,18 @@ export default function RecaptchaSettingsCard() {
 
         {enabled && !siteKey.trim() && (
           <p className="text-xs text-destructive">
-            reCAPTCHA marcado como ativo, mas sem Chave do site — ele não será exibido no login até você preencher a chave abaixo.
+            Turnstile marcado como ativo, mas sem Chave do site — o login ficará sem a verificação até você preencher a chave.
           </p>
         )}
 
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div className="space-y-1.5">
-            <Label className="text-xs">Chave do site (v3)</Label>
+        <div className="space-y-1.5">
+            <Label className="text-xs">Chave do site (Site key)</Label>
             <Input
               value={siteKey}
               onChange={(e) => setSiteKey(e.target.value)}
-              placeholder="6Lxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+              placeholder="0x4AAAAAAA..."
               className="font-mono text-xs"
             />
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs">Pontuação mínima (0 a 1)</Label>
-            <Input
-              type="number"
-              step="0.1"
-              min="0"
-              max="1"
-              value={minScore}
-              onChange={(e) => setMinScore(e.target.value)}
-            />
-          </div>
         </div>
 
         <Button onClick={save} disabled={saving} className="w-full sm:w-auto">
