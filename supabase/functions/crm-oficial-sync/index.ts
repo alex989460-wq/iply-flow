@@ -1585,6 +1585,8 @@ Deno.serve(async (req) => {
         code?: string; phone_number_id?: string; waba_id?: string; config_id?: string; app_id?: string;
       };
       if (!code) throw new Error("code é obrigatório");
+      await enforceChannelQuota("official");
+
       results.embedded = await crmFetch("/api/public/v1/channels/embedded-signup", {
         method: "POST",
         body: JSON.stringify({
