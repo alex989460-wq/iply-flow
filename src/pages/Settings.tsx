@@ -701,10 +701,12 @@ export default function Settings() {
           </TabsList>
 
           {isAdmin && (
-            <TabsContent value="crm_oficial" className="mt-6">
+            <TabsContent value="crm_oficial" className="mt-6 space-y-6">
+              <RecaptchaSettingsCard />
               <CrmOficialCard />
             </TabsContent>
           )}
+
 
 
 
