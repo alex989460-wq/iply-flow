@@ -63,7 +63,7 @@ export default function SendPlaylistDialog({
   defaultListUrl = '',
   defaultMac = '',
 }: Props) {
-  const [tab, setTab] = useState<'clouddy' | 'ibopro' | 'duplecast'>('clouddy');
+  const [tab, setTab] = useState<'clouddy' | 'ibopro' | 'duplecast' | 'bobplayer'>('clouddy');
   const [listUrl, setListUrl] = useState(defaultListUrl);
   const [epgUrl, setEpgUrl] = useState('');
   const [email, setEmail] = useState(defaultEmail);
@@ -77,7 +77,37 @@ export default function SendPlaylistDialog({
   const [playlistName, setPlaylistName] = useState('');
   const [pin, setPin] = useState('');
 
+  // Bob Player (captcha)
+  const [captcha, setCaptcha] = useState('');
+  const [captchaSvg, setCaptchaSvg] = useState('');
+  const [captchaToken, setCaptchaToken] = useState('');
+  const [loadingCaptcha, setLoadingCaptcha] = useState(false);
+
   const [templateId, setTemplateId] = useState<string>('');
+
+  const loadCaptcha = async () => {
+    setLoadingCaptcha(true);
+    setCaptcha('');
+    try {
+      const { data, error } = await supabase.functions.invoke('send-playlist', {
+        body: { provider: 'bobplayer', action: 'bob-captcha' },
+      });
+      if (error) throw error;
+      if ((data as any)?.error) throw new Error((data as any).error);
+      setCaptchaSvg((data as any).svg || '');
+      setCaptchaToken((data as any).token || '');
+    } catch (e: any) {
+      toast.error(e?.message || 'Falha ao carregar o captcha');
+    } finally {
+      setLoadingCaptcha(false);
+    }
+  };
+
+  useEffect(() => {
+    if (open && tab === 'bobplayer' && !captchaSvg) loadCaptcha();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, tab]);
+
 
   const { data: templates = [] } = useQuery({
     queryKey: ['playlist-templates'],
