@@ -100,6 +100,20 @@ export function EvolutionBillingScheduleCard() {
     onError: (e: any) => toast({ title: 'Erro', description: e.message, variant: 'destructive' }),
   });
 
+  const toggleRule = useMutation({
+    mutationFn: async ({ id, value }: { id: string; value: boolean }) => {
+      const { error } = await supabase
+        .from('evolution_billing_rules')
+        .update({ is_enabled: value })
+        .eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['evo-billing-rules'] });
+    },
+    onError: (e: any) => toast({ title: 'Erro', description: e.message, variant: 'destructive' }),
+  });
+
   const sendNow = useMutation({
     mutationFn: async () => {
       if (!user?.id) throw new Error('Sem usuário');
@@ -130,7 +144,8 @@ export function EvolutionBillingScheduleCard() {
     );
   }
 
-  const active = (rules || []).filter(r => r.is_enabled);
+  const allRules = rules || [];
+  const active = allRules.filter(r => r.is_enabled);
 
   return (
     <Card className="glass-card border-border/50 border-l-4 border-l-emerald-500">
@@ -172,20 +187,39 @@ export function EvolutionBillingScheduleCard() {
 
           <div className="rounded-lg border border-border/60 bg-muted/20 p-3 space-y-2">
             <Label className="text-sm font-semibold flex items-center gap-2">
-              <FileText className="w-4 h-4" /> Mensagens que serão disparadas
+              <FileText className="w-4 h-4" /> Selecione as mensagens que serão disparadas
             </Label>
-            {active.length === 0 ? (
+            {allRules.length === 0 ? (
               <p className="text-xs text-muted-foreground">
-                Nenhum modelo marcado como “Usar no disparo automático”. Nada será enviado automaticamente.
+                Nenhum modelo criado ainda. Crie em <strong>Cobranças → Template Não Oficial</strong>.
               </p>
             ) : (
-              <ul className="text-xs text-muted-foreground space-y-1">
-                {active.map((r, i) => (
-                  <li key={r.id || i}>• <strong>{r.label}</strong> — {offsetLabel(r.days_offset)}</li>
+              <div className="space-y-2">
+                {allRules.map((r, i) => (
+                  <div
+                    key={r.id || i}
+                    className="flex items-center justify-between gap-3 rounded-md border border-border/50 bg-background/40 px-3 py-2"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium truncate">{r.label}</p>
+                      <p className="text-xs text-muted-foreground">{offsetLabel(r.days_offset)}</p>
+                    </div>
+                    <Switch
+                      checked={r.is_enabled}
+                      disabled={!r.id || toggleRule.isPending}
+                      onCheckedChange={(v) => r.id && toggleRule.mutate({ id: r.id, value: v })}
+                    />
+                  </div>
                 ))}
-              </ul>
+                {active.length === 0 && (
+                  <p className="text-xs text-amber-500">
+                    Nenhuma mensagem selecionada — nada será enviado automaticamente.
+                  </p>
+                )}
+              </div>
             )}
           </div>
+
         </div>
 
         {schedule?.last_run_at && (
