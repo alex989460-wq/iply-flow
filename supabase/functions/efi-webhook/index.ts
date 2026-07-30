@@ -260,7 +260,7 @@ Deno.serve(async (req) => {
       } else if (charge.pending_kind === "activation_request" && charge.pending_id) {
         // Mark activation request as paid.
         await admin.from("activation_requests")
-          .update({ status: "pago", paid_at: new Date().toISOString() })
+          .update({ status: "pago", updated_at: new Date().toISOString() })
           .eq("id", charge.pending_id);
 
         // Fetch request details for auto-activation + notifications.
@@ -280,14 +280,15 @@ Deno.serve(async (req) => {
           const actRes = await fetch(`${SUPABASE_URL}/functions/v1/confirm-activation`, {
             method: "POST",
             headers: { "Content-Type": "application/json", "Authorization": `Bearer ${SRK}` },
-            body: JSON.stringify({ request_id: charge.pending_id, auto: true }),
+            body: JSON.stringify({ request_id: charge.pending_id, action: "activate", source: `efi:${txid}` }),
           });
           const actJson = await actRes.json().catch(() => ({}));
           autoActivateOk = actRes.ok && actJson?.success !== false;
-          if (!autoActivateOk) autoActivateError = actJson?.error || actJson?.message || `HTTP ${actRes.status}`;
+          if (!autoActivateOk) autoActivateError = actJson?.error || actJson?.warning || actJson?.message || `HTTP ${actRes.status}`;
         } catch (e) {
           autoActivateError = e instanceof Error ? e.message : String(e);
         }
+
 
         // 1b) If auto-activation failed, surface it in the pending panel.
         if (!autoActivateOk && actReq?.user_id) {
