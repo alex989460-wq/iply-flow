@@ -10,7 +10,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { ListPlus, Send, Loader2 } from 'lucide-react';
+import { ListPlus, Send, Loader2, RefreshCw } from 'lucide-react';
 
 export type PlaylistTemplate = {
   id: string;
