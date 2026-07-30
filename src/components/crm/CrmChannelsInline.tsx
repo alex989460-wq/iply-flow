@@ -88,12 +88,44 @@ export default function CrmChannelsInline() {
     if (!key) return;
     setRefreshing(true);
     try {
-      const { data, error } = await supabase.functions.invoke('crm-oficial-sync', {
-        body: { action: 'list-channels', data: { apiKey: key } },
-      });
-      if (error) throw error;
-      const body = data?.results?.channels?.body;
-      if (data?.results?.channels?.ok && body) setChannels(normalize(body));
+      const [crmRes, localRes] = await Promise.all([
+        supabase.functions.invoke('crm-oficial-sync', {
+          body: { action: 'list-channels', data: { apiKey: key } },
+        }),
+        supabase
+          .from('user_evolution_instances')
+          .select('id, instance_name, profile_name, profile_pic_url, owner_phone')
+          .order('created_at', { ascending: true }),
+      ]);
+
+      if (crmRes.error) throw crmRes.error;
+      const body = crmRes.data?.results?.channels?.body;
+      const crmChannels = crmRes.data?.results?.channels?.ok && body ? normalize(body) : [];
+
+      // Mescla as instâncias não oficiais salvas localmente (Evolution) para reaproveitar as conexões.
+      const localChannels: WAChannel[] = (localRes.data ?? []).map((i: any) => ({
+        official: false,
+        id: `local-${i.id}`,
+        instance_name: i.instance_name,
+        name: i.profile_name || i.instance_name,
+        verified_name: i.profile_name || i.instance_name,
+        display_phone_number: i.owner_phone || '',
+        phone_number: i.owner_phone || '',
+        avatar_url: i.profile_pic_url || null,
+        is_active: true,
+        evolution_status: 'open',
+      }));
+
+      const seen = new Set(
+        crmChannels
+          .filter((c) => !c.official)
+          .map((c) => (c.instance_name || c.name || '').toLowerCase()),
+      );
+      const merged = [
+        ...crmChannels,
+        ...localChannels.filter((c) => !seen.has((c.instance_name || '').toLowerCase())),
+      ];
+      setChannels(merged);
     } catch (e: any) {
       toast({ title: 'Erro ao listar canais oficiais', description: e.message, variant: 'destructive' });
     } finally {
@@ -115,6 +147,7 @@ export default function CrmChannelsInline() {
       if (key) load(key);
     })();
   }, [user, load]);
+
 
   if (loading) return null;
   if (!apiKey) return null;
