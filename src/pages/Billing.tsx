@@ -67,7 +67,7 @@ import { cn } from '@/lib/utils';
 import type { Database } from '@/integrations/supabase/types';
 import { SendProgressModal } from '@/components/billing/SendProgressModal';
 import { BillingReportsTab } from '@/components/billing/BillingReportsTab';
-import { EvolutionBillingScheduleCard } from '@/components/billing/EvolutionBillingScheduleCard';
+
 import { CrmOficialBillingScheduleCard } from '@/components/billing/CrmOficialBillingScheduleCard';
 import CrmChannelsInline from '@/components/crm/CrmChannelsInline';
 
@@ -1091,7 +1091,6 @@ export default function Billing() {
           {/* Tab: Configuração */}
           <TabsContent value="config" className="space-y-4">
             {/* Billing Schedule Cards */}
-            <EvolutionBillingScheduleCard />
             <CrmOficialBillingScheduleCard />
             <div className="flex flex-wrap gap-2 rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-3">
               <Button variant="outline" size="sm" asChild>
