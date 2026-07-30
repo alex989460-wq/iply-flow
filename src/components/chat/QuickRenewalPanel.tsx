@@ -11,8 +11,10 @@ import { Label } from '@/components/ui/label';
 import { 
   Search, User, Calendar, CreditCard, CheckCircle, Phone, RefreshCw, 
   Server, Copy, Settings, Wifi, Download, Key, Bell, Smile, MessageSquare,
-  ChevronDown, ChevronUp, UserPlus, AlertTriangle, Monitor, Play, Loader2, X, GripVertical
+  ChevronDown, ChevronUp, UserPlus, AlertTriangle, Monitor, Play, Loader2, X, GripVertical, ListPlus
 } from 'lucide-react';
+import SendPlaylistDialog from '@/components/playlist/SendPlaylistDialog';
+
 import {
   DndContext,
   closestCenter,
