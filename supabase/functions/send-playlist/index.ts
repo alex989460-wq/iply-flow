@@ -102,6 +102,33 @@ export function normalizeMac(raw: string): string {
   return clean.match(/.{2}/g)!.join(":");
 }
 
+// ───────────────────────── Duplecast (sessão do painel do revendedor) ─────────────────────────
+class CookieJar {
+  private jar = new Map<string, string>();
+  absorb(resp: Response) {
+    // Deno expõe múltiplos Set-Cookie via getSetCookie()
+    const raws: string[] = (resp.headers as any).getSetCookie?.() ??
+      (resp.headers.get("set-cookie") ? [resp.headers.get("set-cookie")!] : []);
+    for (const raw of raws) {
+      const [pair] = raw.split(";");
+      const idx = pair.indexOf("=");
+      if (idx > 0) this.jar.set(pair.slice(0, idx).trim(), pair.slice(idx + 1).trim());
+    }
+  }
+  header() {
+    return [...this.jar.entries()].map(([k, v]) => `${k}=${v}`).join("; ");
+  }
+}
+
+function extractCsrf(html: string): string {
+  return (
+    html.match(/name=["']_csrf_token["'][^>]*value=["']([^"']+)["']/i)?.[1] ||
+    html.match(/value=["']([^"']+)["'][^>]*name=["']_csrf_token["']/i)?.[1] ||
+    ""
+  );
+}
+
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   const jsonHeaders = { ...corsHeaders, "Content-Type": "application/json" };
@@ -230,16 +257,188 @@ serve(async (req) => {
       );
     }
 
+    // ───────────────────────────── DUPLECAST ─────────────────────────────
+    if (provider === "duplecast") {
+      const mac = normalizeMac(String(body.mac || "")).toUpperCase();
+      const deviceKey = String(body.device_key || body.password || "").trim();
+      const name = String(body.playlist_name || "").trim() || "Lista";
+      const epgUrlD = String(body.epg_url || "").trim();
+      const pin = String(body.pin || "").trim();
+
+      if (!/^([0-9A-F]{2}:){5}[0-9A-F]{2}$/.test(mac)) {
+        return new Response(
+          JSON.stringify({ error: "MAC inválido. Use o formato AA:BB:CC:DD:EE:FF" }),
+          { status: 400, headers: jsonHeaders },
+        );
+      }
+      if (!deviceKey) {
+        return new Response(
+          JSON.stringify({ error: "Informe a Device Key (código exibido no aparelho)" }),
+          { status: 400, headers: jsonHeaders },
+        );
+      }
+      if (epgUrlD && !isHttpUrl(epgUrlD)) {
+        return new Response(JSON.stringify({ error: "URL do EPG inválida" }), {
+          status: 400,
+          headers: jsonHeaders,
+        });
+      }
+
+      const adminD = createClient(
+        Deno.env.get("SUPABASE_URL")!,
+        Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+        { auth: { autoRefreshToken: false, persistSession: false } },
+      );
+      const { data: credD } = await adminD
+        .from("activation_panel_credentials")
+        .select("username, password, is_enabled")
+        .eq("user_id", ownerId)
+        .eq("panel_type", "duplecast")
+        .maybeSingle();
+
+      if (!credD || !(credD as any).username || !(credD as any).password) {
+        return new Response(
+          JSON.stringify({
+            error: "Credenciais do painel Duplecast não configuradas (Ativação de Apps → Painéis)",
+          }),
+          { status: 400, headers: jsonHeaders },
+        );
+      }
+
+      const BASE = "https://duplecast.com";
+      const jar = new CookieJar();
+      const nav = (referer: string) => ({
+        "User-Agent": UA,
+        Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "pt-BR,pt;q=0.9,en;q=0.8",
+        Cookie: jar.header(),
+        Origin: BASE,
+        Referer: referer,
+      });
+
+      async function getPage(path: string) {
+        const r = await fetch(`${BASE}${path}`, {
+          headers: {
+            "User-Agent": UA,
+            Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "Accept-Language": "pt-BR,pt;q=0.9,en;q=0.8",
+            Cookie: jar.header(),
+            Referer: BASE + path,
+          },
+          redirect: "manual",
+        });
+        jar.absorb(r);
+        return { status: r.status, html: await r.text().catch(() => "") };
+      }
+
+      async function postForm(path: string, fields: Record<string, string>) {
+        const r = await fetch(`${BASE}${path}`, {
+          method: "POST",
+          headers: {
+            ...nav(BASE + path),
+            "Content-Type": "application/x-www-form-urlencoded",
+          },
+          body: new URLSearchParams(fields).toString(),
+          redirect: "manual",
+        });
+        jar.absorb(r);
+        const html = r.status >= 300 && r.status < 400 ? "" : await r.text().catch(() => "");
+        return { status: r.status, location: r.headers.get("location") || "", html };
+      }
+
+      const pickError = (html: string) =>
+        html
+          .match(/class=["'][^"']*(?:alert-danger|alert danger|error|invalid)[^"']*["'][^>]*>([\s\S]{0,250}?)</i)?.[1]
+          ?.replace(/<[^>]+>/g, "")
+          .replace(/\s+/g, " ")
+          .trim();
+
+      // 1) Login do revendedor
+      const loginPage = await getPage("/client/login");
+      const loginCsrf = extractCsrf(loginPage.html);
+      const login = await postForm("/client/login", {
+        _csrf_token: loginCsrf,
+        username: String((credD as any).username).trim(),
+        password: String((credD as any).password),
+        remember_me: "true",
+      });
+      if (!(login.status >= 300 && login.status < 400)) {
+        return new Response(
+          JSON.stringify({
+            error: pickError(login.html) || "Falha ao entrar no painel Duplecast (verifique e-mail/senha)",
+          }),
+          { status: 401, headers: jsonHeaders },
+        );
+      }
+
+      // 2) Login no dispositivo (MAC + device key)
+      const devPage = await getPage("/client/plugin/duplecast/device_login/");
+      const devCsrf = extractCsrf(devPage.html);
+      const devLogin = await postForm("/client/plugin/duplecast/device_login/", {
+        _csrf_token: devCsrf,
+        mac,
+        device_key: deviceKey,
+      });
+      if (!(devLogin.status >= 300 && devLogin.status < 400)) {
+        return new Response(
+          JSON.stringify({
+            error:
+              pickError(devLogin.html) ||
+              "Duplecast não aceitou o MAC/Device Key. Confira os dados exibidos no aparelho.",
+          }),
+          { status: 400, headers: jsonHeaders },
+        );
+      }
+
+      // 3) Cadastro da playlist
+      const addPage = await getPage("/client/plugin/duplecast/device_main/add/");
+      const addCsrf = extractCsrf(addPage.html);
+      const fields: Record<string, string> = {
+        _csrf_token: addCsrf,
+        form_action: "generate_m3u_playlist",
+        m3u_name: name,
+        m3u_playlist: m3uUrl,
+        epg_url: epgUrlD,
+        note: "",
+      };
+      if (pin) {
+        fields.locked = "1";
+        fields.pin = pin;
+        fields.confirm_pin = pin;
+      }
+      const add = await postForm("/client/plugin/duplecast/device_main/add/", fields);
+
+      if (add.status >= 300 && add.status < 400) {
+        return new Response(
+          JSON.stringify({
+            success: true,
+            provider: "duplecast",
+            mac,
+            message: `Lista "${name}" enviada para o Duplecast (${mac})`,
+          }),
+          { headers: jsonHeaders },
+        );
+      }
+
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: pickError(add.html) || `Duplecast não confirmou o cadastro da lista (HTTP ${add.status})`,
+        }),
+        { status: 502, headers: jsonHeaders },
+      );
+    }
+
     // ───────────────────────────── CLOUDDY ─────────────────────────────
     if (provider !== "clouddy") {
       return new Response(
         JSON.stringify({
-          error:
-            "Envio automático disponível para Clouddy e IBO Pro no momento. Duplecast / Bob Player exigem envio manual.",
+          error: "Provedor não suportado. Use Clouddy, IBO Pro ou Duplecast.",
         }),
         { status: 400, headers: jsonHeaders },
       );
     }
+
 
     const email = String(body.email || "").trim();
     const epgUrl = String(body.epg_url || "").trim();

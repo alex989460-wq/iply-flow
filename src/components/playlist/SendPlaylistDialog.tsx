@@ -63,7 +63,7 @@ export default function SendPlaylistDialog({
   defaultListUrl = '',
   defaultMac = '',
 }: Props) {
-  const [tab, setTab] = useState<'clouddy' | 'ibopro'>('clouddy');
+  const [tab, setTab] = useState<'clouddy' | 'ibopro' | 'duplecast'>('clouddy');
   const [listUrl, setListUrl] = useState(defaultListUrl);
   const [epgUrl, setEpgUrl] = useState('');
   const [email, setEmail] = useState(defaultEmail);
@@ -122,7 +122,8 @@ export default function SendPlaylistDialog({
 
   const canSend = useMemo(() => {
     if (!listUrl.trim()) return false;
-    return tab === 'clouddy' ? !!email.trim() : mac.replace(/[^0-9a-f]/gi, '').length === 12 && !!deviceKey.trim();
+    if (tab === 'clouddy') return !!email.trim();
+    return mac.replace(/[^0-9a-f]/gi, '').length === 12 && !!deviceKey.trim();
   }, [tab, listUrl, email, mac, deviceKey]);
 
   const handleSend = async () => {
@@ -130,7 +131,17 @@ export default function SendPlaylistDialog({
     setSending(true);
     try {
       const body =
-        tab === 'clouddy'
+        tab === 'duplecast'
+          ? {
+              provider: 'duplecast',
+              mac: formatMac(mac).toUpperCase(),
+              device_key: deviceKey.trim(),
+              playlist_name: playlistName.trim() || 'Lista',
+              m3u_url: listUrl.trim(),
+              epg_url: epgUrl.trim() || undefined,
+              pin: pin.trim() || undefined,
+            }
+          : tab === 'clouddy'
           ? {
               provider: 'clouddy',
               email: email.trim(),
@@ -199,9 +210,10 @@ export default function SendPlaylistDialog({
         </DialogHeader>
 
         <Tabs value={tab} onValueChange={(v) => setTab(v as any)}>
-          <TabsList className="grid grid-cols-2 w-full">
+          <TabsList className="grid grid-cols-3 w-full">
             <TabsTrigger value="clouddy">Clouddy</TabsTrigger>
             <TabsTrigger value="ibopro">IBO Pro</TabsTrigger>
+            <TabsTrigger value="duplecast">Duplecast</TabsTrigger>
           </TabsList>
 
           <TabsContent value="clouddy" className="space-y-3 pt-3">
@@ -262,6 +274,51 @@ export default function SendPlaylistDialog({
               </div>
             </div>
             {listField}
+          </TabsContent>
+
+          <TabsContent value="duplecast" className="space-y-3 pt-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>MAC do aparelho</Label>
+                <Input
+                  value={mac}
+                  onChange={(e) => setMac(formatMac(e.target.value))}
+                  placeholder="aa:bb:cc:dd:ee:ff"
+                  className="font-mono"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Device Key</Label>
+                <Input
+                  value={deviceKey}
+                  onChange={(e) => setDeviceKey(e.target.value)}
+                  placeholder="código exibido no aparelho"
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>Nome da lista</Label>
+                <Input value={playlistName} onChange={(e) => setPlaylistName(e.target.value)} placeholder="Minha Lista" />
+              </div>
+              <div className="space-y-1.5">
+                <Label>PIN (opcional)</Label>
+                <Input value={pin} onChange={(e) => setPin(e.target.value)} placeholder="ex: 102030" />
+              </div>
+            </div>
+            {listField}
+            <div className="space-y-1.5">
+              <Label>EPG (opcional)</Label>
+              <Input
+                value={epgUrl}
+                onChange={(e) => setEpgUrl(e.target.value)}
+                placeholder="Deixe vazio para não enviar EPG"
+                className="font-mono text-[11px]"
+              />
+            </div>
+            <p className="text-[11px] text-muted-foreground">
+              Usa o login do seu painel Duplecast salvo em Ativação de Apps → Painéis.
+            </p>
           </TabsContent>
         </Tabs>
 

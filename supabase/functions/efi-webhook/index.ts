@@ -260,7 +260,7 @@ Deno.serve(async (req) => {
       } else if (charge.pending_kind === "activation_request" && charge.pending_id) {
         // Mark activation request as paid.
         await admin.from("activation_requests")
-          .update({ status: "pago", paid_at: new Date().toISOString() })
+          .update({ status: "pago", updated_at: new Date().toISOString() })
           .eq("id", charge.pending_id);
 
         // Fetch request details for auto-activation + notifications.
@@ -280,38 +280,19 @@ Deno.serve(async (req) => {
           const actRes = await fetch(`${SUPABASE_URL}/functions/v1/confirm-activation`, {
             method: "POST",
             headers: { "Content-Type": "application/json", "Authorization": `Bearer ${SRK}` },
-            body: JSON.stringify({ request_id: charge.pending_id, auto: true }),
+            body: JSON.stringify({ request_id: charge.pending_id, action: "activate", source: `efi:${txid}` }),
           });
           const actJson = await actRes.json().catch(() => ({}));
           autoActivateOk = actRes.ok && actJson?.success !== false;
-          if (!autoActivateOk) autoActivateError = actJson?.error || actJson?.message || `HTTP ${actRes.status}`;
+          if (!autoActivateOk) autoActivateError = actJson?.error || actJson?.warning || actJson?.message || `HTTP ${actRes.status}`;
         } catch (e) {
           autoActivateError = e instanceof Error ? e.message : String(e);
         }
 
-        // 1b) If auto-activation failed, surface it in the pending panel.
-        if (!autoActivateOk && actReq?.user_id) {
-          await admin.from("pending_manual_renewals").insert({
-            owner_id: actReq.user_id,
-            customer_id: null,
-            customer_name: actReq.customer_name || "Ativação de App",
-            customer_phone: actReq.customer_phone || null,
-            username: null,
-            server_name: actReq.app_name || null,
-            plan_name: actReq.app_name || null,
-            amount: actReq.amount || 0,
-            reason: "app_activation",
-            source: `efi:${txid}`,
-            error_details: {
-              app_name: actReq.app_name,
-              mac_address: actReq.mac_address,
-              email: actReq.email,
-              message: autoActivateError || "Falha na ativação automática",
-            },
-          }).then(({ error }) => {
-            if (error) console.error("[efi-webhook] pending activation insert error", error);
-          });
-        }
+
+        // 1b) A pendência (quando a ativação automática falha) é criada dentro de
+        //     confirm-activation, que também dá baixa quando concluída manualmente.
+
 
 
 
@@ -423,7 +404,7 @@ Deno.serve(async (req) => {
                   const r = await fetch(`${SB_URL}/functions/v1/confirm-activation`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json", "Authorization": `Bearer ${SRK}` },
-                    body: JSON.stringify({ request_id: newActReq.id, action: "activate" }),
+                    body: JSON.stringify({ request_id: newActReq.id, action: "activate", source: `efi:${txid}` }),
                   });
                   const j = await r.json().catch(() => ({}));
                   autoOk = r.ok && j?.success !== false;
@@ -431,26 +412,8 @@ Deno.serve(async (req) => {
                 } catch (e) {
                   autoErr = e instanceof Error ? e.message : String(e);
                 }
-                if (!autoOk) {
-                  const { error: pendErr } = await admin.from("pending_manual_renewals").insert({
-                    owner_id: newActReq.user_id,
-                    customer_id: null,
-                    customer_name: newActReq.customer_name || "Ativação de App",
-                    customer_phone: newActReq.customer_phone || null,
-                    server_name: newActReq.app_name || null,
-                    plan_name: newActReq.app_name || null,
-                    amount: newActReq.amount || 0,
-                    reason: "app_activation",
-                    source: `efi:${txid}`,
-                    error_details: {
-                      app_name: newActReq.app_name,
-                      mac_address: newActReq.mac_address,
-                      email: newActReq.email,
-                      message: autoErr || "Falha na ativação automática",
-                    },
-                  });
-                  if (pendErr) console.error("[efi-webhook] pending activation insert error", pendErr);
-                }
+                // A pendência manual é registrada dentro de confirm-activation.
+
                 try {
                   const [{ data: zap }, { data: billing }] = await Promise.all([
                     admin.from("zap_responder_settings").select("selected_department_id").eq("user_id", newActReq.user_id).maybeSingle(),

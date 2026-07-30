@@ -14,11 +14,16 @@ serve(async (req) => {
   const jsonHeaders = { ...corsHeaders, 'Content-Type': 'application/json' };
 
   try {
-    const { request_id, action } = await req.json();
-    
+    const payload = await req.json();
+    const request_id = payload?.request_id;
+    // `auto: true` (webhooks) equivale a uma ativação.
+    const action = payload?.action || (payload?.auto ? 'activate' : null);
+    const source = String(payload?.source || 'confirm-activation');
+
     if (!request_id || !action) {
       return new Response(JSON.stringify({ error: 'request_id e action são obrigatórios' }), { status: 400, headers: jsonHeaders });
     }
+
 
     const supabaseAdmin = createClient(
       Deno.env.get('SUPABASE_URL')!,
@@ -187,19 +192,63 @@ serve(async (req) => {
       updated_at: new Date().toISOString(),
     }).eq('id', request_id);
 
-    // Auto-clear matching pending_manual_renewals entry when activation succeeded/rejected
-    if (newStatus === 'completed' || newStatus === 'rejected') {
-      try {
-        await supabaseAdmin
-          .from('pending_manual_renewals')
-          .delete()
-          .eq('owner_id', request.user_id)
-          .eq('reason', 'app_activation')
-          .eq('customer_phone', request.customer_phone);
-      } catch (delErr) {
-        console.error('[ActivationAction] Erro ao dar baixa em pending_manual_renewals:', delErr);
-      }
+    // ── Pendências manuais: baixa automática no sucesso / abertura na falha ──
+    const phoneDigits = String(request.customer_phone || '').replace(/\D/g, '');
+    const phoneVariants = new Set<string>();
+    if (phoneDigits) {
+      phoneVariants.add(phoneDigits);
+      phoneVariants.add(phoneDigits.startsWith('55') ? phoneDigits.slice(2) : '55' + phoneDigits);
+      if (phoneDigits.length >= 8) phoneVariants.add(phoneDigits.slice(-8));
     }
+
+    try {
+      const { data: openPendings } = await supabaseAdmin
+        .from('pending_manual_renewals')
+        .select('id, customer_phone, plan_name, server_name')
+        .eq('owner_id', request.user_id)
+        .eq('reason', 'app_activation');
+
+      const matches = (openPendings || []).filter((p: any) => {
+        const pd = String(p.customer_phone || '').replace(/\D/g, '');
+        const samePhone = pd && [...phoneVariants].some(v => pd === v || pd.endsWith(v.slice(-8)));
+        const sameApp =
+          String(p.plan_name || p.server_name || '').toUpperCase() ===
+          String(request.app_name || '').toUpperCase();
+        return samePhone || (!pd && sameApp);
+      });
+
+      if (newStatus === 'completed' || newStatus === 'rejected') {
+        if (matches.length) {
+          await supabaseAdmin
+            .from('pending_manual_renewals')
+            .delete()
+            .in('id', matches.map((m: any) => m.id));
+        }
+      } else if (newStatus === 'failed' && request.user_id && !matches.length) {
+        // Ativação automática falhou → garante que apareça no painel de pendências.
+        await supabaseAdmin.from('pending_manual_renewals').insert({
+          owner_id: request.user_id,
+          customer_id: null,
+          customer_name: request.customer_name || 'Ativação de App',
+          customer_phone: request.customer_phone || null,
+          server_name: request.app_name || null,
+          plan_name: request.app_name || null,
+          amount: request.amount || 0,
+          reason: 'app_activation',
+          source,
+          error_details: {
+            app_name: request.app_name,
+            mac_address: request.mac_address,
+            email: request.email,
+            request_id,
+            message: autoActivationError || 'Falha na ativação automática',
+          },
+        });
+      }
+    } catch (pendErr) {
+      console.error('[ActivationAction] Erro ao sincronizar pending_manual_renewals:', pendErr);
+    }
+
 
 
     // Always send WhatsApp to customer, regardless of external panel result.
@@ -207,52 +256,93 @@ serve(async (req) => {
     // - failure/manual → "pagamento confirmado, ativação em andamento"
     // - reject → "solicitação recusada"
     if (request.customer_phone && request.user_id) {
+      const rawCustPhone = String(request.customer_phone || '').trim();
+      const custHasPlus = rawCustPhone.startsWith('+');
+      let customerPhone = rawCustPhone.replace(/\D/g, '');
+      if (!custHasPlus && !customerPhone.startsWith('55') && customerPhone.length >= 10 && customerPhone.length <= 11) {
+        customerPhone = '55' + customerPhone;
+      }
+
+      let message = '';
+      if (action === 'reject') {
+        message = `❌ *Solicitação de Ativação Recusada*\n\n📱 Aplicativo: *${request.app_name}*\n👤 Cliente: *${request.customer_name}*\n\nEntre em contato conosco para mais informações.`;
+      } else if (autoActivationOk) {
+        message = `✅ *APLICATIVO ATIVADO COM SUCESSO*\n\nSeu acesso foi liberado e o aplicativo já está pronto para uso.\n\n📱 Aplicativo: *${request.app_name}*\n👤 Cliente: *${request.customer_name}*\n${request.mac_address ? `🖥 MAC: *${request.mac_address}*\n` : ''}${request.email ? `📧 E-mail: *${request.email}*\n` : ''}\n🎬 Agora é só abrir o aplicativo e aproveitar todo o conteúdo disponível.\n\nCaso precise de suporte, estamos à disposição.\nBom entretenimento! 🍿`;
+      } else {
+        message = `✅ *PAGAMENTO CONFIRMADO*\n\nRecebemos seu pagamento com sucesso! 🎉\n\n📱 Aplicativo: *${request.app_name}*\n👤 Cliente: *${request.customer_name}*\n${request.mac_address ? `🖥 MAC: *${request.mac_address}*\n` : ''}${request.email ? `📧 E-mail: *${request.email}*\n` : ''}\n⏳ Sua ativação está sendo processada e será concluída em instantes.\nAssim que estiver pronto, você recebe outra mensagem confirmando a liberação.\n\nObrigado pela preferência!`;
+      }
+
+      const SB_URL = Deno.env.get('SUPABASE_URL')!;
+      const SRK = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+
       const { data: crmSettings } = await supabaseAdmin
         .from('crm_oficial_settings')
         .select('enabled, api_key')
         .eq('user_id', request.user_id)
         .maybeSingle();
 
+      let notified = false;
+
       if (crmSettings?.enabled && crmSettings?.api_key) {
-        const rawCustPhone = String(request.customer_phone || '').trim();
-        const custHasPlus = rawCustPhone.startsWith('+');
-        let customerPhone = rawCustPhone.replace(/\D/g, '');
-        if (!custHasPlus && !customerPhone.startsWith('55') && customerPhone.length >= 10 && customerPhone.length <= 11) {
-          customerPhone = '55' + customerPhone;
-        }
-
-        let message = '';
-        if (action === 'reject') {
-          message = `❌ *Solicitação de Ativação Recusada*\n\n📱 Aplicativo: *${request.app_name}*\n👤 Cliente: *${request.customer_name}*\n\nEntre em contato conosco para mais informações.`;
-        } else if (autoActivationOk) {
-          message = `✅ *APLICATIVO ATIVADO COM SUCESSO*\n\nSeu acesso foi liberado e o aplicativo já está pronto para uso.\n\n📱 Aplicativo: *${request.app_name}*\n👤 Cliente: *${request.customer_name}*\n${request.mac_address ? `🖥 MAC: *${request.mac_address}*\n` : ''}${request.email ? `📧 E-mail: *${request.email}*\n` : ''}\n🎬 Agora é só abrir o aplicativo e aproveitar todo o conteúdo disponível.\n\nCaso precise de suporte, estamos à disposição.\nBom entretenimento! 🍿`;
-        } else {
-          message = `✅ *PAGAMENTO CONFIRMADO*\n\nRecebemos seu pagamento com sucesso! 🎉\n\n📱 Aplicativo: *${request.app_name}*\n👤 Cliente: *${request.customer_name}*\n${request.mac_address ? `🖥 MAC: *${request.mac_address}*\n` : ''}${request.email ? `📧 E-mail: *${request.email}*\n` : ''}\n⏳ Sua ativação está sendo processada e será concluída em instantes.\nAssim que estiver pronto, você recebe outra mensagem confirmando a liberação.\n\nObrigado pela preferência!`;
-        }
-
         try {
-          const resp = await fetch(
-            `${Deno.env.get('SUPABASE_URL')}/functions/v1/crm-oficial-sync`,
-            {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
-              },
-              body: JSON.stringify({
-                action: 'sendText',
-                number: customerPhone,
-                text: message,
-                user_id: request.user_id,
-              }),
-            },
-          );
-          console.log(`[ActivationAction] Mensagem ${action} enviada para ${customerPhone}: ok=${resp.ok} autoOk=${autoActivationOk}`);
+          const resp = await fetch(`${SB_URL}/functions/v1/crm-oficial-sync`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${SRK}` },
+            body: JSON.stringify({
+              action: 'sendText',
+              number: customerPhone,
+              text: message,
+              user_id: request.user_id,
+            }),
+          });
+          const j = await resp.json().catch(() => ({} as any));
+          notified = resp.ok && j?.error === undefined && j?.success !== false;
+          console.log(`[ActivationAction] CRM oficial → ${customerPhone}: ok=${notified}`);
         } catch (msgErr) {
-          console.error('[ActivationAction] Erro ao enviar mensagem:', msgErr);
+          console.error('[ActivationAction] Erro ao enviar via CRM oficial:', msgErr);
         }
       }
+
+      // Fallback: Evolution API (revendas sem CRM oficial habilitado).
+      if (!notified) {
+        try {
+          const resp = await fetch(`${SB_URL}/functions/v1/evolution-send`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${SRK}`,
+              'x-internal-token': SRK,
+            },
+            body: JSON.stringify({
+              action: 'send',
+              phone: customerPhone,
+              text: message,
+              user_id: request.user_id,
+            }),
+          });
+          const j = await resp.json().catch(() => ({} as any));
+          notified = resp.ok && !j?.error;
+          console.log(`[ActivationAction] Evolution → ${customerPhone}: ok=${notified} ${j?.error || ''}`);
+        } catch (msgErr) {
+          console.error('[ActivationAction] Erro ao enviar via Evolution:', msgErr);
+        }
+      }
+
+      // Registro para auditoria em Logs de Mensagens.
+      try {
+        await supabaseAdmin.from('message_logs').insert({
+          user_id: request.user_id,
+          customer_name: request.customer_name,
+          customer_phone: customerPhone,
+          message_type: action === 'reject' ? 'activation_rejected' : (autoActivationOk ? 'activation_completed' : 'activation_payment_confirmed'),
+          source: 'confirm-activation',
+          status: notified ? 'sent' : 'failed',
+          error_message: notified ? null : 'Nenhum canal WhatsApp disponível para o envio',
+          metadata: { request_id, app_name: request.app_name },
+        });
+      } catch { /* ignore */ }
     }
+
 
     if (action === 'activate' && supportedApp && !autoActivationOk) {
       return new Response(JSON.stringify({

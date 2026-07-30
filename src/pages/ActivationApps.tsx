@@ -3,6 +3,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import DashboardLayout from '@/components/layout/DashboardLayout';
+import PanelCredentialCard from '@/components/activation/PanelCredentialCard';
+
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -804,291 +806,195 @@ export default function ActivationApps() {
           </TabsContent>
 
           <TabsContent value="panels">
-            <Card>
-              <CardHeader>
+            <Card className="border-border/60">
+              <CardHeader className="pb-4">
                 <CardTitle className="text-lg flex items-center gap-2">
                   <Settings2 className="w-5 h-5" /> Credenciais dos Painéis
                 </CardTitle>
                 <CardDescription>
-                  Configure aqui o login do seu painel de revenda para ativar apps automaticamente quando um pedido chegar. Cada revendedor usa suas próprias credenciais.
+                  Configure o login de cada painel de revenda para ativar apps automaticamente. Clique em um card para expandir.
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="rounded-xl border border-border/50 p-4 space-y-4 bg-card">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                        <Monitor className="w-5 h-5 text-primary" />
-                      </div>
-                      <div>
-                        <h3 className="font-semibold text-foreground">Duplecast</h3>
-                        <p className="text-xs text-muted-foreground">
-                          Painel do revendedor em <span className="font-mono">duplecast.com/client/login</span>
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Label htmlFor="dup-enabled" className="text-xs">Ativação automática</Label>
-                      <Switch
-                        id="dup-enabled"
-                        checked={duplecastForm.is_enabled}
-                        onCheckedChange={v => setDuplecastForm(f => ({ ...f, is_enabled: v }))}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <div>
-                      <Label>E-mail do painel</Label>
-                      <Input
-                        type="email"
-                        autoComplete="off"
-                        value={duplecastForm.username}
-                        onChange={e => setDuplecastForm(f => ({ ...f, username: e.target.value }))}
-                        placeholder="seuemail@dominio.com"
-                      />
-                    </div>
-                    <div>
-                      <Label>Senha</Label>
-                      <div className="relative">
+              <CardContent>
+                <div className="grid gap-3 lg:grid-cols-2">
+                  <PanelCredentialCard
+                    title="Duplecast"
+                    subtitle="duplecast.com/client/login"
+                    logo={<Monitor className="w-5 h-5 text-primary" />}
+                    connected={!!duplecast}
+                    enabled={duplecastForm.is_enabled}
+                    onEnabledChange={(v) => setDuplecastForm(f => ({ ...f, is_enabled: v }))}
+                    saving={saveDuplecast.isPending}
+                    onSave={() => saveDuplecast.mutate()}
+                    saveLabel="Salvar credenciais"
+                    hint={<>Ao chegar um pedido do app <b>Duplecast</b>, o sistema faz login, cadastra o <b>MAC</b> no <b>code</b> informado e dispara a mensagem de app ativado. Se falhar, vira pendência manual.</>}
+                  >
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">E-mail do painel</Label>
                         <Input
-                          type={showPass ? 'text' : 'password'}
-                          autoComplete="new-password"
-                          value={duplecastForm.password}
-                          onChange={e => setDuplecastForm(f => ({ ...f, password: e.target.value }))}
-                          placeholder="••••••••"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowPass(v => !v)}
-                          className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                          aria-label={showPass ? 'Ocultar' : 'Mostrar'}
-                        >
-                          {showPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="rounded-lg bg-muted/40 border border-border/50 p-3 text-xs text-muted-foreground flex gap-2">
-                    <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-yellow-500" />
-                    <span>
-                      Ao chegar um pedido de ativação com o app <b>Duplecast</b>, o sistema fará login com essas credenciais, cadastrará o <b>MAC</b> no <b>code</b> informado pelo cliente e disparará automaticamente a mensagem de app ativado. Se falhar, a solicitação fica pendente para ativação manual.
-                    </span>
-                  </div>
-
-                  <div className="flex justify-end">
-                    <Button onClick={() => saveDuplecast.mutate()} disabled={saveDuplecast.isPending}>
-                      {saveDuplecast.isPending ? 'Salvando...' : 'Salvar credenciais'}
-                    </Button>
-                  </div>
-                </div>
-
-                <div className="rounded-xl border border-border/50 p-4 space-y-4 bg-card">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                        <Monitor className="w-5 h-5 text-primary" />
-                      </div>
-                      <div>
-                        <h3 className="font-semibold text-foreground">Clouddy</h3>
-                        <p className="text-xs text-muted-foreground">
-                          Painel do revendedor em <span className="font-mono">console.clouddy.online/reseller</span>
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Label htmlFor="cl-enabled" className="text-xs">Ativação automática</Label>
-                      <Switch
-                        id="cl-enabled"
-                        checked={clouddyForm.is_enabled}
-                        onCheckedChange={v => setClouddyForm(f => ({ ...f, is_enabled: v }))}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <div>
-                      <Label>URL do painel</Label>
-                      <Input
-                        value={clouddyForm.base_url}
-                        onChange={e => setClouddyForm(f => ({ ...f, base_url: e.target.value }))}
-                        placeholder="https://console.clouddy.online"
-                      />
-                    </div>
-                    <div>
-                      <Label>Cookie da sessão</Label>
-                      <div className="relative">
-                        <Input
-                          type={showClCookie ? 'text' : 'password'}
+                          type="email"
                           autoComplete="off"
-                          value={clouddyForm.cookie}
-                          onChange={e => setClouddyForm(f => ({ ...f, cookie: e.target.value }))}
-                          placeholder="PHPSESSID=xxx; REMEMBERME=yyy"
-                          className="font-mono text-xs"
+                          value={duplecastForm.username}
+                          onChange={e => setDuplecastForm(f => ({ ...f, username: e.target.value }))}
+                          placeholder="seuemail@dominio.com"
                         />
-                        <button
-                          type="button"
-                          onClick={() => setShowClCookie(v => !v)}
-                          className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                          aria-label={showClCookie ? 'Ocultar' : 'Mostrar'}
-                        >
-                          {showClCookie ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                        </button>
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">Senha</Label>
+                        <div className="relative">
+                          <Input
+                            type={showPass ? 'text' : 'password'}
+                            autoComplete="new-password"
+                            value={duplecastForm.password}
+                            onChange={e => setDuplecastForm(f => ({ ...f, password: e.target.value }))}
+                            placeholder="••••••••"
+                            className="pr-9"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowPass(v => !v)}
+                            className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                            aria-label={showPass ? 'Ocultar' : 'Mostrar'}
+                          >
+                            {showPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                          </button>
+                        </div>
                       </div>
                     </div>
-                  </div>
+                  </PanelCredentialCard>
 
-                  <div className="rounded-lg bg-muted/40 border border-border/50 p-3 text-xs text-muted-foreground flex gap-2">
-                    <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-yellow-500" />
-                    <span>
-                      Como o Clouddy tem <b>Cloudflare Turnstile</b> no login, entre em <span className="font-mono">console.clouddy.online/reseller</span> manualmente, abra o DevTools (F12) → <b>Network</b> → em qualquer requisição <span className="font-mono">/reseller/*</span> copie o valor completo do header <span className="font-mono">Cookie</span> e cole aqui (também aceita o JSON exportado). Ao chegar um pedido de ativação com o app <b>Clouddy</b>, o sistema usará essa sessão para localizar o cliente pelo <b>email</b> e realizar a recarga automaticamente.
-                    </span>
-                  </div>
-
-                  <div className="flex justify-end">
-                    <Button onClick={() => saveClouddy.mutate()} disabled={saveClouddy.isPending}>
-                      {saveClouddy.isPending ? 'Salvando...' : 'Salvar credenciais'}
-                    </Button>
-                  </div>
-                </div>
-
-
-                <div className="rounded-xl border border-border/50 p-4 space-y-4 bg-card">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                        <Monitor className="w-5 h-5 text-primary" />
+                  <PanelCredentialCard
+                    title="Clouddy"
+                    subtitle="console.clouddy.online/reseller"
+                    logo={<Monitor className="w-5 h-5 text-primary" />}
+                    connected={!!clouddy}
+                    enabled={clouddyForm.is_enabled}
+                    onEnabledChange={(v) => setClouddyForm(f => ({ ...f, is_enabled: v }))}
+                    saving={saveClouddy.isPending}
+                    onSave={() => saveClouddy.mutate()}
+                    saveLabel="Salvar credenciais"
+                    hint={<>O Clouddy usa <b>Cloudflare Turnstile</b>. Entre no painel manualmente, abra o DevTools (F12) → <b>Network</b> → em qualquer requisição <span className="font-mono">/reseller/*</span> copie o header <span className="font-mono">Cookie</span> completo e cole aqui. O sistema usará essa sessão para localizar o cliente pelo <b>e-mail</b> e recarregar automaticamente.</>}
+                  >
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">URL do painel</Label>
+                        <Input
+                          value={clouddyForm.base_url}
+                          onChange={e => setClouddyForm(f => ({ ...f, base_url: e.target.value }))}
+                          placeholder="https://console.clouddy.online"
+                        />
                       </div>
-                      <div>
-                        <h3 className="font-semibold text-foreground">IBO Sol (Bob Player, IBO Player, etc.)</h3>
-                        <p className="text-xs text-muted-foreground">
-                          Painel do revendedor em <span className="font-mono">ibosol.com</span> — ativação por MAC
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Label htmlFor="ibo-enabled" className="text-xs">Ativação automática</Label>
-                      <Switch
-                        id="ibo-enabled"
-                        checked={ibosolForm.is_enabled}
-                        onCheckedChange={v => setIbosolForm(f => ({ ...f, is_enabled: v }))}
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <Label>Token do IBO Sol (Bearer)</Label>
-                    <div className="relative">
-                      <Input
-                        type={showIboTok ? 'text' : 'password'}
-                        autoComplete="off"
-                        value={ibosolForm.token}
-                        onChange={e => setIbosolForm(f => ({ ...f, token: e.target.value }))}
-                        placeholder="5114508|tb3dyiNd5DRuzygqKTRRW9X2elAUtvjDPplNSPwj..."
-                        className="font-mono text-xs pr-9"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowIboTok(v => !v)}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                        aria-label={showIboTok ? 'Ocultar' : 'Mostrar'}
-                      >
-                        {showIboTok ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="rounded-lg bg-muted/40 border border-border/50 p-3 text-xs text-muted-foreground flex gap-2">
-                    <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-yellow-500" />
-                    <span>
-                      Como o IBO Sol tem <b>Cloudflare Turnstile</b> no login, faça login manualmente em <span className="font-mono">ibosol.com</span>, abra o DevTools (F12) → <b>Network</b> → localize a requisição <span className="font-mono">POST /api/login</span> e copie o campo <span className="font-mono">token</span> da resposta (formato <span className="font-mono">"5114508|xxxx..."</span>). Ao chegar um pedido com <b>BOBPLAYER</b>, <b>IBOPLAYER</b> ou qualquer outro app do IBO Sol, o sistema seleciona automaticamente o app correto e ativa o MAC do cliente (1 crédito).
-                    </span>
-                  </div>
-
-                  <div className="flex justify-end">
-                    <Button onClick={() => saveIbosol.mutate()} disabled={saveIbosol.isPending}>
-                      {saveIbosol.isPending ? 'Salvando...' : 'Salvar token'}
-                    </Button>
-                  </div>
-                </div>
-
-                <div className="rounded-xl border border-border/50 p-4 space-y-4 bg-card">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                        <Monitor className="w-5 h-5 text-primary" />
-                      </div>
-                      <div>
-                        <h3 className="font-semibold text-foreground">IBO Player Pro</h3>
-                        <p className="text-xs text-muted-foreground">
-                          Painel do revendedor em <span className="font-mono">cms.iboplayer.pro</span> — ativação por MAC
-                        </p>
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">Cookie da sessão</Label>
+                        <div className="relative">
+                          <Input
+                            type={showClCookie ? 'text' : 'password'}
+                            autoComplete="off"
+                            value={clouddyForm.cookie}
+                            onChange={e => setClouddyForm(f => ({ ...f, cookie: e.target.value }))}
+                            placeholder="PHPSESSID=xxx; REMEMBERME=yyy"
+                            className="font-mono text-xs pr-9"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowClCookie(v => !v)}
+                            className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                            aria-label={showClCookie ? 'Ocultar' : 'Mostrar'}
+                          >
+                            {showClCookie ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                          </button>
+                        </div>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <Label htmlFor="ibopro-enabled" className="text-xs">Ativação automática</Label>
-                      <Switch
-                        id="ibopro-enabled"
-                        checked={iboProForm.is_enabled}
-                        onCheckedChange={v => setIboProForm(f => ({ ...f, is_enabled: v }))}
-                      />
-                    </div>
-                  </div>
+                  </PanelCredentialCard>
 
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <div>
-                      <Label>E-mail do revendedor</Label>
-                      <Input
-                        type="email"
-                        autoComplete="off"
-                        value={iboProForm.username}
-                        onChange={e => setIboProForm(f => ({ ...f, username: e.target.value }))}
-                        placeholder="seu-email@exemplo.com"
-                      />
-                    </div>
-                    <div>
-                      <Label>Senha</Label>
+                  <PanelCredentialCard
+                    title="IBO Sol"
+                    subtitle="Bob Player, IBO Player e afins — ativação por MAC"
+                    logo={<Monitor className="w-5 h-5 text-primary" />}
+                    connected={!!ibosol}
+                    enabled={ibosolForm.is_enabled}
+                    onEnabledChange={(v) => setIbosolForm(f => ({ ...f, is_enabled: v }))}
+                    saving={saveIbosol.isPending}
+                    onSave={() => saveIbosol.mutate()}
+                    saveLabel="Salvar token"
+                    hint={<>Faça login em <span className="font-mono">ibosol.com</span>, abra o DevTools (F12) → <b>Network</b> → requisição <span className="font-mono">POST /api/login</span> e copie o campo <span className="font-mono">token</span> da resposta. O sistema seleciona o app correto e ativa o MAC (1 crédito).</>}
+                  >
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Token do IBO Sol (Bearer)</Label>
                       <div className="relative">
                         <Input
-                          type={showIboProPass ? 'text' : 'password'}
-                          autoComplete="new-password"
-                          value={iboProForm.password}
-                          onChange={e => setIboProForm(f => ({ ...f, password: e.target.value }))}
-                          placeholder="••••••••"
-                          className="pr-9"
+                          type={showIboTok ? 'text' : 'password'}
+                          autoComplete="off"
+                          value={ibosolForm.token}
+                          onChange={e => setIbosolForm(f => ({ ...f, token: e.target.value }))}
+                          placeholder="5114508|tb3dyiNd5DRuzygqKTRRW9X2..."
+                          className="font-mono text-xs pr-9"
                         />
                         <button
                           type="button"
-                          onClick={() => setShowIboProPass(v => !v)}
+                          onClick={() => setShowIboTok(v => !v)}
                           className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                          aria-label={showIboProPass ? 'Ocultar' : 'Mostrar'}
+                          aria-label={showIboTok ? 'Ocultar' : 'Mostrar'}
                         >
-                          {showIboProPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                          {showIboTok ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                         </button>
                       </div>
                     </div>
-                  </div>
+                  </PanelCredentialCard>
 
-                  <div className="rounded-lg bg-muted/40 border border-border/50 p-3 text-xs text-muted-foreground flex gap-2">
-                    <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-yellow-500" />
-                    <span>
-                      Salve o e-mail e senha do painel <span className="font-mono">cms.iboplayer.pro</span>. O sistema mantém a sessão ativa automaticamente (mesma rotina do IBO Sol/Duplecast) e usa essas credenciais para ativar o MAC do cliente quando chegar um pedido do app <b>IBOPLAYERPRO</b>.
-                    </span>
-                  </div>
-
-                  <div className="flex justify-end">
-                    <Button onClick={() => saveIboPro.mutate()} disabled={saveIboPro.isPending}>
-                      {saveIboPro.isPending ? 'Salvando...' : 'Salvar credenciais'}
-                    </Button>
-                  </div>
+                  <PanelCredentialCard
+                    title="IBO Player Pro"
+                    subtitle="cms.iboplayer.pro — ativação por MAC"
+                    logo={<Monitor className="w-5 h-5 text-primary" />}
+                    connected={!!iboPro}
+                    enabled={iboProForm.is_enabled}
+                    onEnabledChange={(v) => setIboProForm(f => ({ ...f, is_enabled: v }))}
+                    saving={saveIboPro.isPending}
+                    onSave={() => saveIboPro.mutate()}
+                    saveLabel="Salvar credenciais"
+                    hint={<>Salve o e-mail e senha do painel <span className="font-mono">cms.iboplayer.pro</span>. O sistema mantém a sessão ativa e ativa o MAC do cliente quando chegar um pedido do app <b>IBOPLAYERPRO</b>.</>}
+                  >
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">E-mail do revendedor</Label>
+                        <Input
+                          type="email"
+                          autoComplete="off"
+                          value={iboProForm.username}
+                          onChange={e => setIboProForm(f => ({ ...f, username: e.target.value }))}
+                          placeholder="seu-email@exemplo.com"
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">Senha</Label>
+                        <div className="relative">
+                          <Input
+                            type={showIboProPass ? 'text' : 'password'}
+                            autoComplete="new-password"
+                            value={iboProForm.password}
+                            onChange={e => setIboProForm(f => ({ ...f, password: e.target.value }))}
+                            placeholder="••••••••"
+                            className="pr-9"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowIboProPass(v => !v)}
+                            className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                            aria-label={showIboProPass ? 'Ocultar' : 'Mostrar'}
+                          >
+                            {showIboProPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </PanelCredentialCard>
                 </div>
-
-
-
               </CardContent>
             </Card>
           </TabsContent>
+
         </Tabs>
       </div>
 
