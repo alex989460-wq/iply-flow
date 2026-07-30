@@ -240,26 +240,29 @@ serve(async (req) => {
 
         const { data: customerData } = await supabaseAdmin
           .from('customers')
-          .select('id, created_by')
+          .select('id, created_by, screens')
           .eq('id', customer_id)
           .maybeSingle();
 
         if (customerData?.created_by) {
+          const extraScreens = Math.max(0, (Number(customerData?.screens) || Number(screens) || 1) - 1);
+          const creditsToDeduct = renewMonths + extraScreens * 0.5 * renewMonths;
           const { data: ownerAccess } = await supabaseAdmin
             .from('reseller_access')
             .select('id, credits')
             .eq('user_id', customerData.created_by)
             .maybeSingle();
 
-          if (ownerAccess && (ownerAccess.credits ?? 0) >= renewMonths) {
-            const newCredits = ownerAccess.credits - renewMonths;
+          if (ownerAccess && (ownerAccess.credits ?? 0) >= creditsToDeduct) {
+            const newCredits = ownerAccess.credits - creditsToDeduct;
             await supabaseAdmin
               .from('reseller_access')
               .update({ credits: newCredits })
               .eq('id', ownerAccess.id);
-            console.log(`[Rush] ${renewMonths} crédito(s) descontado(s). Saldo: ${newCredits}`);
+            console.log(`[Rush] ${creditsToDeduct} crédito(s) descontado(s). Saldo: ${newCredits}`);
           }
         }
+
       }
     }
 

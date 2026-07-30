@@ -390,22 +390,25 @@ serve(async (req) => {
     if (customer_id) {
       const { data: c } = await admin
         .from("customers")
-        .select("created_by")
+        .select("created_by, screens")
         .eq("id", customer_id)
         .maybeSingle();
       if (c?.created_by) {
+        const extraScreens = Math.max(0, (Number(c?.screens) || 1) - 1);
+        const creditsToDeduct = credits + extraScreens * 0.5 * credits;
         const { data: acc } = await admin
           .from("reseller_access")
           .select("id, credits")
           .eq("user_id", c.created_by)
           .maybeSingle();
-        if (acc && (acc.credits ?? 0) >= credits) {
+        if (acc && (acc.credits ?? 0) >= creditsToDeduct) {
           await admin
             .from("reseller_access")
-            .update({ credits: acc.credits - credits })
+            .update({ credits: acc.credits - creditsToDeduct })
             .eq("id", acc.id);
         }
       }
+
     }
 
     return new Response(
