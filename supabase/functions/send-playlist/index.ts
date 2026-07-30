@@ -318,7 +318,13 @@ serve(async (req) => {
 
       async function getPage(path: string) {
         const r = await fetch(`${BASE}${path}`, {
-          headers: { ...nav(BASE + path), Origin: undefined as any },
+          headers: {
+            "User-Agent": UA,
+            Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "Accept-Language": "pt-BR,pt;q=0.9,en;q=0.8",
+            Cookie: jar.header(),
+            Referer: BASE + path,
+          },
           redirect: "manual",
         });
         jar.absorb(r);
