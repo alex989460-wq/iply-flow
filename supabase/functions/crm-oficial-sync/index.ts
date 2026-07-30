@@ -1332,6 +1332,8 @@ Deno.serve(async (req) => {
     // Nunca usar a chave global (env) para um usuário logado que não seja admin,
     // senão a revenda enxerga os canais/templates/números do admin.
     let apiKey = (data?.apiKey as string | undefined) || undefined;
+    let localUserId = "";
+    let isAdminUser = false;
     // "signup" cria a conta no ZapCRM e não precisa de chave (endpoint público).
     if (!apiKey && action !== "signup") {
       const authHeader = req.headers.get("Authorization") || "";
@@ -1343,6 +1345,14 @@ Deno.serve(async (req) => {
         const { data: userData } = await authed.auth.getUser(jwt);
         const uid = userData?.user?.id;
         if (uid) {
+          localUserId = uid;
+          const { data: adminRole } = await authed
+            .from("user_roles")
+            .select("role")
+            .eq("user_id", uid)
+            .eq("role", "admin")
+            .maybeSingle();
+          isAdminUser = !!adminRole;
           const { data: row } = await authed
             .from("crm_oficial_settings")
             .select("api_key")
@@ -1351,23 +1361,49 @@ Deno.serve(async (req) => {
           const ownKey = (row?.api_key || "").trim();
           if (ownKey) {
             apiKey = ownKey;
-          } else {
-            const { data: adminRole } = await authed
-              .from("user_roles")
-              .select("role")
-              .eq("user_id", uid)
-              .eq("role", "admin")
-              .maybeSingle();
-            if (!adminRole) {
-              throw new Error(
-                "Chave do CRM Oficial não configurada para este usuário. Cadastre sua chave em Configurações → CRM Oficial.",
-              );
-            }
+          } else if (!isAdminUser) {
+            throw new Error(
+              "Chave do CRM Oficial não configurada para este usuário. Cadastre sua chave em Configurações → CRM Oficial.",
+            );
           }
         }
       }
     }
+
+    // ── LIMITE DE CONEXÕES (1 oficial + 1 não oficial por revenda, admin ilimitado) ──
+    async function enforceChannelQuota(kind: "official" | "evolution") {
+      if (isAdminUser || !localUserId) return;
+      const supaUrl = Deno.env.get("SUPABASE_URL")!;
+      const svc = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+      const admin = createClient(supaUrl, svc);
+      const { data: access } = await admin
+        .from("reseller_access")
+        .select("max_official_channels, max_evolution_instances")
+        .eq("user_id", localUserId)
+        .maybeSingle();
+      const max = Number(
+        (kind === "official" ? access?.max_official_channels : access?.max_evolution_instances) ?? 1,
+      );
+
+      const list = await crmFetch("/api/public/v1/channels", { method: "GET", apiKey });
+      const raw = (list.body as any) || {};
+      const arr: any[] = Array.isArray(raw) ? raw : (raw.channels || raw.whatsapp || []);
+      const used = arr.filter((c) => {
+        const k = String(c?.kind || "").toLowerCase();
+        return kind === "official" ? k.includes("cloud") : k.includes("evolution");
+      }).length;
+
+      if (used >= max) {
+        throw new Error(
+          kind === "official"
+            ? `Limite de ${max} conexão(ões) da API Oficial atingido. Remova um canal existente ou peça ao administrador para aumentar o limite.`
+            : `Limite de ${max} conexão(ões) não oficial atingido. Remova uma conexão existente ou peça ao administrador para aumentar o limite.`,
+        );
+      }
+    }
+
     const results: Record<string, unknown> = {};
+
 
     if (action === "ping") {
       results.ping = await doPing(apiKey);
@@ -1458,6 +1494,11 @@ Deno.serve(async (req) => {
       const payload = (data?.channel as Record<string, unknown>) || {};
       if (!payload.kind) throw new Error("kind é obrigatório (whatsapp_cloud | whatsapp_evolution | webchat)");
       const isEvolution = String(payload.kind).includes("evolution");
+      if (String(payload.kind).includes("cloud") || isEvolution) {
+        await enforceChannelQuota(isEvolution ? "evolution" : "official");
+      }
+
+
 
       const doCreate = () => crmFetch("/api/public/v1/channels", {
         method: "POST",
@@ -1544,6 +1585,8 @@ Deno.serve(async (req) => {
         code?: string; phone_number_id?: string; waba_id?: string; config_id?: string; app_id?: string;
       };
       if (!code) throw new Error("code é obrigatório");
+      await enforceChannelQuota("official");
+
       results.embedded = await crmFetch("/api/public/v1/channels/embedded-signup", {
         method: "POST",
         body: JSON.stringify({

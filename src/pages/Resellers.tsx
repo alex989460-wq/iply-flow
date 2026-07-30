@@ -14,7 +14,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { format, addDays, isPast, differenceInDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Users, RefreshCw, Search, Calendar, Ban, CheckCircle, Clock, Pencil, Eye, EyeOff, UserPlus, Coins, Plus, Smartphone, Trash2, Network, Users2 } from "lucide-react";
+import { Users, RefreshCw, Search, Calendar, Ban, CheckCircle, Clock, Pencil, Eye, EyeOff, UserPlus, Coins, Plus, Smartphone, Trash2, Network, Users2, BadgeCheck } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Navigate } from "react-router-dom";
 import { z } from "zod";
@@ -33,6 +33,7 @@ interface ResellerAccess {
   credits: number;
   parent_reseller_id: string | null;
   max_evolution_instances?: number | null;
+  max_official_channels?: number | null;
 }
 
 
@@ -832,6 +833,36 @@ export default function Resellers() {
                               <Smartphone className="h-3.5 w-3.5 mr-1" />
                               {reseller.max_evolution_instances ?? 1}
                             </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-8 text-xs"
+                              onClick={async () => {
+                                const current = reseller.max_official_channels ?? 1;
+                                const input = prompt(`Máximo de conexões da API Oficial para ${reseller.email}:`, String(current));
+                                if (input === null) return;
+                                const value = parseInt(input, 10);
+                                if (isNaN(value) || value < 0) {
+                                  toast({ title: 'Valor inválido', description: 'Informe um número >= 0', variant: 'destructive' });
+                                  return;
+                                }
+                                const { error } = await supabase
+                                  .from('reseller_access')
+                                  .update({ max_official_channels: value })
+                                  .eq('id', reseller.id);
+                                if (error) {
+                                  toast({ title: 'Erro', description: error.message, variant: 'destructive' });
+                                } else {
+                                  toast({ title: 'Atualizado', description: `Limite: ${value} canal(is) oficial(is)` });
+                                  queryClient.invalidateQueries({ queryKey: ['reseller-access'] });
+                                }
+                              }}
+                              title={`Limite atual: ${reseller.max_official_channels ?? 1} canal(is) da API Oficial`}
+                            >
+                              <BadgeCheck className="h-3.5 w-3.5 mr-1" />
+                              {reseller.max_official_channels ?? 1}
+                            </Button>
+
                             <Button
                               variant={reseller.is_active ? "outline" : "default"}
                               size="sm"

@@ -2299,6 +2299,7 @@ export type Database = {
           id: string
           is_active: boolean
           max_evolution_instances: number
+          max_official_channels: number
           parent_reseller_id: string | null
           updated_at: string
           user_id: string
@@ -2312,6 +2313,7 @@ export type Database = {
           id?: string
           is_active?: boolean
           max_evolution_instances?: number
+          max_official_channels?: number
           parent_reseller_id?: string | null
           updated_at?: string
           user_id: string
@@ -2325,6 +2327,7 @@ export type Database = {
           id?: string
           is_active?: boolean
           max_evolution_instances?: number
+          max_official_channels?: number
           parent_reseller_id?: string | null
           updated_at?: string
           user_id?: string
