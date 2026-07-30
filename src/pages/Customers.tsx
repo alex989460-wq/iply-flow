@@ -170,7 +170,9 @@ export default function Customers() {
   const [isLoadingTemplates, setIsLoadingTemplates] = useState(false);
   const [isSendingBilling, setIsSendingBilling] = useState(false);
   const [useEvolutionForBilling, setUseEvolutionForBilling] = useState(false);
-  const [selectedEvoTemplateKey, setSelectedEvoTemplateKey] = useState<'D-1' | 'D0' | 'D+1'>('D0');
+  // Pode ser 'D-1' | 'D0' | 'D+1' (legado) ou o id de um modelo em evolution_billing_rules
+  const [selectedEvoTemplateKey, setSelectedEvoTemplateKey] = useState<string>('D0');
+  const [selectedEvoInstance, setSelectedEvoInstance] = useState<string>('');
   // 'zap' = API oficial / Zap Responder | 'evolution' = WhatsApp não oficial | 'crm' = CRM Oficial
   const [billingChannel, setBillingChannel] = useState<'zap' | 'evolution' | 'crm'>('zap');
   const [crmTemplates, setCrmTemplates] = useState<Array<{ name: string; language: string; status?: string; parameter_format?: string; components?: any[] }>>([]);
