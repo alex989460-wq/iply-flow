@@ -6,6 +6,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
+import { Textarea } from '@/components/ui/textarea';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
 import { ListPlus, Send, Loader2 } from 'lucide-react';
@@ -35,6 +37,11 @@ export function renderPlaylistUrl(
     .trim();
 }
 
+export function formatMac(raw: string) {
+  const clean = (raw || '').replace(/[^0-9a-fA-F]/g, '').toLowerCase().slice(0, 12);
+  return clean.replace(/(.{2})(?=.)/g, '$1:');
+}
+
 interface Props {
   open: boolean;
   onOpenChange: (v: boolean) => void;
@@ -42,6 +49,8 @@ interface Props {
   defaultUsername?: string;
   defaultPassword?: string;
   defaultHost?: string;
+  defaultListUrl?: string;
+  defaultMac?: string;
 }
 
 export default function SendPlaylistDialog({
@@ -51,15 +60,24 @@ export default function SendPlaylistDialog({
   defaultUsername = '',
   defaultPassword = '',
   defaultHost = '',
+  defaultListUrl = '',
+  defaultMac = '',
 }: Props) {
-  const [templateId, setTemplateId] = useState<string>('');
+  const [tab, setTab] = useState<'clouddy' | 'ibopro'>('clouddy');
+  const [listUrl, setListUrl] = useState(defaultListUrl);
+  const [epgUrl, setEpgUrl] = useState('');
   const [email, setEmail] = useState(defaultEmail);
-  const [usuario, setUsuario] = useState(defaultUsername);
-  const [senha, setSenha] = useState(defaultPassword);
-  const [host, setHost] = useState(defaultHost);
   const [sendTv, setSendTv] = useState(true);
   const [sendVod, setSendVod] = useState(true);
   const [sending, setSending] = useState(false);
+
+  // IBO Pro
+  const [mac, setMac] = useState(defaultMac);
+  const [deviceKey, setDeviceKey] = useState('');
+  const [playlistName, setPlaylistName] = useState('');
+  const [pin, setPin] = useState('');
+
+  const [templateId, setTemplateId] = useState<string>('');
 
   const { data: templates = [] } = useQuery({
     queryKey: ['playlist-templates'],
@@ -78,50 +96,63 @@ export default function SendPlaylistDialog({
   useEffect(() => {
     if (!open) return;
     setEmail(defaultEmail);
-    setUsuario(defaultUsername);
-    setSenha(defaultPassword);
-    setHost(defaultHost);
-  }, [open, defaultEmail, defaultUsername, defaultPassword, defaultHost]);
+    setListUrl(defaultListUrl);
+    setMac(formatMac(defaultMac));
+  }, [open, defaultEmail, defaultListUrl, defaultMac]);
 
-  useEffect(() => {
-    if (!templates.length) return;
-    if (templateId && templates.some((t) => t.id === templateId)) return;
-    const first = templates.find((t) => t.is_default) || templates[0];
-    setTemplateId(first.id);
-    setSendTv(first.send_tv);
-    setSendVod(first.send_vod);
-    if (!host && first.default_host) setHost(first.default_host);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [templates]);
+  const applyTemplate = (id: string) => {
+    setTemplateId(id);
+    const t = templates.find((x) => x.id === id);
+    if (!t) return;
+    const vars = {
+      usuario: defaultUsername,
+      senha: defaultPassword,
+      host: defaultHost || t.default_host || '',
+      email,
+    };
+    const url = renderPlaylistUrl(t.m3u_url_template, vars);
+    if (url && !/\{\{/.test(url)) setListUrl(url);
+    const epg = renderPlaylistUrl(t.epg_url_template || '', vars);
+    if (epg && !/\{\{/.test(epg)) setEpgUrl(epg);
+    setSendTv(t.send_tv);
+    setSendVod(t.send_vod);
+    if (t.playlist_name) setPlaylistName(t.playlist_name);
+    if (t.pin) setPin(t.pin);
+  };
 
-  const template = useMemo(
-    () => templates.find((t) => t.id === templateId) || null,
-    [templates, templateId],
-  );
-
-  const vars = { usuario, senha, host, email };
-  const m3uUrl = template ? renderPlaylistUrl(template.m3u_url_template, vars) : '';
-  const epgUrl = template ? renderPlaylistUrl(template.epg_url_template || '', vars) : '';
+  const canSend = useMemo(() => {
+    if (!listUrl.trim()) return false;
+    return tab === 'clouddy' ? !!email.trim() : mac.replace(/[^0-9a-f]/gi, '').length === 12 && !!deviceKey.trim();
+  }, [tab, listUrl, email, mac, deviceKey]);
 
   const handleSend = async () => {
-    if (!template) return toast.error('Cadastre um modelo de lista primeiro.');
-    if (!email.trim()) return toast.error('Informe o e-mail do cliente.');
-    if (!m3uUrl) return toast.error('URL da lista vazia — revise o modelo.');
-
+    if (!canSend) return toast.error('Preencha os campos obrigatórios.');
     setSending(true);
     try {
-      const { data, error } = await supabase.functions.invoke('send-playlist', {
-        body: {
-          provider: 'clouddy',
-          email: email.trim(),
-          m3u_url: m3uUrl,
-          epg_url: epgUrl || undefined,
-          send_tv: sendTv,
-          send_vod: sendVod,
-        },
-      });
+      const body =
+        tab === 'clouddy'
+          ? {
+              provider: 'clouddy',
+              email: email.trim(),
+              m3u_url: listUrl.trim(),
+              epg_url: epgUrl.trim() || undefined,
+              send_tv: sendTv,
+              send_vod: sendVod,
+            }
+          : {
+              provider: 'ibopro',
+              mac: formatMac(mac),
+              device_key: deviceKey.trim(),
+              playlist_name: playlistName.trim() || 'Lista',
+              m3u_url: listUrl.trim(),
+              pin: pin.trim() || undefined,
+              is_protected: !!pin.trim(),
+            };
+
+      const { data, error } = await supabase.functions.invoke('send-playlist', { body });
       if (error) throw error;
       if ((data as any)?.error) throw new Error((data as any).error);
+      if ((data as any)?.success === false) throw new Error((data as any)?.message || 'Falha no envio');
       toast.success((data as any)?.message || 'Lista enviada!');
       onOpenChange(false);
     } catch (e: any) {
@@ -131,6 +162,30 @@ export default function SendPlaylistDialog({
     }
   };
 
+  const listField = (
+    <div className="space-y-1.5">
+      <Label>Lista (URL M3U)</Label>
+      <Textarea
+        value={listUrl}
+        onChange={(e) => setListUrl(e.target.value)}
+        placeholder="Cole aqui a lista completa: http://servidor.com/get.php?username=...&password=...&type=m3u_plus"
+        className="min-h-[70px] font-mono text-[11px]"
+      />
+      {!!templates.length && (
+        <Select value={templateId} onValueChange={applyTemplate}>
+          <SelectTrigger className="h-8 text-xs">
+            <SelectValue placeholder="Usar um modelo salvo (opcional)" />
+          </SelectTrigger>
+          <SelectContent>
+            {templates.map((t) => (
+              <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      )}
+    </div>
+  );
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg">
@@ -139,78 +194,81 @@ export default function SendPlaylistDialog({
             <ListPlus className="w-4 h-4" /> Enviar lista para o app
           </DialogTitle>
           <DialogDescription>
-            Usa o seu modelo de lista e as credenciais do painel Clouddy configuradas na sua conta.
+            Cole a lista pronta e envie direto para o app do cliente.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-3">
-          <div className="space-y-1.5">
-            <Label>Modelo</Label>
-            <Select value={templateId} onValueChange={(v) => {
-              setTemplateId(v);
-              const t = templates.find((x) => x.id === v);
-              if (t) {
-                setSendTv(t.send_tv);
-                setSendVod(t.send_vod);
-                if (t.default_host) setHost(t.default_host);
-              }
-            }}>
-              <SelectTrigger>
-                <SelectValue placeholder={templates.length ? 'Selecione' : 'Nenhum modelo cadastrado'} />
-              </SelectTrigger>
-              <SelectContent>
-                {templates.map((t) => (
-                  <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+        <Tabs value={tab} onValueChange={(v) => setTab(v as any)}>
+          <TabsList className="grid grid-cols-2 w-full">
+            <TabsTrigger value="clouddy">Clouddy</TabsTrigger>
+            <TabsTrigger value="ibopro">IBO Pro</TabsTrigger>
+          </TabsList>
 
-          <div className="space-y-1.5">
-            <Label>E-mail do cliente (conta no app)</Label>
-            <Input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="cliente@email.com" />
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
+          <TabsContent value="clouddy" className="space-y-3 pt-3">
             <div className="space-y-1.5">
-              <Label>Usuário</Label>
-              <Input value={usuario} onChange={(e) => setUsuario(e.target.value)} />
+              <Label>E-mail do cliente (conta no app)</Label>
+              <Input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="cliente@email.com" />
             </div>
+            {listField}
             <div className="space-y-1.5">
-              <Label>Senha</Label>
-              <Input value={senha} onChange={(e) => setSenha(e.target.value)} />
+              <Label>EPG (opcional)</Label>
+              <Input
+                value={epgUrl}
+                onChange={(e) => setEpgUrl(e.target.value)}
+                placeholder="Deixe vazio para usar a mesma URL da lista"
+                className="font-mono text-[11px]"
+              />
             </div>
-          </div>
-
-          <div className="space-y-1.5">
-            <Label>Host / servidor</Label>
-            <Input value={host} onChange={(e) => setHost(e.target.value)} placeholder="http://servidor.com" />
-          </div>
-
-          <div className="flex items-center gap-6">
-            <div className="flex items-center gap-2">
-              <Switch checked={sendTv} onCheckedChange={setSendTv} />
-              <Label className="text-sm">Canais (TV)</Label>
+            <div className="flex items-center gap-6">
+              <div className="flex items-center gap-2">
+                <Switch checked={sendTv} onCheckedChange={setSendTv} />
+                <Label className="text-sm">Canais (TV)</Label>
+              </div>
+              <div className="flex items-center gap-2">
+                <Switch checked={sendVod} onCheckedChange={setSendVod} />
+                <Label className="text-sm">Filmes (VOD)</Label>
+              </div>
             </div>
-            <div className="flex items-center gap-2">
-              <Switch checked={sendVod} onCheckedChange={setSendVod} />
-              <Label className="text-sm">Filmes (VOD)</Label>
-            </div>
-          </div>
+          </TabsContent>
 
-          {m3uUrl && (
-            <div className="rounded-lg border border-border bg-muted/40 p-2.5 space-y-1">
-              <p className="text-[11px] font-medium text-muted-foreground">Prévia da URL enviada</p>
-              <p className="text-[11px] break-all font-mono">{m3uUrl}</p>
-              {epgUrl && <p className="text-[11px] break-all font-mono text-muted-foreground">EPG: {epgUrl}</p>}
+          <TabsContent value="ibopro" className="space-y-3 pt-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>MAC do aparelho</Label>
+                <Input
+                  value={mac}
+                  onChange={(e) => setMac(formatMac(e.target.value))}
+                  placeholder="aa:bb:cc:dd:ee:ff"
+                  className="font-mono"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Device Key</Label>
+                <Input
+                  value={deviceKey}
+                  onChange={(e) => setDeviceKey(e.target.value)}
+                  placeholder="senha exibida no app"
+                />
+              </div>
             </div>
-          )}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>Nome da lista</Label>
+                <Input value={playlistName} onChange={(e) => setPlaylistName(e.target.value)} placeholder="Minha Lista" />
+              </div>
+              <div className="space-y-1.5">
+                <Label>PIN (opcional)</Label>
+                <Input value={pin} onChange={(e) => setPin(e.target.value)} placeholder="ex: 102030" />
+              </div>
+            </div>
+            {listField}
+          </TabsContent>
+        </Tabs>
 
-          <Button className="w-full" onClick={handleSend} disabled={sending || !template}>
-            {sending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Send className="w-4 h-4 mr-2" />}
-            Enviar lista
-          </Button>
-        </div>
+        <Button className="w-full" onClick={handleSend} disabled={sending || !canSend}>
+          {sending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Send className="w-4 h-4 mr-2" />}
+          Enviar lista
+        </Button>
       </DialogContent>
     </Dialog>
   );
