@@ -1786,29 +1786,40 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
 
     // Evolution branch
     if (useEvolutionForBilling) {
-      const instance = billingSettings?.evolution_instance;
+      const instance = selectedEvoInstance || billingSettings?.evolution_instance || (evoInstances[0] as any)?.name;
       if (!instance) {
-        toast({ title: 'Instância não configurada', description: 'Configure uma instância WhatsApp em Configurações → Cobrança.', variant: 'destructive' });
+        toast({ title: 'Instância não configurada', description: 'Selecione uma instância no campo acima ou conecte uma em Conexões WhatsApp.', variant: 'destructive' });
         return;
       }
-      const tplMap: Record<string, string> = {
+      const rule = (evoBillingRules || []).find((r: any) => String(r.id) === selectedEvoTemplateKey);
+      const legacyMap: Record<string, string> = {
         'D-1': billingSettings?.evolution_msg_d_minus_1 || 'Olá {{nome}}, seu plano vence amanhã ({{vencimento}}). PIX: {{pix}}',
         'D0': billingSettings?.evolution_msg_d0 || 'Olá {{nome}}, seu plano vence hoje ({{vencimento}}). PIX: {{pix}}',
         'D+1': billingSettings?.evolution_msg_d_plus_1 || 'Olá {{nome}}, seu plano venceu em {{vencimento}}. PIX: {{pix}}',
       };
-      const text = renderEvolutionTemplate(tplMap[selectedEvoTemplateKey], sendingBillingCustomer);
+      const rawTemplate = rule?.message ?? legacyMap[selectedEvoTemplateKey];
+      if (!rawTemplate) {
+        toast({ title: 'Selecione uma mensagem', description: 'Crie modelos na aba "Template Não Oficial".', variant: 'destructive' });
+        return;
+      }
+      const text = renderEvolutionTemplate(rawTemplate, sendingBillingCustomer);
+      const imageUrl = rule?.image_url || null;
+      const billingType = rule
+        ? (Number(rule.days_offset) > 0 ? 'D-1' : Number(rule.days_offset) < 0 ? 'D+1' : 'D0')
+        : (selectedEvoTemplateKey === 'D-1' ? 'D-1' : selectedEvoTemplateKey === 'D+1' ? 'D+1' : 'D0');
       const phoneWithCode = normalizeWhatsAppPhone(sendingBillingCustomer.phone);
       setIsSendingBilling(true);
       try {
-        const { data, error } = await supabase.functions.invoke('evolution-send', {
-          body: { action: 'send', instance, phone: phoneWithCode, text },
-        });
+        const payload = imageUrl
+          ? { action: 'send-media', instance, phone: phoneWithCode, mediaUrl: imageUrl, mediaType: 'image', caption: text, filename: 'cobranca.jpg', mimetype: 'image/jpeg' }
+          : { action: 'send', instance, phone: phoneWithCode, text };
+        const { data, error } = await supabase.functions.invoke('evolution-send', { body: payload });
         if (error) throw error;
         if (data?.error) throw new Error(data.error);
         await supabase.from('billing_logs').insert({
           customer_id: sendingBillingCustomer.id,
-          billing_type: selectedEvoTemplateKey === 'D-1' ? 'D-1' : selectedEvoTemplateKey === 'D+1' ? 'D+1' : 'D0',
-          message: `WhatsApp (${instance}) - ${selectedEvoTemplateKey}`,
+          billing_type: billingType,
+          message: `WhatsApp (${instance}) - ${rule?.label || selectedEvoTemplateKey}`,
           whatsapp_status: 'sent',
         });
         toast({ title: 'Cobrança enviada!', description: `Mensagem enviada pelo WhatsApp para ${sendingBillingCustomer.name}.` });
@@ -1821,6 +1832,7 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
       }
       return;
     }
+
 
     if (!selectedTemplate || !zapSettings?.selected_department_id) return;
     
