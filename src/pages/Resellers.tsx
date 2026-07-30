@@ -19,6 +19,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Navigate } from "react-router-dom";
 import { z } from "zod";
 import { cn } from "@/lib/utils";
+import TrialDaysCard from "@/components/settings/TrialDaysCard";
 
 
 interface ResellerAccess {
@@ -601,6 +602,8 @@ export default function Resellers() {
             </div>
           </div>
         </div>
+
+        {isAdmin && <TrialDaysCard />}
 
         {/* Stats Cards */}
         <div className="grid gap-3 grid-cols-2 lg:grid-cols-6 stagger-children">
