@@ -102,10 +102,23 @@ export default function Auth() {
     
     if (!validateForm()) return;
 
-    // reCAPTCHA opcional: se carregou, exige token; se não carregou (domínio não autorizado / bloqueio de rede), libera o login para não travar o acesso.
-    
-    
+    // reCAPTCHA: ativado/desativado pelo painel admin. A validação final é feita no servidor.
+    if (recaptcha.enabled) {
+      try {
+        const token = await getRecaptchaToken(recaptcha, isLogin ? 'login' : 'signup');
+        await verifyRecaptcha(token, isLogin ? 'login' : 'signup');
+      } catch (err: any) {
+        toast({
+          title: 'Verificação de segurança falhou',
+          description: err?.message || 'Tente novamente.',
+          variant: 'destructive',
+        });
+        return;
+      }
+    }
+
     setLoading(true);
+
 
     try {
       if (isLogin) {
