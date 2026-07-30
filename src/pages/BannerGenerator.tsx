@@ -47,11 +47,18 @@ export default function BannerGenerator() {
             <span className="text-sm text-muted-foreground">Carregando gerador de banners...</span>
           </div>
         )}
+        {!loading && (
+          <div className="pointer-events-none absolute bottom-4 left-1/2 z-10 -translate-x-1/2 rounded-full border border-border/60 bg-background/90 px-4 py-2 text-xs text-muted-foreground shadow-lg">
+            Tela em branco? O site externo pode bloquear a incorporação — use “Abrir externo”.
+          </div>
+        )}
         <iframe
           ref={iframeRef}
           src="https://banner.alexunder.net/"
           title="Gerador de Banner"
           className="w-full h-full border-0"
+          referrerPolicy="no-referrer"
+          sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-downloads allow-modals"
           allow="clipboard-read; clipboard-write"
           onLoad={() => setLoading(false)}
         />
