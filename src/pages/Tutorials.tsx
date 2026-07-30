@@ -79,8 +79,7 @@ export default function Tutorials() {
     const { data, error } = await supabase
       .from('tutorials')
       .select('*')
-      .order('sort_order', { ascending: true })
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: true });
     if (error) {
       toast.error('Erro ao carregar tutoriais: ' + error.message);
     } else {
@@ -400,14 +399,6 @@ export default function Tutorials() {
                   value={form.category}
                   onChange={(e) => setForm({ ...form, category: e.target.value })}
                   placeholder="Ex: Primeiros passos"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Ordem</Label>
-                <Input
-                  type="number"
-                  value={form.sort_order}
-                  onChange={(e) => setForm({ ...form, sort_order: Number(e.target.value) })}
                 />
               </div>
               <div className="space-y-1.5 sm:col-span-2">
