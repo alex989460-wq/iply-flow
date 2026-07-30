@@ -1471,7 +1471,104 @@ Deno.serve(async (req) => {
       }, 200);
     }
 
-    // CREATE INSTANCE
+    // CLAIM / IMPORT AN EXISTING INSTANCE (created via the ZapCRM embed, for example).
+    // Searches every known Evolution server, registers ownership for this user and
+    // re-binds the webhook so incoming messages start arriving in this system.
+    if (action === 'claim-instance') {
+      const name = String(body.name || body.instance || '').trim();
+      if (!name) return jsonResponse({ error: 'name obrigatório' }, 200);
+
+      // Someone else already owns it?
+      const { data: owner } = await admin
+        .from('user_evolution_instances')
+        .select('user_id')
+        .eq('instance_name', name)
+        .maybeSingle();
+      if (owner?.user_id && owner.user_id !== user.id) {
+        return jsonResponse({ error: 'Esta instância já pertence a outra conta.' }, 200);
+      }
+
+      // Build the list of candidate servers: the one configured for this user plus
+      // every distinct server registered in the platform.
+      const candidates: Array<{ url: string; key: string }> = [{ url: baseUrl, key: apiKey }];
+      const { data: allServers } = await admin
+        .from('evolution_settings')
+        .select('base_url, api_key')
+        .not('base_url', 'is', null);
+      for (const row of allServers || []) {
+        const u = String(row.base_url || '').replace(/\/$/, '');
+        const k = String(row.api_key || '').trim();
+        if (!u || !k) continue;
+        if (candidates.some((c) => c.url === u && c.key === k)) continue;
+        candidates.push({ url: u, key: k });
+      }
+
+      let found: any = null;
+      let foundServer: { url: string; key: string } | null = null;
+      for (const server of candidates) {
+        for (const path of ['/instance/fetchInstances', '/instance/all', '/instance/list']) {
+          const r = await fetchJson(`${server.url}${path}`, { headers: evolutionHeaders(server.key) }, 8000)
+            .catch(() => ({ ok: false, status: 0, data: {} as any }));
+          if (!r.ok) continue;
+          const rows = Array.isArray(r.data?.data) ? r.data.data : Array.isArray(r.data) ? r.data : [];
+          const hit = rows.find((item: any) =>
+            String(item?.name || item?.instanceName || item?.instance?.instanceName || '').toLowerCase() === name.toLowerCase());
+          if (hit) { found = hit; foundServer = server; break; }
+        }
+        if (found) break;
+      }
+
+      if (!found || !foundServer) {
+        return jsonResponse({ error: `Instância "${name}" não foi encontrada em nenhum servidor WhatsApp.` }, 200);
+      }
+
+      const instId = found?.id || found?.instanceId || name;
+      const instToken = found?.token || found?.hash || foundServer.key;
+
+      await admin.from('user_evolution_instances').upsert(
+        {
+          user_id: user.id,
+          instance_name: name,
+          instance_id: instId,
+          webhook_enabled: true,
+          settings_updated_at: new Date().toISOString(),
+        },
+        { onConflict: 'instance_name' },
+      );
+
+      // Make sure this user's Evolution settings point at the server that hosts it,
+      // otherwise sending/listing would keep failing.
+      await admin.from('evolution_settings').upsert(
+        {
+          user_id: user.id,
+          base_url: foundServer.url,
+          api_key: foundServer.key,
+          is_enabled: true,
+          instance_name: settings.instance_name || name,
+        },
+        { onConflict: 'user_id' },
+      );
+
+      // Bind the webhook so incoming messages reach this system.
+      const webhookUrl = `${supabaseUrl}/functions/v1/evolution-webhook?token=${settings.webhook_token}`;
+      const classic = await fetchJson(`${foundServer.url}/webhook/set/${encodeURIComponent(name)}`, {
+        method: 'POST',
+        headers: evolutionHeaders(foundServer.key, true),
+        body: JSON.stringify({ webhook: { enabled: true, url: webhookUrl, events: ['MESSAGES_UPSERT'], byEvents: false, base64: true } }),
+      }, 10000).catch(() => ({ ok: false, status: 0, data: {} as any }));
+      let webhookOk = !!classic.ok;
+      if (!webhookOk) {
+        const go = await fetchJson(`${foundServer.url}/instance/connect`, {
+          method: 'POST',
+          headers: evolutionHeaders(instToken, true, instId),
+          body: JSON.stringify({ webhookUrl, subscribe: DEFAULT_WEBHOOK_EVENTS, immediate: true }),
+        }, 10000).catch(() => ({ ok: false, status: 0, data: {} as any }));
+        webhookOk = !!go.ok;
+      }
+
+      return jsonResponse({ ok: true, instance: name, server: foundServer.url, webhookOk });
+    }
+
     if (action === 'create-instance') {
       const name = String(body.name || '').trim();
       if (!name) return jsonResponse({ error: 'name obrigatório' }, 400);
