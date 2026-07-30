@@ -2,7 +2,9 @@ import DashboardLayout from '@/components/layout/DashboardLayout';
 import BillingSettingsCard from '@/components/settings/BillingSettingsCard';
 import EfiSettingsCard from '@/components/settings/EfiSettingsCard';
 import ResellerCheckoutCard from '@/components/settings/ResellerCheckoutCard';
+import { EvolutionBillingScheduleCard } from '@/components/billing/EvolutionBillingScheduleCard';
 import { Receipt } from 'lucide-react';
+
 
 export default function BillingSettings() {
   return (
