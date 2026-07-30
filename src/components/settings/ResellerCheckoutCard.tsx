@@ -186,12 +186,12 @@ export default function ResellerCheckoutCard() {
             <Label className="text-sm">Slug do link</Label>
             <div className="flex items-center gap-1">
               <span className="text-xs text-muted-foreground shrink-0">{window.location.origin}/r/</span>
-              <Input placeholder="socialtv" value={form.slug} onChange={(e) => setForm((f) => ({ ...f, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '') }))} />
+              <Input placeholder="minha-loja" value={form.slug} onChange={(e) => setForm((f) => ({ ...f, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '') }))} />
             </div>
           </div>
           <div className="space-y-1.5">
             <Label className="text-sm">Nome exibido</Label>
-            <Input placeholder="Ex: Social TV" value={form.display_name} onChange={(e) => setForm((f) => ({ ...f, display_name: e.target.value }))} />
+            <Input placeholder="Nome exibido no checkout" value={form.display_name} onChange={(e) => setForm((f) => ({ ...f, display_name: e.target.value }))} />
           </div>
         </div>
 
@@ -293,7 +293,7 @@ export default function ResellerCheckoutCard() {
               <Key className="w-4 h-4 text-primary" />
               <div>
                 <p className="text-sm font-bold">API para sites externos</p>
-                <p className="text-xs text-muted-foreground">Use esta chave em sistemas externos (ex: planos.socialplay.com.br) para gerar cobranças automaticamente.</p>
+                <p className="text-xs text-muted-foreground">Use esta chave em sistemas externos para gerar cobranças automaticamente.</p>
               </div>
             </div>
             <Button size="sm" variant="outline" onClick={rotateApiKey}><RefreshCw className="w-4 h-4 mr-1" /> Nova chave</Button>
