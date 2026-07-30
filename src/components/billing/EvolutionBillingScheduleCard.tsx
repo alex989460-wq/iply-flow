@@ -187,20 +187,39 @@ export function EvolutionBillingScheduleCard() {
 
           <div className="rounded-lg border border-border/60 bg-muted/20 p-3 space-y-2">
             <Label className="text-sm font-semibold flex items-center gap-2">
-              <FileText className="w-4 h-4" /> Mensagens que serão disparadas
+              <FileText className="w-4 h-4" /> Selecione as mensagens que serão disparadas
             </Label>
-            {active.length === 0 ? (
+            {allRules.length === 0 ? (
               <p className="text-xs text-muted-foreground">
-                Nenhum modelo marcado como “Usar no disparo automático”. Nada será enviado automaticamente.
+                Nenhum modelo criado ainda. Crie em <strong>Cobranças → Template Não Oficial</strong>.
               </p>
             ) : (
-              <ul className="text-xs text-muted-foreground space-y-1">
-                {active.map((r, i) => (
-                  <li key={r.id || i}>• <strong>{r.label}</strong> — {offsetLabel(r.days_offset)}</li>
+              <div className="space-y-2">
+                {allRules.map((r, i) => (
+                  <div
+                    key={r.id || i}
+                    className="flex items-center justify-between gap-3 rounded-md border border-border/50 bg-background/40 px-3 py-2"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium truncate">{r.label}</p>
+                      <p className="text-xs text-muted-foreground">{offsetLabel(r.days_offset)}</p>
+                    </div>
+                    <Switch
+                      checked={r.is_enabled}
+                      disabled={!r.id || toggleRule.isPending}
+                      onCheckedChange={(v) => r.id && toggleRule.mutate({ id: r.id, value: v })}
+                    />
+                  </div>
                 ))}
-              </ul>
+                {active.length === 0 && (
+                  <p className="text-xs text-amber-500">
+                    Nenhuma mensagem selecionada — nada será enviado automaticamente.
+                  </p>
+                )}
+              </div>
             )}
           </div>
+
         </div>
 
         {schedule?.last_run_at && (
