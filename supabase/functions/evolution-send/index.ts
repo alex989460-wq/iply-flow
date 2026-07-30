@@ -471,7 +471,9 @@ Deno.serve(async (req) => {
     // The toggle remains purely informational for bot/automation modules.
     const baseUrl = String(settings.base_url || '').replace(/\/$/, '');
     const apiKey = String(settings.api_key || '').trim();
-    const instance = String(settings.instance_name || '').trim();
+    // Allow the caller to explicitly choose the instance (individual billing dialog,
+    // multi-instance accounts). Falls back to the configured default instance.
+    const instance = String(body?.instance || settings.instance_name || '').trim();
     if (!baseUrl || !apiKey) {
       return jsonResponse({ error: 'Informe URL Base e API Key em Configurações → Evolution.' }, 200);
     }
