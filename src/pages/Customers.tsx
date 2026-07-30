@@ -170,7 +170,9 @@ export default function Customers() {
   const [isLoadingTemplates, setIsLoadingTemplates] = useState(false);
   const [isSendingBilling, setIsSendingBilling] = useState(false);
   const [useEvolutionForBilling, setUseEvolutionForBilling] = useState(false);
-  const [selectedEvoTemplateKey, setSelectedEvoTemplateKey] = useState<'D-1' | 'D0' | 'D+1'>('D0');
+  // Pode ser 'D-1' | 'D0' | 'D+1' (legado) ou o id de um modelo em evolution_billing_rules
+  const [selectedEvoTemplateKey, setSelectedEvoTemplateKey] = useState<string>('D0');
+  const [selectedEvoInstance, setSelectedEvoInstance] = useState<string>('');
   // 'zap' = API oficial / Zap Responder | 'evolution' = WhatsApp não oficial | 'crm' = CRM Oficial
   const [billingChannel, setBillingChannel] = useState<'zap' | 'evolution' | 'crm'>('zap');
   const [crmTemplates, setCrmTemplates] = useState<Array<{ name: string; language: string; status?: string; parameter_format?: string; components?: any[] }>>([]);
@@ -405,6 +407,36 @@ export default function Customers() {
       return data as any;
     },
   });
+
+  // Modelos de cobrança não oficial (aba "Template Não Oficial")
+  const { data: evoBillingRules = [] } = useQuery({
+    queryKey: ['evo-billing-rules-customers'],
+    queryFn: async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return [];
+      const { data, error } = await (supabase
+        .from('evolution_billing_rules' as any)
+        .select('*')
+        .eq('user_id', user.id)
+        .order('sort_order', { ascending: true }) as any);
+      if (error) throw error;
+      return (data || []) as any[];
+    },
+  });
+
+  // Instâncias Evolution conectadas (para escolher na hora do envio)
+  const { data: evoInstances = [], refetch: refetchEvoInstances } = useQuery({
+    queryKey: ['evo-instances-customers'],
+    queryFn: async () => {
+      const { data, error } = await supabase.functions.invoke('evolution-send', {
+        body: { action: 'list-instances' },
+      });
+      if (error) return [];
+      return (data?.instances || []) as any[];
+    },
+  });
+
+
 
   const { data: crmSettings } = useQuery({
     queryKey: ['crm-oficial-settings-customers'],
@@ -1529,12 +1561,16 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
     setUseEvolutionForBilling(evoDefault);
     const defaultChannel: 'evolution' | 'crm' = evoDefault ? 'evolution' : 'crm';
     setBillingChannel(defaultChannel);
-    setSelectedEvoTemplateKey('D0');
+    const firstRule = (evoBillingRules || [])[0];
+    setSelectedEvoTemplateKey(firstRule?.id ? String(firstRule.id) : 'D0');
+    setSelectedEvoInstance(billingSettings?.evolution_instance || '');
     setIsSendBillingOpen(true);
+    if (!billingSettings?.evolution_instance) refetchEvoInstances();
     if (defaultChannel === 'crm') {
       refetchCrmChannels();
       if (crmTemplates.length === 0) await fetchCrmTemplates();
     }
+
   };
 
   const renderEvolutionTemplate = (tpl: string, c: any): string => {
@@ -1750,29 +1786,40 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
 
     // Evolution branch
     if (useEvolutionForBilling) {
-      const instance = billingSettings?.evolution_instance;
+      const instance = selectedEvoInstance || billingSettings?.evolution_instance || (evoInstances[0] as any)?.name;
       if (!instance) {
-        toast({ title: 'Instância não configurada', description: 'Configure uma instância WhatsApp em Configurações → Cobrança.', variant: 'destructive' });
+        toast({ title: 'Instância não configurada', description: 'Selecione uma instância no campo acima ou conecte uma em Conexões WhatsApp.', variant: 'destructive' });
         return;
       }
-      const tplMap: Record<string, string> = {
+      const rule = (evoBillingRules || []).find((r: any) => String(r.id) === selectedEvoTemplateKey);
+      const legacyMap: Record<string, string> = {
         'D-1': billingSettings?.evolution_msg_d_minus_1 || 'Olá {{nome}}, seu plano vence amanhã ({{vencimento}}). PIX: {{pix}}',
         'D0': billingSettings?.evolution_msg_d0 || 'Olá {{nome}}, seu plano vence hoje ({{vencimento}}). PIX: {{pix}}',
         'D+1': billingSettings?.evolution_msg_d_plus_1 || 'Olá {{nome}}, seu plano venceu em {{vencimento}}. PIX: {{pix}}',
       };
-      const text = renderEvolutionTemplate(tplMap[selectedEvoTemplateKey], sendingBillingCustomer);
+      const rawTemplate = rule?.message ?? legacyMap[selectedEvoTemplateKey];
+      if (!rawTemplate) {
+        toast({ title: 'Selecione uma mensagem', description: 'Crie modelos na aba "Template Não Oficial".', variant: 'destructive' });
+        return;
+      }
+      const text = renderEvolutionTemplate(rawTemplate, sendingBillingCustomer);
+      const imageUrl = rule?.image_url || null;
+      const billingType = rule
+        ? (Number(rule.days_offset) > 0 ? 'D-1' : Number(rule.days_offset) < 0 ? 'D+1' : 'D0')
+        : (selectedEvoTemplateKey === 'D-1' ? 'D-1' : selectedEvoTemplateKey === 'D+1' ? 'D+1' : 'D0');
       const phoneWithCode = normalizeWhatsAppPhone(sendingBillingCustomer.phone);
       setIsSendingBilling(true);
       try {
-        const { data, error } = await supabase.functions.invoke('evolution-send', {
-          body: { action: 'send', instance, phone: phoneWithCode, text },
-        });
+        const payload = imageUrl
+          ? { action: 'send-media', instance, phone: phoneWithCode, mediaUrl: imageUrl, mediaType: 'image', caption: text, filename: 'cobranca.jpg', mimetype: 'image/jpeg' }
+          : { action: 'send', instance, phone: phoneWithCode, text };
+        const { data, error } = await supabase.functions.invoke('evolution-send', { body: payload });
         if (error) throw error;
         if (data?.error) throw new Error(data.error);
         await supabase.from('billing_logs').insert({
           customer_id: sendingBillingCustomer.id,
-          billing_type: selectedEvoTemplateKey === 'D-1' ? 'D-1' : selectedEvoTemplateKey === 'D+1' ? 'D+1' : 'D0',
-          message: `WhatsApp (${instance}) - ${selectedEvoTemplateKey}`,
+          billing_type: billingType,
+          message: `WhatsApp (${instance}) - ${rule?.label || selectedEvoTemplateKey}`,
           whatsapp_status: 'sent',
         });
         toast({ title: 'Cobrança enviada!', description: `Mensagem enviada pelo WhatsApp para ${sendingBillingCustomer.name}.` });
@@ -1785,6 +1832,7 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
       }
       return;
     }
+
 
     if (!selectedTemplate || !zapSettings?.selected_department_id) return;
     
@@ -3378,25 +3426,61 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
               </div>
 
               {billingChannel === 'evolution' && (
-                <div className="space-y-2">
-                  <Label>Tipo de mensagem</Label>
-                  <Select value={selectedEvoTemplateKey} onValueChange={(v: any) => setSelectedEvoTemplateKey(v)}>
-                    <SelectTrigger className="bg-secondary/50">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="D-1">Vence amanhã (D-1)</SelectItem>
-                      <SelectItem value="D0">Vence hoje (D0)</SelectItem>
-                      <SelectItem value="D+1">Vencido (D+1)</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  {!billingSettings?.evolution_instance && (
-                    <p className="text-[11px] text-destructive">
-                      Configure a instância em Configurações → Cobrança.
-                    </p>
-                  )}
+                <div className="space-y-3">
+                  <div className="space-y-2">
+                    <Label>Instância WhatsApp</Label>
+                    <Select value={selectedEvoInstance} onValueChange={(v) => setSelectedEvoInstance(v)}>
+                      <SelectTrigger className="bg-secondary/50">
+                        <SelectValue placeholder="Selecione a instância conectada" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {(evoInstances as any[]).map((inst: any) => (
+                          <SelectItem key={inst.name} value={inst.name}>
+                            {inst.name}{inst.phone ? ` • ${inst.phone}` : ''}
+                          </SelectItem>
+                        ))}
+                        {(evoInstances as any[]).length === 0 && billingSettings?.evolution_instance && (
+                          <SelectItem value={billingSettings.evolution_instance}>{billingSettings.evolution_instance}</SelectItem>
+                        )}
+                      </SelectContent>
+                    </Select>
+                    {(evoInstances as any[]).length === 0 && !billingSettings?.evolution_instance && (
+                      <p className="text-[11px] text-destructive">
+                        Nenhuma instância encontrada. Conecte uma em Conexões WhatsApp.
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Mensagem</Label>
+                    <Select value={selectedEvoTemplateKey} onValueChange={(v: any) => setSelectedEvoTemplateKey(v)}>
+                      <SelectTrigger className="bg-secondary/50">
+                        <SelectValue placeholder="Selecione a mensagem" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {(evoBillingRules as any[]).map((rule: any) => (
+                          <SelectItem key={rule.id} value={String(rule.id)}>
+                            {rule.label}{rule.image_url ? ' 🖼️' : ''}
+                          </SelectItem>
+                        ))}
+                        {(evoBillingRules as any[]).length === 0 && (
+                          <>
+                            <SelectItem value="D-1">Vence amanhã (D-1)</SelectItem>
+                            <SelectItem value="D0">Vence hoje (D0)</SelectItem>
+                            <SelectItem value="D+1">Vencido (D+1)</SelectItem>
+                          </>
+                        )}
+                      </SelectContent>
+                    </Select>
+                    {(evoBillingRules as any[]).length === 0 && (
+                      <p className="text-[11px] text-muted-foreground">
+                        Crie modelos personalizados na aba "Template Não Oficial".
+                      </p>
+                    )}
+                  </div>
                 </div>
               )}
+
 
               {billingChannel === 'zap' && (
                 <div className="space-y-2">
@@ -3495,7 +3579,7 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
                 disabled={
                   isSendingBilling ||
                   (billingChannel === 'evolution'
-                    ? !billingSettings?.evolution_instance
+                    ? (!selectedEvoInstance && !billingSettings?.evolution_instance) || !selectedEvoTemplateKey
                     : billingChannel === 'crm'
                       ? !selectedCrmTemplate || !primaryCrmChannel
                       : !selectedTemplate)
