@@ -396,6 +396,25 @@ Deno.serve(async (req) => {
     };
 
     const body = await req.json().catch(() => ({} as any));
+
+    // A Evolution só aceita UM webhook por instância. Como o ZapCRM também
+    // aponta para si mesmo, repassamos o payload bruto para o CRM oficial
+    // (fire-and-forget) para que os dois inboxes continuem recebendo.
+    try {
+      const forwardUrl = Deno.env.get('EVOLUTION_WEBHOOK_FORWARD_URL')
+        || 'https://zapcrm.top/api/public/whatsapp/webhook';
+      if (forwardUrl) {
+        const ctrl = new AbortController();
+        setTimeout(() => ctrl.abort(), 8000);
+        fetch(forwardUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+          signal: ctrl.signal,
+        }).catch(() => null);
+      }
+    } catch (_) { /* ignore */ }
+
     const event = body?.event || body?.type || '';
     const data = body?.data || body;
 
