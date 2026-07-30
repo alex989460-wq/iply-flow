@@ -833,6 +833,36 @@ export default function Resellers() {
                               {reseller.max_evolution_instances ?? 1}
                             </Button>
                             <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-8 text-xs"
+                              onClick={async () => {
+                                const current = reseller.max_official_channels ?? 1;
+                                const input = prompt(`Máximo de conexões da API Oficial para ${reseller.email}:`, String(current));
+                                if (input === null) return;
+                                const value = parseInt(input, 10);
+                                if (isNaN(value) || value < 0) {
+                                  toast({ title: 'Valor inválido', description: 'Informe um número >= 0', variant: 'destructive' });
+                                  return;
+                                }
+                                const { error } = await supabase
+                                  .from('reseller_access')
+                                  .update({ max_official_channels: value })
+                                  .eq('id', reseller.id);
+                                if (error) {
+                                  toast({ title: 'Erro', description: error.message, variant: 'destructive' });
+                                } else {
+                                  toast({ title: 'Atualizado', description: `Limite: ${value} canal(is) oficial(is)` });
+                                  queryClient.invalidateQueries({ queryKey: ['reseller-access'] });
+                                }
+                              }}
+                              title={`Limite atual: ${reseller.max_official_channels ?? 1} canal(is) da API Oficial`}
+                            >
+                              <BadgeCheck className="h-3.5 w-3.5 mr-1" />
+                              {reseller.max_official_channels ?? 1}
+                            </Button>
+
+                            <Button
                               variant={reseller.is_active ? "outline" : "default"}
                               size="sm"
                               className={cn("h-8 text-xs", reseller.is_active && "text-destructive hover:text-destructive")}
