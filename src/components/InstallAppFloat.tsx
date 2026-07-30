@@ -83,7 +83,7 @@ export default function InstallAppFloat() {
 
   return (
     <div className="fixed bottom-4 left-4 right-4 sm:left-auto sm:right-4 sm:w-[340px] z-[60]">
-      <div className="rounded-2xl border border-border/60 bg-card/95 backdrop-blur-xl shadow-2xl p-4 space-y-3">
+      <div className="relative rounded-2xl border border-border/60 bg-card/95 backdrop-blur-xl shadow-2xl p-4 space-y-3">
         <button
           onClick={dismiss}
           aria-label="Fechar"
