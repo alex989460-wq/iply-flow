@@ -4,6 +4,7 @@ import Sidebar from './Sidebar';
 import { cn } from '@/lib/utils';
 import { useSidebar } from '@/contexts/SidebarContext';
 import PendingManualRenewalsFloat from '@/components/PendingManualRenewalsFloat';
+import InstallAppFloat from '@/components/InstallAppFloat';
 import { applyTheme, resetThemeVars, loadTheme } from '@/lib/panel-theme';
 
 interface DashboardLayoutProps {
@@ -41,6 +42,8 @@ export default function DashboardLayout({ children, noPadding }: DashboardLayout
         </div>
       </main>
       {!hidePendingFloat && <PendingManualRenewalsFloat />}
+      <InstallAppFloat />
+
     </div>
   );
 }
