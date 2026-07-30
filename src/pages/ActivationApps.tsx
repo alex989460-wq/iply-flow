@@ -14,8 +14,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { Plus, Pencil, Trash2, Smartphone, Mail, Monitor, Clock, CheckCircle2, XCircle, AlertCircle, Settings2, Eye, EyeOff, Zap } from 'lucide-react';
+import { Plus, Pencil, Trash2, Smartphone, Mail, Monitor, Clock, CheckCircle2, XCircle, AlertCircle, Settings2, Eye, EyeOff, Zap, ListPlus } from 'lucide-react';
 import { format } from 'date-fns';
+import PlaylistTemplatesCard from '@/components/playlist/PlaylistTemplatesCard';
+
 
 // Logos conhecidas (URL pública) por nome de app (uppercase).
 const APP_LOGOS: Record<string, string> = {
@@ -519,12 +521,20 @@ export default function ActivationApps() {
               <Zap className="w-3.5 h-3.5 mr-1" /> Ativação Manual
             </TabsTrigger>
             <TabsTrigger value="apps">Apps Configurados</TabsTrigger>
+            <TabsTrigger value="playlists">
+              <ListPlus className="w-3.5 h-3.5 mr-1" /> Enviar Lista
+            </TabsTrigger>
             <TabsTrigger value="panels">
               <Settings2 className="w-3.5 h-3.5 mr-1" /> Painéis
             </TabsTrigger>
           </TabsList>
 
+          <TabsContent value="playlists">
+            <PlaylistTemplatesCard />
+          </TabsContent>
+
           <TabsContent value="manual">
+
             <Card>
               <CardHeader>
                 <CardTitle className="text-lg flex items-center gap-2">

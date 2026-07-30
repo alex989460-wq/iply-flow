@@ -11,8 +11,10 @@ import { Label } from '@/components/ui/label';
 import { 
   Search, User, Calendar, CreditCard, CheckCircle, Phone, RefreshCw, 
   Server, Copy, Settings, Wifi, Download, Key, Bell, Smile, MessageSquare,
-  ChevronDown, ChevronUp, UserPlus, AlertTriangle, Monitor, Play, Loader2, X, GripVertical
+  ChevronDown, ChevronUp, UserPlus, AlertTriangle, Monitor, Play, Loader2, X, GripVertical, ListPlus
 } from 'lucide-react';
+import SendPlaylistDialog from '@/components/playlist/SendPlaylistDialog';
+
 import {
   DndContext,
   closestCenter,
@@ -138,6 +140,8 @@ export default function QuickRenewalPanel({ isMobile = false, onClose, initialPh
     setSearchTerm(initialPhone.replace(/\D/g, ''));
   }, [initialPhone]);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [isSendPlaylistOpen, setIsSendPlaylistOpen] = useState(false);
+
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('pix');
   const [isLinksOpen, setIsLinksOpen] = useState(true);
   const [editingMessage, setEditingMessage] = useState<QuickMessage | null>(null);
@@ -1294,6 +1298,16 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
               </Button>
               <Button
                 variant="ghost"
+                size="icon"
+                className="h-7 w-7 rounded-full hover:bg-primary/10"
+                onClick={() => setIsSendPlaylistOpen(true)}
+                title="Enviar lista para o app"
+              >
+                <ListPlus className="h-3.5 w-3.5" />
+              </Button>
+
+              <Button
+                variant="ghost"
                 size="sm"
                 className="h-7 text-xs gap-1"
                 onClick={() => {
@@ -1327,6 +1341,16 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
         open={isBillingSettingsOpen} 
         onOpenChange={setIsBillingSettingsOpen} 
       />
+
+      {/* Envio de lista para apps */}
+      <SendPlaylistDialog
+        open={isSendPlaylistOpen}
+        onOpenChange={setIsSendPlaylistOpen}
+        defaultUsername={selectedCustomer?.username || ''}
+        defaultPassword={selectedCustomer?.password || ''}
+        defaultHost={selectedCustomer?.server?.host || ''}
+      />
+
       {isMobile && (
         <div className="p-4 space-y-3">
           <div className="flex items-center gap-2">
