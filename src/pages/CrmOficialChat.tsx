@@ -132,7 +132,9 @@ export default function CrmOficialChat({ embed = false, active = true }: { embed
           </Card>
         ) : (
           <>
-            <div className="relative h-full min-h-0 min-w-0 overflow-hidden bg-background">
+            {/* flex-1/w-full garante largura no mobile (container é flex) */}
+            <div className="relative flex-1 w-full h-full min-h-0 min-w-0 overflow-hidden bg-background">
+
               <iframe
                 ref={iframeRef}
                 title="Chat"
