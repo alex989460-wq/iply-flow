@@ -33,6 +33,7 @@ interface ResellerAccess {
   credits: number;
   parent_reseller_id: string | null;
   max_evolution_instances?: number | null;
+  max_official_channels?: number | null;
 }
 
 
