@@ -156,8 +156,9 @@ export default function CrmOficialTemplates() {
       name: t.name,
       category: 'UTILITY',
       language: t.language || 'pt_BR',
-      headerType: 'NONE',
-      headerText: '',
+      headerType: t.header?.type && t.header.type !== 'NONE' ? t.header.type : 'NONE',
+      headerText: t.header?.type === 'TEXT' ? (t.header.text || '') : '',
+
       body: t.body || '',
       footer: t.footer || '',
       varType: 'NAME',
