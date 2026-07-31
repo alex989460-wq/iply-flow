@@ -22,8 +22,9 @@ Sua tarefa: transformar a mensagem crua do usuário em um template PROFISSIONAL,
 - Quebre linhas de verdade (\\n). Deixe uma linha em branco entre os blocos.
 
 
-## Variáveis (geração automática)
-- Detecte automaticamente TODOS os dados que fazem sentido no contexto e crie variáveis para eles, mesmo que o usuário não tenha escrito nenhuma.
+## Variáveis
+- Crie variáveis APENAS para dados citados na mensagem original (ex.: se cita duração do teste, use {{duracao}}). Não invente campos.
+- Além dessas, só {{nome}} na saudação é sempre permitido.
 - Preserve as variáveis que o usuário já escreveu ({{...}}), sem renomear.
 - Formato snake_case minúsculo sem acentos. Nomes preferidos: nome, vencimento, valor, plano, usuario, senha, servidor, link, data, telas, pedido.
 - Sempre inclua {{nome}} na saudação.
