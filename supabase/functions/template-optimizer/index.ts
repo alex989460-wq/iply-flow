@@ -327,14 +327,27 @@ Deno.serve(async (req) => {
     const { message, hint, action, imagePrompt } = await req.json();
 
     if (action === 'generate-image') {
+      const seed = String(imagePrompt || 'aviso ao cliente').slice(0, 400);
       try {
-        const imageUrl = await generateHeaderImage(String(imagePrompt || 'aviso ao cliente').slice(0, 400));
+        const imageUrl = await generateHeaderImage(seed);
         return ok({ success: true, imageUrl });
       } catch (imgErr) {
         console.error('generate-image error:', imgErr);
-        return ok({ success: false, error: (imgErr as Error).message });
+        // Fallback sem IA: banner gerado localmente (gradiente), sempre funciona
+        try {
+          const imageUrl = await uploadHeaderImage(localBanner(seed));
+          return ok({
+            success: true,
+            imageUrl,
+            fallback: true,
+            notice: `${(imgErr as Error).message} — gerei um banner local (gradiente, sem texto). Adicione créditos de IA para artes geradas por IA.`,
+          });
+        } catch (fbErr) {
+          return ok({ success: false, error: (fbErr as Error).message });
+        }
       }
     }
+
 
     if (!message || typeof message !== 'string' || !message.trim()) {
       return new Response(JSON.stringify({ error: 'Mensagem obrigatória' }), {
