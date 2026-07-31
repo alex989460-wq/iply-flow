@@ -8,24 +8,23 @@ const corsHeaders = {
 const SYSTEM = `Você é o melhor especialista do Brasil em templates aprovados na WhatsApp Cloud API (Meta).
 Sua tarefa: transformar a mensagem crua do usuário em um template PROFISSIONAL, bonito e bem estruturado, com ALTÍSSIMA chance de aprovação na categoria UTILITY.
 
-## Qualidade obrigatória do texto (isto é o mais importante)
-- NUNCA devolva uma frase curta e simples. Entregue uma mensagem completa, bem diagramada, com múltiplas linhas.
-- Estrutura recomendada:
-  1) Saudação personalizada com o nome: "Olá, *{{nome}}*! 👋"
-  2) Uma linha explicando o motivo do aviso (transacional).
-  3) Um bloco de dados em lista, cada linha com um emoji e o rótulo em *negrito*, ex.:
-     "📅 *Vencimento:* {{vencimento}}"
-     "👤 *Usuário:* {{usuario}}"
-     "💰 *Valor:* R$ {{valor}}"
-     "📦 *Plano:* {{plano}}"
-     "🖥️ *Servidor:* {{servidor}}"
-  4) Uma linha final de instrução/agradecimento neutra, ex.: "Qualquer dúvida, estamos à disposição. 🙏"
+## REGRA NÚMERO 1 — FIDELIDADE ABSOLUTA AO TEXTO ORIGINAL
+- O template deve dizer A MESMA COISA que a mensagem original, com as MESMAS frases sempre que possível.
+- É PROIBIDO trocar o assunto, inventar um novo motivo de contato ou criar um "bloco de dados" (Usuário, Plano, Servidor, Valor, Vencimento) que NÃO exista na mensagem original.
+- Só crie uma variável quando o dado correspondente aparece (ou é claramente citado) na mensagem original.
+- Se a mensagem original fala de teste gratuito de 12 horas, o template fala disso (de forma transacional). Se fala de retorno do cliente, fala disso. Jamais substitua por "status da assinatura" ou outro tema genérico.
+- Você pode: reescrever termos promocionais em linguagem neutra/transacional, melhorar a formatação, adicionar saudação e rodapé. Você NÃO pode: adicionar informações novas.
+
+## Qualidade da formatação
+- Mantenha o texto do usuário, apenas bem diagramado: saudação com *{{nome}}*, o conteúdo original em parágrafos, e uma linha final neutra ("Qualquer dúvida, estamos à disposição. 🙏").
 - Use emojis com moderação e sentido informativo (📅 👤 💰 📦 ✅ 🔒 🧾 🖥️ 🙏 👋). Nada de emojis de venda (🔥🎉🤑💥).
 - Use a formatação do WhatsApp: *negrito*, _itálico_. Nunca use markdown (**, ##, -).
 - Quebre linhas de verdade (\\n). Deixe uma linha em branco entre os blocos.
 
-## Variáveis (geração automática)
-- Detecte automaticamente TODOS os dados que fazem sentido no contexto e crie variáveis para eles, mesmo que o usuário não tenha escrito nenhuma.
+
+## Variáveis
+- Crie variáveis APENAS para dados citados na mensagem original (ex.: se cita duração do teste, use {{duracao}}). Não invente campos.
+- Além dessas, só {{nome}} na saudação é sempre permitido.
 - Preserve as variáveis que o usuário já escreveu ({{...}}), sem renomear.
 - Formato snake_case minúsculo sem acentos. Nomes preferidos: nome, vencimento, valor, plano, usuario, senha, servidor, link, data, telas, pedido.
 - Sempre inclua {{nome}} na saudação.
@@ -429,7 +428,7 @@ Deno.serve(async (req) => {
     }
 
 
-    const userPrompt = `Mensagem original:\n"""${message.slice(0, 3000)}"""\n${hint ? `Contexto adicional: ${String(hint).slice(0, 500)}` : ''}\n\nGere o melhor template UTILITY possível: rico, com emojis informativos, *negrito*, bloco de dados em linhas separadas e variáveis criadas automaticamente com exemplos.`;
+    const userPrompt = `Mensagem original:\n"""${message.slice(0, 3000)}"""\n${hint ? `Contexto adicional: ${String(hint).slice(0, 500)}` : ''}\n\nReescreva ESTA mensagem (mesmo assunto, mesmas frases sempre que possível) em um template UTILITY bem formatado. NÃO mude o tema, NÃO invente bloco de dados (usuário/plano/servidor/valor) que não esteja no texto acima. Apenas neutralize termos promocionais, formate bem e adicione saudação com {{nome}} e rodapé neutro.`;
 
     // 1) Gemini com a chave própria do projeto (gratuito no free tier)
     let raw: string | null = await geminiText(SYSTEM, userPrompt);
@@ -491,6 +490,25 @@ Deno.serve(async (req) => {
 
     if (!parsed?.body) {
       return ok({ success: true, template: localOptimize(message), fallback: true, notice: 'A IA não retornou um template válido — usei o otimizador local.' });
+    }
+
+    // Guarda de fidelidade: se a IA fugiu do assunto original, usa o otimizador local
+    const words = (s: string) => new Set(
+      String(s).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+        .replace(/\{\{[^}]*\}\}/g, ' ').split(/[^a-z0-9]+/).filter(w => w.length > 3)
+    );
+    const origWords = words(message);
+    const genWords = words(parsed.body);
+    let shared = 0;
+    origWords.forEach(w => { if (genWords.has(w)) shared++; });
+    const fidelity = origWords.size ? shared / origWords.size : 1;
+    if (origWords.size >= 6 && fidelity < 0.4) {
+      return ok({
+        success: true,
+        template: localOptimize(message),
+        fallback: true,
+        notice: 'A IA fugiu do assunto da sua mensagem — mantive o seu texto original, apenas formatado no padrão UTILITY.',
+      });
     }
 
     parsed.category = 'UTILITY';
