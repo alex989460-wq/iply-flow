@@ -212,12 +212,24 @@ Deno.serve(async (req) => {
     new Response(JSON.stringify(payload), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 
   try {
-    const { message, hint } = await req.json();
+    const { message, hint, action, imagePrompt } = await req.json();
+
+    if (action === 'generate-image') {
+      try {
+        const imageUrl = await generateHeaderImage(String(imagePrompt || 'aviso ao cliente').slice(0, 400));
+        return ok({ success: true, imageUrl });
+      } catch (imgErr) {
+        console.error('generate-image error:', imgErr);
+        return ok({ success: false, error: (imgErr as Error).message });
+      }
+    }
+
     if (!message || typeof message !== 'string' || !message.trim()) {
       return new Response(JSON.stringify({ error: 'Mensagem obrigatória' }), {
         status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
+
 
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
     if (!LOVABLE_API_KEY) {
