@@ -459,12 +459,12 @@ Deno.serve(async (req) => {
     new Response(JSON.stringify(payload), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 
   try {
-    const { message, hint, action, imagePrompt } = await req.json();
+    const { message, hint, action, imagePrompt, imageStyle, targetRisk } = await req.json();
 
     if (action === 'generate-image') {
       const seed = String(imagePrompt || 'aviso ao cliente').slice(0, 400);
       try {
-        const imageUrl = await generateHeaderImage(seed);
+        const imageUrl = await generateHeaderImage(seed, imageStyle);
         return ok({ success: true, imageUrl });
       } catch (imgErr) {
         console.error('generate-image error:', imgErr);
