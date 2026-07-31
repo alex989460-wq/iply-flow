@@ -296,7 +296,13 @@ async function generateHeaderImage(prompt: string) {
 
   if (!res.ok) {
     const body = await res.text();
-    throw new Error(`Geração de imagem falhou [${res.status}]: ${body.slice(0, 300)}`);
+    const reason = res.status === 402
+      ? 'Créditos de IA esgotados no workspace'
+      : res.status === 429
+        ? 'Limite de requisições da IA atingido'
+        : `IA indisponível (${res.status})`;
+    console.error(`image gen falhou [${res.status}]: ${body.slice(0, 300)}`);
+    throw new Error(reason);
   }
 
   const data = await res.json();
@@ -305,24 +311,9 @@ async function generateHeaderImage(prompt: string) {
 
   const base64 = url.split(',')[1];
   const bytes = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
-
-  const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
-  const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-  const path = `template-headers/${crypto.randomUUID()}.png`;
-
-  const up = await fetch(`${SUPABASE_URL}/storage/v1/object/reseller-assets/${path}`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${SERVICE_KEY}`,
-      'Content-Type': 'image/png',
-      'x-upsert': 'true',
-    },
-    body: bytes,
-  });
-  if (!up.ok) throw new Error(`Falha ao salvar imagem: ${(await up.text()).slice(0, 200)}`);
-
-  return `${SUPABASE_URL}/storage/v1/object/public/reseller-assets/${path}`;
+  return await uploadHeaderImage(bytes);
 }
+
 
 
 
