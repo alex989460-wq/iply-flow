@@ -647,9 +647,10 @@ function buildImagePrompt(prompt: string, style?: string, imageText?: string) {
   const title = bannerTitle(imageText || prompt);
   return `Banner horizontal 1200x628 de altíssima qualidade para o cabeçalho de uma mensagem de WhatsApp de uma empresa de streaming/IPTV.
 Tema visual: ${prompt}.
-Estilo: ${s}. Paleta escura sofisticada com acentos luminosos, composição equilibrada, acabamento profissional 4K, renderização nítida.
-Escreva no centro, com tipografia grande, moderna e perfeitamente legível, exatamente esta chamada: "${title}".
-Regras obrigatórias: não acrescente nenhuma outra palavra, letra ou número; nenhum logotipo e nenhuma marca d'água. Sem pessoas reais.`;
+Estilo: ${s}. Referência de composição: cartão escuro premium com cantos bem arredondados, borda luminosa fina, brilho colorido difuso ao fundo, um ícone/ilustração 3D central (TV, sino, calendário ou escudo) com sombra suave, e um selo pequeno acima do texto.
+Paleta escura sofisticada com acentos luminosos, acabamento profissional 4K, renderização nítida.
+Escreva no centro, com tipografia display grande, em negrito, moderna e perfeitamente legível, exatamente esta chamada: "${title}".
+Regras obrigatórias: não acrescente nenhuma outra palavra, letra ou número; nenhum logotipo e nenhuma marca d'água. Sem pessoas reais. Sem texto cortado nas bordas.`;
 }
 
 async function generateHeaderImage(prompt: string, style?: string, imageText?: string) {
