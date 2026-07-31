@@ -54,11 +54,20 @@ const VARIABLES: Array<{ name: string; label: string }> = [
   { name: 'data', label: 'Data' },
 ];
 
+const IMAGE_STYLES: Array<{ id: string; label: string }> = [
+  { id: 'moderno', label: 'Moderno 3D' },
+  { id: 'minimalista', label: 'Minimalista' },
+  { id: 'neon', label: 'Neon' },
+  { id: 'corporativo', label: 'Corporativo' },
+];
+
 export default function TemplateOptimizerCard({ onUse }: { onUse: (t: OptimizedTemplate) => void }) {
   const { toast } = useToast();
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
+  const [lowRiskLoading, setLowRiskLoading] = useState(false);
   const [imgLoading, setImgLoading] = useState(false);
+  const [imageStyle, setImageStyle] = useState('moderno');
 
   const [result, setResult] = useState<OptimizedTemplate | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -81,23 +90,26 @@ export default function TemplateOptimizerCard({ onUse }: { onUse: (t: OptimizedT
     });
   };
 
-  const optimize = async () => {
+  const optimize = async (targetRisk?: 'LOW') => {
     if (!message.trim()) return;
-    setLoading(true);
-    setResult(null);
+    const setBusy = targetRisk === 'LOW' ? setLowRiskLoading : setLoading;
+    setBusy(true);
     setNotice(null);
+    if (!targetRisk) setResult(null);
     try {
       const { data, error } = await supabase.functions.invoke('template-optimizer', {
-        body: { message },
+        body: { message, targetRisk },
       });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
-      setResult(data.template as OptimizedTemplate);
+      const tpl = data.template as OptimizedTemplate;
+      setResult(r => (targetRisk === 'LOW' && r?.imageUrl ? { ...tpl, imageUrl: r.imageUrl, header: { type: 'IMAGE', text: tpl.header?.text } } : tpl));
       if (data?.notice) setNotice(data.notice as string);
+      if (targetRisk === 'LOW') toast({ title: 'Nova versão de risco baixo gerada' });
     } catch (e: any) {
       toast({ title: 'Não foi possível otimizar', description: e.message, variant: 'destructive' });
     } finally {
-      setLoading(false);
+      setBusy(false);
     }
   };
 
@@ -106,7 +118,7 @@ export default function TemplateOptimizerCard({ onUse }: { onUse: (t: OptimizedT
     setImgLoading(true);
     try {
       const { data, error } = await supabase.functions.invoke('template-optimizer', {
-        body: { action: 'generate-image', imagePrompt: result.imagePrompt || result.header?.text || result.name },
+        body: { action: 'generate-image', imageStyle, imagePrompt: result.imagePrompt || result.header?.text || result.name },
       });
       if (error) throw error;
       if (!data?.success) throw new Error(data?.error || 'Falha ao gerar imagem');
@@ -123,6 +135,7 @@ export default function TemplateOptimizerCard({ onUse }: { onUse: (t: OptimizedT
       setImgLoading(false);
     }
   };
+
 
 
   return (
