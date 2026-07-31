@@ -278,9 +278,80 @@ async function uploadHeaderImage(bytes: Uint8Array) {
 }
 
 
+const GEMINI_MODEL = 'gemini-flash-latest';
+const GEMINI_IMAGE_MODELS = ['gemini-2.5-flash-image', 'gemini-3-pro-image-preview'];
+
+// Chamada direta à API do Gemini (chave própria do projeto)
+async function geminiText(system: string, user: string): Promise<string | null> {
+  const key = Deno.env.get('GEMINI_API_KEY');
+  if (!key) return null;
+  try {
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`,
+      {
+        method: 'POST',
+        headers: { 'x-goog-api-key': key, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          systemInstruction: { parts: [{ text: system }] },
+          contents: [{ role: 'user', parts: [{ text: user }] }],
+          generationConfig: { temperature: 0.7, responseMimeType: 'application/json' },
+        }),
+      },
+    );
+    if (!res.ok) {
+      console.error(`Gemini direto falhou [${res.status}]: ${(await res.text()).slice(0, 300)}`);
+      return null;
+    }
+    const data = await res.json();
+    const parts = data?.candidates?.[0]?.content?.parts ?? [];
+    const text = parts.map((p: any) => p?.text ?? '').join('').trim();
+    return text || null;
+  } catch (e) {
+    console.error('Gemini direto erro de rede:', e);
+    return null;
+  }
+}
+
+async function geminiImage(prompt: string): Promise<Uint8Array | null> {
+  const key = Deno.env.get('GEMINI_API_KEY');
+  if (!key) return null;
+  for (const model of GEMINI_IMAGE_MODELS) {
+    try {
+      const res = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
+        {
+          method: 'POST',
+          headers: { 'x-goog-api-key': key, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ role: 'user', parts: [{ text: prompt }] }],
+            generationConfig: { responseModalities: ['IMAGE'] },
+          }),
+        },
+      );
+      if (!res.ok) {
+        console.error(`Gemini image (${model}) falhou [${res.status}]: ${(await res.text()).slice(0, 200)}`);
+        continue;
+      }
+      const data = await res.json();
+      const parts = data?.candidates?.[0]?.content?.parts ?? [];
+      const inline = parts.find((p: any) => p?.inlineData?.data)?.inlineData?.data;
+      if (inline) return Uint8Array.from(atob(inline), c => c.charCodeAt(0));
+    } catch (e) {
+      console.error(`Gemini image (${model}) erro:`, e);
+    }
+  }
+  return null;
+}
+
 async function generateHeaderImage(prompt: string) {
+  const fullPrompt = `Crie um banner horizontal (1200x628) moderno e limpo para o cabeçalho de uma mensagem de WhatsApp de uma empresa de streaming/IPTV. Tema: ${prompt}. Estilo: fundo escuro com gradiente, ícones simples, sem texto legível, sem logotipos, visual corporativo e discreto.`;
+
+  const direct = await geminiImage(fullPrompt);
+  if (direct) return await uploadHeaderImage(direct);
+
   const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
   if (!LOVABLE_API_KEY) throw new Error('IA indisponível para gerar imagem.');
+
 
 
   const res = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
