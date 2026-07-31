@@ -184,11 +184,14 @@ export default function TemplateOptimizerCard({ onUse }: { onUse: (t: OptimizedT
             </div>
 
             <div className="rounded-xl border border-emerald-500/20 bg-[#0b1a12] p-3 text-sm shadow-inner">
-              {result.header?.type === 'IMAGE' && (
+              {result.imageUrl ? (
+                <img src={result.imageUrl} alt="Cabeçalho do template" className="mb-2 w-full rounded-lg object-cover" />
+              ) : result.header?.type === 'IMAGE' ? (
                 <div className="mb-2 flex h-24 items-center justify-center rounded-lg border border-dashed border-emerald-500/30 bg-emerald-500/5 text-[11px] text-emerald-300/80">
-                  <ImageIcon className="mr-1.5 h-4 w-4" /> Cabeçalho com mídia — anexe a imagem no construtor
+                  <ImageIcon className="mr-1.5 h-4 w-4" /> Cabeçalho com mídia — gere a imagem abaixo
                 </div>
-              )}
+              ) : null}
+
               {result.header?.type === 'TEXT' && result.header.text && (
                 <div className="mb-1.5 text-sm font-semibold text-emerald-300">{result.header.text}</div>
               )}
