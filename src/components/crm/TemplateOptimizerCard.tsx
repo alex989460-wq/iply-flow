@@ -227,10 +227,15 @@ export default function TemplateOptimizerCard({ onUse }: { onUse: (t: OptimizedT
               </div>
             )}
 
-            <div className="flex justify-end gap-2">
+            <div className="flex flex-wrap justify-end gap-2">
+              <Button variant="outline" size="sm" onClick={generateImage} disabled={imgLoading}>
+                {imgLoading ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <ImageIcon className="w-3.5 h-3.5 mr-1.5" />}
+                {result.imageUrl ? 'Gerar outra imagem' : 'Gerar imagem do cabeçalho'}
+              </Button>
               <Button variant="outline" size="sm" onClick={optimize} disabled={loading}>Gerar outra versão</Button>
               <Button size="sm" onClick={() => onUse(result)}>Usar este template</Button>
             </div>
+
           </div>
         )}
       </CardContent>
