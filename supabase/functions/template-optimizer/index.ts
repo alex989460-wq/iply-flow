@@ -63,6 +63,19 @@ Responda SOMENTE com JSON válido, sem markdown, no formato:
   "warnings": ["itens da mensagem original que seriam classificados como MARKETING"]
 }`;
 
+// Reforço aplicado quando o usuário pede explicitamente RISCO BAIXO
+const LOW_RISK_RULES = `
+
+## MODO RISCO BAIXO (OBRIGATÓRIO NESTA GERAÇÃO)
+O usuário exige um template com risco de rejeição LOW. Portanto:
+- Remova QUALQUER palavra promocional, convite, urgência ou apelo comercial ("volte", "aproveite", "grátis", "oferta", "desconto", "novidade", "não perca", "exclusivo", "promoção", "assine", "corra").
+- Reescreva a intenção original em linguagem 100% transacional/informativa: informe um status, um dado da conta, um vencimento, um pedido ou uma instrução de serviço.
+- Nada de exclamações excessivas, no máximo 3 emojis discretos no corpo inteiro.
+- Não use botões de marketing; no máximo 1 botão URL de pagamento/2ª via ou QUICK_REPLY neutro.
+- Rodapé sempre neutro ("Mensagem automática do sistema").
+- O campo "risk" DEVE ser "LOW" e "warnings" deve listar o que foi removido do texto original.`;
+
+
 
 
 const MARKETING_TERMS = [
