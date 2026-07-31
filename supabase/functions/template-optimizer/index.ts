@@ -267,14 +267,16 @@ async function uploadHeaderImage(bytes: Uint8Array) {
   const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
   const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
   const path = `template-headers/${crypto.randomUUID()}.png`;
-  const up = await fetch(`${SUPABASE_URL}/storage/v1/object/reseller-assets/${path}`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${SERVICE_KEY}`, 'Content-Type': 'image/png', 'x-upsert': 'true' },
-    body: bytes,
-  });
-  if (!up.ok) throw new Error(`Falha ao salvar imagem: ${(await up.text()).slice(0, 200)}`);
-  return `${SUPABASE_URL}/storage/v1/object/public/reseller-assets/${path}`;
+  const { createClient } = await import('npm:@supabase/supabase-js@2');
+  const admin = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: false } });
+  const { error } = await admin.storage
+    .from('reseller-assets')
+    .upload(path, bytes, { contentType: 'image/png', upsert: true });
+  if (error) throw new Error(`Falha ao salvar imagem: ${error.message}`);
+  const { data } = admin.storage.from('reseller-assets').getPublicUrl(path);
+  return data.publicUrl;
 }
+
 
 async function generateHeaderImage(prompt: string) {
   const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
