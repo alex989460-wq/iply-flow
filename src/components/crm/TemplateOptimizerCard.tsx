@@ -245,14 +245,43 @@ export default function TemplateOptimizerCard({ onUse }: { onUse: (t: OptimizedT
               </div>
             )}
 
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="text-[11px] text-muted-foreground mr-1">Estilo da imagem:</span>
+              {IMAGE_STYLES.map(s => (
+                <button
+                  key={s.id}
+                  type="button"
+                  onClick={() => setImageStyle(s.id)}
+                  className={`rounded-full border px-2.5 py-1 text-[11px] transition ${
+                    imageStyle === s.id
+                      ? 'border-violet-400/60 bg-violet-500/25 text-violet-200'
+                      : 'border-border/60 bg-background/40 text-muted-foreground hover:bg-violet-500/10'
+                  }`}
+                >
+                  {s.label}
+                </button>
+              ))}
+            </div>
+
             <div className="flex flex-wrap justify-end gap-2">
               <Button variant="outline" size="sm" onClick={generateImage} disabled={imgLoading}>
                 {imgLoading ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <ImageIcon className="w-3.5 h-3.5 mr-1.5" />}
                 {result.imageUrl ? 'Gerar outra imagem' : 'Gerar imagem do cabeçalho'}
               </Button>
-              <Button variant="outline" size="sm" onClick={optimize} disabled={loading}>Gerar outra versão</Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/10"
+                onClick={() => optimize('LOW')}
+                disabled={lowRiskLoading || loading}
+              >
+                {lowRiskLoading ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <ShieldCheck className="w-3.5 h-3.5 mr-1.5" />}
+                Gerar versão de risco BAIXO
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => optimize()} disabled={loading}>Gerar outra versão</Button>
               <Button size="sm" onClick={() => onUse(result)}>Usar este template</Button>
             </div>
+
 
           </div>
         )}
