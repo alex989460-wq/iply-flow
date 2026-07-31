@@ -161,14 +161,16 @@ serve(async (req) => {
     const provider = String(body.provider || "clouddy").toLowerCase();
     const m3uUrl = String(body.m3u_url || "").trim();
 
-    // Bob Player: gera o captcha (SVG) que o usuário digita no painel.
+    // Bob Player / IBO Player: gera o captcha (SVG) que o usuário digita no painel.
     if (String(body.action || "") === "bob-captcha") {
-      const capResp = await fetch("https://bobplayer.com/frontend/captcha/generate", {
-        headers: { Accept: "application/json", Referer: "https://bobplayer.com/login", "User-Agent": UA },
+      const capBase = provider === "iboplayer" ? "https://iboplayer.com" : "https://bobplayer.com";
+      const capRef = provider === "iboplayer" ? `${capBase}/device/login` : `${capBase}/login`;
+      const capResp = await fetch(`${capBase}/frontend/captcha/generate`, {
+        headers: { Accept: "application/json", Referer: capRef, "User-Agent": UA },
       });
       const cap = await capResp.json().catch(() => ({} as any));
       if (!cap?.svg || !cap?.token) {
-        return new Response(JSON.stringify({ error: "Não foi possível gerar o captcha do Bob Player" }), {
+        return new Response(JSON.stringify({ error: "Não foi possível gerar o captcha" }), {
           status: 502,
           headers: jsonHeaders,
         });
@@ -177,6 +179,7 @@ serve(async (req) => {
         headers: jsonHeaders,
       });
     }
+
 
     if (!isHttpUrl(m3uUrl)) {
       return new Response(JSON.stringify({ error: "URL da lista (M3U) inválida" }), {
