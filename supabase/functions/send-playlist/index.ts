@@ -161,14 +161,16 @@ serve(async (req) => {
     const provider = String(body.provider || "clouddy").toLowerCase();
     const m3uUrl = String(body.m3u_url || "").trim();
 
-    // Bob Player: gera o captcha (SVG) que o usuário digita no painel.
+    // Bob Player / IBO Player: gera o captcha (SVG) que o usuário digita no painel.
     if (String(body.action || "") === "bob-captcha") {
-      const capResp = await fetch("https://bobplayer.com/frontend/captcha/generate", {
-        headers: { Accept: "application/json", Referer: "https://bobplayer.com/login", "User-Agent": UA },
+      const capBase = provider === "iboplayer" ? "https://iboplayer.com" : "https://bobplayer.com";
+      const capRef = provider === "iboplayer" ? `${capBase}/device/login` : `${capBase}/login`;
+      const capResp = await fetch(`${capBase}/frontend/captcha/generate`, {
+        headers: { Accept: "application/json", Referer: capRef, "User-Agent": UA },
       });
       const cap = await capResp.json().catch(() => ({} as any));
       if (!cap?.svg || !cap?.token) {
-        return new Response(JSON.stringify({ error: "Não foi possível gerar o captcha do Bob Player" }), {
+        return new Response(JSON.stringify({ error: "Não foi possível gerar o captcha" }), {
           status: 502,
           headers: jsonHeaders,
         });
@@ -178,6 +180,7 @@ serve(async (req) => {
       });
     }
 
+
     if (!isHttpUrl(m3uUrl)) {
       return new Response(JSON.stringify({ error: "URL da lista (M3U) inválida" }), {
         status: 400,
@@ -185,8 +188,9 @@ serve(async (req) => {
       });
     }
 
-    // ───────────────────────────── BOB PLAYER ─────────────────────────────
-    if (provider === "bobplayer") {
+    // ──────────────────── BOB PLAYER / IBO PLAYER ────────────────────
+    if (provider === "bobplayer" || provider === "iboplayer") {
+
       const mac = normalizeMac(String(body.mac || ""));
       const deviceKey = String(body.device_key || body.password || "").trim();
       const name = String(body.playlist_name || "").trim() || "Lista";
@@ -215,7 +219,10 @@ serve(async (req) => {
       }
 
       const jar = new CookieJar();
-      const base = "https://bobplayer.com";
+      const isIbo = provider === "iboplayer";
+      const base = isIbo ? "https://iboplayer.com" : "https://bobplayer.com";
+      const brand = isIbo ? "IBO Player" : "Bob Player";
+      const loginRef = isIbo ? `${base}/device/login` : `${base}/login`;
       const commonB: Record<string, string> = {
         "Content-Type": "application/json",
         Accept: "application/json, text/plain, */*",
@@ -225,7 +232,8 @@ serve(async (req) => {
 
       const loginB = await fetch(`${base}/frontend/device/login`, {
         method: "POST",
-        headers: { ...commonB, Referer: `${base}/login` },
+        headers: { ...commonB, Referer: loginRef },
+
         body: JSON.stringify({
           mac_address: mac,
           device_key: deviceKey,
@@ -238,7 +246,7 @@ serve(async (req) => {
       if (!loginB.ok || loginBJson?.status !== "success") {
         return new Response(
           JSON.stringify({
-            error: loginBJson?.message || `Falha ao autenticar no Bob Player (HTTP ${loginB.status})`,
+            error: loginBJson?.message || `Falha ao autenticar no ${brand} (HTTP ${loginB.status})`,
           }),
           { status: 401, headers: jsonHeaders },
         );
@@ -259,7 +267,7 @@ serve(async (req) => {
           username: "",
           password: "",
           playlist_type: "general",
-          protect: pin ? 1 : 0,
+          protect: isIbo ? (pin ? "true" : "false") : (pin ? 1 : 0),
           xml_url: epgUrlB,
           pin: pin,
         }),
@@ -269,9 +277,9 @@ serve(async (req) => {
         return new Response(
           JSON.stringify({
             success: true,
-            provider: "bobplayer",
+            provider,
             mac,
-            message: saveBJson?.msg || `Lista "${name}" enviada para o Bob Player (${mac})`,
+            message: saveBJson?.msg || `Lista "${name}" enviada para o ${brand} (${mac})`,
           }),
           { headers: jsonHeaders },
         );
@@ -279,8 +287,9 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({
           success: false,
-          error: saveBJson?.msg || saveBJson?.message || `Erro HTTP ${saveB.status} ao salvar a lista no Bob Player`,
+          error: saveBJson?.msg || saveBJson?.message || `Erro HTTP ${saveB.status} ao salvar a lista no ${brand}`,
         }),
+
         { status: 502, headers: jsonHeaders },
       );
     }

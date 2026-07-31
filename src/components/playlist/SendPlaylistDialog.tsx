@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -42,6 +42,8 @@ export function formatMac(raw: string) {
   return clean.replace(/(.{2})(?=.)/g, '$1:');
 }
 
+type ProviderTab = 'clouddy' | 'ibopro' | 'iboplayer' | 'duplecast' | 'bobplayer';
+
 interface Props {
   open: boolean;
   onOpenChange: (v: boolean) => void;
@@ -63,7 +65,7 @@ export default function SendPlaylistDialog({
   defaultListUrl = '',
   defaultMac = '',
 }: Props) {
-  const [tab, setTab] = useState<'clouddy' | 'ibopro' | 'duplecast' | 'bobplayer'>('clouddy');
+  const [tab, setTab] = useState<ProviderTab>('clouddy');
   const [listUrl, setListUrl] = useState(defaultListUrl);
   const [epgUrl, setEpgUrl] = useState('');
   const [email, setEmail] = useState(defaultEmail);
@@ -71,13 +73,13 @@ export default function SendPlaylistDialog({
   const [sendVod, setSendVod] = useState(true);
   const [sending, setSending] = useState(false);
 
-  // IBO Pro
+  // Dispositivo (IBO Pro / IBO Player / Duplecast / Bob Player)
   const [mac, setMac] = useState(defaultMac);
   const [deviceKey, setDeviceKey] = useState('');
   const [playlistName, setPlaylistName] = useState('');
   const [pin, setPin] = useState('');
 
-  // Bob Player (captcha)
+  // Captcha (Bob Player / IBO Player)
   const [captcha, setCaptcha] = useState('');
   const [captchaSvg, setCaptchaSvg] = useState('');
   const [captchaToken, setCaptchaToken] = useState('');
@@ -85,12 +87,15 @@ export default function SendPlaylistDialog({
 
   const [templateId, setTemplateId] = useState<string>('');
 
-  const loadCaptcha = async () => {
+  const needsCaptcha = tab === 'bobplayer' || tab === 'iboplayer';
+
+  const loadCaptcha = async (provider: 'bobplayer' | 'iboplayer' = tab as any) => {
     setLoadingCaptcha(true);
     setCaptcha('');
+    setCaptchaSvg('');
     try {
       const { data, error } = await supabase.functions.invoke('send-playlist', {
-        body: { provider: 'bobplayer', action: 'bob-captcha' },
+        body: { provider, action: 'bob-captcha' },
       });
       if (error) throw error;
       if ((data as any)?.error) throw new Error((data as any).error);
@@ -104,10 +109,9 @@ export default function SendPlaylistDialog({
   };
 
   useEffect(() => {
-    if (open && tab === 'bobplayer' && !captchaSvg) loadCaptcha();
+    if (open && needsCaptcha) loadCaptcha(tab as any);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, tab]);
-
 
   const { data: templates = [] } = useQuery({
     queryKey: ['playlist-templates'],
@@ -154,18 +158,18 @@ export default function SendPlaylistDialog({
     if (!listUrl.trim()) return false;
     if (tab === 'clouddy') return !!email.trim();
     const macOk = mac.replace(/[^0-9a-f]/gi, '').length === 12 && !!deviceKey.trim();
-    if (tab === 'bobplayer') return macOk && !!captcha.trim() && !!captchaToken;
+    if (needsCaptcha) return macOk && !!captcha.trim() && !!captchaToken;
     return macOk;
-  }, [tab, listUrl, email, mac, deviceKey, captcha, captchaToken]);
+  }, [tab, listUrl, email, mac, deviceKey, captcha, captchaToken, needsCaptcha]);
 
   const handleSend = async () => {
     if (!canSend) return toast.error('Preencha os campos obrigatórios.');
     setSending(true);
     try {
       const body =
-        tab === 'bobplayer'
+        needsCaptcha
           ? {
-              provider: 'bobplayer',
+              provider: tab,
               mac: formatMac(mac),
               device_key: deviceKey.trim(),
               playlist_name: playlistName.trim() || 'Lista',
@@ -204,7 +208,6 @@ export default function SendPlaylistDialog({
               is_protected: !!pin.trim(),
             };
 
-
       const { data, error } = await supabase.functions.invoke('send-playlist', { body });
       if (error) throw error;
       if ((data as any)?.error) throw new Error((data as any).error);
@@ -213,6 +216,7 @@ export default function SendPlaylistDialog({
       onOpenChange(false);
     } catch (e: any) {
       toast.error(e?.message || 'Falha ao enviar a lista');
+      if (needsCaptcha) loadCaptcha(tab as any);
     } finally {
       setSending(false);
     }
@@ -242,209 +246,167 @@ export default function SendPlaylistDialog({
     </div>
   );
 
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <ListPlus className="w-4 h-4" /> Enviar lista para o app
-          </DialogTitle>
-          <DialogDescription>
-            Cole a lista pronta e envie direto para o app do cliente.
-          </DialogDescription>
-        </DialogHeader>
+  const deviceFields = (keyPlaceholder: string) => (
+    <>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="space-y-1.5">
+          <Label>MAC do aparelho</Label>
+          <Input
+            value={mac}
+            onChange={(e) => setMac(formatMac(e.target.value))}
+            placeholder="aa:bb:cc:dd:ee:ff"
+            className="font-mono"
+            inputMode="text"
+            autoCapitalize="none"
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label>Device Key</Label>
+          <Input value={deviceKey} onChange={(e) => setDeviceKey(e.target.value)} placeholder={keyPlaceholder} />
+        </div>
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="space-y-1.5">
+          <Label>Nome da lista</Label>
+          <Input value={playlistName} onChange={(e) => setPlaylistName(e.target.value)} placeholder="Minha Lista" />
+        </div>
+        <div className="space-y-1.5">
+          <Label>PIN (opcional)</Label>
+          <Input value={pin} onChange={(e) => setPin(e.target.value)} placeholder="ex: 102030" inputMode="numeric" />
+        </div>
+      </div>
+    </>
+  );
 
-        <Tabs value={tab} onValueChange={(v) => setTab(v as any)}>
-          <TabsList className="grid grid-cols-4 w-full">
-            <TabsTrigger value="clouddy">Clouddy</TabsTrigger>
-            <TabsTrigger value="ibopro">IBO Pro</TabsTrigger>
-            <TabsTrigger value="duplecast">Duplecast</TabsTrigger>
-            <TabsTrigger value="bobplayer">Bob Player</TabsTrigger>
-          </TabsList>
+  const epgField = (placeholder: string) => (
+    <div className="space-y-1.5">
+      <Label>EPG (opcional)</Label>
+      <Input
+        value={epgUrl}
+        onChange={(e) => setEpgUrl(e.target.value)}
+        placeholder={placeholder}
+        className="font-mono text-[11px]"
+      />
+    </div>
+  );
 
-          <TabsContent value="clouddy" className="space-y-3 pt-3">
-            <div className="space-y-1.5">
-              <Label>E-mail do cliente (conta no app)</Label>
-              <Input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="cliente@email.com" />
-            </div>
-            {listField}
-            <div className="space-y-1.5">
-              <Label>EPG (opcional)</Label>
-              <Input
-                value={epgUrl}
-                onChange={(e) => setEpgUrl(e.target.value)}
-                placeholder="Deixe vazio para usar a mesma URL da lista"
-                className="font-mono text-[11px]"
-              />
-            </div>
-            <div className="flex items-center gap-6">
-              <div className="flex items-center gap-2">
-                <Switch checked={sendTv} onCheckedChange={setSendTv} />
-                <Label className="text-sm">Canais (TV)</Label>
-              </div>
-              <div className="flex items-center gap-2">
-                <Switch checked={sendVod} onCheckedChange={setSendVod} />
-                <Label className="text-sm">Filmes (VOD)</Label>
-              </div>
-            </div>
-          </TabsContent>
-
-          <TabsContent value="ibopro" className="space-y-3 pt-3">
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label>MAC do aparelho</Label>
-                <Input
-                  value={mac}
-                  onChange={(e) => setMac(formatMac(e.target.value))}
-                  placeholder="aa:bb:cc:dd:ee:ff"
-                  className="font-mono"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Device Key</Label>
-                <Input
-                  value={deviceKey}
-                  onChange={(e) => setDeviceKey(e.target.value)}
-                  placeholder="senha exibida no app"
-                />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label>Nome da lista</Label>
-                <Input value={playlistName} onChange={(e) => setPlaylistName(e.target.value)} placeholder="Minha Lista" />
-              </div>
-              <div className="space-y-1.5">
-                <Label>PIN (opcional)</Label>
-                <Input value={pin} onChange={(e) => setPin(e.target.value)} placeholder="ex: 102030" />
-              </div>
-            </div>
-            {listField}
-          </TabsContent>
-
-          <TabsContent value="duplecast" className="space-y-3 pt-3">
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label>MAC do aparelho</Label>
-                <Input
-                  value={mac}
-                  onChange={(e) => setMac(formatMac(e.target.value))}
-                  placeholder="aa:bb:cc:dd:ee:ff"
-                  className="font-mono"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Device Key</Label>
-                <Input
-                  value={deviceKey}
-                  onChange={(e) => setDeviceKey(e.target.value)}
-                  placeholder="código exibido no aparelho"
-                />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label>Nome da lista</Label>
-                <Input value={playlistName} onChange={(e) => setPlaylistName(e.target.value)} placeholder="Minha Lista" />
-              </div>
-              <div className="space-y-1.5">
-                <Label>PIN (opcional)</Label>
-                <Input value={pin} onChange={(e) => setPin(e.target.value)} placeholder="ex: 102030" />
-              </div>
-            </div>
-            {listField}
-            <div className="space-y-1.5">
-              <Label>EPG (opcional)</Label>
-              <Input
-                value={epgUrl}
-                onChange={(e) => setEpgUrl(e.target.value)}
-                placeholder="Deixe vazio para não enviar EPG"
-                className="font-mono text-[11px]"
-              />
-            </div>
-            <p className="text-[11px] text-muted-foreground">
-              Usa o login do seu painel Duplecast salvo em Ativação de Apps → Painéis.
-            </p>
-          </TabsContent>
-
-          <TabsContent value="bobplayer" className="space-y-3 pt-3">
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label>MAC do aparelho</Label>
-                <Input
-                  value={mac}
-                  onChange={(e) => setMac(formatMac(e.target.value))}
-                  placeholder="aa:bb:cc:dd:ee:ff"
-                  className="font-mono"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Device Key</Label>
-                <Input
-                  value={deviceKey}
-                  onChange={(e) => setDeviceKey(e.target.value)}
-                  placeholder="senha exibida no app"
-                />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label>Nome da lista</Label>
-                <Input value={playlistName} onChange={(e) => setPlaylistName(e.target.value)} placeholder="Minha Lista" />
-              </div>
-              <div className="space-y-1.5">
-                <Label>PIN (opcional)</Label>
-                <Input value={pin} onChange={(e) => setPin(e.target.value)} placeholder="ex: 102030" />
-              </div>
-            </div>
-            {listField}
-            <div className="space-y-1.5">
-              <Label>EPG (opcional)</Label>
-              <Input
-                value={epgUrl}
-                onChange={(e) => setEpgUrl(e.target.value)}
-                placeholder="Deixe vazio para usar a mesma URL da lista"
-                className="font-mono text-[11px]"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Captcha do Bob Player</Label>
-              <div className="flex items-center gap-2">
-                <div className="h-[60px] w-[170px] rounded-lg border border-border/60 bg-muted/40 overflow-hidden flex items-center justify-center [&>svg]:h-full [&>svg]:w-full">
-                  {loadingCaptcha ? (
-                    <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
-                  ) : captchaSvg ? (
-                    <div
-                      className="h-full w-full [&>svg]:h-full [&>svg]:w-full"
-                      dangerouslySetInnerHTML={{ __html: captchaSvg }}
-                    />
-                  ) : (
-                    <span className="text-[11px] text-muted-foreground">sem captcha</span>
-                  )}
-                </div>
-                <Button type="button" size="icon" variant="outline" onClick={loadCaptcha} disabled={loadingCaptcha}>
-                  <RefreshCw className={loadingCaptcha ? 'w-4 h-4 animate-spin' : 'w-4 h-4'} />
-                </Button>
-                <Input
-                  value={captcha}
-                  onChange={(e) => setCaptcha(e.target.value)}
-                  placeholder="digite o código"
-                  className="font-mono uppercase"
-                />
-              </div>
-              <p className="text-[11px] text-muted-foreground">
-                O Bob Player exige captcha a cada envio. Se falhar, gere um novo e tente de novo.
-              </p>
-            </div>
-          </TabsContent>
-        </Tabs>
-
-
-        <Button className="w-full" onClick={handleSend} disabled={sending || !canSend}>
-          {sending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Send className="w-4 h-4 mr-2" />}
-          Enviar lista
+  const captchaField = (brand: string) => (
+    <div className="space-y-1.5">
+      <Label>Captcha do {brand}</Label>
+      <div className="flex items-center gap-2">
+        <div className="h-[60px] w-[140px] shrink-0 rounded-lg border border-border/60 bg-muted/40 overflow-hidden flex items-center justify-center [&>svg]:h-full [&>svg]:w-full">
+          {loadingCaptcha ? (
+            <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+          ) : captchaSvg ? (
+            <div className="h-full w-full [&>svg]:h-full [&>svg]:w-full" dangerouslySetInnerHTML={{ __html: captchaSvg }} />
+          ) : (
+            <span className="text-[11px] text-muted-foreground">sem captcha</span>
+          )}
+        </div>
+        <Button type="button" size="icon" variant="outline" onClick={() => loadCaptcha(tab as any)} disabled={loadingCaptcha}>
+          <RefreshCw className={loadingCaptcha ? 'w-4 h-4 animate-spin' : 'w-4 h-4'} />
         </Button>
-      </DialogContent>
-    </Dialog>
+        <Input
+          value={captcha}
+          onChange={(e) => setCaptcha(e.target.value)}
+          placeholder="digite o código"
+          className="font-mono uppercase"
+          autoCapitalize="characters"
+        />
+      </div>
+      <p className="text-[11px] text-muted-foreground">
+        O {brand} exige captcha a cada envio. Se falhar, gere um novo e tente de novo.
+      </p>
+    </div>
+  );
+
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent
+        side="right"
+        className="w-full sm:max-w-md p-0 flex flex-col gap-0"
+      >
+        <SheetHeader className="px-4 py-3 border-b border-border/60 text-left">
+          <SheetTitle className="flex items-center gap-2 text-base">
+            <ListPlus className="w-4 h-4" /> Enviar lista para o app
+          </SheetTitle>
+          <SheetDescription className="text-xs">
+            Cole a lista pronta e envie direto para o app do cliente.
+          </SheetDescription>
+        </SheetHeader>
+
+        <div className="flex-1 overflow-y-auto overscroll-contain px-4 py-3">
+          <Tabs value={tab} onValueChange={(v) => setTab(v as ProviderTab)}>
+            <TabsList className="grid grid-cols-3 sm:grid-cols-5 h-auto w-full gap-1 p-1">
+              <TabsTrigger value="clouddy" className="text-[11px] px-1 py-1.5">Clouddy</TabsTrigger>
+              <TabsTrigger value="ibopro" className="text-[11px] px-1 py-1.5">IBO Pro</TabsTrigger>
+              <TabsTrigger value="iboplayer" className="text-[11px] px-1 py-1.5">IBO Player</TabsTrigger>
+              <TabsTrigger value="duplecast" className="text-[11px] px-1 py-1.5">Duplecast</TabsTrigger>
+              <TabsTrigger value="bobplayer" className="text-[11px] px-1 py-1.5">Bob Player</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="clouddy" className="space-y-3 pt-3">
+              <div className="space-y-1.5">
+                <Label>E-mail do cliente (conta no app)</Label>
+                <Input
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="cliente@email.com"
+                  type="email"
+                  autoCapitalize="none"
+                />
+              </div>
+              {listField}
+              {epgField('Deixe vazio para usar a mesma URL da lista')}
+              <div className="flex items-center gap-6">
+                <div className="flex items-center gap-2">
+                  <Switch checked={sendTv} onCheckedChange={setSendTv} />
+                  <Label className="text-sm">Canais (TV)</Label>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Switch checked={sendVod} onCheckedChange={setSendVod} />
+                  <Label className="text-sm">Filmes (VOD)</Label>
+                </div>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="ibopro" className="space-y-3 pt-3">
+              {deviceFields('senha exibida no app')}
+              {listField}
+            </TabsContent>
+
+            <TabsContent value="iboplayer" className="space-y-3 pt-3">
+              {deviceFields('senha exibida no app')}
+              {listField}
+              {epgField('Deixe vazio para usar a mesma URL da lista')}
+              {captchaField('IBO Player')}
+            </TabsContent>
+
+            <TabsContent value="duplecast" className="space-y-3 pt-3">
+              {deviceFields('código exibido no aparelho')}
+              {listField}
+              {epgField('Deixe vazio para não enviar EPG')}
+              <p className="text-[11px] text-muted-foreground">
+                Usa o login do seu painel Duplecast salvo em Ativação de Apps → Painéis.
+              </p>
+            </TabsContent>
+
+            <TabsContent value="bobplayer" className="space-y-3 pt-3">
+              {deviceFields('senha exibida no app')}
+              {listField}
+              {epgField('Deixe vazio para usar a mesma URL da lista')}
+              {captchaField('Bob Player')}
+            </TabsContent>
+          </Tabs>
+        </div>
+
+        <div className="border-t border-border/60 p-3">
+          <Button className="w-full" onClick={handleSend} disabled={sending || !canSend}>
+            {sending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Send className="w-4 h-4 mr-2" />}
+            Enviar lista
+          </Button>
+        </div>
+      </SheetContent>
+    </Sheet>
   );
 }
