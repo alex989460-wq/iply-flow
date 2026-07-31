@@ -58,6 +58,8 @@ export default function TemplateOptimizerCard({ onUse }: { onUse: (t: OptimizedT
   const { toast } = useToast();
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
+  const [imgLoading, setImgLoading] = useState(false);
+
   const [result, setResult] = useState<OptimizedTemplate | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
