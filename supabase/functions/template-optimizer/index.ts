@@ -330,7 +330,7 @@ async function uploadHeaderImage(bytes: Uint8Array) {
 
 
 const GEMINI_MODEL = 'gemini-flash-latest';
-const GEMINI_IMAGE_MODELS = ['gemini-2.5-flash-image', 'gemini-3-pro-image-preview'];
+const GEMINI_IMAGE_MODELS = ['gemini-3-pro-image-preview', 'gemini-2.5-flash-image'];
 
 // Chamada direta à API do Gemini (chave própria do projeto)
 async function geminiText(system: string, user: string): Promise<string | null> {
