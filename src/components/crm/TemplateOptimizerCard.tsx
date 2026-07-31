@@ -1,11 +1,11 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { Loader2, Sparkles, ShieldCheck, AlertTriangle, Wand2 } from 'lucide-react';
+import { Loader2, Sparkles, ShieldCheck, AlertTriangle, Wand2, Plus, Info } from 'lucide-react';
 
 export interface OptimizedTemplate {
   name: string;
@@ -26,16 +26,47 @@ const riskStyle: Record<string, string> = {
   HIGH: 'border-red-500/30 bg-red-500/10 text-red-400',
 };
 
+const VARIABLES: Array<{ name: string; label: string }> = [
+  { name: 'nome', label: 'Nome do cliente' },
+  { name: 'vencimento', label: 'Data de vencimento' },
+  { name: 'valor', label: 'Valor' },
+  { name: 'plano', label: 'Plano' },
+  { name: 'usuario', label: 'Usuário' },
+  { name: 'senha', label: 'Senha' },
+  { name: 'link', label: 'Link de pagamento' },
+  { name: 'data', label: 'Data' },
+];
+
 export default function TemplateOptimizerCard({ onUse }: { onUse: (t: OptimizedTemplate) => void }) {
   const { toast } = useToast();
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<OptimizedTemplate | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const insertVariable = (name: string) => {
+    const token = `{{${name}}}`;
+    const el = textareaRef.current;
+    if (!el) {
+      setMessage(m => m + token);
+      return;
+    }
+    const start = el.selectionStart ?? message.length;
+    const end = el.selectionEnd ?? message.length;
+    const next = message.slice(0, start) + token + message.slice(end);
+    setMessage(next);
+    requestAnimationFrame(() => {
+      el.focus();
+      el.setSelectionRange(start + token.length, start + token.length);
+    });
+  };
 
   const optimize = async () => {
     if (!message.trim()) return;
     setLoading(true);
     setResult(null);
+    setNotice(null);
     try {
       const { data, error } = await supabase.functions.invoke('template-optimizer', {
         body: { message },
@@ -43,6 +74,7 @@ export default function TemplateOptimizerCard({ onUse }: { onUse: (t: OptimizedT
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
       setResult(data.template as OptimizedTemplate);
+      if (data?.notice) setNotice(data.notice as string);
     } catch (e: any) {
       toast({ title: 'Não foi possível otimizar', description: e.message, variant: 'destructive' });
     } finally {
@@ -62,17 +94,42 @@ export default function TemplateOptimizerCard({ onUse }: { onUse: (t: OptimizedT
       </CardHeader>
       <CardContent className="space-y-3">
         <Textarea
+          ref={textareaRef}
           rows={4}
-          placeholder="Ex.: Oi João! Sua assinatura vence dia 10/08. Renove agora e continue assistindo sem interrupção."
+          placeholder="Ex.: Olá {{nome}}, sua assinatura vence em {{vencimento}}."
           value={message}
           onChange={e => setMessage(e.target.value)}
         />
+
+        <div className="space-y-1.5">
+          <p className="text-[11px] text-muted-foreground">Clique para inserir variáveis na posição do cursor:</p>
+          <div className="flex flex-wrap gap-1.5">
+            {VARIABLES.map(v => (
+              <button
+                key={v.name}
+                type="button"
+                title={v.label}
+                onClick={() => insertVariable(v.name)}
+                className="inline-flex items-center gap-1 rounded-full border border-violet-500/30 bg-violet-500/10 px-2.5 py-1 text-[11px] font-mono text-violet-300 transition hover:bg-violet-500/20"
+              >
+                <Plus className="w-3 h-3" />{`{{${v.name}}}`}
+              </button>
+            ))}
+          </div>
+        </div>
+
         <div className="flex justify-end">
           <Button onClick={optimize} disabled={loading || !message.trim()}>
             {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Wand2 className="w-4 h-4 mr-2" />}
             Otimizar mensagem
           </Button>
         </div>
+
+        {notice && (
+          <div className="flex items-start gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-300">
+            <Info className="w-3.5 h-3.5 mt-0.5 shrink-0" /> <span>{notice}</span>
+          </div>
+        )}
 
         {result && (
           <div className="rounded-2xl border border-border/60 bg-background/60 p-4 space-y-3">
