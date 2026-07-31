@@ -5,7 +5,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { Loader2, Sparkles, ShieldCheck, AlertTriangle, Wand2, Plus, Info } from 'lucide-react';
+import { Loader2, Sparkles, ShieldCheck, AlertTriangle, Wand2, Plus, Info, Image as ImageIcon } from 'lucide-react';
 
 export interface OptimizedTemplate {
   name: string;
