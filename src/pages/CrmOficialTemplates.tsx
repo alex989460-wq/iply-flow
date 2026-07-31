@@ -17,6 +17,7 @@ import { AlertCircle, Edit, Eye, FileText, Loader2, Plus, RefreshCw, Search, Sen
 import { cn } from '@/lib/utils';
 import { normalizeWhatsAppPhone } from '@/lib/phone';
 import TemplateBuilderDialog from '@/components/crm/TemplateBuilderDialog';
+import TemplateOptimizerCard, { type OptimizedTemplate } from '@/components/crm/TemplateOptimizerCard';
 
 interface TemplateComponent {
   type: string;
