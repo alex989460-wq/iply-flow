@@ -11,6 +11,7 @@ export interface OptimizedTemplate {
   name: string;
   category: string;
   language: string;
+  header?: { type: 'NONE' | 'TEXT' | 'IMAGE'; text?: string };
   body: string;
   footer?: string;
   buttons?: Array<{ type: string; text: string; url?: string; phone?: string }>;
@@ -19,6 +20,19 @@ export interface OptimizedTemplate {
   reasoning?: string;
   warnings?: string[];
 }
+
+// Renderiza a formatação do WhatsApp (*negrito*, _itálico_) e destaca variáveis
+function renderWhatsApp(text: string) {
+  const parts = String(text).split(/(\*[^*\n]+\*|_[^_\n]+_|\{\{[a-zA-Z0-9_]+\}\})/g);
+  return parts.map((p, i) => {
+    if (/^\*[^*\n]+\*$/.test(p)) return <strong key={i}>{p.slice(1, -1)}</strong>;
+    if (/^_[^_\n]+_$/.test(p)) return <em key={i}>{p.slice(1, -1)}</em>;
+    if (/^\{\{[a-zA-Z0-9_]+\}\}$/.test(p))
+      return <span key={i} className="rounded bg-violet-500/20 px-1 font-mono text-[11px] text-violet-300">{p}</span>;
+    return <span key={i}>{p}</span>;
+  });
+}
+
 
 const riskStyle: Record<string, string> = {
   LOW: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400',
