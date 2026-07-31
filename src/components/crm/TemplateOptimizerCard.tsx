@@ -5,12 +5,13 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { Loader2, Sparkles, ShieldCheck, AlertTriangle, Wand2, Plus, Info } from 'lucide-react';
+import { Loader2, Sparkles, ShieldCheck, AlertTriangle, Wand2, Plus, Info, Image as ImageIcon } from 'lucide-react';
 
 export interface OptimizedTemplate {
   name: string;
   category: string;
   language: string;
+  header?: { type: 'NONE' | 'TEXT' | 'IMAGE'; text?: string };
   body: string;
   footer?: string;
   buttons?: Array<{ type: string; text: string; url?: string; phone?: string }>;
@@ -19,6 +20,19 @@ export interface OptimizedTemplate {
   reasoning?: string;
   warnings?: string[];
 }
+
+// Renderiza a formatação do WhatsApp (*negrito*, _itálico_) e destaca variáveis
+function renderWhatsApp(text: string) {
+  const parts = String(text).split(/(\*[^*\n]+\*|_[^_\n]+_|\{\{[a-zA-Z0-9_]+\}\})/g);
+  return parts.map((p, i) => {
+    if (/^\*[^*\n]+\*$/.test(p)) return <strong key={i}>{p.slice(1, -1)}</strong>;
+    if (/^_[^_\n]+_$/.test(p)) return <em key={i}>{p.slice(1, -1)}</em>;
+    if (/^\{\{[a-zA-Z0-9_]+\}\}$/.test(p))
+      return <span key={i} className="rounded bg-violet-500/20 px-1 font-mono text-[11px] text-violet-300">{p}</span>;
+    return <span key={i}>{p}</span>;
+  });
+}
+
 
 const riskStyle: Record<string, string> = {
   LOW: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400',
@@ -145,10 +159,19 @@ export default function TemplateOptimizerCard({ onUse }: { onUse: (t: OptimizedT
               <span className="text-xs text-muted-foreground font-mono">{result.name}</span>
             </div>
 
-            <div className="rounded-xl border border-border/40 bg-card/60 p-3 text-sm whitespace-pre-wrap">
-              {result.body}
-              {result.footer && <div className="mt-2 text-xs text-muted-foreground">{result.footer}</div>}
+            <div className="rounded-xl border border-emerald-500/20 bg-[#0b1a12] p-3 text-sm shadow-inner">
+              {result.header?.type === 'IMAGE' && (
+                <div className="mb-2 flex h-24 items-center justify-center rounded-lg border border-dashed border-emerald-500/30 bg-emerald-500/5 text-[11px] text-emerald-300/80">
+                  <ImageIcon className="mr-1.5 h-4 w-4" /> Cabeçalho com mídia — anexe a imagem no construtor
+                </div>
+              )}
+              {result.header?.type === 'TEXT' && result.header.text && (
+                <div className="mb-1.5 text-sm font-semibold text-emerald-300">{result.header.text}</div>
+              )}
+              <div className="whitespace-pre-wrap leading-relaxed text-foreground/90">{renderWhatsApp(result.body)}</div>
+              {result.footer && <div className="mt-2 text-[11px] text-muted-foreground">{result.footer}</div>}
             </div>
+
 
             {!!result.buttons?.length && (
               <div className="flex flex-wrap gap-2">
