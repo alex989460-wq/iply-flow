@@ -39,9 +39,14 @@ Sua tarefa: transformar a mensagem crua do usuário em um template PROFISSIONAL,
 - Botões só se transacionais (URL de pagamento/2ª via ou QUICK_REPLY de confirmação).
 - Nome do template: snake_case, minúsculo, sem acentos, até 60 caracteres, descritivo (ex.: aviso_vencimento_assinatura).
 
+## Fidelidade ao texto original (REGRA MAIS IMPORTANTE)
+- NUNCA invente outro assunto. O template deve tratar EXATAMENTE do mesmo assunto da mensagem original.
+- Se a mensagem fala de assinatura inativa/retorno, o template fala disso. Se fala de vencimento, fala de vencimento. Jamais troque o tema.
+- Reaproveite as frases do usuário sempre que possível, apenas neutralizando termos promocionais.
+
 ## Cabeçalho
 - Sugira um header. Use "TEXT" com um título curto (máx 60 caracteres, pode ter 1 emoji), ou "IMAGE" quando a mensagem ficar melhor com uma arte (confirmações de pagamento, comprovantes, avisos visuais).
-- Se sugerir IMAGE, explique no reasoning que o usuário deve anexar a imagem no construtor.
+- Sempre devolva também "imagePrompt": uma descrição curta em português da arte ideal para o cabeçalho (será usada para gerar a imagem automaticamente).
 
 Responda SOMENTE com JSON válido, sem markdown, no formato:
 {
@@ -49,6 +54,7 @@ Responda SOMENTE com JSON válido, sem markdown, no formato:
   "category": "UTILITY",
   "language": "pt_BR",
   "header": {"type":"NONE|TEXT|IMAGE","text":"string quando TEXT"},
+  "imagePrompt": "descrição da arte do cabeçalho",
   "body": "string com {{variaveis}}, emojis e quebras de linha",
   "footer": "string ou vazio",
   "buttons": [{"type":"URL|QUICK_REPLY|PHONE_NUMBER","text":"string","url":"opcional","phone":"opcional"}],
@@ -57,6 +63,7 @@ Responda SOMENTE com JSON válido, sem markdown, no formato:
   "reasoning": "explicação curta em português do que foi alterado e por quê",
   "warnings": ["itens da mensagem original que seriam classificados como MARKETING"]
 }`;
+
 
 
 const MARKETING_TERMS = [
@@ -73,6 +80,9 @@ function slug(s: string) {
 
 const EXAMPLES: Record<string, string> = {
   nome: 'João Silva',
+  name: 'João Silva',
+  cliente: 'João Silva',
+
   vencimento: '15/08/2026',
   data: '15/08/2026',
   valor: '49,90',
@@ -96,57 +106,113 @@ const FIELD_HINTS: Array<{ key: string; emoji: string; label: string; terms: str
   { key: 'pedido', emoji: '🧾', label: 'Pedido', terms: ['pedido', 'protocolo', 'order'] },
 ];
 
-// Fallback determinístico (sem IA): monta um template UTILITY rico e estruturado.
+const INTENTS: Array<{ key: string; name: string; header: string; terms: string[] }> = [
+  { key: 'pagamento', name: 'confirmacao_pagamento', header: '✅ Pagamento confirmado', terms: ['pagamento', 'comprovante', 'pago', 'aprovad'] },
+  { key: 'vencimento', name: 'aviso_vencimento_assinatura', header: '📅 Aviso de vencimento', terms: ['vencimento', 'vence', 'expira', 'validade'] },
+  { key: 'renovacao', name: 'renovacao_assinatura', header: '🔄 Renovação da assinatura', terms: ['renov'] },
+  { key: 'reativacao', name: 'status_assinatura_inativa', header: '📄 Status da sua assinatura', terms: ['inativa', 'inativo', 'voltar', 'retorno', 'reativ', 'cancelad'] },
+  { key: 'acesso', name: 'dados_de_acesso', header: '🔐 Dados de acesso', terms: ['login', 'usuario', 'usuário', 'senha', 'acesso'] },
+  { key: 'ativacao', name: 'ativacao_do_aplicativo', header: '📱 Ativação do aplicativo', terms: ['ativa', 'aplicativo', 'app', 'mac'] },
+];
+
+// Fallback determinístico (sem IA): PRESERVA a mensagem original, apenas normaliza
+// formatação, garante saudação com variável e adiciona rodapé neutro.
 function localOptimize(message: string) {
   const original = message.trim();
   const lower = original.toLowerCase();
   const warnings = MARKETING_TERMS.filter(t => lower.includes(t))
-    .map(t => `Termo promocional detectado: "${t}"`);
+    .map(t => `Termo promocional detectado: "${t}" — pode fazer a Meta classificar como MARKETING.`);
 
-  const existing = Array.from(new Set([...original.matchAll(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g)].map(m => m[1])));
+  // normaliza formatação para o padrão WhatsApp e limpa markdown
+  let body = original
+    .replace(/\*\*/g, '*')
+    .replace(/^#{1,6}\s*/gm, '')
+    .replace(/\r/g, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
 
-  // campos detectados pelo texto + variáveis já escritas pelo usuário
-  const fields = FIELD_HINTS.filter(f => existing.includes(f.key) || f.terms.some(t => lower.includes(t)));
-  if (!fields.length) {
-    fields.push(FIELD_HINTS[0], FIELD_HINTS[1], FIELD_HINTS[4]);
+  // variáveis já usadas pelo usuário (preservadas como estão)
+  const existing = Array.from(new Set([...body.matchAll(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g)].map(m => m[1])));
+
+  // garante saudação personalizada quando não houver nenhuma variável de nome
+  const hasName = existing.some(v => /^(nome|name|cliente)$/i.test(v));
+  if (!hasName) {
+    body = `Olá, *{{nome}}*! 👋\n\n${body}`;
+    existing.unshift('nome');
   }
 
-  const isPayment = /pag|comprovante|confirma|aprovad|renov/.test(lower);
-  const intro = isPayment
-    ? 'Recebemos a confirmação do seu pagamento. ✅ Seguem abaixo os dados da sua assinatura:'
-    : 'Passando um aviso sobre a sua assinatura. Seguem abaixo os dados atualizados:';
+  // regra da Meta: corpo não pode começar nem terminar com variável
+  if (/^\s*\{\{/.test(body)) body = `Olá! ${body}`;
+  if (/\}\}\s*$/.test(body)) body = `${body}\n\nQualquer dúvida, estamos à disposição. 🙏`;
 
-  const lines = fields.map(f => `${f.emoji} *${f.label}:* {{${f.key}}}`);
+  body = body.slice(0, 1024);
 
-  const extras = existing.filter(v => v !== 'nome' && !fields.some(f => f.key === v));
-  for (const v of extras) lines.push(`• *${v.replace(/_/g, ' ')}:* {{${v}}}`);
-
-  let body = [
-    'Olá, *{{nome}}*! 👋',
-    '',
-    intro,
-    '',
-    lines.join('\n'),
-    '',
-    'Qualquer dúvida, estamos à disposição. 🙏',
-  ].join('\n').slice(0, 1024);
-
-  const vars = ['nome', ...fields.map(f => f.key), ...extras];
+  const intent = INTENTS.find(i => i.terms.some(t => lower.includes(t)));
 
   return {
-    name: slug(isPayment ? 'confirmacao_pagamento_assinatura' : 'aviso_vencimento_assinatura'),
+    name: slug(intent?.name || 'mensagem_transacional'),
     category: 'UTILITY',
     language: 'pt_BR',
-    header: { type: 'TEXT', text: isPayment ? '✅ Pagamento confirmado' : '📅 Aviso de vencimento' },
+    header: { type: 'TEXT', text: intent?.header || '📄 Aviso importante' },
     body,
     footer: 'Mensagem automática do sistema',
     buttons: [],
-    variables: Array.from(new Set(vars)).map(v => ({ name: v, example: EXAMPLES[v] || '' })),
+    variables: Array.from(new Set(existing)).map(v => ({ name: v, example: EXAMPLES[v] || EXAMPLES[v.toLowerCase()] || 'Exemplo' })),
     risk: warnings.length ? 'MEDIUM' : 'LOW',
-    reasoning: 'Versão gerada localmente (IA indisponível): montei um template UTILITY estruturado, com saudação, bloco de dados em lista e variáveis detectadas automaticamente.',
+    reasoning: 'Versão gerada localmente (IA indisponível): mantive integralmente o seu texto, ajustei a formatação para o padrão do WhatsApp, garanti a saudação com variável e adicionei um rodapé neutro.',
     warnings,
+    imagePrompt: `Banner minimalista para mensagem de WhatsApp sobre: ${intent?.header || 'aviso ao cliente'}`,
   };
 }
+
+// Gera uma imagem de cabeçalho e devolve a URL pública (bucket reseller-assets)
+async function generateHeaderImage(prompt: string) {
+  const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
+  if (!LOVABLE_API_KEY) throw new Error('IA indisponível para gerar imagem.');
+
+  const res = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: 'google/gemini-2.5-flash-image',
+      messages: [{
+        role: 'user',
+        content: `Crie um banner horizontal (1200x628) moderno e limpo para o cabeçalho de uma mensagem de WhatsApp de uma empresa de streaming/IPTV. Tema: ${prompt}. Estilo: fundo escuro com gradiente, ícones simples, sem texto legível, sem logotipos, visual corporativo e discreto.`,
+      }],
+      modalities: ['image', 'text'],
+    }),
+  });
+
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`Geração de imagem falhou [${res.status}]: ${body.slice(0, 300)}`);
+  }
+
+  const data = await res.json();
+  const url: string | undefined = data?.choices?.[0]?.message?.images?.[0]?.image_url?.url;
+  if (!url || !url.startsWith('data:')) throw new Error('A IA não retornou imagem.');
+
+  const base64 = url.split(',')[1];
+  const bytes = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
+
+  const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
+  const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+  const path = `template-headers/${crypto.randomUUID()}.png`;
+
+  const up = await fetch(`${SUPABASE_URL}/storage/v1/object/reseller-assets/${path}`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${SERVICE_KEY}`,
+      'Content-Type': 'image/png',
+      'x-upsert': 'true',
+    },
+    body: bytes,
+  });
+  if (!up.ok) throw new Error(`Falha ao salvar imagem: ${(await up.text()).slice(0, 200)}`);
+
+  return `${SUPABASE_URL}/storage/v1/object/public/reseller-assets/${path}`;
+}
+
 
 
 Deno.serve(async (req) => {
@@ -156,12 +222,24 @@ Deno.serve(async (req) => {
     new Response(JSON.stringify(payload), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 
   try {
-    const { message, hint } = await req.json();
+    const { message, hint, action, imagePrompt } = await req.json();
+
+    if (action === 'generate-image') {
+      try {
+        const imageUrl = await generateHeaderImage(String(imagePrompt || 'aviso ao cliente').slice(0, 400));
+        return ok({ success: true, imageUrl });
+      } catch (imgErr) {
+        console.error('generate-image error:', imgErr);
+        return ok({ success: false, error: (imgErr as Error).message });
+      }
+    }
+
     if (!message || typeof message !== 'string' || !message.trim()) {
       return new Response(JSON.stringify({ error: 'Mensagem obrigatória' }), {
         status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
+
 
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
     if (!LOVABLE_API_KEY) {
@@ -233,6 +311,8 @@ Deno.serve(async (req) => {
       type: ['TEXT', 'IMAGE'].includes(hType) ? hType : 'NONE',
       text: String(parsed?.header?.text || '').slice(0, 60),
     };
+    parsed.imagePrompt = String(parsed.imagePrompt || parsed?.header?.text || 'aviso ao cliente').slice(0, 400);
+
 
     // garante que TODAS as variáveis do corpo tenham exemplo
     const used = Array.from(new Set([...parsed.body.matchAll(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g)].map((m: any) => m[1])));

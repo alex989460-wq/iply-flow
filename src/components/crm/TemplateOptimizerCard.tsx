@@ -12,6 +12,8 @@ export interface OptimizedTemplate {
   category: string;
   language: string;
   header?: { type: 'NONE' | 'TEXT' | 'IMAGE'; text?: string };
+  imagePrompt?: string;
+  imageUrl?: string;
   body: string;
   footer?: string;
   buttons?: Array<{ type: string; text: string; url?: string; phone?: string }>;
@@ -20,6 +22,7 @@ export interface OptimizedTemplate {
   reasoning?: string;
   warnings?: string[];
 }
+
 
 // Renderiza a formatação do WhatsApp (*negrito*, _itálico_) e destaca variáveis
 function renderWhatsApp(text: string) {
@@ -55,6 +58,8 @@ export default function TemplateOptimizerCard({ onUse }: { onUse: (t: OptimizedT
   const { toast } = useToast();
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
+  const [imgLoading, setImgLoading] = useState(false);
+
   const [result, setResult] = useState<OptimizedTemplate | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -95,6 +100,25 @@ export default function TemplateOptimizerCard({ onUse }: { onUse: (t: OptimizedT
       setLoading(false);
     }
   };
+
+  const generateImage = async () => {
+    if (!result) return;
+    setImgLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('template-optimizer', {
+        body: { action: 'generate-image', imagePrompt: result.imagePrompt || result.header?.text || result.name },
+      });
+      if (error) throw error;
+      if (!data?.success) throw new Error(data?.error || 'Falha ao gerar imagem');
+      setResult(r => (r ? { ...r, imageUrl: data.imageUrl, header: { type: 'IMAGE', text: r.header?.text } } : r));
+      toast({ title: 'Imagem gerada', description: 'Ela será anexada ao cabeçalho do template.' });
+    } catch (e: any) {
+      toast({ title: 'Não foi possível gerar a imagem', description: e.message, variant: 'destructive' });
+    } finally {
+      setImgLoading(false);
+    }
+  };
+
 
   return (
     <Card className="border-violet-500/25 bg-gradient-to-br from-violet-500/10 via-card to-card">
@@ -160,11 +184,14 @@ export default function TemplateOptimizerCard({ onUse }: { onUse: (t: OptimizedT
             </div>
 
             <div className="rounded-xl border border-emerald-500/20 bg-[#0b1a12] p-3 text-sm shadow-inner">
-              {result.header?.type === 'IMAGE' && (
+              {result.imageUrl ? (
+                <img src={result.imageUrl} alt="Cabeçalho do template" className="mb-2 w-full rounded-lg object-cover" />
+              ) : result.header?.type === 'IMAGE' ? (
                 <div className="mb-2 flex h-24 items-center justify-center rounded-lg border border-dashed border-emerald-500/30 bg-emerald-500/5 text-[11px] text-emerald-300/80">
-                  <ImageIcon className="mr-1.5 h-4 w-4" /> Cabeçalho com mídia — anexe a imagem no construtor
+                  <ImageIcon className="mr-1.5 h-4 w-4" /> Cabeçalho com mídia — gere a imagem abaixo
                 </div>
-              )}
+              ) : null}
+
               {result.header?.type === 'TEXT' && result.header.text && (
                 <div className="mb-1.5 text-sm font-semibold text-emerald-300">{result.header.text}</div>
               )}
@@ -200,10 +227,15 @@ export default function TemplateOptimizerCard({ onUse }: { onUse: (t: OptimizedT
               </div>
             )}
 
-            <div className="flex justify-end gap-2">
+            <div className="flex flex-wrap justify-end gap-2">
+              <Button variant="outline" size="sm" onClick={generateImage} disabled={imgLoading}>
+                {imgLoading ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <ImageIcon className="w-3.5 h-3.5 mr-1.5" />}
+                {result.imageUrl ? 'Gerar outra imagem' : 'Gerar imagem do cabeçalho'}
+              </Button>
               <Button variant="outline" size="sm" onClick={optimize} disabled={loading}>Gerar outra versão</Button>
               <Button size="sm" onClick={() => onUse(result)}>Usar este template</Button>
             </div>
+
           </div>
         )}
       </CardContent>

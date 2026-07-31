@@ -156,8 +156,10 @@ export default function CrmOficialTemplates() {
       name: t.name,
       category: 'UTILITY',
       language: t.language || 'pt_BR',
-      headerType: t.header?.type && t.header.type !== 'NONE' ? t.header.type : 'NONE',
-      headerText: t.header?.type === 'TEXT' ? (t.header.text || '') : '',
+      headerType: t.imageUrl ? 'IMAGE' : (t.header?.type && t.header.type !== 'NONE' ? t.header.type : 'NONE'),
+      headerText: !t.imageUrl && t.header?.type === 'TEXT' ? (t.header.text || '') : '',
+      headerMediaUrl: t.imageUrl || '',
+
 
       body: t.body || '',
       footer: t.footer || '',
