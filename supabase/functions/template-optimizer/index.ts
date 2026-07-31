@@ -296,13 +296,30 @@ function bannerTitle(value: string) {
   const words = clean.split(' ').filter(Boolean);
   let title = '';
   for (const word of words) {
-    if ((title + ' ' + word).trim().length > 30) break;
+    if ((title + ' ' + word).trim().length > 42) break;
     title = `${title} ${word}`.trim();
   }
   return title || 'AVISO IMPORTANTE';
 }
 
-function localBanner(seed: string, text?: string) {
+function wrapBannerTitle(value: string) {
+  const words = bannerTitle(value).split(' ');
+  const lines: string[] = [];
+  let current = '';
+  for (const word of words) {
+    const candidate = `${current} ${word}`.trim();
+    if (candidate.length > 22 && current) {
+      lines.push(current);
+      current = word;
+    } else {
+      current = candidate;
+    }
+  }
+  if (current) lines.push(current);
+  return lines.slice(0, 2);
+}
+
+function localBanner(seed: string, text?: string, style?: string) {
   const W = 1200, H = 628;
   let h = 0;
   for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) >>> 0;
@@ -315,7 +332,8 @@ function localBanner(seed: string, text?: string) {
     { base: [8, 14, 14], blobs: [[45, 212, 191], [34, 197, 94], [14, 165, 233]] },
     { base: [18, 10, 8], blobs: [[251, 146, 60], [244, 63, 94], [168, 85, 247]] },
   ];
-  const pal = palettes[h % palettes.length];
+  const stylePalette: Record<string, number> = { moderno: 0, minimalista: 2, neon: 1, corporativo: 0 };
+  const pal = palettes[stylePalette[String(style || '').toLowerCase()] ?? h % palettes.length];
   const blobs = pal.blobs.map((c, i) => ({
     c,
     x: W * (0.18 + 0.32 * i + rand() * 0.12),
@@ -375,23 +393,33 @@ function localBanner(seed: string, text?: string) {
     }
   }
 
-  // Texto bitmap nítido no fallback, sempre derivado da mensagem do usuário.
-  const title = bannerTitle(text || seed);
-  const scale = title.length > 22 ? 10 : 13;
-  const charW = 6 * scale;
-  const startX = Math.max(100, Math.floor((W - title.length * charW) / 2));
-  const startY = Math.floor((H - 7 * scale) / 2);
-  for (let c = 0; c < title.length; c++) {
-    const glyph = FONT[title[c]];
-    if (!glyph) continue;
-    for (let gy = 0; gy < 7; gy++) for (let gx = 0; gx < 5; gx++) {
-      if (glyph[gy][gx] !== '1') continue;
-      for (let sy = 0; sy < scale; sy++) for (let sx = 0; sx < scale; sx++) {
-        const x = startX + c * charW + gx * scale + sx;
-        const y = startY + gy * scale + sy;
-        if (x < 0 || x >= W || y < 0 || y >= H) continue;
-        const i = (y * W + x) * 3;
-        px[i] = 244; px[i + 1] = 248; px[i + 2] = 255;
+  // Título sempre contido no painel: até duas linhas, escala calculada pela
+  // largura real e margem mínima de 120 px. Isso evita qualquer corte lateral.
+  const lines = wrapBannerTitle(text || seed);
+  const longest = Math.max(...lines.map(line => line.length), 1);
+  const scale = Math.max(6, Math.min(11, Math.floor(900 / (longest * 6))));
+  const lineHeight = 10 * scale;
+  const blockHeight = lines.length * lineHeight - 3 * scale;
+  const firstY = Math.floor((H - blockHeight) / 2);
+
+  for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
+    const title = lines[lineIndex];
+    const charW = 6 * scale;
+    const textWidth = title.length * charW - scale;
+    const startX = Math.max(120, Math.floor((W - textWidth) / 2));
+    const startY = firstY + lineIndex * lineHeight;
+    for (let c = 0; c < title.length; c++) {
+      const glyph = FONT[title[c]];
+      if (!glyph) continue;
+      for (let gy = 0; gy < 7; gy++) for (let gx = 0; gx < 5; gx++) {
+        if (glyph[gy][gx] !== '1') continue;
+        for (let sy = 0; sy < scale; sy++) for (let sx = 0; sx < scale; sx++) {
+          const x = startX + c * charW + gx * scale + sx;
+          const y = startY + gy * scale + sy;
+          if (x < 80 || x >= W - 80 || y < 60 || y >= H - 60) continue;
+          const i = (y * W + x) * 3;
+          px[i] = 244; px[i + 1] = 248; px[i + 2] = 255;
+        }
       }
     }
   }
@@ -556,7 +584,7 @@ Deno.serve(async (req) => {
         console.error('generate-image error:', imgErr);
         // Fallback sem IA: banner gerado localmente (gradiente), sempre funciona
         try {
-          const imageUrl = await uploadHeaderImage(localBanner(seed, String(imageText || seed)));
+          const imageUrl = await uploadHeaderImage(localBanner(seed, String(imageText || seed), String(imageStyle || 'moderno')));
           return ok({
             success: true,
             imageUrl,
