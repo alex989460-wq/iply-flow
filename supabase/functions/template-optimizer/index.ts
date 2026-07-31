@@ -601,8 +601,34 @@ Deno.serve(async (req) => {
     }
     parsed.variables = used.map((n: any) => ({ name: n, example: provided[n] || EXAMPLES[n] || 'Exemplo' }));
 
+    // Modo risco baixo: sanitiza termos promocionais remanescentes e força risk=LOW
+    if (wantLowRisk) {
+      const lowerBody = String(parsed.body).toLowerCase();
+      const leftovers = MARKETING_TERMS.filter(t => lowerBody.includes(t));
+      if (leftovers.length) {
+        const NEUTRAL: Record<string, string> = {
+          'promoção': 'condição', 'promocao': 'condição', 'oferta': 'condição', 'desconto': 'ajuste de valor',
+          'aproveite': 'informamos', 'novidade': 'atualização', 'assine agora': 'realize a contratação',
+          'imperdível': 'disponível', 'imperdivel': 'disponível', 'cupom': 'código', 'grátis': 'sem custo',
+          'gratis': 'sem custo', 'teste gratuito': 'período de teste', 'volte': 'retome',
+          'últimas vagas': 'disponibilidade limitada', 'ultimas vagas': 'disponibilidade limitada',
+          'corra': 'atenção', 'não perca': 'observe', 'nao perca': 'observe', 'exclusivo': 'específico',
+        };
+        let b = String(parsed.body);
+        for (const t of leftovers) {
+          b = b.replace(new RegExp(t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi'), NEUTRAL[t] || '');
+        }
+        parsed.body = b.replace(/\s{2,}/g, ' ').replace(/\n{3,}/g, '\n\n').trim().slice(0, 1024);
+        parsed.warnings = [
+          ...parsed.warnings,
+          ...leftovers.map(t => `Termo promocional "${t}" foi neutralizado para reduzir o risco.`),
+        ];
+      }
+      parsed.footer = parsed.footer || 'Mensagem automática do sistema';
+      parsed.risk = 'LOW';
+    }
 
-    return ok({ success: true, template: parsed });
+    return ok({ success: true, template: parsed, targetRisk: wantLowRisk ? 'LOW' : undefined });
   } catch (e) {
     console.error('template-optimizer error:', e);
     return new Response(JSON.stringify({ error: (e as Error).message }), {
