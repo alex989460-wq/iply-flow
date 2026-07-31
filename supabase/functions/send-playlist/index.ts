@@ -219,7 +219,10 @@ serve(async (req) => {
       }
 
       const jar = new CookieJar();
-      const base = "https://bobplayer.com";
+      const isIbo = provider === "iboplayer";
+      const base = isIbo ? "https://iboplayer.com" : "https://bobplayer.com";
+      const brand = isIbo ? "IBO Player" : "Bob Player";
+      const loginRef = isIbo ? `${base}/device/login` : `${base}/login`;
       const commonB: Record<string, string> = {
         "Content-Type": "application/json",
         Accept: "application/json, text/plain, */*",
@@ -229,7 +232,8 @@ serve(async (req) => {
 
       const loginB = await fetch(`${base}/frontend/device/login`, {
         method: "POST",
-        headers: { ...commonB, Referer: `${base}/login` },
+        headers: { ...commonB, Referer: loginRef },
+
         body: JSON.stringify({
           mac_address: mac,
           device_key: deviceKey,
