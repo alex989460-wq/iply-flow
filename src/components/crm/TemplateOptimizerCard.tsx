@@ -175,7 +175,7 @@ export default function TemplateOptimizerCard({ onUse }: { onUse: (t: OptimizedT
         </div>
 
         <div className="flex justify-end">
-          <Button onClick={optimize} disabled={loading || !message.trim()}>
+          <Button onClick={() => optimize()} disabled={loading || !message.trim()}>
             {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Wand2 className="w-4 h-4 mr-2" />}
             Otimizar mensagem
           </Button>
