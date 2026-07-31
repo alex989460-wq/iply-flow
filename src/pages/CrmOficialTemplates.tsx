@@ -303,6 +303,10 @@ export default function CrmOficialTemplates() {
           ))}
         </div>
 
+        <TemplateOptimizerCard onUse={useOptimized} />
+
+
+
         <Card className="border-emerald-500/20">
           <CardHeader className="flex flex-col md:flex-row md:items-center justify-between gap-3">
             <div>
