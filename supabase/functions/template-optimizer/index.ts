@@ -429,51 +429,56 @@ Deno.serve(async (req) => {
     }
 
 
-    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
-    if (!LOVABLE_API_KEY) {
-      return ok({ success: true, template: localOptimize(message), fallback: true, notice: 'IA indisponível — usei o otimizador local.' });
+    const userPrompt = `Mensagem original:\n"""${message.slice(0, 3000)}"""\n${hint ? `Contexto adicional: ${String(hint).slice(0, 500)}` : ''}\n\nGere o melhor template UTILITY possível: rico, com emojis informativos, *negrito*, bloco de dados em linhas separadas e variáveis criadas automaticamente com exemplos.`;
+
+    // 1) Gemini com a chave própria do projeto (gratuito no free tier)
+    let raw: string | null = await geminiText(SYSTEM, userPrompt);
+
+    // 2) Fallback: Lovable AI Gateway
+    if (!raw) {
+      const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
+      if (!LOVABLE_API_KEY) {
+        return ok({ success: true, template: localOptimize(message), fallback: true, notice: 'IA indisponível — usei o otimizador local.' });
+      }
+
+      let res: Response;
+      try {
+        res = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${LOVABLE_API_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: 'google/gemini-3.6-flash',
+            messages: [
+              { role: 'system', content: SYSTEM },
+              { role: 'user', content: userPrompt },
+            ],
+            temperature: 0.7,
+            response_format: { type: 'json_object' },
+          }),
+        });
+      } catch (netErr) {
+        console.error('AI gateway network error:', netErr);
+        return ok({ success: true, template: localOptimize(message), fallback: true, notice: 'IA indisponível — usei o otimizador local.' });
+      }
+
+      if (!res.ok) {
+        const body = await res.text();
+        console.error(`AI gateway falhou [${res.status}]: ${body}`);
+        const notice = res.status === 429
+          ? 'Limite de requisições da IA atingido — usei o otimizador local.'
+          : res.status === 402
+            ? 'Créditos de IA esgotados no workspace — usei o otimizador local. Adicione créditos em Settings → Workspace → Usage para usar a IA.'
+            : `IA indisponível (${res.status}) — usei o otimizador local.`;
+        return ok({ success: true, template: localOptimize(message), fallback: true, notice });
+      }
+
+      const data = await res.json();
+      raw = data?.choices?.[0]?.message?.content ?? '{}';
     }
 
-    let res: Response;
-    try {
-      res = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${LOVABLE_API_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: 'google/gemini-3.6-flash',
-          messages: [
-            { role: 'system', content: SYSTEM },
-            {
-              role: 'user',
-              content: `Mensagem original:\n"""${message.slice(0, 3000)}"""\n${hint ? `Contexto adicional: ${String(hint).slice(0, 500)}` : ''}\n\nGere o melhor template UTILITY possível: rico, com emojis informativos, *negrito*, bloco de dados em linhas separadas e variáveis criadas automaticamente com exemplos.`,
-            },
-          ],
-          temperature: 0.7,
-          response_format: { type: 'json_object' },
-        }),
-
-      });
-    } catch (netErr) {
-      console.error('AI gateway network error:', netErr);
-      return ok({ success: true, template: localOptimize(message), fallback: true, notice: 'IA indisponível — usei o otimizador local.' });
-    }
-
-    if (!res.ok) {
-      const body = await res.text();
-      console.error(`AI gateway falhou [${res.status}]: ${body}`);
-      const notice = res.status === 429
-        ? 'Limite de requisições da IA atingido — usei o otimizador local.'
-        : res.status === 402
-          ? 'Créditos de IA esgotados no workspace — usei o otimizador local. Adicione créditos em Settings → Workspace → Usage para usar a IA.'
-          : `IA indisponível (${res.status}) — usei o otimizador local.`;
-      return ok({ success: true, template: localOptimize(message), fallback: true, notice });
-    }
-
-    const data = await res.json();
-    const raw = data?.choices?.[0]?.message?.content ?? '{}';
     let parsed: any;
     try {
       parsed = JSON.parse(raw);
