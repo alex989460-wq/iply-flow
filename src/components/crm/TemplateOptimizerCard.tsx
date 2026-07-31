@@ -12,6 +12,8 @@ export interface OptimizedTemplate {
   category: string;
   language: string;
   header?: { type: 'NONE' | 'TEXT' | 'IMAGE'; text?: string };
+  imagePrompt?: string;
+  imageUrl?: string;
   body: string;
   footer?: string;
   buttons?: Array<{ type: string; text: string; url?: string; phone?: string }>;
@@ -20,6 +22,7 @@ export interface OptimizedTemplate {
   reasoning?: string;
   warnings?: string[];
 }
+
 
 // Renderiza a formatação do WhatsApp (*negrito*, _itálico_) e destaca variáveis
 function renderWhatsApp(text: string) {
