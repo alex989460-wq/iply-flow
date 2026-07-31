@@ -491,10 +491,13 @@ Deno.serve(async (req) => {
     }
 
 
-    const userPrompt = `Mensagem original:\n"""${message.slice(0, 3000)}"""\n${hint ? `Contexto adicional: ${String(hint).slice(0, 500)}` : ''}\n\nReescreva ESTA mensagem (mesmo assunto, mesmas frases sempre que possível) em um template UTILITY bem formatado. NÃO mude o tema, NÃO invente bloco de dados (usuário/plano/servidor/valor) que não esteja no texto acima. Apenas neutralize termos promocionais, formate bem e adicione saudação com {{nome}} e rodapé neutro.`;
+    const wantLowRisk = String(targetRisk || '').toUpperCase() === 'LOW';
+    const systemPrompt = wantLowRisk ? SYSTEM + LOW_RISK_RULES : SYSTEM;
+
+    const userPrompt = `Mensagem original:\n"""${message.slice(0, 3000)}"""\n${hint ? `Contexto adicional: ${String(hint).slice(0, 500)}` : ''}\n\nReescreva ESTA mensagem (mesmo assunto, mesmas frases sempre que possível) em um template UTILITY bem formatado. NÃO mude o tema, NÃO invente bloco de dados (usuário/plano/servidor/valor) que não esteja no texto acima. Apenas neutralize termos promocionais, formate bem e adicione saudação com {{nome}} e rodapé neutro.${wantLowRisk ? '\n\nATENÇÃO: gere obrigatoriamente uma versão de RISCO BAIXO (LOW), eliminando todo termo promocional.' : ''}`;
 
     // 1) Gemini com a chave própria do projeto (gratuito no free tier)
-    let raw: string | null = await geminiText(SYSTEM, userPrompt);
+    let raw: string | null = await geminiText(systemPrompt, userPrompt);
 
     // 2) Fallback: Lovable AI Gateway
     if (!raw) {
