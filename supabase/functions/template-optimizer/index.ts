@@ -224,8 +224,24 @@ Deno.serve(async (req) => {
     parsed.language = parsed.language || 'pt_BR';
     parsed.name = slug(parsed.name);
     parsed.buttons = Array.isArray(parsed.buttons) ? parsed.buttons : [];
-    parsed.variables = Array.isArray(parsed.variables) ? parsed.variables : [];
     parsed.warnings = Array.isArray(parsed.warnings) ? parsed.warnings : [];
+    parsed.body = String(parsed.body).replace(/\*\*/g, '*').slice(0, 1024);
+
+    // header normalizado
+    const hType = String(parsed?.header?.type || 'NONE').toUpperCase();
+    parsed.header = {
+      type: ['TEXT', 'IMAGE'].includes(hType) ? hType : 'NONE',
+      text: String(parsed?.header?.text || '').slice(0, 60),
+    };
+
+    // garante que TODAS as variáveis do corpo tenham exemplo
+    const used = Array.from(new Set([...parsed.body.matchAll(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g)].map((m: any) => m[1])));
+    const provided: Record<string, string> = {};
+    if (Array.isArray(parsed.variables)) {
+      for (const v of parsed.variables) if (v?.name) provided[String(v.name)] = String(v.example || '');
+    }
+    parsed.variables = used.map((n: any) => ({ name: n, example: provided[n] || EXAMPLES[n] || 'Exemplo' }));
+
 
     return ok({ success: true, template: parsed });
   } catch (e) {
