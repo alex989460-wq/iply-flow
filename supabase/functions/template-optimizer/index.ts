@@ -394,8 +394,23 @@ async function geminiImage(prompt: string): Promise<Uint8Array | null> {
   return null;
 }
 
-async function generateHeaderImage(prompt: string) {
-  const fullPrompt = `Crie um banner horizontal (1200x628) moderno e limpo para o cabeçalho de uma mensagem de WhatsApp de uma empresa de streaming/IPTV. Tema: ${prompt}. Estilo: fundo escuro com gradiente, ícones simples, sem texto legível, sem logotipos, visual corporativo e discreto.`;
+const IMAGE_STYLES: Record<string, string> = {
+  moderno: 'design 3D moderno, mesh gradient vibrante, formas geométricas flutuantes com vidro fosco (glassmorphism), iluminação volumétrica suave, profundidade e sombras realistas',
+  minimalista: 'minimalismo premium, muito espaço negativo, fundo escuro sólido com um único gradiente sutil, ícone linear fino centralizado',
+  neon: 'estética cyber neon, linhas de luz brilhantes, reflexos, fundo escuro profundo com brilho colorido difuso',
+  corporativo: 'visual corporativo elegante, gradiente azul/verde escuro, formas suaves, aparência de aplicativo financeiro premium',
+};
+
+function buildImagePrompt(prompt: string, style?: string) {
+  const s = IMAGE_STYLES[String(style || 'moderno').toLowerCase()] || IMAGE_STYLES.moderno;
+  return `Banner horizontal 1200x628 de altíssima qualidade para o cabeçalho de uma mensagem de WhatsApp de uma empresa de streaming/IPTV.
+Tema visual: ${prompt}.
+Estilo: ${s}. Paleta escura sofisticada com acentos luminosos, composição equilibrada, acabamento profissional 4K, renderização nítida.
+Regras obrigatórias: NENHUM texto, NENHUMA letra, NENHUM número, NENHUM logotipo, NENHUMA marca d'água. Apenas arte abstrata/iconográfica. Sem pessoas reais.`;
+}
+
+async function generateHeaderImage(prompt: string, style?: string) {
+  const fullPrompt = buildImagePrompt(prompt, style);
 
   const direct = await geminiImage(fullPrompt);
   if (direct) return await uploadHeaderImage(direct);
@@ -403,20 +418,16 @@ async function generateHeaderImage(prompt: string) {
   const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
   if (!LOVABLE_API_KEY) throw new Error('IA indisponível para gerar imagem.');
 
-
-
   const res = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
     method: 'POST',
     headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      model: 'google/gemini-2.5-flash-image',
-      messages: [{
-        role: 'user',
-        content: `Crie um banner horizontal (1200x628) moderno e limpo para o cabeçalho de uma mensagem de WhatsApp de uma empresa de streaming/IPTV. Tema: ${prompt}. Estilo: fundo escuro com gradiente, ícones simples, sem texto legível, sem logotipos, visual corporativo e discreto.`,
-      }],
+      model: 'google/gemini-3.1-flash-image',
+      messages: [{ role: 'user', content: fullPrompt }],
       modalities: ['image', 'text'],
     }),
   });
+
 
   if (!res.ok) {
     const body = await res.text();
