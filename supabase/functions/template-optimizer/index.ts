@@ -492,6 +492,25 @@ Deno.serve(async (req) => {
       return ok({ success: true, template: localOptimize(message), fallback: true, notice: 'A IA não retornou um template válido — usei o otimizador local.' });
     }
 
+    // Guarda de fidelidade: se a IA fugiu do assunto original, usa o otimizador local
+    const words = (s: string) => new Set(
+      String(s).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+        .replace(/\{\{[^}]*\}\}/g, ' ').split(/[^a-z0-9]+/).filter(w => w.length > 3)
+    );
+    const origWords = words(message);
+    const genWords = words(parsed.body);
+    let shared = 0;
+    origWords.forEach(w => { if (genWords.has(w)) shared++; });
+    const fidelity = origWords.size ? shared / origWords.size : 1;
+    if (origWords.size >= 6 && fidelity < 0.4) {
+      return ok({
+        success: true,
+        template: localOptimize(message),
+        fallback: true,
+        notice: 'A IA fugiu do assunto da sua mensagem — mantive o seu texto original, apenas formatado no padrão UTILITY.',
+      });
+    }
+
     parsed.category = 'UTILITY';
     parsed.language = parsed.language || 'pt_BR';
     parsed.name = slug(parsed.name);
