@@ -479,13 +479,15 @@ Deno.serve(async (req) => {
       raw = data?.choices?.[0]?.message?.content ?? '{}';
     }
 
+    const rawText = raw ?? '{}';
     let parsed: any;
     try {
-      parsed = JSON.parse(raw);
+      parsed = JSON.parse(rawText);
     } catch {
-      const m = raw.match(/\{[\s\S]*\}/);
+      const m = rawText.match(/\{[\s\S]*\}/);
       parsed = m ? JSON.parse(m[0]) : {};
     }
+
 
     if (!parsed?.body) {
       return ok({ success: true, template: localOptimize(message), fallback: true, notice: 'A IA não retornou um template válido — usei o otimizador local.' });
