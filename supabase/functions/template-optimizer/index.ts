@@ -80,6 +80,9 @@ function slug(s: string) {
 
 const EXAMPLES: Record<string, string> = {
   nome: 'João Silva',
+  name: 'João Silva',
+  cliente: 'João Silva',
+
   vencimento: '15/08/2026',
   data: '15/08/2026',
   valor: '49,90',
