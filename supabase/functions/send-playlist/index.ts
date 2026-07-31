@@ -246,7 +246,7 @@ serve(async (req) => {
       if (!loginB.ok || loginBJson?.status !== "success") {
         return new Response(
           JSON.stringify({
-            error: loginBJson?.message || `Falha ao autenticar no Bob Player (HTTP ${loginB.status})`,
+            error: loginBJson?.message || `Falha ao autenticar no ${brand} (HTTP ${loginB.status})`,
           }),
           { status: 401, headers: jsonHeaders },
         );
@@ -267,7 +267,7 @@ serve(async (req) => {
           username: "",
           password: "",
           playlist_type: "general",
-          protect: pin ? 1 : 0,
+          protect: isIbo ? (pin ? "true" : "false") : (pin ? 1 : 0),
           xml_url: epgUrlB,
           pin: pin,
         }),
@@ -277,9 +277,9 @@ serve(async (req) => {
         return new Response(
           JSON.stringify({
             success: true,
-            provider: "bobplayer",
+            provider,
             mac,
-            message: saveBJson?.msg || `Lista "${name}" enviada para o Bob Player (${mac})`,
+            message: saveBJson?.msg || `Lista "${name}" enviada para o ${brand} (${mac})`,
           }),
           { headers: jsonHeaders },
         );
@@ -287,8 +287,9 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({
           success: false,
-          error: saveBJson?.msg || saveBJson?.message || `Erro HTTP ${saveB.status} ao salvar a lista no Bob Player`,
+          error: saveBJson?.msg || saveBJson?.message || `Erro HTTP ${saveB.status} ao salvar a lista no ${brand}`,
         }),
+
         { status: 502, headers: jsonHeaders },
       );
     }
