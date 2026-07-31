@@ -182,11 +182,13 @@ Deno.serve(async (req) => {
             { role: 'system', content: SYSTEM },
             {
               role: 'user',
-              content: `Mensagem original:\n"""${message.slice(0, 3000)}"""\n${hint ? `Contexto adicional: ${String(hint).slice(0, 500)}` : ''}`,
+              content: `Mensagem original:\n"""${message.slice(0, 3000)}"""\n${hint ? `Contexto adicional: ${String(hint).slice(0, 500)}` : ''}\n\nGere o melhor template UTILITY possível: rico, com emojis informativos, *negrito*, bloco de dados em linhas separadas e variáveis criadas automaticamente com exemplos.`,
             },
           ],
+          temperature: 0.7,
           response_format: { type: 'json_object' },
         }),
+
       });
     } catch (netErr) {
       console.error('AI gateway network error:', netErr);
