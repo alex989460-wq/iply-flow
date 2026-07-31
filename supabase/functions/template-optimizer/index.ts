@@ -129,8 +129,14 @@ const INTENTS: Array<{ key: string; name: string; header: string; terms: string[
 
 // Fallback determinístico (sem IA): PRESERVA a mensagem original, apenas normaliza
 // formatação, garante saudação com variável e adiciona rodapé neutro.
-function localOptimize(message: string) {
-  const original = message.trim();
+function localOptimize(message: string, lowRisk = false) {
+  let original = message.trim();
+  if (lowRisk) {
+    for (const t of MARKETING_TERMS) {
+      original = original.replace(new RegExp(t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi'), '');
+    }
+    original = original.replace(/[ \t]{2,}/g, ' ').replace(/\n{3,}/g, '\n\n').trim();
+  }
   const lower = original.toLowerCase();
   const warnings = MARKETING_TERMS.filter(t => lower.includes(t))
     .map(t => `Termo promocional detectado: "${t}" — pode fazer a Meta classificar como MARKETING.`);
@@ -170,7 +176,7 @@ function localOptimize(message: string) {
     footer: 'Mensagem automática do sistema',
     buttons: [],
     variables: Array.from(new Set(existing)).map(v => ({ name: v, example: EXAMPLES[v] || EXAMPLES[v.toLowerCase()] || 'Exemplo' })),
-    risk: warnings.length ? 'MEDIUM' : 'LOW',
+    risk: lowRisk ? 'LOW' : (warnings.length ? 'MEDIUM' : 'LOW'),
     reasoning: 'Versão gerada localmente (IA indisponível): mantive integralmente o seu texto, ajustei a formatação para o padrão do WhatsApp, garanti a saudação com variável e adicionei um rodapé neutro.',
     warnings,
     imagePrompt: `Banner minimalista para mensagem de WhatsApp sobre: ${intent?.header || 'aviso ao cliente'}`,
@@ -503,7 +509,7 @@ Deno.serve(async (req) => {
     if (!raw) {
       const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
       if (!LOVABLE_API_KEY) {
-        return ok({ success: true, template: localOptimize(message), fallback: true, notice: 'IA indisponível — usei o otimizador local.' });
+        return ok({ success: true, template: localOptimize(message, wantLowRisk), fallback: true, notice: 'IA indisponível — usei o otimizador local.' });
       }
 
       let res: Response;
@@ -526,7 +532,7 @@ Deno.serve(async (req) => {
         });
       } catch (netErr) {
         console.error('AI gateway network error:', netErr);
-        return ok({ success: true, template: localOptimize(message), fallback: true, notice: 'IA indisponível — usei o otimizador local.' });
+        return ok({ success: true, template: localOptimize(message, wantLowRisk), fallback: true, notice: 'IA indisponível — usei o otimizador local.' });
       }
 
       if (!res.ok) {
@@ -537,7 +543,7 @@ Deno.serve(async (req) => {
           : res.status === 402
             ? 'Créditos de IA esgotados no workspace — usei o otimizador local. Adicione créditos em Settings → Workspace → Usage para usar a IA.'
             : `IA indisponível (${res.status}) — usei o otimizador local.`;
-        return ok({ success: true, template: localOptimize(message), fallback: true, notice });
+        return ok({ success: true, template: localOptimize(message, wantLowRisk), fallback: true, notice });
       }
 
       const data = await res.json();
@@ -555,7 +561,7 @@ Deno.serve(async (req) => {
 
 
     if (!parsed?.body) {
-      return ok({ success: true, template: localOptimize(message), fallback: true, notice: 'A IA não retornou um template válido — usei o otimizador local.' });
+      return ok({ success: true, template: localOptimize(message, wantLowRisk), fallback: true, notice: 'A IA não retornou um template válido — usei o otimizador local.' });
     }
 
     // Guarda de fidelidade: se a IA fugiu do assunto original, usa o otimizador local
@@ -571,7 +577,7 @@ Deno.serve(async (req) => {
     if (origWords.size >= 6 && fidelity < (wantLowRisk ? 0.22 : 0.4)) {
       return ok({
         success: true,
-        template: localOptimize(message),
+        template: localOptimize(message, wantLowRisk),
         fallback: true,
         notice: 'A IA fugiu do assunto da sua mensagem — mantive o seu texto original, apenas formatado no padrão UTILITY.',
       });
