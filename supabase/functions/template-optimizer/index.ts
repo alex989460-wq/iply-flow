@@ -426,7 +426,136 @@ function localBanner(seed: string, text?: string, style?: string) {
   return encodePNG(W, H, px);
 }
 
+// ===== Banner vetorial moderno (SVG -> PNG via resvg) =====
+// Visual no padrão dos cartões do CRM: fundo escuro, brilho de cor,
+// cartão arredondado com borda luminosa, selo no topo e tipografia grande real.
+let __resvg: any = null;
+let __font: Uint8Array | null = null;
+
+const FONT_URLS = [
+  'https://raw.githubusercontent.com/google/fonts/main/ofl/anton/Anton-Regular.ttf',
+  'https://raw.githubusercontent.com/google/fonts/main/apache/opensans/OpenSans%5Bwdth%2Cwght%5D.ttf',
+];
+
+async function loadBannerFont(): Promise<Uint8Array | null> {
+  if (__font) return __font;
+  for (const url of FONT_URLS) {
+    try {
+      const res = await fetch(url);
+      if (!res.ok) continue;
+      __font = new Uint8Array(await res.arrayBuffer());
+      return __font;
+    } catch (_) { /* tenta o próximo */ }
+  }
+  return null;
+}
+
+async function getResvg() {
+  if (__resvg) return __resvg;
+  const mod: any = await import('npm:@resvg/resvg-wasm@2.6.2');
+  await mod.initWasm(fetch('https://unpkg.com/@resvg/resvg-wasm@2.6.2/index_bg.wasm'));
+  __resvg = mod;
+  return mod;
+}
+
+const xmlEscape = (s: string) =>
+  s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+const BANNER_THEMES: Record<string, { bg: string; a: string; b: string; badge: string; icon: string }> = {
+  moderno:      { bg: '#050b12', a: '#22c55e', b: '#0ea5e9', badge: '#22c55e', icon: '📺' },
+  minimalista:  { bg: '#0a0f0d', a: '#2dd4bf', b: '#166534', badge: '#2dd4bf', icon: '🔔' },
+  neon:         { bg: '#0a0618', a: '#a855f7', b: '#ec4899', badge: '#a855f7', icon: '⚡' },
+  corporativo:  { bg: '#060b16', a: '#3b82f6', b: '#22d3ee', badge: '#3b82f6', icon: '🧾' },
+};
+
+function wrapForSvg(title: string, max: number, maxLines: number) {
+  const words = title.split(' ').filter(Boolean);
+  const lines: string[] = [];
+  let cur = '';
+  for (const w of words) {
+    const c = `${cur} ${w}`.trim();
+    if (c.length > max && cur) { lines.push(cur); cur = w; } else { cur = c; }
+  }
+  if (cur) lines.push(cur);
+  return lines.slice(0, maxLines);
+}
+
+function bannerSvg(title: string, style?: string) {
+  const t = BANNER_THEMES[String(style || 'moderno').toLowerCase()] || BANNER_THEMES.moderno;
+  const W = 1200, H = 628;
+  const lines = wrapForSvg(title, 18, 3);
+  const longest = Math.max(...lines.map(l => l.length), 1);
+  // Anton é condensada (~0.46em por caractere). Largura útil do cartão: 900px.
+  const size = Math.max(46, Math.min(120, Math.floor(900 / (longest * 0.47))));
+  const lh = Math.round(size * 1.12);
+  const blockTop = H / 2 - ((lines.length - 1) * lh) / 2 + size * 0.16;
+  const tspans = lines
+    .map((l, i) => `<text x="${W / 2}" y="${blockTop + i * lh}" text-anchor="middle" font-family="Anton" font-size="${size}" fill="url(#txt)" filter="url(#soft)">${xmlEscape(l)}</text>`)
+    .join('');
+
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
+  <defs>
+    <radialGradient id="g1" cx="20%" cy="18%" r="65%">
+      <stop offset="0%" stop-color="${t.a}" stop-opacity="0.55"/><stop offset="100%" stop-color="${t.a}" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="g2" cx="82%" cy="86%" r="70%">
+      <stop offset="0%" stop-color="${t.b}" stop-opacity="0.5"/><stop offset="100%" stop-color="${t.b}" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="card" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.10"/><stop offset="100%" stop-color="#ffffff" stop-opacity="0.03"/>
+    </linearGradient>
+    <linearGradient id="txt" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ffffff"/><stop offset="100%" stop-color="#d7e6ff"/>
+    </linearGradient>
+    <linearGradient id="bar" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="${t.a}"/><stop offset="100%" stop-color="${t.b}"/>
+    </linearGradient>
+    <filter id="soft" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="6" stdDeviation="10" flood-color="#000" flood-opacity="0.55"/>
+    </filter>
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="26" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <rect width="${W}" height="${H}" fill="${t.bg}"/>
+  <rect width="${W}" height="${H}" fill="url(#g1)"/>
+  <rect width="${W}" height="${H}" fill="url(#g2)"/>
+  <g opacity="0.35" filter="url(#glow)">
+    <circle cx="150" cy="120" r="6" fill="${t.a}"/>
+    <circle cx="1070" cy="520" r="8" fill="${t.b}"/>
+  </g>
+  <rect x="56" y="52" width="${W - 112}" height="${H - 104}" rx="52" fill="url(#card)" stroke="#ffffff" stroke-opacity="0.16" stroke-width="2"/>
+  <rect x="${W / 2 - 150}" y="86" width="300" height="58" rx="29" fill="${t.badge}" fill-opacity="0.16" stroke="${t.badge}" stroke-opacity="0.55" stroke-width="2"/>
+  <text x="${W / 2}" y="126" text-anchor="middle" font-family="Anton" font-size="30" letter-spacing="4" fill="${t.badge}">AVISO</text>
+  ${tspans}
+  <rect x="${W / 2 - 120}" y="${H - 132}" width="240" height="8" rx="4" fill="url(#bar)"/>
+</svg>`;
+}
+
+async function modernBanner(title: string, style?: string): Promise<Uint8Array | null> {
+  try {
+    const font = await loadBannerFont();
+    if (!font) return null;
+    const { Resvg } = await getResvg();
+    const svg = bannerSvg(bannerTitle(title), style);
+    const r = new Resvg(svg, {
+      font: { fontBuffers: [font], defaultFontFamily: 'Anton', loadSystemFonts: false },
+      fitTo: { mode: 'width', value: 1200 },
+    });
+    return r.render().asPng();
+  } catch (e) {
+    console.error('modernBanner falhou:', e);
+    return null;
+  }
+}
+
+async function fallbackBanner(seed: string, text: string, style: string) {
+  const modern = await modernBanner(text || seed, style);
+  return modern ?? localBanner(seed, text, style);
+}
+
 async function uploadHeaderImage(bytes: Uint8Array) {
+
   const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
   const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
   const path = `template-headers/${crypto.randomUUID()}.png`;
@@ -518,9 +647,10 @@ function buildImagePrompt(prompt: string, style?: string, imageText?: string) {
   const title = bannerTitle(imageText || prompt);
   return `Banner horizontal 1200x628 de altíssima qualidade para o cabeçalho de uma mensagem de WhatsApp de uma empresa de streaming/IPTV.
 Tema visual: ${prompt}.
-Estilo: ${s}. Paleta escura sofisticada com acentos luminosos, composição equilibrada, acabamento profissional 4K, renderização nítida.
-Escreva no centro, com tipografia grande, moderna e perfeitamente legível, exatamente esta chamada: "${title}".
-Regras obrigatórias: não acrescente nenhuma outra palavra, letra ou número; nenhum logotipo e nenhuma marca d'água. Sem pessoas reais.`;
+Estilo: ${s}. Referência de composição: cartão escuro premium com cantos bem arredondados, borda luminosa fina, brilho colorido difuso ao fundo, um ícone/ilustração 3D central (TV, sino, calendário ou escudo) com sombra suave, e um selo pequeno acima do texto.
+Paleta escura sofisticada com acentos luminosos, acabamento profissional 4K, renderização nítida.
+Escreva no centro, com tipografia display grande, em negrito, moderna e perfeitamente legível, exatamente esta chamada: "${title}".
+Regras obrigatórias: não acrescente nenhuma outra palavra, letra ou número; nenhum logotipo e nenhuma marca d'água. Sem pessoas reais. Sem texto cortado nas bordas.`;
 }
 
 async function generateHeaderImage(prompt: string, style?: string, imageText?: string) {
@@ -584,7 +714,7 @@ Deno.serve(async (req) => {
         console.error('generate-image error:', imgErr);
         // Fallback sem IA: banner gerado localmente (gradiente), sempre funciona
         try {
-          const imageUrl = await uploadHeaderImage(localBanner(seed, String(imageText || seed), String(imageStyle || 'moderno')));
+          const imageUrl = await uploadHeaderImage(await fallbackBanner(seed, String(imageText || seed), String(imageStyle || 'moderno')));
           return ok({
             success: true,
             imageUrl,
