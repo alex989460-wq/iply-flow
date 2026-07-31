@@ -39,9 +39,14 @@ Sua tarefa: transformar a mensagem crua do usuário em um template PROFISSIONAL,
 - Botões só se transacionais (URL de pagamento/2ª via ou QUICK_REPLY de confirmação).
 - Nome do template: snake_case, minúsculo, sem acentos, até 60 caracteres, descritivo (ex.: aviso_vencimento_assinatura).
 
+## Fidelidade ao texto original (REGRA MAIS IMPORTANTE)
+- NUNCA invente outro assunto. O template deve tratar EXATAMENTE do mesmo assunto da mensagem original.
+- Se a mensagem fala de assinatura inativa/retorno, o template fala disso. Se fala de vencimento, fala de vencimento. Jamais troque o tema.
+- Reaproveite as frases do usuário sempre que possível, apenas neutralizando termos promocionais.
+
 ## Cabeçalho
 - Sugira um header. Use "TEXT" com um título curto (máx 60 caracteres, pode ter 1 emoji), ou "IMAGE" quando a mensagem ficar melhor com uma arte (confirmações de pagamento, comprovantes, avisos visuais).
-- Se sugerir IMAGE, explique no reasoning que o usuário deve anexar a imagem no construtor.
+- Sempre devolva também "imagePrompt": uma descrição curta em português da arte ideal para o cabeçalho (será usada para gerar a imagem automaticamente).
 
 Responda SOMENTE com JSON válido, sem markdown, no formato:
 {
@@ -49,6 +54,7 @@ Responda SOMENTE com JSON válido, sem markdown, no formato:
   "category": "UTILITY",
   "language": "pt_BR",
   "header": {"type":"NONE|TEXT|IMAGE","text":"string quando TEXT"},
+  "imagePrompt": "descrição da arte do cabeçalho",
   "body": "string com {{variaveis}}, emojis e quebras de linha",
   "footer": "string ou vazio",
   "buttons": [{"type":"URL|QUICK_REPLY|PHONE_NUMBER","text":"string","url":"opcional","phone":"opcional"}],
@@ -57,6 +63,7 @@ Responda SOMENTE com JSON válido, sem markdown, no formato:
   "reasoning": "explicação curta em português do que foi alterado e por quê",
   "warnings": ["itens da mensagem original que seriam classificados como MARKETING"]
 }`;
+
 
 
 const MARKETING_TERMS = [
