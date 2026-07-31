@@ -441,3 +441,18 @@
     font-variant-numeric: tabular-nums;
   }
 }
+/* Mobile: evita o zoom automático do iOS/Safari ao focar campos pequenos.
+   Qualquer fonte < 16px em inputs faz o navegador dar zoom e "quebrar" o layout. */
+@media (max-width: 767px) {
+  input,
+  textarea,
+  select,
+  [contenteditable="true"] {
+    font-size: 16px !important;
+  }
+
+  /* Diálogos nunca podem estourar a largura da tela no celular */
+  [role="dialog"] {
+    max-width: 100vw;
+  }
+}
