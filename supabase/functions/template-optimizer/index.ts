@@ -71,41 +71,83 @@ function slug(s: string) {
     .replace(/[^a-z0-9_]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 60) || 'template_utility';
 }
 
-// Fallback determinístico (sem IA): limpa termos de marketing e monta corpo transacional.
+const EXAMPLES: Record<string, string> = {
+  nome: 'João Silva',
+  vencimento: '15/08/2026',
+  data: '15/08/2026',
+  valor: '49,90',
+  plano: 'Mensal',
+  usuario: 'joao123',
+  senha: 'a1b2c3',
+  servidor: 'Servidor 1',
+  telas: '2',
+  link: 'https://exemplo.com/pagar',
+  pedido: '10245',
+};
+
+const FIELD_HINTS: Array<{ key: string; emoji: string; label: string; terms: string[] }> = [
+  { key: 'vencimento', emoji: '📅', label: 'Vencimento', terms: ['vencimento', 'vence', 'validade', 'expira'] },
+  { key: 'usuario', emoji: '👤', label: 'Usuário', terms: ['usuario', 'usuário', 'login', 'user'] },
+  { key: 'senha', emoji: '🔒', label: 'Senha', terms: ['senha', 'password'] },
+  { key: 'valor', emoji: '💰', label: 'Valor', terms: ['valor', 'preço', 'preco', 'r$', 'pagamento'] },
+  { key: 'plano', emoji: '📦', label: 'Plano', terms: ['plano', 'assinatura', 'pacote'] },
+  { key: 'servidor', emoji: '🖥️', label: 'Servidor', terms: ['servidor', 'server', 'painel'] },
+  { key: 'telas', emoji: '📺', label: 'Telas', terms: ['tela', 'telas', 'conexão', 'conexao'] },
+  { key: 'pedido', emoji: '🧾', label: 'Pedido', terms: ['pedido', 'protocolo', 'order'] },
+];
+
+// Fallback determinístico (sem IA): monta um template UTILITY rico e estruturado.
 function localOptimize(message: string) {
   const original = message.trim();
   const lower = original.toLowerCase();
   const warnings = MARKETING_TERMS.filter(t => lower.includes(t))
     .map(t => `Termo promocional detectado: "${t}"`);
 
-  const vars = Array.from(new Set([...original.matchAll(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g)].map(m => m[1])));
-  if (!vars.includes('nome')) vars.unshift('nome');
+  const existing = Array.from(new Set([...original.matchAll(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g)].map(m => m[1])));
 
-  let body = original
-    .replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/gu, '')
-    .split('\n').map(l => l.trim()).filter(Boolean).join('\n');
-
-  // remove frases claramente promocionais
-  body = body.split(/\n/).filter(line => !MARKETING_TERMS.some(t => line.toLowerCase().includes(t))).join('\n');
-  if (!body.trim()) {
-    body = 'Olá, {{nome}}. Este é um aviso sobre a sua assinatura.';
+  // campos detectados pelo texto + variáveis já escritas pelo usuário
+  const fields = FIELD_HINTS.filter(f => existing.includes(f.key) || f.terms.some(t => lower.includes(t)));
+  if (!fields.length) {
+    fields.push(FIELD_HINTS[0], FIELD_HINTS[1], FIELD_HINTS[4]);
   }
-  if (!/\{\{\s*nome\s*\}\}/.test(body)) body = `Olá, {{nome}}.\n\n${body}`;
-  body = body.slice(0, 1024);
+
+  const isPayment = /pag|comprovante|confirma|aprovad|renov/.test(lower);
+  const intro = isPayment
+    ? 'Recebemos a confirmação do seu pagamento. ✅ Seguem abaixo os dados da sua assinatura:'
+    : 'Passando um aviso sobre a sua assinatura. Seguem abaixo os dados atualizados:';
+
+  const lines = fields.map(f => `${f.emoji} *${f.label}:* {{${f.key}}}`);
+
+  const extras = existing.filter(v => v !== 'nome' && !fields.some(f => f.key === v));
+  for (const v of extras) lines.push(`• *${v.replace(/_/g, ' ')}:* {{${v}}}`);
+
+  let body = [
+    'Olá, *{{nome}}*! 👋',
+    '',
+    intro,
+    '',
+    lines.join('\n'),
+    '',
+    'Qualquer dúvida, estamos à disposição. 🙏',
+  ].join('\n').slice(0, 1024);
+
+  const vars = ['nome', ...fields.map(f => f.key), ...extras];
 
   return {
-    name: slug('aviso_' + (body.split('\n')[0] || 'assinatura').slice(0, 30)),
+    name: slug(isPayment ? 'confirmacao_pagamento_assinatura' : 'aviso_vencimento_assinatura'),
     category: 'UTILITY',
     language: 'pt_BR',
+    header: { type: 'TEXT', text: isPayment ? '✅ Pagamento confirmado' : '📅 Aviso de vencimento' },
     body,
-    footer: '',
+    footer: 'Mensagem automática do sistema',
     buttons: [],
-    variables: vars.map(v => ({ name: v, example: v === 'nome' ? 'João' : '' })),
+    variables: Array.from(new Set(vars)).map(v => ({ name: v, example: EXAMPLES[v] || '' })),
     risk: warnings.length ? 'MEDIUM' : 'LOW',
-    reasoning: 'Versão gerada localmente (IA indisponível): emojis e termos promocionais foram removidos e a mensagem foi ajustada para tom transacional.',
+    reasoning: 'Versão gerada localmente (IA indisponível): montei um template UTILITY estruturado, com saudação, bloco de dados em lista e variáveis detectadas automaticamente.',
     warnings,
   };
 }
+
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
