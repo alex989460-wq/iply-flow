@@ -308,6 +308,8 @@ Deno.serve(async (req) => {
       type: ['TEXT', 'IMAGE'].includes(hType) ? hType : 'NONE',
       text: String(parsed?.header?.text || '').slice(0, 60),
     };
+    parsed.imagePrompt = String(parsed.imagePrompt || parsed?.header?.text || 'aviso ao cliente').slice(0, 400);
+
 
     // garante que TODAS as variáveis do corpo tenham exemplo
     const used = Array.from(new Set([...parsed.body.matchAll(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g)].map((m: any) => m[1])));
