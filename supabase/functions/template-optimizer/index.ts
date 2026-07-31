@@ -568,7 +568,7 @@ Deno.serve(async (req) => {
     let shared = 0;
     origWords.forEach(w => { if (genWords.has(w)) shared++; });
     const fidelity = origWords.size ? shared / origWords.size : 1;
-    if (origWords.size >= 6 && fidelity < 0.4) {
+    if (origWords.size >= 6 && fidelity < (wantLowRisk ? 0.22 : 0.4)) {
       return ok({
         success: true,
         template: localOptimize(message),
