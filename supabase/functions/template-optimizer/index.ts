@@ -713,7 +713,7 @@ Deno.serve(async (req) => {
         console.error('generate-image error:', imgErr);
         // Fallback sem IA: banner gerado localmente (gradiente), sempre funciona
         try {
-          const imageUrl = await uploadHeaderImage(localBanner(seed, String(imageText || seed), String(imageStyle || 'moderno')));
+          const imageUrl = await uploadHeaderImage(await fallbackBanner(seed, String(imageText || seed), String(imageStyle || 'moderno')));
           return ok({
             success: true,
             imageUrl,
