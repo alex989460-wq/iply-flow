@@ -166,9 +166,122 @@ function localOptimize(message: string) {
 }
 
 // Gera uma imagem de cabeçalho e devolve a URL pública (bucket reseller-assets)
+// ---------- PNG encoder mínimo (sem dependências) ----------
+function crc32(buf: Uint8Array) {
+  let c, crc = 0xffffffff;
+  for (let n = 0; n < buf.length; n++) {
+    c = (crc ^ buf[n]) & 0xff;
+    for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+    crc = (crc >>> 8) ^ c;
+  }
+  return (crc ^ 0xffffffff) >>> 0;
+}
+function adler32(buf: Uint8Array) {
+  let a = 1, b = 0;
+  for (let i = 0; i < buf.length; i++) { a = (a + buf[i]) % 65521; b = (b + a) % 65521; }
+  return ((b << 16) | a) >>> 0;
+}
+function chunk(type: string, data: Uint8Array) {
+  const out = new Uint8Array(12 + data.length);
+  const dv = new DataView(out.buffer);
+  dv.setUint32(0, data.length);
+  for (let i = 0; i < 4; i++) out[4 + i] = type.charCodeAt(i);
+  out.set(data, 8);
+  dv.setUint32(8 + data.length, crc32(out.subarray(4, 8 + data.length)));
+  return out;
+}
+function encodePNG(width: number, height: number, rgb: Uint8Array) {
+  // raw scanlines com filtro 0
+  const raw = new Uint8Array((width * 3 + 1) * height);
+  for (let y = 0; y < height; y++) {
+    raw[y * (width * 3 + 1)] = 0;
+    raw.set(rgb.subarray(y * width * 3, (y + 1) * width * 3), y * (width * 3 + 1) + 1);
+  }
+  // zlib com blocos "stored"
+  const MAX = 65535;
+  const blocks = Math.ceil(raw.length / MAX);
+  const z = new Uint8Array(2 + blocks * 5 + raw.length + 4);
+  z[0] = 0x78; z[1] = 0x01;
+  let p = 2, off = 0;
+  while (off < raw.length) {
+    const len = Math.min(MAX, raw.length - off);
+    z[p++] = off + len >= raw.length ? 1 : 0;
+    z[p++] = len & 0xff; z[p++] = (len >> 8) & 0xff;
+    z[p++] = ~len & 0xff; z[p++] = (~len >> 8) & 0xff;
+    z.set(raw.subarray(off, off + len), p);
+    p += len; off += len;
+  }
+  new DataView(z.buffer).setUint32(p, adler32(raw));
+  p += 4;
+  const ihdr = new Uint8Array(13);
+  const dv = new DataView(ihdr.buffer);
+  dv.setUint32(0, width); dv.setUint32(4, height);
+  ihdr[8] = 8; ihdr[9] = 2; ihdr[10] = 0; ihdr[11] = 0; ihdr[12] = 0;
+  const sig = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]);
+  const parts = [sig, chunk('IHDR', ihdr), chunk('IDAT', z.subarray(0, p)), chunk('IEND', new Uint8Array(0))];
+  const total = parts.reduce((s, a) => s + a.length, 0);
+  const out = new Uint8Array(total);
+  let q = 0;
+  for (const a of parts) { out.set(a, q); q += a.length; }
+  return out;
+}
+
+// Banner gerado localmente (gradiente + formas) — usado quando a IA não está disponível
+function localBanner(seed: string) {
+  const W = 1200, H = 628;
+  let h = 0;
+  for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) >>> 0;
+  const palettes = [
+    [[8, 22, 18], [16, 90, 66], [45, 212, 160]],
+    [[10, 14, 32], [32, 42, 120], [124, 140, 255]],
+    [[26, 10, 30], [96, 30, 110], [214, 128, 240]],
+    [[28, 16, 8], [130, 70, 16], [250, 180, 80]],
+  ];
+  const [c0, c1, c2] = palettes[h % palettes.length];
+  const px = new Uint8Array(W * H * 3);
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      const t = (x / W) * 0.65 + (y / H) * 0.35;
+      let r = c0[0] + (c1[0] - c0[0]) * t;
+      let g = c0[1] + (c1[1] - c0[1]) * t;
+      let b = c0[2] + (c1[2] - c0[2]) * t;
+      // brilho radial
+      const dx = (x - W * 0.72) / (W * 0.45);
+      const dy = (y - H * 0.35) / (H * 0.55);
+      const glow = Math.max(0, 1 - (dx * dx + dy * dy));
+      r += (c2[0] - r) * glow * 0.55;
+      g += (c2[1] - g) * glow * 0.55;
+      b += (c2[2] - b) * glow * 0.55;
+      // faixas diagonais discretas
+      if ((((x + y * 2) / 60) | 0) % 7 === 0) { r += 10; g += 12; b += 14; }
+      const i = (y * W + x) * 3;
+      px[i] = Math.max(0, Math.min(255, r));
+      px[i + 1] = Math.max(0, Math.min(255, g));
+      px[i + 2] = Math.max(0, Math.min(255, b));
+    }
+  }
+  return encodePNG(W, H, px);
+}
+
+async function uploadHeaderImage(bytes: Uint8Array) {
+  const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
+  const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+  const path = `template-headers/${crypto.randomUUID()}.png`;
+  const { createClient } = await import('npm:@supabase/supabase-js@2');
+  const admin = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: false } });
+  const { error } = await admin.storage
+    .from('reseller-assets')
+    .upload(path, bytes, { contentType: 'image/png', upsert: true });
+  if (error) throw new Error(`Falha ao salvar imagem: ${error.message}`);
+  const { data } = admin.storage.from('reseller-assets').getPublicUrl(path);
+  return data.publicUrl;
+}
+
+
 async function generateHeaderImage(prompt: string) {
   const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
   if (!LOVABLE_API_KEY) throw new Error('IA indisponível para gerar imagem.');
+
 
   const res = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
     method: 'POST',
@@ -185,7 +298,13 @@ async function generateHeaderImage(prompt: string) {
 
   if (!res.ok) {
     const body = await res.text();
-    throw new Error(`Geração de imagem falhou [${res.status}]: ${body.slice(0, 300)}`);
+    const reason = res.status === 402
+      ? 'Créditos de IA esgotados no workspace'
+      : res.status === 429
+        ? 'Limite de requisições da IA atingido'
+        : `IA indisponível (${res.status})`;
+    console.error(`image gen falhou [${res.status}]: ${body.slice(0, 300)}`);
+    throw new Error(reason);
   }
 
   const data = await res.json();
@@ -194,24 +313,9 @@ async function generateHeaderImage(prompt: string) {
 
   const base64 = url.split(',')[1];
   const bytes = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
-
-  const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
-  const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-  const path = `template-headers/${crypto.randomUUID()}.png`;
-
-  const up = await fetch(`${SUPABASE_URL}/storage/v1/object/reseller-assets/${path}`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${SERVICE_KEY}`,
-      'Content-Type': 'image/png',
-      'x-upsert': 'true',
-    },
-    body: bytes,
-  });
-  if (!up.ok) throw new Error(`Falha ao salvar imagem: ${(await up.text()).slice(0, 200)}`);
-
-  return `${SUPABASE_URL}/storage/v1/object/public/reseller-assets/${path}`;
+  return await uploadHeaderImage(bytes);
 }
+
 
 
 
@@ -225,14 +329,27 @@ Deno.serve(async (req) => {
     const { message, hint, action, imagePrompt } = await req.json();
 
     if (action === 'generate-image') {
+      const seed = String(imagePrompt || 'aviso ao cliente').slice(0, 400);
       try {
-        const imageUrl = await generateHeaderImage(String(imagePrompt || 'aviso ao cliente').slice(0, 400));
+        const imageUrl = await generateHeaderImage(seed);
         return ok({ success: true, imageUrl });
       } catch (imgErr) {
         console.error('generate-image error:', imgErr);
-        return ok({ success: false, error: (imgErr as Error).message });
+        // Fallback sem IA: banner gerado localmente (gradiente), sempre funciona
+        try {
+          const imageUrl = await uploadHeaderImage(localBanner(seed));
+          return ok({
+            success: true,
+            imageUrl,
+            fallback: true,
+            notice: `${(imgErr as Error).message} — gerei um banner local (gradiente, sem texto). Adicione créditos de IA para artes geradas por IA.`,
+          });
+        } catch (fbErr) {
+          return ok({ success: false, error: (fbErr as Error).message });
+        }
       }
     }
+
 
     if (!message || typeof message !== 'string' || !message.trim()) {
       return new Response(JSON.stringify({ error: 'Mensagem obrigatória' }), {

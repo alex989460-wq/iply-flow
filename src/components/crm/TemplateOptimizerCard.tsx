@@ -111,7 +111,12 @@ export default function TemplateOptimizerCard({ onUse }: { onUse: (t: OptimizedT
       if (error) throw error;
       if (!data?.success) throw new Error(data?.error || 'Falha ao gerar imagem');
       setResult(r => (r ? { ...r, imageUrl: data.imageUrl, header: { type: 'IMAGE', text: r.header?.text } } : r));
-      toast({ title: 'Imagem gerada', description: 'Ela será anexada ao cabeçalho do template.' });
+      if (data?.notice) setNotice(data.notice as string);
+      toast({
+        title: data?.fallback ? 'Banner local gerado' : 'Imagem gerada',
+        description: 'Ela será anexada ao cabeçalho do template.',
+      });
+
     } catch (e: any) {
       toast({ title: 'Não foi possível gerar a imagem', description: e.message, variant: 'destructive' });
     } finally {
