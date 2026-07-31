@@ -118,7 +118,12 @@ export default function TemplateOptimizerCard({ onUse }: { onUse: (t: OptimizedT
     setImgLoading(true);
     try {
       const { data, error } = await supabase.functions.invoke('template-optimizer', {
-        body: { action: 'generate-image', imageStyle, imagePrompt: result.imagePrompt || result.header?.text || result.name },
+        body: {
+          action: 'generate-image',
+          imageStyle,
+          imagePrompt: result.imagePrompt || result.header?.text || result.name,
+          imageText: result.header?.text || result.body,
+        },
       });
       if (error) throw error;
       if (!data?.success) throw new Error(data?.error || 'Falha ao gerar imagem');
