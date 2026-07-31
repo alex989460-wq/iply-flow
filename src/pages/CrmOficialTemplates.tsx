@@ -17,6 +17,7 @@ import { AlertCircle, Edit, Eye, FileText, Loader2, Plus, RefreshCw, Search, Sen
 import { cn } from '@/lib/utils';
 import { normalizeWhatsAppPhone } from '@/lib/phone';
 import TemplateBuilderDialog from '@/components/crm/TemplateBuilderDialog';
+import TemplateOptimizerCard, { type OptimizedTemplate } from '@/components/crm/TemplateOptimizerCard';
 
 interface TemplateComponent {
   type: string;
@@ -149,6 +150,30 @@ export default function CrmOficialTemplates() {
   const [builderInitial, setBuilderInitial] = useState<any>(null);
 
   const openCreate = () => { setBuilderInitial(null); setSelected(null); setDialog('create'); };
+  const useOptimized = (t: OptimizedTemplate) => {
+    setSelected(null);
+    setBuilderInitial({
+      name: t.name,
+      category: 'UTILITY',
+      language: t.language || 'pt_BR',
+      headerType: 'NONE',
+      headerText: '',
+      body: t.body || '',
+      footer: t.footer || '',
+      varType: 'NAME',
+      bodyExamples: Object.fromEntries((t.variables || []).map(v => [v.name, v.example || ''])),
+      buttons: (t.buttons || []).map((b, i) => ({
+        id: `${i}-${b.type}`,
+        type: b.type as any,
+        text: b.text || '',
+        url: b.url,
+        phone: b.phone,
+      })),
+      allowCategoryChange: false,
+    });
+    setDialog('create');
+  };
+
   const openEdit = (t: CrmTemplate) => {
     setSelected(t);
     const header = t.components.find(c => c.type === 'HEADER') as any;
@@ -277,6 +302,10 @@ export default function CrmOficialTemplates() {
             <Card key={s.label} className="border-border/60"><CardContent className="p-5"><p className="text-sm text-muted-foreground">{s.label}</p><p className="text-3xl font-bold mt-1">{s.value}</p></CardContent></Card>
           ))}
         </div>
+
+        <TemplateOptimizerCard onUse={useOptimized} />
+
+
 
         <Card className="border-emerald-500/20">
           <CardHeader className="flex flex-col md:flex-row md:items-center justify-between gap-3">
