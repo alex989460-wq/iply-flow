@@ -188,8 +188,9 @@ serve(async (req) => {
       });
     }
 
-    // ───────────────────────────── BOB PLAYER ─────────────────────────────
-    if (provider === "bobplayer") {
+    // ──────────────────── BOB PLAYER / IBO PLAYER ────────────────────
+    if (provider === "bobplayer" || provider === "iboplayer") {
+
       const mac = normalizeMac(String(body.mac || ""));
       const deviceKey = String(body.device_key || body.password || "").trim();
       const name = String(body.playlist_name || "").trim() || "Lista";
