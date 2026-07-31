@@ -99,6 +99,25 @@ export default function TemplateOptimizerCard({ onUse }: { onUse: (t: OptimizedT
     }
   };
 
+  const generateImage = async () => {
+    if (!result) return;
+    setImgLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('template-optimizer', {
+        body: { action: 'generate-image', imagePrompt: result.imagePrompt || result.header?.text || result.name },
+      });
+      if (error) throw error;
+      if (!data?.success) throw new Error(data?.error || 'Falha ao gerar imagem');
+      setResult(r => (r ? { ...r, imageUrl: data.imageUrl, header: { type: 'IMAGE', text: r.header?.text } } : r));
+      toast({ title: 'Imagem gerada', description: 'Ela será anexada ao cabeçalho do template.' });
+    } catch (e: any) {
+      toast({ title: 'Não foi possível gerar a imagem', description: e.message, variant: 'destructive' });
+    } finally {
+      setImgLoading(false);
+    }
+  };
+
+
   return (
     <Card className="border-violet-500/25 bg-gradient-to-br from-violet-500/10 via-card to-card">
       <CardHeader>
