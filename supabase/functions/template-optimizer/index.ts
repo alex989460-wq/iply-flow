@@ -238,34 +238,73 @@ function encodePNG(width: number, height: number, rgb: Uint8Array) {
   return out;
 }
 
-// Banner gerado localmente (gradiente + formas) — usado quando a IA não está disponível
+// Banner moderno gerado localmente (mesh gradient + glass card + vinheta)
 function localBanner(seed: string) {
   const W = 1200, H = 628;
   let h = 0;
   for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) >>> 0;
+  const rand = () => ((h = (h * 1103515245 + 12345) >>> 0) / 4294967296);
+
+  // paletas modernas (base escura + 3 blobs de cor)
   const palettes = [
-    [[8, 22, 18], [16, 90, 66], [45, 212, 160]],
-    [[10, 14, 32], [32, 42, 120], [124, 140, 255]],
-    [[26, 10, 30], [96, 30, 110], [214, 128, 240]],
-    [[28, 16, 8], [130, 70, 16], [250, 180, 80]],
+    { base: [7, 12, 20], blobs: [[16, 185, 129], [56, 189, 248], [99, 102, 241]] },
+    { base: [10, 8, 22], blobs: [[139, 92, 246], [236, 72, 153], [59, 130, 246]] },
+    { base: [8, 14, 14], blobs: [[45, 212, 191], [34, 197, 94], [14, 165, 233]] },
+    { base: [18, 10, 8], blobs: [[251, 146, 60], [244, 63, 94], [168, 85, 247]] },
   ];
-  const [c0, c1, c2] = palettes[h % palettes.length];
+  const pal = palettes[h % palettes.length];
+  const blobs = pal.blobs.map((c, i) => ({
+    c,
+    x: W * (0.18 + 0.32 * i + rand() * 0.12),
+    y: H * (0.22 + rand() * 0.56),
+    r: W * (0.30 + rand() * 0.22),
+  }));
+
   const px = new Uint8Array(W * H * 3);
+  // card "glass" central
+  const cx0 = W * 0.08, cx1 = W * 0.92, cy0 = H * 0.14, cy1 = H * 0.86, rad = 46;
+
   for (let y = 0; y < H; y++) {
     for (let x = 0; x < W; x++) {
-      const t = (x / W) * 0.65 + (y / H) * 0.35;
-      let r = c0[0] + (c1[0] - c0[0]) * t;
-      let g = c0[1] + (c1[1] - c0[1]) * t;
-      let b = c0[2] + (c1[2] - c0[2]) * t;
-      // brilho radial
-      const dx = (x - W * 0.72) / (W * 0.45);
-      const dy = (y - H * 0.35) / (H * 0.55);
-      const glow = Math.max(0, 1 - (dx * dx + dy * dy));
-      r += (c2[0] - r) * glow * 0.55;
-      g += (c2[1] - g) * glow * 0.55;
-      b += (c2[2] - b) * glow * 0.55;
-      // faixas diagonais discretas
-      if ((((x + y * 2) / 60) | 0) % 7 === 0) { r += 10; g += 12; b += 14; }
+      let r = pal.base[0], g = pal.base[1], b = pal.base[2];
+
+      // mesh gradient: soma suave dos blobs
+      for (const bl of blobs) {
+        const dx = (x - bl.x) / bl.r;
+        const dy = (y - bl.y) / bl.r;
+        let d = 1 - (dx * dx + dy * dy);
+        if (d <= 0) continue;
+        d = d * d * 0.85;
+        r += (bl.c[0] - r) * d;
+        g += (bl.c[1] - g) * d;
+        b += (bl.c[2] - b) * d;
+      }
+
+      // vinheta suave nas bordas
+      const vx = (x / W - 0.5) * 2, vy = (y / H - 0.5) * 2;
+      const vig = Math.max(0, 1 - (vx * vx + vy * vy) * 0.42);
+      r *= 0.55 + 0.45 * vig; g *= 0.55 + 0.45 * vig; b *= 0.55 + 0.45 * vig;
+
+      // painel de vidro com cantos arredondados
+      const inX = x > cx0 && x < cx1, inY = y > cy0 && y < cy1;
+      if (inX && inY) {
+        const qx = Math.min(x - cx0, cx1 - x), qy = Math.min(y - cy0, cy1 - y);
+        const corner = qx < rad && qy < rad
+          ? Math.hypot(rad - qx, rad - qy) <= rad
+          : true;
+        if (corner) {
+          r = r * 0.78 + 255 * 0.07;
+          g = g * 0.78 + 255 * 0.07;
+          b = b * 0.78 + 255 * 0.08;
+          const edge = Math.min(qx, qy);
+          if (edge < 2) { r += 40; g += 44; b += 50; } // borda luminosa
+        }
+      }
+
+      // brilho diagonal discreto (glass reflection)
+      const sheen = Math.max(0, 1 - Math.abs((x * 0.6 + y) / (W * 0.6 + H) - 0.32) * 9);
+      r += sheen * 16; g += sheen * 17; b += sheen * 20;
+
       const i = (y * W + x) * 3;
       px[i] = Math.max(0, Math.min(255, r));
       px[i + 1] = Math.max(0, Math.min(255, g));
