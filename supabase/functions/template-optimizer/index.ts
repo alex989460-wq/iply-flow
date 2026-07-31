@@ -127,19 +127,32 @@ const INTENTS: Array<{ key: string; name: string; header: string; terms: string[
   { key: 'ativacao', name: 'ativacao_do_aplicativo', header: '📱 Ativação do aplicativo', terms: ['ativa', 'aplicativo', 'app', 'mac'] },
 ];
 
-// Fallback determinístico (sem IA): PRESERVA a mensagem original, apenas normaliza
-// formatação, garante saudação com variável e adiciona rodapé neutro.
+// Fallback determinístico (sem IA): reescreve termos de marketing e organiza a
+// mensagem como comunicação transacional, sem inventar informações.
 function localOptimize(message: string, lowRisk = false) {
   let original = message.trim();
-  if (lowRisk) {
-    for (const t of MARKETING_TERMS) {
-      original = original.replace(new RegExp(t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi'), '');
-    }
-    original = original.replace(/[ \t]{2,}/g, ' ').replace(/\n{3,}/g, '\n\n').trim();
-  }
-  const lower = original.toLowerCase();
-  const warnings = MARKETING_TERMS.filter(t => lower.includes(t))
+  const sourceLower = original.toLowerCase();
+  const detectedTerms = MARKETING_TERMS.filter(t => sourceLower.includes(t));
+  const warnings = detectedTerms
     .map(t => `Termo promocional detectado: "${t}" — pode fazer a Meta classificar como MARKETING.`);
+
+  const neutralReplacements: Array<[RegExp, string]> = [
+    [/\bvolte\b/gi, 'a reativação está disponível'],
+    [/\baproveite\b/gi, 'consulte'],
+    [/\bgrátis\b|\bgratis\b/gi, 'sem custo'],
+    [/\bteste gratuito\b/gi, 'período de teste sem custo'],
+    [/\boferta\b/gi, 'condição informada'],
+    [/\bpromoç(?:ão|ao)\b/gi, 'condição vigente'],
+    [/\bdesconto\b/gi, 'ajuste de valor'],
+    [/\bnão perca\b|\bnao perca\b/gi, 'consulte as informações'],
+    [/\bcorra\b/gi, 'verifique'],
+    [/\bassine agora\b/gi, 'solicite a contratação'],
+    [/\bexclusiv[oa]\b/gi, 'disponível para sua conta'],
+    [/!{2,}/g, '.'],
+  ];
+  for (const [pattern, replacement] of neutralReplacements) original = original.replace(pattern, replacement);
+  original = original.replace(/[ \t]{2,}/g, ' ').replace(/\n{3,}/g, '\n\n').trim();
+  const lower = original.toLowerCase();
 
   // normaliza formatação para o padrão WhatsApp e limpa markdown
   let body = original
@@ -157,6 +170,17 @@ function localOptimize(message: string, lowRisk = false) {
   if (!hasName) {
     body = `Olá, *{{nome}}*! 👋\n\n${body}`;
     existing.unshift('nome');
+  }
+
+  // Torna a mudança evidente mesmo sem IA, mantendo o conteúdo original.
+  const contentStart = body.indexOf('\n\n');
+  if (contentStart >= 0) {
+    const greeting = body.slice(0, contentStart);
+    let content = body.slice(contentStart + 2).trim();
+    if (!/^(informamos|registramos|confirmamos|identificamos|comunicamos)\b/i.test(content)) {
+      content = `Informamos que ${content.charAt(0).toLowerCase()}${content.slice(1)}`;
+    }
+    body = `${greeting}\n\n${content}`;
   }
 
   // regra da Meta: corpo não pode começar nem terminar com variável
@@ -177,9 +201,9 @@ function localOptimize(message: string, lowRisk = false) {
     buttons: [],
     variables: Array.from(new Set(existing)).map(v => ({ name: v, example: EXAMPLES[v] || EXAMPLES[v.toLowerCase()] || 'Exemplo' })),
     risk: lowRisk ? 'LOW' : (warnings.length ? 'MEDIUM' : 'LOW'),
-    reasoning: 'Versão gerada localmente (IA indisponível): mantive integralmente o seu texto, ajustei a formatação para o padrão do WhatsApp, garanti a saudação com variável e adicionei um rodapé neutro.',
+    reasoning: 'Versão transacional: reescrevi expressões promocionais, organizei a mensagem e mantive somente as informações presentes no texto original.',
     warnings,
-    imagePrompt: `Banner minimalista para mensagem de WhatsApp sobre: ${intent?.header || 'aviso ao cliente'}`,
+    imagePrompt: `Banner relacionado a ${intent?.header || original.slice(0, 90)}`,
   };
 }
 
@@ -245,7 +269,40 @@ function encodePNG(width: number, height: number, rgb: Uint8Array) {
 }
 
 // Banner moderno gerado localmente (mesh gradient + glass card + vinheta)
-function localBanner(seed: string) {
+const FONT: Record<string, string[]> = {
+  A:['01110','10001','10001','11111','10001','10001','10001'], B:['11110','10001','10001','11110','10001','10001','11110'],
+  C:['01111','10000','10000','10000','10000','10000','01111'], D:['11110','10001','10001','10001','10001','10001','11110'],
+  E:['11111','10000','10000','11110','10000','10000','11111'], F:['11111','10000','10000','11110','10000','10000','10000'],
+  G:['01111','10000','10000','10111','10001','10001','01111'], H:['10001','10001','10001','11111','10001','10001','10001'],
+  I:['11111','00100','00100','00100','00100','00100','11111'], J:['00111','00010','00010','00010','10010','10010','01100'],
+  K:['10001','10010','10100','11000','10100','10010','10001'], L:['10000','10000','10000','10000','10000','10000','11111'],
+  M:['10001','11011','10101','10101','10001','10001','10001'], N:['10001','11001','10101','10011','10001','10001','10001'],
+  O:['01110','10001','10001','10001','10001','10001','01110'], P:['11110','10001','10001','11110','10000','10000','10000'],
+  Q:['01110','10001','10001','10001','10101','10010','01101'], R:['11110','10001','10001','11110','10100','10010','10001'],
+  S:['01111','10000','10000','01110','00001','00001','11110'], T:['11111','00100','00100','00100','00100','00100','00100'],
+  U:['10001','10001','10001','10001','10001','10001','01110'], V:['10001','10001','10001','10001','10001','01010','00100'],
+  W:['10001','10001','10001','10101','10101','11011','10001'], X:['10001','10001','01010','00100','01010','10001','10001'],
+  Y:['10001','10001','01010','00100','00100','00100','00100'], Z:['11111','00001','00010','00100','01000','10000','11111'],
+  '0':['01110','10011','10101','10101','11001','10001','01110'], '1':['00100','01100','00100','00100','00100','00100','01110'],
+  '2':['01110','10001','00001','00010','00100','01000','11111'], '3':['11110','00001','00001','01110','00001','00001','11110'],
+  '4':['00010','00110','01010','10010','11111','00010','00010'], '5':['11111','10000','10000','11110','00001','00001','11110'],
+  '6':['01110','10000','10000','11110','10001','10001','01110'], '7':['11111','00001','00010','00100','01000','01000','01000'],
+  '8':['01110','10001','10001','01110','10001','10001','01110'], '9':['01110','10001','10001','01111','00001','00001','01110'],
+};
+
+function bannerTitle(value: string) {
+  const clean = value.replace(/\{\{[^}]+\}\}/g, '').replace(/[*_#]/g, '').normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim().toUpperCase();
+  const words = clean.split(' ').filter(Boolean);
+  let title = '';
+  for (const word of words) {
+    if ((title + ' ' + word).trim().length > 30) break;
+    title = `${title} ${word}`.trim();
+  }
+  return title || 'AVISO IMPORTANTE';
+}
+
+function localBanner(seed: string, text?: string) {
   const W = 1200, H = 628;
   let h = 0;
   for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) >>> 0;
@@ -315,6 +372,27 @@ function localBanner(seed: string) {
       px[i] = Math.max(0, Math.min(255, r));
       px[i + 1] = Math.max(0, Math.min(255, g));
       px[i + 2] = Math.max(0, Math.min(255, b));
+    }
+  }
+
+  // Texto bitmap nítido no fallback, sempre derivado da mensagem do usuário.
+  const title = bannerTitle(text || seed);
+  const scale = title.length > 22 ? 10 : 13;
+  const charW = 6 * scale;
+  const startX = Math.max(100, Math.floor((W - title.length * charW) / 2));
+  const startY = Math.floor((H - 7 * scale) / 2);
+  for (let c = 0; c < title.length; c++) {
+    const glyph = FONT[title[c]];
+    if (!glyph) continue;
+    for (let gy = 0; gy < 7; gy++) for (let gx = 0; gx < 5; gx++) {
+      if (glyph[gy][gx] !== '1') continue;
+      for (let sy = 0; sy < scale; sy++) for (let sx = 0; sx < scale; sx++) {
+        const x = startX + c * charW + gx * scale + sx;
+        const y = startY + gy * scale + sy;
+        if (x < 0 || x >= W || y < 0 || y >= H) continue;
+        const i = (y * W + x) * 3;
+        px[i] = 244; px[i + 1] = 248; px[i + 2] = 255;
+      }
     }
   }
   return encodePNG(W, H, px);
@@ -407,16 +485,18 @@ const IMAGE_STYLES: Record<string, string> = {
   corporativo: 'visual corporativo elegante, gradiente azul/verde escuro, formas suaves, aparência de aplicativo financeiro premium',
 };
 
-function buildImagePrompt(prompt: string, style?: string) {
+function buildImagePrompt(prompt: string, style?: string, imageText?: string) {
   const s = IMAGE_STYLES[String(style || 'moderno').toLowerCase()] || IMAGE_STYLES.moderno;
+  const title = bannerTitle(imageText || prompt);
   return `Banner horizontal 1200x628 de altíssima qualidade para o cabeçalho de uma mensagem de WhatsApp de uma empresa de streaming/IPTV.
 Tema visual: ${prompt}.
 Estilo: ${s}. Paleta escura sofisticada com acentos luminosos, composição equilibrada, acabamento profissional 4K, renderização nítida.
-Regras obrigatórias: NENHUM texto, NENHUMA letra, NENHUM número, NENHUM logotipo, NENHUMA marca d'água. Apenas arte abstrata/iconográfica. Sem pessoas reais.`;
+Escreva no centro, com tipografia grande, moderna e perfeitamente legível, exatamente esta chamada: "${title}".
+Regras obrigatórias: não acrescente nenhuma outra palavra, letra ou número; nenhum logotipo e nenhuma marca d'água. Sem pessoas reais.`;
 }
 
-async function generateHeaderImage(prompt: string, style?: string) {
-  const fullPrompt = buildImagePrompt(prompt, style);
+async function generateHeaderImage(prompt: string, style?: string, imageText?: string) {
+  const fullPrompt = buildImagePrompt(prompt, style, imageText);
 
   const direct = await geminiImage(fullPrompt);
   if (direct) return await uploadHeaderImage(direct);
@@ -465,23 +545,23 @@ Deno.serve(async (req) => {
     new Response(JSON.stringify(payload), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 
   try {
-    const { message, hint, action, imagePrompt, imageStyle, targetRisk } = await req.json();
+    const { message, hint, action, imagePrompt, imageStyle, imageText, targetRisk } = await req.json();
 
     if (action === 'generate-image') {
       const seed = String(imagePrompt || 'aviso ao cliente').slice(0, 400);
       try {
-        const imageUrl = await generateHeaderImage(seed, imageStyle);
+        const imageUrl = await generateHeaderImage(seed, imageStyle, String(imageText || seed));
         return ok({ success: true, imageUrl });
       } catch (imgErr) {
         console.error('generate-image error:', imgErr);
         // Fallback sem IA: banner gerado localmente (gradiente), sempre funciona
         try {
-          const imageUrl = await uploadHeaderImage(localBanner(seed));
+          const imageUrl = await uploadHeaderImage(localBanner(seed, String(imageText || seed)));
           return ok({
             success: true,
             imageUrl,
             fallback: true,
-            notice: `${(imgErr as Error).message} — gerei um banner local (gradiente, sem texto). Adicione créditos de IA para artes geradas por IA.`,
+            notice: `${(imgErr as Error).message} — gerei um banner moderno com uma chamada extraída da sua mensagem.`,
           });
         } catch (fbErr) {
           return ok({ success: false, error: (fbErr as Error).message });
@@ -574,12 +654,12 @@ Deno.serve(async (req) => {
     let shared = 0;
     origWords.forEach(w => { if (genWords.has(w)) shared++; });
     const fidelity = origWords.size ? shared / origWords.size : 1;
-    if (origWords.size >= 6 && fidelity < (wantLowRisk ? 0.22 : 0.4)) {
+    if (origWords.size >= 6 && fidelity < 0.18) {
       return ok({
         success: true,
         template: localOptimize(message, wantLowRisk),
         fallback: true,
-        notice: 'A IA fugiu do assunto da sua mensagem — mantive o seu texto original, apenas formatado no padrão UTILITY.',
+        notice: 'A IA fugiu do assunto — gerei uma nova versão transacional fiel às informações originais.',
       });
     }
 
