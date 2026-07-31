@@ -63,6 +63,19 @@ Responda SOMENTE com JSON válido, sem markdown, no formato:
   "warnings": ["itens da mensagem original que seriam classificados como MARKETING"]
 }`;
 
+// Reforço aplicado quando o usuário pede explicitamente RISCO BAIXO
+const LOW_RISK_RULES = `
+
+## MODO RISCO BAIXO (OBRIGATÓRIO NESTA GERAÇÃO)
+O usuário exige um template com risco de rejeição LOW. Portanto:
+- Remova QUALQUER palavra promocional, convite, urgência ou apelo comercial ("volte", "aproveite", "grátis", "oferta", "desconto", "novidade", "não perca", "exclusivo", "promoção", "assine", "corra").
+- Reescreva a intenção original em linguagem 100% transacional/informativa: informe um status, um dado da conta, um vencimento, um pedido ou uma instrução de serviço.
+- Nada de exclamações excessivas, no máximo 3 emojis discretos no corpo inteiro.
+- Não use botões de marketing; no máximo 1 botão URL de pagamento/2ª via ou QUICK_REPLY neutro.
+- Rodapé sempre neutro ("Mensagem automática do sistema").
+- O campo "risk" DEVE ser "LOW" e "warnings" deve listar o que foi removido do texto original.`;
+
+
 
 
 const MARKETING_TERMS = [
@@ -116,8 +129,14 @@ const INTENTS: Array<{ key: string; name: string; header: string; terms: string[
 
 // Fallback determinístico (sem IA): PRESERVA a mensagem original, apenas normaliza
 // formatação, garante saudação com variável e adiciona rodapé neutro.
-function localOptimize(message: string) {
-  const original = message.trim();
+function localOptimize(message: string, lowRisk = false) {
+  let original = message.trim();
+  if (lowRisk) {
+    for (const t of MARKETING_TERMS) {
+      original = original.replace(new RegExp(t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi'), '');
+    }
+    original = original.replace(/[ \t]{2,}/g, ' ').replace(/\n{3,}/g, '\n\n').trim();
+  }
   const lower = original.toLowerCase();
   const warnings = MARKETING_TERMS.filter(t => lower.includes(t))
     .map(t => `Termo promocional detectado: "${t}" — pode fazer a Meta classificar como MARKETING.`);
@@ -157,7 +176,7 @@ function localOptimize(message: string) {
     footer: 'Mensagem automática do sistema',
     buttons: [],
     variables: Array.from(new Set(existing)).map(v => ({ name: v, example: EXAMPLES[v] || EXAMPLES[v.toLowerCase()] || 'Exemplo' })),
-    risk: warnings.length ? 'MEDIUM' : 'LOW',
+    risk: lowRisk ? 'LOW' : (warnings.length ? 'MEDIUM' : 'LOW'),
     reasoning: 'Versão gerada localmente (IA indisponível): mantive integralmente o seu texto, ajustei a formatação para o padrão do WhatsApp, garanti a saudação com variável e adicionei um rodapé neutro.',
     warnings,
     imagePrompt: `Banner minimalista para mensagem de WhatsApp sobre: ${intent?.header || 'aviso ao cliente'}`,
@@ -225,34 +244,73 @@ function encodePNG(width: number, height: number, rgb: Uint8Array) {
   return out;
 }
 
-// Banner gerado localmente (gradiente + formas) — usado quando a IA não está disponível
+// Banner moderno gerado localmente (mesh gradient + glass card + vinheta)
 function localBanner(seed: string) {
   const W = 1200, H = 628;
   let h = 0;
   for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) >>> 0;
+  const rand = () => ((h = (h * 1103515245 + 12345) >>> 0) / 4294967296);
+
+  // paletas modernas (base escura + 3 blobs de cor)
   const palettes = [
-    [[8, 22, 18], [16, 90, 66], [45, 212, 160]],
-    [[10, 14, 32], [32, 42, 120], [124, 140, 255]],
-    [[26, 10, 30], [96, 30, 110], [214, 128, 240]],
-    [[28, 16, 8], [130, 70, 16], [250, 180, 80]],
+    { base: [7, 12, 20], blobs: [[16, 185, 129], [56, 189, 248], [99, 102, 241]] },
+    { base: [10, 8, 22], blobs: [[139, 92, 246], [236, 72, 153], [59, 130, 246]] },
+    { base: [8, 14, 14], blobs: [[45, 212, 191], [34, 197, 94], [14, 165, 233]] },
+    { base: [18, 10, 8], blobs: [[251, 146, 60], [244, 63, 94], [168, 85, 247]] },
   ];
-  const [c0, c1, c2] = palettes[h % palettes.length];
+  const pal = palettes[h % palettes.length];
+  const blobs = pal.blobs.map((c, i) => ({
+    c,
+    x: W * (0.18 + 0.32 * i + rand() * 0.12),
+    y: H * (0.22 + rand() * 0.56),
+    r: W * (0.30 + rand() * 0.22),
+  }));
+
   const px = new Uint8Array(W * H * 3);
+  // card "glass" central
+  const cx0 = W * 0.08, cx1 = W * 0.92, cy0 = H * 0.14, cy1 = H * 0.86, rad = 46;
+
   for (let y = 0; y < H; y++) {
     for (let x = 0; x < W; x++) {
-      const t = (x / W) * 0.65 + (y / H) * 0.35;
-      let r = c0[0] + (c1[0] - c0[0]) * t;
-      let g = c0[1] + (c1[1] - c0[1]) * t;
-      let b = c0[2] + (c1[2] - c0[2]) * t;
-      // brilho radial
-      const dx = (x - W * 0.72) / (W * 0.45);
-      const dy = (y - H * 0.35) / (H * 0.55);
-      const glow = Math.max(0, 1 - (dx * dx + dy * dy));
-      r += (c2[0] - r) * glow * 0.55;
-      g += (c2[1] - g) * glow * 0.55;
-      b += (c2[2] - b) * glow * 0.55;
-      // faixas diagonais discretas
-      if ((((x + y * 2) / 60) | 0) % 7 === 0) { r += 10; g += 12; b += 14; }
+      let r = pal.base[0], g = pal.base[1], b = pal.base[2];
+
+      // mesh gradient: soma suave dos blobs
+      for (const bl of blobs) {
+        const dx = (x - bl.x) / bl.r;
+        const dy = (y - bl.y) / bl.r;
+        let d = 1 - (dx * dx + dy * dy);
+        if (d <= 0) continue;
+        d = d * d * 0.85;
+        r += (bl.c[0] - r) * d;
+        g += (bl.c[1] - g) * d;
+        b += (bl.c[2] - b) * d;
+      }
+
+      // vinheta suave nas bordas
+      const vx = (x / W - 0.5) * 2, vy = (y / H - 0.5) * 2;
+      const vig = Math.max(0, 1 - (vx * vx + vy * vy) * 0.42);
+      r *= 0.55 + 0.45 * vig; g *= 0.55 + 0.45 * vig; b *= 0.55 + 0.45 * vig;
+
+      // painel de vidro com cantos arredondados
+      const inX = x > cx0 && x < cx1, inY = y > cy0 && y < cy1;
+      if (inX && inY) {
+        const qx = Math.min(x - cx0, cx1 - x), qy = Math.min(y - cy0, cy1 - y);
+        const corner = qx < rad && qy < rad
+          ? Math.hypot(rad - qx, rad - qy) <= rad
+          : true;
+        if (corner) {
+          r = r * 0.78 + 255 * 0.07;
+          g = g * 0.78 + 255 * 0.07;
+          b = b * 0.78 + 255 * 0.08;
+          const edge = Math.min(qx, qy);
+          if (edge < 2) { r += 40; g += 44; b += 50; } // borda luminosa
+        }
+      }
+
+      // brilho diagonal discreto (glass reflection)
+      const sheen = Math.max(0, 1 - Math.abs((x * 0.6 + y) / (W * 0.6 + H) - 0.32) * 9);
+      r += sheen * 16; g += sheen * 17; b += sheen * 20;
+
       const i = (y * W + x) * 3;
       px[i] = Math.max(0, Math.min(255, r));
       px[i + 1] = Math.max(0, Math.min(255, g));
@@ -278,7 +336,7 @@ async function uploadHeaderImage(bytes: Uint8Array) {
 
 
 const GEMINI_MODEL = 'gemini-flash-latest';
-const GEMINI_IMAGE_MODELS = ['gemini-2.5-flash-image', 'gemini-3-pro-image-preview'];
+const GEMINI_IMAGE_MODELS = ['gemini-3-pro-image-preview', 'gemini-2.5-flash-image'];
 
 // Chamada direta à API do Gemini (chave própria do projeto)
 async function geminiText(system: string, user: string): Promise<string | null> {
@@ -342,8 +400,23 @@ async function geminiImage(prompt: string): Promise<Uint8Array | null> {
   return null;
 }
 
-async function generateHeaderImage(prompt: string) {
-  const fullPrompt = `Crie um banner horizontal (1200x628) moderno e limpo para o cabeçalho de uma mensagem de WhatsApp de uma empresa de streaming/IPTV. Tema: ${prompt}. Estilo: fundo escuro com gradiente, ícones simples, sem texto legível, sem logotipos, visual corporativo e discreto.`;
+const IMAGE_STYLES: Record<string, string> = {
+  moderno: 'design 3D moderno, mesh gradient vibrante, formas geométricas flutuantes com vidro fosco (glassmorphism), iluminação volumétrica suave, profundidade e sombras realistas',
+  minimalista: 'minimalismo premium, muito espaço negativo, fundo escuro sólido com um único gradiente sutil, ícone linear fino centralizado',
+  neon: 'estética cyber neon, linhas de luz brilhantes, reflexos, fundo escuro profundo com brilho colorido difuso',
+  corporativo: 'visual corporativo elegante, gradiente azul/verde escuro, formas suaves, aparência de aplicativo financeiro premium',
+};
+
+function buildImagePrompt(prompt: string, style?: string) {
+  const s = IMAGE_STYLES[String(style || 'moderno').toLowerCase()] || IMAGE_STYLES.moderno;
+  return `Banner horizontal 1200x628 de altíssima qualidade para o cabeçalho de uma mensagem de WhatsApp de uma empresa de streaming/IPTV.
+Tema visual: ${prompt}.
+Estilo: ${s}. Paleta escura sofisticada com acentos luminosos, composição equilibrada, acabamento profissional 4K, renderização nítida.
+Regras obrigatórias: NENHUM texto, NENHUMA letra, NENHUM número, NENHUM logotipo, NENHUMA marca d'água. Apenas arte abstrata/iconográfica. Sem pessoas reais.`;
+}
+
+async function generateHeaderImage(prompt: string, style?: string) {
+  const fullPrompt = buildImagePrompt(prompt, style);
 
   const direct = await geminiImage(fullPrompt);
   if (direct) return await uploadHeaderImage(direct);
@@ -351,20 +424,16 @@ async function generateHeaderImage(prompt: string) {
   const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
   if (!LOVABLE_API_KEY) throw new Error('IA indisponível para gerar imagem.');
 
-
-
   const res = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
     method: 'POST',
     headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      model: 'google/gemini-2.5-flash-image',
-      messages: [{
-        role: 'user',
-        content: `Crie um banner horizontal (1200x628) moderno e limpo para o cabeçalho de uma mensagem de WhatsApp de uma empresa de streaming/IPTV. Tema: ${prompt}. Estilo: fundo escuro com gradiente, ícones simples, sem texto legível, sem logotipos, visual corporativo e discreto.`,
-      }],
+      model: 'google/gemini-3.1-flash-image',
+      messages: [{ role: 'user', content: fullPrompt }],
       modalities: ['image', 'text'],
     }),
   });
+
 
   if (!res.ok) {
     const body = await res.text();
@@ -396,12 +465,12 @@ Deno.serve(async (req) => {
     new Response(JSON.stringify(payload), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 
   try {
-    const { message, hint, action, imagePrompt } = await req.json();
+    const { message, hint, action, imagePrompt, imageStyle, targetRisk } = await req.json();
 
     if (action === 'generate-image') {
       const seed = String(imagePrompt || 'aviso ao cliente').slice(0, 400);
       try {
-        const imageUrl = await generateHeaderImage(seed);
+        const imageUrl = await generateHeaderImage(seed, imageStyle);
         return ok({ success: true, imageUrl });
       } catch (imgErr) {
         console.error('generate-image error:', imgErr);
@@ -428,16 +497,19 @@ Deno.serve(async (req) => {
     }
 
 
-    const userPrompt = `Mensagem original:\n"""${message.slice(0, 3000)}"""\n${hint ? `Contexto adicional: ${String(hint).slice(0, 500)}` : ''}\n\nReescreva ESTA mensagem (mesmo assunto, mesmas frases sempre que possível) em um template UTILITY bem formatado. NÃO mude o tema, NÃO invente bloco de dados (usuário/plano/servidor/valor) que não esteja no texto acima. Apenas neutralize termos promocionais, formate bem e adicione saudação com {{nome}} e rodapé neutro.`;
+    const wantLowRisk = String(targetRisk || '').toUpperCase() === 'LOW';
+    const systemPrompt = wantLowRisk ? SYSTEM + LOW_RISK_RULES : SYSTEM;
+
+    const userPrompt = `Mensagem original:\n"""${message.slice(0, 3000)}"""\n${hint ? `Contexto adicional: ${String(hint).slice(0, 500)}` : ''}\n\nReescreva ESTA mensagem (mesmo assunto, mesmas frases sempre que possível) em um template UTILITY bem formatado. NÃO mude o tema, NÃO invente bloco de dados (usuário/plano/servidor/valor) que não esteja no texto acima. Apenas neutralize termos promocionais, formate bem e adicione saudação com {{nome}} e rodapé neutro.${wantLowRisk ? '\n\nATENÇÃO: gere obrigatoriamente uma versão de RISCO BAIXO (LOW), eliminando todo termo promocional.' : ''}`;
 
     // 1) Gemini com a chave própria do projeto (gratuito no free tier)
-    let raw: string | null = await geminiText(SYSTEM, userPrompt);
+    let raw: string | null = await geminiText(systemPrompt, userPrompt);
 
     // 2) Fallback: Lovable AI Gateway
     if (!raw) {
       const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
       if (!LOVABLE_API_KEY) {
-        return ok({ success: true, template: localOptimize(message), fallback: true, notice: 'IA indisponível — usei o otimizador local.' });
+        return ok({ success: true, template: localOptimize(message, wantLowRisk), fallback: true, notice: 'IA indisponível — usei o otimizador local.' });
       }
 
       let res: Response;
@@ -451,7 +523,7 @@ Deno.serve(async (req) => {
           body: JSON.stringify({
             model: 'google/gemini-3.6-flash',
             messages: [
-              { role: 'system', content: SYSTEM },
+              { role: 'system', content: systemPrompt },
               { role: 'user', content: userPrompt },
             ],
             temperature: 0.7,
@@ -460,7 +532,7 @@ Deno.serve(async (req) => {
         });
       } catch (netErr) {
         console.error('AI gateway network error:', netErr);
-        return ok({ success: true, template: localOptimize(message), fallback: true, notice: 'IA indisponível — usei o otimizador local.' });
+        return ok({ success: true, template: localOptimize(message, wantLowRisk), fallback: true, notice: 'IA indisponível — usei o otimizador local.' });
       }
 
       if (!res.ok) {
@@ -471,7 +543,7 @@ Deno.serve(async (req) => {
           : res.status === 402
             ? 'Créditos de IA esgotados no workspace — usei o otimizador local. Adicione créditos em Settings → Workspace → Usage para usar a IA.'
             : `IA indisponível (${res.status}) — usei o otimizador local.`;
-        return ok({ success: true, template: localOptimize(message), fallback: true, notice });
+        return ok({ success: true, template: localOptimize(message, wantLowRisk), fallback: true, notice });
       }
 
       const data = await res.json();
@@ -489,7 +561,7 @@ Deno.serve(async (req) => {
 
 
     if (!parsed?.body) {
-      return ok({ success: true, template: localOptimize(message), fallback: true, notice: 'A IA não retornou um template válido — usei o otimizador local.' });
+      return ok({ success: true, template: localOptimize(message, wantLowRisk), fallback: true, notice: 'A IA não retornou um template válido — usei o otimizador local.' });
     }
 
     // Guarda de fidelidade: se a IA fugiu do assunto original, usa o otimizador local
@@ -502,10 +574,10 @@ Deno.serve(async (req) => {
     let shared = 0;
     origWords.forEach(w => { if (genWords.has(w)) shared++; });
     const fidelity = origWords.size ? shared / origWords.size : 1;
-    if (origWords.size >= 6 && fidelity < 0.4) {
+    if (origWords.size >= 6 && fidelity < (wantLowRisk ? 0.22 : 0.4)) {
       return ok({
         success: true,
-        template: localOptimize(message),
+        template: localOptimize(message, wantLowRisk),
         fallback: true,
         notice: 'A IA fugiu do assunto da sua mensagem — mantive o seu texto original, apenas formatado no padrão UTILITY.',
       });
@@ -535,8 +607,34 @@ Deno.serve(async (req) => {
     }
     parsed.variables = used.map((n: any) => ({ name: n, example: provided[n] || EXAMPLES[n] || 'Exemplo' }));
 
+    // Modo risco baixo: sanitiza termos promocionais remanescentes e força risk=LOW
+    if (wantLowRisk) {
+      const lowerBody = String(parsed.body).toLowerCase();
+      const leftovers = MARKETING_TERMS.filter(t => lowerBody.includes(t));
+      if (leftovers.length) {
+        const NEUTRAL: Record<string, string> = {
+          'promoção': 'condição', 'promocao': 'condição', 'oferta': 'condição', 'desconto': 'ajuste de valor',
+          'aproveite': 'informamos', 'novidade': 'atualização', 'assine agora': 'realize a contratação',
+          'imperdível': 'disponível', 'imperdivel': 'disponível', 'cupom': 'código', 'grátis': 'sem custo',
+          'gratis': 'sem custo', 'teste gratuito': 'período de teste', 'volte': 'retome',
+          'últimas vagas': 'disponibilidade limitada', 'ultimas vagas': 'disponibilidade limitada',
+          'corra': 'atenção', 'não perca': 'observe', 'nao perca': 'observe', 'exclusivo': 'específico',
+        };
+        let b = String(parsed.body);
+        for (const t of leftovers) {
+          b = b.replace(new RegExp(t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi'), NEUTRAL[t] || '');
+        }
+        parsed.body = b.replace(/\s{2,}/g, ' ').replace(/\n{3,}/g, '\n\n').trim().slice(0, 1024);
+        parsed.warnings = [
+          ...parsed.warnings,
+          ...leftovers.map(t => `Termo promocional "${t}" foi neutralizado para reduzir o risco.`),
+        ];
+      }
+      parsed.footer = parsed.footer || 'Mensagem automática do sistema';
+      parsed.risk = 'LOW';
+    }
 
-    return ok({ success: true, template: parsed });
+    return ok({ success: true, template: parsed, targetRisk: wantLowRisk ? 'LOW' : undefined });
   } catch (e) {
     console.error('template-optimizer error:', e);
     return new Response(JSON.stringify({ error: (e as Error).message }), {

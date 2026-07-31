@@ -54,11 +54,20 @@ const VARIABLES: Array<{ name: string; label: string }> = [
   { name: 'data', label: 'Data' },
 ];
 
+const IMAGE_STYLES: Array<{ id: string; label: string }> = [
+  { id: 'moderno', label: 'Moderno 3D' },
+  { id: 'minimalista', label: 'Minimalista' },
+  { id: 'neon', label: 'Neon' },
+  { id: 'corporativo', label: 'Corporativo' },
+];
+
 export default function TemplateOptimizerCard({ onUse }: { onUse: (t: OptimizedTemplate) => void }) {
   const { toast } = useToast();
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
+  const [lowRiskLoading, setLowRiskLoading] = useState(false);
   const [imgLoading, setImgLoading] = useState(false);
+  const [imageStyle, setImageStyle] = useState('moderno');
 
   const [result, setResult] = useState<OptimizedTemplate | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -81,23 +90,26 @@ export default function TemplateOptimizerCard({ onUse }: { onUse: (t: OptimizedT
     });
   };
 
-  const optimize = async () => {
+  const optimize = async (targetRisk?: 'LOW') => {
     if (!message.trim()) return;
-    setLoading(true);
-    setResult(null);
+    const setBusy = targetRisk === 'LOW' ? setLowRiskLoading : setLoading;
+    setBusy(true);
     setNotice(null);
+    if (!targetRisk) setResult(null);
     try {
       const { data, error } = await supabase.functions.invoke('template-optimizer', {
-        body: { message },
+        body: { message, targetRisk },
       });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
-      setResult(data.template as OptimizedTemplate);
+      const tpl = data.template as OptimizedTemplate;
+      setResult(r => (targetRisk === 'LOW' && r?.imageUrl ? { ...tpl, imageUrl: r.imageUrl, header: { type: 'IMAGE', text: tpl.header?.text } } : tpl));
       if (data?.notice) setNotice(data.notice as string);
+      if (targetRisk === 'LOW') toast({ title: 'Nova versão de risco baixo gerada' });
     } catch (e: any) {
       toast({ title: 'Não foi possível otimizar', description: e.message, variant: 'destructive' });
     } finally {
-      setLoading(false);
+      setBusy(false);
     }
   };
 
@@ -106,7 +118,7 @@ export default function TemplateOptimizerCard({ onUse }: { onUse: (t: OptimizedT
     setImgLoading(true);
     try {
       const { data, error } = await supabase.functions.invoke('template-optimizer', {
-        body: { action: 'generate-image', imagePrompt: result.imagePrompt || result.header?.text || result.name },
+        body: { action: 'generate-image', imageStyle, imagePrompt: result.imagePrompt || result.header?.text || result.name },
       });
       if (error) throw error;
       if (!data?.success) throw new Error(data?.error || 'Falha ao gerar imagem');
@@ -123,6 +135,7 @@ export default function TemplateOptimizerCard({ onUse }: { onUse: (t: OptimizedT
       setImgLoading(false);
     }
   };
+
 
 
   return (
@@ -162,7 +175,7 @@ export default function TemplateOptimizerCard({ onUse }: { onUse: (t: OptimizedT
         </div>
 
         <div className="flex justify-end">
-          <Button onClick={optimize} disabled={loading || !message.trim()}>
+          <Button onClick={() => optimize()} disabled={loading || !message.trim()}>
             {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Wand2 className="w-4 h-4 mr-2" />}
             Otimizar mensagem
           </Button>
@@ -232,14 +245,43 @@ export default function TemplateOptimizerCard({ onUse }: { onUse: (t: OptimizedT
               </div>
             )}
 
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="text-[11px] text-muted-foreground mr-1">Estilo da imagem:</span>
+              {IMAGE_STYLES.map(s => (
+                <button
+                  key={s.id}
+                  type="button"
+                  onClick={() => setImageStyle(s.id)}
+                  className={`rounded-full border px-2.5 py-1 text-[11px] transition ${
+                    imageStyle === s.id
+                      ? 'border-violet-400/60 bg-violet-500/25 text-violet-200'
+                      : 'border-border/60 bg-background/40 text-muted-foreground hover:bg-violet-500/10'
+                  }`}
+                >
+                  {s.label}
+                </button>
+              ))}
+            </div>
+
             <div className="flex flex-wrap justify-end gap-2">
               <Button variant="outline" size="sm" onClick={generateImage} disabled={imgLoading}>
                 {imgLoading ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <ImageIcon className="w-3.5 h-3.5 mr-1.5" />}
                 {result.imageUrl ? 'Gerar outra imagem' : 'Gerar imagem do cabeçalho'}
               </Button>
-              <Button variant="outline" size="sm" onClick={optimize} disabled={loading}>Gerar outra versão</Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/10"
+                onClick={() => optimize('LOW')}
+                disabled={lowRiskLoading || loading}
+              >
+                {lowRiskLoading ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <ShieldCheck className="w-3.5 h-3.5 mr-1.5" />}
+                Gerar versão de risco BAIXO
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => optimize()} disabled={loading}>Gerar outra versão</Button>
               <Button size="sm" onClick={() => onUse(result)}>Usar este template</Button>
             </div>
+
 
           </div>
         )}
