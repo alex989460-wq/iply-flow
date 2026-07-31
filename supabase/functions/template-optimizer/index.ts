@@ -428,7 +428,7 @@ Deno.serve(async (req) => {
     }
 
 
-    const userPrompt = `Mensagem original:\n"""${message.slice(0, 3000)}"""\n${hint ? `Contexto adicional: ${String(hint).slice(0, 500)}` : ''}\n\nGere o melhor template UTILITY possível: rico, com emojis informativos, *negrito*, bloco de dados em linhas separadas e variáveis criadas automaticamente com exemplos.`;
+    const userPrompt = `Mensagem original:\n"""${message.slice(0, 3000)}"""\n${hint ? `Contexto adicional: ${String(hint).slice(0, 500)}` : ''}\n\nReescreva ESTA mensagem (mesmo assunto, mesmas frases sempre que possível) em um template UTILITY bem formatado. NÃO mude o tema, NÃO invente bloco de dados (usuário/plano/servidor/valor) que não esteja no texto acima. Apenas neutralize termos promocionais, formate bem e adicione saudação com {{nome}} e rodapé neutro.`;
 
     // 1) Gemini com a chave própria do projeto (gratuito no free tier)
     let raw: string | null = await geminiText(SYSTEM, userPrompt);
