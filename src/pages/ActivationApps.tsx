@@ -13,6 +13,7 @@ import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import CreateClouddyUserDialog from '@/components/activation/CreateClouddyUserDialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
@@ -666,7 +667,11 @@ export default function ActivationApps() {
                   </span>
                 </div>
 
-                <div className="flex justify-end">
+                <div className="flex justify-end gap-2">
+                  <Button variant="outline" onClick={() => setIsClouddyCreateOpen(true)}>
+                    <Zap className="w-4 h-4 mr-1" />
+                    Criar usuário Clouddy
+                  </Button>
                   <Button onClick={() => manualActivate.mutate()} disabled={manualActivate.isPending}>
                     <Zap className="w-4 h-4 mr-1" />
                     {manualActivate.isPending ? 'Ativando...' : 'Ativar agora'}

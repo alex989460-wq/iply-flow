@@ -14,6 +14,7 @@ import {
   ChevronDown, ChevronUp, UserPlus, AlertTriangle, Monitor, Play, Loader2, X, GripVertical, ListPlus
 } from 'lucide-react';
 import SendPlaylistDialog from '@/components/playlist/SendPlaylistDialog';
+import CreateClouddyUserDialog from '@/components/activation/CreateClouddyUserDialog';
 
 import {
   DndContext,
@@ -141,6 +142,7 @@ export default function QuickRenewalPanel({ isMobile = false, onClose, initialPh
   }, [initialPhone]);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [isSendPlaylistOpen, setIsSendPlaylistOpen] = useState(false);
+  const [isClouddyCreateOpen, setIsClouddyCreateOpen] = useState(false);
 
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('pix');
   const [isLinksOpen, setIsLinksOpen] = useState(true);
@@ -1305,6 +1307,15 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
               >
                 <ListPlus className="h-3.5 w-3.5" />
               </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 rounded-full hover:bg-primary/10"
+                onClick={() => setIsClouddyCreateOpen(true)}
+                title="Criar usuário Clouddy"
+              >
+                <UserPlus className="h-3.5 w-3.5" />
+              </Button>
 
               <Button
                 variant="ghost"
@@ -1349,6 +1360,12 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
         defaultUsername={selectedCustomer?.username || ''}
         defaultPassword={selectedCustomer?.password || ''}
         defaultHost={selectedCustomer?.server?.host || ''}
+      />
+
+      {/* Criar usuário no Clouddy */}
+      <CreateClouddyUserDialog
+        open={isClouddyCreateOpen}
+        onOpenChange={setIsClouddyCreateOpen}
       />
 
       {isMobile && (
