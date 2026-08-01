@@ -13,6 +13,7 @@ import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import CreateClouddyUserDialog from '@/components/activation/CreateClouddyUserDialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
@@ -164,6 +165,7 @@ export default function ActivationApps() {
 
   const duplecast = panelCreds.find((c: any) => c.panel_type === 'duplecast');
   const clouddy = panelCreds.find((c: any) => c.panel_type === 'clouddy');
+  const [isClouddyCreateOpen, setIsClouddyCreateOpen] = useState(false);
   const p2cine = panelCreds.find((c: any) => c.panel_type === 'p2cine');
   const ibosol = panelCreds.find((c: any) => c.panel_type === 'ibosol');
   const iboPro = panelCreds.find((c: any) => c.panel_type === 'iboplayerpro');
@@ -509,6 +511,12 @@ export default function ActivationApps() {
           </div>
         </div>
 
+        <CreateClouddyUserDialog
+          open={isClouddyCreateOpen}
+          onOpenChange={setIsClouddyCreateOpen}
+          onCreated={(r) => setManualForm(f => ({ ...f, email: r.email }))}
+        />
+
         <Tabs defaultValue="requests" className="space-y-4">
           <TabsList>
             <TabsTrigger value="requests">
@@ -666,7 +674,11 @@ export default function ActivationApps() {
                   </span>
                 </div>
 
-                <div className="flex justify-end">
+                <div className="flex justify-end gap-2">
+                  <Button variant="outline" onClick={() => setIsClouddyCreateOpen(true)}>
+                    <Zap className="w-4 h-4 mr-1" />
+                    Criar usuário Clouddy
+                  </Button>
                   <Button onClick={() => manualActivate.mutate()} disabled={manualActivate.isPending}>
                     <Zap className="w-4 h-4 mr-1" />
                     {manualActivate.isPending ? 'Ativando...' : 'Ativar agora'}
