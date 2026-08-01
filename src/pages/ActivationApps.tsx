@@ -165,6 +165,7 @@ export default function ActivationApps() {
 
   const duplecast = panelCreds.find((c: any) => c.panel_type === 'duplecast');
   const clouddy = panelCreds.find((c: any) => c.panel_type === 'clouddy');
+  const [isClouddyCreateOpen, setIsClouddyCreateOpen] = useState(false);
   const p2cine = panelCreds.find((c: any) => c.panel_type === 'p2cine');
   const ibosol = panelCreds.find((c: any) => c.panel_type === 'ibosol');
   const iboPro = panelCreds.find((c: any) => c.panel_type === 'iboplayerpro');
@@ -509,6 +510,12 @@ export default function ActivationApps() {
             <p className="text-muted-foreground">Gerencie apps e solicitações de ativação dos clientes</p>
           </div>
         </div>
+
+        <CreateClouddyUserDialog
+          open={isClouddyCreateOpen}
+          onOpenChange={setIsClouddyCreateOpen}
+          onCreated={(r) => setManualForm(f => ({ ...f, email: r.email }))}
+        />
 
         <Tabs defaultValue="requests" className="space-y-4">
           <TabsList>
