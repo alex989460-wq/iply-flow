@@ -668,6 +668,12 @@ export type Database = {
           annual_price: number | null
           created_at: string
           custom_message: string | null
+          email_from_name: string | null
+          email_msg_d_minus_1: string | null
+          email_msg_d_plus_1: string | null
+          email_msg_d0: string | null
+          email_reply_to: string | null
+          email_subject: string | null
           evolution_instance: string | null
           evolution_msg_d_minus_1: string | null
           evolution_msg_d_plus_1: string | null
@@ -685,6 +691,7 @@ export type Database = {
           renewal_notification_target: string
           semiannual_price: number | null
           updated_at: string
+          use_email_billing: boolean
           use_evolution_billing: boolean
           user_id: string
           vplay_integration_url: string | null
@@ -694,6 +701,12 @@ export type Database = {
           annual_price?: number | null
           created_at?: string
           custom_message?: string | null
+          email_from_name?: string | null
+          email_msg_d_minus_1?: string | null
+          email_msg_d_plus_1?: string | null
+          email_msg_d0?: string | null
+          email_reply_to?: string | null
+          email_subject?: string | null
           evolution_instance?: string | null
           evolution_msg_d_minus_1?: string | null
           evolution_msg_d_plus_1?: string | null
@@ -711,6 +724,7 @@ export type Database = {
           renewal_notification_target?: string
           semiannual_price?: number | null
           updated_at?: string
+          use_email_billing?: boolean
           use_evolution_billing?: boolean
           user_id: string
           vplay_integration_url?: string | null
@@ -720,6 +734,12 @@ export type Database = {
           annual_price?: number | null
           created_at?: string
           custom_message?: string | null
+          email_from_name?: string | null
+          email_msg_d_minus_1?: string | null
+          email_msg_d_plus_1?: string | null
+          email_msg_d0?: string | null
+          email_reply_to?: string | null
+          email_subject?: string | null
           evolution_instance?: string | null
           evolution_msg_d_minus_1?: string | null
           evolution_msg_d_plus_1?: string | null
@@ -737,6 +757,7 @@ export type Database = {
           renewal_notification_target?: string
           semiannual_price?: number | null
           updated_at?: string
+          use_email_billing?: boolean
           use_evolution_billing?: boolean
           user_id?: string
           vplay_integration_url?: string | null
@@ -1112,6 +1133,7 @@ export type Database = {
           created_by: string | null
           custom_price: number | null
           due_date: string
+          email: string | null
           extra_months: number
           extra_phone: string | null
           id: string
@@ -1132,6 +1154,7 @@ export type Database = {
           created_by?: string | null
           custom_price?: number | null
           due_date: string
+          email?: string | null
           extra_months?: number
           extra_phone?: string | null
           id?: string
@@ -1152,6 +1175,7 @@ export type Database = {
           created_by?: string | null
           custom_price?: number | null
           due_date?: string
+          email?: string | null
           extra_months?: number
           extra_phone?: string | null
           id?: string
