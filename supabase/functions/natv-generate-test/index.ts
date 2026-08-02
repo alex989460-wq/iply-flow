@@ -110,14 +110,32 @@ Deno.serve(async (req) => {
           const expTxt = expDate
             ? expDate.toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })
             : `${minutes} min`;
+
+          // Monta os links de lista (M3U / HLS) a partir do domínio retornado
+          const rawDomain = String(result.domain || result.server || "").trim();
+          let host = rawDomain.replace(/^https?:\/\//i, "").replace(/\/+$/, "");
+          const scheme = /^https:\/\//i.test(rawDomain) ? "https" : "http";
+          const enc = encodeURIComponent;
+          const m3uLink = host
+            ? `${scheme}://${host}/get.php?username=${enc(result.username)}&password=${enc(result.password)}&type=m3u_plus&output=ts`
+            : "";
+          const hlsLink = host
+            ? `${scheme}://${host}/get.php?username=${enc(result.username)}&password=${enc(result.password)}&type=m3u_plus&output=hls`
+            : "";
+
           const message =
             `🎬 *TESTE GERADO*\n\n` +
+            (m3uLink ? `*Link (M3U)* 👉 ${m3uLink}\n\n` : "") +
+            (hlsLink ? `*Link (HLS)* 👉 ${hlsLink}\n\n` : "") +
             `👤 Usuário: ${result.username}\n` +
             `🔑 Senha: ${result.password}\n` +
-            (result.domain ? `🌐 Servidor: ${result.domain}\n` : "") +
+            (host ? `🌐 Servidor: ${scheme}://${host}\n` : "") +
             `📺 Telas: ${result.max_connections ?? 1}\n` +
             `⏰ Expira: ${expTxt}`;
-          return new Response(JSON.stringify({ success: true, message, user: result }), { headers: jsonHeaders });
+          return new Response(
+            JSON.stringify({ success: true, message, m3u: m3uLink, hls: hlsLink, user: result }),
+            { headers: jsonHeaders },
+          );
         }
 
         lastError = result?.detail || result?.raw || `HTTP ${resp.status}`;
