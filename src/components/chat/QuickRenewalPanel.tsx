@@ -2268,17 +2268,46 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
             <pre className="text-xs text-foreground whitespace-pre-wrap bg-background/50 p-2 rounded max-h-24 overflow-y-auto select-text font-mono break-words">
               {vplayTestResult}
             </pre>
-            <Button 
-              size="sm" 
-              className="w-full h-8 bg-violet-600 hover:bg-violet-700 text-white"
-              onClick={async () => {
-                const ok = await copyText(vplayTestResult);
-                if (ok) toast.success('Dados do teste copiados!');
-              }}
-            >
-              <Copy className="h-3.5 w-3.5 mr-1.5" />
-              Copiar Teste
-            </Button>
+            {(() => {
+              const links = vplayTestResult.match(/https?:\/\/\S+/gi) || [];
+              const m3u = links.find((l) => /output=ts|type=m3u/i.test(l)) || links[0] || '';
+              const hls = links.find((l) => /output=hls/i.test(l)) || '';
+              const user = vplayTestResult.match(/username[=:\s]+([^\s&|,]+)/i)?.[1]
+                || vplayTestResult.match(/usu[áa]rio:\s*([^\s]+)/i)?.[1] || '';
+              const pass = vplayTestResult.match(/password[=:\s]+([^\s&|,]+)/i)?.[1]
+                || vplayTestResult.match(/senha:\s*([^\s]+)/i)?.[1] || '';
+              const copy = async (txt: string, label: string) => {
+                if (!txt) { toast.error(`Nada para copiar (${label})`); return; }
+                const ok = await copyText(txt);
+                if (ok) toast.success(`${label} copiado!`);
+              };
+              return (
+                <div className="space-y-1.5">
+                  <Button
+                    size="sm"
+                    className="w-full h-8 bg-violet-600 hover:bg-violet-700 text-white"
+                    onClick={() => copy(vplayTestResult, 'Teste completo')}
+                  >
+                    <Copy className="h-3.5 w-3.5 mr-1.5" />
+                    Copiar tudo
+                  </Button>
+                  <div className="grid grid-cols-3 gap-1.5">
+                    <Button size="sm" variant="outline" className="h-7 text-[11px] px-1"
+                      onClick={() => copy(m3u, 'Lista M3U')}>
+                      Lista M3U
+                    </Button>
+                    <Button size="sm" variant="outline" className="h-7 text-[11px] px-1"
+                      onClick={() => copy(hls || m3u, 'Link HLS')}>
+                      Link HLS
+                    </Button>
+                    <Button size="sm" variant="outline" className="h-7 text-[11px] px-1"
+                      onClick={() => copy(user && pass ? `Usuário: ${user}\nSenha: ${pass}` : '', 'Usuário e senha')}>
+                      Usuário/Senha
+                    </Button>
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         </div>
       )}
