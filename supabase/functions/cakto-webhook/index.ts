@@ -1645,6 +1645,23 @@ serve(async (req) => {
       console.log(`[Cakto] 🖥️ Multi-tela confirmado: ${samePersonCustomers.length} registros para "${primaryName}". Renovando TODOS.`);
     }
 
+    // ── Auto-cadastro do e-mail informado na Cakto (não sobrescreve e-mail já salvo) ──
+    try {
+      const caktoEmail = String(customer?.email || caktoData?.email || '').trim().toLowerCase();
+      if (caktoEmail.includes('@')) {
+        const idsToFill = customersToRenew.map((c: any) => c.id).filter(Boolean);
+        if (idsToFill.length > 0) {
+          await supabaseAdmin
+            .from('customers')
+            .update({ email: caktoEmail })
+            .in('id', idsToFill)
+            .is('email', null);
+        }
+      }
+    } catch (emailErr) {
+      console.error('[Cakto] Falha ao salvar e-mail do cliente:', emailErr);
+    }
+
     // ── Duplicate protection: only block near-instant retries with same amount ──
     if (caktoId && amountNumeric > 0) {
       const twoMinutesAgo = new Date(Date.now() - 2 * 60 * 1000).toISOString();
