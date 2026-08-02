@@ -1649,12 +1649,13 @@ serve(async (req) => {
     try {
       const caktoEmail = String(customer?.email || caktoData?.email || '').trim().toLowerCase();
       if (caktoEmail.includes('@')) {
-        const idsSemEmail = customersToRenew
-          .filter((c: any) => !c?.email)
-          .map((c: any) => c.id);
-        if (idsSemEmail.length > 0) {
-          await supabaseAdmin.from('customers').update({ email: caktoEmail }).in('id', idsSemEmail);
-          console.log(`[Cakto] 📧 E-mail ${caktoEmail} salvo em ${idsSemEmail.length} cliente(s)`);
+        const idsToFill = customersToRenew.map((c: any) => c.id).filter(Boolean);
+        if (idsToFill.length > 0) {
+          await supabaseAdmin
+            .from('customers')
+            .update({ email: caktoEmail })
+            .in('id', idsToFill)
+            .is('email', null);
         }
       }
     } catch (emailErr) {
