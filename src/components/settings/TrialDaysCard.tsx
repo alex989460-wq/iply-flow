@@ -12,6 +12,7 @@ export default function TrialDaysCard() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [trialDays, setTrialDays] = useState('30');
+  const [settingsId, setSettingsId] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
