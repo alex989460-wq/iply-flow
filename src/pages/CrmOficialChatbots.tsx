@@ -357,6 +357,7 @@ export default function CrmOficialChatbots({ embed = false }: { embed?: boolean 
           </DialogContent>
         </Dialog>
       </div>
-    </DashboardLayout>
   );
+
+  return embed ? __content : <DashboardLayout>{__content}</DashboardLayout>;
 }
