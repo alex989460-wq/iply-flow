@@ -475,58 +475,62 @@ export default function CrmOficialChatbots({ embed = false, overrideToken }: { e
         {!apiKey && <Alert variant="destructive"><AlertCircle className="h-4 w-4" /><AlertDescription>Configure sua chave em Configurações → CRM Oficial.</AlertDescription></Alert>}
         {apiKey && !enabled && <Alert><AlertCircle className="h-4 w-4" /><AlertDescription>A integração está desativada; ative em Configurações para disparos automáticos.</AlertDescription></Alert>}
 
-        {loading || syncing ? (
-          <div className="flex justify-center py-12"><Loader2 className="w-7 h-7 animate-spin text-emerald-500" /></div>
-        ) : bots.length === 0 ? (
-          <Card><CardContent className="py-12 text-center text-muted-foreground"><Bot className="w-12 h-12 mx-auto mb-3 opacity-50" /><p>Nenhum chatbot encontrado.</p><Button className="mt-4" onClick={openNew}>Criar chatbot</Button></CardContent></Card>
-        ) : (
-          <div className="grid md:grid-cols-2 gap-4">
-            {bots.map(bot => (
-              <div key={bot.id} className="rounded-2xl border border-border/60 bg-card/60 p-4 hover:border-emerald-500/40 transition">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-11 h-11 rounded-2xl bg-emerald-500/15 flex items-center justify-center"><Bot className="w-5 h-5 text-emerald-400" /></div>
-                    <div className="min-w-0">
-                      <h3 className="font-bold truncate">{bot.name}</h3>
-                      <p className="text-xs text-muted-foreground truncate">Palavra: {bot.keyword || bot.trigger_keywords?.join(', ') || '—'}</p>
-                      <div className="mt-1">
-                        <Label className="text-[10px] uppercase text-muted-foreground mb-1 block">Conexão Vinculada</Label>
-                        <select 
-                          className="w-full h-7 bg-background/50 border border-border/40 rounded px-2 text-[10px] focus:outline-none focus:ring-1 focus:ring-emerald-500/40"
-                          value={bot.instance_name || ''}
-                          onChange={async (e) => {
-                            const instanceName = e.target.value;
-                            try {
-                              const chatbot = { ...bot, instance_name: instanceName || null };
-                              const r = await invoke('update-chatbot', { chatbot_id: bot.id, chatbot });
-                              if (r?.chatbot && !r.chatbot.ok) throw new Error(`Status ${r.chatbot.status}`);
-                              setBots(prev => prev.map(item => item.id === bot.id ? { ...item, instance_name: instanceName || null } : item));
-                              toast({ title: 'Chatbot vinculado à conexão' });
-                            } catch (err: any) {
-                              toast({ title: 'Erro ao vincular', description: err.message, variant: 'destructive' });
-                            }
-                          }}
-                        >
-                          <option value="">Todos os números conectados</option>
-                          {channels.map(c => (
-                            <option key={c.id} value={c.instance_name || c.name}>
-                              {c.verified_name || c.name} ({c.display_phone_number || c.instance_name})
-                            </option>
-                          ))}
-                        </select>
+        {!apiKey && (
+          <>
+            {loading || syncing ? (
+              <div className="flex justify-center py-12"><Loader2 className="w-7 h-7 animate-spin text-emerald-500" /></div>
+            ) : bots.length === 0 ? (
+              <Card><CardContent className="py-12 text-center text-muted-foreground"><Bot className="w-12 h-12 mx-auto mb-3 opacity-50" /><p>Nenhum chatbot encontrado.</p><Button className="mt-4" onClick={openNew}>Criar chatbot</Button></CardContent></Card>
+            ) : (
+              <div className="grid md:grid-cols-2 gap-4">
+                {bots.map(bot => (
+                  <div key={bot.id} className="rounded-2xl border border-border/60 bg-card/60 p-4 hover:border-emerald-500/40 transition">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-11 h-11 rounded-2xl bg-emerald-500/15 flex items-center justify-center"><Bot className="w-5 h-5 text-emerald-400" /></div>
+                        <div className="min-w-0">
+                          <h3 className="font-bold truncate">{bot.name}</h3>
+                          <p className="text-xs text-muted-foreground truncate">Palavra: {bot.keyword || bot.trigger_keywords?.join(', ') || '—'}</p>
+                          <div className="mt-1">
+                            <Label className="text-[10px] uppercase text-muted-foreground mb-1 block">Conexão Vinculada</Label>
+                            <select 
+                              className="w-full h-7 bg-background/50 border border-border/40 rounded px-2 text-[10px] focus:outline-none focus:ring-1 focus:ring-emerald-500/40"
+                              value={bot.instance_name || ''}
+                              onChange={async (e) => {
+                                const instanceName = e.target.value;
+                                try {
+                                  const chatbot = { ...bot, instance_name: instanceName || null };
+                                  const r = await invoke('update-chatbot', { chatbot_id: bot.id, chatbot });
+                                  if (r?.chatbot && !r.chatbot.ok) throw new Error(`Status ${r.chatbot.status}`);
+                                  setBots(prev => prev.map(item => item.id === bot.id ? { ...item, instance_name: instanceName || null } : item));
+                                  toast({ title: 'Chatbot vinculado à conexão' });
+                                } catch (err: any) {
+                                  toast({ title: 'Erro ao vincular', description: err.message, variant: 'destructive' });
+                                }
+                              }}
+                            >
+                              <option value="">Todos os números conectados</option>
+                              {channels.map(c => (
+                                <option key={c.id} value={c.instance_name || c.name}>
+                                  {c.verified_name || c.name} ({c.display_phone_number || c.instance_name})
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        </div>
                       </div>
+                      <Badge className={cn((bot.enabled || bot.active) ? 'bg-emerald-500/15 text-emerald-400' : 'bg-muted text-muted-foreground')}>{bot.enabled || bot.active ? 'Ativo' : 'Inativo'}</Badge>
+                    </div>
+                    <div className="mt-4 flex items-center gap-2">
+                      <Button variant="outline" className="flex-1" onClick={() => openEdit(bot)}>Editar fluxo <Edit className="w-4 h-4 ml-2" /></Button>
+                      <Button size="icon" variant="ghost" onClick={() => toggleBot(bot)}><Zap className="w-4 h-4" /></Button>
+                      <Button size="icon" variant="ghost" className="text-red-400" onClick={() => deleteBot(bot)}><Trash2 className="w-4 h-4" /></Button>
                     </div>
                   </div>
-                  <Badge className={cn((bot.enabled || bot.active) ? 'bg-emerald-500/15 text-emerald-400' : 'bg-muted text-muted-foreground')}>{bot.enabled || bot.active ? 'Ativo' : 'Inativo'}</Badge>
-                </div>
-                <div className="mt-4 flex items-center gap-2">
-                  <Button variant="outline" className="flex-1" onClick={() => openEdit(bot)}>Editar fluxo <Edit className="w-4 h-4 ml-2" /></Button>
-                  <Button size="icon" variant="ghost" onClick={() => toggleBot(bot)}><Zap className="w-4 h-4" /></Button>
-                  <Button size="icon" variant="ghost" className="text-red-400" onClick={() => deleteBot(bot)}><Trash2 className="w-4 h-4" /></Button>
-                </div>
+                ))}
               </div>
-            ))}
-          </div>
+            )}
+          </>
         )}
 
         <div className="text-xs text-muted-foreground">Total: {bots.length} • Ativos: {activeBots}</div>
