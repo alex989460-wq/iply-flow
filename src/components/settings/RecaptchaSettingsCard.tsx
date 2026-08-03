@@ -21,8 +21,8 @@ export default function RecaptchaSettingsCard() {
       const { data } = await supabase
         .from('platform_settings')
         .select('recaptcha_enabled, recaptcha_site_key, trial_days')
-        .eq('singleton', true)
         .maybeSingle();
+
       if (data) {
         setEnabled(!!data.recaptcha_enabled);
         setSiteKey(data.recaptcha_site_key ?? '');
@@ -58,7 +58,8 @@ export default function RecaptchaSettingsCard() {
         recaptcha_site_key: siteKey.trim() || null,
         trial_days: Math.round(days),
       })
-      .eq('singleton', true);
+      .not('id', 'is', null);
+
     setSaving(false);
     if (error) {
       toast({ title: 'Erro ao salvar', description: error.message, variant: 'destructive' });

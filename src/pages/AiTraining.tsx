@@ -132,10 +132,11 @@ export default function AiTraining() {
     ]);
 
     setAiSettings({
-      enabled: settingsData?.ai_automation_enabled || false,
-      provider: settingsData?.ai_provider || 'gemini',
-      apiKey: settingsData?.ai_api_key || '',
+      enabled: (settingsData as any)?.ai_automation_enabled || false,
+      provider: (settingsData as any)?.ai_provider || 'gemini',
+      apiKey: (settingsData as any)?.ai_api_key || '',
     });
+
 
 
     setJobs((jobsData ?? []) as unknown as Job[]);
