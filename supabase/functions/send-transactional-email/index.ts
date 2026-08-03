@@ -298,7 +298,9 @@ Deno.serve(async (req) => {
   // 4. Render React Email template to HTML and plain text
   // The platform appends its own unsubscribe footer (unsubscribe_token is
   // mandatory for transactional sends), so we do not add a second link here.
-  const renderData = { ...templateData }
+  // Open-tracking pixel (1x1 gif served by the email-open-pixel function)
+  const trackingPixelUrl = `${supabaseUrl}/functions/v1/email-open-pixel?m=${messageId}`
+  const renderData = { ...templateData, trackingPixelUrl }
 
   const html = await renderAsync(
     React.createElement(template.component, renderData)
