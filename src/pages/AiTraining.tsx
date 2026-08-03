@@ -451,7 +451,7 @@ export default function AiTraining() {
                       return;
                     }
                     setSavingSettings(true);
-                    const { error } = await (supabase.from('platform_settings' as any) as any)
+                    const { error } = await supabase.from('platform_settings')
                       .upsert({ 
                         user_id: user?.id,
                         ai_automation_enabled: aiSettings.enabled,
