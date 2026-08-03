@@ -291,13 +291,20 @@ Deno.serve(async (req) => {
   }
 
   // 4. Render React Email template to HTML and plain text
+  // Inject a Portuguese unsubscribe link so the template renders its own footer
+  // (the platform footer is English-only, so we do not pass unsubscribe_token).
+  const renderData = {
+    ...templateData,
+    unsubscribeUrl: `https://supergestor.top/unsubscribe?token=${encodeURIComponent(unsubscribeToken)}`,
+  }
   const html = await renderAsync(
-    React.createElement(template.component, templateData)
+    React.createElement(template.component, renderData)
   )
   const plainText = await renderAsync(
-    React.createElement(template.component, templateData),
+    React.createElement(template.component, renderData),
     { plainText: true }
   )
+
 
   // Resolve subject — supports static string or dynamic function
   const resolvedSubject =
