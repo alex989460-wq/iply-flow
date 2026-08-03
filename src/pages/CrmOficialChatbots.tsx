@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Button } from '@/components/ui/button';
@@ -13,8 +13,20 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
-import { AlertCircle, Bot, Edit, FileText, Image as ImageIcon, Loader2, MessageSquare, Music, Plus, RefreshCw, Save, Trash2, Video, Zap } from 'lucide-react';
+import { 
+  AlertCircle, Bot, Edit, FileText, Image as ImageIcon, 
+  Loader2, MessageSquare, Music, Plus, RefreshCw, Save, 
+  Trash2, Video, Zap, MousePointer2, Search, Filter, 
+  LayoutGrid, Share2, MoreHorizontal, Settings, Play, 
+  Pause, Link as LinkIcon
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
+import ReactFlow, { 
+  Background, Controls, useNodesState, useEdgesState, 
+  addEdge, Connection, Edge, Node, Handle, Position,
+  NodeProps, MarkerType
+} from 'reactflow';
+import 'reactflow/dist/style.css';
 
 type BotStepType = 'message' | 'image' | 'video' | 'audio' | 'document' | 'buttons' | 'list' | 'capture' | 'wait' | 'condition';
 
@@ -77,6 +89,71 @@ function normalizeBots(body: any): CrmBot[] {
   }));
 }
 
+const BotStepNode = ({ data, selected }: NodeProps) => {
+  const meta = stepPalette.find(s => s.type === data.type) || stepPalette[0];
+  const Icon = meta.icon;
+
+  return (
+    <div className={cn(
+      "w-64 rounded-xl border border-border/40 bg-[#121214] shadow-2xl overflow-hidden transition-all duration-200",
+      selected ? "ring-2 ring-emerald-500 border-emerald-500/50 scale-[1.02]" : "hover:border-white/10"
+    )}>
+      <Handle type="target" position={Position.Left} className="w-3 h-3 bg-emerald-500 border-2 border-[#121214]" />
+      
+      <div className={cn("px-3 py-2 flex items-center gap-2 border-b border-white/5", meta.color.replace('bg-', 'bg-opacity-20 text-'))}>
+        <div className={cn("p-1.5 rounded-lg", meta.color)}>
+          <Icon className="w-3.5 h-3.5 text-white" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-[10px] uppercase font-bold tracking-wider opacity-70">{meta.label}</p>
+          <p className="text-xs font-semibold truncate text-white">{data.title || 'Sem título'}</p>
+        </div>
+        <MoreHorizontal className="w-4 h-4 text-white/40" />
+      </div>
+
+      <div className="p-3 space-y-2">
+        {data.text && (
+          <p className="text-[11px] text-white/60 line-clamp-3 leading-relaxed">
+            {data.text}
+          </p>
+        )}
+        {data.media_url && (
+          <div className="rounded-lg overflow-hidden bg-white/5 border border-white/5 aspect-video flex items-center justify-center">
+            {data.type === 'image' ? (
+              <img src={data.media_url} alt="" className="w-full h-full object-cover" />
+            ) : (
+              <Play className="w-6 h-6 text-white/20" />
+            )}
+          </div>
+        )}
+        {!data.text && !data.media_url && (
+          <div className="h-12 flex items-center justify-center border border-dashed border-white/5 rounded-lg">
+            <p className="text-[10px] text-white/20 uppercase font-medium">Configurar conteúdo</p>
+          </div>
+        )}
+        
+        <div className="flex items-center justify-between pt-1">
+          <Badge variant="outline" className="text-[9px] h-4 px-1.5 border-white/10 bg-white/5 text-white/40">ID: {data.id.slice(0,4)}</Badge>
+          <div className="flex gap-1">
+            <Button size="icon" variant="ghost" className="w-6 h-6 text-white/20 hover:text-white/40" onClick={(e) => {
+              e.stopPropagation();
+              data.onDelete(data.id);
+            }}>
+              <Trash2 className="w-3 h-3" />
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      <Handle type="source" position={Position.Right} className="w-3 h-3 bg-emerald-500 border-2 border-[#121214]" />
+    </div>
+  );
+};
+
+const nodeTypes = {
+  step: BotStepNode
+};
+
 export default function CrmOficialChatbots({ embed = false }: { embed?: boolean } = {}) {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -91,6 +168,26 @@ export default function CrmOficialChatbots({ embed = false }: { embed?: boolean 
   const [editorOpen, setEditorOpen] = useState(false);
   const [active, setActive] = useState<CrmBot | null>(null);
   const [form, setForm] = useState({ name: '', keyword: '', enabled: true, steps: [] as BotStep[] });
+  
+  // React Flow state
+  const [nodes, setNodes, onNodesChange] = useNodesState([]);
+  const [edges, setEdges, onEdgesChange] = useEdgesState([]);
+  const reactFlowWrapper = useRef<HTMLDivElement>(null);
+
+  const onConnect = useCallback(
+    (params: Connection | Edge) => setEdges((eds) => addEdge({ 
+      ...params, 
+      type: 'smoothstep', 
+      animated: true,
+      markerEnd: { type: MarkerType.ArrowClosed, color: '#10b981' },
+      style: { stroke: '#10b981', strokeWidth: 2 }
+    }, eds)),
+    [setEdges]
+  );
+
+  const onNodeDelete = useCallback((id: string) => {
+    setNodes((nds) => nds.filter((node) => node.id !== id));
+  }, [setNodes]);
 
   const invoke = async (action: string, data: Record<string, unknown> = {}) => {
     const { data: res, error } = await supabase.functions.invoke('crm-oficial-sync', { body: { action, data: { apiKey, ...data } } });
@@ -146,24 +243,102 @@ export default function CrmOficialChatbots({ embed = false }: { embed?: boolean 
 
   const openNew = () => {
     setActive(null);
-    setForm({ name: 'Novo chatbot', keyword: '', enabled: true, steps: [{ id: uid(), type: 'message', title: 'Início', text: 'Olá! Como posso ajudar?' }] });
+    const initialSteps = [{ id: uid(), type: 'message' as BotStepType, title: 'Início', text: 'Olá! Como posso ajudar?' }];
+    setForm({ name: 'Novo chatbot', keyword: '', enabled: true, steps: initialSteps });
+    
+    // Initialize Flow with start node
+    const initialNodes: Node[] = [{
+      id: initialSteps[0].id,
+      type: 'step',
+      position: { x: 100, y: 150 },
+      data: { ...initialSteps[0], onDelete: onNodeDelete }
+    }];
+    
+    setNodes(initialNodes);
+    setEdges([]);
     setEditorOpen(true);
   };
 
   const openEdit = (bot: CrmBot) => {
     setActive(bot);
-    setForm({ name: bot.name, keyword: bot.keyword || bot.trigger_keywords?.join(', ') || '', enabled: Boolean(bot.enabled ?? bot.active), steps: bot.steps || [] });
+    const steps = bot.steps || [];
+    setForm({ name: bot.name, keyword: bot.keyword || bot.trigger_keywords?.join(', ') || '', enabled: Boolean(bot.enabled ?? bot.active), steps });
+    
+    // Initialize Flow
+    const initialNodes: Node[] = steps.map((s, idx) => ({
+      id: s.id,
+      type: 'step',
+      position: { x: 50 + (idx * 300), y: 150 },
+      data: { ...s, onDelete: onNodeDelete }
+    }));
+
+    const initialEdges: Edge[] = steps.slice(0, -1).map((s, idx) => ({
+      id: `e${s.id}-${steps[idx + 1].id}`,
+      source: s.id,
+      target: steps[idx + 1].id,
+      type: 'smoothstep',
+      animated: true,
+      markerEnd: { type: MarkerType.ArrowClosed, color: '#10b981' },
+      style: { stroke: '#10b981', strokeWidth: 2 }
+    }));
+
+    setNodes(initialNodes);
+    setEdges(initialEdges);
     setEditorOpen(true);
   };
 
-  const addStep = (type: BotStepType) => {
-    const meta = stepPalette.find(s => s.type === type);
-    setForm(f => ({ ...f, steps: [...f.steps, { id: uid(), type, title: meta?.label || type, text: type === 'message' ? 'Digite sua mensagem...' : '' }] }));
-  };
+  const onDragOver = useCallback((event: React.DragEvent) => {
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'move';
+  }, []);
+
+  const onDrop = useCallback(
+    (event: React.DragEvent) => {
+      event.preventDefault();
+
+      const type = event.dataTransfer.getData('application/reactflow') as BotStepType;
+      if (!type || !reactFlowWrapper.current) return;
+
+      const position = {
+        x: event.clientX - reactFlowWrapper.current.getBoundingClientRect().left,
+        y: event.clientY - reactFlowWrapper.current.getBoundingClientRect().top,
+      };
+
+      const meta = stepPalette.find(s => s.type === type);
+      const newId = uid();
+      const newNode: Node = {
+        id: newId,
+        type: 'step',
+        position,
+        data: { 
+          id: newId, 
+          type, 
+          title: meta?.label || type, 
+          text: type === 'message' ? 'Digite sua mensagem...' : '',
+          onDelete: onNodeDelete 
+        },
+      };
+
+      setNodes((nds) => nds.concat(newNode));
+    },
+    [setNodes, onNodeDelete]
+  );
 
   const saveBot = async () => {
     if (!form.name.trim()) return;
     setSaving(true);
+    
+    // Convert Nodes back to steps (simplified linear order based on X position for now)
+    const sortedSteps = [...nodes]
+      .sort((a, b) => a.position.x - b.position.x)
+      .map(node => ({
+        id: node.id,
+        type: node.data.type,
+        title: node.data.title,
+        text: node.data.text,
+        media_url: node.data.media_url
+      }));
+
     try {
       const chatbot = {
         name: form.name.trim(),
@@ -171,8 +346,8 @@ export default function CrmOficialChatbots({ embed = false }: { embed?: boolean 
         trigger_keywords: form.keyword.split(',').map(s => s.trim()).filter(Boolean),
         enabled: form.enabled,
         active: form.enabled,
-        steps: form.steps,
-        flow: { steps: form.steps },
+        steps: sortedSteps,
+        flow: { steps: sortedSteps },
         instance_name: active?.instance_name || null,
       };
       const r = await invoke(active ? 'update-chatbot' : 'create-chatbot', active ? { chatbot_id: active.id, chatbot } : { chatbot });
@@ -296,69 +471,94 @@ export default function CrmOficialChatbots({ embed = false }: { embed?: boolean 
               <div><DialogTitle className="flex items-center gap-2"><Bot className="w-5 h-5 text-emerald-500" /> {active ? active.name : 'Novo chatbot'}</DialogTitle><DialogDescription>{form.steps.length} passo(s)</DialogDescription></div>
               <Button onClick={saveBot} disabled={saving}>{saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />} Salvar fluxo</Button>
             </DialogHeader>
-            <div className="h-full flex min-h-0 bg-background">
-              <aside className="w-52 border-r bg-card/40 p-3 overflow-y-auto">
-                <p className="text-[10px] font-bold text-muted-foreground uppercase mb-3">Arraste para criar</p>
-                <div className="space-y-2">
-                  {stepPalette.map(item => {
-                    const Icon = item.icon;
-                    return <button key={item.type} onClick={() => addStep(item.type)} className="w-full flex items-center gap-2 text-xs font-semibold text-left rounded-lg hover:bg-accent p-1.5"><span className={cn('w-8 h-8 rounded-full flex items-center justify-center text-white', item.color)}><Icon className="w-4 h-4" /></span>{item.label}</button>;
-                  })}
+            <div className="h-full flex min-h-0 bg-[#0b0b0d]">
+              <aside className="w-60 border-r border-white/5 bg-[#121214] p-4 flex flex-col gap-6">
+                <div>
+                  <div className="flex items-center gap-2 mb-4">
+                    <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-500">
+                      <LayoutGrid className="w-4 h-4" />
+                    </div>
+                    <p className="text-[11px] font-bold text-white/50 uppercase tracking-widest">Componentes</p>
+                  </div>
+                  
+                  <div className="relative mb-4">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/20" />
+                    <Input className="h-9 bg-white/5 border-white/10 pl-9 text-xs" placeholder="Buscar..." />
+                  </div>
+
+                  <div className="flex gap-1 mb-4">
+                    <Badge className="bg-emerald-500 text-white hover:bg-emerald-600 cursor-pointer px-2 py-0.5 text-[10px]">Todos</Badge>
+                    <Badge variant="outline" className="text-white/40 border-white/5 hover:bg-white/5 cursor-pointer px-2 py-0.5 text-[10px]">Mensagens</Badge>
+                    <Badge variant="outline" className="text-white/40 border-white/5 hover:bg-white/5 cursor-pointer px-2 py-0.5 text-[10px]">Lógica</Badge>
+                  </div>
+
+                  <p className="text-[10px] font-bold text-white/20 uppercase tracking-widest mb-3">Ações</p>
+                  <div className="space-y-2">
+                    {stepPalette.map(item => {
+                      const Icon = item.icon;
+                      return (
+                        <div 
+                          key={item.type} 
+                          draggable 
+                          onDragStart={(e) => {
+                            e.dataTransfer.setData('application/reactflow', item.type);
+                            e.dataTransfer.effectAllowed = 'move';
+                          }}
+                          className="w-full flex items-center gap-3 text-xs font-semibold text-white/70 hover:text-white rounded-xl hover:bg-white/5 p-2 transition-all cursor-grab active:cursor-grabbing border border-transparent hover:border-white/5 group"
+                        >
+                          <div className={cn('w-9 h-9 rounded-xl flex items-center justify-center text-white shadow-lg shadow-black/20', item.color)}>
+                            <Icon className="w-4 h-4" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-bold">{item.label}</p>
+                            <p className="text-[10px] text-white/30 font-medium group-hover:text-white/40">Arrastar para fluxo</p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               </aside>
-              <main className="flex-1 min-w-0 overflow-auto bg-[radial-gradient(circle,hsl(var(--muted)/0.25)_1px,transparent_1px)] [background-size:18px_18px] p-5">
-                <div className="flex flex-wrap gap-3 mb-5 items-end">
-                  <div className="space-y-1.5"><Label className="text-muted-foreground text-[11px] uppercase font-bold">Nome</Label><Input className="w-64 bg-background/50" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} /></div>
-                  <div className="space-y-1.5 flex-1 min-w-64"><Label className="text-muted-foreground text-[11px] uppercase font-bold">Gatilhos</Label><Input className="bg-background/50" value={form.keyword} onChange={e => setForm(f => ({ ...f, keyword: e.target.value }))} placeholder="oi, menu, ajuda" /></div>
-                  <div className="flex items-center gap-2 pb-2"><Switch checked={form.enabled} onCheckedChange={v => setForm(f => ({ ...f, enabled: v }))} /><Label className="text-[11px] uppercase font-bold">Ativo</Label></div>
+              
+              <main className="flex-1 min-w-0 flex flex-col relative" ref={reactFlowWrapper}>
+                <div className="absolute top-4 left-4 z-10 flex gap-2">
+                  <div className="bg-[#121214] border border-white/5 rounded-xl p-1.5 flex gap-1 shadow-2xl">
+                    <Button variant="ghost" size="icon" className="w-8 h-8 rounded-lg bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20"><MousePointer2 className="w-4 h-4" /></Button>
+                    <Button variant="ghost" size="icon" className="w-8 h-8 rounded-lg text-white/20 hover:text-white/40 hover:bg-white/5"><Edit className="w-4 h-4" /></Button>
+                    <Button variant="ghost" size="icon" className="w-8 h-8 rounded-lg text-white/20 hover:text-white/40 hover:bg-white/5"><Share2 className="w-4 h-4" /></Button>
+                  </div>
+
+                  <div className="bg-[#121214] border border-white/5 rounded-xl px-3 py-1.5 flex items-center gap-3 shadow-2xl">
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                      <p className="text-[10px] font-bold text-white/70 uppercase tracking-widest">{active?.name || 'Novo Fluxo'}</p>
+                    </div>
+                    <div className="w-px h-3 bg-white/10" />
+                    <p className="text-[10px] font-bold text-white/30 uppercase tracking-widest">{nodes.length} Componentes</p>
+                  </div>
                 </div>
-                <div className="flex flex-wrap items-start gap-8">
-                  {form.steps.map((step, index) => {
-                    const meta = stepPalette.find(s => s.type === step.type) || stepPalette[0];
-                    const Icon = meta.icon;
-                    return (
-                      <div key={step.id} className="relative w-72 rounded-xl border border-border/70 bg-card shadow-xl overflow-hidden group">
-                        <div className={cn('px-3 py-2 text-white flex items-center gap-2', meta.color)}>
-                          <Icon className="w-4 h-4" />
-                          <Input 
-                            className="h-7 bg-white/20 border-white/30 text-white placeholder:text-white/60 focus-visible:ring-0 focus-visible:border-white/50" 
-                            value={step.title} 
-                            onChange={e => setForm(f => ({ ...f, steps: f.steps.map(s => s.id === step.id ? { ...s, title: e.target.value } : s) }))} 
-                          />
-                        </div>
-                        <div className="p-3 space-y-2">
-                          <Textarea 
-                            rows={4} 
-                            className="bg-accent/30 border-border/40 resize-none focus-visible:ring-1 focus-visible:ring-emerald-500/40"
-                            value={step.text || ''} 
-                            onChange={e => setForm(f => ({ ...f, steps: f.steps.map(s => s.id === step.id ? { ...s, text: e.target.value } : s) }))} 
-                            placeholder="Conteúdo do bloco" 
-                          />
-                          {['image','video','audio','document'].includes(step.type) && (
-                            <div className="space-y-1">
-                              <Label className="text-[10px] text-muted-foreground uppercase">URL da Mídia</Label>
-                              <Input 
-                                className="h-8 bg-accent/30 border-border/40"
-                                value={step.media_url || ''} 
-                                onChange={e => setForm(f => ({ ...f, steps: f.steps.map(s => s.id === step.id ? { ...s, media_url: e.target.value } : s) }))} 
-                                placeholder="https://..." 
-                              />
-                            </div>
-                          )}
-                          <Button 
-                            size="sm" 
-                            variant="ghost" 
-                            className="w-full text-red-400 hover:text-red-300 hover:bg-red-400/10 h-8 mt-1" 
-                            onClick={() => setForm(f => ({ ...f, steps: f.steps.filter(s => s.id !== step.id) }))}
-                          >
-                            <Trash2 className="w-3.5 h-3.5 mr-2" /> Remover
-                          </Button>
-                        </div>
-                        {index < form.steps.length - 1 && <div className="hidden lg:block absolute top-1/2 -right-8 w-8 border-t border-dashed border-border/60" />}
-                      </div>
-                    );
-                  })}
+
+                <div className="absolute top-4 right-4 z-10 flex gap-2">
+                  <Button variant="outline" className="bg-[#121214] border-white/5 text-white/50 hover:bg-[#1c1c1f] hover:text-white rounded-xl h-9 text-xs font-bold gap-2">
+                    <Settings className="w-3.5 h-3.5" /> Organizar
+                  </Button>
                 </div>
+
+                <ReactFlow
+                  nodes={nodes}
+                  edges={edges}
+                  onNodesChange={onNodesChange}
+                  onEdgesChange={onEdgesChange}
+                  onConnect={onConnect}
+                  onDragOver={onDragOver}
+                  onDrop={onDrop}
+                  nodeTypes={nodeTypes}
+                  fitView
+                  style={{ background: '#0b0b0d' }}
+                >
+                  <Background gap={24} size={1} color="#ffffff10" />
+                  <Controls className="!bg-[#121214] !border-white/5 !fill-white/40" />
+                </ReactFlow>
               </main>
             </div>
             <DialogFooter className="sr-only" />
