@@ -398,7 +398,7 @@ export default function CrmOficialChatbots({ embed = false, overrideToken }: { e
             <div className="flex items-center justify-between gap-3 flex-wrap">
               <div>
                 <h1 className="text-2xl font-bold flex items-center gap-2"><Bot className="w-6 h-6 text-emerald-500" /> Chatbots</h1>
-                <p className="text-sm text-muted-foreground">Crie fluxos automáticos com visual e blocos compatíveis com o CRM Oficial.</p>
+                <p className="text-sm text-muted-foreground">Gerencie seus fluxos automáticos do CRM Oficial.</p>
               </div>
               <div className="flex gap-2">
                 <Button variant="outline" onClick={loadBots} disabled={!apiKey || syncing}>{syncing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />} Sincronizar</Button>
@@ -407,23 +407,20 @@ export default function CrmOficialChatbots({ embed = false, overrideToken }: { e
             </div>
 
             {apiKey && (
-              <Card className="border-emerald-500/20 bg-emerald-500/5 overflow-hidden">
-                <CardContent className="p-4">
-                  <div className="flex items-center justify-between gap-4">
+              <Card className="border-emerald-500/20 bg-[#121214] overflow-hidden">
+                <CardContent className="p-0">
+                  <div className="p-4 border-b border-white/5 flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center">
-                        <Share2 className="w-5 h-5 text-emerald-400" />
+                      <div className="w-9 h-9 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-500">
+                        <LinkIcon className="w-4 h-4" />
                       </div>
-                      <div>
-                        <h4 className="text-sm font-bold text-emerald-400">Embed do Chatbot</h4>
-                        <p className="text-xs text-muted-foreground">Copie o link ou o código Iframe para usar em painéis externos.</p>
-                      </div>
+                      <h4 className="text-sm font-bold text-white/70 uppercase tracking-widest">Painel de Automação (Embed)</h4>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex gap-2">
                       <Button 
                         size="sm" 
-                        variant="outline" 
-                        className="h-8 text-[10px] font-bold uppercase tracking-wider"
+                        variant="ghost" 
+                        className="h-8 text-[10px] font-bold text-white/40 hover:text-white"
                         onClick={() => {
                           const url = `${window.location.origin}/embed/chatbots?token=${apiKey}`;
                           navigator.clipboard.writeText(url);
@@ -434,8 +431,8 @@ export default function CrmOficialChatbots({ embed = false, overrideToken }: { e
                       </Button>
                       <Button 
                         size="sm" 
-                        variant="outline" 
-                        className="h-8 text-[10px] font-bold uppercase tracking-wider"
+                        variant="ghost" 
+                        className="h-8 text-[10px] font-bold text-white/40 hover:text-white"
                         onClick={() => {
                           const url = `${window.location.origin}/embed/chatbots?token=${apiKey}`;
                           const iframe = `<iframe src="${url}" style="border:0;width:100%;height:800px;" allow="clipboard-write"></iframe>`;
@@ -446,6 +443,13 @@ export default function CrmOficialChatbots({ embed = false, overrideToken }: { e
                         Copiar Iframe
                       </Button>
                     </div>
+                  </div>
+                  <div className="bg-[#0b0b0d] p-1 h-[800px]">
+                    <iframe 
+                      src={`${window.location.origin}/embed/chatbots?token=${apiKey}`}
+                      className="w-full h-full border-0 rounded-lg shadow-2xl"
+                      title="Chatbot Editor Embed"
+                    />
                   </div>
                 </CardContent>
               </Card>
