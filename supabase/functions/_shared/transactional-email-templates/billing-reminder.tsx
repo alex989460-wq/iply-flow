@@ -7,6 +7,7 @@ import {
   Heading,
   Hr,
   Html,
+  Img,
   Link,
   Preview,
   Section,
@@ -30,6 +31,7 @@ interface Props {
   messageBody?: string
   // Optional payment link (checkout / Pix)
   paymentUrl?: string
+  fallbackUrl?: string
   supportPhone?: string
   // Optional subject override (configured by the reseller)
   subjectOverride?: string
@@ -49,6 +51,7 @@ const Email = ({
   amount,
   messageBody,
   paymentUrl,
+  fallbackUrl,
   supportPhone,
   unsubscribeUrl,
 }: Props) => {
@@ -66,7 +69,7 @@ const Email = ({
 
   const linkMatch = (messageBody || '').match(/https?:\/\/[^\s<>"']+/)
   const extractedUrl = linkMatch ? linkMatch[0] : undefined
-  const ctaUrl = paymentUrl || extractedUrl
+  const ctaUrl = paymentUrl || extractedUrl || fallbackUrl
 
   const clean = (line: string) =>
     line
@@ -90,10 +93,11 @@ const Email = ({
       </Preview>
       <Body style={main}>
         <Container style={container}>
-          {/* Header 100% em texto/HTML — sem imagens remotas, para o Outlook
-              não exibir o aviso "clique para baixar imagens" */}
           <Section style={{ ...accentBar, backgroundColor: brandColor }} />
           <Section style={header}>
+            {logoUrl ? (
+              <Img src={logoUrl} alt={brandName} width="140" style={logoImg} />
+            ) : (
             <table cellPadding={0} cellSpacing={0} role="presentation" style={{ margin: '0 auto 12px' }}>
               <tbody>
                 <tr>
@@ -103,6 +107,7 @@ const Email = ({
                 </tr>
               </tbody>
             </table>
+            )}
             <Heading style={brandTitle}>{brandName}</Heading>
             <Text style={brandSubtitle}>Aviso da sua assinatura</Text>
           </Section>
@@ -272,3 +277,5 @@ const footer = { fontSize: '12px', lineHeight: '18px', color: '#71717a', margin:
 const outerFooter = { width: '100%', maxWidth: '580px', margin: '0 auto', padding: '16px 12px 0', textAlign: 'center' as const }
 const footerSmall = { fontSize: '11px', lineHeight: '17px', color: '#a1a1aa', margin: '0 0 4px', textAlign: 'center' as const, fontFamily: FONT }
 const footerLink = { color: '#a1a1aa', textDecoration: 'underline' }
+
+const logoImg = { display: 'block', margin: '0 auto 12px', maxWidth: '140px', height: 'auto' }
