@@ -55,9 +55,10 @@ Deno.serve(async (req) => {
   let idempotencyKey: string
   let messageId: string
   let templateData: Record<string, any> = {}
-  // Per-reseller identity (Plan A: shared sending domain, custom display name / reply-to)
   let fromName: string | null = null
   let replyTo: string | null = null
+  // Optional owner (reseller) id — used to scope open-tracking reports
+  let ownerId: string | null = null
   try {
     const body = await req.json()
     templateName = body.templateName || body.template_name
