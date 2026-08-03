@@ -785,6 +785,69 @@ export default function BillingSettingsCard() {
               />
             </div>
 
+            <div className="space-y-2">
+              <Label className="text-sm">Logo do e-mail</Label>
+              <div className="flex items-center gap-3">
+                {formData.email_logo_url ? (
+                  <img
+                    src={formData.email_logo_url}
+                    alt="Logo usada nos e-mails de cobrança"
+                    className="h-10 w-auto rounded border border-border/60 bg-background p-1"
+                  />
+                ) : null}
+                <Input
+                  type="file"
+                  accept="image/*"
+                  disabled={uploadingLogo}
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (!file || !user?.id) return;
+                    if (file.size > 2 * 1024 * 1024) {
+                      toast.error('Logo muito grande (máx 2MB)');
+                      return;
+                    }
+                    setUploadingLogo(true);
+                    try {
+                      const ext = file.name.split('.').pop() || 'png';
+                      const filePath = `${user.id}/email-logo.${ext}`;
+                      const { error: upErr } = await supabase.storage
+                        .from('reseller-assets')
+                        .upload(filePath, file, { upsert: true });
+                      if (upErr) throw upErr;
+                      const { data: urlData } = supabase.storage
+                        .from('reseller-assets')
+                        .getPublicUrl(filePath);
+                      setFormData((prev) => ({
+                        ...prev,
+                        email_logo_url: urlData.publicUrl + '?t=' + Date.now(),
+                      }));
+                      toast.success('Logo enviada! Salve as configurações.');
+                    } catch (err: any) {
+                      toast.error(err.message || 'Erro ao enviar logo');
+                    } finally {
+                      setUploadingLogo(false);
+                      e.target.value = '';
+                    }
+                  }}
+                />
+                {formData.email_logo_url ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setFormData({ ...formData, email_logo_url: '' })}
+                  >
+                    Remover
+                  </Button>
+                ) : null}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                PNG/JPG até 2MB. Aparece no topo dos e-mails de cobrança.
+              </p>
+            </div>
+
+
+
             {([
               ['email_msg_d_minus_1', 'Mensagem D-1 (vence amanhã)'],
               ['email_msg_d0', 'Mensagem D0 (vence hoje)'],
