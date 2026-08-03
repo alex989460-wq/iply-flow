@@ -81,6 +81,7 @@ export default function CrmOficialChatbots() {
   const [apiKey, setApiKey] = useState('');
   const [enabled, setEnabled] = useState(false);
   const [bots, setBots] = useState<CrmBot[]>([]);
+  const [channels, setChannels] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -115,6 +116,19 @@ export default function CrmOficialChatbots() {
       const result = r?.chatbots;
       if (result && !result.ok) throw new Error(`Status ${result.status}`);
       setBots(normalizeBots(result?.body));
+      
+      // Load channels to allow linking
+      const cRes = await invoke('list-channels');
+      if (cRes?.channels?.ok) {
+        const list = Array.isArray(cRes.channels.body) ? cRes.channels.body : [];
+        setChannels(list.map((c: any) => ({
+          id: c.id || c.phone_number_id,
+          name: c.name || c.verified_name,
+          verified_name: c.verified_name || c.name,
+          instance_name: c.evolution_instance_name || c.instance_name,
+          display_phone_number: c.display_phone_number || c.phone_number
+        })));
+      }
     } catch (e: any) {
       toast({ title: 'Erro ao carregar chatbots', description: e.message, variant: 'destructive' });
     } finally {
@@ -224,6 +238,32 @@ export default function CrmOficialChatbots() {
                     <div className="min-w-0">
                       <h3 className="font-bold truncate">{bot.name}</h3>
                       <p className="text-xs text-muted-foreground truncate">Palavra: {bot.keyword || bot.trigger_keywords?.join(', ') || '—'}</p>
+                      <div className="mt-1">
+                        <Label className="text-[10px] uppercase text-muted-foreground mb-1 block">Conexão Vinculada</Label>
+                        <select 
+                          className="w-full h-7 bg-background/50 border border-border/40 rounded px-2 text-[10px] focus:outline-none focus:ring-1 focus:ring-emerald-500/40"
+                          value={bot.instance_name || ''}
+                          onChange={async (e) => {
+                            const instanceName = e.target.value;
+                            try {
+                              const chatbot = { ...bot, instance_name: instanceName || null };
+                              const r = await invoke('update-chatbot', { chatbot_id: bot.id, chatbot });
+                              if (r?.chatbot && !r.chatbot.ok) throw new Error(`Status ${r.chatbot.status}`);
+                              setBots(prev => prev.map(item => item.id === bot.id ? { ...item, instance_name: instanceName || null } : item));
+                              toast({ title: 'Chatbot vinculado à conexão' });
+                            } catch (err: any) {
+                              toast({ title: 'Erro ao vincular', description: err.message, variant: 'destructive' });
+                            }
+                          }}
+                        >
+                          <option value="">Todos os números conectados</option>
+                          {channels.map(c => (
+                            <option key={c.id} value={c.instance_name || c.name}>
+                              {c.verified_name || c.name} ({c.display_phone_number || c.instance_name})
+                            </option>
+                          ))}
+                        </select>
+                      </div>
                     </div>
                   </div>
                   <Badge className={cn((bot.enabled || bot.active) ? 'bg-emerald-500/15 text-emerald-400' : 'bg-muted text-muted-foreground')}>{bot.enabled || bot.active ? 'Ativo' : 'Inativo'}</Badge>
