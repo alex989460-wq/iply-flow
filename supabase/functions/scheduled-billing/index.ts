@@ -636,7 +636,7 @@ Deno.serve(async (req) => {
       // Get customers for this user (ativa and inativa only - suspensa is excluded)
       const { data: customers } = await supabase
         .from('customers')
-        .select('id, name, phone, extra_phone, due_date, status, username, custom_price, plan:plans(plan_name, price), server:servers(server_name)')
+        .select('id, name, phone, email, extra_phone, due_date, status, username, custom_price, plan:plans(plan_name, price), server:servers(server_name)')
         .in('status', ['ativa', 'inativa'])
         .eq('created_by', schedule.user_id)
         .in('due_date', [yesterday, today, tomorrow]);
@@ -886,7 +886,7 @@ Deno.serve(async (req) => {
 
       const { data: customers, error: customersError } = await supabase
         .from('customers')
-        .select('id, name, phone, extra_phone, due_date, status, username, custom_price, screens, plan:plans(plan_name, price), server:servers(server_name)')
+        .select('id, name, phone, email, extra_phone, due_date, status, username, custom_price, screens, plan:plans(plan_name, price), server:servers(server_name)')
         .in('status', ['ativa', 'inativa'])
         .eq('created_by', schedule.user_id)
         .in('due_date', [yesterday, today, tomorrow]);
