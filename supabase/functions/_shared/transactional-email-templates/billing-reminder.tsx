@@ -68,7 +68,7 @@ const Email = ({
 
   const linkMatch = (messageBody || '').match(/https?:\/\/[^\s<>"']+/)
   const extractedUrl = linkMatch ? linkMatch[0] : undefined
-  const ctaUrl = paymentUrl || extractedUrl
+  const ctaUrl = paymentUrl || extractedUrl || fallbackUrl
 
   const clean = (line: string) =>
     line
