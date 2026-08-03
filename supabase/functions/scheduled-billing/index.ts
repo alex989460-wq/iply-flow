@@ -525,12 +525,32 @@ Deno.serve(async (req) => {
     for (const schedule of schedulesToRun) {
       console.log(`[Scheduled Billing] Processing schedule for user: ${schedule.user_id}`);
 
-      // Get user's zap settings
-      const { data: zapSettings } = await supabase
-        .from('zap_responder_settings')
-        .select('*')
+      // Check if user is active and within expiry date
+      const { data: resellerAccess, error: resellerErr } = await supabase
+        .from('reseller_access')
+        .select('is_active, access_expires_at')
         .eq('user_id', schedule.user_id)
         .maybeSingle();
+
+      if (resellerErr) {
+        console.error(`[Scheduled Billing] Error checking reseller access for ${schedule.user_id}:`, resellerErr);
+        continue;
+      }
+
+      const isExpired = resellerAccess?.access_expires_at && new Date(resellerAccess.access_expires_at) < new Date();
+      if (!resellerAccess?.is_active || isExpired) {
+        console.log(`[Scheduled Billing] User ${schedule.user_id} is inactive or expired. Skipping schedule.`);
+        await supabase
+          .from('billing_schedule')
+          .update({ 
+            last_run_at: new Date().toISOString(),
+            last_run_status: resellerAccess?.is_active === false ? 'paused: revendedor desativado' : 'paused: mensalidade expirada'
+          })
+          .eq('id', schedule.id);
+        continue;
+      }
+
+      // Get user's zap settings
 
       if (!zapSettings?.zap_api_token || (!zapSettings?.selected_session_id && !zapSettings?.selected_department_id)) {
         console.log(`[Scheduled Billing] User ${schedule.user_id} missing zap settings`);
@@ -855,6 +875,31 @@ Deno.serve(async (req) => {
 
     for (const schedule of crmSchedulesToRun) {
       console.log(`[Scheduled CRM Oficial] Processing schedule for user: ${schedule.user_id}`);
+
+      // Check if user is active and within expiry date
+      const { data: resellerAccess, error: resellerErr } = await supabase
+        .from('reseller_access')
+        .select('is_active, access_expires_at')
+        .eq('user_id', schedule.user_id)
+        .maybeSingle();
+
+      if (resellerErr) {
+        console.error(`[Scheduled CRM Oficial] Error checking reseller access for ${schedule.user_id}:`, resellerErr);
+        continue;
+      }
+
+      const isExpired = resellerAccess?.access_expires_at && new Date(resellerAccess.access_expires_at) < new Date();
+      if (!resellerAccess?.is_active || isExpired) {
+        console.log(`[Scheduled CRM Oficial] User ${schedule.user_id} is inactive or expired. Skipping schedule.`);
+        await supabase
+          .from('crm_oficial_billing_schedule')
+          .update({
+            last_run_at: new Date().toISOString(),
+            last_run_status: resellerAccess?.is_active === false ? 'paused: revendedor desativado' : 'paused: mensalidade expirada',
+          })
+          .eq('id', schedule.id);
+        continue;
+      }
 
       const { data: crmSettings } = await supabase
         .from('crm_oficial_settings')
