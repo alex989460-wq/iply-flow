@@ -110,7 +110,7 @@ export default function CrmOficialChat({ embed = false, active = true }: { embed
     <>
 
       <div
-        className={`w-full min-h-0 overflow-hidden bg-background ${embed ? "relative h-full" : "absolute inset-0"} ${isMobile ? "flex" : "grid grid-cols-[minmax(0,1fr)_420px] xl:grid-cols-[minmax(0,1fr)_460px]"}`}
+        className={`w-full min-h-0 overflow-hidden bg-background ${embed ? "relative h-full" : "absolute inset-0"}`}
       >
 
 
@@ -131,60 +131,15 @@ export default function CrmOficialChat({ embed = false, active = true }: { embed
             </div>
           </Card>
         ) : (
-          <>
-            {/* flex-1/w-full garante largura no mobile (container é flex) */}
-            <div className="relative flex-1 w-full h-full min-h-0 min-w-0 overflow-hidden bg-background">
-
-              <iframe
-                ref={iframeRef}
-                title="Chat"
-                className="absolute inset-0 h-full w-full border-0 block"
-                referrerPolicy="no-referrer"
-                allow="clipboard-read; clipboard-write; microphone; camera; autoplay; fullscreen; geolocation"
-              />
-            </div>
-
-            {/* Desktop: side panel always open */}
-            {!isMobile && (
-              <div className="h-full min-h-0 border-l bg-background flex flex-col overflow-hidden">
-                <div className="flex items-center gap-2 px-3 py-2 border-b text-sm font-semibold">
-                  <Zap className="h-4 w-4 text-emerald-500" />
-                  Renovação rápida
-                </div>
-                <div className="flex-1 min-h-0 overflow-hidden">
-                  <QuickRenewalPanel />
-                </div>
-              </div>
-            )}
-
-
-            {/* Mobile: bottom sheet trigger */}
-            {isMobile && active && (
-              <Sheet open={panelOpen} onOpenChange={setPanelOpen}>
-                <SheetTrigger asChild>
-                  <Button
-                    className="fixed top-20 right-3 z-30 shadow-xl gap-2 bg-emerald-600 hover:bg-emerald-700 rounded-full h-10 px-3"
-                    size="sm"
-                  >
-                    <Zap className="h-4 w-4" />
-                    Renovar
-                  </Button>
-
-                </SheetTrigger>
-                <SheetContent side="bottom" className="h-[92svh] p-0 flex flex-col">
-                  <div className="flex items-center justify-between px-3 py-2 border-b shrink-0">
-                    <div className="flex items-center gap-2 text-sm font-semibold">
-                      <Zap className="h-4 w-4 text-emerald-500" />
-                      Renovação rápida
-                    </div>
-                  </div>
-                  <div className="flex-1 min-h-0 overflow-y-auto">
-                    <QuickRenewalPanel isMobile onClose={() => setPanelOpen(false)} />
-                  </div>
-                </SheetContent>
-              </Sheet>
-            )}
-          </>
+          <div className="relative w-full h-full min-h-0 min-w-0 overflow-hidden bg-background">
+            <iframe
+              ref={iframeRef}
+              title="Chat"
+              className="absolute inset-0 h-full w-full border-0 block"
+              referrerPolicy="no-referrer"
+              allow="clipboard-read; clipboard-write; microphone; camera; autoplay; fullscreen; geolocation"
+            />
+          </div>
         )}
       </div>
       {!embed && <PendingManualRenewalsFloat />}
