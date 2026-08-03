@@ -3422,8 +3422,35 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
                       API Oficial (WhatsApp — {primaryCrmChannel?.display_phone_number || primaryCrmChannel?.phone_number || 'canal principal'})
                     </SelectItem>
                     <SelectItem value="evolution">WhatsApp não oficial (Evolution — {billingSettings?.evolution_instance || 'não configurado'})</SelectItem>
+                    <SelectItem value="email">E-mail ({sendingBillingCustomer?.email || 'sem e-mail cadastrado'})</SelectItem>
                   </SelectContent>
                 </Select>
+                {billingChannel === 'email' && (
+                  <div className="space-y-2 pt-2">
+                    <Label className="text-sm">Mensagem</Label>
+                    <Select value={selectedEmailType} onValueChange={(v: any) => setSelectedEmailType(v)}>
+                      <SelectTrigger className="bg-secondary/50">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="D-1">Vence amanhã (D-1)</SelectItem>
+                        <SelectItem value="D0">Vence hoje (D0)</SelectItem>
+                        <SelectItem value="D+1">Vencido (D+1)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {!sendingBillingCustomer?.email && (
+                      <p className="text-[11px] text-destructive">
+                        Este cliente não tem e-mail cadastrado. Edite o cliente e informe o e-mail.
+                      </p>
+                    )}
+                    {!billingSettings?.use_email_billing && (
+                      <p className="text-[11px] text-amber-500">
+                        Ative a cobrança por e-mail em Configurações de Cobrança.
+                      </p>
+                    )}
+                  </div>
+                )}
+
                 {billingChannel === 'crm' && (
                   <div className="text-[11px] text-muted-foreground leading-tight">
                     Enviará pelo canal:{' '}
