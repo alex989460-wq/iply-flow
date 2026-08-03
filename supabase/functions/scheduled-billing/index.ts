@@ -876,7 +876,7 @@ Deno.serve(async (req) => {
 
       const { data: billSettings } = await supabase
         .from('billing_settings')
-        .select('pix_key')
+        .select('pix_key, use_email_billing, email_from_name, email_reply_to, email_subject, email_msg_d_minus_1, email_msg_d0, email_msg_d_plus_1')
         .eq('user_id', schedule.user_id)
         .maybeSingle();
 
@@ -1069,8 +1069,12 @@ Deno.serve(async (req) => {
           }
         }
 
+        // E-mail channel (sempre, em paralelo ao WhatsApp)
+        await sendBillingEmail(supabase, billSettings, customer, billingType, { todayStr: today });
+
         await supabase.from('billing_logs').update({
           message: `[Agendado CRM] [${phone}] Template: crm:${templateName}`,
+
           whatsapp_status: sendResult.success ? 'sent' : `error: ${sendResult.error}`,
         }).eq('id', reservation.id);
 
