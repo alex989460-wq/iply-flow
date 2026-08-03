@@ -108,6 +108,9 @@ const Email = ({
               </Link>
             </Text>
           ) : null}
+          {trackingPixelUrl ? (
+            <Img src={trackingPixelUrl} alt="" width="1" height="1" style={pixel} />
+          ) : null}
         </Container>
       </Body>
     </Html>
