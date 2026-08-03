@@ -17,7 +17,7 @@ export default function TrialDaysCard() {
     (async () => {
       const { data } = await supabase
         .from('platform_settings')
-        .select('trial_days')
+        .select('id, trial_days')
         .maybeSingle();
 
       if (data) setTrialDays(String(data.trial_days ?? 30));
