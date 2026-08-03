@@ -70,6 +70,19 @@ export async function sendBillingEmail(
     const brandName = settings.email_from_name?.trim() || 'Sua Assinatura';
     const price = customer?.custom_price ?? customer?.plan?.price ?? 0;
 
+    // Link de renovação do PRÓPRIO revendedor (fallback quando a mensagem não traz link)
+    let resellerUrl: string | undefined;
+    try {
+      if (customer?.created_by) {
+        const { data: rcs } = await supabase
+          .from('reseller_checkout_settings')
+          .select('slug')
+          .eq('user_id', customer.created_by)
+          .maybeSingle();
+        if (rcs?.slug) resellerUrl = `https://supergestor.top/r/${rcs.slug}`;
+      }
+    } catch (_) { /* ignore */ }
+
     const { error } = await supabase.functions.invoke('send-transactional-email', {
       body: {
         templateName: 'billing-reminder',
