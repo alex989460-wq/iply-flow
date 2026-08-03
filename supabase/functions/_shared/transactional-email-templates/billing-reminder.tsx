@@ -91,16 +91,23 @@ const Email = ({
       </Preview>
       <Body style={main}>
         <Container style={container}>
-          {/* Header — single-cell table, logo stacked above the name so Outlook
-              never breaks the columns apart */}
+          {/* Header 100% em texto/HTML — sem imagens remotas, para o Outlook
+              não exibir o aviso "clique para baixar imagens" */}
           <Section style={{ ...accentBar, backgroundColor: brandColor }} />
           <Section style={header}>
-            {logoUrl ? (
-              <Img src={logoUrl} alt={brandName} width="56" height="56" style={logo} />
-            ) : null}
+            <table cellPadding={0} cellSpacing={0} role="presentation" style={{ margin: '0 auto 12px' }}>
+              <tbody>
+                <tr>
+                  <td style={{ ...logoBadge, backgroundColor: brandColor }}>
+                    {(brandName || 'A').trim().charAt(0).toUpperCase()}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
             <Heading style={brandTitle}>{brandName}</Heading>
             <Text style={brandSubtitle}>Aviso da sua assinatura</Text>
           </Section>
+
 
           <Section style={content}>
             <Text style={{ ...eyebrow, color: brandColor }}>LEMBRETE DE VENCIMENTO</Text>
