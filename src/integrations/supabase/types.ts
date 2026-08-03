@@ -152,6 +152,36 @@ export type Database = {
         }
         Relationships: []
       }
+      ai_automation_rules: {
+        Row: {
+          action_config: Json | null
+          action_type: string
+          created_at: string | null
+          id: string
+          intent_name: string
+          is_enabled: boolean | null
+          user_id: string
+        }
+        Insert: {
+          action_config?: Json | null
+          action_type: string
+          created_at?: string | null
+          id?: string
+          intent_name: string
+          is_enabled?: boolean | null
+          user_id: string
+        }
+        Update: {
+          action_config?: Json | null
+          action_type?: string
+          created_at?: string | null
+          id?: string
+          intent_name?: string
+          is_enabled?: boolean | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       ai_knowledge_candidates: {
         Row: {
           best_answer: string
@@ -2420,34 +2450,43 @@ export type Database = {
       }
       platform_settings: {
         Row: {
+          ai_api_key: string | null
+          ai_automation_enabled: boolean | null
+          ai_provider: string | null
           created_at: string
           id: string
           recaptcha_enabled: boolean
           recaptcha_min_score: number
           recaptcha_site_key: string | null
-          singleton: boolean
           trial_days: number
           updated_at: string
+          user_id: string | null
         }
         Insert: {
+          ai_api_key?: string | null
+          ai_automation_enabled?: boolean | null
+          ai_provider?: string | null
           created_at?: string
           id?: string
           recaptcha_enabled?: boolean
           recaptcha_min_score?: number
           recaptcha_site_key?: string | null
-          singleton?: boolean
           trial_days?: number
           updated_at?: string
+          user_id?: string | null
         }
         Update: {
+          ai_api_key?: string | null
+          ai_automation_enabled?: boolean | null
+          ai_provider?: string | null
           created_at?: string
           id?: string
           recaptcha_enabled?: boolean
           recaptcha_min_score?: number
           recaptcha_site_key?: string | null
-          singleton?: boolean
           trial_days?: number
           updated_at?: string
+          user_id?: string | null
         }
         Relationships: []
       }
