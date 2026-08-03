@@ -442,6 +442,14 @@ export default function AiTraining() {
               <div className="mt-8 pt-6 border-t border-border/50 flex justify-end">
                 <Button 
                   onClick={async () => {
+                    if (aiSettings.enabled && !aiSettings.apiKey) {
+                      toast({ 
+                        title: 'Chave de API Obrigatória', 
+                        description: 'Para ativar a automação, você deve fornecer sua própria chave de API (Gemini ou OpenAI).', 
+                        variant: 'destructive' 
+                      });
+                      return;
+                    }
                     setSavingSettings(true);
                     const { error } = await (supabase.from('platform_settings' as any) as any)
                       .upsert({ 
