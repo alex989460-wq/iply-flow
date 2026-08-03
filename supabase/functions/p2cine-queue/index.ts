@@ -176,11 +176,21 @@ Deno.serve(async (req) => {
       if (!pending) return json({ error: "not_found" }, 404);
 
       if (success) {
+        // Check reseller access expiry before performing automated activation/renewal
+        const { data: resellerAccess } = await supabase
+          .from('reseller_access')
+          .select('is_active, access_expires_at')
+          .eq('user_id', pending.owner_id)
+          .maybeSingle();
+
+        const isExpired = resellerAccess?.access_expires_at && new Date(resellerAccess.access_expires_at) < new Date();
+        if (resellerAccess?.is_active === false || isExpired) {
+          console.warn(`[p2cine-queue] BLOCKED: Reseller ${pending.owner_id} is inactive or expired. Skipping extension update.`);
+          // We don't delete the pending row yet, it stays locked until they renew or we wipe it
+          return json({ ok: false, error: "reseller_expired", message: "Sua mensalidade expirou. Renove para processar pendências." }, 403);
+        }
+
         // Advance the customer's due_date by inserting a confirmed payment so the
-        // renew_customer_due_date trigger handles calendar-month math consistently.
-        // Frontend-created tasks already updated the local customer record; in that
-        // case the extension only confirms the external panel action.
-        if (pending.customer_id && !String(pending.source || "").startsWith("frontend_")) {
           // Guard against duplicate renewals: if this customer already has a confirmed
           // payment in the last 12h (e.g. Cakto webhook renewed while the extension
           // was still processing the panel queue with two tabs open), just delete

@@ -268,6 +268,24 @@ async function processBroadcastBatch(args: {
 }) {
   const supabase = createClient(args.supabaseUrl, args.supabaseServiceKey);
 
+  // Gate on reseller access (must be active and not expired)
+  const { data: resellerAccess, error: resellerErr } = await supabase
+    .from('reseller_access')
+    .select('is_active, access_expires_at')
+    .eq('user_id', args.userId)
+    .maybeSingle();
+
+  if (resellerErr) {
+    console.error('Error checking reseller access for broadcast:', resellerErr);
+    return { ok: false as const, status: 500, body: { error: 'Erro ao validar acesso do revendedor.' } };
+  }
+
+  const isExpired = resellerAccess?.access_expires_at && new Date(resellerAccess.access_expires_at) < new Date();
+  if (!resellerAccess?.is_active || isExpired) {
+    const reason = resellerAccess?.is_active === false ? 'acesso desativado' : 'mensalidade expirada';
+    return { ok: false as const, status: 403, body: { error: `Broadcast pausado: ${reason}.` } };
+  }
+
   // Gate on CRM Oficial settings
   if (!args.userId) {
     return { ok: false as const, status: 400, body: { error: 'Usuário não identificado para o envio.' } };
