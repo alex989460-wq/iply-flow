@@ -197,7 +197,7 @@ export default function CrmOficialChatbots({ embed = false, overrideToken }: { e
   };
 
   useEffect(() => {
-    if (embed && apiKey) {
+    if (apiKey) {
       setEnabled(true);
       setLoading(false);
       return;
@@ -205,11 +205,11 @@ export default function CrmOficialChatbots({ embed = false, overrideToken }: { e
     if (!user) return;
     (async () => {
       const { data } = await supabase.from('crm_oficial_settings').select('api_key, enabled').eq('user_id', user.id).maybeSingle();
-      setApiKey(data?.api_key || '');
+      if (data?.api_key) setApiKey(data.api_key);
       setEnabled(!!data?.enabled);
       setLoading(false);
     })();
-  }, [user]);
+  }, [user, apiKey]);
 
   useEffect(() => { if (apiKey) void loadBots(); }, [apiKey]);
 
