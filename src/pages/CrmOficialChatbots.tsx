@@ -36,6 +36,7 @@ interface CrmBot {
   flow?: { steps?: BotStep[]; nodes?: BotStep[] };
   first_message?: string;
   trigger_keywords?: string[];
+  instance_name?: string | null;
 }
 
 const stepPalette: Array<{ type: BotStepType; label: string; icon: typeof MessageSquare; color: string }> = [
