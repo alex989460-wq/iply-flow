@@ -15,7 +15,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { Save, Loader2, Upload, Trash2, ImageIcon, RefreshCw, Zap } from 'lucide-react';
+import { Save, Loader2, Upload, Trash2, ImageIcon, RefreshCw, Zap, Mail } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 
 interface BillingSettings {
@@ -41,7 +41,15 @@ interface BillingSettings {
   evolution_msg_d_minus_1?: string | null;
   evolution_msg_d0?: string | null;
   evolution_msg_d_plus_1?: string | null;
+  use_email_billing?: boolean;
+  email_from_name?: string | null;
+  email_reply_to?: string | null;
+  email_subject?: string | null;
+  email_msg_d_minus_1?: string | null;
+  email_msg_d0?: string | null;
+  email_msg_d_plus_1?: string | null;
 }
+
 
 const DEFAULT_RENEWAL_TEMPLATE = `✅ Olá, *{{nome}}*. Obrigado por confirmar seu pagamento. Segue abaixo os dados da sua assinatura:
 
@@ -144,7 +152,15 @@ export default function BillingSettingsCard() {
     evolution_msg_d_minus_1: '',
     evolution_msg_d0: '',
     evolution_msg_d_plus_1: '',
+    use_email_billing: false,
+    email_from_name: '',
+    email_reply_to: '',
+    email_subject: 'Aviso de vencimento da sua assinatura',
+    email_msg_d_minus_1: '',
+    email_msg_d0: '',
+    email_msg_d_plus_1: '',
   });
+
 
   // Load Evolution instances for the picker.
   // Fallback: se a revenda não tem credenciais próprias da Evolution, reaproveita
@@ -222,6 +238,14 @@ export default function BillingSettingsCard() {
         evolution_msg_d_minus_1: (settings as any).evolution_msg_d_minus_1 || '',
         evolution_msg_d0: (settings as any).evolution_msg_d0 || '',
         evolution_msg_d_plus_1: (settings as any).evolution_msg_d_plus_1 || '',
+        use_email_billing: !!(settings as any).use_email_billing,
+        email_from_name: (settings as any).email_from_name || '',
+        email_reply_to: (settings as any).email_reply_to || '',
+        email_subject: (settings as any).email_subject || 'Aviso de vencimento da sua assinatura',
+        email_msg_d_minus_1: (settings as any).email_msg_d_minus_1 || '',
+        email_msg_d0: (settings as any).email_msg_d0 || '',
+        email_msg_d_plus_1: (settings as any).email_msg_d_plus_1 || '',
+
       });
       const phone = (settings as any).notification_phone || '';
       savedPhoneRef.current = phone;
@@ -304,6 +328,14 @@ export default function BillingSettingsCard() {
         evolution_msg_d_minus_1: data.evolution_msg_d_minus_1 || null,
         evolution_msg_d0: data.evolution_msg_d0 || null,
         evolution_msg_d_plus_1: data.evolution_msg_d_plus_1 || null,
+        use_email_billing: !!data.use_email_billing,
+        email_from_name: data.email_from_name || null,
+        email_reply_to: data.email_reply_to || null,
+        email_subject: data.email_subject || null,
+        email_msg_d_minus_1: data.email_msg_d_minus_1 || null,
+        email_msg_d0: data.email_msg_d0 || null,
+        email_msg_d_plus_1: data.email_msg_d_plus_1 || null,
+
       };
 
       if (settings?.id) {
@@ -692,6 +724,85 @@ export default function BillingSettingsCard() {
               cada um com sua própria imagem.
             </p>
 
+          </CardContent>
+        )}
+      </Card>
+
+      {/* E-mail billing channel */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Mail className="w-5 h-5 text-primary" />
+                Cobrança por E-mail
+              </CardTitle>
+              <CardDescription>
+                Quando ativo, além do WhatsApp o cliente também recebe o aviso de vencimento por e-mail
+                (D-1, D0 e D+1). Os e-mails saem do domínio do sistema com o seu nome de remetente,
+                e as respostas vão para o e-mail que você informar abaixo.
+              </CardDescription>
+            </div>
+            <Switch
+              checked={!!formData.use_email_billing}
+              onCheckedChange={(v) => setFormData({ ...formData, use_email_billing: v })}
+            />
+          </div>
+        </CardHeader>
+
+        {formData.use_email_billing && (
+          <CardContent className="space-y-4">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label className="text-sm">Nome do remetente</Label>
+                <Input
+                  value={formData.email_from_name || ''}
+                  onChange={(e) => setFormData({ ...formData, email_from_name: e.target.value })}
+                  placeholder="Ex.: IPTV do João"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-sm">E-mail para resposta</Label>
+                <Input
+                  type="email"
+                  value={formData.email_reply_to || ''}
+                  onChange={(e) => setFormData({ ...formData, email_reply_to: e.target.value })}
+                  placeholder="seuemail@gmail.com"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-sm">Assunto do e-mail</Label>
+              <Input
+                value={formData.email_subject || ''}
+                onChange={(e) => setFormData({ ...formData, email_subject: e.target.value })}
+                placeholder="Aviso de vencimento da sua assinatura"
+              />
+            </div>
+
+            {([
+              ['email_msg_d_minus_1', 'Mensagem D-1 (vence amanhã)'],
+              ['email_msg_d0', 'Mensagem D0 (vence hoje)'],
+              ['email_msg_d_plus_1', 'Mensagem D+1 (vencido)'],
+            ] as const).map(([field, label]) => (
+              <div key={field} className="space-y-2">
+                <Label className="text-sm">{label}</Label>
+                <Textarea
+                  rows={3}
+                  value={(formData as any)[field] || ''}
+                  onChange={(e) => setFormData({ ...formData, [field]: e.target.value })}
+                  placeholder="Deixe vazio para usar a mensagem padrão do sistema."
+                />
+              </div>
+            ))}
+
+            <p className="text-xs text-muted-foreground p-2 rounded-md border border-border/60 bg-muted/30">
+              Variáveis disponíveis: <strong>{'{{nome}}'}</strong>, <strong>{'{{usuario}}'}</strong>,{' '}
+              <strong>{'{{vencimento}}'}</strong>, <strong>{'{{valor}}'}</strong>,{' '}
+              <strong>{'{{plano}}'}</strong>, <strong>{'{{servidor}}'}</strong>.
+              O e-mail só é enviado para clientes que tenham e-mail cadastrado.
+            </p>
           </CardContent>
         )}
       </Card>

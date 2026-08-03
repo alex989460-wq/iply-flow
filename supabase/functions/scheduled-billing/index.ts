@@ -1,4 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { sendBillingEmail } from '../_shared/billing-email.ts';
+
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -631,10 +633,18 @@ Deno.serve(async (req) => {
       if (schedule.send_d0) billingTypesToSend.push('D0');
       if (schedule.send_d_plus_1) billingTypesToSend.push('D+1');
 
+      // E-mail settings for this reseller (shared sending domain, own identity)
+      const { data: emailSettings } = await supabase
+        .from('billing_settings')
+        .select('use_email_billing, email_from_name, email_reply_to, email_subject, email_msg_d_minus_1, email_msg_d0, email_msg_d_plus_1')
+        .eq('user_id', schedule.user_id)
+        .maybeSingle();
+
       // Get customers for this user (ativa and inativa only - suspensa is excluded)
+
       const { data: customers } = await supabase
         .from('customers')
-        .select('id, name, phone, extra_phone, due_date, status, username, custom_price, plan:plans(plan_name, price), server:servers(server_name)')
+        .select('id, name, phone, email, extra_phone, due_date, status, username, custom_price, plan:plans(plan_name, price), server:servers(server_name)')
         .in('status', ['ativa', 'inativa'])
         .eq('created_by', schedule.user_id)
         .in('due_date', [yesterday, today, tomorrow]);
@@ -794,6 +804,8 @@ Deno.serve(async (req) => {
           }
         }
 
+        // E-mail channel (sempre, em paralelo ao WhatsApp)
+        await sendBillingEmail(supabase, emailSettings, customer, billingType, { todayStr: today });
 
         await supabase.from('billing_logs').update({
           message: `[Agendado] [${normalizePhone(customer.phone)}] Template: ${templateName}`,
@@ -801,6 +813,7 @@ Deno.serve(async (req) => {
         }).eq('id', reservation.id);
 
         if (sendResult.success) sent++; else errors++;
+
 
         // Anti-ban random delay before next send within this batch
         if (i < batch.length - 1) {
@@ -863,7 +876,7 @@ Deno.serve(async (req) => {
 
       const { data: billSettings } = await supabase
         .from('billing_settings')
-        .select('pix_key')
+        .select('pix_key, use_email_billing, email_from_name, email_reply_to, email_subject, email_msg_d_minus_1, email_msg_d0, email_msg_d_plus_1')
         .eq('user_id', schedule.user_id)
         .maybeSingle();
 
@@ -884,7 +897,7 @@ Deno.serve(async (req) => {
 
       const { data: customers, error: customersError } = await supabase
         .from('customers')
-        .select('id, name, phone, extra_phone, due_date, status, username, custom_price, screens, plan:plans(plan_name, price), server:servers(server_name)')
+        .select('id, name, phone, email, extra_phone, due_date, status, username, custom_price, screens, plan:plans(plan_name, price), server:servers(server_name)')
         .in('status', ['ativa', 'inativa'])
         .eq('created_by', schedule.user_id)
         .in('due_date', [yesterday, today, tomorrow]);
@@ -1056,8 +1069,12 @@ Deno.serve(async (req) => {
           }
         }
 
+        // E-mail channel (sempre, em paralelo ao WhatsApp)
+        await sendBillingEmail(supabase, billSettings, customer, billingType, { todayStr: today });
+
         await supabase.from('billing_logs').update({
           message: `[Agendado CRM] [${phone}] Template: crm:${templateName}`,
+
           whatsapp_status: sendResult.success ? 'sent' : `error: ${sendResult.error}`,
         }).eq('id', reservation.id);
 
