@@ -212,14 +212,15 @@ export default function CrmOficialChatbots({ embed = false }: { embed?: boolean 
   const __content = (
       <div className={cn("space-y-5 max-w-7xl mx-auto p-4 md:p-6", embed && "p-0 max-w-full")}>
         {!embed && (
-        <div className="flex items-center justify-between gap-3 flex-wrap">
-          <div>
-            <h1 className="text-2xl font-bold flex items-center gap-2"><Bot className="w-6 h-6 text-emerald-500" /> Chatbots</h1>
-            <p className="text-sm text-muted-foreground">Crie fluxos automáticos com visual e blocos compatíveis com o CRM Oficial.</p>
-          </div>
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={loadBots} disabled={!apiKey || syncing}>{syncing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />} Sincronizar</Button>
-            <Button onClick={openNew} disabled={!apiKey}><Plus className="w-4 h-4 mr-2" /> Novo chatbot</Button>
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div>
+              <h1 className="text-2xl font-bold flex items-center gap-2"><Bot className="w-6 h-6 text-emerald-500" /> Chatbots</h1>
+              <p className="text-sm text-muted-foreground">Crie fluxos automáticos com visual e blocos compatíveis com o CRM Oficial.</p>
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={loadBots} disabled={!apiKey || syncing}>{syncing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />} Sincronizar</Button>
+              <Button onClick={openNew} disabled={!apiKey}><Plus className="w-4 h-4 mr-2" /> Novo chatbot</Button>
+            </div>
           </div>
         )}
 
