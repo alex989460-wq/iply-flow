@@ -243,7 +243,19 @@ export default function CrmOficialChatbots({ embed = false }: { embed?: boolean 
 
   const openNew = () => {
     setActive(null);
-    setForm({ name: 'Novo chatbot', keyword: '', enabled: true, steps: [{ id: uid(), type: 'message', title: 'Início', text: 'Olá! Como posso ajudar?' }] });
+    const initialSteps = [{ id: uid(), type: 'message' as BotStepType, title: 'Início', text: 'Olá! Como posso ajudar?' }];
+    setForm({ name: 'Novo chatbot', keyword: '', enabled: true, steps: initialSteps });
+    
+    // Initialize Flow with start node
+    const initialNodes: Node[] = [{
+      id: initialSteps[0].id,
+      type: 'step',
+      position: { x: 100, y: 150 },
+      data: { ...initialSteps[0], onDelete: onNodeDelete }
+    }];
+    
+    setNodes(initialNodes);
+    setEdges([]);
     setEditorOpen(true);
   };
 
