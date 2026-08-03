@@ -1350,6 +1350,7 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
       ...formData,
       phone: phoneDigits,
       extra_phone: extraPhoneDigits || null,
+      email: formData.email.trim().toLowerCase() || null,
       server_id: formData.server_id || null,
       plan_id: formData.plan_id || null,
       custom_price: formData.custom_price ? parseFloat(formData.custom_price) : null,
@@ -2571,6 +2572,16 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
                       <PhoneInput
                         value={formData.extra_phone}
                         onChange={(digits) => setFormData({ ...formData, extra_phone: digits })}
+                      />
+                    </div>
+                    <div className="space-y-2 col-span-2">
+                      <Label>E-mail (cobrança por e-mail)</Label>
+                      <Input
+                        type="email"
+                        value={formData.email}
+                        onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                        placeholder="cliente@email.com"
+                        className="bg-secondary/50"
                       />
                     </div>
                     <div className="space-y-2">
