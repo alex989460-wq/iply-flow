@@ -168,6 +168,26 @@ export default function CrmOficialChatbots({ embed = false }: { embed?: boolean 
   const [editorOpen, setEditorOpen] = useState(false);
   const [active, setActive] = useState<CrmBot | null>(null);
   const [form, setForm] = useState({ name: '', keyword: '', enabled: true, steps: [] as BotStep[] });
+  
+  // React Flow state
+  const [nodes, setNodes, onNodesChange] = useNodesState([]);
+  const [edges, setEdges, onEdgesChange] = useEdgesState([]);
+  const reactFlowWrapper = useRef<HTMLDivElement>(null);
+
+  const onConnect = useCallback(
+    (params: Connection | Edge) => setEdges((eds) => addEdge({ 
+      ...params, 
+      type: 'smoothstep', 
+      animated: true,
+      markerEnd: { type: MarkerType.ArrowClosed, color: '#10b981' },
+      style: { stroke: '#10b981', strokeWidth: 2 }
+    }, eds)),
+    [setEdges]
+  );
+
+  const onNodeDelete = useCallback((id: string) => {
+    setNodes((nds) => nds.filter((node) => node.id !== id));
+  }, [setNodes]);
 
   const invoke = async (action: string, data: Record<string, unknown> = {}) => {
     const { data: res, error } = await supabase.functions.invoke('crm-oficial-sync', { body: { action, data: { apiKey, ...data } } });
