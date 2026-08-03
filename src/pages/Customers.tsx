@@ -1766,6 +1766,7 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
               customerName: sendingBillingCustomer.name || '',
               username: sendingBillingCustomer.username || '',
               planName: varMap.plano,
+              serverName: varMap.servidor,
               dueDate: dueBR,
               amount: amountBR,
               messageBody,

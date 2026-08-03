@@ -24,6 +24,7 @@ interface Props {
   customerName?: string
   username?: string
   planName?: string
+  serverName?: string
   dueDate?: string
   amount?: string
   // Message body already rendered by the caller (variables substituted)
@@ -44,6 +45,7 @@ const Email = ({
   customerName,
   username,
   planName,
+  serverName,
   dueDate,
   amount,
   messageBody,
@@ -52,10 +54,34 @@ const Email = ({
   unsubscribeUrl,
 }: Props) => {
   const greeting = customerName ? `Olá, ${customerName}!` : 'Olá!'
-  const paragraphs = (messageBody || '')
+
+  const rawLines = (messageBody || '')
     .split('\n')
     .map((line) => line.trim())
     .filter(Boolean)
+
+  // A mensagem configurada (padrão WhatsApp) costuma repetir os dados da
+  // assinatura. Removemos essas linhas — os dados aparecem no card abaixo.
+  const DATA_LINE =
+    /^[^A-Za-zÀ-ÿ0-9]*\s*\*?\s*(usu[áa]rio(\(s\))?|valor|plano|servidor|vencimento|data de vencimento|seguem os dados|renove pelo site|link de renova[çc][ãa]o|renova[çc][ãa]o)\b/i
+
+  const linkMatch = (messageBody || '').match(/https?:\/\/[^\s<>"']+/)
+  const extractedUrl = linkMatch ? linkMatch[0] : undefined
+  const ctaUrl = paymentUrl || extractedUrl
+
+  const clean = (line: string) =>
+    line
+      .replace(/https?:\/\/[^\s<>"']+/g, '')
+      .replace(/\*/g, '')
+      .replace(/^[^A-Za-zÀ-ÿ0-9]+/, '')
+      .replace(/\s{2,}/g, ' ')
+      .replace(/[\s:,-]+$/, '')
+      .trim()
+
+  const paragraphs = rawLines
+    .filter((line) => !DATA_LINE.test(line))
+    .map(clean)
+    .filter((line) => line.length > 1 && line.toLowerCase() !== greeting.toLowerCase())
 
   return (
     <Html lang="pt-BR" dir="ltr">
@@ -67,15 +93,10 @@ const Email = ({
         <Container style={container}>
           {/* Header — single-cell table, logo stacked above the name so Outlook
               never breaks the columns apart */}
-          <Section style={{ ...header, backgroundColor: brandColor }}>
+          <Section style={{ ...accentBar, backgroundColor: brandColor }} />
+          <Section style={header}>
             {logoUrl ? (
-              <Img
-                src={logoUrl}
-                alt={brandName}
-                width="52"
-                height="52"
-                style={logo}
-              />
+              <Img src={logoUrl} alt={brandName} width="56" height="56" style={logo} />
             ) : null}
             <Heading style={brandTitle}>{brandName}</Heading>
             <Text style={brandSubtitle}>Aviso da sua assinatura</Text>
@@ -101,13 +122,14 @@ const Email = ({
               <Text style={cardTitle}>Detalhes da assinatura</Text>
               {username ? <DetailRow label="Usuário" value={username} /> : null}
               {planName ? <DetailRow label="Plano" value={planName} /> : null}
+              {serverName ? <DetailRow label="Servidor" value={serverName} /> : null}
               {dueDate ? <DetailRow label="Vencimento" value={dueDate} /> : null}
               {amount ? <DetailRow label="Valor" value={amount} color={brandColor} /> : null}
             </Section>
 
-            {paymentUrl ? (
+            {ctaUrl ? (
               <Section style={{ textAlign: 'center', margin: '28px 0 8px' }}>
-                <Button style={{ ...button, backgroundColor: brandColor }} href={paymentUrl}>
+                <Button style={{ ...button, backgroundColor: brandColor }} href={ctaUrl}>
                   Renovar agora
                 </Button>
               </Section>
@@ -166,6 +188,7 @@ export const template = {
     customerName: 'Maria Silva',
     username: 'maria123',
     planName: 'Mensal',
+    serverName: 'Servidor 1',
     dueDate: '10/08/2026',
     amount: 'R$ 35,00',
     messageBody: 'Seu plano vence em breve.\nRenove para continuar assistindo sem interrupções.',
@@ -186,24 +209,31 @@ const container = {
   borderRadius: '12px',
   border: '1px solid #e4e4e7',
 }
-const header = {
-  padding: '24px 28px',
-  textAlign: 'center' as const,
+const accentBar = {
+  height: '5px',
+  lineHeight: '5px',
+  fontSize: '1px',
   borderRadius: '12px 12px 0 0',
+}
+const header = {
+  padding: '26px 28px 18px',
+  textAlign: 'center' as const,
+  backgroundColor: '#ffffff',
+  borderBottom: '1px solid #e4e4e7',
 }
 const logo = {
   display: 'block',
-  width: '52px',
-  height: '52px',
-  margin: '0 auto 10px',
+  width: '56px',
+  height: '56px',
+  margin: '0 auto 12px',
   backgroundColor: '#ffffff',
-  borderRadius: '8px',
+  borderRadius: '10px',
   border: '0',
   outline: 'none',
   textDecoration: 'none',
 }
-const brandTitle = { margin: 0, fontSize: '20px', lineHeight: '26px', color: '#ffffff', fontFamily: FONT }
-const brandSubtitle = { margin: '4px 0 0', fontSize: '12px', lineHeight: '16px', color: '#ffffff', opacity: 0.9, fontFamily: FONT }
+const brandTitle = { margin: 0, fontSize: '21px', lineHeight: '27px', color: '#18181b', fontFamily: FONT, letterSpacing: '0.3px' }
+const brandSubtitle = { margin: '4px 0 0', fontSize: '12px', lineHeight: '16px', color: '#a1a1aa', fontFamily: FONT }
 const content = { padding: '28px 28px 24px' }
 const eyebrow = { fontSize: '11px', lineHeight: '16px', fontWeight: 'bold', margin: '0 0 8px', fontFamily: FONT }
 const h1 = { fontSize: '23px', lineHeight: '30px', color: '#18181b', margin: '0 0 14px', fontFamily: FONT }

@@ -84,6 +84,7 @@ export async function sendBillingEmail(
           customerName: customer?.name || '',
           username: customer?.username || '',
           planName: customer?.plan?.plan_name || '',
+          serverName: customer?.server?.server_name || '',
           dueDate: formatBRDate(customer?.due_date),
           amount: formatBRL(price),
           messageBody: applyVars(String(raw), customer),
