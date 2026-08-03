@@ -76,7 +76,7 @@ function normalizeBots(body: any): CrmBot[] {
   }));
 }
 
-export default function CrmOficialChatbots() {
+export default function CrmOficialChatbots({ embed = false }: { embed?: boolean } = {}) {
   const { user } = useAuth();
   const { toast } = useToast();
   const [apiKey, setApiKey] = useState('');
@@ -209,9 +209,9 @@ export default function CrmOficialChatbots() {
 
   const activeBots = useMemo(() => bots.filter(b => b.enabled || b.active).length, [bots]);
 
-  return (
-    <DashboardLayout>
-      <div className="space-y-5 max-w-7xl mx-auto p-4 md:p-6">
+  const __content = (
+      <div className={cn("space-y-5 max-w-7xl mx-auto p-4 md:p-6", embed && "p-0 max-w-full")}>
+        {!embed && (
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <div>
             <h1 className="text-2xl font-bold flex items-center gap-2"><Bot className="w-6 h-6 text-emerald-500" /> Chatbots</h1>
@@ -221,7 +221,7 @@ export default function CrmOficialChatbots() {
             <Button variant="outline" onClick={loadBots} disabled={!apiKey || syncing}>{syncing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />} Sincronizar</Button>
             <Button onClick={openNew} disabled={!apiKey}><Plus className="w-4 h-4 mr-2" /> Novo chatbot</Button>
           </div>
-        </div>
+        )}
 
         {!apiKey && <Alert variant="destructive"><AlertCircle className="h-4 w-4" /><AlertDescription>Configure sua chave em Configurações → CRM Oficial.</AlertDescription></Alert>}
         {apiKey && !enabled && <Alert><AlertCircle className="h-4 w-4" /><AlertDescription>A integração está desativada; ative em Configurações para disparos automáticos.</AlertDescription></Alert>}
