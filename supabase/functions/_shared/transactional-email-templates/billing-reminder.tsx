@@ -2,6 +2,7 @@ import * as React from 'npm:react@18.3.1'
 import {
   Body,
   Button,
+  Column,
   Container,
   Head,
   Heading,
@@ -9,6 +10,7 @@ import {
   Html,
   Img,
   Preview,
+  Row,
   Section,
   Text,
 } from 'npm:@react-email/components@0.0.22'
@@ -36,7 +38,7 @@ interface Props {
 
 const Email = ({
   brandName = 'Sua Assinatura',
-  brandColor = '#16a34a',
+  brandColor = '#ea580c',
   logoUrl,
   customerName,
   username,
@@ -61,14 +63,24 @@ const Email = ({
       </Preview>
       <Body style={main}>
         <Container style={container}>
-          <Section style={{ ...header, borderTopColor: brandColor }}>
-            {logoUrl ? (
-              <Img src={logoUrl} alt={brandName} height="44" style={logo} />
-            ) : null}
-            <Heading style={brandTitle}>{brandName}</Heading>
+          <Section style={{ ...header, backgroundColor: brandColor }}>
+            <Row>
+              <Column style={brandColumn}>
+                {logoUrl ? (
+                  <Img src={logoUrl} alt={brandName} style={logo} />
+                ) : (
+                  <Text style={brandMark}>{brandName.slice(0, 1).toUpperCase()}</Text>
+                )}
+              </Column>
+              <Column>
+                <Heading style={brandTitle}>{brandName}</Heading>
+                <Text style={brandSubtitle}>Aviso da sua assinatura</Text>
+              </Column>
+            </Row>
           </Section>
 
           <Section style={content}>
+            <Text style={{ ...eyebrow, color: brandColor }}>LEMBRETE DE VENCIMENTO</Text>
             <Heading style={h1}>{greeting}</Heading>
 
             {paragraphs.length > 0 ? (
@@ -84,10 +96,11 @@ const Email = ({
             )}
 
             <Section style={card}>
-              {username ? <Text style={row}>Usuário: <strong>{username}</strong></Text> : null}
-              {planName ? <Text style={row}>Plano: <strong>{planName}</strong></Text> : null}
-              {dueDate ? <Text style={row}>Vencimento: <strong>{dueDate}</strong></Text> : null}
-              {amount ? <Text style={row}>Valor: <strong>{amount}</strong></Text> : null}
+              <Text style={cardTitle}>Detalhes da assinatura</Text>
+              {username ? <DetailRow label="Usuário" value={username} /> : null}
+              {planName ? <DetailRow label="Plano" value={planName} /> : null}
+              {dueDate ? <DetailRow label="Vencimento" value={dueDate} /> : null}
+              {amount ? <DetailRow label="Valor" value={amount} highlight /> : null}
             </Section>
 
             {paymentUrl ? (
@@ -104,17 +117,21 @@ const Email = ({
                 ? `Dúvidas? Fale com a gente pelo WhatsApp ${supportPhone}.`
                 : 'Em caso de dúvidas, responda este e-mail.'}
             </Text>
-            <Text style={footer}>{brandName}</Text>
-            <Text style={footer}>
-              Você recebeu este e-mail porque possui uma assinatura ativa com {brandName}.
-              Para não receber mais avisos, use o link de cancelamento abaixo.
-            </Text>
+            <Text style={footerBrand}>{brandName}</Text>
+            <Text style={footer}>Você recebeu este aviso porque possui uma assinatura com {brandName}.</Text>
           </Section>
         </Container>
       </Body>
     </Html>
   )
 }
+
+const DetailRow = ({ label, value, highlight = false }: { label: string; value: string; highlight?: boolean }) => (
+  <Row style={detailRow}>
+    <Column><Text style={detailLabel}>{label}</Text></Column>
+    <Column align="right"><Text style={highlight ? detailHighlight : detailValue}>{value}</Text></Column>
+  </Row>
+)
 
 export const template = {
   component: Email,
@@ -126,7 +143,7 @@ export const template = {
   displayName: 'Cobrança / Lembrete de vencimento',
   previewData: {
     brandName: 'IPTV do João',
-    brandColor: '#16a34a',
+    brandColor: '#ea580c',
     customerName: 'Maria Silva',
     username: 'maria123',
     planName: 'Mensal',
@@ -139,40 +156,43 @@ export const template = {
 } satisfies TemplateEntry
 
 
-const main = { backgroundColor: '#ffffff', fontFamily: 'Arial, Helvetica, sans-serif' }
-const container = { maxWidth: '560px', margin: '0 auto', padding: '24px 0' }
+const main = { backgroundColor: '#f4f4f5', fontFamily: 'Arial, Helvetica, sans-serif', padding: '28px 12px' }
+const container = { maxWidth: '580px', margin: '0 auto', backgroundColor: '#ffffff', borderRadius: '16px', overflow: 'hidden', boxShadow: '0 8px 28px rgba(24, 24, 27, 0.10)' }
 const header = {
-  borderTop: '4px solid #16a34a',
-  backgroundColor: '#f8fafc',
-  padding: '18px 24px',
-  borderRadius: '10px 10px 0 0',
+  padding: '22px 28px',
 }
-const logo = { display: 'block', margin: '0 0 10px', maxHeight: '44px' }
-const brandTitle = { margin: 0, fontSize: '18px', color: '#0f172a' }
+const brandColumn = { width: '58px', verticalAlign: 'middle' }
+const logo = { display: 'block', width: '46px', height: '46px', objectFit: 'contain' as const, backgroundColor: '#ffffff', borderRadius: '10px', padding: '4px' }
+const brandMark = { width: '46px', height: '46px', lineHeight: '46px', textAlign: 'center' as const, margin: 0, borderRadius: '10px', backgroundColor: '#ffffff', color: '#18181b', fontSize: '20px', fontWeight: 'bold' }
+const brandTitle = { margin: 0, fontSize: '19px', lineHeight: '24px', color: '#ffffff' }
+const brandSubtitle = { margin: '2px 0 0', fontSize: '12px', lineHeight: '16px', color: '#fff7ed' }
 const content = {
-  border: '1px solid #e2e8f0',
-  borderTop: 'none',
-  borderRadius: '0 0 10px 10px',
-  padding: '24px',
+  padding: '32px 28px 26px',
 }
-const h1 = { fontSize: '20px', color: '#0f172a', margin: '0 0 12px' }
-const text = { fontSize: '15px', lineHeight: '24px', color: '#334155', margin: '0 0 10px' }
+const eyebrow = { fontSize: '11px', lineHeight: '16px', fontWeight: 'bold', margin: '0 0 8px', letterSpacing: '0' }
+const h1 = { fontSize: '24px', lineHeight: '31px', color: '#18181b', margin: '0 0 14px' }
+const text = { fontSize: '15px', lineHeight: '24px', color: '#52525b', margin: '0 0 10px' }
 const card = {
-  backgroundColor: '#f8fafc',
-  border: '1px solid #e2e8f0',
-  borderRadius: '8px',
-  padding: '14px 16px',
-  margin: '18px 0 0',
+  backgroundColor: '#fafafa',
+  border: '1px solid #e4e4e7',
+  borderRadius: '10px',
+  padding: '18px 18px 10px',
+  margin: '22px 0 0',
 }
-const row = { fontSize: '14px', color: '#334155', margin: '0 0 6px' }
+const cardTitle = { fontSize: '12px', lineHeight: '18px', fontWeight: 'bold', color: '#71717a', margin: '0 0 8px' }
+const detailRow = { borderTop: '1px solid #e4e4e7' }
+const detailLabel = { fontSize: '13px', lineHeight: '20px', color: '#71717a', margin: '9px 0' }
+const detailValue = { fontSize: '13px', lineHeight: '20px', color: '#27272a', fontWeight: 'bold', margin: '9px 0' }
+const detailHighlight = { ...detailValue, color: '#ea580c' }
 const button = {
   color: '#ffffff',
   fontSize: '15px',
   fontWeight: 'bold',
-  padding: '12px 24px',
-  borderRadius: '8px',
+  padding: '13px 28px',
+  borderRadius: '9px',
   textDecoration: 'none',
   display: 'inline-block',
 }
-const hr = { borderColor: '#e2e8f0', margin: '24px 0 14px' }
-const footer = { fontSize: '12px', color: '#64748b', margin: '0 0 4px' }
+const hr = { borderColor: '#e4e4e7', margin: '28px 0 16px' }
+const footerBrand = { fontSize: '13px', lineHeight: '18px', fontWeight: 'bold', color: '#3f3f46', margin: '0 0 4px' }
+const footer = { fontSize: '12px', lineHeight: '18px', color: '#71717a', margin: '0 0 4px' }

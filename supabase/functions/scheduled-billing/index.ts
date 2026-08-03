@@ -636,7 +636,7 @@ Deno.serve(async (req) => {
       // E-mail settings for this reseller (shared sending domain, own identity)
       const { data: emailSettings } = await supabase
         .from('billing_settings')
-        .select('use_email_billing, email_from_name, email_reply_to, email_subject, email_msg_d_minus_1, email_msg_d0, email_msg_d_plus_1')
+        .select('use_email_billing, email_from_name, email_reply_to, email_subject, email_logo_url, email_msg_d_minus_1, email_msg_d0, email_msg_d_plus_1')
         .eq('user_id', schedule.user_id)
         .maybeSingle();
 
@@ -876,7 +876,7 @@ Deno.serve(async (req) => {
 
       const { data: billSettings } = await supabase
         .from('billing_settings')
-        .select('pix_key, use_email_billing, email_from_name, email_reply_to, email_subject, email_msg_d_minus_1, email_msg_d0, email_msg_d_plus_1')
+        .select('pix_key, use_email_billing, email_from_name, email_reply_to, email_subject, email_logo_url, email_msg_d_minus_1, email_msg_d0, email_msg_d_plus_1')
         .eq('user_id', schedule.user_id)
         .maybeSingle();
 
