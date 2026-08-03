@@ -46,7 +46,7 @@ const stepPalette: Array<{ type: BotStepType; label: string; icon: typeof Messag
   { type: 'audio', label: 'Áudio', icon: Music, color: 'bg-amber-500' },
   { type: 'document', label: 'Documento', icon: FileText, color: 'bg-indigo-500' },
   { type: 'buttons', label: 'Botões', icon: Zap, color: 'bg-cyan-500' },
-  { type: 'list', label: 'Lista', icon: Bot, color: 'bg-teal-500' },
+  { type: 'list', label: 'Lista', icon: Bot, color: 'bg-emerald-500' },
   { type: 'capture', label: 'Capturar resposta', icon: MessageSquare, color: 'bg-lime-500' },
   { type: 'wait', label: 'Aguardar', icon: Loader2, color: 'bg-zinc-500' },
   { type: 'condition', label: 'Condição', icon: RefreshCw, color: 'bg-red-500' },
@@ -300,9 +300,9 @@ export default function CrmOficialChatbots() {
               </aside>
               <main className="flex-1 min-w-0 overflow-auto bg-[radial-gradient(circle,hsl(var(--muted)/0.25)_1px,transparent_1px)] [background-size:18px_18px] p-5">
                 <div className="flex flex-wrap gap-3 mb-5 items-end">
-                  <div className="space-y-1.5"><Label>Nome</Label><Input className="w-64" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} /></div>
-                  <div className="space-y-1.5 flex-1 min-w-64"><Label>Gatilhos</Label><Input value={form.keyword} onChange={e => setForm(f => ({ ...f, keyword: e.target.value }))} placeholder="oi, menu, ajuda" /></div>
-                  <div className="flex items-center gap-2 pb-2"><Switch checked={form.enabled} onCheckedChange={v => setForm(f => ({ ...f, enabled: v }))} /><Label>Ativo</Label></div>
+                  <div className="space-y-1.5"><Label className="text-muted-foreground text-[11px] uppercase font-bold">Nome</Label><Input className="w-64 bg-background/50" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} /></div>
+                  <div className="space-y-1.5 flex-1 min-w-64"><Label className="text-muted-foreground text-[11px] uppercase font-bold">Gatilhos</Label><Input className="bg-background/50" value={form.keyword} onChange={e => setForm(f => ({ ...f, keyword: e.target.value }))} placeholder="oi, menu, ajuda" /></div>
+                  <div className="flex items-center gap-2 pb-2"><Switch checked={form.enabled} onCheckedChange={v => setForm(f => ({ ...f, enabled: v }))} /><Label className="text-[11px] uppercase font-bold">Ativo</Label></div>
                 </div>
                 <div className="flex flex-wrap items-start gap-8">
                   {form.steps.map((step, index) => {
