@@ -407,52 +407,14 @@ export default function CrmOficialChatbots({ embed = false, overrideToken }: { e
             </div>
 
             {apiKey && (
-              <Card className="border-emerald-500/20 bg-[#121214] overflow-hidden">
-                <CardContent className="p-0">
-                  <div className="p-4 border-b border-white/5 flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-500">
-                        <LinkIcon className="w-4 h-4" />
-                      </div>
-                      <h4 className="text-sm font-bold text-white/70 uppercase tracking-widest">Painel de Automação (Embed)</h4>
-                    </div>
-                    <div className="flex gap-2">
-                      <Button 
-                        size="sm" 
-                        variant="ghost" 
-                        className="h-8 text-[10px] font-bold text-white/40 hover:text-white"
-                        onClick={() => {
-                          const url = `${window.location.origin}/embed/chatbots?token=${apiKey}`;
-                          navigator.clipboard.writeText(url);
-                          toast({ title: "Link copiado!" });
-                        }}
-                      >
-                        Copiar Link
-                      </Button>
-                      <Button 
-                        size="sm" 
-                        variant="ghost" 
-                        className="h-8 text-[10px] font-bold text-white/40 hover:text-white"
-                        onClick={() => {
-                          const url = `${window.location.origin}/embed/chatbots?token=${apiKey}`;
-                          const iframe = `<iframe src="${url}" style="border:0;width:100%;height:800px;" allow="clipboard-write"></iframe>`;
-                          navigator.clipboard.writeText(iframe);
-                          toast({ title: "Iframe copiado!" });
-                        }}
-                      >
-                        Copiar Iframe
-                      </Button>
-                    </div>
-                  </div>
-                  <div className="bg-[#0b0b0d] p-1 h-[800px]">
-                    <iframe 
-                      src={`${window.location.origin}/embed/chatbots?token=${apiKey}`}
-                      className="w-full h-full border-0 rounded-lg shadow-2xl"
-                      title="Chatbot Editor Embed"
-                    />
-                  </div>
-                </CardContent>
-              </Card>
+              <div className="relative w-full h-[800px] bg-[#0b0b0d] rounded-2xl overflow-hidden border border-white/5 shadow-2xl">
+                <iframe 
+                  src={`https://zapcrm.top/embed/chatbots?token=${apiKey}`}
+                  className="w-full h-full border-0"
+                  title="Chatbot Editor"
+                  allow="clipboard-write"
+                />
+              </div>
             )}
           </div>
         ) : (
