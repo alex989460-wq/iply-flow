@@ -69,6 +69,7 @@ export default function BillingSettingsCard() {
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const notifStorageKey = user?.id ? `renewal_notifications_enabled_${user.id}` : '';
   const savedPhoneRef = useRef<string>('');
