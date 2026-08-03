@@ -459,69 +459,94 @@ export default function CrmOficialChatbots({ embed = false }: { embed?: boolean 
               <div><DialogTitle className="flex items-center gap-2"><Bot className="w-5 h-5 text-emerald-500" /> {active ? active.name : 'Novo chatbot'}</DialogTitle><DialogDescription>{form.steps.length} passo(s)</DialogDescription></div>
               <Button onClick={saveBot} disabled={saving}>{saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />} Salvar fluxo</Button>
             </DialogHeader>
-            <div className="h-full flex min-h-0 bg-background">
-              <aside className="w-52 border-r bg-card/40 p-3 overflow-y-auto">
-                <p className="text-[10px] font-bold text-muted-foreground uppercase mb-3">Arraste para criar</p>
-                <div className="space-y-2">
-                  {stepPalette.map(item => {
-                    const Icon = item.icon;
-                    return <button key={item.type} onClick={() => addStep(item.type)} className="w-full flex items-center gap-2 text-xs font-semibold text-left rounded-lg hover:bg-accent p-1.5"><span className={cn('w-8 h-8 rounded-full flex items-center justify-center text-white', item.color)}><Icon className="w-4 h-4" /></span>{item.label}</button>;
-                  })}
+            <div className="h-full flex min-h-0 bg-[#0b0b0d]">
+              <aside className="w-60 border-r border-white/5 bg-[#121214] p-4 flex flex-col gap-6">
+                <div>
+                  <div className="flex items-center gap-2 mb-4">
+                    <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-500">
+                      <LayoutGrid className="w-4 h-4" />
+                    </div>
+                    <p className="text-[11px] font-bold text-white/50 uppercase tracking-widest">Componentes</p>
+                  </div>
+                  
+                  <div className="relative mb-4">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/20" />
+                    <Input className="h-9 bg-white/5 border-white/10 pl-9 text-xs" placeholder="Buscar..." />
+                  </div>
+
+                  <div className="flex gap-1 mb-4">
+                    <Badge className="bg-emerald-500 text-white hover:bg-emerald-600 cursor-pointer px-2 py-0.5 text-[10px]">Todos</Badge>
+                    <Badge variant="outline" className="text-white/40 border-white/5 hover:bg-white/5 cursor-pointer px-2 py-0.5 text-[10px]">Mensagens</Badge>
+                    <Badge variant="outline" className="text-white/40 border-white/5 hover:bg-white/5 cursor-pointer px-2 py-0.5 text-[10px]">Lógica</Badge>
+                  </div>
+
+                  <p className="text-[10px] font-bold text-white/20 uppercase tracking-widest mb-3">Ações</p>
+                  <div className="space-y-2">
+                    {stepPalette.map(item => {
+                      const Icon = item.icon;
+                      return (
+                        <div 
+                          key={item.type} 
+                          draggable 
+                          onDragStart={(e) => {
+                            e.dataTransfer.setData('application/reactflow', item.type);
+                            e.dataTransfer.effectAllowed = 'move';
+                          }}
+                          className="w-full flex items-center gap-3 text-xs font-semibold text-white/70 hover:text-white rounded-xl hover:bg-white/5 p-2 transition-all cursor-grab active:cursor-grabbing border border-transparent hover:border-white/5 group"
+                        >
+                          <div className={cn('w-9 h-9 rounded-xl flex items-center justify-center text-white shadow-lg shadow-black/20', item.color)}>
+                            <Icon className="w-4 h-4" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-bold">{item.label}</p>
+                            <p className="text-[10px] text-white/30 font-medium group-hover:text-white/40">Arrastar para fluxo</p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               </aside>
-              <main className="flex-1 min-w-0 overflow-auto bg-[radial-gradient(circle,hsl(var(--muted)/0.25)_1px,transparent_1px)] [background-size:18px_18px] p-5">
-                <div className="flex flex-wrap gap-3 mb-5 items-end">
-                  <div className="space-y-1.5"><Label className="text-muted-foreground text-[11px] uppercase font-bold">Nome</Label><Input className="w-64 bg-background/50" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} /></div>
-                  <div className="space-y-1.5 flex-1 min-w-64"><Label className="text-muted-foreground text-[11px] uppercase font-bold">Gatilhos</Label><Input className="bg-background/50" value={form.keyword} onChange={e => setForm(f => ({ ...f, keyword: e.target.value }))} placeholder="oi, menu, ajuda" /></div>
-                  <div className="flex items-center gap-2 pb-2"><Switch checked={form.enabled} onCheckedChange={v => setForm(f => ({ ...f, enabled: v }))} /><Label className="text-[11px] uppercase font-bold">Ativo</Label></div>
+              
+              <main className="flex-1 min-w-0 flex flex-col relative" ref={reactFlowWrapper}>
+                <div className="absolute top-4 left-4 z-10 flex gap-2">
+                  <div className="bg-[#121214] border border-white/5 rounded-xl p-1.5 flex gap-1 shadow-2xl">
+                    <Button variant="ghost" size="icon" className="w-8 h-8 rounded-lg bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20"><MousePointer2 className="w-4 h-4" /></Button>
+                    <Button variant="ghost" size="icon" className="w-8 h-8 rounded-lg text-white/20 hover:text-white/40 hover:bg-white/5"><Edit className="w-4 h-4" /></Button>
+                    <Button variant="ghost" size="icon" className="w-8 h-8 rounded-lg text-white/20 hover:text-white/40 hover:bg-white/5"><Share2 className="w-4 h-4" /></Button>
+                  </div>
+
+                  <div className="bg-[#121214] border border-white/5 rounded-xl px-3 py-1.5 flex items-center gap-3 shadow-2xl">
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                      <p className="text-[10px] font-bold text-white/70 uppercase tracking-widest">{active?.name || 'Novo Fluxo'}</p>
+                    </div>
+                    <div className="w-px h-3 bg-white/10" />
+                    <p className="text-[10px] font-bold text-white/30 uppercase tracking-widest">{nodes.length} Componentes</p>
+                  </div>
                 </div>
-                <div className="flex flex-wrap items-start gap-8">
-                  {form.steps.map((step, index) => {
-                    const meta = stepPalette.find(s => s.type === step.type) || stepPalette[0];
-                    const Icon = meta.icon;
-                    return (
-                      <div key={step.id} className="relative w-72 rounded-xl border border-border/70 bg-card shadow-xl overflow-hidden group">
-                        <div className={cn('px-3 py-2 text-white flex items-center gap-2', meta.color)}>
-                          <Icon className="w-4 h-4" />
-                          <Input 
-                            className="h-7 bg-white/20 border-white/30 text-white placeholder:text-white/60 focus-visible:ring-0 focus-visible:border-white/50" 
-                            value={step.title} 
-                            onChange={e => setForm(f => ({ ...f, steps: f.steps.map(s => s.id === step.id ? { ...s, title: e.target.value } : s) }))} 
-                          />
-                        </div>
-                        <div className="p-3 space-y-2">
-                          <Textarea 
-                            rows={4} 
-                            className="bg-accent/30 border-border/40 resize-none focus-visible:ring-1 focus-visible:ring-emerald-500/40"
-                            value={step.text || ''} 
-                            onChange={e => setForm(f => ({ ...f, steps: f.steps.map(s => s.id === step.id ? { ...s, text: e.target.value } : s) }))} 
-                            placeholder="Conteúdo do bloco" 
-                          />
-                          {['image','video','audio','document'].includes(step.type) && (
-                            <div className="space-y-1">
-                              <Label className="text-[10px] text-muted-foreground uppercase">URL da Mídia</Label>
-                              <Input 
-                                className="h-8 bg-accent/30 border-border/40"
-                                value={step.media_url || ''} 
-                                onChange={e => setForm(f => ({ ...f, steps: f.steps.map(s => s.id === step.id ? { ...s, media_url: e.target.value } : s) }))} 
-                                placeholder="https://..." 
-                              />
-                            </div>
-                          )}
-                          <Button 
-                            size="sm" 
-                            variant="ghost" 
-                            className="w-full text-red-400 hover:text-red-300 hover:bg-red-400/10 h-8 mt-1" 
-                            onClick={() => setForm(f => ({ ...f, steps: f.steps.filter(s => s.id !== step.id) }))}
-                          >
-                            <Trash2 className="w-3.5 h-3.5 mr-2" /> Remover
-                          </Button>
-                        </div>
-                        {index < form.steps.length - 1 && <div className="hidden lg:block absolute top-1/2 -right-8 w-8 border-t border-dashed border-border/60" />}
-                      </div>
-                    );
-                  })}
+
+                <div className="absolute top-4 right-4 z-10 flex gap-2">
+                  <Button variant="outline" className="bg-[#121214] border-white/5 text-white/50 hover:bg-[#1c1c1f] hover:text-white rounded-xl h-9 text-xs font-bold gap-2">
+                    <Settings className="w-3.5 h-3.5" /> Organizar
+                  </Button>
                 </div>
+
+                <ReactFlow
+                  nodes={nodes}
+                  edges={edges}
+                  onNodesChange={onNodesChange}
+                  onEdgesChange={onEdgesChange}
+                  onConnect={onConnect}
+                  onDragOver={onDragOver}
+                  onDrop={onDrop}
+                  nodeTypes={nodeTypes}
+                  fitView
+                  style={{ background: '#0b0b0d' }}
+                >
+                  <Background gap={24} size={1} color="#ffffff10" />
+                  <Controls className="!bg-[#121214] !border-white/5 !fill-white/40" />
+                </ReactFlow>
               </main>
             </div>
             <DialogFooter className="sr-only" />
