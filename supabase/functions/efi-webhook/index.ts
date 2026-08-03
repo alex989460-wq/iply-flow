@@ -306,7 +306,7 @@ Deno.serve(async (req) => {
             const notifPhone = (billing as any)?.notification_phone;
             if (zap?.selected_department_id && notifPhone) {
               const method = (actReq.payment_method || "PIX").toString();
-              const activationMsg = `📱 *Nova Solicitação de Ativação (Efí Pix)*\n\n📦 App: *${actReq.app_name || "-"}*\n👤 Cliente: *${actReq.customer_name || "-"}*\n📞 Tel: *${actReq.customer_phone || "-"}*\n${actReq.mac_address ? `🔗 MAC: *${actReq.mac_address}*\n` : ""}${actReq.email ? `📧 Email: *${actReq.email}*\n` : ""}💰 Valor: *R$ ${Number(actReq.amount || 0).toFixed(2)}*\n💳 Pagamento: *${method}*\n\n${autoActivateOk ? "✅ Status: Ativado automaticamente" : `⏳ Status: Pendente de ativação${autoActivateError ? ` (${autoActivateError})` : ""}`}`;
+              const activationMsg = `📱 *Nova Solicitação de Ativação (Efí Pix)*\n\n📦 App: *${actReq.app_name || "-"}*\n👤 Cliente: *${actReq.customer_name || "-"}*\n📞 Tel: *${actReq.customer_phone || "-"}*\n${actReq.mac_address ? `🔗 MAC: *${actReq.mac_address}*\n` : ""}${actReq.email ? `📧 Email: *${actReq.email}*\n` : ""}💰 Valor: *R$ ${Number(actReq.amount || 0).toFixed(2)}*\n💳 Pagamento: *${method}*\n\n${autoActivateOk ? "✅ Status: Ativado automaticamente" : `⏳ Status: Pendente de ativação${autoActivateError ? ` (${autoActivateError})` : ""}`}\n\n❓ como eu sei qual foi o app ativo dele ?`;
               await fetch(`${SUPABASE_URL}/functions/v1/crm-oficial-sync`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json", "Authorization": `Bearer ${SRK}` },
