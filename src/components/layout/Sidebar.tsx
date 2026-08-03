@@ -58,13 +58,13 @@ const menuItems: Array<{
   { icon: Calculator, label: 'Calculadora de Custo', path: '/cost-calculator', adminOnly: false },
   { icon: MessageCircleMore, label: 'Chat', path: '/chat', adminOnly: false, badgeKey: 'evolution' },
   { icon: FileText, label: 'Templates CRM Oficial', path: '/crm-oficial-templates', adminOnly: false },
-  { icon: Bot, label: 'Chatbots CRM Oficial', path: '/crm-oficial-chatbots', adminOnly: false },
+  { icon: Bot, label: 'Automação CRM', path: '/crm-oficial-chatbots', adminOnly: false },
   { icon: MessageCircleMore, label: 'Atendimentos', path: '/atendimentos', adminOnly: false },
   { icon: QrCode, label: 'Conexões WhatsApp', path: '/evolution-instances', adminOnly: false },
 
   { icon: ImagePlus, label: 'Gerador de Banner', path: '/banner-generator', adminOnly: false },
   { icon: Bot, label: 'Robô', path: '/robo', adminOnly: false },
-  { icon: GraduationCap, label: 'Treinamento da IA', path: '/ai-training', adminOnly: false },
+  { icon: GraduationCap, label: 'Treinamento e Automação IA', path: '/ai-training', adminOnly: false },
   { icon: Smartphone, label: 'Ativação de Apps', path: '/activation-apps', adminOnly: false },
 
   { icon: PiggyBank, label: 'Despesas', path: '/expenses', adminOnly: true },
