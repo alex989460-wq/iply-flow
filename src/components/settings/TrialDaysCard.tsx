@@ -12,15 +12,19 @@ export default function TrialDaysCard() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [trialDays, setTrialDays] = useState('30');
+  const [settingsId, setSettingsId] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
       const { data } = await supabase
         .from('platform_settings')
-        .select('trial_days')
+        .select('id, trial_days')
         .maybeSingle();
 
-      if (data) setTrialDays(String(data.trial_days ?? 30));
+      if (data) {
+        setTrialDays(String(data.trial_days ?? 30));
+        setSettingsId(data.id);
+      }
       setLoading(false);
     })();
   }, []);
@@ -36,10 +40,12 @@ export default function TrialDaysCard() {
       return;
     }
     setSaving(true);
+    const payload: any = { trial_days: Math.round(days) };
+    if (settingsId) payload.id = settingsId;
+
     const { error } = await supabase
       .from('platform_settings')
-      .update({ trial_days: Math.round(days) })
-      .not('id', 'is', null);
+      .upsert(payload);
 
     setSaving(false);
     if (error) {
