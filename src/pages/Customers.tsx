@@ -136,6 +136,7 @@ export default function Customers() {
     name: '',
     phone: '',
     extra_phone: '',
+    email: '',
     server_id: '',
     plan_id: '',
     status: 'ativa' as CustomerStatus,
@@ -174,7 +175,8 @@ export default function Customers() {
   const [selectedEvoTemplateKey, setSelectedEvoTemplateKey] = useState<string>('D0');
   const [selectedEvoInstance, setSelectedEvoInstance] = useState<string>('');
   // 'zap' = API oficial / Zap Responder | 'evolution' = WhatsApp não oficial | 'crm' = CRM Oficial
-  const [billingChannel, setBillingChannel] = useState<'zap' | 'evolution' | 'crm'>('zap');
+  const [billingChannel, setBillingChannel] = useState<'zap' | 'evolution' | 'crm' | 'email'>('zap');
+  const [selectedEmailType, setSelectedEmailType] = useState<'D-1' | 'D0' | 'D+1'>('D0');
   const [crmTemplates, setCrmTemplates] = useState<Array<{ name: string; language: string; status?: string; parameter_format?: string; components?: any[] }>>([]);
   const [isLoadingCrmTemplates, setIsLoadingCrmTemplates] = useState(false);
   const [selectedCrmTemplate, setSelectedCrmTemplate] = useState('');
@@ -1013,7 +1015,7 @@ export default function Customers() {
   });
 
   const resetForm = () => {
-    setFormData({ name: '', phone: '', extra_phone: '', server_id: '', plan_id: '', status: 'ativa', notes: '', due_date: '', custom_price: '', username: '', password: '', screens: '1', extra_months: '0', activate_on_server: true });
+    setFormData({ name: '', phone: '', extra_phone: '', email: '', server_id: '', plan_id: '', status: 'ativa', notes: '', due_date: '', custom_price: '', username: '', password: '', screens: '1', extra_months: '0', activate_on_server: true });
     setEditingCustomer(null);
   };
 
@@ -1023,6 +1025,7 @@ export default function Customers() {
       name: customer.name,
       phone: (customer.phone || '').replace(/\D/g, ''),
       extra_phone: (customer.extra_phone || '').replace(/\D/g, ''),
+      email: customer.email || '',
       server_id: customer.server_id || '',
       plan_id: customer.plan_id || '',
       status: customer.status,
@@ -1347,6 +1350,7 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
       ...formData,
       phone: phoneDigits,
       extra_phone: extraPhoneDigits || null,
+      email: formData.email.trim().toLowerCase() || null,
       server_id: formData.server_id || null,
       plan_id: formData.plan_id || null,
       custom_price: formData.custom_price ? parseFloat(formData.custom_price) : null,
@@ -1711,6 +1715,79 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
 
   const sendIndividualBilling = async () => {
     if (!sendingBillingCustomer) return;
+
+    // E-mail branch
+    if (billingChannel === 'email') {
+      const to = String(sendingBillingCustomer.email || '').trim();
+      if (!to || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) {
+        toast({ title: 'E-mail inválido', description: 'Cadastre um e-mail válido no cliente.', variant: 'destructive' });
+        return;
+      }
+      const defaults: Record<string, string> = {
+        'D-1': 'Seu plano vence amanhã ({{vencimento}}).\nRenove hoje para não ficar sem acesso.',
+        'D0': 'Seu plano vence hoje ({{vencimento}}).\nRenove agora para continuar assistindo sem interrupções.',
+        'D+1': 'Seu plano venceu em {{vencimento}}.\nRegularize para reativar o acesso imediatamente.',
+      };
+      const raw =
+        (selectedEmailType === 'D-1' && billingSettings?.email_msg_d_minus_1) ||
+        (selectedEmailType === 'D0' && billingSettings?.email_msg_d0) ||
+        (selectedEmailType === 'D+1' && billingSettings?.email_msg_d_plus_1) ||
+        defaults[selectedEmailType];
+      const price = sendingBillingCustomer.custom_price ?? sendingBillingCustomer.plans?.price ?? 0;
+      const dueBR = sendingBillingCustomer.due_date
+        ? format(new Date(sendingBillingCustomer.due_date + 'T12:00:00'), 'dd/MM/yyyy', { locale: ptBR })
+        : '';
+      const amountBR = Number(price || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+      const varMap: Record<string, string> = {
+        nome: sendingBillingCustomer.name || '',
+        usuario: sendingBillingCustomer.username || '',
+        vencimento: dueBR,
+        valor: amountBR,
+        plano: sendingBillingCustomer.plans?.plan_name || '',
+        servidor: sendingBillingCustomer.servers?.server_name || '',
+        telefone: sendingBillingCustomer.phone || '',
+      };
+      const messageBody = String(raw).replace(/\{\{\s*([a-zA-Z_]+)\s*\}\}/g, (_m, k) => varMap[k] ?? '');
+      const brandName = billingSettings?.email_from_name?.trim() || 'Sua Assinatura';
+
+      setIsSendingBilling(true);
+      try {
+        const { error } = await supabase.functions.invoke('send-transactional-email', {
+          body: {
+            templateName: 'billing-reminder',
+            recipientEmail: to,
+            idempotencyKey: `billing-manual-${sendingBillingCustomer.id}-${selectedEmailType}-${Date.now()}`,
+            fromName: brandName,
+            replyTo: billingSettings?.email_reply_to || undefined,
+            templateData: {
+              brandName,
+              customerName: sendingBillingCustomer.name || '',
+              username: sendingBillingCustomer.username || '',
+              planName: varMap.plano,
+              dueDate: dueBR,
+              amount: amountBR,
+              messageBody,
+            },
+          },
+        });
+        if (error) throw error;
+        await supabase.from('billing_logs').insert({
+          customer_id: sendingBillingCustomer.id,
+          billing_type: selectedEmailType,
+          message: `E-mail enviado para ${to}`,
+          whatsapp_status: 'sent',
+        });
+        toast({ title: 'E-mail enviado!', description: `Cobrança enviada para ${to}.` });
+        setIsSendBillingOpen(false);
+        setSendingBillingCustomer(null);
+      } catch (err: any) {
+        toast({ title: 'Erro ao enviar e-mail', description: err.message, variant: 'destructive' });
+      } finally {
+        setIsSendingBilling(false);
+      }
+      return;
+    }
+
 
     // CRM Oficial branch
     if (billingChannel === 'crm') {
@@ -2570,6 +2647,16 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
                         onChange={(digits) => setFormData({ ...formData, extra_phone: digits })}
                       />
                     </div>
+                    <div className="space-y-2 col-span-2">
+                      <Label>E-mail (cobrança por e-mail)</Label>
+                      <Input
+                        type="email"
+                        value={formData.email}
+                        onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                        placeholder="cliente@email.com"
+                        className="bg-secondary/50"
+                      />
+                    </div>
                     <div className="space-y-2">
                       <Label>Servidor</Label>
                       <Select
@@ -3408,8 +3495,35 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
                       API Oficial (WhatsApp — {primaryCrmChannel?.display_phone_number || primaryCrmChannel?.phone_number || 'canal principal'})
                     </SelectItem>
                     <SelectItem value="evolution">WhatsApp não oficial (Evolution — {billingSettings?.evolution_instance || 'não configurado'})</SelectItem>
+                    <SelectItem value="email">E-mail ({sendingBillingCustomer?.email || 'sem e-mail cadastrado'})</SelectItem>
                   </SelectContent>
                 </Select>
+                {billingChannel === 'email' && (
+                  <div className="space-y-2 pt-2">
+                    <Label className="text-sm">Mensagem</Label>
+                    <Select value={selectedEmailType} onValueChange={(v: any) => setSelectedEmailType(v)}>
+                      <SelectTrigger className="bg-secondary/50">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="D-1">Vence amanhã (D-1)</SelectItem>
+                        <SelectItem value="D0">Vence hoje (D0)</SelectItem>
+                        <SelectItem value="D+1">Vencido (D+1)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {!sendingBillingCustomer?.email && (
+                      <p className="text-[11px] text-destructive">
+                        Este cliente não tem e-mail cadastrado. Edite o cliente e informe o e-mail.
+                      </p>
+                    )}
+                    {!billingSettings?.use_email_billing && (
+                      <p className="text-[11px] text-amber-500">
+                        Ative a cobrança por e-mail em Configurações de Cobrança.
+                      </p>
+                    )}
+                  </div>
+                )}
+
                 {billingChannel === 'crm' && (
                   <div className="text-[11px] text-muted-foreground leading-tight">
                     Enviará pelo canal:{' '}
@@ -3580,6 +3694,8 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
                   isSendingBilling ||
                   (billingChannel === 'evolution'
                     ? (!selectedEvoInstance && !billingSettings?.evolution_instance) || !selectedEvoTemplateKey
+                    : billingChannel === 'email'
+                      ? !sendingBillingCustomer?.email
                     : billingChannel === 'crm'
                       ? !selectedCrmTemplate || !primaryCrmChannel
                       : !selectedTemplate)
