@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import DashboardLayout from "@/components/layout/DashboardLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -75,7 +75,7 @@ export default function Resellers() {
     full_name: "",
     email: "",
     password: "",
-    access_days: "30",
+    access_days: "0", // Will be set by useEffect
   });
   const [editErrors, setEditErrors] = useState<Record<string, string>>({});
   const [createErrors, setCreateErrors] = useState<Record<string, string>>({});
@@ -122,7 +122,26 @@ export default function Resellers() {
     },
   });
 
+  const { data: platformSettings } = useQuery({
+    queryKey: ['platform-settings'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('platform_settings')
+        .select('trial_days')
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+  });
 
+  useEffect(() => {
+    if (platformSettings?.trial_days !== undefined) {
+      setCreateForm(prev => ({
+        ...prev,
+        access_days: String(platformSettings.trial_days || 7)
+      }));
+    }
+  }, [platformSettings]);
 
   const renewMutation = useMutation({
     mutationFn: async ({ id, days }: { id: string; days: number }) => {
@@ -1169,6 +1188,9 @@ export default function Resellers() {
                     onChange={(e) => setCreateForm({ ...createForm, access_days: e.target.value })}
                     placeholder="Digite o número de dias"
                   />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Sugestão baseada na configuração global: {platformSettings?.trial_days || 7} dias.
+                  </p>
                 </div>
                 {createErrors.access_days && (
                   <p className="text-destructive text-sm">{createErrors.access_days}</p>
