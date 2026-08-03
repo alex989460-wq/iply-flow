@@ -154,11 +154,11 @@ const nodeTypes = {
   step: BotStepNode
 };
 
-export default function CrmOficialChatbots({ embed = false }: { embed?: boolean } = {}) {
+export default function CrmOficialChatbots({ embed = false, overrideToken }: { embed?: boolean, overrideToken?: string } = {}) {
   const { user } = useAuth();
   const { toast } = useToast();
   const [searchParams] = useSearchParams();
-  const [apiKey, setApiKey] = useState(searchParams.get('token') || '');
+  const [apiKey, setApiKey] = useState(overrideToken || searchParams.get('token') || '');
   const [enabled, setEnabled] = useState(false);
   const [bots, setBots] = useState<CrmBot[]>([]);
   const [channels, setChannels] = useState<any[]>([]);
@@ -197,7 +197,7 @@ export default function CrmOficialChatbots({ embed = false }: { embed?: boolean 
   };
 
   useEffect(() => {
-    if (embed && apiKey) {
+    if (apiKey) {
       setEnabled(true);
       setLoading(false);
       return;
@@ -205,11 +205,11 @@ export default function CrmOficialChatbots({ embed = false }: { embed?: boolean 
     if (!user) return;
     (async () => {
       const { data } = await supabase.from('crm_oficial_settings').select('api_key, enabled').eq('user_id', user.id).maybeSingle();
-      setApiKey(data?.api_key || '');
+      if (data?.api_key) setApiKey(data.api_key);
       setEnabled(!!data?.enabled);
       setLoading(false);
     })();
-  }, [user]);
+  }, [user, apiKey]);
 
   useEffect(() => { if (apiKey) void loadBots(); }, [apiKey]);
 
@@ -393,7 +393,7 @@ export default function CrmOficialChatbots({ embed = false }: { embed?: boolean 
 
   const __content = (
       <div className={cn("space-y-5 max-w-7xl mx-auto p-4 md:p-6", embed && "p-0 max-w-full")}>
-        {!embed && (
+        {!embed ? (
           <div className="flex items-center justify-between gap-3 flex-wrap">
             <div>
               <h1 className="text-2xl font-bold flex items-center gap-2"><Bot className="w-6 h-6 text-emerald-500" /> Chatbots</h1>
@@ -402,6 +402,21 @@ export default function CrmOficialChatbots({ embed = false }: { embed?: boolean 
             <div className="flex gap-2">
               <Button variant="outline" onClick={loadBots} disabled={!apiKey || syncing}>{syncing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />} Sincronizar</Button>
               <Button onClick={openNew} disabled={!apiKey}><Plus className="w-4 h-4 mr-2" /> Novo chatbot</Button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex items-center justify-between mb-4 bg-[#121214] border border-white/5 rounded-2xl p-4">
+            <div>
+              <h1 className="text-lg font-bold text-white">Chatbots CRM</h1>
+              <p className="text-[10px] text-white/40 uppercase font-bold tracking-widest">Gerenciador de Automação</p>
+            </div>
+            <div className="flex gap-2">
+              <Button size="sm" variant="outline" className="border-white/10 bg-white/5 hover:bg-white/10 text-white" onClick={loadBots} disabled={!apiKey || syncing}>
+                {syncing ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
+              </Button>
+              <Button size="sm" className="bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-[11px] gap-2 px-4" onClick={openNew} disabled={!apiKey}>
+                <Plus className="w-3.5 h-3.5" /> NOVO FLUXO
+              </Button>
             </div>
           </div>
         )}
