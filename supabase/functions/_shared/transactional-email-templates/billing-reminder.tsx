@@ -30,6 +30,7 @@ interface Props {
   messageBody?: string
   // Optional payment link (checkout / Pix)
   paymentUrl?: string
+  fallbackUrl?: string
   supportPhone?: string
   // Optional subject override (configured by the reseller)
   subjectOverride?: string
