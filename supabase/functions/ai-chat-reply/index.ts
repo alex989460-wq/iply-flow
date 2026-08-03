@@ -30,15 +30,21 @@ Deno.serve(async (req) => {
 
     const kbText = knowledge.map(k => `Tópico: ${k.subject}\nSolução: ${k.solution}`).join('\n\n');
 
-    // 2. Busca chave da IA
+    // 2. Busca chave da IA e configurações de automação
     const { data: settings } = await supabase
       .from('platform_settings')
-      .select('ai_api_key, ai_provider')
+      .select('ai_api_key, ai_provider, ai_automation_enabled')
       .eq('user_id', userId)
       .maybeSingle();
 
-    const apiKey = settings?.ai_api_key || Deno.env.get("LOVABLE_AI_GATEWAY_KEY");
-    const selectedProvider = settings?.ai_provider || provider;
+    if (!settings?.ai_automation_enabled || !settings?.ai_api_key) {
+      return new Response(JSON.stringify({ success: false, error: 'AI automation disabled or API key missing' }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const apiKey = settings.ai_api_key;
+    const selectedProvider = settings.ai_provider || provider;
 
     // 3. Chama a IA via Gateway
     const prompt = `Você é um assistente de atendimento IPTV/Streaming. 
@@ -57,6 +63,7 @@ Resposta:`;
       headers: {
         "Content-Type": "application/json",
         "Authorization": `Bearer ${Deno.env.get("LOVABLE_AI_GATEWAY_KEY")}`,
+        "X-Lovable-AI-Provider-Key": apiKey,
       },
       body: JSON.stringify({
         model: selectedProvider === 'gemini' ? "gemini-1.5-pro" : "gpt-4o",
