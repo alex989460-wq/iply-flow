@@ -309,14 +309,44 @@ export default function CrmOficialChatbots() {
                     const meta = stepPalette.find(s => s.type === step.type) || stepPalette[0];
                     const Icon = meta.icon;
                     return (
-                      <div key={step.id} className="relative w-72 rounded-xl border border-border/70 bg-card shadow-xl overflow-hidden">
-                        <div className={cn('px-3 py-2 text-white flex items-center gap-2', meta.color)}><Icon className="w-4 h-4" /><Input className="h-7 bg-white/15 border-white/20 text-white" value={step.title} onChange={e => setForm(f => ({ ...f, steps: f.steps.map(s => s.id === step.id ? { ...s, title: e.target.value } : s) }))} /></div>
-                        <div className="p-3 space-y-2">
-                          <Textarea rows={4} value={step.text || ''} onChange={e => setForm(f => ({ ...f, steps: f.steps.map(s => s.id === step.id ? { ...s, text: e.target.value } : s) }))} placeholder="Conteúdo do bloco" />
-                          {['image','video','audio','document'].includes(step.type) && <Input value={step.media_url || ''} onChange={e => setForm(f => ({ ...f, steps: f.steps.map(s => s.id === step.id ? { ...s, media_url: e.target.value } : s) }))} placeholder="URL da mídia" />}
-                          <Button size="sm" variant="ghost" className="text-red-400" onClick={() => setForm(f => ({ ...f, steps: f.steps.filter(s => s.id !== step.id) }))}><Trash2 className="w-3 h-3 mr-1" /> Remover</Button>
+                      <div key={step.id} className="relative w-72 rounded-xl border border-border/70 bg-card shadow-xl overflow-hidden group">
+                        <div className={cn('px-3 py-2 text-white flex items-center gap-2', meta.color)}>
+                          <Icon className="w-4 h-4" />
+                          <Input 
+                            className="h-7 bg-white/20 border-white/30 text-white placeholder:text-white/60 focus-visible:ring-0 focus-visible:border-white/50" 
+                            value={step.title} 
+                            onChange={e => setForm(f => ({ ...f, steps: f.steps.map(s => s.id === step.id ? { ...s, title: e.target.value } : s) }))} 
+                          />
                         </div>
-                        {index < form.steps.length - 1 && <div className="hidden lg:block absolute top-1/2 -right-8 w-8 border-t border-dashed border-emerald-500" />}
+                        <div className="p-3 space-y-2">
+                          <Textarea 
+                            rows={4} 
+                            className="bg-accent/30 border-border/40 resize-none focus-visible:ring-1 focus-visible:ring-emerald-500/40"
+                            value={step.text || ''} 
+                            onChange={e => setForm(f => ({ ...f, steps: f.steps.map(s => s.id === step.id ? { ...s, text: e.target.value } : s) }))} 
+                            placeholder="Conteúdo do bloco" 
+                          />
+                          {['image','video','audio','document'].includes(step.type) && (
+                            <div className="space-y-1">
+                              <Label className="text-[10px] text-muted-foreground uppercase">URL da Mídia</Label>
+                              <Input 
+                                className="h-8 bg-accent/30 border-border/40"
+                                value={step.media_url || ''} 
+                                onChange={e => setForm(f => ({ ...f, steps: f.steps.map(s => s.id === step.id ? { ...s, media_url: e.target.value } : s) }))} 
+                                placeholder="https://..." 
+                              />
+                            </div>
+                          )}
+                          <Button 
+                            size="sm" 
+                            variant="ghost" 
+                            className="w-full text-red-400 hover:text-red-300 hover:bg-red-400/10 h-8 mt-1" 
+                            onClick={() => setForm(f => ({ ...f, steps: f.steps.filter(s => s.id !== step.id) }))}
+                          >
+                            <Trash2 className="w-3.5 h-3.5 mr-2" /> Remover
+                          </Button>
+                        </div>
+                        {index < form.steps.length - 1 && <div className="hidden lg:block absolute top-1/2 -right-8 w-8 border-t border-dashed border-border/60" />}
                       </div>
                     );
                   })}
