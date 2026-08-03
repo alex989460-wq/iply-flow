@@ -77,5 +77,5 @@ export default function EmbedChatbots() {
   // Passing embed prop. 
   // Note: CrmOficialChatbots still expects useAuth() to have a user.
   // If we are in an iframe, we might not have a session.
-  return <CrmOficialChatbots embed />;
+  return <CrmOficialChatbots embed overrideToken={token || undefined} />;
 }
