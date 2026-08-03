@@ -249,18 +249,84 @@ export default function CrmOficialChatbots({ embed = false }: { embed?: boolean 
 
   const openEdit = (bot: CrmBot) => {
     setActive(bot);
-    setForm({ name: bot.name, keyword: bot.keyword || bot.trigger_keywords?.join(', ') || '', enabled: Boolean(bot.enabled ?? bot.active), steps: bot.steps || [] });
+    const steps = bot.steps || [];
+    setForm({ name: bot.name, keyword: bot.keyword || bot.trigger_keywords?.join(', ') || '', enabled: Boolean(bot.enabled ?? bot.active), steps });
+    
+    // Initialize Flow
+    const initialNodes: Node[] = steps.map((s, idx) => ({
+      id: s.id,
+      type: 'step',
+      position: { x: 50 + (idx * 300), y: 150 },
+      data: { ...s, onDelete: onNodeDelete }
+    }));
+
+    const initialEdges: Edge[] = steps.slice(0, -1).map((s, idx) => ({
+      id: `e${s.id}-${steps[idx + 1].id}`,
+      source: s.id,
+      target: steps[idx + 1].id,
+      type: 'smoothstep',
+      animated: true,
+      markerEnd: { type: MarkerType.ArrowClosed, color: '#10b981' },
+      style: { stroke: '#10b981', strokeWidth: 2 }
+    }));
+
+    setNodes(initialNodes);
+    setEdges(initialEdges);
     setEditorOpen(true);
   };
 
-  const addStep = (type: BotStepType) => {
-    const meta = stepPalette.find(s => s.type === type);
-    setForm(f => ({ ...f, steps: [...f.steps, { id: uid(), type, title: meta?.label || type, text: type === 'message' ? 'Digite sua mensagem...' : '' }] }));
-  };
+  const onDragOver = useCallback((event: React.DragEvent) => {
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'move';
+  }, []);
+
+  const onDrop = useCallback(
+    (event: React.DragEvent) => {
+      event.preventDefault();
+
+      const type = event.dataTransfer.getData('application/reactflow') as BotStepType;
+      if (!type || !reactFlowWrapper.current) return;
+
+      const position = {
+        x: event.clientX - reactFlowWrapper.current.getBoundingClientRect().left,
+        y: event.clientY - reactFlowWrapper.current.getBoundingClientRect().top,
+      };
+
+      const meta = stepPalette.find(s => s.type === type);
+      const newId = uid();
+      const newNode: Node = {
+        id: newId,
+        type: 'step',
+        position,
+        data: { 
+          id: newId, 
+          type, 
+          title: meta?.label || type, 
+          text: type === 'message' ? 'Digite sua mensagem...' : '',
+          onDelete: onNodeDelete 
+        },
+      };
+
+      setNodes((nds) => nds.concat(newNode));
+    },
+    [setNodes, onNodeDelete]
+  );
 
   const saveBot = async () => {
     if (!form.name.trim()) return;
     setSaving(true);
+    
+    // Convert Nodes back to steps (simplified linear order based on X position for now)
+    const sortedSteps = [...nodes]
+      .sort((a, b) => a.position.x - b.position.x)
+      .map(node => ({
+        id: node.id,
+        type: node.data.type,
+        title: node.data.title,
+        text: node.data.text,
+        media_url: node.data.media_url
+      }));
+
     try {
       const chatbot = {
         name: form.name.trim(),
@@ -268,8 +334,8 @@ export default function CrmOficialChatbots({ embed = false }: { embed?: boolean 
         trigger_keywords: form.keyword.split(',').map(s => s.trim()).filter(Boolean),
         enabled: form.enabled,
         active: form.enabled,
-        steps: form.steps,
-        flow: { steps: form.steps },
+        steps: sortedSteps,
+        flow: { steps: sortedSteps },
         instance_name: active?.instance_name || null,
       };
       const r = await invoke(active ? 'update-chatbot' : 'create-chatbot', active ? { chatbot_id: active.id, chatbot } : { chatbot });
