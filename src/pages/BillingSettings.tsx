@@ -23,6 +23,7 @@ export default function BillingSettings() {
 
         <BillingSettingsCard />
 
+        <EmailTrackingCard />
 
         <EfiSettingsCard />
         <ResellerCheckoutCard />
