@@ -112,35 +112,49 @@ export default function CrmOficialChat({ embed = false, active = true }: { embed
       <div
         className={`w-full min-h-0 overflow-hidden bg-background relative flex flex-col ${embed ? "h-full" : "h-screen"}`}
       >
-        <div className="flex-1 relative w-full min-h-0 overflow-hidden">
-          {loading ? (
-            <div className="absolute inset-0 flex items-center justify-center">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-            </div>
-          ) : !apiKey ? (
-            <div className="absolute inset-0 flex items-center justify-center p-6">
-              <Card className="max-w-md w-full p-6 text-center space-y-3">
-                <p className="text-sm text-muted-foreground">
-                  Configure sua API key do CRM Oficial em Configurações para carregar o chat.
-                </p>
-                <Button asChild>
-                  <Link to="/settings">Ir para Configurações</Link>
-                </Button>
-              </Card>
-            </div>
-          ) : (
-            <iframe
-              ref={iframeRef}
-              title="Chat"
-              className="absolute inset-0 h-full w-full border-0 block"
-              referrerPolicy="no-referrer"
-              allow="clipboard-read; clipboard-write; microphone; camera; autoplay; fullscreen; geolocation"
-            />
+        <div className="flex-1 flex min-h-0 overflow-hidden">
+          <div className="flex-1 relative w-full min-w-0 min-h-0 overflow-hidden">
+            {loading ? (
+              <div className="absolute inset-0 flex items-center justify-center">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : !apiKey ? (
+              <div className="absolute inset-0 flex items-center justify-center p-6">
+                <Card className="max-w-md w-full p-6 text-center space-y-3">
+                  <p className="text-sm text-muted-foreground">
+                    Configure sua API key do CRM Oficial em Configurações para carregar o chat.
+                  </p>
+                  <Button asChild>
+                    <Link to="/settings">Ir para Configurações</Link>
+                  </Button>
+                </Card>
+              </div>
+            ) : (
+              <iframe
+                ref={iframeRef}
+                title="Chat"
+                className="absolute inset-0 h-full w-full border-0 block"
+                referrerPolicy="no-referrer"
+                allow="clipboard-read; clipboard-write; microphone; camera; autoplay; fullscreen; geolocation"
+              />
+            )}
+          </div>
+
+          {apiKey && !isMobile && (
+            <aside className="w-[420px] xl:w-[460px] h-full border-l border-border bg-background flex flex-col shrink-0">
+              <div className="flex items-center gap-2 px-3 py-2 border-b border-border text-sm font-semibold">
+                <Zap className="h-4 w-4 text-emerald-500" />
+                Renovação rápida
+              </div>
+              <div className="flex-1 min-h-0 overflow-hidden">
+                <QuickRenewalPanel />
+              </div>
+            </aside>
           )}
         </div>
 
-        {apiKey && (
-          <div className="border-t border-border bg-card">
+        {apiKey && isMobile && (
+          <div className="border-t border-border bg-card shrink-0">
             <Sheet open={panelOpen} onOpenChange={setPanelOpen}>
               <SheetTrigger asChild>
                 <Button 
