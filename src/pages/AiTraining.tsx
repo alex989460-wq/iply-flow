@@ -368,15 +368,100 @@ export default function AiTraining() {
         )}
 
         <Tabs value={tab} onValueChange={setTab}>
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="dashboard"><BarChart3 className="h-4 w-4 mr-1" />Dashboard</TabsTrigger>
-            <TabsTrigger value="import"><Database className="h-4 w-4 mr-1" />Importar</TabsTrigger>
+            <TabsTrigger value="knowledge"><Brain className="h-4 w-4 mr-1" />Base ({stats.approved})</TabsTrigger>
+            <TabsTrigger value="automation"><Zap className="h-4 w-4 mr-1" />IA & Automação</TabsTrigger>
             <TabsTrigger value="approve">
               <CheckCircle2 className="h-4 w-4 mr-1" />Aprovação
               {stats.pending > 0 && <Badge className="ml-2 bg-violet-500 text-white">{stats.pending}</Badge>}
             </TabsTrigger>
-            <TabsTrigger value="approved"><BookOpen className="h-4 w-4 mr-1" />Base ({stats.approved})</TabsTrigger>
+            <TabsTrigger value="import"><Database className="h-4 w-4 mr-1" />Importar</TabsTrigger>
           </TabsList>
+
+          <TabsContent value="automation" className="space-y-6 animate-in fade-in slide-in-from-left-4 mt-4">
+            <Card className="p-6 border-border/60 bg-card/50 backdrop-blur-sm">
+              <div className="flex items-center justify-between mb-6">
+                <div className="space-y-1">
+                  <h3 className="text-lg font-semibold flex items-center gap-2">
+                    <Zap className="h-5 w-5 text-amber-500" /> Automação com Inteligência Artificial
+                  </h3>
+                  <p className="text-sm text-muted-foreground">O robô aprenderá com sua Base de Conhecimento aprovada para atender clientes automaticamente.</p>
+                </div>
+                <Switch 
+                  checked={aiSettings.enabled} 
+                  onCheckedChange={(val) => setAiSettings(s => ({ ...s, enabled: val }))}
+                />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium">Provedor de IA</Label>
+                    <select 
+                      value={aiSettings.provider} 
+                      onChange={(e) => setAiSettings(s => ({ ...s, provider: e.target.value }))}
+                      className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                    >
+                      <option value="gemini">Google Gemini 1.5 Pro</option>
+                      <option value="openai">OpenAI ChatGPT 4o</option>
+                    </select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium">Chave de API (Opcional)</Label>
+                    <Input 
+                      type="password"
+                      placeholder="Deixe vazio para usar créditos do sistema"
+                      value={aiSettings.apiKey}
+                      onChange={(e) => setAiSettings(s => ({ ...s, apiKey: e.target.value }))}
+                      className="h-9 text-xs"
+                    />
+                    <p className="text-[10px] text-muted-foreground">Seu saldo de créditos será consumido apenas se não fornecer uma chave própria.</p>
+                  </div>
+                </div>
+
+                <div className="bg-primary/5 rounded-xl p-4 border border-primary/10 space-y-3">
+                  <div className="flex items-center gap-2 text-primary font-medium text-sm">
+                    <Sparkles className="h-4 w-4" />
+                    <span>Treinamento Contínuo</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    Tudo o que você aprovar na aba <strong>Aprovação</strong> ou <strong>Base</strong> servirá de manual para a IA. 
+                    Quanto mais detalhadas suas respostas, mais inteligente o robô fica.
+                  </p>
+                  <div className="pt-2">
+                    <Badge variant="outline" className="text-[10px] border-primary/20 text-primary">IA Ativa em WhatsApp e Chat</Badge>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-8 pt-6 border-t border-border/50 flex justify-end">
+                <Button 
+                  onClick={async () => {
+                    setSavingSettings(true);
+                    const { error } = await (supabase.from('platform_settings' as any) as any)
+                      .upsert({ 
+                        user_id: user?.id,
+                        ai_automation_enabled: aiSettings.enabled,
+                        ai_provider: aiSettings.provider,
+                        ai_api_key: aiSettings.apiKey
+                      }, { onConflict: 'user_id' });
+                    setSavingSettings(false);
+                    if (error) toast({ title: 'Erro ao salvar', description: error.message, variant: 'destructive' });
+                    else toast({ title: 'Configurações de IA salvas com sucesso' });
+                  }} 
+                  disabled={savingSettings}
+                  size="sm"
+                  className="px-6"
+                >
+                  {savingSettings ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
+                  Salvar Automação
+                </Button>
+              </div>
+            </Card>
+          </TabsContent>
+
 
           {/* ============ DASHBOARD ============ */}
           <TabsContent value="dashboard" className="space-y-4 mt-4">
