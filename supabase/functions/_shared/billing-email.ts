@@ -90,6 +90,7 @@ export async function sendBillingEmail(
         idempotencyKey: `billing-${customer.id}-${billingType}-${opts?.todayStr || new Date().toISOString().slice(0, 10)}`,
         fromName: brandName,
         replyTo: settings.email_reply_to || undefined,
+        ownerId: customer?.created_by || undefined,
         templateData: {
           brandName,
           logoUrl: settings.email_logo_url || undefined,

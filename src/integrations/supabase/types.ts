@@ -1424,6 +1424,42 @@ export type Database = {
         }
         Relationships: []
       }
+      email_opens: {
+        Row: {
+          first_opened_at: string
+          id: string
+          last_opened_at: string
+          message_id: string
+          open_count: number
+          owner_id: string | null
+          recipient_email: string | null
+          template_name: string | null
+          user_agent: string | null
+        }
+        Insert: {
+          first_opened_at?: string
+          id?: string
+          last_opened_at?: string
+          message_id: string
+          open_count?: number
+          owner_id?: string | null
+          recipient_email?: string | null
+          template_name?: string | null
+          user_agent?: string | null
+        }
+        Update: {
+          first_opened_at?: string
+          id?: string
+          last_opened_at?: string
+          message_id?: string
+          open_count?: number
+          owner_id?: string | null
+          recipient_email?: string | null
+          template_name?: string | null
+          user_agent?: string | null
+        }
+        Relationships: []
+      }
       email_send_log: {
         Row: {
           created_at: string
@@ -3127,6 +3163,20 @@ export type Database = {
         Returns: number
       }
       get_dashboard_stats_optimized: { Args: never; Returns: Json }
+      get_email_tracking: {
+        Args: { _days?: number; _limit?: number }
+        Returns: {
+          error_message: string
+          first_opened_at: string
+          message_id: string
+          open_count: number
+          opened: boolean
+          recipient_email: string
+          sent_at: string
+          status: string
+          template_name: string
+        }[]
+      }
       get_monthly_revenue: { Args: never; Returns: Json }
       get_plan_distribution: { Args: never; Returns: Json }
       get_reseller_customer_counts: {

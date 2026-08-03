@@ -55,9 +55,10 @@ Deno.serve(async (req) => {
   let idempotencyKey: string
   let messageId: string
   let templateData: Record<string, any> = {}
-  // Per-reseller identity (Plan A: shared sending domain, custom display name / reply-to)
   let fromName: string | null = null
   let replyTo: string | null = null
+  // Optional owner (reseller) id — used to scope open-tracking reports
+  let ownerId: string | null = null
   try {
     const body = await req.json()
     templateName = body.templateName || body.template_name
@@ -75,6 +76,10 @@ Deno.serve(async (req) => {
     const rawReplyTo = body.replyTo || body.reply_to
     if (typeof rawReplyTo === 'string' && /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(rawReplyTo.trim())) {
       replyTo = rawReplyTo.trim()
+    }
+    const rawOwnerId = body.ownerId || body.owner_id
+    if (typeof rawOwnerId === 'string' && /^[0-9a-f-]{36}$/i.test(rawOwnerId.trim())) {
+      ownerId = rawOwnerId.trim()
     }
   } catch {
 
@@ -293,7 +298,9 @@ Deno.serve(async (req) => {
   // 4. Render React Email template to HTML and plain text
   // The platform appends its own unsubscribe footer (unsubscribe_token is
   // mandatory for transactional sends), so we do not add a second link here.
-  const renderData = { ...templateData }
+  // Open-tracking pixel (1x1 gif served by the email-open-pixel function)
+  const trackingPixelUrl = `${supabaseUrl}/functions/v1/email-open-pixel?m=${messageId}`
+  const renderData = { ...templateData, trackingPixelUrl }
 
   const html = await renderAsync(
     React.createElement(template.component, renderData)
@@ -319,6 +326,7 @@ Deno.serve(async (req) => {
     template_name: templateName,
     recipient_email: effectiveRecipient,
     status: 'pending',
+    metadata: ownerId ? { owner_id: ownerId } : null,
   })
 
   const { error: enqueueError } = await supabase.rpc('enqueue_email', {

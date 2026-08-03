@@ -2,6 +2,7 @@ import DashboardLayout from '@/components/layout/DashboardLayout';
 import BillingSettingsCard from '@/components/settings/BillingSettingsCard';
 import EfiSettingsCard from '@/components/settings/EfiSettingsCard';
 import ResellerCheckoutCard from '@/components/settings/ResellerCheckoutCard';
+import EmailTrackingCard from '@/components/settings/EmailTrackingCard';
 import { Receipt } from 'lucide-react';
 
 
@@ -23,6 +24,7 @@ export default function BillingSettings() {
 
         <BillingSettingsCard />
 
+        <EmailTrackingCard />
 
         <EfiSettingsCard />
         <ResellerCheckoutCard />

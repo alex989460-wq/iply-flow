@@ -27,6 +27,7 @@ interface Props {
   supportPhone?: string
   subjectOverride?: string
   unsubscribeUrl?: string
+  trackingPixelUrl?: string
 }
 
 const Email = ({
@@ -41,6 +42,7 @@ const Email = ({
   amount,
   supportPhone,
   unsubscribeUrl,
+  trackingPixelUrl,
 }: Props) => {
   const greeting = customerName ? `Pagamento confirmado, ${customerName}!` : 'Pagamento confirmado!'
 
@@ -107,6 +109,9 @@ const Email = ({
                 Cancelar o recebimento destes e-mails
               </Link>
             </Text>
+          ) : null}
+          {trackingPixelUrl ? (
+            <Img src={trackingPixelUrl} alt="" width="1" height="1" style={pixel} />
           ) : null}
         </Container>
       </Body>
@@ -205,3 +210,5 @@ const footerSmall = { fontSize: '11px', lineHeight: '17px', color: '#a1a1aa', ma
 const footerLink = { color: '#a1a1aa', textDecoration: 'underline' }
 
 const logoImg = { display: 'block', margin: '0 auto 12px', maxWidth: '140px', height: 'auto' }
+
+const pixel = { display: 'block', width: '1px', height: '1px', border: 0, opacity: 0.01 }
