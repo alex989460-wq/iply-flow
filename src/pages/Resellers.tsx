@@ -127,29 +127,6 @@ export default function Resellers() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('platform_settings')
-        .select('free_trial_days')
-        .maybeSingle();
-      if (error) throw error;
-      return data;
-    },
-  });
-
-  useEffect(() => {
-    if (platformSettings?.free_trial_days !== undefined) {
-      setCreateForm(prev => ({
-        ...prev,
-        access_days: String(platformSettings.free_trial_days || 7)
-      }));
-    }
-  }, [platformSettings]);
-
-
-
-  const { data: platformSettings } = useQuery({
-    queryKey: ['platform-settings'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('platform_settings')
         .select('trial_days')
         .maybeSingle();
       if (error) throw error;
@@ -167,6 +144,29 @@ export default function Resellers() {
   }, [platformSettings]);
 
   const renewMutation = useMutation({
+    mutationFn: async ({ id, days }: { id: string; days: number }) => {
+      if (isAdmin) {
+        const newExpiration = addDays(new Date(), days);
+        const { error } = await supabase
+          .from('reseller_access')
+          .update({
+            access_expires_at: newExpiration.toISOString(),
+            is_active: true,
+          })
+          .eq('id', id);
+        if (error) throw error;
+      } else {
+        const creditsNeeded = Math.max(1, Math.ceil(days / 30));
+        const { data, error } = await supabase.functions.invoke('renew-sub-reseller', {
+          body: { sub_reseller_id: id, credits_to_use: creditsNeeded },
+        });
+        if (error) throw error;
+        if (!data?.success) throw new Error(data?.error || 'Erro ao renovar');
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['reseller-access'] });
+      queryClient.invalidateQueries({ queryKey: ['my-reseller-access'] });
       toast({
         title: "Acesso renovado",
         description: `Acesso renovado por ${renewDays} dias com sucesso!`,
