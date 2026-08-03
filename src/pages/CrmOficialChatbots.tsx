@@ -394,15 +394,62 @@ export default function CrmOficialChatbots({ embed = false, overrideToken }: { e
   const __content = (
       <div className={cn("space-y-5 max-w-7xl mx-auto p-4 md:p-6", embed && "p-0 max-w-full")}>
         {!embed ? (
-          <div className="flex items-center justify-between gap-3 flex-wrap">
-            <div>
-              <h1 className="text-2xl font-bold flex items-center gap-2"><Bot className="w-6 h-6 text-emerald-500" /> Chatbots</h1>
-              <p className="text-sm text-muted-foreground">Crie fluxos automáticos com visual e blocos compatíveis com o CRM Oficial.</p>
+          <div className="flex flex-col gap-6">
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <div>
+                <h1 className="text-2xl font-bold flex items-center gap-2"><Bot className="w-6 h-6 text-emerald-500" /> Chatbots</h1>
+                <p className="text-sm text-muted-foreground">Crie fluxos automáticos com visual e blocos compatíveis com o CRM Oficial.</p>
+              </div>
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={loadBots} disabled={!apiKey || syncing}>{syncing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />} Sincronizar</Button>
+                <Button onClick={openNew} disabled={!apiKey}><Plus className="w-4 h-4 mr-2" /> Novo chatbot</Button>
+              </div>
             </div>
-            <div className="flex gap-2">
-              <Button variant="outline" onClick={loadBots} disabled={!apiKey || syncing}>{syncing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />} Sincronizar</Button>
-              <Button onClick={openNew} disabled={!apiKey}><Plus className="w-4 h-4 mr-2" /> Novo chatbot</Button>
-            </div>
+
+            {apiKey && (
+              <Card className="border-emerald-500/20 bg-emerald-500/5 overflow-hidden">
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center">
+                        <Share2 className="w-5 h-5 text-emerald-400" />
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-bold text-emerald-400">Embed do Chatbot</h4>
+                        <p className="text-xs text-muted-foreground">Copie o link ou o código Iframe para usar em painéis externos.</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button 
+                        size="sm" 
+                        variant="outline" 
+                        className="h-8 text-[10px] font-bold uppercase tracking-wider"
+                        onClick={() => {
+                          const url = `${window.location.origin}/embed/chatbots?token=${apiKey}`;
+                          navigator.clipboard.writeText(url);
+                          toast({ title: "Link copiado!" });
+                        }}
+                      >
+                        Copiar Link
+                      </Button>
+                      <Button 
+                        size="sm" 
+                        variant="outline" 
+                        className="h-8 text-[10px] font-bold uppercase tracking-wider"
+                        onClick={() => {
+                          const url = `${window.location.origin}/embed/chatbots?token=${apiKey}`;
+                          const iframe = `<iframe src="${url}" style="border:0;width:100%;height:800px;" allow="clipboard-write"></iframe>`;
+                          navigator.clipboard.writeText(iframe);
+                          toast({ title: "Iframe copiado!" });
+                        }}
+                      >
+                        Copiar Iframe
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
           </div>
         ) : (
           <div className="flex items-center justify-between mb-4 bg-[#121214] border border-white/5 rounded-2xl p-4">
