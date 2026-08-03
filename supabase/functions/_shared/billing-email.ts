@@ -7,6 +7,7 @@ export interface BillingEmailSettings {
   email_from_name?: string | null;
   email_reply_to?: string | null;
   email_subject?: string | null;
+  email_logo_url?: string | null;
   email_msg_d_minus_1?: string | null;
   email_msg_d0?: string | null;
   email_msg_d_plus_1?: string | null;
@@ -78,6 +79,8 @@ export async function sendBillingEmail(
         replyTo: settings.email_reply_to || undefined,
         templateData: {
           brandName,
+          logoUrl: settings.email_logo_url || undefined,
+          subjectOverride: settings.email_subject || undefined,
           customerName: customer?.name || '',
           username: customer?.username || '',
           planName: customer?.plan?.plan_name || '',

@@ -45,6 +45,7 @@ interface BillingSettings {
   email_from_name?: string | null;
   email_reply_to?: string | null;
   email_subject?: string | null;
+  email_logo_url?: string | null;
   email_msg_d_minus_1?: string | null;
   email_msg_d0?: string | null;
   email_msg_d_plus_1?: string | null;
@@ -68,6 +69,7 @@ export default function BillingSettingsCard() {
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const notifStorageKey = user?.id ? `renewal_notifications_enabled_${user.id}` : '';
   const savedPhoneRef = useRef<string>('');
@@ -156,6 +158,7 @@ export default function BillingSettingsCard() {
     email_from_name: '',
     email_reply_to: '',
     email_subject: 'Aviso de vencimento da sua assinatura',
+    email_logo_url: '',
     email_msg_d_minus_1: '',
     email_msg_d0: '',
     email_msg_d_plus_1: '',
@@ -242,6 +245,7 @@ export default function BillingSettingsCard() {
         email_from_name: (settings as any).email_from_name || '',
         email_reply_to: (settings as any).email_reply_to || '',
         email_subject: (settings as any).email_subject || 'Aviso de vencimento da sua assinatura',
+        email_logo_url: (settings as any).email_logo_url || '',
         email_msg_d_minus_1: (settings as any).email_msg_d_minus_1 || '',
         email_msg_d0: (settings as any).email_msg_d0 || '',
         email_msg_d_plus_1: (settings as any).email_msg_d_plus_1 || '',
@@ -332,6 +336,7 @@ export default function BillingSettingsCard() {
         email_from_name: data.email_from_name || null,
         email_reply_to: data.email_reply_to || null,
         email_subject: data.email_subject || null,
+        email_logo_url: data.email_logo_url || null,
         email_msg_d_minus_1: data.email_msg_d_minus_1 || null,
         email_msg_d0: data.email_msg_d0 || null,
         email_msg_d_plus_1: data.email_msg_d_plus_1 || null,
@@ -780,6 +785,69 @@ export default function BillingSettingsCard() {
                 placeholder="Aviso de vencimento da sua assinatura"
               />
             </div>
+
+            <div className="space-y-2">
+              <Label className="text-sm">Logo do e-mail</Label>
+              <div className="flex items-center gap-3">
+                {formData.email_logo_url ? (
+                  <img
+                    src={formData.email_logo_url}
+                    alt="Logo usada nos e-mails de cobrança"
+                    className="h-10 w-auto rounded border border-border/60 bg-background p-1"
+                  />
+                ) : null}
+                <Input
+                  type="file"
+                  accept="image/*"
+                  disabled={uploadingLogo}
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (!file || !user?.id) return;
+                    if (file.size > 2 * 1024 * 1024) {
+                      toast.error('Logo muito grande (máx 2MB)');
+                      return;
+                    }
+                    setUploadingLogo(true);
+                    try {
+                      const ext = file.name.split('.').pop() || 'png';
+                      const filePath = `${user.id}/email-logo.${ext}`;
+                      const { error: upErr } = await supabase.storage
+                        .from('reseller-assets')
+                        .upload(filePath, file, { upsert: true });
+                      if (upErr) throw upErr;
+                      const { data: urlData } = supabase.storage
+                        .from('reseller-assets')
+                        .getPublicUrl(filePath);
+                      setFormData((prev) => ({
+                        ...prev,
+                        email_logo_url: urlData.publicUrl + '?t=' + Date.now(),
+                      }));
+                      toast.success('Logo enviada! Salve as configurações.');
+                    } catch (err: any) {
+                      toast.error(err.message || 'Erro ao enviar logo');
+                    } finally {
+                      setUploadingLogo(false);
+                      e.target.value = '';
+                    }
+                  }}
+                />
+                {formData.email_logo_url ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setFormData({ ...formData, email_logo_url: '' })}
+                  >
+                    Remover
+                  </Button>
+                ) : null}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                PNG/JPG até 2MB. Aparece no topo dos e-mails de cobrança.
+              </p>
+            </div>
+
+
 
             {([
               ['email_msg_d_minus_1', 'Mensagem D-1 (vence amanhã)'],

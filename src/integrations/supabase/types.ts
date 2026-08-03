@@ -669,6 +669,7 @@ export type Database = {
           created_at: string
           custom_message: string | null
           email_from_name: string | null
+          email_logo_url: string | null
           email_msg_d_minus_1: string | null
           email_msg_d_plus_1: string | null
           email_msg_d0: string | null
@@ -702,6 +703,7 @@ export type Database = {
           created_at?: string
           custom_message?: string | null
           email_from_name?: string | null
+          email_logo_url?: string | null
           email_msg_d_minus_1?: string | null
           email_msg_d_plus_1?: string | null
           email_msg_d0?: string | null
@@ -735,6 +737,7 @@ export type Database = {
           created_at?: string
           custom_message?: string | null
           email_from_name?: string | null
+          email_logo_url?: string | null
           email_msg_d_minus_1?: string | null
           email_msg_d_plus_1?: string | null
           email_msg_d0?: string | null

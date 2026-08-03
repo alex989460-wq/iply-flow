@@ -7,6 +7,7 @@ import {
   Heading,
   Hr,
   Html,
+  Img,
   Preview,
   Section,
   Text,
@@ -17,6 +18,7 @@ interface Props {
   // Reseller identity
   brandName?: string
   brandColor?: string
+  logoUrl?: string
   // Customer data
   customerName?: string
   username?: string
@@ -28,11 +30,14 @@ interface Props {
   // Optional payment link (checkout / Pix)
   paymentUrl?: string
   supportPhone?: string
+  // Optional subject override (configured by the reseller)
+  subjectOverride?: string
 }
 
 const Email = ({
   brandName = 'Sua Assinatura',
   brandColor = '#16a34a',
+  logoUrl,
   customerName,
   username,
   planName,
@@ -57,6 +62,9 @@ const Email = ({
       <Body style={main}>
         <Container style={container}>
           <Section style={{ ...header, borderTopColor: brandColor }}>
+            {logoUrl ? (
+              <Img src={logoUrl} alt={brandName} height="44" style={logo} />
+            ) : null}
             <Heading style={brandTitle}>{brandName}</Heading>
           </Section>
 
@@ -97,6 +105,10 @@ const Email = ({
                 : 'Em caso de dúvidas, responda este e-mail.'}
             </Text>
             <Text style={footer}>{brandName}</Text>
+            <Text style={footer}>
+              Você recebeu este e-mail porque possui uma assinatura ativa com {brandName}.
+              Para não receber mais avisos, use o link de cancelamento abaixo.
+            </Text>
           </Section>
         </Container>
       </Body>
@@ -107,9 +119,10 @@ const Email = ({
 export const template = {
   component: Email,
   subject: (data: Record<string, any>) =>
-    data?.dueDate
+    (typeof data?.subjectOverride === 'string' && data.subjectOverride.trim()) ||
+    (data?.dueDate
       ? `${data?.brandName || 'Assinatura'} — vencimento em ${data.dueDate}`
-      : `${data?.brandName || 'Assinatura'} — aviso de vencimento`,
+      : `${data?.brandName || 'Assinatura'} — aviso de vencimento`),
   displayName: 'Cobrança / Lembrete de vencimento',
   previewData: {
     brandName: 'IPTV do João',
@@ -125,6 +138,7 @@ export const template = {
   },
 } satisfies TemplateEntry
 
+
 const main = { backgroundColor: '#ffffff', fontFamily: 'Arial, Helvetica, sans-serif' }
 const container = { maxWidth: '560px', margin: '0 auto', padding: '24px 0' }
 const header = {
@@ -133,6 +147,7 @@ const header = {
   padding: '18px 24px',
   borderRadius: '10px 10px 0 0',
 }
+const logo = { display: 'block', margin: '0 0 10px', maxHeight: '44px' }
 const brandTitle = { margin: 0, fontSize: '18px', color: '#0f172a' }
 const content = {
   border: '1px solid #e2e8f0',
