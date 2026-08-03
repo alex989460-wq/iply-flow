@@ -52,6 +52,8 @@ import CostCalculator from "./pages/CostCalculator";
 import LeadCapture from "./pages/LeadCapture";
 import AiTraining from "./pages/AiTraining";
 import Tutorials from "./pages/Tutorials";
+import Unsubscribe from "./pages/Unsubscribe";
+
 import { Loader2 } from "lucide-react";
 import { useOneSignal } from "@/hooks/useOneSignal";
 
