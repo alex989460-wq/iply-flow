@@ -50,6 +50,7 @@ const Email = ({
   amount,
   messageBody,
   paymentUrl,
+  fallbackUrl,
   supportPhone,
   unsubscribeUrl,
 }: Props) => {
