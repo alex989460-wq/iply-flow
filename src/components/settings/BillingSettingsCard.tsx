@@ -45,6 +45,7 @@ interface BillingSettings {
   email_from_name?: string | null;
   email_reply_to?: string | null;
   email_subject?: string | null;
+  email_logo_url?: string | null;
   email_msg_d_minus_1?: string | null;
   email_msg_d0?: string | null;
   email_msg_d_plus_1?: string | null;
@@ -156,6 +157,7 @@ export default function BillingSettingsCard() {
     email_from_name: '',
     email_reply_to: '',
     email_subject: 'Aviso de vencimento da sua assinatura',
+    email_logo_url: '',
     email_msg_d_minus_1: '',
     email_msg_d0: '',
     email_msg_d_plus_1: '',
@@ -242,6 +244,7 @@ export default function BillingSettingsCard() {
         email_from_name: (settings as any).email_from_name || '',
         email_reply_to: (settings as any).email_reply_to || '',
         email_subject: (settings as any).email_subject || 'Aviso de vencimento da sua assinatura',
+        email_logo_url: (settings as any).email_logo_url || '',
         email_msg_d_minus_1: (settings as any).email_msg_d_minus_1 || '',
         email_msg_d0: (settings as any).email_msg_d0 || '',
         email_msg_d_plus_1: (settings as any).email_msg_d_plus_1 || '',
@@ -332,6 +335,7 @@ export default function BillingSettingsCard() {
         email_from_name: data.email_from_name || null,
         email_reply_to: data.email_reply_to || null,
         email_subject: data.email_subject || null,
+        email_logo_url: data.email_logo_url || null,
         email_msg_d_minus_1: data.email_msg_d_minus_1 || null,
         email_msg_d0: data.email_msg_d0 || null,
         email_msg_d_plus_1: data.email_msg_d_plus_1 || null,
