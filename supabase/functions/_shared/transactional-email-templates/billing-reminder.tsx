@@ -7,7 +7,6 @@ import {
   Heading,
   Hr,
   Html,
-  Img,
   Link,
   Preview,
   Section,
@@ -228,16 +227,17 @@ const header = {
   backgroundColor: '#ffffff',
   borderBottom: '1px solid #e4e4e7',
 }
-const logo = {
-  display: 'block',
-  width: '56px',
-  height: '56px',
-  margin: '0 auto 12px',
-  backgroundColor: '#ffffff',
-  borderRadius: '10px',
-  border: '0',
-  outline: 'none',
-  textDecoration: 'none',
+const logoBadge = {
+  width: '52px',
+  height: '52px',
+  borderRadius: '12px',
+  color: '#ffffff',
+  fontFamily: FONT,
+  fontSize: '24px',
+  fontWeight: 'bold',
+  textAlign: 'center' as const,
+  verticalAlign: 'middle' as const,
+  lineHeight: '52px',
 }
 const brandTitle = { margin: 0, fontSize: '21px', lineHeight: '27px', color: '#18181b', fontFamily: FONT, letterSpacing: '0.3px' }
 const brandSubtitle = { margin: '4px 0 0', fontSize: '12px', lineHeight: '16px', color: '#a1a1aa', fontFamily: FONT }
