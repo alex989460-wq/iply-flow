@@ -139,7 +139,7 @@ export default function CrmOficialChat({ embed = false, active = true }: { embed
           )}
         </div>
 
-        {apiKey && !embed && (
+        {apiKey && (
           <div className="border-t border-border bg-card">
             <Sheet open={panelOpen} onOpenChange={setPanelOpen}>
               <SheetTrigger asChild>
