@@ -7,6 +7,7 @@
 //          new_due_date?: string (YYYY-MM-DD), source?: string }
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { sendPaymentConfirmationEmail } from "../_shared/payment-confirmation-email.ts";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -59,7 +60,7 @@ Deno.serve(async (req) => {
     if (!customerId) return json({ error: "customer_id_required" }, 400);
 
     const { data: cust } = await admin.from("customers")
-      .select("id, name, phone, extra_phone, username, plan_id, server_id, created_by, due_date, screens, notes, status, start_date")
+      .select("id, name, email, phone, extra_phone, username, plan_id, server_id, created_by, due_date, screens, notes, status, start_date")
       .eq("id", customerId).maybeSingle();
     if (!cust) return json({ error: "customer_not_found" }, 404);
 
@@ -197,6 +198,22 @@ Deno.serve(async (req) => {
         } catch (e) { console.warn("[send-payment-confirmation] extra_phone err:", e); }
       }
     }
+
+    // 2.5) E-mail de confirmação de pagamento
+    try {
+      results.email = await sendPaymentConfirmationEmail(admin, {
+        ownerId,
+        email: (cust as any).email,
+        customerName: cust.name,
+        username: cust.username,
+        planName,
+        serverName,
+        dueDate: fmtDue,
+        amount,
+        paymentRef: `${cust.id}-${newDueDate}-${source}`,
+        supportPhone: (billing as any)?.notification_phone || undefined,
+      });
+    } catch (e) { console.warn("[send-payment-confirmation] email err:", e); }
 
     // 3) Admin notification
     const notifPhone = billing?.notification_phone;
