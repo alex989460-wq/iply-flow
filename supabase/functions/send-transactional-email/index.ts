@@ -77,6 +77,10 @@ Deno.serve(async (req) => {
     if (typeof rawReplyTo === 'string' && /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(rawReplyTo.trim())) {
       replyTo = rawReplyTo.trim()
     }
+    const rawOwnerId = body.ownerId || body.owner_id
+    if (typeof rawOwnerId === 'string' && /^[0-9a-f-]{36}$/i.test(rawOwnerId.trim())) {
+      ownerId = rawOwnerId.trim()
+    }
   } catch {
 
     return new Response(
