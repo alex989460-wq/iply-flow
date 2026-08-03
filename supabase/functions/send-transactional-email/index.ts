@@ -55,6 +55,9 @@ Deno.serve(async (req) => {
   let idempotencyKey: string
   let messageId: string
   let templateData: Record<string, any> = {}
+  // Per-reseller identity (Plan A: shared sending domain, custom display name / reply-to)
+  let fromName: string | null = null
+  let replyTo: string | null = null
   try {
     const body = await req.json()
     templateName = body.templateName || body.template_name
@@ -64,7 +67,17 @@ Deno.serve(async (req) => {
     if (body.templateData && typeof body.templateData === 'object') {
       templateData = body.templateData
     }
+    const rawFromName = body.fromName || body.from_name
+    if (typeof rawFromName === 'string' && rawFromName.trim()) {
+      // Strip characters that could break the From header
+      fromName = rawFromName.replace(/[<>"\r\n]/g, '').trim().slice(0, 60)
+    }
+    const rawReplyTo = body.replyTo || body.reply_to
+    if (typeof rawReplyTo === 'string' && /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(rawReplyTo.trim())) {
+      replyTo = rawReplyTo.trim()
+    }
   } catch {
+
     return new Response(
       JSON.stringify({ error: 'Invalid JSON in request body' }),
       {
