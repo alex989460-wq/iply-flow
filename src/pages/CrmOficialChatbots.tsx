@@ -395,17 +395,6 @@ export default function CrmOficialChatbots({ embed = false, overrideToken }: { e
       <div className={cn("space-y-5 max-w-7xl mx-auto p-4 md:p-6", embed && "p-0 max-w-full")}>
         {!embed && !searchParams.get('token') ? (
           <div className="flex flex-col gap-6">
-            <div className="flex items-center justify-between gap-3 flex-wrap">
-              <div>
-                <h1 className="text-2xl font-bold flex items-center gap-2"><Bot className="w-6 h-6 text-emerald-500" /> Chatbots</h1>
-                <p className="text-sm text-muted-foreground">Gerencie seus fluxos automáticos do CRM Oficial.</p>
-              </div>
-              <div className="flex gap-2">
-                <Button variant="outline" onClick={loadBots} disabled={!apiKey || syncing}>{syncing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />} Sincronizar</Button>
-                <Button onClick={openNew} disabled={!apiKey}><Plus className="w-4 h-4 mr-2" /> Novo chatbot</Button>
-              </div>
-            </div>
-
             {apiKey && (
               <div className="relative w-full h-[800px] bg-[#0b0b0d] rounded-2xl overflow-hidden border border-white/5 shadow-2xl">
                 <iframe 
@@ -418,20 +407,7 @@ export default function CrmOficialChatbots({ embed = false, overrideToken }: { e
             )}
           </div>
         ) : (
-          <div className="flex items-center justify-between mb-4 bg-[#121214] border border-white/5 rounded-2xl p-4">
-            <div>
-              <h1 className="text-lg font-bold text-white">Chatbots CRM</h1>
-              <p className="text-[10px] text-white/40 uppercase font-bold tracking-widest">Gerenciador de Automação</p>
-            </div>
-            <div className="flex gap-2">
-              <Button size="sm" variant="outline" className="border-white/10 bg-white/5 hover:bg-white/10 text-white" onClick={loadBots} disabled={!apiKey || syncing}>
-                {syncing ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
-              </Button>
-              <Button size="sm" className="bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-[11px] gap-2 px-4" onClick={openNew} disabled={!apiKey}>
-                <Plus className="w-3.5 h-3.5" /> NOVO FLUXO
-              </Button>
-            </div>
-          </div>
+          null
         )}
 
 
