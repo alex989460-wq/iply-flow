@@ -262,7 +262,7 @@ Deno.serve(async (req) => {
             purpose: payload.purpose,
             label: payload.label,
             idempotency_key: payload.idempotency_key,
-            unsubscribe_token: payload.unsubscribe_token,
+            ...(payload.unsubscribe_token ? { unsubscribe_token: payload.unsubscribe_token } : {}),
             message_id: payload.message_id,
           },
           // sendUrl is optional — when LOVABLE_SEND_URL is not set, the library

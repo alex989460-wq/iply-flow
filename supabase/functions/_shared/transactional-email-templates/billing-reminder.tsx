@@ -2,15 +2,14 @@ import * as React from 'npm:react@18.3.1'
 import {
   Body,
   Button,
-  Column,
   Container,
   Head,
   Heading,
   Hr,
   Html,
   Img,
+  Link,
   Preview,
-  Row,
   Section,
   Text,
 } from 'npm:@react-email/components@0.0.22'
@@ -34,6 +33,8 @@ interface Props {
   supportPhone?: string
   // Optional subject override (configured by the reseller)
   subjectOverride?: string
+  // Unsubscribe link (injected by the send function)
+  unsubscribeUrl?: string
 }
 
 const Email = ({
@@ -48,6 +49,7 @@ const Email = ({
   messageBody,
   paymentUrl,
   supportPhone,
+  unsubscribeUrl,
 }: Props) => {
   const greeting = customerName ? `Olá, ${customerName}!` : 'Olá!'
   const paragraphs = (messageBody || '')
@@ -63,20 +65,20 @@ const Email = ({
       </Preview>
       <Body style={main}>
         <Container style={container}>
+          {/* Header — single-cell table, logo stacked above the name so Outlook
+              never breaks the columns apart */}
           <Section style={{ ...header, backgroundColor: brandColor }}>
-            <Row>
-              <Column style={brandColumn}>
-                {logoUrl ? (
-                  <Img src={logoUrl} alt={brandName} style={logo} />
-                ) : (
-                  <Text style={brandMark}>{brandName.slice(0, 1).toUpperCase()}</Text>
-                )}
-              </Column>
-              <Column>
-                <Heading style={brandTitle}>{brandName}</Heading>
-                <Text style={brandSubtitle}>Aviso da sua assinatura</Text>
-              </Column>
-            </Row>
+            {logoUrl ? (
+              <Img
+                src={logoUrl}
+                alt={brandName}
+                width="52"
+                height="52"
+                style={logo}
+              />
+            ) : null}
+            <Heading style={brandTitle}>{brandName}</Heading>
+            <Text style={brandSubtitle}>Aviso da sua assinatura</Text>
           </Section>
 
           <Section style={content}>
@@ -100,7 +102,7 @@ const Email = ({
               {username ? <DetailRow label="Usuário" value={username} /> : null}
               {planName ? <DetailRow label="Plano" value={planName} /> : null}
               {dueDate ? <DetailRow label="Vencimento" value={dueDate} /> : null}
-              {amount ? <DetailRow label="Valor" value={amount} highlight /> : null}
+              {amount ? <DetailRow label="Valor" value={amount} color={brandColor} /> : null}
             </Section>
 
             {paymentUrl ? (
@@ -118,19 +120,36 @@ const Email = ({
                 : 'Em caso de dúvidas, responda este e-mail.'}
             </Text>
             <Text style={footerBrand}>{brandName}</Text>
-            <Text style={footer}>Você recebeu este aviso porque possui uma assinatura com {brandName}.</Text>
           </Section>
+        </Container>
+
+        {/* Rodapé em português (fora do card, mesmo padrão da parte de baixo) */}
+        <Container style={outerFooter}>
+          <Text style={footerSmall}>
+            Você recebeu este e-mail porque possui uma assinatura com {brandName}.
+          </Text>
+          {unsubscribeUrl ? (
+            <Text style={footerSmall}>
+              <Link href={unsubscribeUrl} style={footerLink}>
+                Cancelar o recebimento destes e-mails
+              </Link>
+            </Text>
+          ) : null}
         </Container>
       </Body>
     </Html>
   )
 }
 
-const DetailRow = ({ label, value, highlight = false }: { label: string; value: string; highlight?: boolean }) => (
-  <Row style={detailRow}>
-    <Column><Text style={detailLabel}>{label}</Text></Column>
-    <Column align="right"><Text style={highlight ? detailHighlight : detailValue}>{value}</Text></Column>
-  </Row>
+const DetailRow = ({ label, value, color }: { label: string; value: string; color?: string }) => (
+  <table width="100%" cellPadding={0} cellSpacing={0} role="presentation" style={detailTable}>
+    <tbody>
+      <tr>
+        <td style={detailLabelCell}>{label}</td>
+        <td style={{ ...detailValueCell, ...(color ? { color } : {}) }}>{value}</td>
+      </tr>
+    </tbody>
+  </table>
 )
 
 export const template = {
@@ -152,47 +171,67 @@ export const template = {
     messageBody: 'Seu plano vence em breve.\nRenove para continuar assistindo sem interrupções.',
     paymentUrl: 'https://supergestor.top/c/joao',
     supportPhone: '(41) 99999-9999',
+    unsubscribeUrl: 'https://supergestor.top/unsubscribe?token=demo',
   },
 } satisfies TemplateEntry
 
+const FONT = 'Arial, Helvetica, sans-serif'
 
-const main = { backgroundColor: '#f4f4f5', fontFamily: 'Arial, Helvetica, sans-serif', padding: '28px 12px' }
-const container = { maxWidth: '580px', margin: '0 auto', backgroundColor: '#ffffff', borderRadius: '16px', overflow: 'hidden', boxShadow: '0 8px 28px rgba(24, 24, 27, 0.10)' }
+const main = { backgroundColor: '#f4f4f5', fontFamily: FONT, margin: 0, padding: '24px 0' }
+const container = {
+  width: '100%',
+  maxWidth: '580px',
+  margin: '0 auto',
+  backgroundColor: '#ffffff',
+  borderRadius: '12px',
+  border: '1px solid #e4e4e7',
+}
 const header = {
-  padding: '22px 28px',
+  padding: '24px 28px',
+  textAlign: 'center' as const,
+  borderRadius: '12px 12px 0 0',
 }
-const brandColumn = { width: '58px', verticalAlign: 'middle' }
-const logo = { display: 'block', width: '46px', height: '46px', objectFit: 'contain' as const, backgroundColor: '#ffffff', borderRadius: '10px', padding: '4px' }
-const brandMark = { width: '46px', height: '46px', lineHeight: '46px', textAlign: 'center' as const, margin: 0, borderRadius: '10px', backgroundColor: '#ffffff', color: '#18181b', fontSize: '20px', fontWeight: 'bold' }
-const brandTitle = { margin: 0, fontSize: '19px', lineHeight: '24px', color: '#ffffff' }
-const brandSubtitle = { margin: '2px 0 0', fontSize: '12px', lineHeight: '16px', color: '#fff7ed' }
-const content = {
-  padding: '32px 28px 26px',
+const logo = {
+  display: 'block',
+  width: '52px',
+  height: '52px',
+  margin: '0 auto 10px',
+  backgroundColor: '#ffffff',
+  borderRadius: '8px',
+  border: '0',
+  outline: 'none',
+  textDecoration: 'none',
 }
-const eyebrow = { fontSize: '11px', lineHeight: '16px', fontWeight: 'bold', margin: '0 0 8px', letterSpacing: '0' }
-const h1 = { fontSize: '24px', lineHeight: '31px', color: '#18181b', margin: '0 0 14px' }
-const text = { fontSize: '15px', lineHeight: '24px', color: '#52525b', margin: '0 0 10px' }
+const brandTitle = { margin: 0, fontSize: '20px', lineHeight: '26px', color: '#ffffff', fontFamily: FONT }
+const brandSubtitle = { margin: '4px 0 0', fontSize: '12px', lineHeight: '16px', color: '#ffffff', opacity: 0.9, fontFamily: FONT }
+const content = { padding: '28px 28px 24px' }
+const eyebrow = { fontSize: '11px', lineHeight: '16px', fontWeight: 'bold', margin: '0 0 8px', fontFamily: FONT }
+const h1 = { fontSize: '23px', lineHeight: '30px', color: '#18181b', margin: '0 0 14px', fontFamily: FONT }
+const text = { fontSize: '15px', lineHeight: '24px', color: '#52525b', margin: '0 0 10px', fontFamily: FONT }
 const card = {
   backgroundColor: '#fafafa',
   border: '1px solid #e4e4e7',
   borderRadius: '10px',
-  padding: '18px 18px 10px',
+  padding: '16px 18px',
   margin: '22px 0 0',
 }
-const cardTitle = { fontSize: '12px', lineHeight: '18px', fontWeight: 'bold', color: '#71717a', margin: '0 0 8px' }
-const detailRow = { borderTop: '1px solid #e4e4e7' }
-const detailLabel = { fontSize: '13px', lineHeight: '20px', color: '#71717a', margin: '9px 0' }
-const detailValue = { fontSize: '13px', lineHeight: '20px', color: '#27272a', fontWeight: 'bold', margin: '9px 0' }
-const detailHighlight = { ...detailValue, color: '#ea580c' }
+const cardTitle = { fontSize: '12px', lineHeight: '18px', fontWeight: 'bold', color: '#71717a', margin: '0 0 6px', fontFamily: FONT }
+const detailTable = { borderTop: '1px solid #e4e4e7', borderCollapse: 'collapse' as const }
+const detailLabelCell = { fontSize: '13px', lineHeight: '20px', color: '#71717a', padding: '9px 0', fontFamily: FONT, textAlign: 'left' as const }
+const detailValueCell = { fontSize: '13px', lineHeight: '20px', color: '#27272a', fontWeight: 'bold', padding: '9px 0', fontFamily: FONT, textAlign: 'right' as const }
 const button = {
   color: '#ffffff',
   fontSize: '15px',
   fontWeight: 'bold',
   padding: '13px 28px',
-  borderRadius: '9px',
+  borderRadius: '8px',
   textDecoration: 'none',
   display: 'inline-block',
+  fontFamily: FONT,
 }
-const hr = { borderColor: '#e4e4e7', margin: '28px 0 16px' }
-const footerBrand = { fontSize: '13px', lineHeight: '18px', fontWeight: 'bold', color: '#3f3f46', margin: '0 0 4px' }
-const footer = { fontSize: '12px', lineHeight: '18px', color: '#71717a', margin: '0 0 4px' }
+const hr = { borderColor: '#e4e4e7', margin: '26px 0 16px' }
+const footerBrand = { fontSize: '13px', lineHeight: '18px', fontWeight: 'bold', color: '#3f3f46', margin: '0', fontFamily: FONT }
+const footer = { fontSize: '12px', lineHeight: '18px', color: '#71717a', margin: '0 0 4px', fontFamily: FONT }
+const outerFooter = { width: '100%', maxWidth: '580px', margin: '0 auto', padding: '16px 12px 0', textAlign: 'center' as const }
+const footerSmall = { fontSize: '11px', lineHeight: '17px', color: '#a1a1aa', margin: '0 0 4px', textAlign: 'center' as const, fontFamily: FONT }
+const footerLink = { color: '#a1a1aa', textDecoration: 'underline' }
