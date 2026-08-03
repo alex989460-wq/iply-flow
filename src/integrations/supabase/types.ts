@@ -931,6 +931,42 @@ export type Database = {
           },
         ]
       }
+      cakto_contacts: {
+        Row: {
+          created_at: string
+          email: string
+          id: string
+          last_seen_at: string
+          name: string | null
+          owner_id: string | null
+          phone: string | null
+          updated_at: string
+          username: string | null
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          id?: string
+          last_seen_at?: string
+          name?: string | null
+          owner_id?: string | null
+          phone?: string | null
+          updated_at?: string
+          username?: string | null
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          id?: string
+          last_seen_at?: string
+          name?: string | null
+          owner_id?: string | null
+          phone?: string | null
+          updated_at?: string
+          username?: string | null
+        }
+        Relationships: []
+      }
       cakto_processed_events: {
         Row: {
           cakto_id: string

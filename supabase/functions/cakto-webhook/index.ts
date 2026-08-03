@@ -1658,10 +1658,35 @@ serve(async (req) => {
             .in('id', idsToFill)
             .is('email', null);
         }
+
+        // Arquiva o contato para permitir preenchimento retroativo (job diário)
+        const contactPhoneDigits = String(phone || '').replace(/\D/g, '');
+        await supabaseAdmin
+          .from('cakto_contacts')
+          .upsert({
+            owner_id: webhookOwnerId,
+            email: caktoEmail,
+            phone: contactPhoneDigits || null,
+            name: customer?.name || caktoData?.customer?.name || null,
+            username: matchedCustomer?.username || null,
+            last_seen_at: new Date().toISOString(),
+          }, { onConflict: 'owner_id,email', ignoreDuplicates: false });
+
+        // Preenche também outros cadastros do mesmo telefone que estejam sem e-mail
+        if (contactPhoneDigits.length >= 10 && webhookOwnerId) {
+          const tail = contactPhoneDigits.slice(-8);
+          await supabaseAdmin
+            .from('customers')
+            .update({ email: caktoEmail })
+            .eq('created_by', webhookOwnerId)
+            .is('email', null)
+            .like('phone', `%${tail}`);
+        }
       }
     } catch (emailErr) {
       console.error('[Cakto] Falha ao salvar e-mail do cliente:', emailErr);
     }
+
 
     // ── Duplicate protection: only block near-instant retries with same amount ──
     if (caktoId && amountNumeric > 0) {
