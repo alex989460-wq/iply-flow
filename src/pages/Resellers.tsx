@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import DashboardLayout from "@/components/layout/DashboardLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -145,30 +145,28 @@ export default function Resellers() {
 
 
 
-  const renewMutation = useMutation({
-    mutationFn: async ({ id, days }: { id: string; days: number }) => {
-      if (isAdmin) {
-        const newExpiration = addDays(new Date(), days);
-        const { error } = await supabase
-          .from('reseller_access')
-          .update({
-            access_expires_at: newExpiration.toISOString(),
-            is_active: true,
-          })
-          .eq('id', id);
-        if (error) throw error;
-      } else {
-        const creditsNeeded = Math.max(1, Math.ceil(days / 30));
-        const { data, error } = await supabase.functions.invoke('renew-sub-reseller', {
-          body: { sub_reseller_id: id, credits_to_use: creditsNeeded },
-        });
-        if (error) throw error;
-        if (!data?.success) throw new Error(data?.error || 'Erro ao renovar');
-      }
+  const { data: platformSettings } = useQuery({
+    queryKey: ['platform-settings'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('platform_settings')
+        .select('trial_days')
+        .maybeSingle();
+      if (error) throw error;
+      return data;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['reseller-access'] });
-      queryClient.invalidateQueries({ queryKey: ['my-reseller-access'] });
+  });
+
+  useEffect(() => {
+    if (platformSettings?.trial_days !== undefined) {
+      setCreateForm(prev => ({
+        ...prev,
+        access_days: String(platformSettings.trial_days || 7)
+      }));
+    }
+  }, [platformSettings]);
+
+  const renewMutation = useMutation({
       toast({
         title: "Acesso renovado",
         description: `Acesso renovado por ${renewDays} dias com sucesso!`,
@@ -1191,7 +1189,7 @@ export default function Resellers() {
                     placeholder="Digite o número de dias"
                   />
                   <p className="text-xs text-muted-foreground mt-1">
-                    Sugestão baseada na configuração global: {platformSettings?.free_trial_days || 7} dias.
+                    Sugestão baseada na configuração global: {platformSettings?.trial_days || 7} dias.
                   </p>
                 </div>
                 {createErrors.access_days && (
