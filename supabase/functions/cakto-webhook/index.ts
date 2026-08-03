@@ -723,7 +723,7 @@ serve(async (req) => {
 
         // Notificação para o admin (depois da ativação, para poder incluir status real)
         if (ownerZapSettings?.selected_department_id && ownerNotifPhone) {
-          const activationMsg = `📱 *Nova Solicitação de Ativação*\n\n📦 App: *${finalAppName}*\n👤 Cliente: *${finalName || '-'}*\n📞 Tel: *${customerPhoneFmt}*\n${finalMac ? `🔗 MAC: *${finalMac}*\n` : ''}${finalEmail ? `📧 Email: *${finalEmail}*\n` : ''}💰 Valor: *R$ ${activationAmountNum.toFixed(2)}*\n💳 Pagamento: *${activationPaymentMethod.includes('credit') || activationPaymentMethod.includes('cart') ? 'Cartão' : 'PIX'}*\n\n${autoActivateOk ? '✅ Status: Ativado automaticamente' : '⏳ Status: Pendente de ativação'}\n\n❓ como eu sei qual foi o app ativo dele ?`;
+          const activationMsg = `📱 *Nova Solicitação de Ativação*\n\n📦 App: *${finalAppName}*\n👤 Cliente: *${finalName || '-'}*\n📞 Tel: *${customerPhoneFmt}*\n${finalMac ? `🔗 MAC: *${finalMac}*\n` : ''}${finalEmail ? `📧 Email: *${finalEmail}*\n` : ''}💰 Valor: *R$ ${activationAmountNum.toFixed(2)}*\n💳 Pagamento: *${activationPaymentMethod.includes('credit') || activationPaymentMethod.includes('cart') ? 'Cartão' : 'PIX'}*\n\n${autoActivateOk ? '✅ Status: Ativado automaticamente' : '⏳ Status: Pendente de ativação'}\n\n❓ como eu sei qual foi o app ativo dele ?\n\nmais nesse caso ai qual app foi ativado ?`;
 
           try {
             const notifResp = await fetch(
