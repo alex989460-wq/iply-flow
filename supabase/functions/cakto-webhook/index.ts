@@ -2418,9 +2418,11 @@ serve(async (req) => {
           if (srvE?.server_name) emailServerName = srvE.server_name;
         }
         const dueP = String(newDueDate).split('-');
+        const { data: custEmailRow } = await supabaseAdmin
+          .from('customers').select('email').eq('id', matchedCustomer.id).maybeSingle();
         await sendPaymentConfirmationEmail(supabaseAdmin, {
           ownerId: matchedCustomer.created_by,
-          email: (matchedCustomer as any).email,
+          email: custEmailRow?.email,
           customerName: matchedCustomer.name,
           username: matchedCustomer.username,
           planName: matchedPlanName,
