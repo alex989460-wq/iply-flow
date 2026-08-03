@@ -1,8 +1,30 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Switch } from '@/components/ui/switch';
+import { Badge } from '@/components/ui/badge';
+import { Card, CardContent } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
+import { 
+  AlertCircle, Bot, Edit, FileText, Image as ImageIcon, 
+  Loader2, MessageSquare, Music, Plus, RefreshCw, Save, 
+  Trash2, Video, Zap, MousePointer2, Search, Filter, 
+  LayoutGrid, Share2
+} from 'lucide-react';
+import { cn } from '@/lib/utils';
+import ReactFlow, { 
+  Background, Controls, useNodesState, useEdgesState, 
+  addEdge, Connection, Edge, Node, Handle, Position
+} from 'reactflow';
+import 'reactflow/dist/style.css';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
