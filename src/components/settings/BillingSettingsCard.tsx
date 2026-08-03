@@ -41,7 +41,15 @@ interface BillingSettings {
   evolution_msg_d_minus_1?: string | null;
   evolution_msg_d0?: string | null;
   evolution_msg_d_plus_1?: string | null;
+  use_email_billing?: boolean;
+  email_from_name?: string | null;
+  email_reply_to?: string | null;
+  email_subject?: string | null;
+  email_msg_d_minus_1?: string | null;
+  email_msg_d0?: string | null;
+  email_msg_d_plus_1?: string | null;
 }
+
 
 const DEFAULT_RENEWAL_TEMPLATE = `✅ Olá, *{{nome}}*. Obrigado por confirmar seu pagamento. Segue abaixo os dados da sua assinatura:
 
@@ -144,7 +152,15 @@ export default function BillingSettingsCard() {
     evolution_msg_d_minus_1: '',
     evolution_msg_d0: '',
     evolution_msg_d_plus_1: '',
+    use_email_billing: false,
+    email_from_name: '',
+    email_reply_to: '',
+    email_subject: 'Aviso de vencimento da sua assinatura',
+    email_msg_d_minus_1: '',
+    email_msg_d0: '',
+    email_msg_d_plus_1: '',
   });
+
 
   // Load Evolution instances for the picker.
   // Fallback: se a revenda não tem credenciais próprias da Evolution, reaproveita
