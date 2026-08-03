@@ -166,6 +166,7 @@ export default function CrmOficialChatbots() {
         active: form.enabled,
         steps: form.steps,
         flow: { steps: form.steps },
+        instance_name: active?.instance_name || null,
       };
       const r = await invoke(active ? 'update-chatbot' : 'create-chatbot', active ? { chatbot_id: active.id, chatbot } : { chatbot });
       const result = r?.chatbot;
