@@ -6,6 +6,7 @@ import {
   Heading,
   Hr,
   Html,
+  Img,
   Link,
   Preview,
   Section,
@@ -202,3 +203,5 @@ const footer = { fontSize: '12px', lineHeight: '18px', color: '#71717a', margin:
 const outerFooter = { width: '100%', maxWidth: '580px', margin: '0 auto', padding: '16px 12px 0', textAlign: 'center' as const }
 const footerSmall = { fontSize: '11px', lineHeight: '17px', color: '#a1a1aa', margin: '0 0 4px', textAlign: 'center' as const, fontFamily: FONT }
 const footerLink = { color: '#a1a1aa', textDecoration: 'underline' }
+
+const logoImg = { display: 'block', margin: '0 auto 12px', maxWidth: '140px', height: 'auto' }
