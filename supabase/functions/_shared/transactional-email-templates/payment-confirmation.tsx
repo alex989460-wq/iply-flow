@@ -53,6 +53,9 @@ const Email = ({
         <Container style={container}>
           <Section style={{ ...accentBar, backgroundColor: brandColor }} />
           <Section style={header}>
+            {logoUrl ? (
+              <Img src={logoUrl} alt={brandName} width="140" style={logoImg} />
+            ) : (
             <table cellPadding={0} cellSpacing={0} role="presentation" style={{ margin: '0 auto 12px' }}>
               <tbody>
                 <tr>
@@ -62,6 +65,7 @@ const Email = ({
                 </tr>
               </tbody>
             </table>
+            )}
             <Heading style={brandTitle}>{brandName}</Heading>
             <Text style={brandSubtitle}>Confirmação de pagamento</Text>
           </Section>
