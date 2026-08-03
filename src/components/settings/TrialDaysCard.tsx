@@ -38,8 +38,7 @@ export default function TrialDaysCard() {
     setSaving(true);
     const { error } = await supabase
       .from('platform_settings')
-      .update({ trial_days: Math.round(days) })
-      .not('id', 'is', null);
+      .upsert({ trial_days: Math.round(days) }, { onConflict: 'id' });
 
     setSaving(false);
     if (error) {
