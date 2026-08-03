@@ -3621,6 +3621,8 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
                   isSendingBilling ||
                   (billingChannel === 'evolution'
                     ? (!selectedEvoInstance && !billingSettings?.evolution_instance) || !selectedEvoTemplateKey
+                    : billingChannel === 'email'
+                      ? !sendingBillingCustomer?.email
                     : billingChannel === 'crm'
                       ? !selectedCrmTemplate || !primaryCrmChannel
                       : !selectedTemplate)
