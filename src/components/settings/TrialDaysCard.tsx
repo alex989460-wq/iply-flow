@@ -40,9 +40,13 @@ export default function TrialDaysCard() {
       return;
     }
     setSaving(true);
+    const payload = settingsId 
+      ? { id: settingsId, trial_days: Math.round(days) }
+      : { trial_days: Math.round(days) };
+
     const { error } = await supabase
       .from('platform_settings')
-      .upsert({ trial_days: Math.round(days) }, { onConflict: 'id' });
+      .upsert(payload);
 
     setSaving(false);
     if (error) {
