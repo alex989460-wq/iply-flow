@@ -101,7 +101,7 @@ export async function sendBillingEmail(
           dueDate: formatBRDate(customer?.due_date),
           amount: formatBRL(price),
           messageBody: applyVars(String(raw), customer),
-          paymentUrl: opts?.paymentUrl || undefined,
+          paymentUrl: opts?.paymentUrl || resellerUrl || undefined,
           supportPhone: opts?.supportPhone || undefined,
         },
       },
