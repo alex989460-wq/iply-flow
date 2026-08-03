@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { sendPaymentConfirmationEmail } from "../_shared/payment-confirmation-email.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -2406,6 +2407,33 @@ serve(async (req) => {
         } catch (tplErr) {
           console.error('[Cakto] Erro ao enviar template oficial (não crítico):', tplErr);
         }
+      }
+
+      // ── E-mail de confirmação de pagamento (canal independente do WhatsApp) ──
+      try {
+        let emailServerName = '-';
+        if (matchedCustomer.server_id) {
+          const { data: srvE } = await supabaseAdmin
+            .from('servers').select('server_name').eq('id', matchedCustomer.server_id).maybeSingle();
+          if (srvE?.server_name) emailServerName = srvE.server_name;
+        }
+        const dueP = String(newDueDate).split('-');
+        const { data: custEmailRow } = await supabaseAdmin
+          .from('customers').select('email').eq('id', matchedCustomer.id).maybeSingle();
+        await sendPaymentConfirmationEmail(supabaseAdmin, {
+          ownerId: matchedCustomer.created_by,
+          email: custEmailRow?.email,
+          customerName: matchedCustomer.name,
+          username: matchedCustomer.username,
+          planName: matchedPlanName,
+          serverName: emailServerName,
+          dueDate: `${dueP[2]}/${dueP[1]}/${dueP[0]}`,
+          amount: amountNumeric,
+          paymentRef: caktoId ? `cakto-${caktoId}` : `cakto-${matchedCustomer.id}-${newDueDate}`,
+          supportPhone: (billingSettings as any)?.notification_phone || undefined,
+        });
+      } catch (emailErr) {
+        console.error('[Cakto] Erro ao enviar e-mail de confirmação (não crítico):', emailErr);
       }
 
       if (zapSettings?.selected_department_id && shouldSendToClient) {
