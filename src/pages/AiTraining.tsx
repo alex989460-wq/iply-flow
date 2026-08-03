@@ -9,13 +9,16 @@ import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import {
   Loader2, Play, RefreshCw, Check, X, Sparkles, BookOpen, BarChart3,
   MessageSquare, Database, CheckCircle2, Clock, Brain, Workflow, Target,
   FileText, ShieldCheck, Lightbulb, Edit3, Trash2, GitMerge, StopCircle,
-  Zap, TrendingUp, Users,
+  Zap, TrendingUp, Users, Save,
 } from 'lucide-react';
+
 import { useToast } from '@/hooks/use-toast';
 
 // ================= TYPES =================
