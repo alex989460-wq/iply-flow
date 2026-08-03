@@ -154,7 +154,7 @@ const nodeTypes = {
   step: BotStepNode
 };
 
-export default function CrmOficialChatbots({ embed = false }: { embed?: boolean } = {}) {
+export default function CrmOficialChatbots({ embed = false, overrideToken }: { embed?: boolean, overrideToken?: string } = {}) {
   const { user } = useAuth();
   const { toast } = useToast();
   const [searchParams] = useSearchParams();
