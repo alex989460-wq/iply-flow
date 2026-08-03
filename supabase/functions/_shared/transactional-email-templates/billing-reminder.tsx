@@ -147,6 +147,7 @@ const header = {
   padding: '18px 24px',
   borderRadius: '10px 10px 0 0',
 }
+const logo = { display: 'block', margin: '0 0 10px', maxHeight: '44px' }
 const brandTitle = { margin: 0, fontSize: '18px', color: '#0f172a' }
 const content = {
   border: '1px solid #e2e8f0',
