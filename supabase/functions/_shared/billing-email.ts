@@ -79,6 +79,8 @@ export async function sendBillingEmail(
         replyTo: settings.email_reply_to || undefined,
         templateData: {
           brandName,
+          logoUrl: settings.email_logo_url || undefined,
+          subjectOverride: settings.email_subject || undefined,
           customerName: customer?.name || '',
           username: customer?.username || '',
           planName: customer?.plan?.plan_name || '',
