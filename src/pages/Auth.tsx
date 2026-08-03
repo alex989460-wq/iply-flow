@@ -354,29 +354,14 @@ export default function Auth() {
             )}
           </form>
 
-          <div className="mt-6 text-center">
-            <button
-              type="button"
-              onClick={() => {
-                setIsLogin(!isLogin);
-                setErrors({});
-                setAccessDeniedMessage(null);
-              }}
-              className="text-sm text-muted-foreground hover:text-amber-500 transition-colors"
-            >
-              {isLogin 
-                ? 'Não tem conta? Criar agora'
-                : 'Já tem conta? Entrar'}
-            </button>
-          </div>
-
           {!isLogin && (
-            <div className="mt-4 p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl">
-              <p className="text-xs text-amber-400 text-center">
-                ⚡ Período de teste: 7 dias gratuitos. Após isso, entre em contato para ativação.
+            <div className="mt-4 p-3 bg-destructive/10 border border-destructive/20 rounded-xl">
+              <p className="text-xs text-destructive text-center">
+                A criação direta de contas está desativada. Entre em contato com um administrador ou revendedor para obter seu acesso.
               </p>
             </div>
           )}
+        </div>
         </div>
 
         {/* Footer */}

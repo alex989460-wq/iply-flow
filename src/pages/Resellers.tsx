@@ -75,7 +75,7 @@ export default function Resellers() {
     full_name: "",
     email: "",
     password: "",
-    access_days: "30",
+    access_days: "0", // Will be set by useEffect
   });
   const [editErrors, setEditErrors] = useState<Record<string, string>>({});
   const [createErrors, setCreateErrors] = useState<Record<string, string>>({});
@@ -121,6 +121,27 @@ export default function Resellers() {
       return (data || []) as Array<{ owner_id: string; total_customers: number; active_customers: number }>;
     },
   });
+
+  const { data: platformSettings } = useQuery({
+    queryKey: ['platform-settings'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('platform_settings')
+        .select('free_trial_days')
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  useEffect(() => {
+    if (platformSettings?.free_trial_days !== undefined) {
+      setCreateForm(prev => ({
+        ...prev,
+        access_days: String(platformSettings.free_trial_days || 7)
+      }));
+    }
+  }, [platformSettings]);
 
 
 
@@ -1169,6 +1190,9 @@ export default function Resellers() {
                     onChange={(e) => setCreateForm({ ...createForm, access_days: e.target.value })}
                     placeholder="Digite o número de dias"
                   />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Sugestão baseada na configuração global: {platformSettings?.free_trial_days || 7} dias.
+                  </p>
                 </div>
                 {createErrors.access_days && (
                   <p className="text-destructive text-sm">{createErrors.access_days}</p>
