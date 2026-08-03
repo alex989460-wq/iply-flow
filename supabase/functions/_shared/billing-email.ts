@@ -7,6 +7,7 @@ export interface BillingEmailSettings {
   email_from_name?: string | null;
   email_reply_to?: string | null;
   email_subject?: string | null;
+  email_logo_url?: string | null;
   email_msg_d_minus_1?: string | null;
   email_msg_d0?: string | null;
   email_msg_d_plus_1?: string | null;
