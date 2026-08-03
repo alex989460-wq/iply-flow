@@ -1761,6 +1761,8 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
             replyTo: billingSettings?.email_reply_to || undefined,
             templateData: {
               brandName,
+              logoUrl: (billingSettings as any)?.email_logo_url || undefined,
+              subjectOverride: (billingSettings as any)?.email_subject || undefined,
               customerName: sendingBillingCustomer.name || '',
               username: sendingBillingCustomer.username || '',
               planName: varMap.plano,
