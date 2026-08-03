@@ -402,7 +402,7 @@ export default function Customers() {
       if (!user) return null;
       const { data, error } = await (supabase
         .from('billing_settings' as any)
-        .select('use_evolution_billing, evolution_instance, evolution_msg_d_minus_1, evolution_msg_d0, evolution_msg_d_plus_1, pix_key, renewal_image_url')
+        .select('use_evolution_billing, evolution_instance, evolution_msg_d_minus_1, evolution_msg_d0, evolution_msg_d_plus_1, pix_key, renewal_image_url, use_email_billing, email_from_name, email_reply_to, email_subject, email_logo_url, email_msg_d_minus_1, email_msg_d0, email_msg_d_plus_1')
         .eq('user_id', user.id)
         .maybeSingle() as any);
       if (error) throw error;

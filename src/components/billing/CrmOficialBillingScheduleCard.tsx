@@ -191,7 +191,7 @@ export function CrmOficialBillingScheduleCard() {
   useEffect(() => {
     if (schedule) {
       setEnabled(schedule.is_enabled);
-      setSendTime(schedule.send_time.substring(0, 5));
+      setSendTime(String(schedule.send_time || '09:00').substring(0, 5));
       setD1(schedule.send_d_minus_1);
       setD0(schedule.send_d0);
       setDp1(schedule.send_d_plus_1);
