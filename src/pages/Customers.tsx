@@ -818,6 +818,45 @@ export default function Customers() {
       const nextDueDateStr = format(newDueDate, 'yyyy-MM-dd');
       const formattedDueDate = format(newDueDate, "dd/MM/yyyy", { locale: ptBR });
 
+      // ===== E-mail de confirmação de pagamento (independente do WhatsApp) =====
+      try {
+        const customerEmail = String((customer as any).email || '').trim();
+        const emailOwnerId = (customer as any).created_by || user?.id;
+        if (customerEmail && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customerEmail) && emailOwnerId) {
+          const { data: emailSettings } = await (supabase
+            .from('billing_settings' as any)
+            .select('use_email_billing, email_from_name, email_reply_to, email_logo_url')
+            .eq('user_id', emailOwnerId)
+            .maybeSingle() as any);
+
+          if (emailSettings?.use_email_billing) {
+            const emailBrand = emailSettings.email_from_name?.trim() || 'Sua Assinatura';
+            await supabase.functions.invoke('send-transactional-email', {
+              body: {
+                templateName: 'payment-confirmation',
+                recipientEmail: customerEmail,
+                idempotencyKey: `payconf-manual-${customerId}-${nextDueDateStr}`,
+                fromName: emailBrand,
+                replyTo: emailSettings.email_reply_to || undefined,
+                templateData: {
+                  brandName: emailBrand,
+                  logoUrl: emailSettings.email_logo_url || undefined,
+                  customerName: customer.name || '',
+                  username: customer.username || '',
+                  planName: plan.plan_name,
+                  serverName: customer.servers?.server_name || '',
+                  dueDate: formattedDueDate,
+                  amount: Number(amount || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }),
+                },
+              },
+            });
+          }
+        }
+      } catch (emailErr) {
+        console.error('[Renovação] Falha ao enviar e-mail de confirmação:', emailErr);
+      }
+
+
       // Enviar mensagem de confirmação via WhatsApp se solicitado
       let sendMessageRequested = false;
       let departmentConfigured = false;
