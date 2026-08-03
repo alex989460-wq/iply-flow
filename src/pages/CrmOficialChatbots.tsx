@@ -472,6 +472,7 @@ export default function CrmOficialChatbots({ embed = false, overrideToken }: { e
           </div>
         )}
 
+
         {!apiKey && <Alert variant="destructive"><AlertCircle className="h-4 w-4" /><AlertDescription>Configure sua chave em Configurações → CRM Oficial.</AlertDescription></Alert>}
         {apiKey && !enabled && <Alert><AlertCircle className="h-4 w-4" /><AlertDescription>A integração está desativada; ative em Configurações para disparos automáticos.</AlertDescription></Alert>}
 
