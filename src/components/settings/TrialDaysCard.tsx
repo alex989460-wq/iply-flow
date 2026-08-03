@@ -21,7 +21,10 @@ export default function TrialDaysCard() {
         .select('id, trial_days')
         .maybeSingle();
 
-      if (data) setTrialDays(String(data.trial_days ?? 30));
+      if (data) {
+        setTrialDays(String(data.trial_days ?? 30));
+        setSettingsId(data.id);
+      }
       setLoading(false);
     })();
   }, []);
