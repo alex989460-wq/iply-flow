@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -76,10 +77,11 @@ function normalizeBots(body: any): CrmBot[] {
   }));
 }
 
-export default function CrmOficialChatbots() {
+export default function CrmOficialChatbots({ embed = false }: { embed?: boolean } = {}) {
   const { user } = useAuth();
   const { toast } = useToast();
-  const [apiKey, setApiKey] = useState('');
+  const [searchParams] = useSearchParams();
+  const [apiKey, setApiKey] = useState(searchParams.get('token') || '');
   const [enabled, setEnabled] = useState(false);
   const [bots, setBots] = useState<CrmBot[]>([]);
   const [channels, setChannels] = useState<any[]>([]);
@@ -98,6 +100,11 @@ export default function CrmOficialChatbots() {
   };
 
   useEffect(() => {
+    if (embed && apiKey) {
+      setEnabled(true);
+      setLoading(false);
+      return;
+    }
     if (!user) return;
     (async () => {
       const { data } = await supabase.from('crm_oficial_settings').select('api_key, enabled').eq('user_id', user.id).maybeSingle();
@@ -209,19 +216,20 @@ export default function CrmOficialChatbots() {
 
   const activeBots = useMemo(() => bots.filter(b => b.enabled || b.active).length, [bots]);
 
-  return (
-    <DashboardLayout>
-      <div className="space-y-5 max-w-7xl mx-auto p-4 md:p-6">
-        <div className="flex items-center justify-between gap-3 flex-wrap">
-          <div>
-            <h1 className="text-2xl font-bold flex items-center gap-2"><Bot className="w-6 h-6 text-emerald-500" /> Chatbots</h1>
-            <p className="text-sm text-muted-foreground">Crie fluxos automáticos com visual e blocos compatíveis com o CRM Oficial.</p>
+  const __content = (
+      <div className={cn("space-y-5 max-w-7xl mx-auto p-4 md:p-6", embed && "p-0 max-w-full")}>
+        {!embed && (
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div>
+              <h1 className="text-2xl font-bold flex items-center gap-2"><Bot className="w-6 h-6 text-emerald-500" /> Chatbots</h1>
+              <p className="text-sm text-muted-foreground">Crie fluxos automáticos com visual e blocos compatíveis com o CRM Oficial.</p>
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={loadBots} disabled={!apiKey || syncing}>{syncing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />} Sincronizar</Button>
+              <Button onClick={openNew} disabled={!apiKey}><Plus className="w-4 h-4 mr-2" /> Novo chatbot</Button>
+            </div>
           </div>
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={loadBots} disabled={!apiKey || syncing}>{syncing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />} Sincronizar</Button>
-            <Button onClick={openNew} disabled={!apiKey}><Plus className="w-4 h-4 mr-2" /> Novo chatbot</Button>
-          </div>
-        </div>
+        )}
 
         {!apiKey && <Alert variant="destructive"><AlertCircle className="h-4 w-4" /><AlertDescription>Configure sua chave em Configurações → CRM Oficial.</AlertDescription></Alert>}
         {apiKey && !enabled && <Alert><AlertCircle className="h-4 w-4" /><AlertDescription>A integração está desativada; ative em Configurações para disparos automáticos.</AlertDescription></Alert>}
@@ -357,6 +365,7 @@ export default function CrmOficialChatbots() {
           </DialogContent>
         </Dialog>
       </div>
-    </DashboardLayout>
   );
+
+  return embed ? __content : <DashboardLayout>{__content}</DashboardLayout>;
 }

@@ -53,6 +53,7 @@ import LeadCapture from "./pages/LeadCapture";
 import AiTraining from "./pages/AiTraining";
 import Tutorials from "./pages/Tutorials";
 import Unsubscribe from "./pages/Unsubscribe";
+import EmbedChatbots from "./pages/EmbedChatbots";
 
 import { Loader2 } from "lucide-react";
 import { useOneSignal } from "@/hooks/useOneSignal";
@@ -156,6 +157,7 @@ function AppRoutes() {
       <Route path="/ai-training" element={<ProtectedRoute><AiTraining /></ProtectedRoute>} />
       <Route path="/tutoriais" element={<ProtectedRoute><Tutorials /></ProtectedRoute>} />
       <Route path="/unsubscribe" element={<Unsubscribe />} />
+      <Route path="/embed/chatbots" element={<EmbedChatbots />} />
       <Route path="*" element={<NotFound />} />
 
 
