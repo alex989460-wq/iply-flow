@@ -37,6 +37,7 @@ interface Props {
   subjectOverride?: string
   // Unsubscribe link (injected by the send function)
   unsubscribeUrl?: string
+  trackingPixelUrl?: string
 }
 
 const Email = ({
@@ -54,6 +55,7 @@ const Email = ({
   fallbackUrl,
   supportPhone,
   unsubscribeUrl,
+  trackingPixelUrl,
 }: Props) => {
   const greeting = customerName ? `Olá, ${customerName}!` : 'Olá!'
 
@@ -279,3 +281,5 @@ const footerSmall = { fontSize: '11px', lineHeight: '17px', color: '#a1a1aa', ma
 const footerLink = { color: '#a1a1aa', textDecoration: 'underline' }
 
 const logoImg = { display: 'block', margin: '0 auto 12px', maxWidth: '140px', height: 'auto' }
+
+const pixel = { display: 'block', width: '1px', height: '1px', border: 0, opacity: 0.01 }
