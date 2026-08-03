@@ -339,7 +339,7 @@ Deno.serve(async (req) => {
       label: templateName,
       idempotency_key: idempotencyKey,
       queued_at: new Date().toISOString(),
-      queued_at: new Date().toISOString(),
+
     },
   })
 
