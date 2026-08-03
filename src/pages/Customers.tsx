@@ -136,6 +136,7 @@ export default function Customers() {
     name: '',
     phone: '',
     extra_phone: '',
+    email: '',
     server_id: '',
     plan_id: '',
     status: 'ativa' as CustomerStatus,
@@ -174,7 +175,8 @@ export default function Customers() {
   const [selectedEvoTemplateKey, setSelectedEvoTemplateKey] = useState<string>('D0');
   const [selectedEvoInstance, setSelectedEvoInstance] = useState<string>('');
   // 'zap' = API oficial / Zap Responder | 'evolution' = WhatsApp não oficial | 'crm' = CRM Oficial
-  const [billingChannel, setBillingChannel] = useState<'zap' | 'evolution' | 'crm'>('zap');
+  const [billingChannel, setBillingChannel] = useState<'zap' | 'evolution' | 'crm' | 'email'>('zap');
+  const [selectedEmailType, setSelectedEmailType] = useState<'D-1' | 'D0' | 'D+1'>('D0');
   const [crmTemplates, setCrmTemplates] = useState<Array<{ name: string; language: string; status?: string; parameter_format?: string; components?: any[] }>>([]);
   const [isLoadingCrmTemplates, setIsLoadingCrmTemplates] = useState(false);
   const [selectedCrmTemplate, setSelectedCrmTemplate] = useState('');
@@ -1013,7 +1015,7 @@ export default function Customers() {
   });
 
   const resetForm = () => {
-    setFormData({ name: '', phone: '', extra_phone: '', server_id: '', plan_id: '', status: 'ativa', notes: '', due_date: '', custom_price: '', username: '', password: '', screens: '1', extra_months: '0', activate_on_server: true });
+    setFormData({ name: '', phone: '', extra_phone: '', email: '', server_id: '', plan_id: '', status: 'ativa', notes: '', due_date: '', custom_price: '', username: '', password: '', screens: '1', extra_months: '0', activate_on_server: true });
     setEditingCustomer(null);
   };
 
@@ -1023,6 +1025,7 @@ export default function Customers() {
       name: customer.name,
       phone: (customer.phone || '').replace(/\D/g, ''),
       extra_phone: (customer.extra_phone || '').replace(/\D/g, ''),
+      email: customer.email || '',
       server_id: customer.server_id || '',
       plan_id: customer.plan_id || '',
       status: customer.status,
