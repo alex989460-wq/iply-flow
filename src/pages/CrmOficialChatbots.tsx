@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -79,7 +80,8 @@ function normalizeBots(body: any): CrmBot[] {
 export default function CrmOficialChatbots({ embed = false }: { embed?: boolean } = {}) {
   const { user } = useAuth();
   const { toast } = useToast();
-  const [apiKey, setApiKey] = useState('');
+  const [searchParams] = useSearchParams();
+  const [apiKey, setApiKey] = useState(searchParams.get('token') || '');
   const [enabled, setEnabled] = useState(false);
   const [bots, setBots] = useState<CrmBot[]>([]);
   const [channels, setChannels] = useState<any[]>([]);
@@ -98,6 +100,11 @@ export default function CrmOficialChatbots({ embed = false }: { embed?: boolean 
   };
 
   useEffect(() => {
+    if (embed && apiKey) {
+      setEnabled(true);
+      setLoading(false);
+      return;
+    }
     if (!user) return;
     (async () => {
       const { data } = await supabase.from('crm_oficial_settings').select('api_key, enabled').eq('user_id', user.id).maybeSingle();
