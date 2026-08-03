@@ -44,6 +44,7 @@ export async function sendPaymentConfirmationEmail(
         idempotencyKey: `payconf-${input.paymentRef || `${input.username || to}-${Date.now()}`}`,
         fromName: brandName,
         replyTo: settings.email_reply_to || undefined,
+        ownerId: input.ownerId,
         templateData: {
           brandName,
           logoUrl: settings.email_logo_url || undefined,
