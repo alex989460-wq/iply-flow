@@ -47,8 +47,8 @@ export async function fetchTurnstileConfig(): Promise<TurnstileConfig> {
     const { data } = await supabase
       .from('platform_settings')
       .select('recaptcha_enabled, recaptcha_site_key')
-      .eq('singleton', true)
       .maybeSingle();
+
 
     return {
       enabled: Boolean(data?.recaptcha_enabled && data?.recaptcha_site_key),

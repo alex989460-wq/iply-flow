@@ -18,8 +18,8 @@ export default function TrialDaysCard() {
       const { data } = await supabase
         .from('platform_settings')
         .select('trial_days')
-        .eq('singleton', true)
         .maybeSingle();
+
       if (data) setTrialDays(String(data.trial_days ?? 30));
       setLoading(false);
     })();
@@ -39,7 +39,8 @@ export default function TrialDaysCard() {
     const { error } = await supabase
       .from('platform_settings')
       .update({ trial_days: Math.round(days) })
-      .eq('singleton', true);
+      .not('id', 'is', null);
+
     setSaving(false);
     if (error) {
       toast({ title: 'Erro ao salvar', description: error.message, variant: 'destructive' });
