@@ -122,6 +122,7 @@ export default function AiTraining() {
       { count: cApproved },
       { data: convsForStats },
       { data: settingsData },
+      { data: checkoutData },
     ] = await Promise.all([
       supabase.from('ai_training_jobs' as any).select('*').eq('user_id', user.id).order('created_at', { ascending: false }).limit(10),
       supabase.from('ai_knowledge_items' as any).select('*').eq('user_id', user.id).in('status', ['pending','approved']).order('confidence', { ascending: false }).order('usage_count', { ascending: false }).limit(200),
@@ -132,12 +133,14 @@ export default function AiTraining() {
       supabase.from('ai_knowledge_items' as any).select('*', { count: 'exact', head: true }).eq('user_id', user.id).eq('status','approved'),
       supabase.from('ai_training_conversations' as any).select('device,app,operator_name,resolved').eq('user_id', user.id).not('analyzed_at','is',null).limit(2000),
       supabase.from('platform_settings').select('ai_automation_enabled, ai_provider, ai_api_key').eq('user_id', user.id).maybeSingle(),
+      supabase.from('reseller_checkout_settings' as any).select('api_key').eq('user_id', user.id).maybeSingle(),
     ]);
 
     setAiSettings({
       enabled: (settingsData as any)?.ai_automation_enabled || false,
       provider: (settingsData as any)?.ai_provider || 'gemini',
       apiKey: (settingsData as any)?.ai_api_key || '',
+      externalKey: (checkoutData as any)?.api_key || '',
     });
 
 
