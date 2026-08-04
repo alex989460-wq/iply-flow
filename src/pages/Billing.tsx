@@ -747,7 +747,7 @@ export default function Billing() {
   });
 
   const [sendingType, setSendingType] = useState<string | null>(null);
-  const BATCH_SIZE = 12;
+  const BATCH_SIZE = 6;
   const BATCH_DELAY_MS = 500; // short pause between batches
 
   const handleSendBillings = async (billingType?: BillingType, forceResend: boolean = false) => {
@@ -825,9 +825,18 @@ export default function Billing() {
         
         setProgressResults(prev => [...prev, ...pendingItems]);
         
-        const { data: batchData, error: batchError } = await supabase.functions.invoke('send-billing-batch', {
-          body: { action: 'batch', batch, force: forceResend },
-        });
+        // Retry the batch up to 3 times before giving up (timeouts / cold starts)
+        let batchData: any = null;
+        let batchError: any = null;
+        for (let attempt = 0; attempt < 3; attempt++) {
+          const res = await supabase.functions.invoke('send-billing-batch', {
+            body: { action: 'batch', batch, force: forceResend },
+          });
+          batchData = res.data;
+          batchError = res.error;
+          if (!batchError) break;
+          await new Promise((r) => setTimeout(r, 1500 * (attempt + 1)));
+        }
 
         if (batchError) {
           console.error('Batch error:', batchError);

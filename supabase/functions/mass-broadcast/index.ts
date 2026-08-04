@@ -281,7 +281,7 @@ async function processBroadcastBatch(args: {
   }
 
   const isExpired = resellerAccess?.access_expires_at && new Date(resellerAccess.access_expires_at) < new Date();
-  if (!resellerAccess?.is_active || isExpired) {
+  if (!args.isAdmin && (!resellerAccess?.is_active || isExpired)) {
     const reason = resellerAccess?.is_active === false ? 'acesso desativado' : 'mensalidade expirada';
     return { ok: false as const, status: 403, body: { error: `Broadcast pausado: ${reason}.` } };
   }

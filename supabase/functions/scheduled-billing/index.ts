@@ -537,8 +537,16 @@ Deno.serve(async (req) => {
         continue;
       }
 
+      const { data: adminRow } = await supabase
+        .from('user_roles')
+        .select('id')
+        .eq('user_id', schedule.user_id)
+        .eq('role', 'admin')
+        .maybeSingle();
+      const isAdminOwner = !!adminRow;
+
       const isExpired = resellerAccess?.access_expires_at && new Date(resellerAccess.access_expires_at) < new Date();
-      if (!resellerAccess?.is_active || isExpired) {
+      if (!isAdminOwner && (!resellerAccess?.is_active || isExpired)) {
         console.log(`[Scheduled Billing] User ${schedule.user_id} is inactive or expired. Skipping schedule.`);
         await supabase
           .from('billing_schedule')
@@ -888,8 +896,16 @@ Deno.serve(async (req) => {
         continue;
       }
 
+      const { data: adminRowCrm } = await supabase
+        .from('user_roles')
+        .select('id')
+        .eq('user_id', schedule.user_id)
+        .eq('role', 'admin')
+        .maybeSingle();
+      const isAdminOwnerCrm = !!adminRowCrm;
+
       const isExpired = resellerAccess?.access_expires_at && new Date(resellerAccess.access_expires_at) < new Date();
-      if (!resellerAccess?.is_active || isExpired) {
+      if (!isAdminOwnerCrm && (!resellerAccess?.is_active || isExpired)) {
         console.log(`[Scheduled CRM Oficial] User ${schedule.user_id} is inactive or expired. Skipping schedule.`);
         await supabase
           .from('crm_oficial_billing_schedule')
