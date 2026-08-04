@@ -1144,7 +1144,7 @@ Deno.serve(async (req) => {
 
         if (sendResult.success) sent++; else errors++;
 
-        if (i < batch.length - 1) {
+        if (i < batch.length - 1 && maxDelay > 0) {
           const delay = Math.floor(Math.random() * (maxDelay - minDelay + 1)) + minDelay;
           console.log(`[Scheduled CRM Oficial] Waiting ${(delay / 1000).toFixed(1)}s before next send...`);
           await new Promise((r) => setTimeout(r, delay));
