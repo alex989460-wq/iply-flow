@@ -5,6 +5,17 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+/**
+ * Normaliza telefone para o formato E.164 (ex: 5511999999999)
+ */
+const normalizePhone = (phone: string) => {
+  const digits = String(phone || "").replace(/\D/g, "");
+  if (!digits) return "";
+  if (digits.startsWith("55")) return digits;
+  if (digits.length >= 10 && digits.length <= 11) return "55" + digits;
+  return digits;
+};
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -15,105 +26,10 @@ Deno.serve(async (req) => {
     const svc = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
     const supabase = createClient(supaUrl, svc);
 
-    // ============================================================
-    // 1. Carrega TODA a base de conhecimento do revendedor
-    // ============================================================
-
-    // 1a. Itens aprovados da Central de Conhecimento IA (procedimentos, fluxos, regras, tutoriais)
-    const { data: knowledgeItems } = await supabase
-      .from('ai_knowledge_items')
-      .select('kind, subject, problem, solution, steps, category, keywords, devices, apps')
-      .eq('user_id', userId)
-      .eq('status', 'approved')
-      .order('usage_count', { ascending: false })
-      .limit(80);
-
-    // 1b. Entradas manuais da Base de Conhecimento (respostas prontas por palavra-chave)
-    const { data: kbEntries } = await supabase
-      .from('ai_knowledge_entries')
-      .select('title, category, keywords, response_template, requires_human')
-      .eq('user_id', userId)
-      .eq('is_enabled', true)
-      .order('sort_order', { ascending: true })
-      .limit(80);
-
-    const hasItems = knowledgeItems && knowledgeItems.length > 0;
-    const hasEntries = kbEntries && kbEntries.length > 0;
-
-    if (!hasItems && !hasEntries) {
-      return new Response(JSON.stringify({ success: false, error: 'No knowledge base found' }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    // ============================================================
-    // 2. Monta as seções da base de conhecimento
-    // ============================================================
-
-    // --- Seção A: Respostas prontas (Base de Conhecimento manual) ---
-    let respostasProntas = '';
-    if (hasEntries) {
-      const linhas = kbEntries!.map((e: any) => {
-        const kw = (e.keywords || []).join(', ');
-        const ehHumano = e.requires_human ? ' [⚠️ ESCALAR PARA HUMANO]' : '';
-        return `• ${e.title}${ehHumano}\n  Categoria: ${e.category || 'outros'}\n  Palavras-chave: ${kw || '—'}\n  Resposta: ${e.response_template || '(encaminhar para atendente)'}`;
-      }).join('\n\n');
-      respostasProntas = `### RESPOSTAS PRONTAS (responda exatamente com estes textos quando o cliente perguntar algo que combine com as palavras-chave):\n${linhas}`;
-    }
-
-    // --- Seção B: Procedimentos, fluxos e regras (Central de Conhecimento IA) ---
-    let conhecimentoIA = '';
-    if (hasItems) {
-      const tipoLabels: Record<string, string> = {
-        procedure: 'Procedimento',
-        flow: 'Fluxo',
-        intent: 'Intenção',
-        official_answer: 'Resposta Oficial',
-        business_rule: 'Regra de Negócio',
-        tutorial: 'Tutorial',
-      };
-
-      const grupos: Record<string, any[]> = {};
-      for (const item of knowledgeItems!) {
-        const k = tipoLabels[item.kind] || item.kind;
-        if (!grupos[k]) grupos[k] = [];
-        grupos[k].push(item);
-      }
-
-      const secoes = Object.entries(grupos).map(([tipo, itens]) => {
-        const linhas = itens.map((item: any) => {
-          const partes: string[] = [`• ${item.subject}`];
-          if (item.problem) partes.push(`  Problema: ${item.problem}`);
-          if (item.solution) partes.push(`  Solução: ${item.solution}`);
-          if (item.steps && item.steps.length > 0) {
-            partes.push(`  Passos: ${item.steps.map((s: string, i: number) => `${i + 1}) ${s}`).join(' | ')}`);
-          }
-          if (item.keywords && item.keywords.length > 0) {
-            partes.push(`  Palavras-chave: ${item.keywords.join(', ')}`);
-          }
-          if (item.devices && item.devices.length > 0) {
-            partes.push(`  Dispositivos: ${item.devices.join(', ')}`);
-          }
-          if (item.apps && item.apps.length > 0) {
-            partes.push(`  Apps: ${item.apps.join(', ')}`);
-          }
-          return partes.join('\n');
-        }).join('\n\n');
-        return `#### ${tipo}:\n${linhas}`;
-      }).join('\n\n---\n\n');
-
-      conhecimentoIA = `### CONHECIMENTO OPERACIONAL (use estas regras e procedimentos para guiar o atendimento):\n${secoes}`;
-    }
-
-    // --- Combina as seções ---
-    const secoesBase = [respostasProntas, conhecimentoIA].filter(Boolean).join('\n\n---\n\n');
-
-    // ============================================================
-    // 3. Busca chave da IA e configurações de automação
-    // ============================================================
+    // 1. Carrega configurações e chave
     const { data: settings } = await supabase
       .from('platform_settings')
-      .select('ai_api_key, ai_provider, ai_automation_enabled, notification_phone, reseller_name')
+      .select('ai_api_key, ai_provider, ai_automation_enabled, reseller_name')
       .eq('user_id', userId)
       .maybeSingle();
 
@@ -123,69 +39,98 @@ Deno.serve(async (req) => {
       });
     }
 
-    const apiKey = settings.ai_api_key;
-    const selectedProvider = settings.ai_provider || provider;
-    const nomeRevenda = settings.reseller_name || 'nosso serviço';
+    // 2. Tenta identificar o cliente se não vier ID (via telefone na mensagem)
+    let identifiedCustomer = null;
+    if (customerId) {
+      const { data: c } = await supabase
+        .from('customers')
+        .select(`
+          id, name, username, phone, due_date, status,
+          plans:plan_id (plan_name, price),
+          servers:server_id (server_name)
+        `)
+        .eq('id', customerId)
+        .maybeSingle();
+      identifiedCustomer = c;
+    } else {
+      // Tenta extrair telefone da mensagem se for uma saudação ou consulta
+      const phoneMatch = message.match(/(?:(?:\+|00)?(55))?(\d{2})9?(\d{8})/);
+      if (phoneMatch) {
+        const fullPhone = normalizePhone(phoneMatch[0]);
+        const { data: customers } = await supabase
+          .from('customers')
+          .select(`
+            id, name, username, phone, due_date, status,
+            plans:plan_id (plan_name, price),
+            servers:server_id (server_name)
+          `)
+          .eq('phone', fullPhone)
+          .eq('created_by', userId)
+          .limit(1);
+        if (customers && customers.length > 0) identifiedCustomer = customers[0];
+      }
+    }
 
-    // ============================================================
-    // 4. Monta o prompt completo
-    // ============================================================
-    const prompt = `Você é um atendente de WhatsApp de IPTV/Streaming, trabalhando para "${nomeRevenda}".
-Sua função é responder clientes de forma CURTA, prestativa e profissional, como se fosse um humano atendendo no WhatsApp.
+    // 3. Carrega base de conhecimento
+    const { data: knowledgeItems } = await supabase
+      .from('ai_knowledge_items')
+      .select('kind, subject, problem, solution, steps, category, keywords')
+      .eq('user_id', userId)
+      .eq('status', 'approved')
+      .limit(50);
 
-## INSTRUÇÕES DE COMPORTAMENTO:
-1. Use SEMPRE que possível as respostas prontas da base de conhecimento — elas foram aprovadas pelo gestor e devem ser seguidas à risca.
-2. Responda em português brasileiro, de forma breve (máximo 3-4 linhas), como uma mensagem de WhatsApp.
-3. Use emojis com moderação (1-2 por mensagem) para parecer natural e amigável.
-4. Se o cliente perguntar sobre renovação, forneça o link do site para gerar o PIX automaticamente.
-5. Se a entrada marcar "ESCALAR PARA HUMANO", NÃO responda automaticamente — diga apenas que está transferindo para um atendente.
-6. Se não encontrar a resposta na base de conhecimento, diga que vai verificar com a equipe e que um atendente responderá em breve. NÃO invente informações.
-7. Nunca revele que é uma IA ou robô — aja como um atendente humano.
-8. Não peça dados sensíveis (senhas, cartões). Apenas oriente o cliente.
-9. Trate o cliente com empatia e paciência, mesmo se ele estiver irritado.
+    const { data: kbEntries } = await supabase
+      .from('ai_knowledge_entries')
+      .select('title, response_template, keywords')
+      .eq('user_id', userId)
+      .eq('is_enabled', true)
+      .limit(50);
 
-## BASE DE CONHECIMENTO:
-${secoesBase}
+    // 4. Constrói contexto dinâmico
+    let contextInfo = `### DADOS DO CLIENTE ATUAL:\n`;
+    if (identifiedCustomer) {
+      const dueDate = identifiedCustomer.due_date ? new Date(identifiedCustomer.due_date).toLocaleDateString('pt-BR') : 'Não informada';
+      contextInfo += `Nome: ${identifiedCustomer.name}\nUsuário: ${identifiedCustomer.username || 'N/A'}\nStatus: ${identifiedCustomer.status}\nVencimento: ${dueDate}\nPlano: ${identifiedCustomer.plans?.plan_name || 'N/A'}\nServidor: ${identifiedCustomer.servers?.server_name || 'N/A'}\n\n`;
+    } else {
+      contextInfo += `Cliente não identificado. Se ele perguntar sobre seus dados, peça o telefone ou o usuário.\n\n`;
+    }
 
-## Mensagem do Cliente:
-"${message}"
+    const prompt = `Você é um atendente de WhatsApp da "${settings.reseller_name || 'Social TV'}".
+Sua função é consultar o banco de dados fornecido abaixo e responder ao cliente.
 
-## Sua resposta (direta, curta, como mensagem de WhatsApp):`;
+${contextInfo}
 
-    // ============================================================
-    // 5. Chama a IA via Gateway
-    // ============================================================
+### BASE DE CONHECIMENTO:
+${knowledgeItems?.map(i => `[${i.kind}] ${i.subject}: ${i.solution || i.steps?.join(', ')}`).join('\n')}
+${kbEntries?.map(e => `[Resposta] ${e.title}: ${e.response_template}`).join('\n')}
+
+### REGRAS:
+1. Se o cliente perguntar "qual meu usuário?" ou "quando vence?", use os DADOS DO CLIENTE ATUAL acima.
+2. Se os dados de Usuário/Senha estiverem no contexto, você pode reenviá-los se solicitado.
+3. Responda de forma CURTA (máximo 3 linhas).
+4. Se não encontrar a informação, peça para aguardar um atendente humano.
+5. Nunca diga que é um robô.
+
+Mensagem do Cliente: "${message}"
+
+Resposta:`;
+
     const aiRes = await fetch("https://api.lovable.app/v1/chat/completions", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         "Authorization": `Bearer ${Deno.env.get("LOVABLE_AI_GATEWAY_KEY")}`,
-        "X-Lovable-AI-Provider-Key": apiKey,
+        "X-Lovable-AI-Provider-Key": settings.ai_api_key,
       },
       body: JSON.stringify({
-        model: selectedProvider === 'gemini' ? "gemini-1.5-pro" : "gpt-4o",
-        messages: [
-          { role: "system", content: "Você é um atendente de WhatsApp profissional de IPTV/Streaming. Responda sempre em português brasileiro, de forma curta e natural." },
-          { role: "user", content: prompt },
-        ],
-        temperature: 0.4,
-        max_tokens: 500,
+        model: settings.ai_provider === 'gemini' ? "gemini-1.5-pro" : "gpt-4o",
+        messages: [{ role: "user", content: prompt }],
+        temperature: 0.3,
       }),
     });
 
     const aiData = await aiRes.json();
-    let answer = aiData.choices?.[0]?.message?.content || '';
-
-    // Limpa marcações de markdown que não pertencem ao WhatsApp
-    answer = answer
-      .replace(/^["']|["']$/g, '')   // remove aspas do início/fim
-      .replace(/\*\*/g, '')          // remove negrito markdown
-      .replace(/^resposta:\s*/i, '') // remove prefixo "Resposta:"
-      .trim();
-
-    if (!answer) {
-      answer = "Desculpe, não consegui processar sua resposta. Um atendente humano irá te ajudar em breve. 😊";
-    }
+    const answer = aiData.choices?.[0]?.message?.content || "Vou verificar para você.";
 
     return new Response(JSON.stringify({ success: true, answer }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
