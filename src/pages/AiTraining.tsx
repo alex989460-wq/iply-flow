@@ -16,7 +16,7 @@ import {
   Loader2, Play, RefreshCw, Check, X, Sparkles, BookOpen, BarChart3,
   MessageSquare, Database, CheckCircle2, Clock, Brain, Workflow, Target,
   FileText, ShieldCheck, Lightbulb, Edit3, Trash2, GitMerge, StopCircle,
-  Zap, TrendingUp, Users, Save,
+  Zap, TrendingUp, Users, Save, Key, Copy
 } from 'lucide-react';
 
 import { useToast } from '@/hooks/use-toast';
