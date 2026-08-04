@@ -1025,7 +1025,10 @@ Deno.serve(async (req) => {
       }
 
       const totalPending = customersToProcess.length;
-      const batch = customersToProcess.slice(0, BATCH_SIZE);
+      // Meta Cloud API is a rate-limited official channel (no anti-ban pacing needed),
+      // so we can process a bigger batch per cron tick than the unofficial channels.
+      const CRM_BATCH_SIZE = 25;
+      const batch = customersToProcess.slice(0, CRM_BATCH_SIZE);
       console.log(`[Scheduled CRM Oficial] Customers pending today: ${totalPending}. Processing batch of ${batch.length}.`);
 
       await supabase
@@ -1039,8 +1042,8 @@ Deno.serve(async (req) => {
 
       let sent = 0;
       let errors = 0;
-      const minDelay = Math.max(1, Number(schedule.min_delay_seconds || 1)) * 1000;
-      const maxDelay = Math.max(minDelay, Number(schedule.max_delay_seconds || 2) * 1000);
+      const minDelay = Math.max(0, Number(schedule.min_delay_seconds ?? 0)) * 1000;
+      const maxDelay = Math.max(minDelay, Number(schedule.max_delay_seconds ?? 0) * 1000);
 
       for (let i = 0; i < batch.length; i++) {
         const customer = batch[i];
@@ -1141,7 +1144,7 @@ Deno.serve(async (req) => {
 
         if (sendResult.success) sent++; else errors++;
 
-        if (i < batch.length - 1) {
+        if (i < batch.length - 1 && maxDelay > 0) {
           const delay = Math.floor(Math.random() * (maxDelay - minDelay + 1)) + minDelay;
           console.log(`[Scheduled CRM Oficial] Waiting ${(delay / 1000).toFixed(1)}s before next send...`);
           await new Promise((r) => setTimeout(r, delay));
