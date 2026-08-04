@@ -107,7 +107,7 @@ export default function AiTraining() {
   const pollRef = useRef<number | null>(null);
   const analysisLoopRef = useRef(false);
 
-  const [aiSettings, setAiSettings] = useState({ enabled: false, provider: 'gemini', apiKey: '' });
+  const [aiSettings, setAiSettings] = useState({ enabled: false, provider: 'gemini', apiKey: '', externalKey: '' });
   const [savingSettings, setSavingSettings] = useState(false);
 
   const reload = async () => {
