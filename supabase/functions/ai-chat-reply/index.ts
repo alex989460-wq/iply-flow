@@ -20,11 +20,37 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { action, message, userId, customerId, provider = 'gemini' } = await req.json();
-
     const supaUrl = Deno.env.get("SUPABASE_URL") || "";
     const svc = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
     const supabase = createClient(supaUrl, svc);
+
+    let { action, message, userId, customerId, provider = 'gemini' } = await req.json().catch(() => ({}));
+    
+    // Autenticação via Chave de API (para uso externo)
+    const apiKey = req.headers.get("x-api-key");
+    if (apiKey) {
+      const { data: checkoutSettings } = await supabase
+        .from('reseller_checkout_settings')
+        .select('user_id')
+        .eq('api_key', apiKey)
+        .maybeSingle();
+      
+      if (checkoutSettings?.user_id) {
+        userId = checkoutSettings.user_id;
+      } else {
+        return new Response(JSON.stringify({ success: false, error: 'Chave de API inválida' }), {
+          status: 401,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    }
+
+    if (!userId) {
+      return new Response(JSON.stringify({ success: false, error: 'Identificação do revendedor (userId ou x-api-key) é obrigatória' }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     // 1. Carrega configurações e chave
     const { data: settings } = await supabase
@@ -34,7 +60,7 @@ Deno.serve(async (req) => {
       .maybeSingle();
 
     if (!settings?.ai_automation_enabled || !settings?.ai_api_key) {
-      return new Response(JSON.stringify({ success: false, error: 'AI automation disabled or API key missing' }), {
+      return new Response(JSON.stringify({ success: false, error: 'IA desativada ou Chave de API (Gemini/OpenAI) não configurada no SuperGestor' }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }

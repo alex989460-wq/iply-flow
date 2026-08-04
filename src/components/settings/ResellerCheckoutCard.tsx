@@ -293,7 +293,7 @@ export default function ResellerCheckoutCard() {
               <Key className="w-4 h-4 text-primary" />
               <div>
                 <p className="text-sm font-bold">API para sites externos</p>
-                <p className="text-xs text-muted-foreground">Use esta chave em sistemas externos para gerar cobranças automaticamente.</p>
+                <p className="text-xs text-muted-foreground">Use esta chave em sistemas externos para gerar cobranças ou integrar com a IA do SuperGestor.</p>
               </div>
             </div>
             <Button size="sm" variant="outline" onClick={rotateApiKey}><RefreshCw className="w-4 h-4 mr-1" /> Nova chave</Button>

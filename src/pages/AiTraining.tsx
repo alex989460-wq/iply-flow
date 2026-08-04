@@ -16,7 +16,7 @@ import {
   Loader2, Play, RefreshCw, Check, X, Sparkles, BookOpen, BarChart3,
   MessageSquare, Database, CheckCircle2, Clock, Brain, Workflow, Target,
   FileText, ShieldCheck, Lightbulb, Edit3, Trash2, GitMerge, StopCircle,
-  Zap, TrendingUp, Users, Save,
+  Zap, TrendingUp, Users, Save, Key, Copy
 } from 'lucide-react';
 
 import { useToast } from '@/hooks/use-toast';
@@ -107,7 +107,7 @@ export default function AiTraining() {
   const pollRef = useRef<number | null>(null);
   const analysisLoopRef = useRef(false);
 
-  const [aiSettings, setAiSettings] = useState({ enabled: false, provider: 'gemini', apiKey: '' });
+  const [aiSettings, setAiSettings] = useState({ enabled: false, provider: 'gemini', apiKey: '', externalKey: '' });
   const [savingSettings, setSavingSettings] = useState(false);
 
   const reload = async () => {
@@ -122,6 +122,7 @@ export default function AiTraining() {
       { count: cApproved },
       { data: convsForStats },
       { data: settingsData },
+      { data: checkoutData },
     ] = await Promise.all([
       supabase.from('ai_training_jobs' as any).select('*').eq('user_id', user.id).order('created_at', { ascending: false }).limit(10),
       supabase.from('ai_knowledge_items' as any).select('*').eq('user_id', user.id).in('status', ['pending','approved']).order('confidence', { ascending: false }).order('usage_count', { ascending: false }).limit(200),
@@ -132,12 +133,14 @@ export default function AiTraining() {
       supabase.from('ai_knowledge_items' as any).select('*', { count: 'exact', head: true }).eq('user_id', user.id).eq('status','approved'),
       supabase.from('ai_training_conversations' as any).select('device,app,operator_name,resolved').eq('user_id', user.id).not('analyzed_at','is',null).limit(2000),
       supabase.from('platform_settings').select('ai_automation_enabled, ai_provider, ai_api_key').eq('user_id', user.id).maybeSingle(),
+      supabase.from('reseller_checkout_settings' as any).select('api_key').eq('user_id', user.id).maybeSingle(),
     ]);
 
     setAiSettings({
       enabled: (settingsData as any)?.ai_automation_enabled || false,
       provider: (settingsData as any)?.ai_provider || 'gemini',
       apiKey: (settingsData as any)?.ai_api_key || '',
+      externalKey: (checkoutData as any)?.api_key || '',
     });
 
 
@@ -438,6 +441,79 @@ export default function AiTraining() {
                   </div>
                 </div>
               </div>
+
+              {aiSettings.externalKey && (
+                <div className="mt-8 pt-6 border-t border-border/50 space-y-4">
+                  <div className="flex items-center gap-2">
+                    <Key className="h-5 w-5 text-violet-500" />
+                    <h3 className="font-semibold">Chave de Acesso para IA Externa</h3>
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    Use estas credenciais para conectar o cérebro da sua IA em outros sistemas (ex: Zap Responder, n8n, ou sites próprios).
+                  </p>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-mono uppercase text-muted-foreground">Endpoint de Chat (POST)</Label>
+                      <div className="flex items-center gap-2">
+                        <Input 
+                          readOnly 
+                          value={`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-chat-reply`} 
+                          className="h-8 text-[11px] font-mono bg-muted/30"
+                        />
+                        <Button 
+                          variant="outline" 
+                          size="icon" 
+                          className="h-8 w-8"
+                          onClick={() => {
+                            navigator.clipboard.writeText(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-chat-reply`);
+                            toast({ title: 'Copiado!' });
+                          }}
+                        >
+                          <Copy className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-mono uppercase text-muted-foreground">Header: x-api-key</Label>
+                      <div className="flex items-center gap-2">
+                        <Input 
+                          readOnly 
+                          value={aiSettings.externalKey} 
+                          className="h-8 text-[11px] font-mono bg-muted/30"
+                        />
+                        <Button 
+                          variant="outline" 
+                          size="icon" 
+                          className="h-8 w-8"
+                          onClick={() => {
+                            navigator.clipboard.writeText(aiSettings.externalKey);
+                            toast({ title: 'Copiado!' });
+                          }}
+                        >
+                          <Copy className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="rounded-lg bg-muted/50 p-3 space-y-2 border border-border/50">
+                    <p className="text-[11px] font-semibold flex items-center gap-1.5 uppercase text-muted-foreground">
+                      <Lightbulb className="h-3 w-3" /> Exemplo de Payload (JSON)
+                    </p>
+                    <pre className="text-[10px] font-mono p-2 bg-background/50 rounded overflow-x-auto">
+{`{
+  "message": "Olá, qual meu usuário?",
+  "customerId": "ID_OPCIONAL_DO_CLIENTE"
+}`}
+                    </pre>
+                    <p className="text-[10px] text-muted-foreground">
+                      Se você não enviar o <code>customerId</code>, a IA tentará identificar o cliente automaticamente pelo número de telefone ou nome presente na mensagem.
+                    </p>
+                  </div>
+                </div>
+              )}
 
               <div className="mt-8 pt-6 border-t border-border/50 flex justify-end">
                 <Button 
