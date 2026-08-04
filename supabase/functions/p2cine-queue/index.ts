@@ -198,6 +198,8 @@ Deno.serve(async (req) => {
         }
 
         // Advance the customer's due_date by inserting a confirmed payment so the
+        // DB trigger handles the date math.
+        if (pending.customer_id) {
           // Guard against duplicate renewals: if this customer already has a confirmed
           // payment in the last 12h (e.g. Cakto webhook renewed while the extension
           // was still processing the panel queue with two tabs open), just delete
