@@ -442,6 +442,79 @@ export default function AiTraining() {
                 </div>
               </div>
 
+              {aiSettings.externalKey && (
+                <div className="mt-8 pt-6 border-t border-border/50 space-y-4">
+                  <div className="flex items-center gap-2">
+                    <Key className="h-5 w-5 text-violet-500" />
+                    <h3 className="font-semibold">Chave de Acesso para IA Externa</h3>
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    Use estas credenciais para conectar o cérebro da sua IA em outros sistemas (ex: Zap Responder, n8n, ou sites próprios).
+                  </p>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-mono uppercase text-muted-foreground">Endpoint de Chat (POST)</Label>
+                      <div className="flex items-center gap-2">
+                        <Input 
+                          readOnly 
+                          value={`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-chat-reply`} 
+                          className="h-8 text-[11px] font-mono bg-muted/30"
+                        />
+                        <Button 
+                          variant="outline" 
+                          size="icon" 
+                          className="h-8 w-8"
+                          onClick={() => {
+                            navigator.clipboard.writeText(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-chat-reply`);
+                            toast({ title: 'Copiado!' });
+                          }}
+                        >
+                          <Copy className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-mono uppercase text-muted-foreground">Header: x-api-key</Label>
+                      <div className="flex items-center gap-2">
+                        <Input 
+                          readOnly 
+                          value={aiSettings.externalKey} 
+                          className="h-8 text-[11px] font-mono bg-muted/30"
+                        />
+                        <Button 
+                          variant="outline" 
+                          size="icon" 
+                          className="h-8 w-8"
+                          onClick={() => {
+                            navigator.clipboard.writeText(aiSettings.externalKey);
+                            toast({ title: 'Copiado!' });
+                          }}
+                        >
+                          <Copy className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="rounded-lg bg-muted/50 p-3 space-y-2 border border-border/50">
+                    <p className="text-[11px] font-semibold flex items-center gap-1.5 uppercase text-muted-foreground">
+                      <Lightbulb className="h-3 w-3" /> Exemplo de Payload (JSON)
+                    </p>
+                    <pre className="text-[10px] font-mono p-2 bg-background/50 rounded overflow-x-auto">
+{`{
+  "message": "Olá, qual meu usuário?",
+  "customerId": "ID_OPCIONAL_DO_CLIENTE"
+}`}
+                    </pre>
+                    <p className="text-[10px] text-muted-foreground">
+                      Se você não enviar o <code>customerId</code>, a IA tentará identificar o cliente automaticamente pelo número de telefone ou nome presente na mensagem.
+                    </p>
+                  </div>
+                </div>
+              )}
+
               <div className="mt-8 pt-6 border-t border-border/50 flex justify-end">
                 <Button 
                   onClick={async () => {
