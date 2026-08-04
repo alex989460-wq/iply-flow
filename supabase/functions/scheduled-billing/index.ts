@@ -1042,8 +1042,8 @@ Deno.serve(async (req) => {
 
       let sent = 0;
       let errors = 0;
-      const minDelay = Math.max(1, Number(schedule.min_delay_seconds || 1)) * 1000;
-      const maxDelay = Math.max(minDelay, Number(schedule.max_delay_seconds || 2) * 1000);
+      const minDelay = Math.max(0, Number(schedule.min_delay_seconds ?? 0)) * 1000;
+      const maxDelay = Math.max(minDelay, Number(schedule.max_delay_seconds ?? 0) * 1000);
 
       for (let i = 0; i < batch.length; i++) {
         const customer = batch[i];
