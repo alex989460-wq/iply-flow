@@ -39,28 +39,30 @@ Deno.serve(async (req) => {
       });
     }
 
-    // 2. Tenta identificar o cliente se não vier ID (via telefone na mensagem)
+    // 2. Identifica o cliente (prioriza customerId, depois busca por telefone na mensagem, depois por nome/username)
     let identifiedCustomer = null;
     if (customerId) {
       const { data: c } = await supabase
         .from('customers')
         .select(`
-          id, name, username, phone, due_date, status,
+          id, name, username, password, phone, due_date, status,
           plans:plan_id (plan_name, price),
           servers:server_id (server_name)
         `)
         .eq('id', customerId)
         .maybeSingle();
       identifiedCustomer = c;
-    } else {
-      // Tenta extrair telefone da mensagem se for uma saudação ou consulta
+    } 
+    
+    if (!identifiedCustomer) {
+      // Tenta extrair telefone da mensagem
       const phoneMatch = message.match(/(?:(?:\+|00)?(55))?(\d{2})9?(\d{8})/);
       if (phoneMatch) {
         const fullPhone = normalizePhone(phoneMatch[0]);
         const { data: customers } = await supabase
           .from('customers')
           .select(`
-            id, name, username, phone, due_date, status,
+            id, name, username, password, phone, due_date, status,
             plans:plan_id (plan_name, price),
             servers:server_id (server_name)
           `)
@@ -68,6 +70,27 @@ Deno.serve(async (req) => {
           .eq('created_by', userId)
           .limit(1);
         if (customers && customers.length > 0) identifiedCustomer = customers[0];
+      }
+    }
+
+    if (!identifiedCustomer) {
+      // Tenta buscar por username ou nome se for uma palavra isolada ou contexto curto
+      const words = message.split(/\s+/).filter(w => w.length > 3);
+      for (const word of words) {
+        const { data: found } = await supabase
+          .from('customers')
+          .select(`
+            id, name, username, password, phone, due_date, status,
+            plans:plan_id (plan_name, price),
+            servers:server_id (server_name)
+          `)
+          .or(`username.ilike.%${word}%,name.ilike.%${word}%`)
+          .eq('created_by', userId)
+          .limit(1);
+        if (found && found.length > 0) {
+          identifiedCustomer = found[0];
+          break;
+        }
       }
     }
 
@@ -90,7 +113,7 @@ Deno.serve(async (req) => {
     let contextInfo = `### DADOS DO CLIENTE ATUAL:\n`;
     if (identifiedCustomer) {
       const dueDate = identifiedCustomer.due_date ? new Date(identifiedCustomer.due_date).toLocaleDateString('pt-BR') : 'Não informada';
-      contextInfo += `Nome: ${identifiedCustomer.name}\nUsuário: ${identifiedCustomer.username || 'N/A'}\nStatus: ${identifiedCustomer.status}\nVencimento: ${dueDate}\nPlano: ${identifiedCustomer.plans?.plan_name || 'N/A'}\nServidor: ${identifiedCustomer.servers?.server_name || 'N/A'}\n\n`;
+      contextInfo += `Nome: ${identifiedCustomer.name}\nUsuário: ${identifiedCustomer.username || 'N/A'}\nSenha: ${identifiedCustomer.password || 'Não informada'}\nStatus: ${identifiedCustomer.status}\nVencimento: ${dueDate}\nPlano: ${identifiedCustomer.plans?.plan_name || 'N/A'}\nServidor: ${identifiedCustomer.servers?.server_name || 'N/A'}\n\n`;
     } else {
       contextInfo += `Cliente não identificado. Se ele perguntar sobre seus dados, peça o telefone ou o usuário.\n\n`;
     }
