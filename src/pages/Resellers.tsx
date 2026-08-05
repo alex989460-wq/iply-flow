@@ -201,6 +201,18 @@ export default function Resellers() {
         
         if (fnError) throw fnError;
         if (!result?.success) throw new Error(result?.error || 'Erro ao atualizar senha');
+
+        // Provisiona/repara a chave do ZapCRM usando a mesma credencial (não bloqueante)
+        try {
+          await supabase.functions.invoke('crm-oficial-sync', {
+            body: {
+              action: 'provision-key',
+              data: { email: data.email, password: data.newPassword, local_user_id: data.user_id },
+            },
+          });
+        } catch (crmErr) {
+          console.error('[Resellers] provision-key falhou:', crmErr);
+        }
       }
     },
     onSuccess: () => {
