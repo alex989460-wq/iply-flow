@@ -1036,26 +1036,19 @@ export default function Resellers() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="7">7 dias</SelectItem>
-                    <SelectItem value="15">15 dias</SelectItem>
-                    <SelectItem value="30">30 dias</SelectItem>
-                    <SelectItem value="60">60 dias</SelectItem>
-                    <SelectItem value="90">90 dias</SelectItem>
-                    <SelectItem value="180">180 dias</SelectItem>
-                    <SelectItem value="365">365 dias (1 ano)</SelectItem>
+                    <SelectItem value="30">30 dias (1 crédito)</SelectItem>
+                    <SelectItem value="60">60 dias (2 créditos)</SelectItem>
+                    <SelectItem value="90">90 dias (3 créditos)</SelectItem>
+                    <SelectItem value="180">180 dias (6 créditos)</SelectItem>
+                    <SelectItem value="360">360 dias / 1 ano (12 créditos)</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-2">
-                <Label>Ou digite um valor customizado (dias)</Label>
-                <Input
-                  type="number"
-                  min="1"
-                  value={renewDays}
-                  onChange={(e) => setRenewDays(e.target.value)}
-                  placeholder="Digite o número de dias"
-                />
-              </div>
+              {!isAdmin && (
+                <p className="text-sm text-muted-foreground">
+                  Serão debitados <strong>{Math.round(parseInt(renewDays || '30') / 30)}</strong> crédito(s) do seu saldo.
+                </p>
+              )}
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setIsRenewDialogOpen(false)}>
