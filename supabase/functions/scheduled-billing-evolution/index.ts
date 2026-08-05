@@ -372,13 +372,15 @@ Deno.serve(async (req) => {
           }).eq('id', reservation.id);
         }
 
-        if (i < batch.length - 1) {
+        processed++;
+
+        if (i < batch.length - 1 && Date.now() - runStartedAt < RUN_DEADLINE_MS) {
           const delay = Math.floor(Math.random() * (maxDelay - minDelay + 1)) + minDelay;
           await new Promise(r => setTimeout(r, delay));
         }
       }
 
-      const remaining = totalPending - batch.length;
+      const remaining = totalPending - processed;
       const status = remaining > 0
         ? `in_progress: lote ${sent} enviadas / ${remaining} restantes`
         : `completed: ${sent} enviadas, ${errors} erros nesta execução`;
