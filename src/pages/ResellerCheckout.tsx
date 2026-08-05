@@ -62,6 +62,35 @@ function groupPlans(raw: any[]): PlanGroup[] {
   return Array.from(groups.values()).sort((a, b) => a.screens - b.screens || a.duration_days - b.duration_days);
 }
 
+const COUNTRIES = [
+  { code: 'BR', flag: '🇧🇷', ddi: '55' },
+  { code: 'PT', flag: '🇵🇹', ddi: '351' },
+  { code: 'US', flag: '🇺🇸', ddi: '1' },
+  { code: 'ES', flag: '🇪🇸', ddi: '34' },
+  { code: 'IT', flag: '🇮🇹', ddi: '39' },
+  { code: 'FR', flag: '🇫🇷', ddi: '33' },
+  { code: 'DE', flag: '🇩🇪', ddi: '49' },
+  { code: 'GB', flag: '🇬🇧', ddi: '44' },
+  { code: 'CH', flag: '🇨🇭', ddi: '41' },
+  { code: 'BE', flag: '🇧🇪', ddi: '32' },
+  { code: 'NL', flag: '🇳🇱', ddi: '31' },
+  { code: 'IE', flag: '🇮🇪', ddi: '353' },
+  { code: 'AR', flag: '🇦🇷', ddi: '54' },
+  { code: 'CL', flag: '🇨🇱', ddi: '56' },
+  { code: 'CO', flag: '🇨🇴', ddi: '57' },
+  { code: 'MX', flag: '🇲🇽', ddi: '52' },
+  { code: 'PE', flag: '🇵🇪', ddi: '51' },
+  { code: 'PY', flag: '🇵🇾', ddi: '595' },
+  { code: 'UY', flag: '🇺🇾', ddi: '598' },
+  { code: 'BO', flag: '🇧🇴', ddi: '591' },
+  { code: 'VE', flag: '🇻🇪', ddi: '58' },
+  { code: 'EC', flag: '🇪🇨', ddi: '593' },
+  { code: 'JP', flag: '🇯🇵', ddi: '81' },
+  { code: 'AU', flag: '🇦🇺', ddi: '61' },
+  { code: 'AE', flag: '🇦🇪', ddi: '971' },
+  { code: 'CN', flag: '🇨🇳', ddi: '86' },
+];
+
 export default function ResellerCheckout() {
   const { slug } = useParams<{ slug: string }>();
   const [data, setData] = useState<CheckoutData | null>(null);
