@@ -123,24 +123,24 @@ export default function Resellers() {
   });
 
   const { data: platformSettings } = useQuery({
-    queryKey: ['platform-settings'],
+    queryKey: ['platform-settings-global'],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data } = await supabase
         .from('platform_settings')
         .select('trial_days')
+        .is('user_id', null)
+        .order('created_at', { ascending: true })
+        .limit(1)
         .maybeSingle();
-      if (error) throw error;
       return data;
     },
   });
 
   useEffect(() => {
-    if (platformSettings?.trial_days !== undefined) {
-      setCreateForm(prev => ({
-        ...prev,
-        access_days: String(platformSettings.trial_days || 7)
-      }));
-    }
+    setCreateForm(prev => ({
+      ...prev,
+      access_days: String(platformSettings?.trial_days || 7)
+    }));
   }, [platformSettings]);
 
   const renewMutation = useMutation({
