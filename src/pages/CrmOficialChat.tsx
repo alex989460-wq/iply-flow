@@ -1,11 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import DashboardLayout from "@/components/layout/DashboardLayout";
 import { supabase } from "@/integrations/supabase/client";
-import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Loader2, Zap } from "lucide-react";
-import { Link } from "react-router-dom";
 import QuickRenewalPanel from "@/components/chat/QuickRenewalPanel";
 import { useIsMobile } from "@/hooks/use-mobile";
 import PendingManualRenewalsFloat from "@/components/PendingManualRenewalsFloat";
@@ -47,11 +45,24 @@ export default function CrmOficialChat({ embed = false, active = true }: { embed
       cachedCrm = null;
       setApiKey(null);
       iframeLoadedUrlRef.current = null;
-      const { data } = await supabase
+      let { data } = await supabase
         .from("crm_oficial_settings")
         .select("api_key")
         .eq("user_id", user.id)
         .maybeSingle();
+      if (!data?.api_key) {
+        const { data: provisioned } = await supabase.functions.invoke("crm-oficial-sync", {
+          body: { action: "ensure-key" },
+        });
+        if (provisioned?.results?.api_key?.saved) {
+          const refreshed = await supabase
+            .from("crm_oficial_settings")
+            .select("api_key")
+            .eq("user_id", user.id)
+            .maybeSingle();
+          data = refreshed.data;
+        }
+      }
       if (cancelled) return;
       if (data?.api_key) {
         cachedCrm = { userId: user.id, apiKey: data.api_key };
@@ -120,14 +131,10 @@ export default function CrmOficialChat({ embed = false, active = true }: { embed
               </div>
             ) : !apiKey ? (
               <div className="absolute inset-0 flex items-center justify-center p-6">
-                <Card className="max-w-md w-full p-6 text-center space-y-3">
-                  <p className="text-sm text-muted-foreground">
-                    Configure sua API key do CRM Oficial em Configurações para carregar o chat.
-                  </p>
-                  <Button asChild>
-                    <Link to="/settings">Ir para Configurações</Link>
-                  </Button>
-                </Card>
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                  Preparando o CRM Oficial…
+                </div>
               </div>
             ) : (
               <iframe
