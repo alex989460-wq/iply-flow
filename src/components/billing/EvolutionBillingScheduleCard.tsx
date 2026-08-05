@@ -232,10 +232,47 @@ export function EvolutionBillingScheduleCard() {
         </div>
 
         {schedule?.last_run_at && (
-          <div className="text-xs text-muted-foreground p-2 rounded bg-muted/40">
-            Última execução: {format(new Date(schedule.last_run_at), 'dd/MM/yyyy HH:mm')} — {schedule.last_run_status}
+          <div className="space-y-2 p-3 rounded-lg bg-muted/40 border border-border/50">
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-muted-foreground">
+                Última execução: {format(new Date(schedule.last_run_at), 'dd/MM/yyyy HH:mm')}
+              </span>
+              {progress.running && (
+                <span className="flex items-center gap-1 text-emerald-500 font-medium">
+                  <Loader2 className="w-3 h-3 animate-spin" /> em andamento
+                </span>
+              )}
+            </div>
+
+            {progress.total > 0 && (
+              <>
+                <Progress value={progress.percent} className="h-2" />
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-medium">
+                    {progress.done} de {progress.total} processadas ({progress.percent}%)
+                  </span>
+                  <span className="text-muted-foreground">
+                    {progress.remaining} restantes
+                    {progress.remaining > 0 && ` • ~${etaLabel(progress.remaining)}`}
+                  </span>
+                </div>
+              </>
+            )}
+
+            <p className="text-xs text-muted-foreground">{schedule.last_run_status}</p>
+
+            {progress.stalled && (
+              <div className="flex items-start gap-2 text-xs text-amber-500">
+                <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+                <span>
+                  Sem atualização há mais de 3 minutos — o lote provavelmente travou. Clique em
+                  “Enviar agora (Reenviar)” para continuar de onde parou.
+                </span>
+              </div>
+            )}
           </div>
         )}
+
 
         <div className="flex flex-col sm:flex-row gap-2">
           <Button onClick={() => save.mutate()} disabled={!changed || save.isPending} className="flex-1">
