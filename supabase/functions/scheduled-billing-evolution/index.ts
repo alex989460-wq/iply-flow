@@ -263,6 +263,18 @@ Deno.serve(async (req) => {
 
       // Pre-fetch today's billing_logs (apenas dos clientes deste usuário) para retomar entre execuções
       const customerIds = (customers || []).map((c: any) => c.id);
+      // Uma execução pode ser encerrada depois de reservar um destinatário e antes de
+      // concluir a chamada externa. Libera reservas órfãs para que a retomada tente de novo.
+      if (customerIds.length) {
+        await supabase
+          .from('billing_logs')
+          .update({ whatsapp_status: 'error', message: '[Evolution] reserva interrompida; aguardando nova tentativa' })
+          .in('customer_id', customerIds)
+          .eq('provider', 'evolution')
+          .eq('whatsapp_status', 'pending')
+          .eq('sent_date_br', today)
+          .lt('sent_at', new Date(Date.now() - 3 * 60 * 1000).toISOString());
+      }
       const { data: existingLogs } = customerIds.length
         ? await supabase
             .from('billing_logs')
