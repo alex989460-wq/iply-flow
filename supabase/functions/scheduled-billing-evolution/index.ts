@@ -294,8 +294,16 @@ Deno.serve(async (req) => {
 
 
       let sent = 0, errors = 0;
+      let processed = 0;
+      // Edge functions são encerradas após ~150s ociosos: paramos antes disso e o cron continua o restante
+      const RUN_DEADLINE_MS = 110_000;
+      const runStartedAt = Date.now();
 
       for (let i = 0; i < batch.length; i++) {
+        if (Date.now() - runStartedAt > RUN_DEADLINE_MS) {
+          console.log('[evo-billing] deadline atingido, restante continua no próximo ciclo');
+          break;
+        }
         const c = batch[i];
         const rule: Rule = c.rule;
         const tpl = rule.message || 'Olá {{nome}}, sua assinatura vence em {{vencimento}}.';
