@@ -214,7 +214,17 @@ async function getAuthorizedLocalUserId(req: Request, requestedUserId?: string) 
   if (jwt === svc) return userId;
   const authed = createClient(supaUrl, svc);
   const { data } = await authed.auth.getUser(jwt);
-  return data?.user?.id === userId ? userId : "";
+  const callerId = data?.user?.id;
+  if (!callerId) return "";
+  if (callerId === userId) return userId;
+  // Admin pode provisionar a chave de outro revendedor
+  const { data: adminRole } = await authed
+    .from("user_roles")
+    .select("role")
+    .eq("user_id", callerId)
+    .eq("role", "admin")
+    .maybeSingle();
+  return adminRole ? userId : "";
 }
 
 async function persistLocalCrmKey(userId: string, apiKey: string) {
