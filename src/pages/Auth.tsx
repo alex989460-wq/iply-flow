@@ -39,6 +39,7 @@ export default function Auth() {
   const [twoFactorStep, setTwoFactorStep] = useState(false);
   const [otpCode, setOtpCode] = useState('');
   const [otpLoading, setOtpLoading] = useState(false);
+  const [otpPurpose, setOtpPurpose] = useState<'login' | 'activation'>('login');
   const turnstileContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -148,11 +149,25 @@ export default function Auth() {
         }
         
         if (result.error) {
+          const msg = result.error.message || '';
+          if (/not confirmed/i.test(msg)) {
+            await supabase.functions.invoke('auth-security', {
+              body: { action: 'send-code', email, purpose: 'activation' },
+            });
+            setOtpPurpose('activation');
+            setOtpCode('');
+            setTwoFactorStep(true);
+            toast({
+              title: 'Confirme seu e-mail',
+              description: `Enviamos um código de ativação para ${email}.`,
+            });
+            return;
+          }
           toast({
             title: 'Erro ao entrar',
-            description: result.error.message === 'Invalid login credentials' 
+            description: msg === 'Invalid login credentials'
               ? 'Email ou senha incorretos'
-              : result.error.message,
+              : msg,
             variant: 'destructive',
           });
         } else if (twoFactorEnabled) {
@@ -170,6 +185,7 @@ export default function Auth() {
             return;
           }
           setOtpCode('');
+          setOtpPurpose('login');
           setTwoFactorStep(true);
           toast({ title: 'Código enviado', description: `Enviamos um código de 6 dígitos para ${email}.` });
         } else {
@@ -219,7 +235,7 @@ export default function Auth() {
     setOtpLoading(true);
     try {
       const { data, error } = await supabase.functions.invoke('auth-security', {
-        body: { action: 'verify-code', email, code: otpCode, purpose: 'login' },
+        body: { action: 'verify-code', email, code: otpCode, purpose: otpPurpose },
       });
       if (error || data?.success === false) {
         toast({
@@ -251,7 +267,7 @@ export default function Auth() {
     setOtpLoading(true);
     try {
       const { data, error } = await supabase.functions.invoke('auth-security', {
-        body: { action: 'send-code', email, purpose: 'login' },
+        body: { action: 'send-code', email, purpose: otpPurpose },
       });
       if (error || data?.success === false) {
         toast({ title: 'Não foi possível reenviar', description: data?.error || 'Tente novamente.', variant: 'destructive' });
@@ -323,7 +339,9 @@ export default function Auth() {
             <div className="space-y-5">
               <div className="text-center space-y-1">
                 <ShieldCheck className="w-8 h-8 text-amber-500 mx-auto" />
-                <h2 className="text-lg font-semibold text-foreground">Verificação em duas etapas</h2>
+                <h2 className="text-lg font-semibold text-foreground">
+                  {otpPurpose === 'activation' ? 'Ative sua conta' : 'Verificação em duas etapas'}
+                </h2>
                 <p className="text-sm text-muted-foreground">
                   Digite o código de 6 dígitos enviado para <span className="text-foreground">{email}</span>.
                 </p>

@@ -169,7 +169,7 @@ Deno.serve(async (req) => {
           {
             const crmResp = await fetch(crmUrl, { method: "POST", headers, body: JSON.stringify({ action: "signup", data: { email, password, full_name, apiKey: crmCfg.api_key, local_user_id: userId } }) });
             const crmBody = await crmResp.json().catch(() => ({}));
-            crmCreated = crmBody?.results?.signup?.ok === true || crmBody?.success === true;
+            crmCreated = crmBody?.results?.signup?.ok === true || crmBody?.results?.api_key?.ok === true || crmBody?.success === true;
             if (!crmCreated) {
               crmError = crmBody?.results?.signup?.body?.error || crmBody?.error || 'Falha ao criar conta no ZapCRM';
             }
