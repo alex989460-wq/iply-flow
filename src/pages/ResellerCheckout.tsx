@@ -173,10 +173,12 @@ export default function ResellerCheckout() {
     if (!phone.trim()) { toast.error('Informe seu telefone'); return; }
     setSearching(true);
     try {
+      const local = phone.replace(/\D/g, '').replace(new RegExp(`^${ddi}`), '');
+      const fullPhone = `${ddi}${local}`;
       const res = await fetch(`${FN_BASE}/reseller-checkout-lookup`, {
         method: 'POST',
         headers: { apikey: ANON, Authorization: `Bearer ${ANON}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ slug, phone }),
+        body: JSON.stringify({ slug, phone: fullPhone }),
       });
       const j = await res.json();
       if (!res.ok) throw new Error(j.error || 'Falha');
