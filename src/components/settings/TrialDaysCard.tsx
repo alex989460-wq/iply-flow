@@ -19,10 +19,13 @@ export default function TrialDaysCard() {
       const { data } = await supabase
         .from('platform_settings')
         .select('id, trial_days')
+        .is('user_id', null)
+        .order('created_at', { ascending: true })
+        .limit(1)
         .maybeSingle();
 
       if (data) {
-        setTrialDays(String(data.trial_days ?? 30));
+        setTrialDays(String(data.trial_days ?? 7));
         setSettingsId(data.id);
       }
       setLoading(false);
