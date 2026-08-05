@@ -28,7 +28,7 @@ import EfiSettingsCard from '@/components/settings/EfiSettingsCard';
 import ResellerCheckoutCard from '@/components/settings/ResellerCheckoutCard';
 import PanelThemeCard from '@/components/settings/PanelThemeCard';
 import AttendancesStatsCard from '@/components/settings/AttendancesStatsCard';
-import { Palette, MessageSquare } from 'lucide-react';
+import { Palette, MessageSquare, Shield } from 'lucide-react';
 
 
 async function getFunctionsHttpErrorDetails(err: unknown): Promise<{ message?: string; raw?: any } | null> {
