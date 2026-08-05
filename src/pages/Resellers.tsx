@@ -294,7 +294,7 @@ export default function Resellers() {
         description: isAdmin ? "Novo revendedor criado com sucesso!" : "Sub-revendedor criado (créditos debitados).",
       });
       setIsCreateDialogOpen(false);
-      setCreateForm({ full_name: "", email: "", password: "", access_days: "30" });
+      setCreateForm({ full_name: "", email: "", password: "", access_days: String(platformSettings?.trial_days || 7) });
       setCreateErrors({});
     },
     onError: (error) => {
