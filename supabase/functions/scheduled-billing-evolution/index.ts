@@ -138,7 +138,10 @@ Deno.serve(async (req) => {
       const sendMin = sh * 60 + sm;
       if (currentMinutes < sendMin) return false;
       if (currentMinutes > sendMin + 360) return false;
-      if (s.last_run_at && status.startsWith('completed:')) {
+      // Só considera concluído o novo estado explícito com zero restantes.
+      // Estados antigos como "completed: 0 enviadas" eram falsos positivos e
+      // interrompiam o restante do disparo.
+      if (s.last_run_at && status.startsWith('completed:') && /restantes 0(?:\D|$)/.test(status)) {
         const last = new Date(s.last_run_at);
         const lastSP = new Intl.DateTimeFormat('en-CA', {
           timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit',
@@ -161,7 +164,7 @@ Deno.serve(async (req) => {
 
     // Lotes curtos terminam com folga antes do limite da função. O cron continua
     // automaticamente no minuto seguinte sem manter uma execução longa presa.
-    const BATCH_SIZE = force ? 6 : 4;
+    const BATCH_SIZE = force ? 10 : 6;
 
     const results: any[] = [];
 
