@@ -63,7 +63,7 @@ export default function RecaptchaSettingsCard() {
         recaptcha_site_key: siteKey.trim() || null,
         trial_days: Math.round(days),
       })
-      .not('id', 'is', null);
+      .eq('id', settingsId ?? '');
 
     setSaving(false);
     if (error) {
