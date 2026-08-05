@@ -160,13 +160,12 @@ Deno.serve(async (req) => {
       if (callerId) {
         const { data: crmCfg } = await supabaseAdmin
           .from('crm_oficial_settings')
-          .select('enabled, auto_signup, auto_test_chat, api_key')
+          .select('auto_test_chat, api_key')
           .eq('user_id', callerId)
           .maybeSingle();
-        if (crmCfg?.enabled && crmCfg.api_key) {
-          const crmUrl = `${supabaseUrl}/functions/v1/crm-oficial-sync`;
-          const headers = { "Content-Type": "application/json", Authorization: `Bearer ${serviceRoleKey}` };
-          {
+        const crmUrl = `${supabaseUrl}/functions/v1/crm-oficial-sync`;
+        const headers = { "Content-Type": "application/json", Authorization: `Bearer ${serviceRoleKey}` };
+        {
             const crmResp = await fetch(crmUrl, { method: "POST", headers, body: JSON.stringify({ action: "signup", data: { email, password, full_name, apiKey: crmCfg.api_key, local_user_id: userId } }) });
             const crmBody = await crmResp.json().catch(() => ({}));
             console.log("[create-reseller] crm signup result:", JSON.stringify(crmBody?.results ?? crmBody));
@@ -184,11 +183,10 @@ Deno.serve(async (req) => {
                   || 'Falha ao criar/salvar a chave do ZapCRM';
               }
             }
-          }
-          if (crmCfg.auto_test_chat) {
+        }
+          if (crmCfg?.auto_test_chat && crmCfg.api_key) {
             const fakePhone = `5500${Date.now().toString().slice(-9)}`;
             await fetch(crmUrl, { method: "POST", headers, body: JSON.stringify({ action: "test-chat", data: { name: full_name, phone: fakePhone, email, apiKey: crmCfg.api_key } }) });
-          }
         }
       }
     } catch (crmErr) {
