@@ -133,7 +133,7 @@ export default function Resellers() {
           .eq('id', id);
         if (error) throw error;
       } else {
-        const creditsNeeded = Math.max(1, Math.ceil(days / 30));
+        const creditsNeeded = Math.max(1, Math.round(days / 30));
         const { data, error } = await supabase.functions.invoke('renew-sub-reseller', {
           body: { sub_reseller_id: id, credits_to_use: creditsNeeded },
         });
