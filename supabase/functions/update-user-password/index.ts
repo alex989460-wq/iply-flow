@@ -30,17 +30,17 @@ Deno.serve(async (req) => {
 
     // Verify user is authenticated and is admin
     const token = authHeader.replace('Bearer ', '');
-    const { data: claimsData, error: claimsError } = await supabaseUser.auth.getClaims(token);
+    const { data: userData, error: userError } = await supabaseUser.auth.getUser(token);
     
-    if (claimsError || !claimsData?.claims) {
-      console.error('Failed to get claims:', claimsError);
+    if (userError || !userData?.user) {
+      console.error('Failed to get user:', userError);
       return new Response(
         JSON.stringify({ success: false, error: 'Não autorizado' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    const userId = claimsData.claims.sub;
+    const userId = userData.user.id;
 
     // Check if user is admin
     const { data: adminRole } = await supabaseUser
@@ -100,8 +100,41 @@ Deno.serve(async (req) => {
     }
 
     console.log('Password updated successfully for user:', targetUserId);
+
+    // Provisiona/repara a chave do CRM no backend. A conta técnica do CRM não
+    // depende da senha local e não exige configuração pelo revendedor.
+    let crmProvisioned = false;
+    try {
+      const { data: targetUser } = await supabaseAdmin.auth.admin.getUserById(targetUserId);
+      const { data: profile } = await supabaseAdmin
+        .from('profiles')
+        .select('full_name')
+        .eq('user_id', targetUserId)
+        .maybeSingle();
+      const crmResponse = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/crm-oficial-sync`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+        },
+        body: JSON.stringify({
+          action: 'provision-key',
+          data: {
+            email: targetUser?.user?.email,
+            password: newPassword,
+            full_name: profile?.full_name,
+            local_user_id: targetUserId,
+          },
+        }),
+      });
+      const crmBody = await crmResponse.json().catch(() => ({}));
+      crmProvisioned = crmBody?.results?.api_key?.saved === true;
+      if (!crmProvisioned) console.error('CRM provision failed:', crmBody);
+    } catch (crmError) {
+      console.error('CRM provision failed:', crmError);
+    }
     return new Response(
-      JSON.stringify({ success: true, message: 'Senha atualizada com sucesso' }),
+      JSON.stringify({ success: true, crm_provisioned: crmProvisioned, message: 'Senha atualizada com sucesso' }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 

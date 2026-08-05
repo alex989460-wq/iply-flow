@@ -16,7 +16,7 @@ const CRM_SUPABASE_URL = "https://qoijgbmbwcmnmvixsbrv.supabase.co";
 const CRM_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFvaWpnYm1id2Ntbm12aXhzYnJ2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE3MjI3MTIsImV4cCI6MjA5NzI5ODcxMn0.IgBFtqw8O2bwmOFU3iWIwkvUZ2_KWOK_-CGWt2P1buw";
 
 type Action =
-  | "signup" | "test-chat" | "renew-notify" | "ping"
+  | "signup" | "provision-key" | "ensure-key" | "repair-missing" | "test-chat" | "renew-notify" | "ping"
   | "list-conversations" | "list-messages" | "send-whatsapp" | "mark-read"
   | "list-contacts" | "list-channels" | "create-channel" | "channel-qr" | "set-primary-channel" | "delete-channel" | "embedded-signup" | "get-media"
   | "upload-media"
@@ -201,6 +201,36 @@ async function createCrmIntegrationKey(email: string, password: string) {
   const body = await response.json().catch(() => ({}));
   if (!response.ok) return { ok: false, status: response.status, body };
   return { ok: true, status: response.status, body, apiKey: rawToken };
+}
+
+function extractSignupApiKey(body: any) {
+  const candidates = [body?.api_key, body?.apiKey, body?.token, body?.data?.api_key, body?.data?.apiKey];
+  return candidates.find((value) => typeof value === "string" && value.trim())?.trim() || "";
+}
+
+function managedCrmEmail(localUserId: string) {
+  const suffix = crypto.randomUUID().replace(/-/g, "").slice(0, 10);
+  return `crm-${localUserId.slice(0, 8)}-${suffix}@supergestor.top`;
+}
+
+function managedCrmPassword() {
+  const bytes = new Uint8Array(24);
+  crypto.getRandomValues(bytes);
+  return `Sg!${Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("")}`;
+}
+
+async function provisionManagedCrmKey(localUserId: string, fullName?: string) {
+  const signup = await doSignup({
+    email: managedCrmEmail(localUserId),
+    password: managedCrmPassword(),
+    full_name: fullName || "Revendedor SuperGestor",
+  });
+  const apiKey = extractSignupApiKey((signup as any)?.body);
+  if (!signup.ok || !apiKey) {
+    return { ok: false, status: signup.status, body: signup.body };
+  }
+  const saved = await persistLocalCrmKey(localUserId, apiKey);
+  return { ok: saved.ok, saved: saved.ok, save_error: saved.ok ? undefined : saved.error };
 }
 
 async function getAuthorizedLocalUserId(req: Request, requestedUserId?: string) {
@@ -1345,7 +1375,7 @@ Deno.serve(async (req) => {
     let localUserId = "";
     let isAdminUser = false;
     // "signup" cria a conta no ZapCRM e não precisa de chave (endpoint público).
-    if (!apiKey && action !== "signup" && action !== "provision-key") {
+    if (!apiKey && action !== "signup" && action !== "provision-key" && action !== "ensure-key" && action !== "repair-missing") {
       const authHeader = req.headers.get("Authorization") || "";
       const jwt = authHeader.replace(/^Bearer\s+/i, "").trim();
       const supaUrl = Deno.env.get("SUPABASE_URL")!;
@@ -1414,6 +1444,53 @@ Deno.serve(async (req) => {
 
     const results: Record<string, unknown> = {};
 
+    if (action === "ensure-key") {
+      const authHeader = req.headers.get("Authorization") || "";
+      const jwt = authHeader.replace(/^Bearer\s+/i, "").trim();
+      const supaUrl = Deno.env.get("SUPABASE_URL") || "";
+      const svc = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+      const admin = createClient(supaUrl, svc);
+      const { data: authData } = await admin.auth.getUser(jwt);
+      const callerId = authData?.user?.id;
+      if (!callerId) throw new Error("Não autorizado");
+      const { data: existing } = await admin.from("crm_oficial_settings").select("api_key").eq("user_id", callerId).maybeSingle();
+      if (existing?.api_key) {
+        results.api_key = { ok: true, saved: true, existing: true };
+      } else {
+        const { data: profile } = await admin.from("profiles").select("full_name").eq("user_id", callerId).maybeSingle();
+        results.api_key = await provisionManagedCrmKey(callerId, profile?.full_name || undefined);
+      }
+    }
+
+    if (action === "repair-missing") {
+      const authHeader = req.headers.get("Authorization") || "";
+      const jwt = authHeader.replace(/^Bearer\s+/i, "").trim();
+      const supaUrl = Deno.env.get("SUPABASE_URL") || "";
+      const svc = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+      const admin = createClient(supaUrl, svc);
+      let allowed = jwt === svc;
+      if (!allowed) {
+        const { data: authData } = await admin.auth.getUser(jwt);
+        if (authData?.user?.id) {
+          const { data: role } = await admin.from("user_roles").select("role").eq("user_id", authData.user.id).eq("role", "admin").maybeSingle();
+          allowed = !!role;
+        }
+      }
+      if (!allowed) throw new Error("Apenas administradores podem reparar integrações");
+      const { data: resellers, error: resellerError } = await admin.from("reseller_access").select("user_id, full_name");
+      if (resellerError) throw resellerError;
+      const repaired: string[] = [];
+      const failed: string[] = [];
+      for (const reseller of resellers || []) {
+        const { data: existing } = await admin.from("crm_oficial_settings").select("api_key").eq("user_id", reseller.user_id).maybeSingle();
+        if (existing?.api_key) continue;
+        const provisioned = await provisionManagedCrmKey(reseller.user_id, reseller.full_name || undefined);
+        if (provisioned.ok) repaired.push(reseller.user_id);
+        else failed.push(reseller.user_id);
+      }
+      results.repair = { ok: failed.length === 0, repaired_count: repaired.length, failed_count: failed.length };
+    }
+
 
     if (action === "ping") {
       results.ping = await doPing(apiKey);
@@ -1432,7 +1509,7 @@ Deno.serve(async (req) => {
         results.signup = signupRes;
         // O endpoint público de signup do ZapCRM já devolve a api_key da nova conta.
         const sBody = (signupRes as any)?.body;
-        const fromSignup = typeof sBody?.api_key === "string" ? sBody.api_key.trim() : "";
+        const fromSignup = extractSignupApiKey(sBody);
         if (fromSignup) resolvedKey = fromSignup;
       }
 
@@ -1443,6 +1520,15 @@ Deno.serve(async (req) => {
           resolvedKey = String((createdKey as any).apiKey);
         } else {
           results.api_key = { ok: false, status: (createdKey as any).status, body: (createdKey as any).body };
+        }
+      }
+
+      // A senha local pode ser diferente da conta antiga no ZapCRM. Como o revendedor
+      // acessa somente pelo embed, criamos uma conta técnica isolada e salvamos sua chave.
+      if (!resolvedKey && local_user_id) {
+        const authorizedUserId = await getAuthorizedLocalUserId(req, local_user_id);
+        if (authorizedUserId) {
+          results.api_key = await provisionManagedCrmKey(authorizedUserId, full_name);
         }
       }
 
