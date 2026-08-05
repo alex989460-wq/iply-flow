@@ -27,12 +27,9 @@ function parseProgress(schedule: { last_run_status: string | null; last_run_at: 
   const stalled =
     running && !!schedule?.last_run_at && Date.now() - new Date(schedule.last_run_at).getTime() > 3 * 60 * 1000;
 
-  const sent = Number(status.match(/lote (\d+) enviadas/)?.[1] ?? 0);
-  const remaining = Number(status.match(/(\d+) restantes/)?.[1] ?? 0);
-  const pendentes = Number(status.match(/(?:in_progress|processing): (\d+) pendentes/)?.[1] ?? 0);
-
-  const total = remaining || sent ? sent + remaining : pendentes;
-  const done = total ? total - remaining : 0;
+  const total = Number(status.match(/total (\d+)/)?.[1] ?? 0);
+  const done = Number(status.match(/enviados (\d+)/)?.[1] ?? 0);
+  const remaining = Number(status.match(/restantes (\d+)/)?.[1] ?? 0);
   const percent = total ? Math.min(100, Math.round((done / total) * 100)) : 0;
 
   return { running, stalled, total, done, remaining, percent };
@@ -76,7 +73,7 @@ export function EvolutionBillingScheduleCard() {
     refetchInterval: (q: any) => {
       const s = q?.state?.data as EvoSchedule | null;
       const status = s?.last_run_status || '';
-      return status.startsWith('in_progress') || status.startsWith('processing:') ? 4000 : false;
+      return status.startsWith('in_progress') || status.startsWith('processing:') || sendNow.isPending ? 3000 : false;
     },
   });
 
@@ -157,9 +154,9 @@ export function EvolutionBillingScheduleCard() {
       const r = data?.results?.[0];
       const remaining = r?.remaining ?? 0;
       toast({
-        title: 'Disparo concluído',
+        title: remaining > 0 ? 'Envio em andamento' : 'Disparo concluído',
         description: r
-          ? `${r.sent ?? 0} enviadas, ${r.errors ?? 0} erros${remaining > 0 ? ` — ${remaining} restantes, clique novamente para continuar` : ''}`
+          ? `${r.sent ?? 0} enviadas, ${r.errors ?? 0} erros${remaining > 0 ? ` — ${remaining} restantes; o sistema continuará automaticamente` : ''}`
           : r?.skipped
             ? `Ignorado: ${r.skipped}`
             : 'Sem clientes para envio agora.',

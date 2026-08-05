@@ -266,6 +266,8 @@ Deno.serve(async (req) => {
             .from('billing_logs')
             .select('customer_id, billing_type')
             .in('customer_id', customerIds)
+            .eq('provider', 'evolution')
+            .in('whatsapp_status', ['sent', 'pending'])
             .gte('sent_at', `${today}T00:00:00`)
             .lte('sent_at', `${today}T23:59:59`)
         : { data: [] as any[] };
@@ -281,6 +283,7 @@ Deno.serve(async (req) => {
       }
 
       const totalPending = list.length;
+      const runTotal = alreadyDone.size + totalPending;
       const batch = list.slice(0, BATCH_SIZE);
       console.log(`[evo-billing] user ${sched.user_id}: ${totalPending} pendentes, processando ${batch.length}`);
 
@@ -289,7 +292,7 @@ Deno.serve(async (req) => {
         .from('evolution_billing_schedule')
         .update({
           last_run_at: new Date().toISOString(),
-          last_run_status: `processing: ${totalPending} pendentes`,
+          last_run_status: `processing: total ${runTotal}, enviados ${alreadyDone.size}, restantes ${totalPending}`,
         })
         .eq('id', sched.id);
 
@@ -298,7 +301,6 @@ Deno.serve(async (req) => {
 
 
       let sent = 0, errors = 0;
-      let processed = 0;
       // Edge functions são encerradas após ~150s ociosos: paramos antes disso e o cron continua o restante
       const RUN_DEADLINE_MS = 110_000;
       const runStartedAt = Date.now();
@@ -362,6 +364,7 @@ Deno.serve(async (req) => {
             billing_type: c.billingType,
             message: `[Evolution] [${phone}] reservando envio...`,
             whatsapp_status: 'pending',
+            provider: 'evolution',
           })
           .select('id')
           .single();
@@ -396,7 +399,14 @@ Deno.serve(async (req) => {
           }).eq('id', reservation.id);
         }
 
-        processed++;
+        const remainingNow = Math.max(0, totalPending - sent);
+        await supabase
+          .from('evolution_billing_schedule')
+          .update({
+            last_run_at: new Date().toISOString(),
+            last_run_status: `processing: total ${runTotal}, enviados ${alreadyDone.size + sent}, restantes ${remainingNow}`,
+          })
+          .eq('id', sched.id);
 
         if (i < batch.length - 1 && Date.now() - runStartedAt < RUN_DEADLINE_MS) {
           const delay = Math.floor(Math.random() * (maxDelay - minDelay + 1)) + minDelay;
@@ -404,7 +414,9 @@ Deno.serve(async (req) => {
         }
       }
 
-      const remaining = Math.max(0, totalPending - processed);
+      // Falhas continuam pendentes e serão tentadas novamente no próximo ciclo.
+      // Somente um envio confirmado pode reduzir o contador restante.
+      const remaining = Math.max(0, totalPending - sent);
       const { data: finalSchedule } = await supabase
         .from('evolution_billing_schedule')
         .select('last_run_status')
@@ -414,8 +426,8 @@ Deno.serve(async (req) => {
 
       if (!wasCancelled) {
         const status = remaining > 0
-          ? `in_progress: lote ${sent} enviadas / ${remaining} restantes`
-          : `completed: ${sent} enviadas, ${errors} erros nesta execução`;
+          ? `in_progress: total ${runTotal}, enviados ${alreadyDone.size + sent}, restantes ${remaining}${errors ? `, erros ${errors}` : ''}`
+          : `completed: total ${runTotal}, enviados ${runTotal}, restantes 0`;
 
         await supabase
           .from('evolution_billing_schedule')
