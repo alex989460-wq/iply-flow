@@ -34,9 +34,9 @@ Deno.serve(async (req) => {
     }
 
     // Parse request body
-    const { email, password, full_name, access_days } = await req.json();
+    const { email, password, full_name } = await req.json();
 
-    if (!email || !password || !full_name || !access_days) {
+    if (!email || !password || !full_name) {
       throw new Error("Todos os campos são obrigatórios");
     }
 
@@ -51,6 +51,21 @@ Deno.serve(async (req) => {
         persistSession: false,
       },
     });
+
+    const { data: platformSettings, error: settingsError } = await supabaseAdmin
+      .from('platform_settings')
+      .select('trial_days')
+      .is('user_id', null)
+      .order('created_at', { ascending: true })
+      .limit(1)
+      .maybeSingle();
+
+    if (settingsError) {
+      console.error("Error loading global trial days:", settingsError);
+      throw new Error("Não foi possível carregar os dias grátis configurados");
+    }
+
+    const accessDays = Math.max(0, Number(platformSettings?.trial_days ?? 7));
 
     // Create user in auth.users
     const { data: userData, error: createUserError } = await supabaseAdmin.auth.admin.createUser({
@@ -67,7 +82,11 @@ Deno.serve(async (req) => {
       if (createUserError.message.includes("already been registered")) {
         throw new Error("Este email já está cadastrado");
       }
-      throw new Error(createUserError.message);
+      throw new Error(
+        createUserError.message && createUserError.message !== '{}'
+          ? createUserError.message
+          : "O serviço de autenticação não conseguiu criar a conta. Tente novamente."
+      );
     }
 
     if (!userData.user) {
@@ -78,7 +97,7 @@ Deno.serve(async (req) => {
 
     // Calculate expiration date
     const expirationDate = new Date();
-    expirationDate.setDate(expirationDate.getDate() + access_days);
+    expirationDate.setDate(expirationDate.getDate() + accessDays);
 
     // The profile and reseller_access should be created automatically by triggers
     // But let's ensure they exist with correct values
