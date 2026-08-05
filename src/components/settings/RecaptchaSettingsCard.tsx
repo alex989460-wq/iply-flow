@@ -28,9 +28,10 @@ export default function RecaptchaSettingsCard() {
         .maybeSingle();
 
       if (data) {
+        setSettingsId(data.id);
         setEnabled(!!data.recaptcha_enabled);
         setSiteKey(data.recaptcha_site_key ?? '');
-        setTrialDays(String(data.trial_days ?? 30));
+        setTrialDays(String(data.trial_days ?? 7));
       }
       setLoading(false);
     })();
