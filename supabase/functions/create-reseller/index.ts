@@ -169,9 +169,20 @@ Deno.serve(async (req) => {
           {
             const crmResp = await fetch(crmUrl, { method: "POST", headers, body: JSON.stringify({ action: "signup", data: { email, password, full_name, apiKey: crmCfg.api_key, local_user_id: userId } }) });
             const crmBody = await crmResp.json().catch(() => ({}));
-            crmCreated = crmBody?.results?.signup?.ok === true || crmBody?.results?.api_key?.ok === true || crmBody?.success === true;
+            console.log("[create-reseller] crm signup result:", JSON.stringify(crmBody?.results ?? crmBody));
+            crmCreated = crmBody?.results?.api_key?.saved === true;
             if (!crmCreated) {
-              crmError = crmBody?.results?.signup?.body?.error || crmBody?.error || 'Falha ao criar conta no ZapCRM';
+              // Retenta provisionando a chave via login (conta pode já existir no ZapCRM)
+              const retryResp = await fetch(crmUrl, { method: "POST", headers, body: JSON.stringify({ action: "provision-key", data: { email, password, local_user_id: userId } }) });
+              const retryBody = await retryResp.json().catch(() => ({}));
+              console.log("[create-reseller] crm provision-key result:", JSON.stringify(retryBody?.results ?? retryBody));
+              crmCreated = retryBody?.results?.api_key?.saved === true;
+              if (!crmCreated) {
+                crmError = retryBody?.results?.api_key?.save_error
+                  || crmBody?.results?.signup?.body?.error
+                  || crmBody?.error
+                  || 'Falha ao criar/salvar a chave do ZapCRM';
+              }
             }
           }
           if (crmCfg.auto_test_chat) {
