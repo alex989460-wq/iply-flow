@@ -144,10 +144,10 @@ export function EvolutionBillingScheduleCard() {
   });
 
   const sendNow = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (resendAll: boolean = false) => {
       if (!user?.id) throw new Error('Sem usuário');
       const { data, error } = await supabase.functions.invoke('scheduled-billing-evolution', {
-        body: { force: true, userId: user.id },
+        body: { force: true, resend_all: resendAll, userId: user.id },
       });
       if (error) throw error;
       return data;
@@ -292,7 +292,7 @@ export function EvolutionBillingScheduleCard() {
                 <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
                 <span>
                   Sem atualização há mais de 3 minutos — o lote provavelmente travou. Clique em
-                  “Enviar agora (Reenviar)” para continuar de onde parou.
+                  “Continuar envio” para retomar de onde parou (não reenvia quem já recebeu).
                 </span>
               </div>
             )}
@@ -307,13 +307,25 @@ export function EvolutionBillingScheduleCard() {
           </Button>
           <Button
             variant="secondary"
-            onClick={() => sendNow.mutate()}
+            onClick={() => sendNow.mutate(false)}
             disabled={sendNow.isPending || changed}
             className="flex-1"
-            title={changed ? 'Salve antes de enviar' : 'Enviar agora (reenvia mesmo se já foi)'}
+            title={changed ? 'Salve antes de enviar' : 'Continua de onde parou, pulando quem já recebeu hoje'}
           >
             {sendNow.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Send className="w-4 h-4 mr-2" />}
-            Enviar agora (Reenviar)
+            Continuar envio
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => {
+              if (confirm('Isso vai REENVIAR para todos, inclusive quem já recebeu hoje. Continuar?')) sendNow.mutate(true);
+            }}
+            disabled={sendNow.isPending || changed}
+            className="flex-1"
+            title="Reenvia para todos, mesmo quem já recebeu hoje"
+          >
+            <Send className="w-4 h-4 mr-2" />
+            Reenviar para todos
           </Button>
         </div>
       </CardContent>
