@@ -643,6 +643,7 @@ export type Database = {
           customer_id: string
           id: string
           message: string
+          provider: string
           sent_at: string
           sent_date_br: string | null
           whatsapp_status: string | null
@@ -652,6 +653,7 @@ export type Database = {
           customer_id: string
           id?: string
           message: string
+          provider?: string
           sent_at?: string
           sent_date_br?: string | null
           whatsapp_status?: string | null
@@ -661,6 +663,7 @@ export type Database = {
           customer_id?: string
           id?: string
           message?: string
+          provider?: string
           sent_at?: string
           sent_date_br?: string | null
           whatsapp_status?: string | null
