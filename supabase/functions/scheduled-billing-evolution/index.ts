@@ -137,7 +137,8 @@ Deno.serve(async (req) => {
       const [sh, sm] = String(s.send_time).substring(0, 5).split(':').map(Number);
       const sendMin = sh * 60 + sm;
       if (currentMinutes < sendMin) return false;
-      if (currentMinutes > sendMin + 360) return false;
+      // Depois do horário configurado, continua tentando durante todo o dia até
+      // existir uma conclusão válida. Não limita a uma janela de 6 horas.
       // Só considera concluído o novo estado explícito com zero restantes.
       // Estados antigos como "completed: 0 enviadas" eram falsos positivos e
       // interrompiam o restante do disparo.
@@ -289,6 +290,23 @@ Deno.serve(async (req) => {
         : { data: [] as any[] };
       const alreadyDone = new Set((existingLogs || []).map((l: any) => `${l.customer_id}|${l.billing_type}`));
 
+      // Clientes que falharam não podem bloquear a fila. Quem ainda não teve
+      // tentativa vem primeiro; falhas anteriores ficam no fim para retry.
+      const { data: failedLogs } = customerIds.length
+        ? await supabase
+            .from('billing_logs')
+            .select('customer_id, billing_type')
+            .in('customer_id', customerIds)
+            .eq('provider', 'evolution')
+            .eq('whatsapp_status', 'error')
+            .eq('sent_date_br', today)
+        : { data: [] as any[] };
+      const failureCount = new Map<string, number>();
+      for (const log of failedLogs || []) {
+        const key = `${log.customer_id}|${log.billing_type}`;
+        failureCount.set(key, (failureCount.get(key) || 0) + 1);
+      }
+
       const list: any[] = [];
       for (const c of customers || []) {
         const rule = ruleByDate.get(c.due_date as string);
@@ -297,6 +315,11 @@ Deno.serve(async (req) => {
         if (!resendAll && alreadyDone.has(`${c.id}|${bt}`)) continue;
         list.push({ ...c, billingType: bt, rule });
       }
+      list.sort((a, b) => {
+        const aFailures = failureCount.get(`${a.id}|${a.billingType}`) || 0;
+        const bFailures = failureCount.get(`${b.id}|${b.billingType}`) || 0;
+        return aFailures - bFailures;
+      });
 
       const totalPending = list.length;
       const runTotal = alreadyDone.size + totalPending;
