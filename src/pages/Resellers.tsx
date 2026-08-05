@@ -120,20 +120,6 @@ export default function Resellers() {
     },
   });
 
-  const { data: platformSettings } = useQuery({
-    queryKey: ['platform-settings-global'],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from('platform_settings')
-        .select('trial_days')
-        .is('user_id', null)
-        .order('created_at', { ascending: true })
-        .limit(1)
-        .maybeSingle();
-      return data;
-    },
-  });
-
   const renewMutation = useMutation({
     mutationFn: async ({ id, days }: { id: string; days: number }) => {
       if (isAdmin) {
