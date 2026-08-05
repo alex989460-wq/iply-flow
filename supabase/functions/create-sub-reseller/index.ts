@@ -152,6 +152,25 @@ Deno.serve(async (req) => {
 
     console.log("Sub-reseller created successfully:", newUserId);
 
+    // --- Confirmação de e-mail (código de ativação) ---
+    let emailConfirmationSent = false;
+    if (requireEmailConfirmation) {
+      try {
+        const resp = await fetch(`${supabaseUrl}/functions/v1/auth-security`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${serviceRoleKey}` },
+          body: JSON.stringify({ action: "send-code", email, purpose: "activation" }),
+        });
+        const respBody = await resp.json().catch(() => ({}));
+        emailConfirmationSent = respBody?.success === true;
+        if (!emailConfirmationSent) console.error("Activation email not sent:", respBody);
+      } catch (mailErr) {
+        console.error("Activation email failed:", mailErr);
+      }
+    }
+
+
+
     // --- Integração CRM Oficial (não-bloqueante, respeita settings do parent) ---
     try {
       const { data: crmCfg } = await supabaseAdmin
