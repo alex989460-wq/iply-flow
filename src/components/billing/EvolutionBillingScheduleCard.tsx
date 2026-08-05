@@ -180,6 +180,7 @@ export function EvolutionBillingScheduleCard() {
 
   const allRules = rules || [];
   const active = allRules.filter(r => r.is_enabled);
+  const progress = parseProgress(schedule);
 
   return (
     <Card className="glass-card border-border/50 border-l-4 border-l-emerald-500">
