@@ -154,8 +154,8 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Reenvio manual processa um lote maior; agendamento automático mantém lotes pequenos
-    const BATCH_SIZE = force ? 8 : 4;
+    // O limite real é o deadline de ~110s por execução; o cron continua o restante a cada minuto
+    const BATCH_SIZE = force ? 20 : 10;
 
     const results: any[] = [];
 
