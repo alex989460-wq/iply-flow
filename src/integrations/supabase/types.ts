@@ -544,6 +544,39 @@ export type Database = {
         }
         Relationships: []
       }
+      auth_verification_codes: {
+        Row: {
+          attempts: number
+          code_hash: string
+          consumed_at: string | null
+          created_at: string
+          email: string
+          expires_at: string
+          id: string
+          purpose: string
+        }
+        Insert: {
+          attempts?: number
+          code_hash: string
+          consumed_at?: string | null
+          created_at?: string
+          email: string
+          expires_at: string
+          id?: string
+          purpose?: string
+        }
+        Update: {
+          attempts?: number
+          code_hash?: string
+          consumed_at?: string | null
+          created_at?: string
+          email?: string
+          expires_at?: string
+          id?: string
+          purpose?: string
+        }
+        Relationships: []
+      }
       auto_replies: {
         Row: {
           created_at: string
@@ -2457,8 +2490,11 @@ export type Database = {
           id: string
           recaptcha_enabled: boolean
           recaptcha_min_score: number
+          recaptcha_secret_key: string | null
           recaptcha_site_key: string | null
+          require_email_confirmation: boolean
           trial_days: number
+          two_factor_enabled: boolean
           updated_at: string
           user_id: string | null
         }
@@ -2470,8 +2506,11 @@ export type Database = {
           id?: string
           recaptcha_enabled?: boolean
           recaptcha_min_score?: number
+          recaptcha_secret_key?: string | null
           recaptcha_site_key?: string | null
+          require_email_confirmation?: boolean
           trial_days?: number
+          two_factor_enabled?: boolean
           updated_at?: string
           user_id?: string | null
         }
@@ -2483,8 +2522,11 @@ export type Database = {
           id?: string
           recaptcha_enabled?: boolean
           recaptcha_min_score?: number
+          recaptcha_secret_key?: string | null
           recaptcha_site_key?: string | null
+          require_email_confirmation?: boolean
           trial_days?: number
+          two_factor_enabled?: boolean
           updated_at?: string
           user_id?: string | null
         }

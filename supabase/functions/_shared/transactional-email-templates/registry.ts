@@ -1,6 +1,7 @@
 import type { ComponentType } from 'npm:react@18.3.1'
 import { template as billingReminder } from './billing-reminder.tsx'
 import { template as paymentConfirmation } from './payment-confirmation.tsx'
+import { template as securityCode } from './security-code.tsx'
 
 export interface TemplateEntry {
   component: ComponentType<any>
@@ -13,4 +14,5 @@ export interface TemplateEntry {
 export const TEMPLATES: Record<string, TemplateEntry> = {
   'billing-reminder': billingReminder,
   'payment-confirmation': paymentConfirmation,
+  'security-code': securityCode,
 }
