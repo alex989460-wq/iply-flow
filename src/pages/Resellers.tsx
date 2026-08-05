@@ -1163,37 +1163,15 @@ export default function Resellers() {
                 </p>
               </div>
 
-              <div className="space-y-2">
-                <Label>Período de acesso</Label>
-                <Select value={createForm.access_days} onValueChange={(v) => setCreateForm({ ...createForm, access_days: v })}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="7">7 dias</SelectItem>
-                    <SelectItem value="15">15 dias</SelectItem>
-                    <SelectItem value="30">30 dias</SelectItem>
-                    <SelectItem value="60">60 dias</SelectItem>
-                    <SelectItem value="90">90 dias</SelectItem>
-                    <SelectItem value="180">180 dias</SelectItem>
-                    <SelectItem value="365">365 dias (1 ano)</SelectItem>
-                  </SelectContent>
-                </Select>
-                <div className="mt-2">
-                  <Label>Ou digite um valor customizado (dias)</Label>
-                  <Input
-                    type="number"
-                    min="1"
-                    value={createForm.access_days}
-                    onChange={(e) => setCreateForm({ ...createForm, access_days: e.target.value })}
-                    placeholder="Digite o número de dias"
-                  />
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Sugestão baseada na configuração global: {platformSettings?.trial_days || 7} dias.
-                  </p>
-                </div>
+              <div className="rounded-lg border border-border/60 p-3">
+                <p className="text-sm font-medium">
+                  Período de teste: {createForm.access_days || platformSettings?.trial_days || 7} dias
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Aplicado automaticamente conforme a configuração global "Dias grátis ao criar conta".
+                </p>
                 {createErrors.access_days && (
-                  <p className="text-destructive text-sm">{createErrors.access_days}</p>
+                  <p className="text-destructive text-sm mt-1">{createErrors.access_days}</p>
                 )}
               </div>
             </div>
