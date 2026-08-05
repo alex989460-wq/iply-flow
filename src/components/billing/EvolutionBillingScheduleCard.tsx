@@ -48,6 +48,10 @@ export function EvolutionBillingScheduleCard() {
       return data as unknown as EvoSchedule | null;
     },
     enabled: !!user?.id,
+    refetchInterval: (q: any) => {
+      const s = q?.state?.data as EvoSchedule | null;
+      return s?.last_run_status?.startsWith('in_progress') ? 4000 : false;
+    },
   });
 
   const { data: rules } = useQuery({
