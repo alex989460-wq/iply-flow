@@ -1411,23 +1411,40 @@ Deno.serve(async (req) => {
 
 
 
-    if (action === "signup") {
+    if (action === "signup" || action === "provision-key") {
       const { email, password, full_name, local_user_id } = data as { email: string; password: string; full_name?: string; local_user_id?: string };
       if (!email || !password) throw new Error("email e password são obrigatórios");
-      results.signup = await doSignup({ email, password, full_name }, apiKey);
 
-      // Cria automaticamente a chave de API do ZapCRM e salva no gestor para o usuário local.
-      // Se a conta já existir no ZapCRM, o login com a mesma senha ainda permite gerar a chave.
-      const createdKey = await createCrmIntegrationKey(email, password);
-      results.api_key = createdKey.ok
-        ? { ok: true, status: createdKey.status, saved: false }
-        : { ok: false, status: createdKey.status, body: createdKey.body };
+      let resolvedKey = "";
 
-      if (createdKey.ok && createdKey.apiKey) {
+      if (action === "signup") {
+        const signupRes = await doSignup({ email, password, full_name }, apiKey);
+        results.signup = signupRes;
+        // O endpoint público de signup do ZapCRM já devolve a api_key da nova conta.
+        const sBody = (signupRes as any)?.body;
+        const fromSignup = typeof sBody?.api_key === "string" ? sBody.api_key.trim() : "";
+        if (fromSignup) resolvedKey = fromSignup;
+      }
+
+      // Fallback: conta já existe (ou signup não devolveu chave) → login e criação da chave.
+      if (!resolvedKey) {
+        const createdKey = await createCrmIntegrationKey(email, password);
+        if (createdKey.ok && (createdKey as any).apiKey) {
+          resolvedKey = String((createdKey as any).apiKey);
+        } else {
+          results.api_key = { ok: false, status: (createdKey as any).status, body: (createdKey as any).body };
+        }
+      }
+
+      if (resolvedKey) {
         const authorizedUserId = await getAuthorizedLocalUserId(req, local_user_id);
         if (authorizedUserId) {
-          const saved = await persistLocalCrmKey(authorizedUserId, createdKey.apiKey);
-          results.api_key = { ok: true, status: createdKey.status, saved: saved.ok, save_error: saved.ok ? undefined : saved.error };
+          const saved = await persistLocalCrmKey(authorizedUserId, resolvedKey);
+          results.api_key = { ok: true, saved: saved.ok, save_error: saved.ok ? undefined : saved.error };
+          if (!saved.ok) console.error("[crm-oficial-sync] falha ao salvar api_key local:", saved.error);
+        } else {
+          results.api_key = { ok: true, saved: false, save_error: "local_user_id não autorizado" };
+          console.error("[crm-oficial-sync] api_key criada mas local_user_id não autorizado", { local_user_id });
         }
       }
     }
