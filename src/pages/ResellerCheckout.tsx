@@ -101,6 +101,7 @@ export default function ResellerCheckout() {
   const [group, setGroup] = useState<PlanGroup | null>(null);
 
   const [phone, setPhone] = useState('');
+  const [ddi, setDdi] = useState('55');
   const [searching, setSearching] = useState(false);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
