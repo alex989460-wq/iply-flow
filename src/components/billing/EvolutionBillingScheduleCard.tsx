@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
-import { Clock, Save, Loader2, Zap, Timer, AlertTriangle, Send, FileText } from 'lucide-react';
+import { Clock, Save, Loader2, Zap, Timer, AlertTriangle, Send, FileText, Square } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { offsetLabel, type BillingTemplate } from './EvolutionBillingTemplatesCard';
@@ -23,13 +23,13 @@ function etaLabel(remaining: number, avgSeconds = 25) {
 
 function parseProgress(schedule: { last_run_status: string | null; last_run_at: string | null } | null | undefined) {
   const status = schedule?.last_run_status || '';
-  const running = status.startsWith('in_progress');
+  const running = status.startsWith('in_progress') || status.startsWith('processing:');
   const stalled =
     running && !!schedule?.last_run_at && Date.now() - new Date(schedule.last_run_at).getTime() > 3 * 60 * 1000;
 
   const sent = Number(status.match(/lote (\d+) enviadas/)?.[1] ?? 0);
   const remaining = Number(status.match(/(\d+) restantes/)?.[1] ?? 0);
-  const pendentes = Number(status.match(/in_progress: (\d+) pendentes/)?.[1] ?? 0);
+  const pendentes = Number(status.match(/(?:in_progress|processing): (\d+) pendentes/)?.[1] ?? 0);
 
   const total = remaining || sent ? sent + remaining : pendentes;
   const done = total ? total - remaining : 0;
@@ -75,7 +75,8 @@ export function EvolutionBillingScheduleCard() {
     enabled: !!user?.id,
     refetchInterval: (q: any) => {
       const s = q?.state?.data as EvoSchedule | null;
-      return s?.last_run_status?.startsWith('in_progress') ? 4000 : false;
+      const status = s?.last_run_status || '';
+      return status.startsWith('in_progress') || status.startsWith('processing:') ? 4000 : false;
     },
   });
 
@@ -166,6 +167,25 @@ export function EvolutionBillingScheduleCard() {
       qc.invalidateQueries({ queryKey: ['evo-billing-schedule'] });
     },
     onError: (e: any) => toast({ title: 'Erro', description: e.message, variant: 'destructive' }),
+  });
+
+  const cancelSend = useMutation({
+    mutationFn: async () => {
+      if (!schedule?.id) throw new Error('Nenhum envio em andamento');
+      const { error } = await supabase
+        .from('evolution_billing_schedule')
+        .update({
+          last_run_at: new Date().toISOString(),
+          last_run_status: 'cancelled: interrompido pelo usuário',
+        })
+        .eq('id', schedule.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast({ title: 'Envio cancelado', description: 'O disparo será interrompido antes do próximo cliente.' });
+      qc.invalidateQueries({ queryKey: ['evo-billing-schedule'] });
+    },
+    onError: (e: any) => toast({ title: 'Erro ao cancelar', description: e.message, variant: 'destructive' }),
   });
 
   if (isLoading) {
@@ -327,6 +347,17 @@ export function EvolutionBillingScheduleCard() {
             <Send className="w-4 h-4 mr-2" />
             Reenviar para todos
           </Button>
+          {progress.running && (
+            <Button
+              variant="destructive"
+              onClick={() => cancelSend.mutate()}
+              disabled={cancelSend.isPending}
+              className="flex-1"
+            >
+              {cancelSend.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Square className="w-4 h-4 mr-2" />}
+              Cancelar envio
+            </Button>
+          )}
         </div>
       </CardContent>
     </Card>

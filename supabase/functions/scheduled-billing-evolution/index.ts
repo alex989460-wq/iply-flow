@@ -143,10 +143,11 @@ Deno.serve(async (req) => {
         }).format(last);
         if (lastSP === todayStrSP) return false;
       }
-      // Concurrency lock: skip if another tick is currently running this schedule (<3 min ago)
-      if (s.last_run_at && status.startsWith('in_progress')) {
+      // Only the short-lived "processing" state is a lock. "in_progress" means
+      // there is more work and the next cron tick must continue immediately.
+      if (s.last_run_at && status.startsWith('processing:')) {
         const ageMs = Date.now() - new Date(s.last_run_at).getTime();
-        if (ageMs < 3 * 60 * 1000) return false;
+        if (ageMs < 2 * 60 * 1000) return false;
       }
       return true;
     });
@@ -156,8 +157,9 @@ Deno.serve(async (req) => {
       });
     }
 
-    // O limite real é o deadline de ~110s por execução; o cron continua o restante a cada minuto
-    const BATCH_SIZE = force ? 20 : 10;
+    // Lotes curtos terminam com folga antes do limite da função. O cron continua
+    // automaticamente no minuto seguinte sem manter uma execução longa presa.
+    const BATCH_SIZE = force ? 6 : 4;
 
     const results: any[] = [];
 
@@ -282,12 +284,12 @@ Deno.serve(async (req) => {
       const batch = list.slice(0, BATCH_SIZE);
       console.log(`[evo-billing] user ${sched.user_id}: ${totalPending} pendentes, processando ${batch.length}`);
 
-      // Mark in_progress immediately so the panel reflects activity and we don't double-trigger
+      // "processing" is the concurrency lock while this invocation owns the batch.
       await supabase
         .from('evolution_billing_schedule')
         .update({
           last_run_at: new Date().toISOString(),
-          last_run_status: `in_progress: ${totalPending} pendentes`,
+          last_run_status: `processing: ${totalPending} pendentes`,
         })
         .eq('id', sched.id);
 
@@ -306,6 +308,19 @@ Deno.serve(async (req) => {
           console.log('[evo-billing] deadline atingido, restante continua no próximo ciclo');
           break;
         }
+
+        // Cooperative cancellation: the panel changes the status to cancelled.
+        // Check before every recipient so an active run stops promptly.
+        const { data: liveSchedule } = await supabase
+          .from('evolution_billing_schedule')
+          .select('last_run_status')
+          .eq('id', sched.id)
+          .maybeSingle();
+        if (String(liveSchedule?.last_run_status || '').startsWith('cancelled:')) {
+          console.log(`[evo-billing] envio cancelado pelo usuário ${sched.user_id}`);
+          break;
+        }
+
         const c = batch[i];
         const rule: Rule = c.rule;
         const tpl = rule.message || 'Olá {{nome}}, sua assinatura vence em {{vencimento}}.';
@@ -389,20 +404,29 @@ Deno.serve(async (req) => {
         }
       }
 
-      const remaining = totalPending - processed;
-      const status = remaining > 0
-        ? `in_progress: lote ${sent} enviadas / ${remaining} restantes`
-        : `completed: ${sent} enviadas, ${errors} erros nesta execução`;
-
-      await supabase
+      const remaining = Math.max(0, totalPending - processed);
+      const { data: finalSchedule } = await supabase
         .from('evolution_billing_schedule')
-        .update({
-          last_run_at: new Date().toISOString(),
-          last_run_status: status,
-        })
-        .eq('id', sched.id);
+        .select('last_run_status')
+        .eq('id', sched.id)
+        .maybeSingle();
+      const wasCancelled = String(finalSchedule?.last_run_status || '').startsWith('cancelled:');
 
-      results.push({ user_id: sched.user_id, sent, errors, total: batch.length, remaining });
+      if (!wasCancelled) {
+        const status = remaining > 0
+          ? `in_progress: lote ${sent} enviadas / ${remaining} restantes`
+          : `completed: ${sent} enviadas, ${errors} erros nesta execução`;
+
+        await supabase
+          .from('evolution_billing_schedule')
+          .update({
+            last_run_at: new Date().toISOString(),
+            last_run_status: status,
+          })
+          .eq('id', sched.id);
+      }
+
+      results.push({ user_id: sched.user_id, sent, errors, total: batch.length, remaining, cancelled: wasCancelled });
     }
 
     return new Response(JSON.stringify({ success: true, results }), {
