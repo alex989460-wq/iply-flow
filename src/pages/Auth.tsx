@@ -114,6 +114,23 @@ export default function Auth() {
     }
   };
 
+  // 2FA é opcional e definido por cada conta em Configurações → Segurança.
+  const isTwoFactorRequiredForCurrentUser = async () => {
+    try {
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      if (!currentUser) return false;
+      const { data } = await supabase
+        .from('platform_settings')
+        .select('two_factor_enabled')
+        .eq('user_id', currentUser.id)
+        .maybeSingle();
+      return Boolean(data?.two_factor_enabled);
+    } catch {
+      return false;
+    }
+  };
+
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setAccessDeniedMessage(null);
@@ -170,7 +187,7 @@ export default function Auth() {
               : msg,
             variant: 'destructive',
           });
-        } else if (twoFactorEnabled) {
+        } else if (await isTwoFactorRequiredForCurrentUser()) {
           // Senha validada: encerra a sessão e exige o código enviado por e-mail.
           await supabase.auth.signOut();
           const { data: sendData, error: sendError } = await supabase.functions.invoke('auth-security', {

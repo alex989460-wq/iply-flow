@@ -22,12 +22,13 @@ import BackupManagerCard from '@/components/settings/BackupManagerCard';
 import EvolutionApiCard from '@/components/settings/EvolutionApiCard';
 import CrmOficialCard from '@/components/settings/CrmOficialCard';
 import RecaptchaSettingsCard from '@/components/settings/RecaptchaSettingsCard';
+import SecuritySettingsCard from '@/components/settings/SecuritySettingsCard';
 
 import EfiSettingsCard from '@/components/settings/EfiSettingsCard';
 import ResellerCheckoutCard from '@/components/settings/ResellerCheckoutCard';
 import PanelThemeCard from '@/components/settings/PanelThemeCard';
 import AttendancesStatsCard from '@/components/settings/AttendancesStatsCard';
-import { Palette, MessageSquare } from 'lucide-react';
+import { Palette, MessageSquare, Shield } from 'lucide-react';
 
 
 async function getFunctionsHttpErrorDetails(err: unknown): Promise<{ message?: string; raw?: any } | null> {
@@ -700,7 +701,17 @@ export default function Settings() {
               <span className="hidden sm:inline">Backups</span>
               <span className="sm:hidden">Back.</span>
             </TabsTrigger>
+            <TabsTrigger value="seguranca" className="flex items-center gap-2">
+              <Shield className="w-4 h-4 text-emerald-500" />
+              <span className="hidden sm:inline">Segurança</span>
+              <span className="sm:hidden">Seg.</span>
+            </TabsTrigger>
           </TabsList>
+
+          <TabsContent value="seguranca" className="mt-6">
+            <SecuritySettingsCard />
+          </TabsContent>
+
 
           {isAdmin && (
             <TabsContent value="crm_oficial" className="mt-6 space-y-6">

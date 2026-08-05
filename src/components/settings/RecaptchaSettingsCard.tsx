@@ -153,15 +153,10 @@ export default function RecaptchaSettingsCard() {
           <Switch checked={requireEmailConfirmation} onCheckedChange={setRequireEmailConfirmation} />
         </div>
 
-        <div className="flex items-center justify-between rounded-lg border border-border/60 p-3">
-          <div className="pr-4">
-            <Label className="text-sm font-medium">Autenticação em 2 fatores (por e-mail)</Label>
-            <p className="text-xs text-muted-foreground">
-              A cada login, envia um código de 6 dígitos para o e-mail cadastrado.
-            </p>
-          </div>
-          <Switch checked={twoFactorEnabled} onCheckedChange={setTwoFactorEnabled} />
-        </div>
+        <p className="text-[11px] text-muted-foreground">
+          A autenticação em 2 fatores agora é gerenciada por cada revenda em Configurações → Segurança.
+        </p>
+
 
         <div className="space-y-1.5 rounded-lg border border-border/60 p-3">
           <Label className="text-sm font-medium">Dias grátis ao criar conta</Label>
