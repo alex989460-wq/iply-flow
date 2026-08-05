@@ -394,11 +394,20 @@ export default function ResellerCheckout() {
               Plano selecionado: <span className="font-bold text-white">{durationLabel(group.duration_days)} — {group.screens} tela{group.screens>1?'s':''}</span>
             </p>
           )}
-          <p className="text-sm text-white/60">Digite o número de telefone cadastrado na sua conta:</p>
+          <p className="text-sm text-white/60">Selecione o país e digite o número cadastrado na sua conta:</p>
           <div className="flex gap-2">
-            <div className="px-3 flex items-center gap-1 rounded-md bg-[#0d0d0d] border border-white/10 text-sm">
-              🇧🇷 <span className="text-white/70">+55</span>
-            </div>
+            <select
+              value={ddi}
+              onChange={(e) => setDdi(e.target.value)}
+              className="h-11 px-2 rounded-md bg-[#0d0d0d] border border-white/10 text-white text-sm max-w-[7.5rem]"
+              aria-label="Código do país (DDI)"
+            >
+              {COUNTRIES.map((c) => (
+                <option key={c.code + c.ddi} value={c.ddi} className="bg-[#0d0d0d]">
+                  {c.flag} +{c.ddi}
+                </option>
+              ))}
+            </select>
             <Input
               inputMode="tel"
               placeholder="Seu número"
