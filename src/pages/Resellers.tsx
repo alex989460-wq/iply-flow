@@ -279,7 +279,7 @@ export default function Resellers() {
       queryClient.invalidateQueries({ queryKey: ['my-reseller-access'] });
       toast({
         title: "Revendedor cadastrado",
-        description: isAdmin ? "Novo revendedor criado com sucesso!" : "Sub-revendedor criado (créditos debitados).",
+        description: isAdmin ? "Novo revendedor criado com sucesso!" : "Sub-revendedor criado com os dias de teste.",
       });
       setIsCreateDialogOpen(false);
       setCreateForm({ full_name: "", email: "", password: "" });
