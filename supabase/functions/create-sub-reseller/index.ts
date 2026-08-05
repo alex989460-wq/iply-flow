@@ -51,9 +51,9 @@ Deno.serve(async (req) => {
     });
 
     // Parse request body
-    const { email, password, full_name, credits_to_use } = await req.json();
+    const { email, password, full_name } = await req.json();
 
-    if (!email || !password || !full_name || !credits_to_use) {
+    if (!email || !password || !full_name) {
       throw new Error("Todos os campos são obrigatórios");
     }
 
@@ -61,19 +61,22 @@ Deno.serve(async (req) => {
       throw new Error("Senha deve ter no mínimo 6 caracteres");
     }
 
-    const creditsNeeded = parseInt(credits_to_use);
-    if (isNaN(creditsNeeded) || creditsNeeded < 1) {
-      throw new Error("Créditos inválidos");
-    }
+    // Novos sub-revendedores são criados com os dias grátis (teste) configurados
+    // globalmente pelo admin. Nenhum crédito é debitado do revendedor pai.
+    const { data: settings } = await supabaseAdmin
+      .from('platform_settings')
+      .select('trial_days')
+      .is('user_id', null)
+      .order('created_at', { ascending: true })
+      .limit(1)
+      .maybeSingle();
 
-    // If not admin, check credits BEFORE creating user
-    let parentAccessId: string | null = null;
-    let parentCredits = 0;
-    
+    const trialDays = Math.max(1, Number(settings?.trial_days) || 7);
+
     if (!isAdmin) {
       const { data: parentAccess, error: parentError } = await supabaseAdmin
         .from('reseller_access')
-        .select('id, credits')
+        .select('id')
         .eq('user_id', currentUserId)
         .single();
 
@@ -81,13 +84,6 @@ Deno.serve(async (req) => {
         console.error("Error fetching parent access:", parentError);
         throw new Error("Você não possui acesso de revendedor");
       }
-
-      if (parentAccess.credits < creditsNeeded) {
-        throw new Error(`Créditos insuficientes. Você tem ${parentAccess.credits} créditos, mas precisa de ${creditsNeeded}`);
-      }
-
-      parentAccessId = parentAccess.id;
-      parentCredits = parentAccess.credits;
     }
 
     // Create user in auth.users
@@ -114,24 +110,9 @@ Deno.serve(async (req) => {
 
     const newUserId = userData.user.id;
 
-    // Now deduct credits (after user creation succeeded)
-    if (!isAdmin && parentAccessId) {
-      const { error: deductError } = await supabaseAdmin
-        .from('reseller_access')
-        .update({ credits: parentCredits - creditsNeeded })
-        .eq('id', parentAccessId);
-
-      if (deductError) {
-        console.error("Error deducting credits:", deductError);
-        // Rollback: delete the created user
-        await supabaseAdmin.auth.admin.deleteUser(newUserId);
-        throw new Error("Erro ao deduzir créditos");
-      }
-    }
-
-    // Calculate expiration date based on credits (1 credit = 30 days)
+    // Expiração = dias grátis configurados pelo admin
     const expirationDate = new Date();
-    expirationDate.setDate(expirationDate.getDate() + (creditsNeeded * 30));
+    expirationDate.setDate(expirationDate.getDate() + trialDays);
 
     // Wait a moment for triggers to fire
     await new Promise(resolve => setTimeout(resolve, 500));

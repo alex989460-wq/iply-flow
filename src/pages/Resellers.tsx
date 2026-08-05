@@ -265,9 +265,7 @@ export default function Resellers() {
       password: string;
     }) => {
       const fnName = isAdmin ? 'create-reseller' : 'create-sub-reseller';
-      const body = isAdmin
-        ? { email: data.email, password: data.password, full_name: data.full_name }
-        : { email: data.email, password: data.password, full_name: data.full_name, credits_to_use: 1 };
+      const body = { email: data.email, password: data.password, full_name: data.full_name };
       const { data: result, error: fnError } = await supabase.functions.invoke(fnName, { body });
       if (fnError) {
         const message = result?.error || fnError.message || 'Erro ao criar revendedor';
@@ -281,7 +279,7 @@ export default function Resellers() {
       queryClient.invalidateQueries({ queryKey: ['my-reseller-access'] });
       toast({
         title: "Revendedor cadastrado",
-        description: isAdmin ? "Novo revendedor criado com sucesso!" : "Sub-revendedor criado (créditos debitados).",
+        description: isAdmin ? "Novo revendedor criado com sucesso!" : "Sub-revendedor criado com os dias de teste.",
       });
       setIsCreateDialogOpen(false);
       setCreateForm({ full_name: "", email: "", password: "" });
