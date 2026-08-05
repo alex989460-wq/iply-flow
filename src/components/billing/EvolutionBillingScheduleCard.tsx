@@ -12,6 +12,31 @@ import { Clock, Save, Loader2, Zap, Timer, AlertTriangle, Send, FileText } from 
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { offsetLabel, type BillingTemplate } from './EvolutionBillingTemplatesCard';
+import { Progress } from '@/components/ui/progress';
+
+function etaLabel(remaining: number, avgSeconds = 25) {
+  const secs = remaining * avgSeconds;
+  if (secs < 60) return `${secs}s`;
+  const mins = Math.round(secs / 60);
+  return mins < 60 ? `${mins} min` : `${(mins / 60).toFixed(1)} h`;
+}
+
+function parseProgress(schedule: { last_run_status: string | null; last_run_at: string | null } | null | undefined) {
+  const status = schedule?.last_run_status || '';
+  const running = status.startsWith('in_progress');
+  const stalled =
+    running && !!schedule?.last_run_at && Date.now() - new Date(schedule.last_run_at).getTime() > 3 * 60 * 1000;
+
+  const sent = Number(status.match(/lote (\d+) enviadas/)?.[1] ?? 0);
+  const remaining = Number(status.match(/(\d+) restantes/)?.[1] ?? 0);
+  const pendentes = Number(status.match(/in_progress: (\d+) pendentes/)?.[1] ?? 0);
+
+  const total = remaining || sent ? sent + remaining : pendentes;
+  const done = total ? total - remaining : 0;
+  const percent = total ? Math.min(100, Math.round((done / total) * 100)) : 0;
+
+  return { running, stalled, total, done, remaining, percent };
+}
 
 interface EvoSchedule {
   id: string;
