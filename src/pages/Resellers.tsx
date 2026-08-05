@@ -49,7 +49,6 @@ const createSchema = z.object({
   full_name: z.string().min(2, "Nome deve ter no mínimo 2 caracteres").max(100),
   email: z.string().email("Email inválido").max(255),
   password: z.string().min(6, "Senha deve ter no mínimo 6 caracteres"),
-  access_days: z.number().min(1, "Mínimo de 1 dia"),
 });
 
 export default function Resellers() {
@@ -75,7 +74,6 @@ export default function Resellers() {
     full_name: "",
     email: "",
     password: "",
-    access_days: "0", // Will be set by useEffect
   });
   const [editErrors, setEditErrors] = useState<Record<string, string>>({});
   const [createErrors, setCreateErrors] = useState<Record<string, string>>({});
@@ -135,13 +133,6 @@ export default function Resellers() {
       return data;
     },
   });
-
-  useEffect(() => {
-    setCreateForm(prev => ({
-      ...prev,
-      access_days: String(platformSettings?.trial_days || 7)
-    }));
-  }, [platformSettings]);
 
   const renewMutation = useMutation({
     mutationFn: async ({ id, days }: { id: string; days: number }) => {
@@ -275,14 +266,16 @@ export default function Resellers() {
       full_name: string; 
       email: string; 
       password: string;
-      access_days: number;
     }) => {
       const fnName = isAdmin ? 'create-reseller' : 'create-sub-reseller';
       const body = isAdmin
-        ? { email: data.email, password: data.password, full_name: data.full_name, access_days: data.access_days }
-        : { email: data.email, password: data.password, full_name: data.full_name, credits_to_use: Math.max(1, Math.ceil(data.access_days / 30)) };
+        ? { email: data.email, password: data.password, full_name: data.full_name }
+        : { email: data.email, password: data.password, full_name: data.full_name, credits_to_use: 1 };
       const { data: result, error: fnError } = await supabase.functions.invoke(fnName, { body });
-      if (fnError) throw fnError;
+      if (fnError) {
+        const message = result?.error || fnError.message || 'Erro ao criar revendedor';
+        throw new Error(message === '{}' ? 'Não foi possível criar a conta. Tente novamente.' : message);
+      }
       if (!result?.success) throw new Error(result?.error || 'Erro ao criar revendedor');
       return result;
     },
@@ -294,7 +287,7 @@ export default function Resellers() {
         description: isAdmin ? "Novo revendedor criado com sucesso!" : "Sub-revendedor criado (créditos debitados).",
       });
       setIsCreateDialogOpen(false);
-      setCreateForm({ full_name: "", email: "", password: "", access_days: String(platformSettings?.trial_days || 7) });
+      setCreateForm({ full_name: "", email: "", password: "" });
       setCreateErrors({});
     },
     onError: (error) => {
@@ -444,7 +437,6 @@ export default function Resellers() {
         full_name: createForm.full_name,
         email: createForm.email,
         password: createForm.password,
-        access_days: parseInt(createForm.access_days),
       });
       setCreateErrors({});
       return true;
@@ -469,7 +461,6 @@ export default function Resellers() {
       full_name: createForm.full_name,
       email: createForm.email,
       password: createForm.password,
-      access_days: parseInt(createForm.access_days),
     });
   };
 
@@ -1163,17 +1154,6 @@ export default function Resellers() {
                 </p>
               </div>
 
-              <div className="rounded-lg border border-border/60 p-3">
-                <p className="text-sm font-medium">
-                  Período de teste: {createForm.access_days || platformSettings?.trial_days || 7} dias
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  Aplicado automaticamente conforme a configuração global "Dias grátis ao criar conta".
-                </p>
-                {createErrors.access_days && (
-                  <p className="text-destructive text-sm mt-1">{createErrors.access_days}</p>
-                )}
-              </div>
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
