@@ -131,11 +131,13 @@ Deno.serve(async (req) => {
     // Cron resumes the same schedule across ticks until done.
     const toRun = (schedules || []).filter((s: any) => {
       if (force) return true;
+      const status = typeof s.last_run_status === 'string' ? s.last_run_status : '';
+      // Um lote iniciado deve continuar em qualquer horário até terminar.
+      if (status.startsWith('in_progress')) return true;
       const [sh, sm] = String(s.send_time).substring(0, 5).split(':').map(Number);
       const sendMin = sh * 60 + sm;
       if (currentMinutes < sendMin) return false;
       if (currentMinutes > sendMin + 360) return false;
-      const status = typeof s.last_run_status === 'string' ? s.last_run_status : '';
       if (s.last_run_at && status.startsWith('completed:')) {
         const last = new Date(s.last_run_at);
         const lastSP = new Intl.DateTimeFormat('en-CA', {
@@ -261,13 +263,26 @@ Deno.serve(async (req) => {
 
       // Pre-fetch today's billing_logs (apenas dos clientes deste usuário) para retomar entre execuções
       const customerIds = (customers || []).map((c: any) => c.id);
+      // Uma execução pode ser encerrada depois de reservar um destinatário e antes de
+      // concluir a chamada externa. Libera reservas órfãs para que a retomada tente de novo.
+      if (customerIds.length) {
+        await supabase
+          .from('billing_logs')
+          .update({ whatsapp_status: 'error', message: '[Evolution] reserva interrompida; aguardando nova tentativa' })
+          .in('customer_id', customerIds)
+          .eq('provider', 'evolution')
+          .eq('whatsapp_status', 'pending')
+          .eq('sent_date_br', today)
+          .lt('sent_at', new Date(Date.now() - 3 * 60 * 1000).toISOString());
+      }
       const { data: existingLogs } = customerIds.length
         ? await supabase
             .from('billing_logs')
             .select('customer_id, billing_type')
             .in('customer_id', customerIds)
-            .gte('sent_at', `${today}T00:00:00`)
-            .lte('sent_at', `${today}T23:59:59`)
+            .eq('provider', 'evolution')
+            .in('whatsapp_status', ['sent', 'pending'])
+            .eq('sent_date_br', today)
         : { data: [] as any[] };
       const alreadyDone = new Set((existingLogs || []).map((l: any) => `${l.customer_id}|${l.billing_type}`));
 
@@ -281,6 +296,7 @@ Deno.serve(async (req) => {
       }
 
       const totalPending = list.length;
+      const runTotal = alreadyDone.size + totalPending;
       const batch = list.slice(0, BATCH_SIZE);
       console.log(`[evo-billing] user ${sched.user_id}: ${totalPending} pendentes, processando ${batch.length}`);
 
@@ -289,7 +305,7 @@ Deno.serve(async (req) => {
         .from('evolution_billing_schedule')
         .update({
           last_run_at: new Date().toISOString(),
-          last_run_status: `processing: ${totalPending} pendentes`,
+          last_run_status: `processing: total ${runTotal}, enviados ${alreadyDone.size}, restantes ${totalPending}`,
         })
         .eq('id', sched.id);
 
@@ -298,7 +314,6 @@ Deno.serve(async (req) => {
 
 
       let sent = 0, errors = 0;
-      let processed = 0;
       // Edge functions são encerradas após ~150s ociosos: paramos antes disso e o cron continua o restante
       const RUN_DEADLINE_MS = 110_000;
       const runStartedAt = Date.now();
@@ -362,6 +377,7 @@ Deno.serve(async (req) => {
             billing_type: c.billingType,
             message: `[Evolution] [${phone}] reservando envio...`,
             whatsapp_status: 'pending',
+            provider: 'evolution',
           })
           .select('id')
           .single();
@@ -396,7 +412,14 @@ Deno.serve(async (req) => {
           }).eq('id', reservation.id);
         }
 
-        processed++;
+        const remainingNow = Math.max(0, totalPending - sent);
+        await supabase
+          .from('evolution_billing_schedule')
+          .update({
+            last_run_at: new Date().toISOString(),
+            last_run_status: `processing: total ${runTotal}, enviados ${alreadyDone.size + sent}, restantes ${remainingNow}`,
+          })
+          .eq('id', sched.id);
 
         if (i < batch.length - 1 && Date.now() - runStartedAt < RUN_DEADLINE_MS) {
           const delay = Math.floor(Math.random() * (maxDelay - minDelay + 1)) + minDelay;
@@ -404,7 +427,9 @@ Deno.serve(async (req) => {
         }
       }
 
-      const remaining = Math.max(0, totalPending - processed);
+      // Falhas continuam pendentes e serão tentadas novamente no próximo ciclo.
+      // Somente um envio confirmado pode reduzir o contador restante.
+      const remaining = Math.max(0, totalPending - sent);
       const { data: finalSchedule } = await supabase
         .from('evolution_billing_schedule')
         .select('last_run_status')
@@ -414,8 +439,8 @@ Deno.serve(async (req) => {
 
       if (!wasCancelled) {
         const status = remaining > 0
-          ? `in_progress: lote ${sent} enviadas / ${remaining} restantes`
-          : `completed: ${sent} enviadas, ${errors} erros nesta execução`;
+          ? `in_progress: total ${runTotal}, enviados ${alreadyDone.size + sent}, restantes ${remaining}${errors ? `, erros ${errors}` : ''}`
+          : `completed: total ${runTotal}, enviados ${runTotal}, restantes 0`;
 
         await supabase
           .from('evolution_billing_schedule')
