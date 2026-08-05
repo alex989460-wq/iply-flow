@@ -199,7 +199,11 @@ Deno.serve(async (req) => {
       JSON.stringify({ 
         success: true, 
         user_id: newUserId,
-        message: "Sub-revendedor criado com sucesso" 
+        email_confirmation_required: requireEmailConfirmation,
+        email_confirmation_sent: emailConfirmationSent,
+        message: requireEmailConfirmation
+          ? "Sub-revendedor criado. Código de ativação enviado por e-mail."
+          : "Sub-revendedor criado com sucesso" 
       }),
       { 
         headers: { ...corsHeaders, "Content-Type": "application/json" },
