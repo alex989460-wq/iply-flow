@@ -62,6 +62,35 @@ function groupPlans(raw: any[]): PlanGroup[] {
   return Array.from(groups.values()).sort((a, b) => a.screens - b.screens || a.duration_days - b.duration_days);
 }
 
+const COUNTRIES = [
+  { code: 'BR', flag: '🇧🇷', ddi: '55' },
+  { code: 'PT', flag: '🇵🇹', ddi: '351' },
+  { code: 'US', flag: '🇺🇸', ddi: '1' },
+  { code: 'ES', flag: '🇪🇸', ddi: '34' },
+  { code: 'IT', flag: '🇮🇹', ddi: '39' },
+  { code: 'FR', flag: '🇫🇷', ddi: '33' },
+  { code: 'DE', flag: '🇩🇪', ddi: '49' },
+  { code: 'GB', flag: '🇬🇧', ddi: '44' },
+  { code: 'CH', flag: '🇨🇭', ddi: '41' },
+  { code: 'BE', flag: '🇧🇪', ddi: '32' },
+  { code: 'NL', flag: '🇳🇱', ddi: '31' },
+  { code: 'IE', flag: '🇮🇪', ddi: '353' },
+  { code: 'AR', flag: '🇦🇷', ddi: '54' },
+  { code: 'CL', flag: '🇨🇱', ddi: '56' },
+  { code: 'CO', flag: '🇨🇴', ddi: '57' },
+  { code: 'MX', flag: '🇲🇽', ddi: '52' },
+  { code: 'PE', flag: '🇵🇪', ddi: '51' },
+  { code: 'PY', flag: '🇵🇾', ddi: '595' },
+  { code: 'UY', flag: '🇺🇾', ddi: '598' },
+  { code: 'BO', flag: '🇧🇴', ddi: '591' },
+  { code: 'VE', flag: '🇻🇪', ddi: '58' },
+  { code: 'EC', flag: '🇪🇨', ddi: '593' },
+  { code: 'JP', flag: '🇯🇵', ddi: '81' },
+  { code: 'AU', flag: '🇦🇺', ddi: '61' },
+  { code: 'AE', flag: '🇦🇪', ddi: '971' },
+  { code: 'CN', flag: '🇨🇳', ddi: '86' },
+];
+
 export default function ResellerCheckout() {
   const { slug } = useParams<{ slug: string }>();
   const [data, setData] = useState<CheckoutData | null>(null);
@@ -72,6 +101,7 @@ export default function ResellerCheckout() {
   const [group, setGroup] = useState<PlanGroup | null>(null);
 
   const [phone, setPhone] = useState('');
+  const [ddi, setDdi] = useState('55');
   const [searching, setSearching] = useState(false);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -143,10 +173,12 @@ export default function ResellerCheckout() {
     if (!phone.trim()) { toast.error('Informe seu telefone'); return; }
     setSearching(true);
     try {
+      const local = phone.replace(/\D/g, '').replace(new RegExp(`^${ddi}`), '');
+      const fullPhone = `${ddi}${local}`;
       const res = await fetch(`${FN_BASE}/reseller-checkout-lookup`, {
         method: 'POST',
         headers: { apikey: ANON, Authorization: `Bearer ${ANON}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ slug, phone }),
+        body: JSON.stringify({ slug, phone: fullPhone }),
       });
       const j = await res.json();
       if (!res.ok) throw new Error(j.error || 'Falha');
@@ -394,11 +426,20 @@ export default function ResellerCheckout() {
               Plano selecionado: <span className="font-bold text-white">{durationLabel(group.duration_days)} — {group.screens} tela{group.screens>1?'s':''}</span>
             </p>
           )}
-          <p className="text-sm text-white/60">Digite o número de telefone cadastrado na sua conta:</p>
+          <p className="text-sm text-white/60">Selecione o país e digite o número cadastrado na sua conta:</p>
           <div className="flex gap-2">
-            <div className="px-3 flex items-center gap-1 rounded-md bg-[#0d0d0d] border border-white/10 text-sm">
-              🇧🇷 <span className="text-white/70">+55</span>
-            </div>
+            <select
+              value={ddi}
+              onChange={(e) => setDdi(e.target.value)}
+              className="h-11 px-2 rounded-md bg-[#0d0d0d] border border-white/10 text-white text-sm max-w-[7.5rem]"
+              aria-label="Código do país (DDI)"
+            >
+              {COUNTRIES.map((c) => (
+                <option key={c.code + c.ddi} value={c.ddi} className="bg-[#0d0d0d]">
+                  {c.flag} +{c.ddi}
+                </option>
+              ))}
+            </select>
             <Input
               inputMode="tel"
               placeholder="Seu número"
