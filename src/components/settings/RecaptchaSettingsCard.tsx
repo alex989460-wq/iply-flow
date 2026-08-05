@@ -14,7 +14,8 @@ export default function RecaptchaSettingsCard() {
   const [saving, setSaving] = useState(false);
   const [enabled, setEnabled] = useState(false);
   const [siteKey, setSiteKey] = useState('');
-  const [trialDays, setTrialDays] = useState('30');
+  const [trialDays, setTrialDays] = useState('7');
+  const [settingsId, setSettingsId] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
