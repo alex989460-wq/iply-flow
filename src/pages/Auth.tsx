@@ -170,7 +170,7 @@ export default function Auth() {
               : msg,
             variant: 'destructive',
           });
-        } else if (twoFactorEnabled) {
+        } else if (await isTwoFactorRequiredForCurrentUser()) {
           // Senha validada: encerra a sessão e exige o código enviado por e-mail.
           await supabase.auth.signOut();
           const { data: sendData, error: sendError } = await supabase.functions.invoke('auth-security', {
