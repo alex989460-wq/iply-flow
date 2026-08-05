@@ -44,15 +44,10 @@ function isPreviewEnvironment(): boolean {
 export async function fetchTurnstileConfig(): Promise<TurnstileConfig> {
   if (isPreviewEnvironment()) return { enabled: false, siteKey: null };
   try {
-    const { data } = await supabase
-      .from('platform_settings')
-      .select('recaptcha_enabled, recaptcha_site_key')
-      .maybeSingle();
-
-
+    const { data } = await supabase.functions.invoke('auth-security', { body: { action: 'config' } });
     return {
-      enabled: Boolean(data?.recaptcha_enabled && data?.recaptcha_site_key),
-      siteKey: data?.recaptcha_site_key ?? null,
+      enabled: Boolean(data?.turnstile?.enabled),
+      siteKey: data?.turnstile?.siteKey ?? null,
     };
   } catch {
     return { enabled: false, siteKey: null };

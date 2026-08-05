@@ -24,8 +24,10 @@ Deno.serve(async (req) => {
 
     const { data: settings } = await supabase
       .from('platform_settings')
-      .select('recaptcha_enabled')
-      .eq('singleton', true)
+      .select('recaptcha_enabled, recaptcha_secret_key')
+      .is('user_id', null)
+      .order('created_at', { ascending: true })
+      .limit(1)
       .maybeSingle();
 
     // Desativado no painel admin: libera.
@@ -33,7 +35,7 @@ Deno.serve(async (req) => {
       return json({ success: true, skipped: true, reason: 'disabled' });
     }
 
-    const secret = Deno.env.get('TURNSTILE_SECRET_KEY') ?? '';
+    const secret = (settings?.recaptcha_secret_key ?? '').trim() || (Deno.env.get('TURNSTILE_SECRET_KEY') ?? '');
     if (!secret) {
       return json({ success: false, error: 'Cloudflare Turnstile não configurado no servidor.' }, 503);
     }
