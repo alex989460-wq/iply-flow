@@ -65,13 +65,14 @@ Deno.serve(async (req) => {
     // globalmente pelo admin. Nenhum crédito é debitado do revendedor pai.
     const { data: settings } = await supabaseAdmin
       .from('platform_settings')
-      .select('trial_days')
+      .select('trial_days, require_email_confirmation')
       .is('user_id', null)
       .order('created_at', { ascending: true })
       .limit(1)
       .maybeSingle();
 
     const trialDays = Math.max(1, Number(settings?.trial_days) || 7);
+    const requireEmailConfirmation = Boolean(settings?.require_email_confirmation);
 
     if (!isAdmin) {
       const { data: parentAccess, error: parentError } = await supabaseAdmin
@@ -90,7 +91,7 @@ Deno.serve(async (req) => {
     const { data: userData, error: createUserError } = await supabaseAdmin.auth.admin.createUser({
       email,
       password,
-      email_confirm: true,
+      email_confirm: !requireEmailConfirmation,
       user_metadata: {
         full_name,
       },
@@ -151,6 +152,25 @@ Deno.serve(async (req) => {
 
     console.log("Sub-reseller created successfully:", newUserId);
 
+    // --- Confirmação de e-mail (código de ativação) ---
+    let emailConfirmationSent = false;
+    if (requireEmailConfirmation) {
+      try {
+        const resp = await fetch(`${supabaseUrl}/functions/v1/auth-security`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${serviceRoleKey}` },
+          body: JSON.stringify({ action: "send-code", email, purpose: "activation" }),
+        });
+        const respBody = await resp.json().catch(() => ({}));
+        emailConfirmationSent = respBody?.success === true;
+        if (!emailConfirmationSent) console.error("Activation email not sent:", respBody);
+      } catch (mailErr) {
+        console.error("Activation email failed:", mailErr);
+      }
+    }
+
+
+
     // --- Integração CRM Oficial (não-bloqueante, respeita settings do parent) ---
     try {
       const { data: crmCfg } = await supabaseAdmin
@@ -179,7 +199,11 @@ Deno.serve(async (req) => {
       JSON.stringify({ 
         success: true, 
         user_id: newUserId,
-        message: "Sub-revendedor criado com sucesso" 
+        email_confirmation_required: requireEmailConfirmation,
+        email_confirmation_sent: emailConfirmationSent,
+        message: requireEmailConfirmation
+          ? "Sub-revendedor criado. Código de ativação enviado por e-mail."
+          : "Sub-revendedor criado com sucesso" 
       }),
       { 
         headers: { ...corsHeaders, "Content-Type": "application/json" },
