@@ -35,10 +35,18 @@ export default function Auth() {
   const [redeemCode, setRedeemCode] = useState('');
   const [redeeming, setRedeeming] = useState(false);
   const [turnstile, setTurnstile] = useState<TurnstileConfig>({ enabled: false, siteKey: null });
+  const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
+  const [twoFactorStep, setTwoFactorStep] = useState(false);
+  const [otpCode, setOtpCode] = useState('');
+  const [otpLoading, setOtpLoading] = useState(false);
   const turnstileContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     fetchTurnstileConfig().then(setTurnstile);
+    supabase.functions
+      .invoke('auth-security', { body: { action: 'config' } })
+      .then(({ data }) => setTwoFactorEnabled(Boolean(data?.twoFactorEnabled)))
+      .catch(() => setTwoFactorEnabled(false));
   }, []);
 
 
@@ -147,6 +155,23 @@ export default function Auth() {
               : result.error.message,
             variant: 'destructive',
           });
+        } else if (twoFactorEnabled) {
+          // Senha validada: encerra a sessão e exige o código enviado por e-mail.
+          await supabase.auth.signOut();
+          const { data: sendData, error: sendError } = await supabase.functions.invoke('auth-security', {
+            body: { action: 'send-code', email, purpose: 'login' },
+          });
+          if (sendError || sendData?.success === false) {
+            toast({
+              title: 'Não foi possível enviar o código',
+              description: sendData?.error || 'Tente novamente em instantes.',
+              variant: 'destructive',
+            });
+            return;
+          }
+          setOtpCode('');
+          setTwoFactorStep(true);
+          toast({ title: 'Código enviado', description: `Enviamos um código de 6 dígitos para ${email}.` });
         } else {
           const { data: { user: currentUser } } = await supabase.auth.getUser();
           if (currentUser) {
@@ -189,6 +214,54 @@ export default function Auth() {
     }
   };
 
+
+  const finishLoginAfterCode = async () => {
+    setOtpLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('auth-security', {
+        body: { action: 'verify-code', email, code: otpCode, purpose: 'login' },
+      });
+      if (error || data?.success === false) {
+        toast({
+          title: 'Código inválido',
+          description: data?.error || 'Confira o código recebido por e-mail.',
+          variant: 'destructive',
+        });
+        return;
+      }
+      const result = await signIn(email, password);
+      if (result.accessDenied) {
+        setTwoFactorStep(false);
+        setAccessDeniedMessage(result.accessDeniedMessage || 'Acesso negado');
+        return;
+      }
+      if (result.error) {
+        toast({ title: 'Erro ao entrar', description: result.error.message, variant: 'destructive' });
+        return;
+      }
+      setTwoFactorStep(false);
+      toast({ title: 'Bem-vindo!', description: 'Login verificado com sucesso.' });
+      navigate('/dashboard');
+    } finally {
+      setOtpLoading(false);
+    }
+  };
+
+  const resendCode = async () => {
+    setOtpLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('auth-security', {
+        body: { action: 'send-code', email, purpose: 'login' },
+      });
+      if (error || data?.success === false) {
+        toast({ title: 'Não foi possível reenviar', description: data?.error || 'Tente novamente.', variant: 'destructive' });
+        return;
+      }
+      toast({ title: 'Código reenviado', description: `Verifique a caixa de entrada de ${email}.` });
+    } finally {
+      setOtpLoading(false);
+    }
+  };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background relative overflow-hidden">
@@ -246,6 +319,45 @@ export default function Auth() {
             </>
           )}
 
+          {twoFactorStep ? (
+            <div className="space-y-5">
+              <div className="text-center space-y-1">
+                <ShieldCheck className="w-8 h-8 text-amber-500 mx-auto" />
+                <h2 className="text-lg font-semibold text-foreground">Verificação em duas etapas</h2>
+                <p className="text-sm text-muted-foreground">
+                  Digite o código de 6 dígitos enviado para <span className="text-foreground">{email}</span>.
+                </p>
+              </div>
+              <Input
+                inputMode="numeric"
+                maxLength={6}
+                placeholder="000000"
+                value={otpCode}
+                onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                className="h-14 text-center text-2xl tracking-[0.5em] bg-secondary/50 border-border/50 rounded-xl"
+              />
+              <Button
+                type="button"
+                onClick={finishLoginAfterCode}
+                disabled={otpLoading || otpCode.length !== 6}
+                className="w-full h-12 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-background font-semibold rounded-xl"
+              >
+                {otpLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Confirmar código'}
+              </Button>
+              <div className="flex items-center justify-between text-xs">
+                <button type="button" onClick={resendCode} disabled={otpLoading} className="text-amber-500 hover:underline">
+                  Reenviar código
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setTwoFactorStep(false); setOtpCode(''); }}
+                  className="text-muted-foreground hover:underline"
+                >
+                  Voltar
+                </button>
+              </div>
+            </div>
+          ) : (
           <form onSubmit={handleSubmit} className="space-y-5">
             {!isLogin && (
               <div className="space-y-2">
@@ -353,8 +465,9 @@ export default function Auth() {
               <div ref={turnstileContainerRef} className="flex min-h-1 justify-center" aria-label="Verificação Cloudflare Turnstile" />
             )}
           </form>
+          )}
 
-          {!isLogin && (
+          {!isLogin && !twoFactorStep && (
             <div className="mt-4 p-3 bg-destructive/10 border border-destructive/20 rounded-xl">
               <p className="text-xs text-destructive text-center">
                 A criação direta de contas está desativada. Entre em contato com um administrador ou revendedor para obter seu acesso.
