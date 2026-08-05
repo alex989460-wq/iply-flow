@@ -114,6 +114,23 @@ export default function Auth() {
     }
   };
 
+  // 2FA é opcional e definido por cada conta em Configurações → Segurança.
+  const isTwoFactorRequiredForCurrentUser = async () => {
+    try {
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      if (!currentUser) return false;
+      const { data } = await supabase
+        .from('platform_settings')
+        .select('two_factor_enabled')
+        .eq('user_id', currentUser.id)
+        .maybeSingle();
+      return Boolean(data?.two_factor_enabled);
+    } catch {
+      return false;
+    }
+  };
+
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setAccessDeniedMessage(null);
