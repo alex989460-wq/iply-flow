@@ -185,7 +185,10 @@ export function EvolutionBillingTemplatesCard() {
             <code>{'{{nome}}'}</code>, <code>{'{{vencimento}}'}</code>, <code>{'{{telefone}}'}</code>,{' '}
             <code>{'{{valor}}'}</code>, <code>{'{{usuario}}'}</code>, <code>{'{{plano}}'}</code>,{' '}
             <code>{'{{status}}'}</code>, <code>{'{{telas}}'}</code>, <code>{'{{servidor}}'}</code>,{' '}
-            <code>{'{{link}}'}</code>
+            <code>{'{{link}}'}</code>. Aliases: <code>{'{{name}}'}</code>, <code>{'{{user}}'}</code>,{' '}
+            <code>{'{{price}}'}</code> (sem R$), <code>{'{{weak}}'}</code>, <code>{'{{serv}}'}</code>,{' '}
+            <code>{'{{data}}'}</code>
+
           </p>
         </div>
 

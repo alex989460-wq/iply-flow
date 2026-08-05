@@ -321,6 +321,13 @@ Deno.serve(async (req) => {
           servidor: c.server?.server_name || '-',
           link: rule.button_url || '',
         };
+        // Aliases em inglês/abreviados
+        vars.name = vars.nome;
+        vars.user = vars.usuario;
+        vars.price = Number(price).toFixed(2);
+        vars.weak = vars.plano;
+        vars.serv = vars.servidor;
+        vars.data = vars.vencimento;
         let text = renderTemplate(tpl, vars);
 
         if (rule.button_enabled && rule.button_url) {
