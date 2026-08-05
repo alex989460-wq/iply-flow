@@ -54,7 +54,7 @@ Deno.serve(async (req) => {
 
     const { data: platformSettings, error: settingsError } = await supabaseAdmin
       .from('platform_settings')
-      .select('trial_days')
+      .select('trial_days, require_email_confirmation')
       .is('user_id', null)
       .order('created_at', { ascending: true })
       .limit(1)
@@ -67,11 +67,13 @@ Deno.serve(async (req) => {
 
     const accessDays = Math.max(0, Number(platformSettings?.trial_days ?? 7));
 
+    const requireEmailConfirmation = Boolean(platformSettings?.require_email_confirmation);
+
     // Create user in auth.users
     const { data: userData, error: createUserError } = await supabaseAdmin.auth.admin.createUser({
       email,
       password,
-      email_confirm: true,
+      email_confirm: !requireEmailConfirmation,
       user_metadata: {
         full_name,
       },
@@ -133,7 +135,25 @@ Deno.serve(async (req) => {
       }
     }
 
-    // --- Integração CRM Oficial (não-bloqueante, respeita settings do admin) ---
+    // --- Confirmação de e-mail (código de ativação) ---
+    let emailConfirmationSent = false;
+    if (requireEmailConfirmation) {
+      try {
+        const resp = await fetch(`${supabaseUrl}/functions/v1/auth-security`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${serviceRoleKey}` },
+          body: JSON.stringify({ action: "send-code", email, purpose: "activation" }),
+        });
+        const respBody = await resp.json().catch(() => ({}));
+        emailConfirmationSent = respBody?.success === true;
+      } catch (mailErr) {
+        console.error("Activation email failed:", mailErr);
+      }
+    }
+
+    // --- Integração CRM Oficial (não-bloqueante) ---
+    let crmCreated = false;
+    let crmError: string | null = null;
     try {
       const { data: callerUser } = await supabaseClient.auth.getUser();
       const callerId = callerUser?.user?.id;
@@ -146,8 +166,13 @@ Deno.serve(async (req) => {
         if (crmCfg?.enabled && crmCfg.api_key) {
           const crmUrl = `${supabaseUrl}/functions/v1/crm-oficial-sync`;
           const headers = { "Content-Type": "application/json", Authorization: `Bearer ${serviceRoleKey}` };
-          if (crmCfg.auto_signup) {
-            await fetch(crmUrl, { method: "POST", headers, body: JSON.stringify({ action: "signup", data: { email, password, full_name, apiKey: crmCfg.api_key } }) });
+          {
+            const crmResp = await fetch(crmUrl, { method: "POST", headers, body: JSON.stringify({ action: "signup", data: { email, password, full_name, apiKey: crmCfg.api_key, local_user_id: userId } }) });
+            const crmBody = await crmResp.json().catch(() => ({}));
+            crmCreated = crmBody?.results?.signup?.ok === true || crmBody?.success === true;
+            if (!crmCreated) {
+              crmError = crmBody?.results?.signup?.body?.error || crmBody?.error || 'Falha ao criar conta no ZapCRM';
+            }
           }
           if (crmCfg.auto_test_chat) {
             const fakePhone = `5500${Date.now().toString().slice(-9)}`;
@@ -157,6 +182,7 @@ Deno.serve(async (req) => {
       }
     } catch (crmErr) {
       console.error("CRM Oficial sync failed (ignored):", crmErr);
+      crmError = (crmErr as Error).message;
     }
 
 
@@ -165,7 +191,12 @@ Deno.serve(async (req) => {
       JSON.stringify({ 
         success: true, 
         user_id: userId,
-        message: "Revendedor criado com sucesso" 
+        crm_created: crmCreated,
+        crm_error: crmError,
+        email_confirmation_sent: emailConfirmationSent,
+        message: requireEmailConfirmation
+          ? "Revendedor criado. Código de ativação enviado por e-mail."
+          : "Revendedor criado com sucesso" 
       }),
       { 
         headers: { ...corsHeaders, "Content-Type": "application/json" },
