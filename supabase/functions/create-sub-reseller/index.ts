@@ -65,13 +65,14 @@ Deno.serve(async (req) => {
     // globalmente pelo admin. Nenhum crédito é debitado do revendedor pai.
     const { data: settings } = await supabaseAdmin
       .from('platform_settings')
-      .select('trial_days')
+      .select('trial_days, require_email_confirmation')
       .is('user_id', null)
       .order('created_at', { ascending: true })
       .limit(1)
       .maybeSingle();
 
     const trialDays = Math.max(1, Number(settings?.trial_days) || 7);
+    const requireEmailConfirmation = Boolean(settings?.require_email_confirmation);
 
     if (!isAdmin) {
       const { data: parentAccess, error: parentError } = await supabaseAdmin
