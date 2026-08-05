@@ -125,9 +125,14 @@ export function EvolutionBillingScheduleCard() {
     },
     onSuccess: (data: any) => {
       const r = data?.results?.[0];
+      const remaining = r?.remaining ?? 0;
       toast({
         title: 'Disparo concluído',
-        description: r ? `${r.sent ?? 0} enviadas, ${r.errors ?? 0} erros` : 'Sem clientes para envio agora.',
+        description: r
+          ? `${r.sent ?? 0} enviadas, ${r.errors ?? 0} erros${remaining > 0 ? ` — ${remaining} restantes, clique novamente para continuar` : ''}`
+          : r?.skipped
+            ? `Ignorado: ${r.skipped}`
+            : 'Sem clientes para envio agora.',
       });
       qc.invalidateQueries({ queryKey: ['evo-billing-schedule'] });
     },

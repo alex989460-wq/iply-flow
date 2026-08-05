@@ -154,7 +154,8 @@ Deno.serve(async (req) => {
       });
     }
 
-    const BATCH_SIZE = 4;
+    // O limite real é o deadline de ~110s por execução; o cron continua o restante a cada minuto
+    const BATCH_SIZE = force ? 20 : 10;
 
     const results: any[] = [];
 
@@ -254,12 +255,16 @@ Deno.serve(async (req) => {
         .eq('created_by', sched.user_id)
         .in('due_date', targetDates);
 
-      // Pre-fetch today's billing_logs to skip customers already processed (resume across cron ticks)
-      const { data: existingLogs } = await supabase
-        .from('billing_logs')
-        .select('customer_id, billing_type')
-        .gte('sent_at', `${today}T00:00:00`)
-        .lte('sent_at', `${today}T23:59:59`);
+      // Pre-fetch today's billing_logs (apenas dos clientes deste usuário) para retomar entre execuções
+      const customerIds = (customers || []).map((c: any) => c.id);
+      const { data: existingLogs } = customerIds.length
+        ? await supabase
+            .from('billing_logs')
+            .select('customer_id, billing_type')
+            .in('customer_id', customerIds)
+            .gte('sent_at', `${today}T00:00:00`)
+            .lte('sent_at', `${today}T23:59:59`)
+        : { data: [] as any[] };
       const alreadyDone = new Set((existingLogs || []).map((l: any) => `${l.customer_id}|${l.billing_type}`));
 
       const list: any[] = [];
@@ -267,7 +272,7 @@ Deno.serve(async (req) => {
         const rule = ruleByDate.get(c.due_date as string);
         if (!rule) continue;
         const bt = billingTypeFor(rule.days_offset);
-        if (alreadyDone.has(`${c.id}|${bt}`)) continue;
+        if (!force && alreadyDone.has(`${c.id}|${bt}`)) continue;
         list.push({ ...c, billingType: bt, rule });
       }
 
@@ -289,8 +294,16 @@ Deno.serve(async (req) => {
 
 
       let sent = 0, errors = 0;
+      let processed = 0;
+      // Edge functions são encerradas após ~150s ociosos: paramos antes disso e o cron continua o restante
+      const RUN_DEADLINE_MS = 110_000;
+      const runStartedAt = Date.now();
 
       for (let i = 0; i < batch.length; i++) {
+        if (Date.now() - runStartedAt > RUN_DEADLINE_MS) {
+          console.log('[evo-billing] deadline atingido, restante continua no próximo ciclo');
+          break;
+        }
         const c = batch[i];
         const rule: Rule = c.rule;
         const tpl = rule.message || 'Olá {{nome}}, sua assinatura vence em {{vencimento}}.';
@@ -329,7 +342,7 @@ Deno.serve(async (req) => {
           .select('id')
           .single();
 
-        if (reserveError) {
+        if (reserveError && !force) {
           // Duplicate (already sent today by another tick) — skip silently
           console.log(`[evo-billing] skip duplicate ${c.name} ${c.billingType}:`, reserveError.message);
           continue;
@@ -352,18 +365,22 @@ Deno.serve(async (req) => {
           console.error(`[evo-billing] exception for ${c.name}:`, e);
         }
 
-        await supabase.from('billing_logs').update({
-          message: `[Evolution] [${phone}] ${text.substring(0, 120)}`,
-          whatsapp_status: result?.ok ? 'sent' : 'error',
-        }).eq('id', reservation.id);
+        if (reservation?.id) {
+          await supabase.from('billing_logs').update({
+            message: `[Evolution] [${phone}] ${text.substring(0, 120)}`,
+            whatsapp_status: result?.ok ? 'sent' : 'error',
+          }).eq('id', reservation.id);
+        }
 
-        if (i < batch.length - 1) {
+        processed++;
+
+        if (i < batch.length - 1 && Date.now() - runStartedAt < RUN_DEADLINE_MS) {
           const delay = Math.floor(Math.random() * (maxDelay - minDelay + 1)) + minDelay;
           await new Promise(r => setTimeout(r, delay));
         }
       }
 
-      const remaining = totalPending - batch.length;
+      const remaining = totalPending - processed;
       const status = remaining > 0
         ? `in_progress: lote ${sent} enviadas / ${remaining} restantes`
         : `completed: ${sent} enviadas, ${errors} erros nesta execução`;
