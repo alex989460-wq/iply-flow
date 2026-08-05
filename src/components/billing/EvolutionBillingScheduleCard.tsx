@@ -73,7 +73,7 @@ export function EvolutionBillingScheduleCard() {
     refetchInterval: (q: any) => {
       const s = q?.state?.data as EvoSchedule | null;
       const status = s?.last_run_status || '';
-      return status.startsWith('in_progress') || status.startsWith('processing:') || sendNow.isPending ? 3000 : false;
+      return status.startsWith('in_progress') || status.startsWith('processing:') ? 3000 : 10000;
     },
   });
 

@@ -131,11 +131,13 @@ Deno.serve(async (req) => {
     // Cron resumes the same schedule across ticks until done.
     const toRun = (schedules || []).filter((s: any) => {
       if (force) return true;
+      const status = typeof s.last_run_status === 'string' ? s.last_run_status : '';
+      // Um lote iniciado deve continuar em qualquer horário até terminar.
+      if (status.startsWith('in_progress')) return true;
       const [sh, sm] = String(s.send_time).substring(0, 5).split(':').map(Number);
       const sendMin = sh * 60 + sm;
       if (currentMinutes < sendMin) return false;
       if (currentMinutes > sendMin + 360) return false;
-      const status = typeof s.last_run_status === 'string' ? s.last_run_status : '';
       if (s.last_run_at && status.startsWith('completed:')) {
         const last = new Date(s.last_run_at);
         const lastSP = new Intl.DateTimeFormat('en-CA', {
@@ -268,8 +270,7 @@ Deno.serve(async (req) => {
             .in('customer_id', customerIds)
             .eq('provider', 'evolution')
             .in('whatsapp_status', ['sent', 'pending'])
-            .gte('sent_at', `${today}T00:00:00`)
-            .lte('sent_at', `${today}T23:59:59`)
+            .eq('sent_date_br', today)
         : { data: [] as any[] };
       const alreadyDone = new Set((existingLogs || []).map((l: any) => `${l.customer_id}|${l.billing_type}`));
 
