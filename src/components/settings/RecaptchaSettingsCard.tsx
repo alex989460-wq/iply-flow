@@ -14,19 +14,24 @@ export default function RecaptchaSettingsCard() {
   const [saving, setSaving] = useState(false);
   const [enabled, setEnabled] = useState(false);
   const [siteKey, setSiteKey] = useState('');
-  const [trialDays, setTrialDays] = useState('30');
+  const [trialDays, setTrialDays] = useState('7');
+  const [settingsId, setSettingsId] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
       const { data } = await supabase
         .from('platform_settings')
-        .select('recaptcha_enabled, recaptcha_site_key, trial_days')
+        .select('id, recaptcha_enabled, recaptcha_site_key, trial_days')
+        .is('user_id', null)
+        .order('created_at', { ascending: true })
+        .limit(1)
         .maybeSingle();
 
       if (data) {
+        setSettingsId(data.id);
         setEnabled(!!data.recaptcha_enabled);
         setSiteKey(data.recaptcha_site_key ?? '');
-        setTrialDays(String(data.trial_days ?? 30));
+        setTrialDays(String(data.trial_days ?? 7));
       }
       setLoading(false);
     })();
@@ -58,7 +63,7 @@ export default function RecaptchaSettingsCard() {
         recaptcha_site_key: siteKey.trim() || null,
         trial_days: Math.round(days),
       })
-      .not('id', 'is', null);
+      .eq('id', settingsId ?? '');
 
     setSaving(false);
     if (error) {

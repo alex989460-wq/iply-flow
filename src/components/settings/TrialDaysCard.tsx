@@ -19,10 +19,13 @@ export default function TrialDaysCard() {
       const { data } = await supabase
         .from('platform_settings')
         .select('id, trial_days')
+        .is('user_id', null)
+        .order('created_at', { ascending: true })
+        .limit(1)
         .maybeSingle();
 
       if (data) {
-        setTrialDays(String(data.trial_days ?? 30));
+        setTrialDays(String(data.trial_days ?? 7));
         setSettingsId(data.id);
       }
       setLoading(false);
@@ -40,12 +43,23 @@ export default function TrialDaysCard() {
       return;
     }
     setSaving(true);
-    const payload: any = { trial_days: Math.round(days) };
-    if (settingsId) payload.id = settingsId;
+    const value = Math.round(days);
 
-    const { error } = await supabase
-      .from('platform_settings')
-      .upsert(payload);
+    let error = null as any;
+    if (settingsId) {
+      ({ error } = await supabase
+        .from('platform_settings')
+        .update({ trial_days: value })
+        .eq('id', settingsId));
+    } else {
+      const { data, error: insErr } = await supabase
+        .from('platform_settings')
+        .insert({ trial_days: value })
+        .select('id')
+        .maybeSingle();
+      error = insErr;
+      if (data?.id) setSettingsId(data.id);
+    }
 
     setSaving(false);
     if (error) {
