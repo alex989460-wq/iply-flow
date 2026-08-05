@@ -12,6 +12,31 @@ import { Clock, Save, Loader2, Zap, Timer, AlertTriangle, Send, FileText } from 
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { offsetLabel, type BillingTemplate } from './EvolutionBillingTemplatesCard';
+import { Progress } from '@/components/ui/progress';
+
+function etaLabel(remaining: number, avgSeconds = 25) {
+  const secs = remaining * avgSeconds;
+  if (secs < 60) return `${secs}s`;
+  const mins = Math.round(secs / 60);
+  return mins < 60 ? `${mins} min` : `${(mins / 60).toFixed(1)} h`;
+}
+
+function parseProgress(schedule: { last_run_status: string | null; last_run_at: string | null } | null | undefined) {
+  const status = schedule?.last_run_status || '';
+  const running = status.startsWith('in_progress');
+  const stalled =
+    running && !!schedule?.last_run_at && Date.now() - new Date(schedule.last_run_at).getTime() > 3 * 60 * 1000;
+
+  const sent = Number(status.match(/lote (\d+) enviadas/)?.[1] ?? 0);
+  const remaining = Number(status.match(/(\d+) restantes/)?.[1] ?? 0);
+  const pendentes = Number(status.match(/in_progress: (\d+) pendentes/)?.[1] ?? 0);
+
+  const total = remaining || sent ? sent + remaining : pendentes;
+  const done = total ? total - remaining : 0;
+  const percent = total ? Math.min(100, Math.round((done / total) * 100)) : 0;
+
+  return { running, stalled, total, done, remaining, percent };
+}
 
 interface EvoSchedule {
   id: string;
@@ -48,6 +73,10 @@ export function EvolutionBillingScheduleCard() {
       return data as unknown as EvoSchedule | null;
     },
     enabled: !!user?.id,
+    refetchInterval: (q: any) => {
+      const s = q?.state?.data as EvoSchedule | null;
+      return s?.last_run_status?.startsWith('in_progress') ? 4000 : false;
+    },
   });
 
   const { data: rules } = useQuery({
@@ -151,6 +180,7 @@ export function EvolutionBillingScheduleCard() {
 
   const allRules = rules || [];
   const active = allRules.filter(r => r.is_enabled);
+  const progress = parseProgress(schedule);
 
   return (
     <Card className="glass-card border-border/50 border-l-4 border-l-emerald-500">
@@ -228,10 +258,47 @@ export function EvolutionBillingScheduleCard() {
         </div>
 
         {schedule?.last_run_at && (
-          <div className="text-xs text-muted-foreground p-2 rounded bg-muted/40">
-            Última execução: {format(new Date(schedule.last_run_at), 'dd/MM/yyyy HH:mm')} — {schedule.last_run_status}
+          <div className="space-y-2 p-3 rounded-lg bg-muted/40 border border-border/50">
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-muted-foreground">
+                Última execução: {format(new Date(schedule.last_run_at), 'dd/MM/yyyy HH:mm')}
+              </span>
+              {progress.running && (
+                <span className="flex items-center gap-1 text-emerald-500 font-medium">
+                  <Loader2 className="w-3 h-3 animate-spin" /> em andamento
+                </span>
+              )}
+            </div>
+
+            {progress.total > 0 && (
+              <>
+                <Progress value={progress.percent} className="h-2" />
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-medium">
+                    {progress.done} de {progress.total} processadas ({progress.percent}%)
+                  </span>
+                  <span className="text-muted-foreground">
+                    {progress.remaining} restantes
+                    {progress.remaining > 0 && ` • ~${etaLabel(progress.remaining)}`}
+                  </span>
+                </div>
+              </>
+            )}
+
+            <p className="text-xs text-muted-foreground">{schedule.last_run_status}</p>
+
+            {progress.stalled && (
+              <div className="flex items-start gap-2 text-xs text-amber-500">
+                <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+                <span>
+                  Sem atualização há mais de 3 minutos — o lote provavelmente travou. Clique em
+                  “Enviar agora (Reenviar)” para continuar de onde parou.
+                </span>
+              </div>
+            )}
           </div>
         )}
+
 
         <div className="flex flex-col sm:flex-row gap-2">
           <Button onClick={() => save.mutate()} disabled={!changed || save.isPending} className="flex-1">
