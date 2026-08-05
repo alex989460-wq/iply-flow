@@ -111,6 +111,8 @@ Deno.serve(async (req) => {
 
     const body = await req.json().catch(() => ({}));
     const force = !!body.force;
+    // resend_all: reenvia mesmo para quem já recebeu hoje. Padrão: retoma de onde parou.
+    const resendAll = !!body.resend_all;
     const filterUserId: string | undefined = body.userId;
 
     const { hour, minute } = getCurrentTimeSaoPaulo();
@@ -272,7 +274,7 @@ Deno.serve(async (req) => {
         const rule = ruleByDate.get(c.due_date as string);
         if (!rule) continue;
         const bt = billingTypeFor(rule.days_offset);
-        if (!force && alreadyDone.has(`${c.id}|${bt}`)) continue;
+        if (!resendAll && alreadyDone.has(`${c.id}|${bt}`)) continue;
         list.push({ ...c, billingType: bt, rule });
       }
 
@@ -349,7 +351,7 @@ Deno.serve(async (req) => {
           .select('id')
           .single();
 
-        if (reserveError && !force) {
+        if (reserveError && !resendAll) {
           // Duplicate (already sent today by another tick) — skip silently
           console.log(`[evo-billing] skip duplicate ${c.name} ${c.billingType}:`, reserveError.message);
           continue;
