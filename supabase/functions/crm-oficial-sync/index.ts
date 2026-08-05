@@ -1335,7 +1335,7 @@ Deno.serve(async (req) => {
     let localUserId = "";
     let isAdminUser = false;
     // "signup" cria a conta no ZapCRM e não precisa de chave (endpoint público).
-    if (!apiKey && action !== "signup") {
+    if (!apiKey && action !== "signup" && action !== "provision-key") {
       const authHeader = req.headers.get("Authorization") || "";
       const jwt = authHeader.replace(/^Bearer\s+/i, "").trim();
       const supaUrl = Deno.env.get("SUPABASE_URL")!;
