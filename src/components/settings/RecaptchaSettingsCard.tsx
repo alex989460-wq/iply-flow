@@ -20,7 +20,10 @@ export default function RecaptchaSettingsCard() {
     (async () => {
       const { data } = await supabase
         .from('platform_settings')
-        .select('recaptcha_enabled, recaptcha_site_key, trial_days')
+        .select('id, recaptcha_enabled, recaptcha_site_key, trial_days')
+        .is('user_id', null)
+        .order('created_at', { ascending: true })
+        .limit(1)
         .maybeSingle();
 
       if (data) {
