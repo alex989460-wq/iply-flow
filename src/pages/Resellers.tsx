@@ -123,7 +123,17 @@ export default function Resellers() {
   const renewMutation = useMutation({
     mutationFn: async ({ id, days }: { id: string; days: number }) => {
       if (isAdmin) {
-        const newExpiration = addDays(new Date(), days);
+        // Acumula sobre o vencimento atual (se ainda estiver no futuro)
+        const { data: current, error: fetchError } = await supabase
+          .from('reseller_access')
+          .select('access_expires_at')
+          .eq('id', id)
+          .single();
+        if (fetchError) throw fetchError;
+
+        const currentExpiration = current?.access_expires_at ? new Date(current.access_expires_at) : null;
+        const baseDate = currentExpiration && currentExpiration > new Date() ? currentExpiration : new Date();
+        const newExpiration = addDays(baseDate, days);
         const { error } = await supabase
           .from('reseller_access')
           .update({
