@@ -1104,12 +1104,13 @@ Obrigado pela preferência! 🙏`;
     if (!dueDate) return false;
     try {
       const parts = dueDate.split('-');
-      if (parts.length < 2) return false;
       const y = parseInt(parts[0], 10);
       const m = parseInt(parts[1], 10);
       const d = parts[2] ? parseInt(parts[2], 10) : 1;
       
-      const due = new Date(y, (m || 1) - 1, d || 1);
+      if (isNaN(y) || isNaN(m)) return false;
+      
+      const due = new Date(y, m - 1, d);
       if (isNaN(due.getTime())) return false;
       
       const today = startOfDay(new Date());
