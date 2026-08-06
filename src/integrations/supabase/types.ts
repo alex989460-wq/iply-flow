@@ -3118,6 +3118,137 @@ export type Database = {
         }
         Relationships: []
       }
+      whatsapp_utility_attempts: {
+        Row: {
+          attempt_no: number
+          body: string
+          category: string | null
+          evaluated_at: string | null
+          id: string
+          outcome: string | null
+          previous_category: string | null
+          rejection_reason: string | null
+          session_id: string
+          status: string | null
+          strictness_level: number
+          submitted_at: string
+          template_id: string | null
+          template_name: string
+        }
+        Insert: {
+          attempt_no: number
+          body: string
+          category?: string | null
+          evaluated_at?: string | null
+          id?: string
+          outcome?: string | null
+          previous_category?: string | null
+          rejection_reason?: string | null
+          session_id: string
+          status?: string | null
+          strictness_level: number
+          submitted_at?: string
+          template_id?: string | null
+          template_name: string
+        }
+        Update: {
+          attempt_no?: number
+          body?: string
+          category?: string | null
+          evaluated_at?: string | null
+          id?: string
+          outcome?: string | null
+          previous_category?: string | null
+          rejection_reason?: string | null
+          session_id?: string
+          status?: string | null
+          strictness_level?: number
+          submitted_at?: string
+          template_id?: string | null
+          template_name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_utility_attempts_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_utility_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whatsapp_utility_sessions: {
+        Row: {
+          base_name: string
+          business_purpose: string
+          completed_at: string | null
+          context: Json
+          created_at: string
+          final_outcome: string | null
+          id: string
+          language: string | null
+          started_at: string
+          trigger_event: string
+          user_id: string
+          utility_risk: string
+        }
+        Insert: {
+          base_name: string
+          business_purpose: string
+          completed_at?: string | null
+          context: Json
+          created_at?: string
+          final_outcome?: string | null
+          id?: string
+          language?: string | null
+          started_at?: string
+          trigger_event: string
+          user_id: string
+          utility_risk: string
+        }
+        Update: {
+          base_name?: string
+          business_purpose?: string
+          completed_at?: string | null
+          context?: Json
+          created_at?: string
+          final_outcome?: string | null
+          id?: string
+          language?: string | null
+          started_at?: string
+          trigger_event?: string
+          user_id?: string
+          utility_risk?: string
+        }
+        Relationships: []
+      }
+      whatsapp_utility_summary: {
+        Row: {
+          anti_patterns: Json
+          clusters: Json
+          id: string
+          session_count: number
+          summarized_at: string
+          user_id: string
+        }
+        Insert: {
+          anti_patterns: Json
+          clusters: Json
+          id?: string
+          session_count: number
+          summarized_at?: string
+          user_id: string
+        }
+        Update: {
+          anti_patterns?: Json
+          clusters?: Json
+          id?: string
+          session_count?: number
+          summarized_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       xui_one_settings: {
         Row: {
           access_code: string
@@ -3349,6 +3480,8 @@ export type Database = {
           read_ct: number
         }[]
       }
+      show_limit: { Args: never; Returns: number }
+      show_trgm: { Args: { "": string }; Returns: string[] }
     }
     Enums: {
       ai_knowledge_item_status: "pending" | "approved" | "rejected" | "merged"
