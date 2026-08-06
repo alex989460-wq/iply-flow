@@ -1100,11 +1100,23 @@ Obrigado pela preferência! 🙏`;
   };
 
   // Check if customer is overdue
-  const isCustomerOverdue = (dueDate: string) => {
-    const [y, m, d] = dueDate.split('-').map(Number);
-    const due = new Date(y, (m ?? 1) - 1, d ?? 1);
-    const today = startOfDay(new Date());
-    return due < today;
+  const isCustomerOverdue = (dueDate: string | null | undefined) => {
+    if (!dueDate) return false;
+    try {
+      const parts = dueDate.split('-');
+      if (parts.length < 2) return false;
+      const y = parseInt(parts[0], 10);
+      const m = parseInt(parts[1], 10);
+      const d = parts[2] ? parseInt(parts[2], 10) : 1;
+      
+      const due = new Date(y, (m || 1) - 1, d || 1);
+      if (isNaN(due.getTime())) return false;
+      
+      const today = startOfDay(new Date());
+      return due < today;
+    } catch (e) {
+      return false;
+    }
   };
 
   // Generate overdue billing message
@@ -1269,10 +1281,23 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
     return <Badge variant={config.variant} className={config.className}>{config.label}</Badge>;
   };
 
-  const formatDate = (dateStr: string) => {
-    const [y, m, d] = dateStr.split('-').map(Number);
-    const date = new Date(y, (m ?? 1) - 1, d ?? 1);
-    return format(date, 'dd/MM/yyyy', { locale: ptBR });
+  const formatDate = (dateStr: string | null | undefined) => {
+    if (!dateStr) return '—';
+    try {
+      const parts = dateStr.split('-');
+      if (parts.length < 2) return dateStr;
+      const y = parseInt(parts[0], 10);
+      const m = parseInt(parts[1], 10);
+      const d = parts[2] ? parseInt(parts[2], 10) : 1;
+      
+      const date = new Date(y, (m || 1) - 1, d || 1);
+      if (isNaN(date.getTime())) return dateStr;
+      
+      return format(date, 'dd/MM/yyyy', { locale: ptBR });
+    } catch (e) {
+      console.error('Error formatting date:', dateStr, e);
+      return dateStr;
+    }
   };
 
   
@@ -1451,7 +1476,7 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                           <div className="flex items-center gap-1">
                             <Calendar className="h-3 w-3 text-muted-foreground" />
                             <span className={
-                              new Date(customer.due_date + 'T12:00:00') < new Date() 
+                              customer.due_date && new Date(customer.due_date + 'T12:00:00').toString() !== 'Invalid Date' && new Date(customer.due_date + 'T12:00:00') < new Date() 
                                 ? 'text-destructive font-medium' 
                                 : 'text-muted-foreground'
                             }>
@@ -1589,7 +1614,7 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                       type="date"
                       value={editedDueDate}
                       onChange={(e) => setEditedDueDate(e.target.value)}
-                      className={`h-8 text-sm ${isCustomerOverdue(selectedCustomer.due_date) ? 'text-destructive' : ''}`}
+                      className={`h-8 text-sm ${selectedCustomer?.due_date && isCustomerOverdue(selectedCustomer.due_date) ? 'text-destructive' : ''}`}
                     />
                   </div>
                   
