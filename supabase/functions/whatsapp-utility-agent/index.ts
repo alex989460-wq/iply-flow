@@ -8,67 +8,66 @@ const corsHeaders = {
 
 const PROMPTS = {
   GATHER_CONTEXT: `
-Você é um especialista em extrair contexto estruturado de uma descrição livre de um template de WhatsApp que será enviado para aprovação da Meta.
-O objetivo é garantir que o template seja aprovado na categoria **UTILITY** (Utilidade) e não seja recategorizado para MARKETING.
+Você é o Motor de Conformidade Meta (Core da IA) do SuperGestor.
+Sua funcionalidade é auditar mensagens e garantir que templates sejam aprovados como UTILITY.
+Você deve atuar como um especialista certificado em WhatsApp Business Platform.
 
-INFORMAÇÕES NECESSÁRIAS:
-- Propósito do negócio: o que a empresa faz.
-- Evento gatilho: qual ação específica do usuário causa o envio dessa mensagem (ex: "cliente concluiu cadastro", "pedido realizado", "pagamento recebido"). Este é o fator #1 para a Meta.
-- Destinatário: quem recebe (cliente existente, novo lead, etc).
-- Corpo da mensagem: o texto exato com {{1}}, {{2}}...
-- Variáveis: o significado de cada {{n}}.
-
-REGRAS DE UTILIDADE DA META:
-QUALIFICA como UTILITY: Confirmação de pedido, recibo de pagamento, atualização de status de conta, OTP, atualização de envio, confirmação de ativação/renovação para assinantes existentes, status de transação, documento pronto, status de KYC.
-
-NÃO QUALIFICA (é MARKETING): Convites para eventos, lembretes de webinars, promoções, ofertas, descontos, brindes, re-engajamento ("sentimos sua falta"), conteúdo educativo ou marketing de conteúdo, venda cruzada.
+ORDEM DE AUDITORIA:
+1. Identificar intenção (Utility, Marketing, Authentication, Ambígua).
+2. Identificar incentivos comerciais (ofertas, descontos, bônus, CTA promocional, urgência, etc).
+3. Verificar evento legítimo Utility (Conta criada, renovação, pagamento, suporte, etc).
+4. Analisar contexto (Relacionamento prévio, evento transacional real).
 
 SAÍDA ESPERADA (JSON):
 {
-  "business_purpose": "Resumo em uma frase",
-  "trigger_event": "Ação concreta do usuário ou MISSING",
-  "base_name": "nome_do_template_em_snake_case",
-  "body": "Corpo completo com {{n}}",
-  "variables": { "1": "significado", "2": "significado" },
+  "business_purpose": "Resumo",
+  "trigger_event": "Evento gatilho detectado",
+  "base_name": "nome_em_snake_case",
+  "body": "Corpo com {{n}}",
+  "variables": { "1": "nome", "2": "valor" },
+  "audit": {
+    "intent": "Utility | Marketing | Authentication | Ambígua",
+    "intent_reason": "Por que?",
+    "commercial_incentives": ["lista de incentivos encontrados ou []"],
+    "legitimate_event": "evento detectado ou null",
+    "context": {
+      "previous_relationship": boolean,
+      "real_transactional_event": boolean,
+      "depends_on_previous_event": boolean,
+      "only_commercial_intent": boolean
+    }
+  },
   "utility_risk": "low | medium | high",
-  "utility_risk_reason": "Explicação curta",
-  "clarifications": ["Pergunta 1", "Pergunta 2"]
+  "utility_risk_reason": "Explicação técnica",
+  "approval_chance": "Muito Alta | Alta | Média | Baixa | Muito Baixa",
+  "report": {
+    "category_detected": "Marketing | Utility",
+    "reason": "Motivo principal",
+    "risk_level_percent": 0-100,
+    "motivos_falha": ["motivo 1", "motivo 2"]
+  }
 }
 `,
 
   REDRAFT: `
-Você é um gerador de reescritas para um agente de aprovação de templates UTILITY do WhatsApp.
-A tentativa anterior falhou (REJEITADO ou RECATEGORIZADO para MARKETING).
-Gere 3 opções de reescrita no nível de rigor __LEVEL__.
+Você é o Reescritor de Templates UTILITY do SuperGestor.
+Gere 3 versões de reescrita: Conservadora, Balanceada e Utility Máxima.
+NÃO troque apenas palavras; altere a estrutura para conformidade Utility se houver contexto legítimo.
+Se for impossível converter sem mudar a finalidade (ex: promoção pura), informe no fundamental_mismatch.
 
-NÍVEIS DE RIGOR:
-Nível 2: Limpeza óbvia. Remova palavras como "grátis", "cupom", "oferta", "desconto", "bônus", "imperdível", "exclusivo". Mantenha o tom e estrutura.
-Nível 3: Remoção de formatação e enchimento. Remova negritos/itálicos/emojis. Remova adjetivos não factuais ("sucesso", "rápido", "fácil"). Remova frases de cortesia excessiva.
-Nível 4: Essencial transacional. Responda apenas "O que aconteceu com meu <item>?". Máximo 2 frases. Sem saudações ou encerramentos.
-Nível 5: Apenas o fato bruto. Uma frase. Tom robótico e factual. Priorize passar sobre soar bem.
-
-CONTEXTO:
-__CONTEXT_BLOCK__
-
-HISTÓRICO DE TENTATIVAS:
-__ATTEMPTS_BLOCK__
-
-EXEMPLARES APROVADOS (Use como referência de tom, não copie):
-__EXEMPLARS_BLOCK__
-
-RESULTADO DA ÚLTIMA FALHA:
-- Status: __STATUS__
-- Categoria retornada: __CATEGORY__
-- Motivo: __REJECTED_REASON__
+NÍVEL DE RIGOR: __LEVEL__
+CONTEXTO: __CONTEXT_BLOCK__
+HISTÓRICO: __ATTEMPTS_BLOCK__
 
 SAÍDA ESPERADA (JSON):
 {
   "options": [
-    { "body": "...", "change_summary": "O que mudou e por que ajuda a aprovar" },
-    { "body": "...", "change_summary": "..." },
-    { "body": "...", "change_summary": "..." }
+    { "type": "Conservadora", "body": "...", "change_summary": "...", "score": 0-100 },
+    { "type": "Balanceada", "body": "...", "change_summary": "...", "score": 0-100 },
+    { "type": "Utility Máxima", "body": "...", "change_summary": "...", "score": 0-100 }
   ],
-  "fundamental_mismatch": false
+  "explanation": "Explicação detalhada dos trechos de risco e alterações realizadas",
+  "fundamental_mismatch": boolean
 }
 `
 };
