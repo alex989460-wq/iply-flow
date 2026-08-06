@@ -1760,7 +1760,6 @@ serve(async (req) => {
 
     if (amountNumeric > 0 && allPlans && allPlans.length > 0) {
       // 0) FIRST: Check if any plan has an EXACT price match (±0.1%) - highest priority
-      //    When multiple plans fall within tolerance, pick the CLOSEST one
       {
         let exactBestDiff = Infinity;
         for (const p of allPlans) {
@@ -1781,38 +1780,26 @@ serve(async (req) => {
         const currentPlan = allPlans.find((p: any) => p.id === matchedCustomer.plan_id);
         if (currentPlan) {
           const customerPrice = matchedCustomer.custom_price ? Number(matchedCustomer.custom_price) : null;
-          // Check if current plan's own price matches the paid amount (±1%)
           const currentPlanPriceMatches = Math.abs(currentPlan.price - amountNumeric) <= currentPlan.price * 0.01;
-          // Check if custom_price matches the paid amount (±15%)
           const isCustomMatch = customerPrice && Math.abs(customerPrice - amountNumeric) <= customerPrice * 0.15;
-          // Check if another plan matches the amount exactly (±1%)
           const exactOtherPlan = allPlans.find((p: any) => p.id !== currentPlan.id && Math.abs(p.price - amountNumeric) <= p.price * 0.01);
           
           if (currentPlanPriceMatches && !exactOtherPlan) {
-            // Current plan price matches AND no other plan is closer - keep it
             bestMatch = currentPlan;
             console.log(`[Cakto] Mantendo plano atual: ${currentPlan.plan_name} (R$ ${currentPlan.price}) | Valor pago: R$ ${amountNumeric.toFixed(2)} (preço do plano bate)`);
           } else if (currentPlanPriceMatches && exactOtherPlan) {
-            // Both match within ±1% - pick the one with the CLOSEST price
             const diffCurrent = Math.abs(currentPlan.price - amountNumeric);
             const diffOther = Math.abs(exactOtherPlan.price - amountNumeric);
             if (diffOther < diffCurrent) {
               bestMatch = exactOtherPlan;
-              console.log(`[Cakto] Outro plano mais próximo: ${exactOtherPlan.plan_name} (R$ ${exactOtherPlan.price}) vs atual ${currentPlan.plan_name} (R$ ${currentPlan.price}) | Valor pago: R$ ${amountNumeric.toFixed(2)}`);
             } else {
               bestMatch = currentPlan;
-              console.log(`[Cakto] Mantendo plano atual (mais próximo): ${currentPlan.plan_name} (R$ ${currentPlan.price}) | Valor pago: R$ ${amountNumeric.toFixed(2)}`);
             }
           } else if (exactOtherPlan) {
-            // Another plan matches exactly - switch to it
             bestMatch = exactOtherPlan;
-            console.log(`[Cakto] Trocando para plano: ${exactOtherPlan.plan_name} (R$ ${exactOtherPlan.price}) | Valor pago: R$ ${amountNumeric.toFixed(2)} (match exato com outro plano)`);
           } else if (isCustomMatch) {
-            // custom_price matches and no exact plan match - keep current plan
             bestMatch = currentPlan;
-            console.log(`[Cakto] Mantendo plano atual: ${currentPlan.plan_name} (R$ ${currentPlan.price}) | Valor pago: R$ ${amountNumeric.toFixed(2)} (custom_price match R$ ${customerPrice})`);
           }
-          // If nothing matches, do NOT default to current plan - let step 2 find the right one
         }
       }
 
@@ -1827,12 +1814,9 @@ serve(async (req) => {
             bestMatch = plan;
           }
         }
-        if (bestMatch) {
-          console.log(`[Cakto] Match por proximidade (±10%): ${bestMatch.plan_name} (R$ ${bestMatch.price}) | Valor pago: R$ ${amountNumeric.toFixed(2)}`);
-        }
       }
 
-      // 3) custom_price fallback - if still no match and customer has custom_price
+      // 3) custom_price fallback
       if (!bestMatch && matchedCustomer.custom_price) {
         const customerPrice = Number(matchedCustomer.custom_price);
         if (Math.abs(customerPrice - amountNumeric) <= customerPrice * 0.1) {
@@ -1840,20 +1824,40 @@ serve(async (req) => {
             const currentPlanFallback = allPlans.find((p: any) => p.id === matchedCustomer.plan_id);
             if (currentPlanFallback) {
               bestMatch = currentPlanFallback;
-              console.log(`[Cakto] Fallback custom_price: ${currentPlanFallback.plan_name} (R$ ${customerPrice} custom) | Valor pago: R$ ${amountNumeric.toFixed(2)}`);
             }
           }
         }
       }
 
-      // 4) SAFETY: If still no match, log warning - do NOT silently use current plan
+      // 4) Multi-Screen Matching Safety (Bugfix: 175,00 payment matched 35,00 current plan)
+      // If the matched plan is significantly cheaper than what was paid (e.g. R$ 35 vs R$ 175)
+      // AND we have multiple records for this phone, check if the paid amount is a sum of current prices.
+      if (bestMatch && amountNumeric > (bestMatch.price * 1.5) && allMatchedCustomers.length > 1) {
+         console.log(`[Cakto] ⚠️ Alerta: Valor pago R$ ${amountNumeric.toFixed(2)} é muito maior que o plano detectado R$ ${bestMatch.price}. Verificando soma de telas.`);
+         const sumPrices = await Promise.all(allMatchedCustomers.map(async (c: any) => {
+           if (c.custom_price) return Number(c.custom_price);
+           if (c.plan_id) {
+             const { data: p } = await supabaseAdmin.from('plans').select('price').eq('id', c.plan_id).maybeSingle();
+             return p ? Number(p.price) : 0;
+           }
+           return 0;
+         }));
+         const expectedTotal = sumPrices.reduce((s, p) => s + p, 0);
+         if (Math.abs(amountNumeric - expectedTotal) <= expectedTotal * 0.15) {
+           console.log(`[Cakto] ✅ Detectado pagamento de múltiplas telas: R$ ${amountNumeric.toFixed(2)} ≈ soma R$ ${expectedTotal.toFixed(2)}. Forçando renovação de TODAS as telas.`);
+           // To trigger multi-renewal below, we must make it look like they were pre-selected
+           // or just set a flag to renew all matched.
+           // However, the cleanest way here is to let the multi-customer logic below handle it.
+           // We'll mark hasPreSelection as true to skip the conflict block.
+           (globalThis as any).FORCE_MULTI_RENEWAL = true;
+         }
+      }
+
+      // 5) SAFETY: If still no match, use Mensal fallback
       if (!bestMatch) {
-        console.warn(`[Cakto] ⚠️ NENHUM plano encontrado para valor R$ ${amountNumeric.toFixed(2)}. Usando duração padrão de 30 dias (Mensal).`);
-        // Try to at least find the Mensal plan as safe default
-        const mensalPlan = allPlans.find((p: any) => p.duration_days === 30 && p.plan_name.toLowerCase().includes('mensal') && !p.plan_name.toLowerCase().includes('tela') && !p.plan_name.toLowerCase().includes('cartão'));
+        const mensalPlan = allPlans.find((p: any) => p.duration_days === 30 && p.plan_name.toLowerCase().includes('mensal') && !p.plan_name.toLowerCase().includes('tela'));
         if (mensalPlan) {
           bestMatch = mensalPlan;
-          console.log(`[Cakto] Usando Mensal como fallback seguro: ${mensalPlan.plan_name}`);
         }
       }
 
@@ -1862,12 +1866,7 @@ serve(async (req) => {
         matchedPlanName = bestMatch.plan_name;
       }
     } else if (matchedCustomer.plan_id) {
-      // Fallback to customer's current plan
-      const { data: plan } = await supabaseAdmin
-        .from('plans')
-        .select('duration_days, plan_name')
-        .eq('id', matchedCustomer.plan_id)
-        .maybeSingle();
+      const { data: plan } = await supabaseAdmin.from('plans').select('duration_days, plan_name').eq('id', matchedCustomer.plan_id).maybeSingle();
       if (plan) {
         durationDays = plan.duration_days;
         matchedPlanName = plan.plan_name;
@@ -2075,7 +2074,7 @@ serve(async (req) => {
     }
 
     // ── Conflict detection: multiple customers for same phone without trusted pre-selection ──
-    if (allMatchedCustomers.length > 1 && !isMultiScreen && !multiRenewalCompleted && !hasPreSelection) {
+    if (allMatchedCustomers.length > 1 && !isMultiScreen && !multiRenewalCompleted && !hasPreSelection && !(globalThis as any).FORCE_MULTI_RENEWAL) {
       const todayStr = today.toISOString().split('T')[0];
       const sameDueCustomers = allMatchedCustomers.filter((c: any) => {
         const d = c.due_date || '';
@@ -2261,6 +2260,58 @@ serve(async (req) => {
     }
 
     // Renew ALL customers in customersToRenew (supports multi-screen) — skip if multi-renewal already handled
+    if (!multiRenewalCompleted) {
+      // If FORCE_MULTI_RENEWAL was set in plan matching, promote all matched customers to renew
+      if ((globalThis as any).FORCE_MULTI_RENEWAL) {
+        console.log(`[Cakto] 🖥️ Executando Multi-renovação forçada por valor excedente (R$ ${amountNumeric.toFixed(2)})`);
+        // We'll calculate a proportional amount for each payment record
+        const perCustAmount = amountNumeric / allMatchedCustomers.length;
+        
+        for (const cust of allMatchedCustomers) {
+          const custCurrentDue = cust.due_date ? new Date(cust.due_date + 'T00:00:00') : today;
+          const custBase = new Date(custCurrentDue > today ? custCurrentDue : today);
+          
+          if (monthsToAdd) {
+            const origDay = custBase.getDate();
+            custBase.setMonth(custBase.getMonth() + monthsToAdd);
+            if (custBase.getDate() !== origDay) custBase.setDate(0);
+          } else {
+            custBase.setDate(custBase.getDate() + durationDays);
+          }
+          const custNewDue = custBase.toISOString().split('T')[0];
+          
+          await supabaseAdmin.from('customers').update({ due_date: custNewDue, status: 'ativa' }).eq('id', cust.id);
+          
+          if (amountNumeric > 0) {
+            await supabaseAdmin.from('payments').insert({
+              customer_id: cust.id,
+              amount: perCustAmount,
+              payment_date: today.toISOString().split('T')[0],
+              method: paymentMethodDb,
+              confirmed: true,
+              source: caktoId ? `cakto:${caktoId}` : 'cakto',
+            });
+          }
+        }
+        
+        // Save confirmation
+        await supabaseAdmin.from('payment_confirmations').insert({
+          customer_id: matchedCustomer.id,
+          customer_name: allMatchedCustomers.map((c: any) => c.name).join(', '),
+          customer_phone: matchedCustomer.phone,
+          amount: amountNumeric,
+          plan_name: matchedPlanName || null,
+          duration_days: durationDays,
+          new_due_date: allMatchedCustomers[0].due_date, // best-effort
+          status: 'approved',
+        });
+        
+        multiRenewalCompleted = true;
+        customersToRenew.length = 0;
+        allMatchedCustomers.forEach((c: any) => customersToRenew.push(c));
+      }
+    }
+
     if (!multiRenewalCompleted) {
     for (const cust of customersToRenew) {
       const custCurrentDue = cust.due_date ? new Date(cust.due_date + 'T00:00:00') : today;
