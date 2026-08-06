@@ -42,6 +42,8 @@ import CrmOficialChannels from "./pages/CrmOficialChannels";
 import CrmOficialTemplates from "./pages/CrmOficialTemplates";
 import CrmOficialChatbots from "./pages/CrmOficialChatbots";
 import Atendimentos from "./pages/Atendimentos";
+import WhatsappUtility from "./pages/WhatsappUtility";
+
 
 import PublicCheckout from "./pages/PublicCheckout";
 import ResellerCheckout from "./pages/ResellerCheckout";
@@ -149,6 +151,8 @@ function AppRoutes() {
       <Route path="/crm-oficial-templates" element={<ProtectedRoute><CrmOficialTemplates /></ProtectedRoute>} />
       <Route path="/crm-oficial-chatbots" element={<ProtectedRoute><CrmOficialChatbots /></ProtectedRoute>} />
       <Route path="/atendimentos" element={<ProtectedRoute><Atendimentos /></ProtectedRoute>} />
+      <Route path="/whatsapp-utility" element={<ProtectedRoute><WhatsappUtility /></ProtectedRoute>} />
+
 
 
 
