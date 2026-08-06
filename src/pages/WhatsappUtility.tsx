@@ -173,7 +173,7 @@ export default function WhatsappUtility() {
             <Badge variant="outline" className="border-primary/30 text-primary mb-3">
               <ShieldCheck className="w-3 h-3 mr-1" /> WhatsApp Utility Template Agent
             </Badge>
-            <h1 className="text-3xl md:text-4xl font-bold">Agente de Aprovação UTILITY</h1>
+            <h1 className="text-3xl md:text-4xl font-bold">WhatsApp Utility Agent</h1>
             <p className="text-sm text-muted-foreground mt-1 max-w-2xl">
               Garante que seus templates sejam aprovados como **Utilidade** pela Meta, economizando custos e melhorando a entrega. O agente aprende com cada aprovação e rejeição.
             </p>
@@ -268,6 +268,21 @@ export default function WhatsappUtility() {
                       </div>
                     </CardContent>
                   </Card>
+
+                  {extractedContext.explanation && (
+                    <Card className="border-primary/10 bg-primary/5">
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-sm flex items-center gap-2">
+                          <Brain className="w-4 h-4 text-primary" /> Explicação Detalhada
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <p className="text-xs text-muted-foreground leading-relaxed italic">
+                          {extractedContext.explanation}
+                        </p>
+                      </CardContent>
+                    </Card>
+                  )}
 
                   <div className="flex gap-4">
                     <Button variant="outline" onClick={() => setStep(1)} className="flex-1">Voltar e Editar</Button>
