@@ -135,9 +135,10 @@ export default function TemplateBuilderDialog({ open, onOpenChange, mode, initia
       { id: 'preco', label: 'Preço/Valor', value: 'price' },
       { id: 'plano', label: 'Plano', value: 'plan' },
       { id: 'data', label: 'Vencimento', value: 'data' },
-      { id: 'servidor', label: 'Servidor', value: 'server' },
+      { id: 'servidor', label: 'Servidor', value: 'serv' },
       { id: 'senha', label: 'Senha', value: 'password' },
       { id: 'link', label: 'Link de acesso', value: 'link' },
+      { id: 'semana', label: 'Semana', value: 'weak' },
     ];
 
     if (form.varType === 'NUMBER') {
