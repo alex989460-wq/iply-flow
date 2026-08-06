@@ -198,7 +198,7 @@ export default function Payments() {
 
   const getSourceKey = (src: string) => {
     if (src.startsWith('cakto')) return 'cakto';
-    if (src.startsWith('pc_') || src.startsWith('pc:')) return 'checkout';
+    if (src.startsWith('pc_') || src.startsWith('pc:') || src.startsWith('efi:')) return 'checkout';
     return 'manual';
   };
 
@@ -412,7 +412,8 @@ export default function Payments() {
                       <TableCell>{getMethodLabel(payment.method)}</TableCell>
                       <TableCell>
                         {(() => {
-                          const key = getSourceKey(String(payment.source || ''));
+                          const src = String(payment.source || '');
+                          const key = getSourceKey(src);
                           if (key === 'cakto') {
                             return (
                               <Badge variant="secondary" className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 gap-1">
@@ -422,10 +423,11 @@ export default function Payments() {
                             );
                           }
                           if (key === 'checkout') {
+                            const isEfi = src.startsWith('efi:');
                             return (
                               <Badge variant="secondary" className="bg-blue-500/20 text-blue-400 border-blue-500/30 gap-1">
                                 <Bot className="w-3 h-3" />
-                                Checkout
+                                {isEfi ? 'Efí Pix' : 'Checkout'}
                               </Badge>
                             );
                           }
