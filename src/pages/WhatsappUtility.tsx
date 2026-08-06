@@ -81,11 +81,16 @@ export default function WhatsappUtility() {
   };
 
   const handleIntake = async () => {
-    if (!intakeInput.trim()) return;
+    const rawInput = intakeInput.trim();
+    if (!rawInput) return;
+    
+    // Remove o wrapper de prompt se o usuário colou o texto completo do preview
+    const cleanedInput = rawInput.replace(/Analise o texto abaixo antes de agir\.[\s\S]*?TEXTO DO USUÁRIO:\s*/g, '');
+    
     setLoading(true);
     try {
       const { data, error } = await supabase.functions.invoke('whatsapp-utility-agent', {
-        body: { action: 'intake', message: intakeInput }
+        body: { action: 'intake', message: cleanedInput }
       });
       
       if (error) {
