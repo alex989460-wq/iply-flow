@@ -195,9 +195,14 @@ Deno.serve(async (req) => {
   } catch (error) {
     console.error('Edge Function Error:', error);
     let message = "Erro interno no servidor";
-    if (error.message?.includes("ai_api_key")) message = "Chave de API da IA não configurada";
-    if (error.message?.includes("not found")) message = "Recurso não encontrado no banco de dados";
+    const errStr = error.message || String(error);
     
-    return new Response(JSON.stringify({ success: false, error: message, details: error.message }), { status: 500, headers: corsHeaders });
+    if (errStr.includes("ai_api_key")) message = "Chave de API da IA não configurada nas configurações do sistema";
+    else if (errStr.includes("not found")) message = "Recurso não encontrado no banco de dados";
+    else if (errStr.includes("AI Gateway Error")) message = "O provedor de IA retornou um erro (verifique sua chave)";
+    else if (errStr.includes("fetch")) message = "Falha de conexão com serviços externos (IA Gateway)";
+    else message = errStr;
+    
+    return new Response(JSON.stringify({ success: false, error: message, details: errStr }), { status: 500, headers: corsHeaders });
   }
 });

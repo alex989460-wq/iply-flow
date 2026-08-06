@@ -172,9 +172,19 @@ export default function WhatsappUtility() {
       setExtractedContext(null);
     } catch (e: any) {
       console.error('Erro ao iniciar sessão:', e);
+      let errorMsg = 'Erro desconhecido ao salvar a sessão.';
+      
+      if (e.message?.includes('permission denied')) {
+        errorMsg = 'Você não tem permissão para realizar esta ação no banco de dados.';
+      } else if (e.message?.includes('duplicate key')) {
+        errorMsg = 'Já existe um template com este nome.';
+      } else if (e.message) {
+        errorMsg = e.message;
+      }
+      
       toast({ 
         title: 'Erro ao iniciar', 
-        description: e.message?.includes('permission denied') ? 'Você não tem permissão para realizar esta ação.' : e.message || 'Erro desconhecido ao salvar a sessão.', 
+        description: errorMsg, 
         variant: 'destructive' 
       });
     } finally {
