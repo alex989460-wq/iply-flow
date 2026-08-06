@@ -113,7 +113,8 @@ Deno.serve(async (req) => {
     const provider = settings?.ai_provider || 'gemini';
 
     if (action === "intake") {
-      const prompt = `${PROMPTS.GATHER_CONTEXT}\n\nMENSAGEM DO USUÁRIO: "${message}"`;
+      const cleanedMessage = message.replace(/Analise o texto abaixo antes de agir\.[\s\S]*?TEXTO DO USUÁRIO:\s*/g, '');
+      const prompt = `${PROMPTS.GATHER_CONTEXT}\n\nMENSAGEM DO USUÁRIO: "${cleanedMessage}"`;
       
       try {
         const aiRes = await fetch("https://api.lovable.app/v1/chat/completions", {
