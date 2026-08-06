@@ -89,13 +89,12 @@ export default function WhatsappUtility() {
       });
       
       if (error) {
-        // Handle specific Edge Function error objects
-        const errorMessage = error.message || 'Erro desconhecido na função.';
-        throw new Error(errorMessage);
+        console.error('Invoke error:', error);
+        throw new Error(error.message || 'Erro de conexão com o servidor de IA.');
       }
 
       if (data?.success === false) {
-        throw new Error(data.error || 'A análise falhou sem um motivo específico.');
+        throw new Error(data.error || 'A IA não conseguiu processar o texto.');
       }
 
       setExtractedContext(data.result);
