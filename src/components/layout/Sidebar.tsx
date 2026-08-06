@@ -30,7 +30,9 @@ import {
   Trophy,
   Calculator,
   UserPlus,
+  ShieldCheck,
 } from 'lucide-react';
+
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/ThemeToggle';
@@ -61,6 +63,8 @@ const menuItems: Array<{
   { icon: Bot, label: 'Automação CRM', path: '/crm-oficial-chatbots', adminOnly: false },
   { icon: MessageCircleMore, label: 'Atendimentos', path: '/atendimentos', adminOnly: false },
   { icon: QrCode, label: 'Conexões WhatsApp', path: '/evolution-instances', adminOnly: false },
+  { icon: ShieldCheck, label: 'WhatsApp Utility BR', path: '/whatsapp-utility', adminOnly: true },
+
 
   { icon: ImagePlus, label: 'Gerador de Banner', path: '/banner-generator', adminOnly: false },
   { icon: Bot, label: 'Robô', path: '/robo', adminOnly: false },
