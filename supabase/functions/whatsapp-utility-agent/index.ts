@@ -168,6 +168,11 @@ Deno.serve(async (req) => {
     return new Response(JSON.stringify({ error: "Ação inválida" }), { status: 400, headers: corsHeaders });
 
   } catch (error) {
-    return new Response(JSON.stringify({ success: false, error: error.message }), { status: 500, headers: corsHeaders });
+    console.error('Edge Function Error:', error);
+    let message = "Erro interno no servidor";
+    if (error.message?.includes("ai_api_key")) message = "Chave de API da IA não configurada";
+    if (error.message?.includes("not found")) message = "Recurso não encontrado no banco de dados";
+    
+    return new Response(JSON.stringify({ success: false, error: message, details: error.message }), { status: 500, headers: corsHeaders });
   }
 });

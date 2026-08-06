@@ -99,7 +99,18 @@ export default function WhatsappUtility() {
       
       setStep(2);
     } catch (e: any) {
-      toast({ title: 'Erro na análise', description: e.message, variant: 'destructive' });
+      console.error('Erro na análise:', e);
+      let errorMsg = 'Ocorreu um erro ao processar sua solicitação.';
+      
+      if (e.message?.includes('Failed to fetch')) {
+        errorMsg = 'Não foi possível conectar ao servidor. Verifique sua conexão.';
+      } else if (e.message?.includes('JSON.parse')) {
+        errorMsg = 'A resposta da IA veio em um formato inválido. Tente novamente com um texto diferente.';
+      } else if (e.message) {
+        errorMsg = `Erro: ${e.message}`;
+      }
+      
+      toast({ title: 'Erro na análise', description: errorMsg, variant: 'destructive' });
     } finally {
       setLoading(false);
     }
@@ -147,7 +158,12 @@ export default function WhatsappUtility() {
       setIntakeInput('');
       setExtractedContext(null);
     } catch (e: any) {
-      toast({ title: 'Erro ao iniciar', description: e.message, variant: 'destructive' });
+      console.error('Erro ao iniciar sessão:', e);
+      toast({ 
+        title: 'Erro ao iniciar', 
+        description: e.message?.includes('permission denied') ? 'Você não tem permissão para realizar esta ação.' : e.message || 'Erro desconhecido ao salvar a sessão.', 
+        variant: 'destructive' 
+      });
     } finally {
       setLoading(false);
     }
