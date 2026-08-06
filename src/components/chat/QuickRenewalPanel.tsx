@@ -1100,11 +1100,23 @@ Obrigado pela preferência! 🙏`;
   };
 
   // Check if customer is overdue
-  const isCustomerOverdue = (dueDate: string) => {
-    const [y, m, d] = dueDate.split('-').map(Number);
-    const due = new Date(y, (m ?? 1) - 1, d ?? 1);
-    const today = startOfDay(new Date());
-    return due < today;
+  const isCustomerOverdue = (dueDate: string | null | undefined) => {
+    if (!dueDate) return false;
+    try {
+      const parts = dueDate.split('-');
+      if (parts.length < 2) return false;
+      const y = parseInt(parts[0], 10);
+      const m = parseInt(parts[1], 10);
+      const d = parts[2] ? parseInt(parts[2], 10) : 1;
+      
+      const due = new Date(y, (m || 1) - 1, d || 1);
+      if (isNaN(due.getTime())) return false;
+      
+      const today = startOfDay(new Date());
+      return due < today;
+    } catch (e) {
+      return false;
+    }
   };
 
   // Generate overdue billing message
