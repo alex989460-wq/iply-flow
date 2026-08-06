@@ -456,7 +456,7 @@ export default function TemplateBuilderDialog({ open, onOpenChange, mode, initia
                     : `Ex: Olá {{1}}, seu plano {{2}} vence em {{3}}.\n\nObrigado!`} />
                 <p className="text-xs text-muted-foreground">
                   {form.varType === 'NAME'
-                    ? <>Use variáveis nomeadas: <code className="font-mono text-emerald-500">{`{{name}}`}</code>, <code className="font-mono text-emerald-500">{`{{user}}`}</code>, <code className="font-mono text-emerald-500">{`{{price}}`}</code>.</>
+                    ? <>Disponíveis: <code className="font-mono text-emerald-500">{"{{name}}, {{user}}, {{price}}, {{plan}}, {{data}}, {{server}}, {{password}}, {{link}}"}</code>.</>
                     : <>Use variáveis numeradas em ordem: <code className="font-mono text-emerald-500">{`{{1}}`}</code>, <code className="font-mono text-emerald-500">{`{{2}}`}</code>, <code className="font-mono text-emerald-500">{`{{3}}`}</code>.</>}
                   {' '}Formatação: <code>*negrito*</code>, <code>_itálico_</code>, <code>~tachado~</code>, <code>`código`</code>.
                 </p>
