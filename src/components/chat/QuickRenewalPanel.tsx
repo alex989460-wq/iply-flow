@@ -1269,10 +1269,16 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
     return <Badge variant={config.variant} className={config.className}>{config.label}</Badge>;
   };
 
-  const formatDate = (dateStr: string) => {
-    const [y, m, d] = dateStr.split('-').map(Number);
-    const date = new Date(y, (m ?? 1) - 1, d ?? 1);
-    return format(date, 'dd/MM/yyyy', { locale: ptBR });
+  const formatDate = (dateStr: string | null | undefined) => {
+    if (!dateStr) return '—';
+    try {
+      const [y, m, d] = dateStr.split('-').map(Number);
+      const date = new Date(y, (m ?? 1) - 1, d ?? 1);
+      return format(date, 'dd/MM/yyyy', { locale: ptBR });
+    } catch (e) {
+      console.error('Error formatting date:', dateStr, e);
+      return dateStr;
+    }
   };
 
   
