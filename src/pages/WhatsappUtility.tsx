@@ -217,6 +217,9 @@ export default function WhatsappUtility() {
             </p>
           </div>
           <div className="flex gap-2">
+            <Button variant="outline" onClick={() => window.location.href = '/ai-training?tab=automation'}>
+              <Key className="w-4 h-4 mr-2" /> Configurar API
+            </Button>
             <Button variant="outline" onClick={loadData} disabled={loading}>
               <RefreshCw className={cn("w-4 h-4 mr-2", loading && "animate-spin")} /> Sincronizar
             </Button>

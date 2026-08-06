@@ -87,7 +87,10 @@ function StatCard({ label, value, icon: Icon, tone = 'violet', hint }: { label: 
 export default function AiTraining() {
   const { user } = useAuth();
   const { toast } = useToast();
-  const [tab, setTab] = useState('dashboard');
+  const [tab, setTab] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('tab') || 'dashboard';
+  });
   const [importing, setImporting] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
   const [jobs, setJobs] = useState<Job[]>([]);
