@@ -115,25 +115,38 @@ Deno.serve(async (req) => {
     if (action === "intake") {
       const prompt = `${PROMPTS.GATHER_CONTEXT}\n\nMENSAGEM DO USUÁRIO: "${message}"`;
       
-      const aiRes = await fetch("https://api.lovable.app/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${Deno.env.get("LOVABLE_AI_GATEWAY_KEY")}`,
-          ...(providerKey ? { "X-Lovable-AI-Provider-Key": providerKey } : {}),
-        },
-        body: JSON.stringify({
-          model: provider === 'gemini' ? "gemini-1.5-pro" : "gpt-4o",
-          messages: [{ role: "user", content: prompt }],
-          response_format: { type: "json_object" },
-          temperature: 0.2,
-        }),
-      });
+      try {
+        const aiRes = await fetch("https://api.lovable.app/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${Deno.env.get("LOVABLE_AI_GATEWAY_KEY")}`,
+            ...(providerKey ? { "X-Lovable-AI-Provider-Key": providerKey } : {}),
+          },
+          body: JSON.stringify({
+            model: provider === 'gpt-4o' ? "gpt-4o" : "gemini-1.5-pro",
+            messages: [{ role: "user", content: prompt }],
+            response_format: { type: "json_object" },
+            temperature: 0.2,
+          }),
+        });
 
-      const aiData = await aiRes.json();
-      const result = JSON.parse(aiData.choices?.[0]?.message?.content || "{}");
+        if (!aiRes.ok) {
+          const errorData = await aiRes.json().catch(() => ({}));
+          throw new Error(`AI Gateway Error: ${aiRes.status} ${JSON.stringify(errorData)}`);
+        }
 
-      return new Response(JSON.stringify({ success: true, result }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+        const aiData = await aiRes.json();
+        const content = aiData.choices?.[0]?.message?.content;
+        
+        if (!content) throw new Error("A IA retornou uma resposta vazia.");
+        
+        const result = JSON.parse(content);
+        return new Response(JSON.stringify({ success: true, result }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      } catch (aiErr) {
+        console.error("AI Error:", aiErr);
+        throw new Error(`Falha na IA: ${aiErr.message}`);
+      }
     }
 
     if (action === "redraft") {
@@ -144,30 +157,52 @@ Deno.serve(async (req) => {
         .replace("__ATTEMPTS_BLOCK__", JSON.stringify(history, null, 2))
         .replace("__EXEMPLARS_BLOCK__", (exemplars || []).join("\n\n"));
 
-      const aiRes = await fetch("https://api.lovable.app/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${Deno.env.get("LOVABLE_AI_GATEWAY_KEY")}`,
-          ...(providerKey ? { "X-Lovable-AI-Provider-Key": providerKey } : {}),
-        },
-        body: JSON.stringify({
-          model: provider === 'gemini' ? "gemini-1.5-pro" : "gpt-4o",
-          messages: [{ role: "user", content: prompt }],
-          response_format: { type: "json_object" },
-          temperature: 0.3,
-        }),
-      });
+      try {
+        const aiRes = await fetch("https://api.lovable.app/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${Deno.env.get("LOVABLE_AI_GATEWAY_KEY")}`,
+            ...(providerKey ? { "X-Lovable-AI-Provider-Key": providerKey } : {}),
+          },
+          body: JSON.stringify({
+            model: provider === 'gpt-4o' ? "gpt-4o" : "gemini-1.5-pro",
+            messages: [{ role: "user", content: prompt }],
+            response_format: { type: "json_object" },
+            temperature: 0.3,
+          }),
+        });
 
-      const aiData = await aiRes.json();
-      const result = JSON.parse(aiData.choices?.[0]?.message?.content || "{}");
+        if (!aiRes.ok) {
+          const errorData = await aiRes.json().catch(() => ({}));
+          throw new Error(`AI Gateway Error: ${aiRes.status} ${JSON.stringify(errorData)}`);
+        }
 
-      return new Response(JSON.stringify({ success: true, result }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+        const aiData = await aiRes.json();
+        const content = aiData.choices?.[0]?.message?.content;
+        if (!content) throw new Error("A IA retornou uma resposta vazia para reescrita.");
+
+        const result = JSON.parse(content);
+        return new Response(JSON.stringify({ success: true, result }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      } catch (aiErr) {
+        console.error("AI Redraft Error:", aiErr);
+        throw new Error(`Falha na IA ao reescrever: ${aiErr.message}`);
+      }
     }
 
     return new Response(JSON.stringify({ error: "Ação inválida" }), { status: 400, headers: corsHeaders });
 
   } catch (error) {
-    return new Response(JSON.stringify({ success: false, error: error.message }), { status: 500, headers: corsHeaders });
+    console.error('Edge Function Error:', error);
+    let message = "Erro interno no servidor";
+    const errStr = error.message || String(error);
+    
+    if (errStr.includes("ai_api_key")) message = "Chave de API da IA não configurada nas configurações do sistema";
+    else if (errStr.includes("not found")) message = "Recurso não encontrado no banco de dados";
+    else if (errStr.includes("AI Gateway Error")) message = "O provedor de IA retornou um erro (verifique sua chave)";
+    else if (errStr.includes("fetch")) message = "Falha de conexão com serviços externos (IA Gateway)";
+    else message = errStr;
+    
+    return new Response(JSON.stringify({ success: false, error: message, details: errStr }), { status: 500, headers: corsHeaders });
   }
 });

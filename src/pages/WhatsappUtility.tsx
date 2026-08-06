@@ -88,18 +88,41 @@ export default function WhatsappUtility() {
         body: { action: 'intake', message: intakeInput }
       });
       
-      if (error) throw error;
+      if (error) {
+        console.error('Invoke error:', error);
+        throw new Error(error.message || 'Erro de conexão com o servidor de IA.');
+      }
+
+      if (data?.success === false) {
+        throw new Error(data.error || 'A IA não conseguiu processar o texto.');
+      }
+
       setExtractedContext(data.result);
       
       // Linting
-      const lintRes = await supabase.functions.invoke('whatsapp-utility-agent', {
-        body: { action: 'lint', body: data.result.body }
-      });
-      setLintIssues(lintRes.data?.issues || []);
+      if (data.result?.body) {
+        const lintRes = await supabase.functions.invoke('whatsapp-utility-agent', {
+          body: { action: 'lint', body: data.result.body }
+        });
+        setLintIssues(lintRes.data?.issues || []);
+      }
       
       setStep(2);
     } catch (e: any) {
-      toast({ title: 'Erro na análise', description: e.message, variant: 'destructive' });
+      console.error('Erro na análise:', e);
+      let errorMsg = 'Ocorreu um erro ao processar sua solicitação.';
+      
+      if (e.message?.includes('Failed to fetch')) {
+        errorMsg = 'Não foi possível conectar ao servidor. Verifique sua conexão ou se a função está publicada.';
+      } else if (e.message?.includes('AI Gateway Error')) {
+        errorMsg = 'Erro na comunicação com a IA. Verifique suas chaves de API nas configurações.';
+      } else if (e.message?.includes('JSON.parse')) {
+        errorMsg = 'A resposta da IA veio em um formato inválido. Tente simplificar o texto.';
+      } else if (e.message) {
+        errorMsg = e.message;
+      }
+      
+      toast({ title: 'Erro na análise', description: errorMsg, variant: 'destructive' });
     } finally {
       setLoading(false);
     }
@@ -147,7 +170,22 @@ export default function WhatsappUtility() {
       setIntakeInput('');
       setExtractedContext(null);
     } catch (e: any) {
-      toast({ title: 'Erro ao iniciar', description: e.message, variant: 'destructive' });
+      console.error('Erro ao iniciar sessão:', e);
+      let errorMsg = 'Erro desconhecido ao salvar a sessão.';
+      
+      if (e.message?.includes('permission denied')) {
+        errorMsg = 'Você não tem permissão para realizar esta ação no banco de dados.';
+      } else if (e.message?.includes('duplicate key')) {
+        errorMsg = 'Já existe um template com este nome.';
+      } else if (e.message) {
+        errorMsg = e.message;
+      }
+      
+      toast({ 
+        title: 'Erro ao iniciar', 
+        description: errorMsg, 
+        variant: 'destructive' 
+      });
     } finally {
       setLoading(false);
     }

@@ -182,8 +182,10 @@ export default function Auth() {
           }
           toast({
             title: 'Erro ao entrar',
-            description: msg === 'Invalid login credentials'
-              ? 'Email ou senha incorretos'
+            description: msg.includes('Invalid login credentials')
+              ? 'Email ou senha incorretos. Verifique seus dados e tente novamente.'
+              : msg.includes('Email not confirmed')
+              ? 'Seu e-mail ainda não foi confirmado. Verifique sua caixa de entrada.'
               : msg,
             variant: 'destructive',
           });
