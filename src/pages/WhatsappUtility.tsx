@@ -171,7 +171,7 @@ export default function WhatsappUtility() {
         <div className="rounded-3xl border border-primary/25 bg-gradient-to-br from-primary/15 via-card to-card p-6 md:p-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <Badge variant="outline" className="border-primary/30 text-primary mb-3">
-              <ShieldCheck className="w-3 h-3 mr-1" /> WhatsApp Utility Template Agent
+              <ShieldCheck className="w-3 h-3 mr-1" /> Motor de Conformidade Meta (Core da IA)
             </Badge>
             <h1 className="text-3xl md:text-4xl font-bold">WhatsApp Utility Agent</h1>
             <p className="text-sm text-muted-foreground mt-1 max-w-2xl">
