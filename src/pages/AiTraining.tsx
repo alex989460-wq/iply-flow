@@ -412,8 +412,8 @@ export default function AiTraining() {
                       onChange={(e) => setAiSettings(s => ({ ...s, provider: e.target.value }))}
                       className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
                     >
-                      <option value="gemini">Google Gemini 1.5 Pro</option>
-                      <option value="openai">OpenAI ChatGPT 4o</option>
+                      <option value="gemini">Google Gemini (Recomendado)</option>
+                      <option value="openai">OpenAI ChatGPT</option>
                     </select>
                   </div>
 

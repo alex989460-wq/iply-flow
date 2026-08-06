@@ -172,7 +172,7 @@ Resposta:`;
         "X-Lovable-AI-Provider-Key": settings.ai_api_key,
       },
       body: JSON.stringify({
-        model: settings.ai_provider === 'gemini' ? "gemini-1.5-pro" : "gpt-4o",
+        model: settings.ai_provider === 'openai' ? "gpt-4o" : "gemini-1.5-flash",
         messages: [{ role: "user", content: prompt }],
         temperature: 0.3,
       }),
