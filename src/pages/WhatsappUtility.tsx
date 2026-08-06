@@ -4,7 +4,9 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, ShieldCheck, Zap, Bot, MessageSquare, Search, RefreshCw } from 'lucide-react';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
+import { Loader2, ShieldCheck, Zap, Bot, MessageSquare, Search, RefreshCw, Save } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
@@ -42,6 +44,9 @@ export default function WhatsappUtility() {
             <Button variant="outline" onClick={() => {}} disabled={loading}>
               <RefreshCw className={loading ? "w-4 h-4 mr-2 animate-spin" : "w-4 h-4 mr-2"} /> Sincronizar
             </Button>
+            <Button onClick={() => {}} disabled={loading}>
+              <Save className="w-4 h-4 mr-2" /> Salvar Configurações
+            </Button>
           </div>
         </div>
 
@@ -56,9 +61,37 @@ export default function WhatsappUtility() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="p-8 border border-dashed rounded-xl text-center text-muted-foreground">
-                <p>Integração do Agente Python em andamento...</p>
-                <p className="text-xs mt-2 italic">Ref: whatsapp_utility_agent-main</p>
+              <div className="space-y-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="system-prompt" className="text-xs font-semibold uppercase text-muted-foreground flex items-center gap-2">
+                    <MessageSquare className="w-3 h-3" /> Prompt do Sistema (Instruções do Agente)
+                  </Label>
+                  <Textarea 
+                    id="system-prompt"
+                    placeholder="Ex: Você é um assistente virtual especializado em IPTV..."
+                    className="min-h-[150px] bg-muted/30 text-sm leading-relaxed"
+                    defaultValue="Você é um assistente virtual especializado em suporte de IPTV e P2P. Use um tom amigável e profissional. Ajude o cliente com renovações, suporte técnico e dúvidas gerais usando a base de conhecimento fornecida."
+                  />
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label className="text-xs font-semibold uppercase text-muted-foreground">Provedor de IA</Label>
+                    <select className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-ring">
+                      <option value="gemini">Google Gemini 1.5 Pro (Recomendado)</option>
+                      <option value="openai">OpenAI ChatGPT 4o</option>
+                    </select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs font-semibold uppercase text-muted-foreground">Chave de API</Label>
+                    <Input type="password" placeholder="Sk-..." className="h-9 text-xs" />
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 p-3 rounded-lg bg-primary/5 border border-primary/10">
+                  <Zap className="w-4 h-4 text-primary animate-pulse" />
+                  <p className="text-xs text-muted-foreground">O agente está conectado ao seu WhatsApp e responderá automaticamente usando o prompt acima.</p>
+                </div>
               </div>
             </CardContent>
           </Card>
