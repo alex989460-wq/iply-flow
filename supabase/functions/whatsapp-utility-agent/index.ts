@@ -125,7 +125,7 @@ Deno.serve(async (req) => {
             ...(providerKey ? { "X-Lovable-AI-Provider-Key": providerKey } : {}),
           },
           body: JSON.stringify({
-            model: provider === 'gpt-4o' ? "gpt-4o" : "gemini-1.5-pro",
+            model: provider === 'openai' ? "gpt-4o" : "gemini-1.5-flash",
             messages: [{ role: "user", content: prompt }],
             response_format: { type: "json_object" },
             temperature: 0.2,
@@ -167,7 +167,7 @@ Deno.serve(async (req) => {
             ...(providerKey ? { "X-Lovable-AI-Provider-Key": providerKey } : {}),
           },
           body: JSON.stringify({
-            model: provider === 'gpt-4o' ? "gpt-4o" : "gemini-1.5-pro",
+            model: provider === 'openai' ? "gpt-4o" : "gemini-1.5-flash",
             messages: [{ role: "user", content: prompt }],
             response_format: { type: "json_object" },
             temperature: 0.3,
