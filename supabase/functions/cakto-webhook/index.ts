@@ -2074,7 +2074,7 @@ serve(async (req) => {
     }
 
     // ── Conflict detection: multiple customers for same phone without trusted pre-selection ──
-    if (allMatchedCustomers.length > 1 && !isMultiScreen && !multiRenewalCompleted && !hasPreSelection) {
+    if (allMatchedCustomers.length > 1 && !isMultiScreen && !multiRenewalCompleted && !hasPreSelection && !(globalThis as any).FORCE_MULTI_RENEWAL) {
       const todayStr = today.toISOString().split('T')[0];
       const sameDueCustomers = allMatchedCustomers.filter((c: any) => {
         const d = c.due_date || '';
