@@ -11,7 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { 
   Loader2, ShieldCheck, Zap, Bot, MessageSquare, Search, RefreshCw, 
   Save, AlertTriangle, CheckCircle2, History, Wand2, Filter, 
-  ArrowRight, Check, X, Trash2, Brain
+  ArrowRight, Check, X, Trash2, Brain, Key
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
