@@ -1455,7 +1455,7 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
           {!selectedCustomer && !showNewCustomerForm && (isSearching || (searchResults && searchResults.length > 0)) && (
             <div className="space-y-1">
               <p className="text-xs text-muted-foreground mb-2">{isSearching ? 'Buscando...' : 'Resultados:'}</p>
-              {searchResults.map((customer) => (
+              {(searchResults ?? []).map((customer) => (
                 <Card
                   key={customer.id}
                   className="cursor-pointer hover:bg-accent/50 transition-colors"
