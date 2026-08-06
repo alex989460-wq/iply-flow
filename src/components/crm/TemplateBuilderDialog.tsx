@@ -218,7 +218,20 @@ export default function TemplateBuilderDialog({ open, onOpenChange, mode, initia
       update({ headerHandle: res.header_handle, headerMediaUrl: fileUrl });
       toast({ title: 'Mídia enviada à Meta', description: 'Handle pronto para o template.' });
     } catch (e: any) {
-      toast({ title: 'Falha no upload', description: e.message, variant: 'destructive' });
+      const msg = e.message || '';
+      let ptMsg = 'Falha ao processar o arquivo.';
+      
+      if (msg.includes('row-level security') || msg.includes('permission denied')) {
+        ptMsg = 'Erro de permissão no upload. A pasta deve seguir o padrão do seu usuário.';
+      } else if (msg.includes('too large')) {
+        ptMsg = 'Arquivo muito grande para o limite da Meta.';
+      } else if (msg.includes('aborted') || msg.includes('timeout')) {
+        ptMsg = 'O upload demorou muito. Tente uma conexão melhor ou arquivo menor.';
+      } else {
+        ptMsg = msg;
+      }
+
+      toast({ title: 'Falha no upload', description: ptMsg, variant: 'destructive' });
     } finally {
       setUploading(false);
       if (fileRef.current) fileRef.current.value = '';
