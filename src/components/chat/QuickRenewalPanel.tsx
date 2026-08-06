@@ -1476,7 +1476,7 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                           <div className="flex items-center gap-1">
                             <Calendar className="h-3 w-3 text-muted-foreground" />
                             <span className={
-                              new Date(customer.due_date + 'T12:00:00') < new Date() 
+                              customer.due_date && new Date(customer.due_date + 'T12:00:00').toString() !== 'Invalid Date' && new Date(customer.due_date + 'T12:00:00') < new Date() 
                                 ? 'text-destructive font-medium' 
                                 : 'text-muted-foreground'
                             }>
