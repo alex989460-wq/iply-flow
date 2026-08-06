@@ -11,7 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { 
   Loader2, ShieldCheck, Zap, Bot, MessageSquare, Search, RefreshCw, 
   Save, AlertTriangle, CheckCircle2, History, Wand2, Filter, 
-  ArrowRight, Check, X, Trash2, Brain
+  ArrowRight, Check, X, Trash2, Brain, Key
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -217,6 +217,9 @@ export default function WhatsappUtility() {
             </p>
           </div>
           <div className="flex gap-2">
+            <Button variant="outline" onClick={() => window.location.href = '/ai-training?tab=automation'}>
+              <Key className="w-4 h-4 mr-2" /> Configurar API
+            </Button>
             <Button variant="outline" onClick={loadData} disabled={loading}>
               <RefreshCw className={cn("w-4 h-4 mr-2", loading && "animate-spin")} /> Sincronizar
             </Button>
