@@ -128,18 +128,28 @@ export default function TemplateBuilderDialog({ open, onOpenChange, mode, initia
     const ta = bodyRef.current;
     const txt = form.body;
     let token = '';
+    
+    const candidates = [
+      { id: 'nome', label: 'Nome do cliente', value: 'name' },
+      { id: 'usuario', label: 'Usuário (Login)', value: 'user' },
+      { id: 'preco', label: 'Preço/Valor', value: 'price' },
+      { id: 'plano', label: 'Plano', value: 'plan' },
+      { id: 'data', label: 'Vencimento', value: 'data' },
+      { id: 'servidor', label: 'Servidor', value: 'server' },
+      { id: 'senha', label: 'Senha', value: 'password' },
+      { id: 'link', label: 'Link de acesso', value: 'link' },
+    ];
+
     if (form.varType === 'NUMBER') {
-      // Next available numeric index based on existing tokens
       const existing = extractVarTokens(txt).filter(v => /^\d+$/.test(v)).map(Number);
       const next = (existing.length ? Math.max(...existing) : 0) + 1;
       token = `{{${next}}}`;
     } else {
-      // Suggest a default name and let user rename later
       const used = new Set(extractVarTokens(txt));
-      const candidates = ['name', 'user', 'price', 'plan', 'data', 'server', 'var1', 'var2', 'var3'];
-      const pick = candidates.find(c => !used.has(c)) || `var${used.size + 1}`;
+      const pick = candidates.find(c => !used.has(c.value))?.value || `var${used.size + 1}`;
       token = `{{${pick}}}`;
     }
+    
     if (ta) {
       const start = ta.selectionStart, end = ta.selectionEnd;
       const next = txt.slice(0, start) + token + txt.slice(end);
@@ -177,7 +187,11 @@ export default function TemplateBuilderDialog({ open, onOpenChange, mode, initia
     try {
       // 1) Upload to storage to get a stable URL (avoids multipart issues in edge invoke)
       const ext = (file.name.split('.').pop() || 'bin').toLowerCase();
-      const path = `meta-template-uploads/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+      // Use auth.uid() prefix to satisfy RLS policy
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      if (!authUser) throw new Error('Sessão expirada. Faça login novamente.');
+      
+      const path = `${authUser.id}/meta-template-uploads/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
       const { error: upErr } = await supabase.storage
         .from('reseller-assets')
         .upload(path, file, { contentType: file.type || 'application/octet-stream', upsert: true });
@@ -299,7 +313,18 @@ export default function TemplateBuilderDialog({ open, onOpenChange, mode, initia
       onOpenChange(false);
       onSaved();
     } catch (e: any) {
-      toast({ title: 'Erro ao salvar', description: e.message, variant: 'destructive' });
+      const msg = e.message || '';
+      let ptMsg = 'Erro desconhecido ao processar template.';
+      
+      if (msg.includes('invalid parameter')) ptMsg = 'Variáveis ou formato inválidos para a Meta.';
+      else if (msg.includes('400')) ptMsg = 'Requisição inválida. Verifique os campos do template.';
+      else if (msg.includes('401')) ptMsg = 'Sessão expirada ou sem permissão no CRM.';
+      else if (msg.includes('permission denied')) ptMsg = 'Erro de permissão no banco de dados.';
+      else if (msg.includes('already exists')) ptMsg = 'Já existe um template com este nome.';
+      else if (msg.includes('category')) ptMsg = 'Categoria inválida para este conteúdo.';
+      else ptMsg = msg;
+
+      toast({ title: 'Erro ao salvar', description: ptMsg, variant: 'destructive' });
     } finally {
       setSaving(false);
     }
