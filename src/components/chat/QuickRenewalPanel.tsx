@@ -1424,9 +1424,9 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
           )}
 
           {/* Search Results */}
-          {!selectedCustomer && !showNewCustomerForm && searchResults && searchResults.length > 0 && (
+          {!selectedCustomer && !showNewCustomerForm && (isSearching || (searchResults && searchResults.length > 0)) && (
             <div className="space-y-1">
-              <p className="text-xs text-muted-foreground mb-2">Resultados:</p>
+              <p className="text-xs text-muted-foreground mb-2">{isSearching ? 'Buscando...' : 'Resultados:'}</p>
               {searchResults.map((customer) => (
                 <Card
                   key={customer.id}
