@@ -262,11 +262,29 @@ async function persistLocalCrmKey(userId: string, apiKey: string) {
   const svc = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
   if (!supaUrl || !svc || !userId || !apiKey) return { ok: false, error: "backend indisponível" };
   const admin = createClient(supaUrl, svc);
+  
+  // Garantir que a integração_api_key do ZapCRM seja provisionada para o novo revendedor
+  // para que o iframe funcione sem pedir login
+  try {
+    await signupManagedCrmUser(userId, apiKey);
+  } catch (e) {
+    console.error("[crm-oficial-sync] erro ao sincronizar provisionamento crm:", e);
+  }
+
   const { error } = await admin
     .from("crm_oficial_settings")
     .upsert({ user_id: userId, api_key: apiKey, enabled: true, updated_at: new Date().toISOString() }, { onConflict: "user_id" });
   if (error) return { ok: false, error: error.message };
   return { ok: true };
+}
+
+async function signupManagedCrmUser(userId: string, apiKey: string) {
+  // Chamada interna para o ZapCRM para vincular o token e criar a sessão
+  const res = await crmFetch("/api/public/v1/provision-managed", {
+    method: "POST",
+    body: JSON.stringify({ userId, apiKey }),
+  });
+  return res;
 }
 
 async function directMetaMediaSend(args: {

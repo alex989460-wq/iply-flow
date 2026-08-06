@@ -161,6 +161,12 @@ export default function CrmChannelsInline() {
       }
 
 
+      if (!merged.length && key) {
+        // Fallback: se não carregou nada mas tem chave, tenta uma sincronização forçada
+        supabase.functions.invoke('crm-oficial-sync', {
+          body: { action: 'repair-missing', data: { apiKey: key } },
+        }).then(() => load(key));
+      }
     } catch (e: any) {
       toast({ title: 'Erro ao listar canais oficiais', description: e.message, variant: 'destructive' });
     } finally {
