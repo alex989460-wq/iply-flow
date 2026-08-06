@@ -376,7 +376,7 @@ export default function AiTraining() {
           </Card>
         )}
 
-        <Tabs value={tab} onValueChange={setTab}>
+        <Tabs value={tab} onValueChange={setTab} className="space-y-6">
           <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="dashboard"><BarChart3 className="h-4 w-4 mr-1" />Dashboard</TabsTrigger>
             <TabsTrigger value="knowledge"><Brain className="h-4 w-4 mr-1" />Base ({stats.approved})</TabsTrigger>
