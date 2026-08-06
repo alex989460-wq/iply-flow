@@ -1285,12 +1285,14 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
     if (!dateStr) return '—';
     try {
       const parts = dateStr.split('-');
-      if (parts.length < 2) return dateStr;
+      // Standard ISO YYYY-MM-DD
       const y = parseInt(parts[0], 10);
       const m = parseInt(parts[1], 10);
       const d = parts[2] ? parseInt(parts[2], 10) : 1;
       
-      const date = new Date(y, (m || 1) - 1, d || 1);
+      if (isNaN(y) || isNaN(m)) return dateStr;
+      
+      const date = new Date(y, m - 1, d);
       if (isNaN(date.getTime())) return dateStr;
       
       return format(date, 'dd/MM/yyyy', { locale: ptBR });
