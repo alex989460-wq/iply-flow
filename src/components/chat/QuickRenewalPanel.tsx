@@ -1272,8 +1272,15 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
   const formatDate = (dateStr: string | null | undefined) => {
     if (!dateStr) return '—';
     try {
-      const [y, m, d] = dateStr.split('-').map(Number);
-      const date = new Date(y, (m ?? 1) - 1, d ?? 1);
+      const parts = dateStr.split('-');
+      if (parts.length < 2) return dateStr;
+      const y = parseInt(parts[0], 10);
+      const m = parseInt(parts[1], 10);
+      const d = parts[2] ? parseInt(parts[2], 10) : 1;
+      
+      const date = new Date(y, (m || 1) - 1, d || 1);
+      if (isNaN(date.getTime())) return dateStr;
+      
       return format(date, 'dd/MM/yyyy', { locale: ptBR });
     } catch (e) {
       console.error('Error formatting date:', dateStr, e);
