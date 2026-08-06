@@ -88,14 +88,25 @@ export default function WhatsappUtility() {
         body: { action: 'intake', message: intakeInput }
       });
       
-      if (error) throw error;
+      if (error) {
+        // Handle specific Edge Function error objects
+        const errorMessage = error.message || 'Erro desconhecido na função.';
+        throw new Error(errorMessage);
+      }
+
+      if (data?.success === false) {
+        throw new Error(data.error || 'A análise falhou sem um motivo específico.');
+      }
+
       setExtractedContext(data.result);
       
       // Linting
-      const lintRes = await supabase.functions.invoke('whatsapp-utility-agent', {
-        body: { action: 'lint', body: data.result.body }
-      });
-      setLintIssues(lintRes.data?.issues || []);
+      if (data.result?.body) {
+        const lintRes = await supabase.functions.invoke('whatsapp-utility-agent', {
+          body: { action: 'lint', body: data.result.body }
+        });
+        setLintIssues(lintRes.data?.issues || []);
+      }
       
       setStep(2);
     } catch (e: any) {
@@ -103,11 +114,13 @@ export default function WhatsappUtility() {
       let errorMsg = 'Ocorreu um erro ao processar sua solicitação.';
       
       if (e.message?.includes('Failed to fetch')) {
-        errorMsg = 'Não foi possível conectar ao servidor. Verifique sua conexão.';
+        errorMsg = 'Não foi possível conectar ao servidor. Verifique sua conexão ou se a função está publicada.';
+      } else if (e.message?.includes('AI Gateway Error')) {
+        errorMsg = 'Erro na comunicação com a IA. Verifique suas chaves de API nas configurações.';
       } else if (e.message?.includes('JSON.parse')) {
-        errorMsg = 'A resposta da IA veio em um formato inválido. Tente novamente com um texto diferente.';
+        errorMsg = 'A resposta da IA veio em um formato inválido. Tente simplificar o texto.';
       } else if (e.message) {
-        errorMsg = `Erro: ${e.message}`;
+        errorMsg = e.message;
       }
       
       toast({ title: 'Erro na análise', description: errorMsg, variant: 'destructive' });
