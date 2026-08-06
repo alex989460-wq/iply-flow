@@ -539,7 +539,11 @@ export default function AiTraining() {
                       }, { onConflict: 'user_id' });
                     setSavingSettings(false);
                     if (error) toast({ title: 'Erro ao salvar', description: error.message, variant: 'destructive' });
-                    else toast({ title: 'Configurações de IA salvas com sucesso' });
+                    else {
+                      toast({ title: 'Configurações de IA salvas com sucesso' });
+                      // Forçamos o recarregamento das configurações para garantir que o estado local esteja sincronizado
+                      reload();
+                    }
                   }} 
                   disabled={savingSettings}
                   size="sm"

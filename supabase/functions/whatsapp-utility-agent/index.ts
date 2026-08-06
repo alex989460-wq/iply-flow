@@ -197,11 +197,24 @@ Deno.serve(async (req) => {
     let message = "Erro interno no servidor";
     const errStr = error.message || String(error);
     
-    if (errStr.includes("ai_api_key")) message = "Chave de API da IA não configurada nas configurações do sistema";
-    else if (errStr.includes("not found")) message = "Recurso não encontrado no banco de dados";
-    else if (errStr.includes("AI Gateway Error")) message = "O provedor de IA retornou um erro (verifique sua chave)";
-    else if (errStr.includes("fetch")) message = "Falha de conexão com serviços externos (IA Gateway)";
-    else message = errStr;
+    // Melhora o mapeamento de erros para o usuário
+    if (errStr.includes("ai_api_key")) {
+      message = "Chave de API da IA não configurada. Vá em Central de IA > Automação e configure sua chave.";
+    } else if (errStr.includes("AI Gateway Error")) {
+      if (errStr.includes("401") || errStr.includes("Invalid API key")) {
+        message = "Chave de API inválida. Verifique se a chave da OpenAI ou Gemini está correta nas configurações.";
+      } else if (errStr.includes("429") || errStr.includes("quota")) {
+        message = "Limite de cota atingido na sua conta de IA. Verifique seu saldo no provedor (OpenAI/Gemini).";
+      } else if (errStr.includes("404")) {
+        message = "Modelo de IA não encontrado ou acesso negado para este modelo.";
+      } else {
+        message = "O provedor de IA (OpenAI/Gemini) retornou um erro técnico. Verifique os logs.";
+      }
+    } else if (errStr.includes("fetch")) {
+      message = "Falha de conexão com os serviços de IA. Tente novamente em instantes.";
+    } else {
+      message = errStr;
+    }
     
     return new Response(JSON.stringify({ success: false, error: message, details: errStr }), { status: 500, headers: corsHeaders });
   }
