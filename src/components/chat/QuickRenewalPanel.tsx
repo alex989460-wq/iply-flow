@@ -1104,12 +1104,13 @@ Obrigado pela preferência! 🙏`;
     if (!dueDate) return false;
     try {
       const parts = dueDate.split('-');
-      if (parts.length < 2) return false;
       const y = parseInt(parts[0], 10);
       const m = parseInt(parts[1], 10);
       const d = parts[2] ? parseInt(parts[2], 10) : 1;
       
-      const due = new Date(y, (m || 1) - 1, d || 1);
+      if (isNaN(y) || isNaN(m)) return false;
+      
+      const due = new Date(y, m - 1, d);
       if (isNaN(due.getTime())) return false;
       
       const today = startOfDay(new Date());
@@ -1285,12 +1286,14 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
     if (!dateStr) return '—';
     try {
       const parts = dateStr.split('-');
-      if (parts.length < 2) return dateStr;
+      // Standard ISO YYYY-MM-DD
       const y = parseInt(parts[0], 10);
       const m = parseInt(parts[1], 10);
       const d = parts[2] ? parseInt(parts[2], 10) : 1;
       
-      const date = new Date(y, (m || 1) - 1, d || 1);
+      if (isNaN(y) || isNaN(m)) return dateStr;
+      
+      const date = new Date(y, m - 1, d);
       if (isNaN(date.getTime())) return dateStr;
       
       return format(date, 'dd/MM/yyyy', { locale: ptBR });
@@ -1476,7 +1479,7 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                           <div className="flex items-center gap-1">
                             <Calendar className="h-3 w-3 text-muted-foreground" />
                             <span className={
-                              customer.due_date && new Date(customer.due_date + 'T12:00:00').toString() !== 'Invalid Date' && new Date(customer.due_date + 'T12:00:00') < new Date() 
+                              customer.due_date && isCustomerOverdue(customer.due_date)
                                 ? 'text-destructive font-medium' 
                                 : 'text-muted-foreground'
                             }>
