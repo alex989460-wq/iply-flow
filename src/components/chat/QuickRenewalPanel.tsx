@@ -1602,7 +1602,7 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                       type="date"
                       value={editedDueDate}
                       onChange={(e) => setEditedDueDate(e.target.value)}
-                      className={`h-8 text-sm ${isCustomerOverdue(selectedCustomer.due_date) ? 'text-destructive' : ''}`}
+                      className={`h-8 text-sm ${selectedCustomer?.due_date && isCustomerOverdue(selectedCustomer.due_date) ? 'text-destructive' : ''}`}
                     />
                   </div>
                   
