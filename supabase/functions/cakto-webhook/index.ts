@@ -2261,6 +2261,58 @@ serve(async (req) => {
 
     // Renew ALL customers in customersToRenew (supports multi-screen) — skip if multi-renewal already handled
     if (!multiRenewalCompleted) {
+      // If FORCE_MULTI_RENEWAL was set in plan matching, promote all matched customers to renew
+      if ((globalThis as any).FORCE_MULTI_RENEWAL) {
+        console.log(`[Cakto] 🖥️ Executando Multi-renovação forçada por valor excedente (R$ ${amountNumeric.toFixed(2)})`);
+        // We'll calculate a proportional amount for each payment record
+        const perCustAmount = amountNumeric / allMatchedCustomers.length;
+        
+        for (const cust of allMatchedCustomers) {
+          const custCurrentDue = cust.due_date ? new Date(cust.due_date + 'T00:00:00') : today;
+          const custBase = new Date(custCurrentDue > today ? custCurrentDue : today);
+          
+          if (monthsToAdd) {
+            const origDay = custBase.getDate();
+            custBase.setMonth(custBase.getMonth() + monthsToAdd);
+            if (custBase.getDate() !== origDay) custBase.setDate(0);
+          } else {
+            custBase.setDate(custBase.getDate() + durationDays);
+          }
+          const custNewDue = custBase.toISOString().split('T')[0];
+          
+          await supabaseAdmin.from('customers').update({ due_date: custNewDue, status: 'ativa' }).eq('id', cust.id);
+          
+          if (amountNumeric > 0) {
+            await supabaseAdmin.from('payments').insert({
+              customer_id: cust.id,
+              amount: perCustAmount,
+              payment_date: today.toISOString().split('T')[0],
+              method: paymentMethodDb,
+              confirmed: true,
+              source: caktoId ? `cakto:${caktoId}` : 'cakto',
+            });
+          }
+        }
+        
+        // Save confirmation
+        await supabaseAdmin.from('payment_confirmations').insert({
+          customer_id: matchedCustomer.id,
+          customer_name: allMatchedCustomers.map((c: any) => c.name).join(', '),
+          customer_phone: matchedCustomer.phone,
+          amount: amountNumeric,
+          plan_name: matchedPlanName || null,
+          duration_days: durationDays,
+          new_due_date: allMatchedCustomers[0].due_date, // best-effort
+          status: 'approved',
+        });
+        
+        multiRenewalCompleted = true;
+        customersToRenew.length = 0;
+        allMatchedCustomers.forEach((c: any) => customersToRenew.push(c));
+      }
+    }
+
+    if (!multiRenewalCompleted) {
     for (const cust of customersToRenew) {
       const custCurrentDue = cust.due_date ? new Date(cust.due_date + 'T00:00:00') : today;
       const custBase = new Date(custCurrentDue > today ? custCurrentDue : today);
