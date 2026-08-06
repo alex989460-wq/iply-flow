@@ -278,48 +278,77 @@ export default function WhatsappUtility() {
                 </div>
 
                 <div className="space-y-6">
-                  <Card className={cn(
-                    "border-l-4",
-                    extractedContext.utility_risk === 'low' ? "border-l-emerald-500" :
-                    extractedContext.utility_risk === 'medium' ? "border-l-amber-500" : "border-l-rose-500"
-                  )}>
+                  {/* Score Card */}
+                  <Card>
                     <CardHeader className="pb-2">
                       <CardTitle className="text-sm flex items-center gap-2">
-                        <AlertTriangle className="w-4 h-4" /> Risco de Recategorização
+                        <ShieldCheck className="w-4 h-4 text-primary" /> Score de Conformidade
                       </CardTitle>
                     </CardHeader>
-                    <CardContent className="space-y-3">
-                      <Badge className={cn(
-                        "w-full justify-center py-1",
-                        extractedContext.utility_risk === 'low' ? "bg-emerald-500/15 text-emerald-600 border-emerald-500/30" :
-                        extractedContext.utility_risk === 'medium' ? "bg-amber-500/15 text-amber-600 border-amber-500/30" : 
-                        "bg-rose-500/15 text-rose-600 border-rose-500/30"
-                      )} variant="outline">
-                        RISCO {extractedContext.utility_risk.toUpperCase()}
-                      </Badge>
-                      <p className="text-xs text-muted-foreground leading-relaxed">
-                        {extractedContext.utility_risk_reason}
-                      </p>
+                    <CardContent className="space-y-4">
+                      <div className="space-y-2">
+                        <div className="flex justify-between text-xs">
+                          <span>Utility Score</span>
+                          <span className="font-bold">{extractedContext.utility_risk === 'low' ? '90+' : extractedContext.utility_risk === 'medium' ? '50-70' : '<30'}</span>
+                        </div>
+                        <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
+                          <div 
+                            className={cn(
+                              "h-full transition-all",
+                              extractedContext.utility_risk === 'low' ? "bg-emerald-500 w-[95%]" :
+                              extractedContext.utility_risk === 'medium' ? "bg-amber-500 w-[60%]" : "bg-rose-500 w-[20%]"
+                            )} 
+                          />
+                        </div>
+                      </div>
+                      
+                      <div className="pt-2 border-t space-y-3">
+                        <div className="flex justify-between items-center">
+                          <span className="text-xs text-muted-foreground">Aprovação Estimada</span>
+                          <Badge className={cn(
+                            "text-[10px]",
+                            extractedContext.approval_chance?.includes('Alta') ? "bg-emerald-500/15 text-emerald-600 border-emerald-500/30" :
+                            extractedContext.approval_chance?.includes('Média') ? "bg-amber-500/15 text-amber-600 border-amber-500/30" : 
+                            "bg-rose-500/15 text-rose-600 border-rose-500/30"
+                          )} variant="outline">
+                            {extractedContext.approval_chance || 'PENDENTE'}
+                          </Badge>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-xs text-muted-foreground">Risco Recategorização</span>
+                          <span className={cn(
+                            "text-xs font-bold",
+                            extractedContext.utility_risk === 'low' ? "text-emerald-600" :
+                            extractedContext.utility_risk === 'medium' ? "text-amber-600" : "text-rose-600"
+                          )}>
+                            {extractedContext.report?.risk_level_percent || 0}%
+                          </span>
+                        </div>
+                      </div>
                     </CardContent>
                   </Card>
 
-                  {lintIssues.length > 0 && (
-                    <Card className="border-rose-500/20 bg-rose-500/5">
-                      <CardHeader className="pb-2">
-                        <CardTitle className="text-sm flex items-center gap-2 text-rose-600">
-                          <Filter className="w-4 h-4" /> Problemas Encontrados
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent className="space-y-2">
-                        {lintIssues.map((issue, i) => (
-                          <div key={i} className="text-[11px] flex gap-2 text-rose-700/80">
-                            <span className="font-bold">•</span>
-                            <span>{issue}</span>
-                          </div>
-                        ))}
-                      </CardContent>
-                    </Card>
-                  )}
+                  {/* Checklist Meta */}
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm flex items-center gap-2">
+                        <CheckCircle2 className="w-4 h-4 text-primary" /> Checklist Meta
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-2">
+                      {[
+                        { label: 'Relacionamento Prévio', val: extractedContext.audit?.context?.previous_relationship },
+                        { label: 'Evento Transacional', val: extractedContext.audit?.context?.real_transactional_event },
+                        { label: 'Sem Incentivos', val: extractedContext.audit?.commercial_incentives?.length === 0 },
+                        { label: 'Finalidade Utility', val: extractedContext.audit?.intent === 'Utility' }
+                      ].map((item, i) => (
+                        <div key={i} className="flex items-center justify-between text-[11px]">
+                          <span className="text-muted-foreground">{item.label}</span>
+                          {item.val ? <Check className="w-3 h-3 text-emerald-500" /> : <X className="w-3 h-3 text-rose-500" />}
+                        </div>
+                      ))}
+                    </CardContent>
+                  </Card>
                 </div>
               </div>
             )}
