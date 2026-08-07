@@ -1775,8 +1775,27 @@ serve(async (req) => {
     let bestMatch: any = null;
 
     if (amountNumeric > 0 && allPlans && allPlans.length > 0) {
+      // -1) PRIORIDADE MÁXIMA: período declarado no nome do produto da Cakto.
+      // Evita que um pagamento parcelado (com juros) caia num plano de outra
+      // duração com preço parecido (ex.: Trimestral Cartão 97,90 x 3 Telas Cartão 98,90).
+      if (periodFromProduct) {
+        const samePeriodPlans = allPlans.filter((p: any) => p.duration_days === periodFromProduct);
+        if (samePeriodPlans.length > 0) {
+          let periodBestDiff = Infinity;
+          for (const p of samePeriodPlans) {
+            const diff = Math.abs(Number(p.price) - amountNumeric);
+            if (diff < periodBestDiff) {
+              periodBestDiff = diff;
+              bestMatch = p;
+            }
+          }
+          console.log(`[Cakto] ✅ Plano definido pelo período do produto: ${bestMatch.plan_name} (${bestMatch.duration_days} dias, R$ ${bestMatch.price}) | Valor pago: R$ ${amountNumeric.toFixed(2)}`);
+        }
+      }
+
       // 0) FIRST: Check if any plan has an EXACT price match (±0.1%) - highest priority
-      {
+      if (!bestMatch) {
+
         let exactBestDiff = Infinity;
         for (const p of allPlans) {
           const diff = Math.abs(p.price - amountNumeric);
