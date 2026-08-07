@@ -1908,6 +1908,14 @@ serve(async (req) => {
       }
     }
 
+    // Trava final: o período declarado no produto da Cakto sempre prevalece sobre
+    // qualquer duração inferida por preço.
+    if (periodFromProduct && durationDays !== periodFromProduct) {
+      console.warn(`[Cakto] ⚠️ Duração inferida (${durationDays} dias) diverge do produto (${periodFromProduct} dias). Aplicando ${periodFromProduct} dias.`);
+      durationDays = periodFromProduct;
+    }
+
+
     console.log(`[Cakto] Plano detectado: ${matchedPlanName || 'padrão'} (${durationDays} dias) | Valor pago: R$ ${amountNumeric.toFixed(2)} | Telas: ${matchedCustomer.screens || 1}`);
 
     // Prepare calendar month mapping
