@@ -539,6 +539,18 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Admin ignora a trava de mensalidade
+    let isAdminUser = false;
+    if (userId) {
+      const { data: adminRows } = await supabase
+        .from('user_roles')
+        .select('id')
+        .eq('user_id', userId)
+        .eq('role', 'admin')
+        .limit(1);
+      isAdminUser = (adminRows?.length ?? 0) > 0;
+    }
+
     // Get fallback zapToken from env
     const zapTokenEnv = Deno.env.get('ZAP_RESPONDER_TOKEN') || '';
 
