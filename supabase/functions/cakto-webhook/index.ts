@@ -937,6 +937,22 @@ serve(async (req) => {
     const paymentAmount = caktoData?.amount || caktoData?.baseAmount || body?.sale?.amount || body?.amount || 0;
     let amountNumeric = Number(String(paymentAmount).replace(/[^\d.,]/g, '').replace(',', '.')) || 0;
 
+    // Período declarado no nome do produto da Cakto (ex.: "SOCIAL PLAY TRIMESTRAL CARTÃO").
+    // Isso é a fonte mais confiável: o valor parcelado no cartão vem com juros
+    // (ex.: Trimestral R$ 97,90 chega como R$ 107,46) e pode colidir com outro plano.
+    const productNameUpperGlobal = String(productName || '').toUpperCase();
+    const periodFromProduct: number | null =
+      /ANUAL|ANO\b/.test(productNameUpperGlobal) ? 365
+      : /SEMESTRAL/.test(productNameUpperGlobal) ? 180
+      : /TRIMESTRAL/.test(productNameUpperGlobal) ? 90
+      : /BIMESTRAL/.test(productNameUpperGlobal) ? 60
+      : /MENSAL|MENSALIDADE/.test(productNameUpperGlobal) ? 30
+      : null;
+    if (periodFromProduct) {
+      console.log(`[Cakto] Período detectado pelo nome do produto "${productName}": ${periodFromProduct} dias`);
+    }
+
+
     // Detect payment method from Cakto payload
     const rawMethod = (caktoData?.payment_method || caktoData?.paymentMethod || caktoData?.method || body?.payment_method || '').toString().toLowerCase();
     const isCreditCard = rawMethod.includes('credit') || rawMethod.includes('cartao') || rawMethod.includes('cartão') || rawMethod.includes('card');
