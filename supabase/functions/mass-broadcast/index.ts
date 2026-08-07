@@ -44,7 +44,8 @@ async function sendWhatsAppTemplate(
   _token: string,
   _apiBaseUrl: string,
   userIdOrDept: string,
-  phoneNumberId?: string | null
+  phoneNumberId?: string | null,
+  customerName?: string | null,
 ): Promise<{ success: boolean; error?: string }> {
   try {
     let formattedPhone = phone.replace(/\D/g, '');
@@ -70,6 +71,10 @@ async function sendWhatsAppTemplate(
           template_name: templateName,
           language: 'pt_BR',
           user_id: userIdOrDept,
+          // Nome real do cliente (evita cair no fallback "Cliente" nos templates/CRM)
+          ...(customerName && String(customerName).trim()
+            ? { parameters: [String(customerName).trim()], contact_name: String(customerName).trim() }
+            : {}),
           ...(phoneNumberId ? { phone_number_id: phoneNumberId, from_phone_number_id: phoneNumberId } : {}),
         }),
       }
@@ -188,9 +193,8 @@ async function startBroadcastPlan(args: {
 
     if (alreadySentPhones.has(normalizedPhone)) {
       alreadySentCustomers.push(customer);
-    } else if (seenPhones.has(normalizedPhone)) {
-      duplicateCustomers.push(customer);
     } else {
+      // Dedupe por telefone desativado: todo cliente selecionado é enviado.
       seenPhones.add(normalizedPhone);
       customersToSend.push(customer);
     }
@@ -336,6 +340,7 @@ async function processBroadcastBatch(args: {
         '',
         args.userId!,
         args.phoneNumberId || null,
+        customer.name,
       );
       return {
 
@@ -460,7 +465,9 @@ async function processBroadcastLegacy(args: {
       args.templateName,
       args.zapToken,
       args.apiBaseUrl,
-      args.departmentId
+      args.departmentId,
+      null,
+      customer.name,
     );
 
     await supabase.from('billing_logs').insert({
@@ -634,9 +641,8 @@ Deno.serve(async (req) => {
 
       if (alreadySentPhones.has(normalizedPhone)) {
         alreadySentCustomers.push(customer);
-      } else if (seenPhones.has(normalizedPhone)) {
-        duplicateCustomers.push(customer);
       } else {
+        // Dedupe por telefone desativado.
         seenPhones.add(normalizedPhone);
         customersToSend.push(customer);
       }
