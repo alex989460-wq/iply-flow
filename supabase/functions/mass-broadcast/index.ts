@@ -71,6 +71,10 @@ async function sendWhatsAppTemplate(
           template_name: templateName,
           language: 'pt_BR',
           user_id: userIdOrDept,
+          // Nome real do cliente (evita cair no fallback "Cliente" nos templates/CRM)
+          ...(customerName && String(customerName).trim()
+            ? { parameters: [String(customerName).trim()], contact_name: String(customerName).trim() }
+            : {}),
           ...(phoneNumberId ? { phone_number_id: phoneNumberId, from_phone_number_id: phoneNumberId } : {}),
         }),
       }
