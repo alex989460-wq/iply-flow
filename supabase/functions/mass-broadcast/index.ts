@@ -465,7 +465,9 @@ async function processBroadcastLegacy(args: {
       args.templateName,
       args.zapToken,
       args.apiBaseUrl,
-      args.departmentId
+      args.departmentId,
+      null,
+      customer.name,
     );
 
     await supabase.from('billing_logs').insert({
