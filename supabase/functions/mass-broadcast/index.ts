@@ -580,6 +580,7 @@ Deno.serve(async (req) => {
         customerIds: customer_ids,
         templateName: template_name,
         userId,
+        isAdmin: isAdminUser,
         phoneNumberId: (body as any).phone_number_id || null,
       });
 
