@@ -103,11 +103,13 @@ export default function MassBroadcast() {
   const [isBroadcastComplete, setIsBroadcastComplete] = useState(false);
   const [activeBroadcast, setActiveBroadcast] = useState<ActiveBroadcast | null>(null);
   const [alreadySentCount, setAlreadySentCount] = useState(0);
+  const [senderPhoneId, setSenderPhoneId] = useState<string>('');
   const [isCheckingAlreadySent, setIsCheckingAlreadySent] = useState(false);
 
   const initialResultsRef = useRef<BroadcastResult[]>([]);
   const realtimeResultsRef = useRef<Map<string, BroadcastResult>>(new Map());
   const cancelSendRef = useRef(false);
+  const recomputeRef = useRef<() => void>(() => {});
 
   // Templates from API
   const [templates, setTemplates] = useState<WhatsAppTemplate[]>([]);
@@ -131,6 +133,39 @@ export default function MassBroadcast() {
   });
 
   const crmEnabled = !!(crmSettings?.enabled && crmSettings?.api_key);
+
+  // Números oficiais (WhatsApp Cloud) disponíveis para envio
+  const { data: senderNumbers = [], isLoading: loadingSenders, refetch: refetchSenders } = useQuery({
+    queryKey: ['broadcast-sender-numbers', crmSettings?.api_key],
+    enabled: crmEnabled,
+    queryFn: async () => {
+      const { data, error } = await supabase.functions.invoke('crm-oficial-sync', {
+        body: { action: 'list-channels', data: { apiKey: crmSettings!.api_key } },
+      });
+      if (error) throw error;
+      const body = data?.results?.channels?.body;
+      const raw: any[] = Array.isArray(body) ? body : (body?.channels ?? body?.data ?? body?.items ?? []);
+      return raw
+        .filter((c: any) => {
+          const kind = String(c.kind || c.type || '').toLowerCase();
+          return !kind || kind.includes('cloud') || kind.includes('official') || !!c.phone_number_id;
+        })
+        .map((c: any) => ({
+          id: String(c.phone_number_id || c.phoneNumberId || c.id || ''),
+          label: String(c.verified_name || c.name || c.display_phone_number || c.phone_number || 'Número oficial'),
+          phone: String(c.display_phone_number || c.phone_number || ''),
+          primary: !!(c.primary || c.is_primary),
+        }))
+        .filter((c: any) => !!c.id);
+    },
+  });
+
+  // Seleciona automaticamente o número principal
+  useEffect(() => {
+    if (senderPhoneId || senderNumbers.length === 0) return;
+    const primary = senderNumbers.find((n: any) => n.primary) || senderNumbers[0];
+    if (primary) setSenderPhoneId(primary.id);
+  }, [senderNumbers, senderPhoneId]);
 
 
   // Fetch all customers with pagination to overcome 1000 row limit
@@ -578,26 +613,79 @@ export default function MassBroadcast() {
       clearSelection();
       queryClient.invalidateQueries({ queryKey: ['billing-logs'] });
 
-      // 2) Drive the sending in short batches to avoid backend timeouts
-      for (let offset = 0; offset < queueCustomerIds.length; offset += batchSize) {
-        if (cancelSendRef.current) break;
+      // 2) Envia em lotes curtos, sem travar a fila caso um lote falhe
+      const applyBatchResults = (rows: any[]) => {
+        for (const row of rows || []) {
+          const info = customerById[row.customer_id];
+          if (!info) continue;
+          realtimeResultsRef.current.set(row.customer_id, {
+            customer: info.name,
+            phone: info.phone,
+            status: row.status === 'sent' ? 'sent' : 'error',
+            error: row.status === 'sent' ? undefined : row.error || 'Erro desconhecido',
+          });
+        }
+        recomputeRef.current?.();
+      };
 
-        const batch = queueCustomerIds.slice(offset, offset + batchSize);
-        const batchResponse = await supabase.functions.invoke('mass-broadcast', {
+      const runBatch = async (batch: string[]) => {
+        const res = await supabase.functions.invoke('mass-broadcast', {
           body: {
             action: 'batch',
             customer_ids: batch,
             template_name: templateName,
+            phone_number_id: senderPhoneId || undefined,
           },
         });
+        if (res.error) throw new Error(res.error.message);
+        if (!res.data?.success) throw new Error(res.data?.error || 'Erro ao enviar lote');
+        return res.data;
+      };
 
-        if (batchResponse.error) throw new Error(batchResponse.error.message);
-        if (!batchResponse.data?.success) throw new Error(batchResponse.data?.error || 'Erro ao enviar lote');
+      let lastError: string | null = null;
+
+      for (let offset = 0; offset < queueCustomerIds.length; offset += batchSize) {
+        if (cancelSendRef.current) break;
+
+        const batch = queueCustomerIds.slice(offset, offset + batchSize);
+        let data: any = null;
+
+        for (let attempt = 1; attempt <= 2 && !cancelSendRef.current; attempt++) {
+          try {
+            data = await runBatch(batch);
+            break;
+          } catch (err: any) {
+            lastError = err?.message || 'Falha ao enviar lote';
+            console.error(`Lote ${offset / batchSize + 1} falhou (tentativa ${attempt}):`, err);
+            if (attempt === 1) await sleep(2500);
+          }
+        }
+
+        if (data) {
+          applyBatchResults(data.results || []);
+        } else {
+          // Marca o lote como erro para a barra continuar avançando
+          applyBatchResults(
+            batch.map((id) => ({ customer_id: id, status: 'error', error: lastError || 'Falha no lote' })),
+          );
+        }
 
         const isLast = offset + batchSize >= queueCustomerIds.length;
         if (!isLast && batchIntervalSeconds > 0) {
           await sleep(batchIntervalSeconds * 1000);
         }
+      }
+
+      setIsBroadcastComplete(true);
+      setBroadcastReport((prev) => (prev ? { ...prev, completedAt: new Date() } : prev));
+      queryClient.invalidateQueries({ queryKey: ['billing-logs'] });
+
+      if (lastError) {
+        toast({
+          title: 'Disparo finalizado com falhas',
+          description: `Alguns lotes falharam: ${lastError}`,
+          variant: 'destructive',
+        });
       }
     } catch (error: any) {
       console.error('Broadcast error:', error);
@@ -713,6 +801,8 @@ export default function MassBroadcast() {
         queryClient.invalidateQueries({ queryKey: ['billing-logs'] });
       }
     };
+
+    recomputeRef.current = updateBroadcastState;
 
     // Subscribe to realtime inserts on billing_logs
     const channel = supabase
@@ -1399,6 +1489,12 @@ export default function MassBroadcast() {
         sent={broadcastStats.sent}
         errors={broadcastStats.errors}
         skipped={broadcastStats.skipped}
+        isSending={isSending}
+        startedAt={broadcastReport?.startedAt || null}
+        onCancel={() => {
+          cancelSendRef.current = true;
+          toast({ title: 'Disparo cancelado', description: 'O envio será interrompido após o lote atual.' });
+        }}
       />
     </DashboardLayout>
   );
