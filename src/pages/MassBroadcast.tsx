@@ -1211,6 +1211,55 @@ export default function MassBroadcast() {
 
           {/* Right Column - Template & Calculator */}
           <div className="space-y-4">
+            {/* Sender Number */}
+            <Card>
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <Phone className="w-5 h-5" />
+                    Número Remetente
+                  </CardTitle>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => refetchSenders()}
+                    disabled={loadingSenders || !crmEnabled}
+                  >
+                    {loadingSenders ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                  </Button>
+                </div>
+                <CardDescription>
+                  Escolha de qual número oficial as mensagens serão enviadas
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {!crmEnabled ? (
+                  <p className="text-sm text-muted-foreground">Habilite a API Oficial para listar seus números.</p>
+                ) : loadingSenders ? (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Loader2 className="w-4 h-4 animate-spin" /> Carregando números...
+                  </div>
+                ) : senderNumbers.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    Nenhum número oficial encontrado. Cadastre um canal WhatsApp Cloud em Conexões.
+                  </p>
+                ) : (
+                  <Select value={senderPhoneId} onValueChange={setSenderPhoneId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione o número de envio" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {senderNumbers.map((n: any) => (
+                        <SelectItem key={n.id} value={n.id}>
+                          {n.label}{n.phone ? ` — ${n.phone}` : ''}{n.primary ? ' (principal)' : ''}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              </CardContent>
+            </Card>
+
             {/* Template Selection */}
             <Card>
               <CardHeader className="pb-3">
