@@ -283,9 +283,10 @@ async function processBroadcastBatch(args: {
     return { ok: false as const, status: 500, body: { error: 'Erro ao validar acesso do revendedor.' } };
   }
 
-  const isExpired = resellerAccess?.access_expires_at && new Date(resellerAccess.access_expires_at) < new Date();
-  if (!args.isAdmin && (!resellerAccess?.is_active || isExpired)) {
-    const reason = resellerAccess?.is_active === false ? 'acesso desativado' : 'mensalidade expirada';
+  // Sem registro de acesso (ex.: conta admin/proprietária) => não bloqueia
+  const isExpired = !!(resellerAccess?.access_expires_at && new Date(resellerAccess.access_expires_at) < new Date());
+  if (!args.isAdmin && resellerAccess && (resellerAccess.is_active === false || isExpired)) {
+    const reason = resellerAccess.is_active === false ? 'acesso desativado' : 'mensalidade expirada';
     return { ok: false as const, status: 403, body: { error: `Broadcast pausado: ${reason}.` } };
   }
 
