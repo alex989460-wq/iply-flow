@@ -341,6 +341,7 @@ async function processBroadcastBatch(args: {
         '',
         args.userId!,
         args.phoneNumberId || null,
+        customer.name,
       );
       return {
 
