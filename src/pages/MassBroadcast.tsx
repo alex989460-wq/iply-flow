@@ -144,20 +144,44 @@ export default function MassBroadcast() {
       });
       if (error) throw error;
       const body = data?.results?.channels?.body;
-      const raw: any[] = Array.isArray(body) ? body : (body?.channels ?? body?.data ?? body?.items ?? []);
+      const raw: any[] = Array.isArray(body)
+        ? body
+        : Array.isArray(body?.channels)
+          ? body.channels
+          : Array.isArray(body?.whatsapp)
+            ? body.whatsapp
+            : Array.isArray(body?.data)
+              ? body.data
+              : Array.isArray(body?.items)
+                ? body.items
+                : body?.whatsapp
+                  ? [body.whatsapp]
+                  : [];
       return raw
         .filter((c: any) => {
           const kind = String(c.kind || c.type || '').toLowerCase();
-          return !kind || kind.includes('cloud') || kind.includes('official') || !!c.phone_number_id;
+          // exclui apenas canais não oficiais (evolution/baileys)
+          if (kind.includes('evolution') || kind.includes('baileys')) return false;
+          if (c.evolution_instance_name || c.evolution_status) return false;
+          return true;
         })
-        .map((c: any) => ({
-          id: String(c.phone_number_id || c.phoneNumberId || c.id || ''),
-          label: String(c.verified_name || c.name || c.display_phone_number || c.phone_number || 'Número oficial'),
-          phone: String(c.display_phone_number || c.phone_number || ''),
-          primary: !!(c.primary || c.is_primary),
-        }))
-        .filter((c: any) => !!c.id);
+        .map((c: any, i: number) => {
+          const phoneId = String(c.phone_number_id || c.phoneNumberId || '');
+          const phone = String(
+            c.display_phone_number || c.displayPhoneNumber || c.phone_number ||
+            c.phoneNumber || c.phone || c.number || c.msisdn || '',
+          );
+          return {
+            id: phoneId || String(c.id || `wa-${i}`),
+            label: String(c.verified_name || c.name || c.business_name || phone || 'Número oficial'),
+            phone: phone && phone !== phoneId ? phone : '',
+            primary: !!(c.primary || c.is_primary),
+          };
+        })
+        .filter((c: any) => !!c.id)
+        .sort((a: any, b: any) => Number(!!b.primary) - Number(!!a.primary));
     },
+
   });
 
   // Seleciona automaticamente o número principal
