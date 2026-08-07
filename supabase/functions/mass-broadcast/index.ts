@@ -641,9 +641,8 @@ Deno.serve(async (req) => {
 
       if (alreadySentPhones.has(normalizedPhone)) {
         alreadySentCustomers.push(customer);
-      } else if (seenPhones.has(normalizedPhone)) {
-        duplicateCustomers.push(customer);
       } else {
+        // Dedupe por telefone desativado.
         seenPhones.add(normalizedPhone);
         customersToSend.push(customer);
       }
