@@ -43,7 +43,8 @@ async function sendWhatsAppTemplate(
   templateName: string,
   _token: string,
   _apiBaseUrl: string,
-  userIdOrDept: string
+  userIdOrDept: string,
+  phoneNumberId?: string | null
 ): Promise<{ success: boolean; error?: string }> {
   try {
     let formattedPhone = phone.replace(/\D/g, '');
@@ -69,6 +70,7 @@ async function sendWhatsAppTemplate(
           template_name: templateName,
           language: 'pt_BR',
           user_id: userIdOrDept,
+          ...(phoneNumberId ? { phone_number_id: phoneNumberId, from_phone_number_id: phoneNumberId } : {}),
         }),
       }
     );
@@ -265,6 +267,7 @@ async function processBroadcastBatch(args: {
   templateName: string;
   userId?: string | null;
   isAdmin?: boolean;
+  phoneNumberId?: string | null;
 }) {
   const supabase = createClient(args.supabaseUrl, args.supabaseServiceKey);
 
@@ -325,7 +328,14 @@ async function processBroadcastBatch(args: {
 
   const results = await Promise.all(
     (customers as any[]).map(async (customer) => {
-      const sendResult = await sendWhatsAppTemplate(customer.phone, args.templateName, '', '', args.userId!);
+      const sendResult = await sendWhatsAppTemplate(
+        customer.phone,
+        args.templateName,
+        '',
+        '',
+        args.userId!,
+        args.phoneNumberId || null,
+      );
       return {
 
         customer,
@@ -373,6 +383,13 @@ async function processBroadcastBatch(args: {
       batch_total: results.length,
       sent,
       errors,
+      results: results.map(({ customer, sendResult }) => ({
+        customer_id: customer.id,
+        customer: customer.name,
+        phone: customer.phone,
+        status: sendResult.success ? 'sent' : 'error',
+        error: sendResult.success ? undefined : sendResult.error || 'Erro desconhecido',
+      })),
     },
   };
 }
@@ -551,6 +568,7 @@ Deno.serve(async (req) => {
         customerIds: customer_ids,
         templateName: template_name,
         userId,
+        phoneNumberId: (body as any).phone_number_id || null,
       });
 
       return new Response(JSON.stringify(batched.body), {
