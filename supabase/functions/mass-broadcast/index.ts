@@ -283,9 +283,10 @@ async function processBroadcastBatch(args: {
     return { ok: false as const, status: 500, body: { error: 'Erro ao validar acesso do revendedor.' } };
   }
 
-  const isExpired = resellerAccess?.access_expires_at && new Date(resellerAccess.access_expires_at) < new Date();
-  if (!args.isAdmin && (!resellerAccess?.is_active || isExpired)) {
-    const reason = resellerAccess?.is_active === false ? 'acesso desativado' : 'mensalidade expirada';
+  // Sem registro de acesso (ex.: conta admin/proprietária) => não bloqueia
+  const isExpired = !!(resellerAccess?.access_expires_at && new Date(resellerAccess.access_expires_at) < new Date());
+  if (!args.isAdmin && resellerAccess && (resellerAccess.is_active === false || isExpired)) {
+    const reason = resellerAccess.is_active === false ? 'acesso desativado' : 'mensalidade expirada';
     return { ok: false as const, status: 403, body: { error: `Broadcast pausado: ${reason}.` } };
   }
 
@@ -539,6 +540,18 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Admin ignora a trava de mensalidade
+    let isAdminUser = false;
+    if (userId) {
+      const { data: adminRows } = await supabase
+        .from('user_roles')
+        .select('id')
+        .eq('user_id', userId)
+        .eq('role', 'admin')
+        .limit(1);
+      isAdminUser = (adminRows?.length ?? 0) > 0;
+    }
+
     // Get fallback zapToken from env
     const zapTokenEnv = Deno.env.get('ZAP_RESPONDER_TOKEN') || '';
 
@@ -568,6 +581,7 @@ Deno.serve(async (req) => {
         customerIds: customer_ids,
         templateName: template_name,
         userId,
+        isAdmin: isAdminUser,
         phoneNumberId: (body as any).phone_number_id || null,
       });
 
