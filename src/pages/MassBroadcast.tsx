@@ -846,7 +846,9 @@ export default function MassBroadcast() {
           : prev
       );
 
-      if (processed >= activeBroadcast.total && !isBroadcastComplete) {
+      if (processed >= activeBroadcast.total && !completeRef.current) {
+        completeRef.current = true;
+
         setIsBroadcastComplete(true);
         setBroadcastReport((prev) => (prev ? { ...prev, completedAt: new Date() } : prev));
         queryClient.invalidateQueries({ queryKey: ['billing-logs'] });
