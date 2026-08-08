@@ -1127,6 +1127,10 @@ export default function RoboFlows() {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [aiOpen, setAiOpen] = useState(false);
+  const [aiPrompt, setAiPrompt] = useState("");
+  const [aiImages, setAiImages] = useState(true);
+  const [aiLoading, setAiLoading] = useState(false);
 
   const active = flows.find((f) => f.id === activeId) || null;
 
