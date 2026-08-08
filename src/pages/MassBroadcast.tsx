@@ -6,6 +6,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Progress } from '@/components/ui/progress';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -105,6 +106,7 @@ export default function MassBroadcast() {
   const [alreadySentCount, setAlreadySentCount] = useState(0);
   const [senderPhoneId, setSenderPhoneId] = useState<string>('');
   const [isCheckingAlreadySent, setIsCheckingAlreadySent] = useState(false);
+  const [excludeActivePhones, setExcludeActivePhones] = useState(false);
 
   const initialResultsRef = useRef<BroadcastResult[]>([]);
   const realtimeResultsRef = useRef<Map<string, BroadcastResult>>(new Map());
@@ -387,14 +389,38 @@ export default function MassBroadcast() {
     });
   }, [customers, selectedServers, statusFilter]);
 
+  // Telefones que possuem pelo menos um cliente ATIVO (status ativa e vencimento em dia)
+  const activePhones = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const set = new Set<string>();
+    for (const c of customers) {
+      const digits = String(c.phone || '').replace(/\D/g, '');
+      if (!digits) continue;
+      const due = new Date(c.due_date);
+      due.setHours(0, 0, 0, 0);
+      if (c.status === 'ativa' && due >= today) set.add(digits);
+    }
+    return set;
+  }, [customers]);
+
   // Get customers based on selection mode
   const getSelectedCustomersList = useMemo(() => {
-    if (selectionMode === 'customers') {
-      return filteredCustomers.filter(c => selectedCustomers.has(c.id));
-    } else {
-      return getCustomersForServers;
-    }
-  }, [selectionMode, filteredCustomers, selectedCustomers, getCustomersForServers]);
+    const base = selectionMode === 'customers'
+      ? filteredCustomers.filter(c => selectedCustomers.has(c.id))
+      : getCustomersForServers;
+
+    if (!excludeActivePhones) return base;
+    return base.filter(c => !activePhones.has(String(c.phone || '').replace(/\D/g, '')));
+  }, [selectionMode, filteredCustomers, selectedCustomers, getCustomersForServers, excludeActivePhones, activePhones]);
+
+  const excludedByActivePhoneCount = useMemo(() => {
+    if (!excludeActivePhones) return 0;
+    const base = selectionMode === 'customers'
+      ? filteredCustomers.filter(c => selectedCustomers.has(c.id))
+      : getCustomersForServers;
+    return base.length - getSelectedCustomersList.length;
+  }, [excludeActivePhones, selectionMode, filteredCustomers, selectedCustomers, getCustomersForServers, getSelectedCustomersList]);
 
   // Get selected template info
   const selectedTemplateInfo = useMemo(() => {
@@ -1426,6 +1452,25 @@ export default function MassBroadcast() {
                   Envia até <strong>{batchSize}</strong> mensagens por lote, aguarda{' '}
                   <strong>{batchIntervalSeconds}s</strong> e repete. Quanto mais rápido, maior o risco de bloqueio.
                 </p>
+
+                <div className="flex items-start justify-between gap-3 rounded-lg border border-border/60 bg-muted/20 p-3">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="exclude-active-phones" className="text-sm font-medium">
+                      Ignorar números com assinatura ativa
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      Se o telefone tiver qualquer cliente ativo (em dia), nenhum usuário desse número recebe o disparo.
+                      {excludeActivePhones && excludedByActivePhoneCount > 0 && (
+                        <> <strong className="text-foreground">{excludedByActivePhoneCount}</strong> serão ignorados.</>
+                      )}
+                    </p>
+                  </div>
+                  <Switch
+                    id="exclude-active-phones"
+                    checked={excludeActivePhones}
+                    onCheckedChange={setExcludeActivePhones}
+                  />
+                </div>
               </CardContent>
             </Card>
 
