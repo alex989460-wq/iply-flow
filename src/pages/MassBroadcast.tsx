@@ -105,6 +105,7 @@ export default function MassBroadcast() {
   const [alreadySentCount, setAlreadySentCount] = useState(0);
   const [senderPhoneId, setSenderPhoneId] = useState<string>('');
   const [isCheckingAlreadySent, setIsCheckingAlreadySent] = useState(false);
+  const [excludeActivePhones, setExcludeActivePhones] = useState(false);
 
   const initialResultsRef = useRef<BroadcastResult[]>([]);
   const realtimeResultsRef = useRef<Map<string, BroadcastResult>>(new Map());
