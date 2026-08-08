@@ -388,14 +388,38 @@ export default function MassBroadcast() {
     });
   }, [customers, selectedServers, statusFilter]);
 
+  // Telefones que possuem pelo menos um cliente ATIVO (status ativa e vencimento em dia)
+  const activePhones = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const set = new Set<string>();
+    for (const c of customers) {
+      const digits = String(c.phone || '').replace(/\D/g, '');
+      if (!digits) continue;
+      const due = new Date(c.due_date);
+      due.setHours(0, 0, 0, 0);
+      if (c.status === 'ativa' && due >= today) set.add(digits);
+    }
+    return set;
+  }, [customers]);
+
   // Get customers based on selection mode
   const getSelectedCustomersList = useMemo(() => {
-    if (selectionMode === 'customers') {
-      return filteredCustomers.filter(c => selectedCustomers.has(c.id));
-    } else {
-      return getCustomersForServers;
-    }
-  }, [selectionMode, filteredCustomers, selectedCustomers, getCustomersForServers]);
+    const base = selectionMode === 'customers'
+      ? filteredCustomers.filter(c => selectedCustomers.has(c.id))
+      : getCustomersForServers;
+
+    if (!excludeActivePhones) return base;
+    return base.filter(c => !activePhones.has(String(c.phone || '').replace(/\D/g, '')));
+  }, [selectionMode, filteredCustomers, selectedCustomers, getCustomersForServers, excludeActivePhones, activePhones]);
+
+  const excludedByActivePhoneCount = useMemo(() => {
+    if (!excludeActivePhones) return 0;
+    const base = selectionMode === 'customers'
+      ? filteredCustomers.filter(c => selectedCustomers.has(c.id))
+      : getCustomersForServers;
+    return base.length - getSelectedCustomersList.length;
+  }, [excludeActivePhones, selectionMode, filteredCustomers, selectedCustomers, getCustomersForServers, getSelectedCustomersList]);
 
   // Get selected template info
   const selectedTemplateInfo = useMemo(() => {
