@@ -916,7 +916,24 @@ export default function MassBroadcast() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [showProgressModal, activeBroadcast, isBroadcastComplete, queryClient]);
+  }, [activeBroadcast, isBroadcastComplete, queryClient]);
+
+  // Progresso derivado (usado no card lateral e no indicador flutuante)
+  const liveProcessed = broadcastStats.sent + broadcastStats.errors + broadcastStats.skipped;
+  const liveTotal = broadcastReport?.total || 0;
+  const livePercent = liveTotal > 0 ? Math.min(100, (liveProcessed / liveTotal) * 100) : 0;
+
+  // Evita que o usuário feche/atualize a página no meio do disparo (o envio pararia).
+  useEffect(() => {
+    if (!isSending) return;
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [isSending]);
+
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', {
