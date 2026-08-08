@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
@@ -1127,6 +1128,10 @@ export default function RoboFlows() {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [aiOpen, setAiOpen] = useState(false);
+  const [aiPrompt, setAiPrompt] = useState("");
+  const [aiImages, setAiImages] = useState(true);
+  const [aiLoading, setAiLoading] = useState(false);
 
   const active = flows.find((f) => f.id === activeId) || null;
 
@@ -1179,6 +1184,73 @@ export default function RoboFlows() {
     setFlows((prev) => prev.map((f) => (f.id === activeId ? updater(f) : f)));
   }
 
+  async function generateWithAI() {
+    if (!aiPrompt.trim()) { toast.error("Descreva o que a IA deve criar."); return; }
+    setAiLoading(true);
+    try {
+      let target = active;
+      if (!target) {
+        if (!user) return;
+        const payload = emptyFlow(user.id);
+        const { data, error } = await supabase.from("bot_flows" as any).insert(payload as any).select().single();
+        if (error || !data) throw new Error("Erro ao criar fluxo");
+        target = normalizeFlow(data as any);
+        setFlows((p) => [target as Flow, ...p]);
+        setActiveId(target.id);
+      }
+
+      const { data: res, error } = await supabase.functions.invoke("ai-flow-builder", {
+        body: {
+          prompt: aiPrompt,
+          with_images: aiImages,
+          context: target.steps.map((s) => `${s.type}: ${s.title ?? ""}`).join(" | ").slice(0, 800),
+        },
+      });
+      const errMsg = (res as any)?.error || (error ? "Não foi possível falar com a IA." : null);
+      if (errMsg) throw new Error(errMsg);
+
+      const generated: any[] = Array.isArray((res as any)?.steps) ? (res as any).steps : [];
+      if (!generated.length) throw new Error("A IA não retornou nenhum bloco.");
+
+      // Remapeia ids da IA para ids internos e posiciona em coluna
+      const idMap = new Map<string, string>();
+      generated.forEach((g) => idMap.set(String(g.id), uid()));
+      const baseIndex = target.steps.length;
+      const newSteps: Step[] = generated.map((g, i) => {
+        const step = normalizeStep({
+          ...g,
+          id: idMap.get(String(g.id)),
+          buttons: Array.isArray(g.buttons) && g.buttons.length
+            ? g.buttons.map((b: any, bi: number) => ({
+                id: String(b?.id || `b${bi + 1}`),
+                label: String(b?.label || `Opção ${bi + 1}`),
+                next_step_id: b?.next_step_id ? idMap.get(String(b.next_step_id)) ?? null : null,
+              }))
+            : undefined,
+          position: { x: 360 + ((baseIndex + i) % 3) * 320, y: 140 + Math.floor((baseIndex + i) / 3) * 260 },
+        }, baseIndex + i);
+        return step;
+      });
+
+      const flowName = (res as any)?.name as string | undefined;
+      const kws: string[] = (res as any)?.trigger_keywords ?? [];
+      patchActive((f) => ({
+        ...f,
+        name: f.steps.length === 0 && flowName ? flowName : f.name,
+        trigger_keywords: Array.from(new Set([...f.trigger_keywords, ...kws])).slice(0, 30),
+        steps: [...f.steps, ...newSteps],
+        start_step_id: f.start_step_id ?? newSteps[0]?.id ?? null,
+      }));
+      setAiOpen(false);
+      setAiPrompt("");
+      toast.success(`IA criou ${newSteps.length} bloco(s). Revise e clique em Salvar.`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erro ao gerar com IA");
+    } finally {
+      setAiLoading(false);
+    }
+  }
+
   return (
     <DashboardLayout>
       <div className="h-[calc(100vh-4rem)] flex flex-col">
@@ -1189,6 +1261,9 @@ export default function RoboFlows() {
             <Badge variant="secondary" className="text-[10px]">Beta</Badge>
           </div>
           <div className="flex items-center gap-2">
+            <Button size="sm" variant="secondary" onClick={() => setAiOpen(true)}>
+              <Sparkles className="w-4 h-4 mr-1" /> Criar com IA
+            </Button>
             {active && (
               <Button size="sm" onClick={saveActive} disabled={saving}>
                 {saving ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Save className="w-4 h-4 mr-1" />} Salvar
@@ -1199,6 +1274,41 @@ export default function RoboFlows() {
             </Button>
           </div>
         </div>
+
+        <Dialog open={aiOpen} onOpenChange={setAiOpen}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-primary" /> Criar blocos com IA
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-3">
+              <div className="space-y-1">
+                <Label className="text-xs">O que a IA deve criar?</Label>
+                <Textarea
+                  rows={5}
+                  value={aiPrompt}
+                  onChange={(e) => setAiPrompt(e.target.value)}
+                  placeholder={'Ex.: quando o cliente disser "não localizo o app", crie uma caixa de texto explicando o passo a passo de instalação na TV LG com imagem do app e botões: "Pronto, já instalei", "Não localizo o app", "Quero outro app".'}
+                />
+              </div>
+              <div className="flex items-center justify-between rounded-lg border p-3">
+                <div>
+                  <Label className="text-sm">Gerar imagens automaticamente</Label>
+                  <p className="text-[11px] text-muted-foreground">A IA cria e anexa imagens nos blocos de imagem.</p>
+                </div>
+                <Switch checked={aiImages} onCheckedChange={setAiImages} />
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button variant="ghost" size="sm" onClick={() => setAiOpen(false)}>Cancelar</Button>
+                <Button size="sm" onClick={generateWithAI} disabled={aiLoading}>
+                  {aiLoading ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Sparkles className="w-4 h-4 mr-1" />}
+                  {aiLoading ? "Gerando..." : "Gerar blocos"}
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
 
         <div className="flex-1 flex min-h-0">
           <aside className="w-64 border-r bg-muted/30 flex flex-col">
