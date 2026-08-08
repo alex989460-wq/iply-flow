@@ -730,7 +730,9 @@ export default function MassBroadcast() {
         }
       }
 
+      completeRef.current = true;
       setIsBroadcastComplete(true);
+
       setBroadcastReport((prev) => (prev ? { ...prev, completedAt: new Date() } : prev));
       queryClient.invalidateQueries({ queryKey: ['billing-logs'] });
 
