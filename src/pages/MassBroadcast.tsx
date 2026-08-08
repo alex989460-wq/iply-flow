@@ -924,7 +924,7 @@ export default function MassBroadcast() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [activeBroadcast, isBroadcastComplete, queryClient]);
+  }, [activeBroadcast, queryClient]);
 
   // Progresso derivado (usado no card lateral e no indicador flutuante)
   const liveProcessed = broadcastStats.sent + broadcastStats.errors + broadcastStats.skipped;
