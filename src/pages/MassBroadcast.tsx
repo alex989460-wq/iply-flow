@@ -761,7 +761,8 @@ export default function MassBroadcast() {
 
   // Realtime subscription to billing_logs for live progress updates
   useEffect(() => {
-    if (!showProgressModal || !activeBroadcast) return;
+    if (!activeBroadcast) return;
+
 
     // Reset realtime results when starting new broadcast
     realtimeResultsRef.current = new Map();
