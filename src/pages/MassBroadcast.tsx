@@ -594,7 +594,9 @@ export default function MassBroadcast() {
     initialResultsRef.current = [];
     setBroadcastResults([]);
     setBroadcastStats({ sent: 0, errors: 0, skipped: 0 });
+    completeRef.current = false;
     setIsBroadcastComplete(false);
+
     setShowProgressModal(true);
     setBroadcastReport({
       total: customersToSend.length,
