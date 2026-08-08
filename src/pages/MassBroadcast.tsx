@@ -1451,6 +1451,25 @@ export default function MassBroadcast() {
                   Envia até <strong>{batchSize}</strong> mensagens por lote, aguarda{' '}
                   <strong>{batchIntervalSeconds}s</strong> e repete. Quanto mais rápido, maior o risco de bloqueio.
                 </p>
+
+                <div className="flex items-start justify-between gap-3 rounded-lg border border-border/60 bg-muted/20 p-3">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="exclude-active-phones" className="text-sm font-medium">
+                      Ignorar números com assinatura ativa
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      Se o telefone tiver qualquer cliente ativo (em dia), nenhum usuário desse número recebe o disparo.
+                      {excludeActivePhones && excludedByActivePhoneCount > 0 && (
+                        <> <strong className="text-foreground">{excludedByActivePhoneCount}</strong> serão ignorados.</>
+                      )}
+                    </p>
+                  </div>
+                  <Switch
+                    id="exclude-active-phones"
+                    checked={excludeActivePhones}
+                    onCheckedChange={setExcludeActivePhones}
+                  />
+                </div>
               </CardContent>
             </Card>
 
