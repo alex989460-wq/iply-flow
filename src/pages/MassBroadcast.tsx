@@ -111,6 +111,8 @@ export default function MassBroadcast() {
   const initialResultsRef = useRef<BroadcastResult[]>([]);
   const realtimeResultsRef = useRef<Map<string, BroadcastResult>>(new Map());
   const cancelSendRef = useRef(false);
+  const completeRef = useRef(false);
+
   const recomputeRef = useRef<() => void>(() => {});
 
   // Templates from API
