@@ -1,7 +1,10 @@
-// Mantém a mesma regra da função compartilhada do backend
-// (supabase/functions/_shared/phone.ts): nunca prefixar "55" em número estrangeiro.
+// Normalização de telefones WhatsApp (E.164 sem '+') compartilhada entre as
+// funções de cobrança. Objetivo: nunca prefixar "55" em número estrangeiro e
+// nunca perder o DDI de números de fora do Brasil.
 
-const COUNTRY_CODES: string[] = [
+// Todos os códigos de país E.164 (sem o 55 do Brasil), ordenados do mais longo
+// para o mais curto para casar o prefixo correto.
+export const COUNTRY_CODES: string[] = [
   '1', '7', '20', '27', '30', '31', '32', '33', '34', '36', '39', '40', '41', '43', '44', '45', '46', '47', '48', '49',
   '51', '52', '53', '54', '56', '57', '58', '60', '61', '62', '63', '64', '65', '66', '81', '82', '84', '86', '90',
   '91', '92', '93', '94', '95', '98',
@@ -40,19 +43,26 @@ export function hasForeignCountryCode(digits: string): boolean {
 function looksLikeBrazilNational(digits: string): boolean {
   if (digits.length !== 10 && digits.length !== 11) return false;
   if (!BR_DDDS.has(Number(digits.slice(0, 2)))) return false;
+  // Celular BR de 11 dígitos sempre começa com 9 após o DDD.
   if (digits.length === 11 && digits[2] !== '9') return false;
   return true;
 }
 
+/** Remove um "55" adicionado por engano na frente de um número estrangeiro. */
 function stripAccidentalBrazilPrefix(digits: string): string {
   if (!digits.startsWith('55')) return digits;
+  // Número BR válido: 55 + 10/11 dígitos nacionais.
   const national = digits.slice(2);
   if (looksLikeBrazilNational(national)) return digits;
   if (national.length >= 8 && hasForeignCountryCode(national)) return national;
   return digits;
 }
 
-export function normalizeWhatsAppPhone(raw: string | number | null | undefined): string {
+/**
+ * Retorna o número em formato internacional (somente dígitos, com DDI).
+ * Nunca adiciona 55 a números estrangeiros.
+ */
+export function normalizeWhatsAppPhone(raw: unknown): string {
   const value = String(raw ?? '').trim();
   const hadPlus = value.startsWith('+');
   const digits = stripAccidentalBrazilPrefix(value.replace(/\D/g, ''));
@@ -64,12 +74,14 @@ export function normalizeWhatsAppPhone(raw: string | number | null | undefined):
   return digits;
 }
 
-export function isForeignPhone(raw: string | number | null | undefined): boolean {
+/** true quando o número não é do Brasil (precisa de envio internacional). */
+export function isForeignPhone(raw: unknown): boolean {
   const n = normalizeWhatsAppPhone(raw);
   return !!n && !n.startsWith('55');
 }
 
-export function toInternationalPhone(raw: string | number | null | undefined): string {
+/** Formato com '+' — exigido por APIs que assumem Brasil quando não há DDI explícito. */
+export function toInternationalPhone(raw: unknown): string {
   const n = normalizeWhatsAppPhone(raw);
   if (!n) return '';
   return n.startsWith('55') ? n : `+${n}`;
