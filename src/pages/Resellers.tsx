@@ -120,6 +120,39 @@ export default function Resellers() {
     },
   });
 
+  // Conexões de WhatsApp de cada revenda (API não oficial + API oficial)
+  const { data: evoInstances } = useQuery({
+    queryKey: ['resellers-evolution-instances'],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from('user_evolution_instances')
+        .select('user_id, instance_name, owner_phone, profile_name');
+      if (error) throw error;
+      return (data || []) as Array<{ user_id: string; instance_name: string; owner_phone: string | null; profile_name: string | null }>;
+    },
+  });
+
+  const { data: officialSettings } = useQuery({
+    queryKey: ['resellers-crm-oficial-settings'],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from('crm_oficial_settings')
+        .select('user_id, enabled, api_key, last_test_ok');
+      if (error) throw error;
+      return (data || []) as Array<{ user_id: string; enabled: boolean; api_key: string | null; last_test_ok: boolean | null }>;
+    },
+  });
+
+  const evoByUser = new Map<string, Array<{ instance_name: string; owner_phone: string | null; profile_name: string | null }>>();
+  (evoInstances || []).forEach((i) => {
+    const list = evoByUser.get(i.user_id) || [];
+    list.push(i);
+    evoByUser.set(i.user_id, list);
+  });
+  const officialByUser = new Map((officialSettings || []).map((o) => [o.user_id, o]));
+
+
+
   const renewMutation = useMutation({
     mutationFn: async ({ id, days }: { id: string; days: number }) => {
       if (isAdmin) {
