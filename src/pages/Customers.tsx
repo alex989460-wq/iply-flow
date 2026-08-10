@@ -2224,6 +2224,8 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
     setIsImporting(true);
     let imported = 0;
     let errors = 0;
+    let firstError = '';
+
     let serversCreated = 0;
 
     // Cache for newly created servers to avoid duplicates
@@ -2242,23 +2244,32 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
         if (existingServer) {
           serverCache[serverName.toLowerCase()] = existingServer.id;
         } else {
-          // Create new server
+          // Create new server (created_by é obrigatório pela política de segurança)
           const { data: newServer, error: serverError } = await supabase
             .from('servers')
             .insert({
               server_name: serverName,
               host: serverName.toLowerCase().replace(/\s+/g, '-'),
               status: 'online',
+              created_by: user?.id,
             })
             .select('id')
             .single();
-          
-          if (!serverError && newServer) {
+
+          if (serverError) {
+            console.error('Erro ao criar servidor:', serverName, serverError);
+            toast({
+              title: `Não foi possível criar o servidor "${serverName}"`,
+              description: serverError.message,
+              variant: 'destructive',
+            });
+          } else if (newServer) {
             serverCache[serverName.toLowerCase()] = newServer.id;
             serversCreated++;
           }
         }
       }
+
 
       // Refresh servers list after creating new ones
       await queryClient.invalidateQueries({ queryKey: ['servers'] });
@@ -2297,7 +2308,8 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
         const { error } = await supabase.from('customers').insert(customerData);
         
         if (error) {
-          console.error('Error importing customer:', row.name, error);
+          console.error('Erro ao importar cliente:', row.name, error);
+          if (!firstError) firstError = `${row.name}: ${error.message}`;
           errors++;
         } else {
           imported++;
@@ -2315,9 +2327,11 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
       
       const serverMsg = serversCreated > 0 ? ` ${serversCreated} servidor(es) criado(s).` : '';
       toast({ 
-        title: 'Importação concluída!', 
-        description: `${imported} clientes importados.${serverMsg} ${errors > 0 ? `${errors} erros.` : ''}`,
+        title: errors > 0 ? 'Importação concluída com erros' : 'Importação concluída!', 
+        description: `${imported} clientes importados.${serverMsg}${errors > 0 ? ` ${errors} erro(s). Motivo: ${firstError}` : ''}`,
+        variant: errors > 0 ? 'destructive' : undefined,
       });
+
     } catch (error: any) {
       toast({
         title: 'Erro na importação',
