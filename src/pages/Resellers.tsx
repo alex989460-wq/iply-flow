@@ -848,6 +848,39 @@ export default function Resellers() {
                         </div>
                       </div>
 
+                      {(() => {
+                        const evos = evoByUser.get(reseller.user_id) || [];
+                        const official = officialByUser.get(reseller.user_id);
+                        const hasOfficial = !!official?.api_key && official?.enabled !== false;
+                        return (
+                          <div className="pl-2">
+                            <p className="mb-1 flex items-center gap-1 text-[10px] uppercase tracking-wide text-muted-foreground">
+                              <Smartphone className="h-3 w-3" /> Conexões WhatsApp
+                            </p>
+                            {evos.length === 0 && !hasOfficial ? (
+                              <p className="text-xs text-muted-foreground">Nenhuma conexão ativa</p>
+                            ) : (
+                              <div className="flex flex-wrap gap-1.5">
+                                {hasOfficial && (
+                                  <Badge variant="secondary" className="gap-1 text-[10px] font-medium">
+                                    <BadgeCheck className="h-3 w-3" />
+                                    API Oficial{official?.last_test_ok === false ? ' (com erro)' : ''}
+                                  </Badge>
+                                )}
+                                {evos.map((i) => (
+                                  <Badge key={i.instance_name} variant="outline" className="gap-1 text-[10px] font-medium">
+                                    <Smartphone className="h-3 w-3" />
+                                    {i.owner_phone || i.profile_name || i.instance_name}
+                                  </Badge>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
+
+
+
                       <div className="flex flex-wrap gap-1.5 pl-2 pt-1 border-t border-border/50">
                         {canManage && !isSelf && (
                           <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => handleAddCredits(reseller)}>
