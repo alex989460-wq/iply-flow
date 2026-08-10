@@ -864,7 +864,7 @@ export default function ActivationApps() {
                     logo={<Monitor className="w-5 h-5 text-primary" />}
                     connected={!!duplecast}
                     enabled={duplecastForm.is_enabled}
-                    onEnabledChange={(v) => setDuplecastForm(f => ({ ...f, is_enabled: v }))}
+                    onEnabledChange={(v) => handleToggle('duplecast', !!duplecast, v, (b) => setDuplecastForm(f => ({ ...f, is_enabled: b })))}
                     saving={saveDuplecast.isPending}
                     onSave={() => saveDuplecast.mutate()}
                     saveLabel="Salvar credenciais"
@@ -911,7 +911,7 @@ export default function ActivationApps() {
                     logo={<Monitor className="w-5 h-5 text-primary" />}
                     connected={!!clouddy}
                     enabled={clouddyForm.is_enabled}
-                    onEnabledChange={(v) => setClouddyForm(f => ({ ...f, is_enabled: v }))}
+                    onEnabledChange={(v) => handleToggle('clouddy', !!clouddy, v, (b) => setClouddyForm(f => ({ ...f, is_enabled: b })))}
                     saving={saveClouddy.isPending}
                     onSave={() => saveClouddy.mutate()}
                     saveLabel="Salvar credenciais"
@@ -956,7 +956,7 @@ export default function ActivationApps() {
                     logo={<Monitor className="w-5 h-5 text-primary" />}
                     connected={!!ibosol}
                     enabled={ibosolForm.is_enabled}
-                    onEnabledChange={(v) => setIbosolForm(f => ({ ...f, is_enabled: v }))}
+                    onEnabledChange={(v) => handleToggle('ibosol', !!ibosol, v, (b) => setIbosolForm(f => ({ ...f, is_enabled: b })))}
                     saving={saveIbosol.isPending}
                     onSave={() => saveIbosol.mutate()}
                     saveLabel="Salvar token"
@@ -991,7 +991,7 @@ export default function ActivationApps() {
                     logo={<Monitor className="w-5 h-5 text-primary" />}
                     connected={!!iboPro}
                     enabled={iboProForm.is_enabled}
-                    onEnabledChange={(v) => setIboProForm(f => ({ ...f, is_enabled: v }))}
+                    onEnabledChange={(v) => handleToggle('iboplayerpro', !!iboPro, v, (b) => setIboProForm(f => ({ ...f, is_enabled: b })))}
                     saving={saveIboPro.isPending}
                     onSave={() => saveIboPro.mutate()}
                     saveLabel="Salvar credenciais"
