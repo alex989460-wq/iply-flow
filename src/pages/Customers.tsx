@@ -2306,7 +2306,8 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
         const { error } = await supabase.from('customers').insert(customerData);
         
         if (error) {
-          console.error('Error importing customer:', row.name, error);
+          console.error('Erro ao importar cliente:', row.name, error);
+          if (!firstError) firstError = `${row.name}: ${error.message}`;
           errors++;
         } else {
           imported++;
@@ -2324,9 +2325,11 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
       
       const serverMsg = serversCreated > 0 ? ` ${serversCreated} servidor(es) criado(s).` : '';
       toast({ 
-        title: 'Importação concluída!', 
-        description: `${imported} clientes importados.${serverMsg} ${errors > 0 ? `${errors} erros.` : ''}`,
+        title: errors > 0 ? 'Importação concluída com erros' : 'Importação concluída!', 
+        description: `${imported} clientes importados.${serverMsg}${errors > 0 ? ` ${errors} erro(s). Motivo: ${firstError}` : ''}`,
+        variant: errors > 0 ? 'destructive' : undefined,
       });
+
     } catch (error: any) {
       toast({
         title: 'Erro na importação',
