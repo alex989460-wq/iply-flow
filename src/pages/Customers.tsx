@@ -2242,23 +2242,32 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
         if (existingServer) {
           serverCache[serverName.toLowerCase()] = existingServer.id;
         } else {
-          // Create new server
+          // Create new server (created_by é obrigatório pela política de segurança)
           const { data: newServer, error: serverError } = await supabase
             .from('servers')
             .insert({
               server_name: serverName,
               host: serverName.toLowerCase().replace(/\s+/g, '-'),
               status: 'online',
+              created_by: user?.id,
             })
             .select('id')
             .single();
-          
-          if (!serverError && newServer) {
+
+          if (serverError) {
+            console.error('Erro ao criar servidor:', serverName, serverError);
+            toast({
+              title: `Não foi possível criar o servidor "${serverName}"`,
+              description: serverError.message,
+              variant: 'destructive',
+            });
+          } else if (newServer) {
             serverCache[serverName.toLowerCase()] = newServer.id;
             serversCreated++;
           }
         }
       }
+
 
       // Refresh servers list after creating new ones
       await queryClient.invalidateQueries({ queryKey: ['servers'] });
