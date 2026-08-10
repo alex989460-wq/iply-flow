@@ -2224,6 +2224,8 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
     setIsImporting(true);
     let imported = 0;
     let errors = 0;
+    let firstError = '';
+
     let serversCreated = 0;
 
     // Cache for newly created servers to avoid duplicates
