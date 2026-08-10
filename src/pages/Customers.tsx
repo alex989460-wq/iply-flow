@@ -2228,10 +2228,40 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
 
     let serversCreated = 0;
 
+    const importErrorMessage = (error: { message?: string; details?: string; code?: string } | null | undefined) => {
+      const raw = `${error?.message || ''} ${error?.details || ''}`.trim();
+      const normalized = raw.toLowerCase();
+
+      if (normalized.includes('duplicate_customer_username') || error?.code === '23505') {
+        return 'já existe um cliente com este usuário nesta revenda';
+      }
+      if (normalized.includes('row-level security') || normalized.includes('permission denied')) {
+        return 'a sessão desta revenda não tem permissão para gravar este registro; saia da conta, entre novamente e repita a importação';
+      }
+      if (normalized.includes('foreign key') || error?.code === '23503') {
+        return 'o servidor ou plano informado não pertence a esta revenda';
+      }
+      if (normalized.includes('invalid input value for enum') || error?.code === '22P02') {
+        return 'há um valor inválido na coluna status';
+      }
+      if (normalized.includes('date/time field value out of range') || error?.code === '22008') {
+        return 'há uma data inválida; use o formato DD/MM/AAAA';
+      }
+      return raw || 'erro desconhecido ao salvar no banco de dados';
+    };
+
     // Cache for newly created servers to avoid duplicates
     const serverCache: Record<string, string> = {};
 
     try {
+      // Resolve o proprietário pela sessão validada no momento da importação.
+      // Não usamos somente o estado do contexto, que pode estar vazio após recarregar a página.
+      const { data: authData, error: authError } = await supabase.auth.getUser();
+      const authenticatedUserId = authData.user?.id;
+      if (authError || !authenticatedUserId) {
+        throw new Error('Sua sessão expirou. Saia da conta, entre novamente e repita a importação.');
+      }
+
       // First, create all unique servers that don't exist
       const uniqueServerNames = [...new Set(dataToImport.map(row => row.server_name?.trim()).filter(Boolean))];
       
@@ -2251,16 +2281,18 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
               server_name: serverName,
               host: serverName.toLowerCase().replace(/\s+/g, '-'),
               status: 'online',
-              created_by: user?.id,
+               created_by: authenticatedUserId,
             })
             .select('id')
             .single();
 
           if (serverError) {
             console.error('Erro ao criar servidor:', serverName, serverError);
+             const reason = importErrorMessage(serverError);
+             if (!firstError) firstError = `Servidor ${serverName}: ${reason}`;
             toast({
               title: `Não foi possível criar o servidor "${serverName}"`,
-              description: serverError.message,
+               description: reason,
               variant: 'destructive',
             });
           } else if (newServer) {
@@ -2303,13 +2335,13 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
         }
 
         // Set created_by to current user for import tracking
-        customerData.created_by = user?.id;
+        customerData.created_by = authenticatedUserId;
 
         const { error } = await supabase.from('customers').insert(customerData);
         
         if (error) {
           console.error('Erro ao importar cliente:', row.name, error);
-          if (!firstError) firstError = `${row.name}: ${error.message}`;
+          if (!firstError) firstError = `${row.name}: ${importErrorMessage(error)}`;
           errors++;
         } else {
           imported++;
@@ -2335,7 +2367,7 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
     } catch (error: any) {
       toast({
         title: 'Erro na importação',
-        description: error.message,
+        description: importErrorMessage(error),
         variant: 'destructive',
       });
     } finally {
