@@ -1,4 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { normalizeWhatsAppPhone } from '../_shared/phone.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -212,11 +213,7 @@ async function sendWhatsAppTemplateMeta(
 ): Promise<{ success: boolean; error?: string; isBillingError?: boolean }> {
   try {
     let formattedPhone = phone.replace(/\D/g, '');
-    const foreignDdis = ['971','598','595','593','591','353','351','86','81','61','58','57','56','54','52','51','49','44','41','39','34','33','32','31'];
-    const hasForeignDdi = foreignDdis.some((ddi) => formattedPhone.startsWith(ddi) && formattedPhone.length > ddi.length);
-    if (!formattedPhone.startsWith('55') && !hasForeignDdi && formattedPhone.length >= 10 && formattedPhone.length <= 11) {
-      formattedPhone = '55' + formattedPhone;
-    }
+    formattedPhone = normalizeWhatsAppPhone(formattedPhone);
     
     console.log(`[Meta Cloud] Sending template "${templateName}" to ${formattedPhone}`);
     
@@ -330,11 +327,7 @@ async function sendWhatsAppTemplateZap(
 ): Promise<{ success: boolean; error?: string }> {
   try {
     let formattedPhone = phone.replace(/\D/g, '');
-    const foreignDdis = ['971','598','595','593','591','353','351','86','81','61','58','57','56','54','52','51','49','44','41','39','34','33','32','31'];
-    const hasForeignDdi = foreignDdis.some((ddi) => formattedPhone.startsWith(ddi) && formattedPhone.length > ddi.length);
-    if (!formattedPhone.startsWith('55') && !hasForeignDdi && formattedPhone.length >= 10 && formattedPhone.length <= 11) {
-      formattedPhone = '55' + formattedPhone;
-    }
+    formattedPhone = normalizeWhatsAppPhone(formattedPhone);
     
     console.log(`[Zap Responder] Sending template "${templateName}" to ${formattedPhone} via dept ${departmentId} with ${vars.length} vars`);
     
@@ -463,11 +456,7 @@ async function sendEvolutionText(
 ): Promise<{ success: boolean; error?: string }> {
   try {
     let formattedPhone = phone.replace(/\D/g, '');
-    const foreignDdis = ['971','598','595','593','591','353','351','86','81','61','58','57','56','54','52','51','49','44','41','39','34','33','32','31'];
-    const hasForeignDdi = foreignDdis.some((ddi) => formattedPhone.startsWith(ddi) && formattedPhone.length > ddi.length);
-    if (!formattedPhone.startsWith('55') && !hasForeignDdi && formattedPhone.length >= 10 && formattedPhone.length <= 11) {
-      formattedPhone = '55' + formattedPhone;
-    }
+    formattedPhone = normalizeWhatsAppPhone(formattedPhone);
     const cleanBase = baseUrl.replace(/\/$/, '');
     const numbers = new Set([formattedPhone]);
     if (formattedPhone.startsWith('55') && formattedPhone.length >= 12) {
@@ -539,11 +528,7 @@ function getRelativeDateSaoPaulo(daysOffset: number): string {
 // Normalize phone number
 function normalizePhone(phone: string): string {
   let normalized = phone.replace(/\D/g, '');
-  const foreignDdis = ['971','598','595','593','591','353','351','86','81','61','58','57','56','54','52','51','49','44','41','39','34','33','32','31'];
-  const hasForeignDdi = foreignDdis.some((ddi) => normalized.startsWith(ddi) && normalized.length > ddi.length);
-  if (!normalized.startsWith('55') && !hasForeignDdi && normalized.length >= 10 && normalized.length <= 11) {
-    normalized = '55' + normalized;
-  }
+  normalized = normalizeWhatsAppPhone(normalized);
   return normalized;
 }
 
