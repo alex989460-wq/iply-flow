@@ -103,10 +103,10 @@ export default function Resellers() {
       if (!u.user) return null;
       const { data } = await supabase
         .from('reseller_access')
-        .select('credits')
+        .select('*')
         .eq('user_id', u.user.id)
         .maybeSingle();
-      return data;
+      return data as ResellerAccess | null;
     },
     enabled: !isAdmin,
   });
