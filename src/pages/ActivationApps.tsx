@@ -348,6 +348,35 @@ export default function ActivationApps() {
     onError: (e: any) => toast.error(e.message),
   });
 
+  // Persiste imediatamente o liga/desliga do painel (sem precisar clicar em Salvar).
+  const togglePanelEnabled = useMutation({
+    mutationFn: async ({ panel_type, value }: { panel_type: string; value: boolean }) => {
+      const { error } = await (supabase as any)
+        .from('activation_panel_credentials')
+        .update({ is_enabled: value })
+        .eq('user_id', user?.id)
+        .eq('panel_type', panel_type);
+      if (error) throw error;
+    },
+    onSuccess: (_d, vars) => {
+      queryClient.invalidateQueries({ queryKey: ['activation-panel-credentials'] });
+      toast.success(vars.value ? 'Painel ativado' : 'Painel desativado');
+    },
+    onError: (e: any) => toast.error(e.message || 'Não foi possível alterar o status do painel'),
+  });
+
+  const handleToggle = (
+    panel_type: string,
+    exists: boolean,
+    value: boolean,
+    setLocal: (v: boolean) => void,
+  ) => {
+    setLocal(value);
+    if (exists) togglePanelEnabled.mutate({ panel_type, value });
+  };
+
+
+
 
   const saveMutation = useMutation({
     mutationFn: async (data: any) => {
@@ -835,7 +864,7 @@ export default function ActivationApps() {
                     logo={<Monitor className="w-5 h-5 text-primary" />}
                     connected={!!duplecast}
                     enabled={duplecastForm.is_enabled}
-                    onEnabledChange={(v) => setDuplecastForm(f => ({ ...f, is_enabled: v }))}
+                    onEnabledChange={(v) => handleToggle('duplecast', !!duplecast, v, (b) => setDuplecastForm(f => ({ ...f, is_enabled: b })))}
                     saving={saveDuplecast.isPending}
                     onSave={() => saveDuplecast.mutate()}
                     saveLabel="Salvar credenciais"
@@ -882,7 +911,7 @@ export default function ActivationApps() {
                     logo={<Monitor className="w-5 h-5 text-primary" />}
                     connected={!!clouddy}
                     enabled={clouddyForm.is_enabled}
-                    onEnabledChange={(v) => setClouddyForm(f => ({ ...f, is_enabled: v }))}
+                    onEnabledChange={(v) => handleToggle('clouddy', !!clouddy, v, (b) => setClouddyForm(f => ({ ...f, is_enabled: b })))}
                     saving={saveClouddy.isPending}
                     onSave={() => saveClouddy.mutate()}
                     saveLabel="Salvar credenciais"
@@ -927,7 +956,7 @@ export default function ActivationApps() {
                     logo={<Monitor className="w-5 h-5 text-primary" />}
                     connected={!!ibosol}
                     enabled={ibosolForm.is_enabled}
-                    onEnabledChange={(v) => setIbosolForm(f => ({ ...f, is_enabled: v }))}
+                    onEnabledChange={(v) => handleToggle('ibosol', !!ibosol, v, (b) => setIbosolForm(f => ({ ...f, is_enabled: b })))}
                     saving={saveIbosol.isPending}
                     onSave={() => saveIbosol.mutate()}
                     saveLabel="Salvar token"
@@ -962,7 +991,7 @@ export default function ActivationApps() {
                     logo={<Monitor className="w-5 h-5 text-primary" />}
                     connected={!!iboPro}
                     enabled={iboProForm.is_enabled}
-                    onEnabledChange={(v) => setIboProForm(f => ({ ...f, is_enabled: v }))}
+                    onEnabledChange={(v) => handleToggle('iboplayerpro', !!iboPro, v, (b) => setIboProForm(f => ({ ...f, is_enabled: b })))}
                     saving={saveIboPro.isPending}
                     onSave={() => saveIboPro.mutate()}
                     saveLabel="Salvar credenciais"

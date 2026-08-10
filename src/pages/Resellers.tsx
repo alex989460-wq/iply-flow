@@ -120,6 +120,39 @@ export default function Resellers() {
     },
   });
 
+  // Conexões de WhatsApp de cada revenda (API não oficial + API oficial)
+  const { data: evoInstances } = useQuery({
+    queryKey: ['resellers-evolution-instances'],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from('user_evolution_instances')
+        .select('user_id, instance_name, owner_phone, profile_name');
+      if (error) throw error;
+      return (data || []) as Array<{ user_id: string; instance_name: string; owner_phone: string | null; profile_name: string | null }>;
+    },
+  });
+
+  const { data: officialSettings } = useQuery({
+    queryKey: ['resellers-crm-oficial-settings'],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from('crm_oficial_settings')
+        .select('user_id, enabled, api_key, last_test_ok');
+      if (error) throw error;
+      return (data || []) as Array<{ user_id: string; enabled: boolean; api_key: string | null; last_test_ok: boolean | null }>;
+    },
+  });
+
+  const evoByUser = new Map<string, Array<{ instance_name: string; owner_phone: string | null; profile_name: string | null }>>();
+  (evoInstances || []).forEach((i) => {
+    const list = evoByUser.get(i.user_id) || [];
+    list.push(i);
+    evoByUser.set(i.user_id, list);
+  });
+  const officialByUser = new Map((officialSettings || []).map((o) => [o.user_id, o]));
+
+
+
   const renewMutation = useMutation({
     mutationFn: async ({ id, days }: { id: string; days: number }) => {
       if (isAdmin) {
@@ -814,6 +847,39 @@ export default function Resellers() {
                           </p>
                         </div>
                       </div>
+
+                      {(() => {
+                        const evos = evoByUser.get(reseller.user_id) || [];
+                        const official = officialByUser.get(reseller.user_id);
+                        const hasOfficial = !!official?.api_key && official?.enabled !== false;
+                        return (
+                          <div className="pl-2">
+                            <p className="mb-1 flex items-center gap-1 text-[10px] uppercase tracking-wide text-muted-foreground">
+                              <Smartphone className="h-3 w-3" /> Conexões WhatsApp
+                            </p>
+                            {evos.length === 0 && !hasOfficial ? (
+                              <p className="text-xs text-muted-foreground">Nenhuma conexão ativa</p>
+                            ) : (
+                              <div className="flex flex-wrap gap-1.5">
+                                {hasOfficial && (
+                                  <Badge variant="secondary" className="gap-1 text-[10px] font-medium">
+                                    <BadgeCheck className="h-3 w-3" />
+                                    API Oficial{official?.last_test_ok === false ? ' (com erro)' : ''}
+                                  </Badge>
+                                )}
+                                {evos.map((i) => (
+                                  <Badge key={i.instance_name} variant="outline" className="gap-1 text-[10px] font-medium">
+                                    <Smartphone className="h-3 w-3" />
+                                    {i.owner_phone || i.profile_name || i.instance_name}
+                                  </Badge>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
+
+
 
                       <div className="flex flex-wrap gap-1.5 pl-2 pt-1 border-t border-border/50">
                         {canManage && !isSelf && (
