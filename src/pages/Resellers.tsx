@@ -108,7 +108,7 @@ export default function Resellers() {
         .maybeSingle();
       return data as ResellerAccess | null;
     },
-    enabled: !isAdmin,
+    
   });
 
   const { data: customerCounts } = useQuery({
@@ -610,7 +610,7 @@ export default function Resellers() {
 
         {isAdmin && <TrialDaysCard />}
 
-        {!isAdmin && myAccess && (
+        {myAccess && (
           <div className="rounded-xl border border-border/60 bg-card p-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div className="flex items-start gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/15 text-primary">
