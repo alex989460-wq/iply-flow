@@ -2225,6 +2225,7 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
     let imported = 0;
     let errors = 0;
     let firstError = '';
+    let duplicatesSkipped = 0;
 
     let serversCreated = 0;
 
@@ -2260,6 +2261,25 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
       const authenticatedUserId = authData.user?.id;
       if (authError || !authenticatedUserId) {
         throw new Error('Sua sessão expirou. Saia da conta, entre novamente e repita a importação.');
+      }
+
+      // O banco bloqueia usuários repetidos por revenda. Carregamos em páginas para
+      // ignorar duplicados conhecidos (inclusive repetidos dentro do próprio CSV).
+      const knownUsernames = new Set<string>();
+      const usernamePageSize = 1000;
+      for (let from = 0; ; from += usernamePageSize) {
+        const { data: usernameRows, error: usernameError } = await supabase
+          .from('customers')
+          .select('username')
+          .not('username', 'is', null)
+          .range(from, from + usernamePageSize - 1);
+
+        if (usernameError) throw usernameError;
+        for (const existing of usernameRows || []) {
+          const normalized = String(existing.username || '').trim().toLowerCase();
+          if (normalized) knownUsernames.add(normalized);
+        }
+        if (!usernameRows || usernameRows.length < usernamePageSize) break;
       }
 
       // First, create all unique servers that don't exist
@@ -2311,6 +2331,14 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
 
       for (const row of dataToImport) {
         const { server_name, plan_name, ...customerData } = row;
+        const normalizedUsername = String(customerData.username || '').trim().toLowerCase();
+
+        if (normalizedUsername && knownUsernames.has(normalizedUsername)) {
+          duplicatesSkipped++;
+          processedCount++;
+          setImportProgress(Math.round((processedCount / totalToImport) * 100));
+          continue;
+        }
         
         // Use cached server_id if server was created or matched
         if (server_name && serverCache[server_name.toLowerCase()]) {
@@ -2345,6 +2373,7 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
           errors++;
         } else {
           imported++;
+          if (normalizedUsername) knownUsernames.add(normalizedUsername);
         }
 
         // Update progress
@@ -2358,9 +2387,10 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
       setImportStatusFilter(['ativa', 'inativa', 'suspensa']);
       
       const serverMsg = serversCreated > 0 ? ` ${serversCreated} servidor(es) criado(s).` : '';
+      const duplicateMsg = duplicatesSkipped > 0 ? ` ${duplicatesSkipped} usuário(s) duplicado(s) ignorado(s).` : '';
       toast({ 
         title: errors > 0 ? 'Importação concluída com erros' : 'Importação concluída!', 
-        description: `${imported} clientes importados.${serverMsg}${errors > 0 ? ` ${errors} erro(s). Motivo: ${firstError}` : ''}`,
+        description: `${imported} clientes importados.${serverMsg}${duplicateMsg}${errors > 0 ? ` ${errors} erro(s). Motivo: ${firstError}` : ''}`,
         variant: errors > 0 ? 'destructive' : undefined,
       });
 
