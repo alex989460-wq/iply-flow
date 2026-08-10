@@ -2141,28 +2141,41 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
         let dueDate = dueDateIndex >= 0 ? values[dueDateIndex] : '';
         let startDate = startDateIndex >= 0 ? values[startDateIndex] : '';
         
-        // Parse date formats (DD/MM/YYYY or YYYY-MM-DD)
+        // Aceita DD/MM/AAAA, AAAA-MM-DD, com ou sem hora (ex.: "31/07/2026 12:00", "2026-07-31T00:00:00")
         const parseDate = (dateStr: string) => {
           if (!dateStr) return null;
-          if (dateStr.includes('/')) {
-            const parts = dateStr.split('/');
-            if (parts.length === 3) {
-              return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
-            }
+          // remove hora e qualquer texto extra
+          const cleaned = String(dateStr).trim().replace(/[T\s].*$/, '').trim();
+          if (!cleaned) return null;
+
+          const br = cleaned.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})$/);
+          if (br) {
+            const day = br[1].padStart(2, '0');
+            const month = br[2].padStart(2, '0');
+            let year = br[3];
+            if (year.length === 2) year = `20${year}`;
+            const iso = `${year}-${month}-${day}`;
+            return isNaN(new Date(`${iso}T12:00:00`).getTime()) ? null : iso;
           }
-          return dateStr;
+
+          const isoMatch = cleaned.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+          if (isoMatch) {
+            const iso = `${isoMatch[1]}-${isoMatch[2].padStart(2, '0')}-${isoMatch[3].padStart(2, '0')}`;
+            return isNaN(new Date(`${iso}T12:00:00`).getTime()) ? null : iso;
+          }
+
+          return null;
         };
 
-        // Determine status based on due date (if vencido = inativa or suspensa)
+        // Determine status based on due date (if vencido = inativa ou suspensa)
         let status: CustomerStatus = 'ativa';
         const parsedDueDate = parseDate(dueDate);
         if (parsedDueDate) {
-          const dueDateObj = new Date(parsedDueDate);
+          const dueDateObj = new Date(`${parsedDueDate}T12:00:00`);
           const today = new Date();
-          today.setHours(0, 0, 0, 0);
-          dueDateObj.setHours(0, 0, 0, 0);
+          today.setHours(12, 0, 0, 0);
           // Se vencido há mais de 7 dias = suspensa, senão se vencido = inativa
-          const diffDays = Math.floor((today.getTime() - dueDateObj.getTime()) / (1000 * 60 * 60 * 24));
+          const diffDays = Math.round((today.getTime() - dueDateObj.getTime()) / (1000 * 60 * 60 * 24));
           if (diffDays > 7) {
             status = 'suspensa';
           } else if (diffDays > 0) {
@@ -2170,17 +2183,25 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
           }
         }
 
-        // Parse custom value - if empty, use plan price
+        // Valor da planilha tem prioridade sobre o preço do plano
         let customPrice: number | null = null;
         if (valueIndex >= 0 && values[valueIndex]) {
-          const priceStr = values[valueIndex].replace(/[^\d.,]/g, '').replace(',', '.');
+          let priceStr = values[valueIndex].replace(/[^\d.,-]/g, '').trim();
+          if (priceStr.includes(',')) {
+            // formato BR: 1.234,56
+            priceStr = priceStr.replace(/\./g, '').replace(',', '.');
+          } else if ((priceStr.match(/\./g) || []).length > 1) {
+            // formato 1.234.567 (separador de milhar)
+            priceStr = priceStr.replace(/\./g, '');
+          }
           const parsed = parseFloat(priceStr);
           if (!isNaN(parsed)) customPrice = parsed;
         }
-        // If no custom price and plan matched, use plan price
+        // Sem valor na planilha: usa o preço do plano correspondente
         if (customPrice === null && matchedPlan) {
           customPrice = Number(matchedPlan.price);
         }
+
 
         // Get username directly from CSV
         const username = userIndex >= 0 ? values[userIndex] : '';
