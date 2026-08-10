@@ -2441,36 +2441,64 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
   };
 
   const handleDeleteAll = async () => {
-    if (!customers || customers.length === 0 || isDeletingAll) return;
-    
+    if (isDeletingAll) return;
+
     setIsDeletingAll(true);
     setDeleteAllProgress(0);
-    
-    const totalCustomers = customers.length;
+
     let deleted = 0;
     let errors = 0;
-    
-    // Delete in batches of 50 for efficiency
-    const batchSize = 50;
-    const customerIds = customers.map(c => c.id);
-    
-    for (let i = 0; i < customerIds.length; i += batchSize) {
-      const batch = customerIds.slice(i, i + batchSize);
-      
-      const { error } = await supabase
-        .from('customers')
-        .delete()
-        .in('id', batch);
-      
-      if (error) {
-        console.error('Erro ao excluir lote:', error);
-        errors += batch.length;
-      } else {
-        deleted += batch.length;
+
+    try {
+      // Busca TODOS os ids (não apenas os da página atual), em páginas de 1000
+      const fetchPageSize = 1000;
+      const customerIds: string[] = [];
+      for (let from = 0; ; from += fetchPageSize) {
+        const { data, error } = await supabase
+          .from('customers')
+          .select('id')
+          .range(from, from + fetchPageSize - 1);
+        if (error) throw error;
+        for (const row of data || []) customerIds.push(row.id);
+        if (!data || data.length < fetchPageSize) break;
       }
-      
-      setDeleteAllProgress(Math.round(((i + batch.length) / totalCustomers) * 100));
+
+      const totalCustomers = customerIds.length;
+      if (totalCustomers === 0) {
+        toast({ title: 'Nenhum cliente para excluir' });
+        setIsDeletingAll(false);
+        setIsDeleteAllOpen(false);
+        return;
+      }
+
+      // Delete in batches of 200 for efficiency
+      const batchSize = 200;
+      for (let i = 0; i < customerIds.length; i += batchSize) {
+        const batch = customerIds.slice(i, i + batchSize);
+
+        const { error } = await supabase
+          .from('customers')
+          .delete()
+          .in('id', batch);
+
+        if (error) {
+          console.error('Erro ao excluir lote:', error);
+          errors += batch.length;
+        } else {
+          deleted += batch.length;
+        }
+
+        setDeleteAllProgress(Math.round(((i + batch.length) / totalCustomers) * 100));
+      }
+    } catch (error: any) {
+      console.error('Erro ao excluir clientes:', error);
+      toast({
+        title: 'Erro ao excluir clientes',
+        description: error?.message || 'Não foi possível carregar a lista completa de clientes.',
+        variant: 'destructive',
+      });
     }
+
     
     queryClient.invalidateQueries({ queryKey: ['customers'] });
     setIsDeletingAll(false);
