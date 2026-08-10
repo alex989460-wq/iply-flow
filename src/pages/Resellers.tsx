@@ -103,10 +103,10 @@ export default function Resellers() {
       if (!u.user) return null;
       const { data } = await supabase
         .from('reseller_access')
-        .select('credits')
+        .select('*')
         .eq('user_id', u.user.id)
         .maybeSingle();
-      return data;
+      return data as ResellerAccess | null;
     },
     enabled: !isAdmin,
   });
@@ -609,6 +609,36 @@ export default function Resellers() {
         </div>
 
         {isAdmin && <TrialDaysCard />}
+
+        {!isAdmin && myAccess && (
+          <div className="rounded-xl border border-border/60 bg-card p-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div className="flex items-start gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/15 text-primary">
+                <RefreshCw className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="font-semibold">Renovar meu painel</p>
+                <p className="text-sm text-muted-foreground">
+                  Use seus próprios créditos para estender seu acesso (1 crédito = 30 dias).
+                  {myAccess.access_expires_at && (
+                    <> Vence em <strong>{format(new Date(myAccess.access_expires_at), 'dd/MM/yyyy', { locale: ptBR })}</strong>.</>
+                  )}
+                </p>
+              </div>
+            </div>
+            <Button
+              onClick={() => {
+                setSelectedReseller(myAccess);
+                setRenewDays('30');
+                setIsRenewDialogOpen(true);
+              }}
+              disabled={(myAccess.credits ?? 0) < 1}
+            >
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Renovar meu acesso
+            </Button>
+          </div>
+        )}
 
         {/* Stats Cards */}
         <div className="grid gap-3 grid-cols-2 lg:grid-cols-6 stagger-children">
