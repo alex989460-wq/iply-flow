@@ -348,6 +348,35 @@ export default function ActivationApps() {
     onError: (e: any) => toast.error(e.message),
   });
 
+  // Persiste imediatamente o liga/desliga do painel (sem precisar clicar em Salvar).
+  const togglePanelEnabled = useMutation({
+    mutationFn: async ({ panel_type, value }: { panel_type: string; value: boolean }) => {
+      const { error } = await (supabase as any)
+        .from('activation_panel_credentials')
+        .update({ is_enabled: value })
+        .eq('user_id', user?.id)
+        .eq('panel_type', panel_type);
+      if (error) throw error;
+    },
+    onSuccess: (_d, vars) => {
+      queryClient.invalidateQueries({ queryKey: ['activation-panel-credentials'] });
+      toast.success(vars.value ? 'Painel ativado' : 'Painel desativado');
+    },
+    onError: (e: any) => toast.error(e.message || 'Não foi possível alterar o status do painel'),
+  });
+
+  const handleToggle = (
+    panel_type: string,
+    exists: boolean,
+    value: boolean,
+    setLocal: (v: boolean) => void,
+  ) => {
+    setLocal(value);
+    if (exists) togglePanelEnabled.mutate({ panel_type, value });
+  };
+
+
+
 
   const saveMutation = useMutation({
     mutationFn: async (data: any) => {
