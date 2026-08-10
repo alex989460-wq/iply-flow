@@ -72,8 +72,11 @@ Deno.serve(async (req) => {
       throw new Error("Sub-revendedor não encontrado");
     }
 
-    // Verify the caller owns this sub-reseller (or is admin)
-    if (!isAdmin && subReseller.parent_reseller_id !== currentUserId) {
+    // Self-renewal: a reseller can renew their own panel using their own credits
+    const isSelfRenewal = subReseller.user_id === currentUserId;
+
+    // Verify the caller owns this sub-reseller (or is admin, or is renewing themselves)
+    if (!isAdmin && !isSelfRenewal && subReseller.parent_reseller_id !== currentUserId) {
       throw new Error("Você não tem permissão para renovar este sub-revendedor");
     }
 
