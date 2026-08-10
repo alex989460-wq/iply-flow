@@ -2225,13 +2225,63 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
     let imported = 0;
     let errors = 0;
     let firstError = '';
+    let duplicatesSkipped = 0;
 
     let serversCreated = 0;
+
+    const importErrorMessage = (error: { message?: string; details?: string; code?: string } | null | undefined) => {
+      const raw = `${error?.message || ''} ${error?.details || ''}`.trim();
+      const normalized = raw.toLowerCase();
+
+      if (normalized.includes('duplicate_customer_username') || error?.code === '23505') {
+        return 'já existe um cliente com este usuário nesta revenda';
+      }
+      if (normalized.includes('row-level security') || normalized.includes('permission denied')) {
+        return 'a sessão desta revenda não tem permissão para gravar este registro; saia da conta, entre novamente e repita a importação';
+      }
+      if (normalized.includes('foreign key') || error?.code === '23503') {
+        return 'o servidor ou plano informado não pertence a esta revenda';
+      }
+      if (normalized.includes('invalid input value for enum') || error?.code === '22P02') {
+        return 'há um valor inválido na coluna status';
+      }
+      if (normalized.includes('date/time field value out of range') || error?.code === '22008') {
+        return 'há uma data inválida; use o formato DD/MM/AAAA';
+      }
+      return raw || 'erro desconhecido ao salvar no banco de dados';
+    };
 
     // Cache for newly created servers to avoid duplicates
     const serverCache: Record<string, string> = {};
 
     try {
+      // Resolve o proprietário pela sessão validada no momento da importação.
+      // Não usamos somente o estado do contexto, que pode estar vazio após recarregar a página.
+      const { data: authData, error: authError } = await supabase.auth.getUser();
+      const authenticatedUserId = authData.user?.id;
+      if (authError || !authenticatedUserId) {
+        throw new Error('Sua sessão expirou. Saia da conta, entre novamente e repita a importação.');
+      }
+
+      // O banco bloqueia usuários repetidos por revenda. Carregamos em páginas para
+      // ignorar duplicados conhecidos (inclusive repetidos dentro do próprio CSV).
+      const knownUsernames = new Set<string>();
+      const usernamePageSize = 1000;
+      for (let from = 0; ; from += usernamePageSize) {
+        const { data: usernameRows, error: usernameError } = await supabase
+          .from('customers')
+          .select('username')
+          .not('username', 'is', null)
+          .range(from, from + usernamePageSize - 1);
+
+        if (usernameError) throw usernameError;
+        for (const existing of usernameRows || []) {
+          const normalized = String(existing.username || '').trim().toLowerCase();
+          if (normalized) knownUsernames.add(normalized);
+        }
+        if (!usernameRows || usernameRows.length < usernamePageSize) break;
+      }
+
       // First, create all unique servers that don't exist
       const uniqueServerNames = [...new Set(dataToImport.map(row => row.server_name?.trim()).filter(Boolean))];
       
@@ -2251,16 +2301,18 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
               server_name: serverName,
               host: serverName.toLowerCase().replace(/\s+/g, '-'),
               status: 'online',
-              created_by: user?.id,
+               created_by: authenticatedUserId,
             })
             .select('id')
             .single();
 
           if (serverError) {
             console.error('Erro ao criar servidor:', serverName, serverError);
+             const reason = importErrorMessage(serverError);
+             if (!firstError) firstError = `Servidor ${serverName}: ${reason}`;
             toast({
               title: `Não foi possível criar o servidor "${serverName}"`,
-              description: serverError.message,
+               description: reason,
               variant: 'destructive',
             });
           } else if (newServer) {
@@ -2279,6 +2331,14 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
 
       for (const row of dataToImport) {
         const { server_name, plan_name, ...customerData } = row;
+        const normalizedUsername = String(customerData.username || '').trim().toLowerCase();
+
+        if (normalizedUsername && knownUsernames.has(normalizedUsername)) {
+          duplicatesSkipped++;
+          processedCount++;
+          setImportProgress(Math.round((processedCount / totalToImport) * 100));
+          continue;
+        }
         
         // Use cached server_id if server was created or matched
         if (server_name && serverCache[server_name.toLowerCase()]) {
@@ -2303,16 +2363,17 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
         }
 
         // Set created_by to current user for import tracking
-        customerData.created_by = user?.id;
+        customerData.created_by = authenticatedUserId;
 
         const { error } = await supabase.from('customers').insert(customerData);
         
         if (error) {
           console.error('Erro ao importar cliente:', row.name, error);
-          if (!firstError) firstError = `${row.name}: ${error.message}`;
+          if (!firstError) firstError = `${row.name}: ${importErrorMessage(error)}`;
           errors++;
         } else {
           imported++;
+          if (normalizedUsername) knownUsernames.add(normalizedUsername);
         }
 
         // Update progress
@@ -2326,16 +2387,17 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
       setImportStatusFilter(['ativa', 'inativa', 'suspensa']);
       
       const serverMsg = serversCreated > 0 ? ` ${serversCreated} servidor(es) criado(s).` : '';
+      const duplicateMsg = duplicatesSkipped > 0 ? ` ${duplicatesSkipped} usuário(s) duplicado(s) ignorado(s).` : '';
       toast({ 
         title: errors > 0 ? 'Importação concluída com erros' : 'Importação concluída!', 
-        description: `${imported} clientes importados.${serverMsg}${errors > 0 ? ` ${errors} erro(s). Motivo: ${firstError}` : ''}`,
+        description: `${imported} clientes importados.${serverMsg}${duplicateMsg}${errors > 0 ? ` ${errors} erro(s). Motivo: ${firstError}` : ''}`,
         variant: errors > 0 ? 'destructive' : undefined,
       });
 
     } catch (error: any) {
       toast({
         title: 'Erro na importação',
-        description: error.message,
+        description: importErrorMessage(error),
         variant: 'destructive',
       });
     } finally {
