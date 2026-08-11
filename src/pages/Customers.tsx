@@ -2125,7 +2125,8 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
         if (!name || !phone) continue;
 
         // Try to match server and plan by name
-        const serverName = serverIndex >= 0 ? values[serverIndex] : '';
+        const rawServerName = serverIndex >= 0 ? values[serverIndex] : '';
+        const serverName = isValidServerName(rawServerName) ? rawServerName.trim() : '';
         const planName = planIndex >= 0 ? values[planIndex] : '';
         
         const matchedServer = servers?.find(s => 
