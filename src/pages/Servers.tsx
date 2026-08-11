@@ -145,7 +145,7 @@ export default function Servers() {
   });
 
   const resetForm = () => {
-    setFormData({ server_name: '', host: '', description: '', status: 'online', is_public: false });
+    setFormData({ server_name: '', host: '', description: '', status: 'online', is_public: false, credit_cost: 0 });
     setEditingServer(null);
   };
 
@@ -157,9 +157,11 @@ export default function Servers() {
       description: server.description || '',
       status: server.status,
       is_public: (server as any).is_public || false,
+      credit_cost: Number((server as any).credit_cost || 0),
     });
     setIsOpen(true);
   };
+
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
