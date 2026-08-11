@@ -10,6 +10,7 @@ import { Loader2, Save, Plug, Webhook, Zap, Copy, QrCode } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
+import MaskedUrlField from '@/components/ui/masked-url';
 
 const PRESET_SERVERS = [
   { label: 'Servidor 1', url: 'https://evolution.fluyd.top' },
