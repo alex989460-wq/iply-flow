@@ -158,17 +158,19 @@ export default function Resellers() {
     },
   });
 
-  // Números oficiais (Meta) de cada revenda, buscados via CRM oficial
+  // Canais de WhatsApp de cada revenda (oficial Meta + não oficial), buscados no CRM
   const officialKeys = (officialSettings || [])
     .filter((o) => !!o.api_key && o.enabled !== false)
     .map((o) => ({ user_id: o.user_id, api_key: o.api_key as string }));
 
-  const { data: officialPhones } = useQuery({
-    queryKey: ['resellers-official-phones', officialKeys.map((k) => k.user_id).join(',')],
+  type CrmChannel = { official: boolean; phone: string; label: string; instance?: string };
+
+  const { data: crmChannelsByUser } = useQuery({
+    queryKey: ['resellers-crm-channels', officialKeys.map((k) => k.user_id).join(',')],
     enabled: officialKeys.length > 0,
     staleTime: 5 * 60 * 1000,
     queryFn: async () => {
-      const map: Record<string, string[]> = {};
+      const map: Record<string, CrmChannel[]> = {};
       await Promise.all(
         officialKeys.map(async ({ user_id, api_key }) => {
           try {
@@ -176,12 +178,26 @@ export default function Resellers() {
               body: { action: 'list-channels', data: { apiKey: api_key } },
             });
             const body = data?.results?.channels?.body;
-            const list = Array.isArray(body) ? body : Array.isArray(body?.channels) ? body.channels : [];
-            const phones = list
-              .map((c: any) => c.display_phone_number || c.phone_number || c.phone || c.number || '')
-              .filter((p: string) => typeof p === 'string' && p.trim())
-              .map((p: string) => p.trim());
-            if (phones.length) map[user_id] = Array.from(new Set(phones));
+            const list: any[] = Array.isArray(body)
+              ? body
+              : Array.isArray(body?.whatsapp)
+                ? body.whatsapp
+                : Array.isArray(body?.channels)
+                  ? body.channels
+                  : [];
+            const items: CrmChannel[] = list.map((c: any) => {
+              const kind = String(c.kind || c.type || '').toLowerCase();
+              const official = !(kind.includes('evolution') || kind.includes('baileys') || !!c.evolution_instance_name);
+              const raw = String(c.display_phone_number || c.phone_number || c.phone || '').trim();
+              const isPhone = raw.replace(/\D/g, '').length >= 10;
+              return {
+                official,
+                phone: isPhone ? raw : '',
+                label: String(c.verified_name || c.name || c.evolution_instance_name || '').trim(),
+                instance: c.evolution_instance_name || undefined,
+              };
+            });
+            if (items.length) map[user_id] = items;
           } catch {
             /* ignora falhas por revenda */
           }
@@ -190,6 +206,7 @@ export default function Resellers() {
       return map;
     },
   });
+
 
   const evoByUser = new Map<string, Array<{ instance_name: string; owner_phone: string | null; profile_name: string | null }>>();
   (evoInstances || []).forEach((i) => {
