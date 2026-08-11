@@ -10,6 +10,21 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { MetaLogo } from "@/components/ui/meta-logo";
+import whatsappLogo from "@/assets/whatsapp-logo.png.asset.json";
+
+function formatPhoneDisplay(raw?: string | null) {
+  const digits = String(raw || "").replace(/\D/g, "");
+  if (!digits) return "";
+  if (digits.length >= 12 && digits.startsWith("55")) {
+    const ddd = digits.slice(2, 4);
+    const rest = digits.slice(4);
+    const mid = rest.length > 8 ? rest.slice(0, rest.length - 4) : rest.slice(0, 4);
+    const end = rest.slice(-4);
+    return `+55 (${ddd}) ${mid}-${end}`;
+  }
+  return `+${digits}`;
+}
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { format, addDays, isPast, differenceInDays } from "date-fns";
@@ -143,6 +158,39 @@ export default function Resellers() {
     },
   });
 
+  // Números oficiais (Meta) de cada revenda, buscados via CRM oficial
+  const officialKeys = (officialSettings || [])
+    .filter((o) => !!o.api_key && o.enabled !== false)
+    .map((o) => ({ user_id: o.user_id, api_key: o.api_key as string }));
+
+  const { data: officialPhones } = useQuery({
+    queryKey: ['resellers-official-phones', officialKeys.map((k) => k.user_id).join(',')],
+    enabled: officialKeys.length > 0,
+    staleTime: 5 * 60 * 1000,
+    queryFn: async () => {
+      const map: Record<string, string[]> = {};
+      await Promise.all(
+        officialKeys.map(async ({ user_id, api_key }) => {
+          try {
+            const { data } = await supabase.functions.invoke('crm-oficial-sync', {
+              body: { action: 'list-channels', data: { apiKey: api_key } },
+            });
+            const body = data?.results?.channels?.body;
+            const list = Array.isArray(body) ? body : Array.isArray(body?.channels) ? body.channels : [];
+            const phones = list
+              .map((c: any) => c.display_phone_number || c.phone_number || c.phone || c.number || '')
+              .filter((p: string) => typeof p === 'string' && p.trim())
+              .map((p: string) => p.trim());
+            if (phones.length) map[user_id] = Array.from(new Set(phones));
+          } catch {
+            /* ignora falhas por revenda */
+          }
+        }),
+      );
+      return map;
+    },
+  });
+
   const evoByUser = new Map<string, Array<{ instance_name: string; owner_phone: string | null; profile_name: string | null }>>();
   (evoInstances || []).forEach((i) => {
     const list = evoByUser.get(i.user_id) || [];
@@ -150,6 +198,7 @@ export default function Resellers() {
     evoByUser.set(i.user_id, list);
   });
   const officialByUser = new Map((officialSettings || []).map((o) => [o.user_id, o]));
+
 
 
 
@@ -852,6 +901,7 @@ export default function Resellers() {
                         const evos = evoByUser.get(reseller.user_id) || [];
                         const official = officialByUser.get(reseller.user_id);
                         const hasOfficial = !!official?.api_key && official?.enabled !== false;
+                        const phones = officialPhones?.[reseller.user_id] || [];
                         return (
                           <div className="pl-2">
                             <p className="mb-1 flex items-center gap-1 text-[10px] uppercase tracking-wide text-muted-foreground">
@@ -861,21 +911,37 @@ export default function Resellers() {
                               <p className="text-xs text-muted-foreground">Nenhuma conexão ativa</p>
                             ) : (
                               <div className="flex flex-wrap gap-1.5">
-                                {hasOfficial && (
-                                  <Badge variant="secondary" className="gap-1 text-[10px] font-medium">
-                                    <BadgeCheck className="h-3 w-3" />
-                                    API Oficial{official?.last_test_ok === false ? ' (com erro)' : ''}
+                                {hasOfficial && (phones.length ? phones : ['']).map((p, idx) => (
+                                  <Badge
+                                    key={`off-${idx}`}
+                                    variant="secondary"
+                                    className="gap-1 text-[10px] font-medium"
+                                    title="API Oficial (Meta)"
+                                  >
+                                    <MetaLogo className="h-3 w-3" />
+                                    <span className="tabular-nums">{formatPhoneDisplay(p) || 'API Oficial'}</span>
+                                    <span className="text-muted-foreground">· Oficial</span>
+                                    {official?.last_test_ok === false && <span className="text-destructive">· erro</span>}
                                   </Badge>
-                                )}
+                                ))}
                                 {evos.map((i) => (
-                                  <Badge key={i.instance_name} variant="outline" className="gap-1 text-[10px] font-medium">
-                                    <Smartphone className="h-3 w-3" />
-                                    {i.owner_phone || i.profile_name || i.instance_name}
+                                  <Badge
+                                    key={i.instance_name}
+                                    variant="outline"
+                                    className="gap-1 text-[10px] font-medium"
+                                    title="API não oficial (WhatsApp)"
+                                  >
+                                    <img src={whatsappLogo.url} alt="WhatsApp" className="h-3 w-3 object-contain" />
+                                    <span className="tabular-nums">
+                                      {formatPhoneDisplay(i.owner_phone) || i.profile_name || i.instance_name}
+                                    </span>
+                                    <span className="text-muted-foreground">· Não oficial</span>
                                   </Badge>
                                 ))}
                               </div>
                             )}
                           </div>
+
                         );
                       })()}
 
