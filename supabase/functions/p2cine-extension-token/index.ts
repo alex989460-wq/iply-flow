@@ -24,8 +24,22 @@ Deno.serve(async (req) => {
     });
   }
 
+  // Token individual por revenda: <userId>.<assinatura HMAC>.
+  // Assim a extensão só recebe pendências do próprio dono.
+  const secret = Deno.env.get("P2CINE_EXTENSION_TOKEN") ?? "";
+  const uid = userData.user.id;
+  const key = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+  const sigBuf = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(uid));
+  const sig = Array.from(new Uint8Array(sigBuf)).map((b) => b.toString(16).padStart(2, "0")).join("");
+
   return new Response(
-    JSON.stringify({ token: Deno.env.get("P2CINE_EXTENSION_TOKEN") ?? "" }),
+    JSON.stringify({ token: `${uid}.${sig}` }),
     { headers: { ...corsHeaders, "Content-Type": "application/json" } },
   );
 });
