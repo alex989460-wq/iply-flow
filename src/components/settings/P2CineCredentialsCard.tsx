@@ -83,7 +83,11 @@ export default function P2CineCredentialsCard() {
             </Button>
           </div>
           <div className="text-xs">
-            <p className="text-muted-foreground mb-1">Token da extensão (cole no popup):</p>
+            <p className="text-muted-foreground mb-1">
+              Token da extensão (individual da sua conta — só processa pendências suas). Se você já
+              usava a extensão antes, copie o token novamente e cole no popup.
+            </p>
+
             <Button size="sm" variant="outline" className="mt-1" onClick={copyToken} disabled={tokenLoading}>
               {tokenLoading ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : null}
               Copiar token
