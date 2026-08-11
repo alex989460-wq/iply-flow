@@ -125,13 +125,13 @@ Deno.serve(async (req) => {
 
           const message =
             `🎬 *TESTE GERADO*\n\n` +
-            (m3uLink ? `*Link (M3U)* 👉 ${m3uLink}\n\n` : "") +
-            (hlsLink ? `*Link (HLS)* 👉 ${hlsLink}\n\n` : "") +
             `👤 Usuário: ${result.username}\n` +
             `🔑 Senha: ${result.password}\n` +
             (host ? `🌐 Servidor: ${scheme}://${host}\n` : "") +
             `📺 Telas: ${result.max_connections ?? 1}\n` +
-            `⏰ Expira: ${expTxt}`;
+            `⏰ Expira: ${expTxt}\n\n` +
+            (m3uLink ? `*Link (M3U)* 👉 ${m3uLink}\n\n` : "") +
+            (hlsLink ? `*Link (HLS)* 👉 ${hlsLink}` : "");
           return new Response(
             JSON.stringify({ success: true, message, m3u: m3uLink, hls: hlsLink, user: result }),
             { headers: jsonHeaders },
