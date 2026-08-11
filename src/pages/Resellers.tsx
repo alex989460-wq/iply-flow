@@ -197,7 +197,7 @@ export default function Resellers() {
                 instance: c.evolution_instance_name || undefined,
               };
             });
-            if (items.length) map[user_id] = items;
+            map[user_id] = items;
           } catch {
             /* ignora falhas por revenda */
           }
@@ -918,6 +918,7 @@ export default function Resellers() {
                         const evosDb = evoByUser.get(reseller.user_id) || [];
                         const official = officialByUser.get(reseller.user_id);
                         const hasOfficialKey = !!official?.api_key && official?.enabled !== false;
+                        const crmLoaded = Array.isArray(crmChannelsByUser?.[reseller.user_id]);
                         const crm = crmChannelsByUser?.[reseller.user_id] || [];
                         const officialChannels = crm.filter((c) => c.official);
                         const evoChannels = crm.filter((c) => !c.official);
@@ -930,10 +931,12 @@ export default function Resellers() {
                             instance: i.instance_name,
                           }));
                         const evoAll = [...evoChannels, ...evoExtra];
+                        // Só usa o rótulo genérico enquanto o CRM ainda não respondeu.
+                        // Se o CRM respondeu e não há canal oficial, não mostra nada.
                         const officialAll = officialChannels.length
                           ? officialChannels
-                          : hasOfficialKey
-                            ? [{ official: true, phone: '', label: 'API Oficial' }]
+                          : (!crmLoaded && hasOfficialKey)
+                            ? [{ official: true, phone: '', label: 'Carregando…' }]
                             : [];
                         return (
                           <div className="pl-2">
