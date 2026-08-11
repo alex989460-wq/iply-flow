@@ -168,6 +168,8 @@ serve(async (req) => {
       const capResp = await fetch(`${capBase}/frontend/captcha/generate`, {
         headers: { Accept: "application/json", Referer: capRef, "User-Agent": UA },
       });
+      const capJar = new CookieJar();
+      capJar.absorb(capResp);
       const cap = await capResp.json().catch(() => ({} as any));
       if (!cap?.svg || !cap?.token) {
         return new Response(JSON.stringify({ error: "Não foi possível gerar o captcha" }), {
@@ -175,7 +177,7 @@ serve(async (req) => {
           headers: jsonHeaders,
         });
       }
-      return new Response(JSON.stringify({ success: true, svg: cap.svg, token: cap.token }), {
+      return new Response(JSON.stringify({ success: true, svg: cap.svg, token: cap.token, cookie: capJar.header() }), {
         headers: jsonHeaders,
       });
     }
@@ -198,6 +200,7 @@ serve(async (req) => {
       const epgUrlB = String(body.epg_url || "").trim() || m3uUrl;
       const captcha = String(body.captcha || "").trim();
       const capToken = String(body.captcha_token || body.token || "").trim();
+      const capCookie = String(body.captcha_cookie || "").trim();
 
       if (!/^([0-9a-f]{2}:){5}[0-9a-f]{2}$/.test(mac)) {
         return new Response(JSON.stringify({ error: "MAC inválido. Use o formato aa:bb:cc:dd:ee:ff" }), {
@@ -220,6 +223,7 @@ serve(async (req) => {
 
       const jar = new CookieJar();
       const isIbo = provider === "iboplayer";
+      const jarHeader = () => [capCookie, jar.header()].filter(Boolean).join("; ");
       const base = isIbo ? "https://iboplayer.com" : "https://bobplayer.com";
       const brand = isIbo ? "IBO Player" : "Bob Player";
       const loginRef = isIbo ? `${base}/device/login` : `${base}/login`;
@@ -232,7 +236,7 @@ serve(async (req) => {
 
       const loginB = await fetch(`${base}/frontend/device/login`, {
         method: "POST",
-        headers: { ...commonB, Referer: loginRef },
+        headers: { ...commonB, Referer: loginRef, ...(capCookie ? { Cookie: capCookie } : {}) },
 
         body: JSON.stringify({
           mac_address: mac,
@@ -258,7 +262,7 @@ serve(async (req) => {
           ...commonB,
           Referer: `${base}/dashboard`,
           "x-client-origin": base,
-          Cookie: jar.header(),
+          Cookie: jarHeader(),
         },
         body: JSON.stringify({
           current_playlist_url_id: -1,
