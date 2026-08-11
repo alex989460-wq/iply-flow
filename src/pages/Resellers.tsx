@@ -158,17 +158,19 @@ export default function Resellers() {
     },
   });
 
-  // Números oficiais (Meta) de cada revenda, buscados via CRM oficial
+  // Canais de WhatsApp de cada revenda (oficial Meta + não oficial), buscados no CRM
   const officialKeys = (officialSettings || [])
     .filter((o) => !!o.api_key && o.enabled !== false)
     .map((o) => ({ user_id: o.user_id, api_key: o.api_key as string }));
 
-  const { data: officialPhones } = useQuery({
-    queryKey: ['resellers-official-phones', officialKeys.map((k) => k.user_id).join(',')],
+  type CrmChannel = { official: boolean; phone: string; label: string; instance?: string };
+
+  const { data: crmChannelsByUser } = useQuery({
+    queryKey: ['resellers-crm-channels', officialKeys.map((k) => k.user_id).join(',')],
     enabled: officialKeys.length > 0,
     staleTime: 5 * 60 * 1000,
     queryFn: async () => {
-      const map: Record<string, string[]> = {};
+      const map: Record<string, CrmChannel[]> = {};
       await Promise.all(
         officialKeys.map(async ({ user_id, api_key }) => {
           try {
@@ -176,12 +178,26 @@ export default function Resellers() {
               body: { action: 'list-channels', data: { apiKey: api_key } },
             });
             const body = data?.results?.channels?.body;
-            const list = Array.isArray(body) ? body : Array.isArray(body?.channels) ? body.channels : [];
-            const phones = list
-              .map((c: any) => c.display_phone_number || c.phone_number || c.phone || c.number || '')
-              .filter((p: string) => typeof p === 'string' && p.trim())
-              .map((p: string) => p.trim());
-            if (phones.length) map[user_id] = Array.from(new Set(phones));
+            const list: any[] = Array.isArray(body)
+              ? body
+              : Array.isArray(body?.whatsapp)
+                ? body.whatsapp
+                : Array.isArray(body?.channels)
+                  ? body.channels
+                  : [];
+            const items: CrmChannel[] = list.map((c: any) => {
+              const kind = String(c.kind || c.type || '').toLowerCase();
+              const official = !(kind.includes('evolution') || kind.includes('baileys') || !!c.evolution_instance_name);
+              const raw = String(c.display_phone_number || c.phone_number || c.phone || '').trim();
+              const isPhone = raw.replace(/\D/g, '').length >= 10;
+              return {
+                official,
+                phone: isPhone ? raw : '',
+                label: String(c.verified_name || c.name || c.evolution_instance_name || '').trim(),
+                instance: c.evolution_instance_name || undefined,
+              };
+            });
+            if (items.length) map[user_id] = items;
           } catch {
             /* ignora falhas por revenda */
           }
@@ -190,6 +206,7 @@ export default function Resellers() {
       return map;
     },
   });
+
 
   const evoByUser = new Map<string, Array<{ instance_name: string; owner_phone: string | null; profile_name: string | null }>>();
   (evoInstances || []).forEach((i) => {
@@ -898,42 +915,60 @@ export default function Resellers() {
                       </div>
 
                       {(() => {
-                        const evos = evoByUser.get(reseller.user_id) || [];
+                        const evosDb = evoByUser.get(reseller.user_id) || [];
                         const official = officialByUser.get(reseller.user_id);
-                        const hasOfficial = !!official?.api_key && official?.enabled !== false;
-                        const phones = officialPhones?.[reseller.user_id] || [];
+                        const hasOfficialKey = !!official?.api_key && official?.enabled !== false;
+                        const crm = crmChannelsByUser?.[reseller.user_id] || [];
+                        const officialChannels = crm.filter((c) => c.official);
+                        const evoChannels = crm.filter((c) => !c.official);
+                        const evoExtra = evosDb
+                          .filter((i) => !evoChannels.some((c) => c.instance === i.instance_name))
+                          .map((i) => ({
+                            official: false,
+                            phone: i.owner_phone || '',
+                            label: i.profile_name || i.instance_name,
+                            instance: i.instance_name,
+                          }));
+                        const evoAll = [...evoChannels, ...evoExtra];
+                        const officialAll = officialChannels.length
+                          ? officialChannels
+                          : hasOfficialKey
+                            ? [{ official: true, phone: '', label: 'API Oficial' }]
+                            : [];
                         return (
                           <div className="pl-2">
                             <p className="mb-1 flex items-center gap-1 text-[10px] uppercase tracking-wide text-muted-foreground">
                               <Smartphone className="h-3 w-3" /> Conexões WhatsApp
                             </p>
-                            {evos.length === 0 && !hasOfficial ? (
+                            {evoAll.length === 0 && officialAll.length === 0 ? (
                               <p className="text-xs text-muted-foreground">Nenhuma conexão ativa</p>
                             ) : (
                               <div className="flex flex-wrap gap-1.5">
-                                {hasOfficial && (phones.length ? phones : ['']).map((p, idx) => (
+                                {officialAll.map((c, idx) => (
                                   <Badge
                                     key={`off-${idx}`}
                                     variant="secondary"
-                                    className="gap-1 text-[10px] font-medium"
+                                    className="gap-1.5 text-[10px] font-medium"
                                     title="API Oficial (Meta)"
                                   >
-                                    <MetaLogo className="h-3 w-3" />
-                                    <span className="tabular-nums">{formatPhoneDisplay(p) || 'API Oficial'}</span>
+                                    <MetaLogo className="h-3.5 w-3.5" />
+                                    <span className="tabular-nums">
+                                      {formatPhoneDisplay(c.phone) || c.label || 'API Oficial'}
+                                    </span>
                                     <span className="text-muted-foreground">· Oficial</span>
                                     {official?.last_test_ok === false && <span className="text-destructive">· erro</span>}
                                   </Badge>
                                 ))}
-                                {evos.map((i) => (
+                                {evoAll.map((c, idx) => (
                                   <Badge
-                                    key={i.instance_name}
+                                    key={`evo-${c.instance || idx}`}
                                     variant="outline"
-                                    className="gap-1 text-[10px] font-medium"
+                                    className="gap-1.5 text-[10px] font-medium"
                                     title="API não oficial (WhatsApp)"
                                   >
-                                    <img src={whatsappLogo.url} alt="WhatsApp" className="h-3 w-3 object-contain" />
+                                    <img src={whatsappLogo.url} alt="WhatsApp" className="h-3.5 w-3.5 object-contain" />
                                     <span className="tabular-nums">
-                                      {formatPhoneDisplay(i.owner_phone) || i.profile_name || i.instance_name}
+                                      {formatPhoneDisplay(c.phone) || c.label || c.instance}
                                     </span>
                                     <span className="text-muted-foreground">· Não oficial</span>
                                   </Badge>
@@ -941,6 +976,7 @@ export default function Resellers() {
                               </div>
                             )}
                           </div>
+
 
                         );
                       })()}
