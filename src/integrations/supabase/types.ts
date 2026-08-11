@@ -544,6 +544,30 @@ export type Database = {
         }
         Relationships: []
       }
+      audit_accounts: {
+        Row: {
+          created_at: string
+          id: string
+          note: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          note?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          note?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       auth_verification_codes: {
         Row: {
           attempts: number
@@ -3414,6 +3438,7 @@ export type Database = {
         Returns: boolean
       }
       is_admin: { Args: never; Returns: boolean }
+      is_inactive_auditor: { Args: never; Returns: boolean }
       match_ai_knowledge_candidates: {
         Args: {
           _user_id: string

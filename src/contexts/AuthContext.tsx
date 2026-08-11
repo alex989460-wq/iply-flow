@@ -56,6 +56,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return { hasAccess: true };
     }
 
+    // Internal audit account (não é revendedor)
+    const { data: auditRow } = await supabase
+      .from('audit_accounts')
+      .select('user_id')
+      .eq('user_id', userId)
+      .maybeSingle();
+    if (auditRow) {
+      return { hasAccess: true };
+    }
+
+
     // Check reseller access
     const { data: resellerAccess, error } = await supabase
       .from('reseller_access')
