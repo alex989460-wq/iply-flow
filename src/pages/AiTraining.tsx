@@ -18,6 +18,7 @@ import {
   FileText, ShieldCheck, Lightbulb, Edit3, Trash2, GitMerge, StopCircle,
   Zap, TrendingUp, Users, Save, Key, Copy
 } from 'lucide-react';
+import MaskedUrlField from '@/components/ui/masked-url';
 
 import { useToast } from '@/hooks/use-toast';
 
