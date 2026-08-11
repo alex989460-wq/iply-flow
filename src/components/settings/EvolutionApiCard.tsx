@@ -10,6 +10,7 @@ import { Loader2, Save, Plug, Webhook, Zap, Copy, QrCode } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
+import MaskedUrlField from '@/components/ui/masked-url';
 
 const PRESET_SERVERS = [
   { label: 'Servidor 1', url: 'https://evolution.fluyd.top' },
@@ -222,19 +223,7 @@ export default function EvolutionApiCard() {
             <Webhook className="w-4 h-4" />
             <AlertDescription className="space-y-2">
               <div className="text-xs font-medium">Webhook (configurado automaticamente ao clicar abaixo):</div>
-              <div className="flex items-center gap-2">
-                <code className="text-[11px] flex-1 break-all bg-muted p-2 rounded">{webhookUrl}</code>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => {
-                    navigator.clipboard.writeText(webhookUrl);
-                    toast({ title: 'Copiado' });
-                  }}
-                >
-                  <Copy className="w-3.5 h-3.5" />
-                </Button>
-              </div>
+              <MaskedUrlField url={webhookUrl} label="Webhook" />
             </AlertDescription>
           </Alert>
         )}

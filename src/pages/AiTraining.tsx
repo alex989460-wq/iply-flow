@@ -18,6 +18,7 @@ import {
   FileText, ShieldCheck, Lightbulb, Edit3, Trash2, GitMerge, StopCircle,
   Zap, TrendingUp, Users, Save, Key, Copy
 } from 'lucide-react';
+import MaskedUrlField from '@/components/ui/masked-url';
 
 import { useToast } from '@/hooks/use-toast';
 
@@ -458,24 +459,7 @@ export default function AiTraining() {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-1.5">
                       <Label className="text-xs font-mono uppercase text-muted-foreground">Endpoint de Chat (POST)</Label>
-                      <div className="flex items-center gap-2">
-                        <Input 
-                          readOnly 
-                          value={`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-chat-reply`} 
-                          className="h-8 text-[11px] font-mono bg-muted/30"
-                        />
-                        <Button 
-                          variant="outline" 
-                          size="icon" 
-                          className="h-8 w-8"
-                          onClick={() => {
-                            navigator.clipboard.writeText(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-chat-reply`);
-                            toast({ title: 'Copiado!' });
-                          }}
-                        >
-                          <Copy className="h-3.5 w-3.5" />
-                        </Button>
-                      </div>
+                      <MaskedUrlField url={`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-chat-reply`} label="Endpoint" />
                     </div>
 
                     <div className="space-y-1.5">
