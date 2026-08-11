@@ -37,6 +37,20 @@ export function renderPlaylistUrl(
     .trim();
 }
 
+async function extractFnError(error: any, data: any): Promise<string | null> {
+  const payloadError = (data as any)?.error || ((data as any)?.success === false ? (data as any)?.message : null);
+  if (payloadError) return String(payloadError);
+  if (!error) return null;
+  try {
+    const res = (error as any)?.context;
+    if (res && typeof res.json === 'function') {
+      const j = await res.clone().json();
+      if (j?.error || j?.message) return String(j.error || j.message);
+    }
+  } catch { /* ignore */ }
+  return error?.message || 'Falha ao enviar a lista';
+}
+
 export function formatMac(raw: string) {
   const clean = (raw || '').replace(/[^0-9a-fA-F]/g, '').toLowerCase().slice(0, 12);
   return clean.replace(/(.{2})(?=.)/g, '$1:');
@@ -83,6 +97,7 @@ export default function SendPlaylistDialog({
   const [captcha, setCaptcha] = useState('');
   const [captchaSvg, setCaptchaSvg] = useState('');
   const [captchaToken, setCaptchaToken] = useState('');
+  const [captchaCookie, setCaptchaCookie] = useState('');
   const [loadingCaptcha, setLoadingCaptcha] = useState(false);
 
   const [templateId, setTemplateId] = useState<string>('');
@@ -97,10 +112,11 @@ export default function SendPlaylistDialog({
       const { data, error } = await supabase.functions.invoke('send-playlist', {
         body: { provider, action: 'bob-captcha' },
       });
-      if (error) throw error;
-      if ((data as any)?.error) throw new Error((data as any).error);
+      const msg = await extractFnError(error, data);
+      if (msg) throw new Error(msg);
       setCaptchaSvg((data as any).svg || '');
       setCaptchaToken((data as any).token || '');
+      setCaptchaCookie((data as any).cookie || '');
     } catch (e: any) {
       toast.error(e?.message || 'Falha ao carregar o captcha');
     } finally {
@@ -178,6 +194,7 @@ export default function SendPlaylistDialog({
               pin: pin.trim() || undefined,
               captcha: captcha.trim(),
               captcha_token: captchaToken,
+              captcha_cookie: captchaCookie,
             }
           : tab === 'duplecast'
           ? {
@@ -209,9 +226,8 @@ export default function SendPlaylistDialog({
             };
 
       const { data, error } = await supabase.functions.invoke('send-playlist', { body });
-      if (error) throw error;
-      if ((data as any)?.error) throw new Error((data as any).error);
-      if ((data as any)?.success === false) throw new Error((data as any)?.message || 'Falha no envio');
+      const msg = await extractFnError(error, data);
+      if (msg) throw new Error(msg);
       toast.success((data as any)?.message || 'Lista enviada!');
       onOpenChange(false);
     } catch (e: any) {
