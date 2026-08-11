@@ -2857,6 +2857,7 @@ export type Database = {
           auto_renew: boolean
           created_at: string
           created_by: string | null
+          credit_cost: number
           description: string | null
           host: string
           id: string
@@ -2868,6 +2869,7 @@ export type Database = {
           auto_renew?: boolean
           created_at?: string
           created_by?: string | null
+          credit_cost?: number
           description?: string | null
           host: string
           id?: string
@@ -2879,6 +2881,7 @@ export type Database = {
           auto_renew?: boolean
           created_at?: string
           created_by?: string | null
+          credit_cost?: number
           description?: string | null
           host?: string
           id?: string
