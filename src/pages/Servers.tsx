@@ -243,6 +243,21 @@ export default function Servers() {
                   </Select>
                 </div>
                 <div className="space-y-2">
+                  <Label>Custo por crédito (R$)</Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    value={formData.credit_cost}
+                    onChange={(e) => setFormData({ ...formData, credit_cost: Number(e.target.value) || 0 })}
+                    placeholder="0,00"
+                    className="bg-secondary/50"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Custo pago ao painel por 1 crédito (30 dias / 1 tela). Usado para calcular o lucro líquido.
+                  </p>
+                </div>
+                <div className="space-y-2">
                   <Label>Descrição</Label>
                   <Textarea
                     value={formData.description}
@@ -251,6 +266,7 @@ export default function Servers() {
                     className="bg-secondary/50"
                   />
                 </div>
+
                 <div className="flex items-center justify-between rounded-lg border border-border p-3">
                   <div className="flex items-center gap-2">
                     <Globe className="w-4 h-4 text-primary" />
