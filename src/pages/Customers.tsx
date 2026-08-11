@@ -2090,8 +2090,9 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
         return;
       }
 
-      // Parse CSV header
-      const header = lines[0].split(/[,;]/).map(h => h.trim().toLowerCase());
+      // Parse CSV header (detecta separador e respeita aspas)
+      const delimiter = (lines[0].split(';').length > lines[0].split(',').length) ? ';' : ',';
+      const header = splitCsvLine(lines[0], delimiter).map(h => h.trim().toLowerCase());
       
       // Expected columns
       const nameIndex = header.findIndex(h => h.includes('nome') || h === 'name');
