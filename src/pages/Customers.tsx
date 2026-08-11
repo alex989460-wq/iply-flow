@@ -2304,7 +2304,9 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
       }
 
       // First, create all unique servers that don't exist
-      const uniqueServerNames = [...new Set(dataToImport.map(row => row.server_name?.trim()).filter(Boolean))];
+      const uniqueServerNames = [...new Set(
+        dataToImport.map(row => row.server_name?.trim()).filter((n: string) => isValidServerName(n))
+      )];
       
       for (const serverName of uniqueServerNames) {
         // Check if server already exists in current list
