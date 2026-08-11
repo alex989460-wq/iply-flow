@@ -2115,7 +2115,7 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
 
       const parsedData: any[] = [];
       for (let i = 1; i < lines.length; i++) {
-        const values = lines[i].split(/[,;]/).map(v => v.trim().replace(/^["']|["']$/g, ''));
+        const values = splitCsvLine(lines[i], delimiter);
         
         if (values.length < 2) continue;
 
@@ -2127,17 +2127,17 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
         // Try to match server and plan by name
         const rawServerName = serverIndex >= 0 ? values[serverIndex] : '';
         const serverName = isValidServerName(rawServerName) ? rawServerName.trim() : '';
-        const planName = planIndex >= 0 ? values[planIndex] : '';
+        const planName = (planIndex >= 0 ? values[planIndex] : '').trim();
         
-        const matchedServer = servers?.find(s => 
+        const matchedServer = serverName ? servers?.find(s => 
           s.server_name.toLowerCase().includes(serverName.toLowerCase()) ||
           serverName.toLowerCase().includes(s.server_name.toLowerCase())
-        );
+        ) : undefined;
         
-        const matchedPlan = plans?.find(p => 
+        const matchedPlan = planName ? plans?.find(p => 
           p.plan_name.toLowerCase().includes(planName.toLowerCase()) ||
           planName.toLowerCase().includes(p.plan_name.toLowerCase())
-        );
+        ) : undefined;
 
         let dueDate = dueDateIndex >= 0 ? values[dueDateIndex] : '';
         let startDate = startDateIndex >= 0 ? values[startDateIndex] : '';
