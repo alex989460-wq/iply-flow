@@ -308,10 +308,7 @@ export default function ResellerCheckoutCard() {
           </div>
           <div className="space-y-1.5">
             <Label className="text-xs">Endpoint base</Label>
-            <div className="flex items-center gap-2">
-              <Input readOnly value={apiBase} className="text-xs font-mono" />
-              <Button size="sm" variant="outline" onClick={() => copy(apiBase, 'Endpoint')}><Copy className="w-4 h-4" /></Button>
-            </div>
+            <MaskedUrlField url={apiBase} label="Endpoint" />
             <p className="text-[11px] text-muted-foreground">Endpoints: <code>GET /plans</code> · <code>POST /lookup</code> · <code>POST /charge</code> · <code>GET /charge/&#123;txid&#125;</code>. Envie <code>x-api-key</code> em todas.</p>
           </div>
           <div className="space-y-1.5">
