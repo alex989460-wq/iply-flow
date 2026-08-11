@@ -439,14 +439,15 @@ export default function CrmOficialChatbots({ embed = false, overrideToken }: { e
             </div>
 
             {apiKey && !searchParams.get('token') && (
-              <div className="relative w-full h-[800px] bg-[#0b0b0d] rounded-2xl overflow-hidden border border-white/5 shadow-2xl">
+              <div className="relative w-full h-[calc(100vh-300px)] min-h-[620px] bg-[#0b0b0d] rounded-2xl overflow-hidden border border-white/5 shadow-2xl">
                 <iframe
                   src={`https://zapcrm.top/embed/chatbots?token=${apiKey}`}
-                  className="w-full h-full border-0"
+                  className="absolute inset-0 w-full h-full border-0"
                   title="Editor de Robôs"
                   allow="clipboard-write"
                 />
               </div>
+
             )}
           </div>
         )}
