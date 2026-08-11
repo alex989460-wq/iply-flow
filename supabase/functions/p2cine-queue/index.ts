@@ -38,6 +38,22 @@ function isUniplay(row: { server_host?: string | null; server_name?: string | nu
   return hay.includes("uniplay") || hay.includes("searchdefense") || hay.includes("gesapioffice");
 }
 
+async function resolveOwner(token: string): Promise<string | null> {
+  // Token individual: "<userId>.<hmac(userId, secret)>"
+  const [uid, sig] = token.split(".");
+  if (!uid || !sig || !EXPECTED_TOKEN) return null;
+  const key = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(EXPECTED_TOKEN),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+  const buf = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(uid));
+  const expected = Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, "0")).join("");
+  return expected === sig.toLowerCase() ? uid : null;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -46,14 +62,19 @@ Deno.serve(async (req) => {
     req.headers.get("x-extension-token") ??
     url.searchParams.get("token") ?? "";
 
-  if (!EXPECTED_TOKEN || token !== EXPECTED_TOKEN) {
-    return json({ error: "unauthorized" }, 401);
+  const ownerId = await resolveOwner(token);
+  if (!ownerId) {
+    return json({
+      error: "unauthorized",
+      message: "Token da extensão inválido ou antigo. Copie o token novamente em Configurações.",
+    }, 401);
   }
 
   const supabase = createClient(
     Deno.env.get("SUPABASE_URL")!,
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
   );
+
 
   try {
     if (req.method === "GET") {
