@@ -48,7 +48,9 @@ export default function Servers() {
     description: '',
     status: 'online' as ServerStatus,
     is_public: false,
+    credit_cost: 0,
   });
+
 
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -143,7 +145,7 @@ export default function Servers() {
   });
 
   const resetForm = () => {
-    setFormData({ server_name: '', host: '', description: '', status: 'online', is_public: false });
+    setFormData({ server_name: '', host: '', description: '', status: 'online', is_public: false, credit_cost: 0 });
     setEditingServer(null);
   };
 
@@ -155,9 +157,11 @@ export default function Servers() {
       description: server.description || '',
       status: server.status,
       is_public: (server as any).is_public || false,
+      credit_cost: Number((server as any).credit_cost || 0),
     });
     setIsOpen(true);
   };
+
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -239,6 +243,21 @@ export default function Servers() {
                   </Select>
                 </div>
                 <div className="space-y-2">
+                  <Label>Custo por crédito (R$)</Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    value={formData.credit_cost}
+                    onChange={(e) => setFormData({ ...formData, credit_cost: Number(e.target.value) || 0 })}
+                    placeholder="0,00"
+                    className="bg-secondary/50"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Custo pago ao painel por 1 crédito (30 dias / 1 tela). Usado para calcular o lucro líquido.
+                  </p>
+                </div>
+                <div className="space-y-2">
                   <Label>Descrição</Label>
                   <Textarea
                     value={formData.description}
@@ -247,6 +266,7 @@ export default function Servers() {
                     className="bg-secondary/50"
                   />
                 </div>
+
                 <div className="flex items-center justify-between rounded-lg border border-border p-3">
                   <div className="flex items-center gap-2">
                     <Globe className="w-4 h-4 text-primary" />
@@ -293,6 +313,7 @@ export default function Servers() {
                     <TableHead>Nome</TableHead>
                     <TableHead>Host</TableHead>
                     <TableHead className="text-center">Clientes</TableHead>
+                    <TableHead className="text-right">Custo/crédito</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Descrição</TableHead>
                     <TableHead className="text-right">Ações</TableHead>
@@ -308,8 +329,12 @@ export default function Servers() {
                           {customerCounts?.[server.id] || 0}
                         </span>
                       </TableCell>
+                      <TableCell className="text-right font-medium">
+                        R$ {Number((server as any).credit_cost || 0).toFixed(2)}
+                      </TableCell>
                       <TableCell>{getStatusBadge(server.status)}</TableCell>
                       <TableCell className="text-muted-foreground">{server.description || '-'}</TableCell>
+
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-2">
                           <Button

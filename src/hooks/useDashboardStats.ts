@@ -36,9 +36,14 @@ interface DashboardStats {
 
 interface RevenueStats {
   monthlyRevenue: number;
+  monthlyCost: number;
+  monthlyNetProfit: number;
   todayRevenue: number;
+  todayCost: number;
+  todayNetProfit: number;
   todayPaymentCount: number;
 }
+
 
 interface PlanDistItem {
   name: string;
@@ -92,9 +97,14 @@ export function useDashboardStats() {
           inactiveCustomers: Number(stats.inactiveCustomers) || 0,
           suspendedCustomers: Number(stats.suspendedCustomers) || 0,
           monthlyRevenue: Number(revenue.monthlyRevenue) || 0,
+          monthlyCost: Number(revenue.monthlyCost) || 0,
+          monthlyNetProfit: Number(revenue.monthlyNetProfit) || 0,
           monthlyProjection: Number(stats.monthlyProjection) || 0,
           todayRevenue: Number(revenue.todayRevenue) || 0,
+          todayCost: Number(revenue.todayCost) || 0,
+          todayNetProfit: Number(revenue.todayNetProfit) || 0,
           todayPaymentCount: Number(revenue.todayPaymentCount) || 0,
+
           dueTodayCustomers: Number(stats.dueTodayCustomers) || 0,
           dueTomorrowCustomers: Number(stats.dueTomorrowCustomers) || 0,
           overdueOneDayCustomers: Number(stats.overdueOneDayCustomers) || 0,
@@ -115,9 +125,14 @@ export function useDashboardStats() {
           inactiveCustomers: 0,
           suspendedCustomers: 0,
           monthlyRevenue: 0,
+          monthlyCost: 0,
+          monthlyNetProfit: 0,
           monthlyProjection: 0,
           todayRevenue: 0,
+          todayCost: 0,
+          todayNetProfit: 0,
           todayPaymentCount: 0,
+
           dueTodayCustomers: 0,
           dueTomorrowCustomers: 0,
           overdueOneDayCustomers: 0,

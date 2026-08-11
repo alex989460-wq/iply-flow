@@ -189,11 +189,11 @@ export default function Dashboard() {
         </div>
 
         {/* Revenue Row */}
-        <div className="grid grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-3 lg:gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3 lg:gap-4">
           <StatsCard
             title="Recebidos Hoje"
             value={`R$ ${(stats?.todayRevenue || 0).toFixed(2)}`}
-            description={`${stats?.todayPaymentCount || 0} pagamentos`}
+            description={`${stats?.todayPaymentCount || 0} pagamentos · líquido R$ ${(stats?.todayNetProfit || 0).toFixed(2)}`}
             icon={Banknote}
             variant="success"
             animationDelay={200}
@@ -201,9 +201,18 @@ export default function Dashboard() {
           <StatsCard
             title="Receita do Mês"
             value={`R$ ${(stats?.monthlyRevenue || 0).toFixed(2)}`}
+            description={`Custo servidores: R$ ${(stats?.monthlyCost || 0).toFixed(2)}`}
             icon={DollarSign}
             variant="success"
             animationDelay={250}
+          />
+          <StatsCard
+            title="Lucro Líquido do Mês"
+            value={`R$ ${(stats?.monthlyNetProfit || 0).toFixed(2)}`}
+            description="Receita menos custo por crédito dos servidores"
+            icon={TrendingUp}
+            variant="primary"
+            animationDelay={275}
           />
           <StatsCard
             title="Projeção Mensal"
@@ -213,6 +222,7 @@ export default function Dashboard() {
             animationDelay={300}
           />
         </div>
+
 
         {/* Due Dates Row - Clickable */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3 lg:gap-4">
