@@ -230,7 +230,7 @@ Deno.serve(async (req) => {
 
       // Fallback API não oficial (Evolution)
       if (!ok) {
-        const ev = await sendViaEvolution(clientMetaPhone, msg);
+        const ev = await sendViaEvolution(clientMetaPhone, msg, true);
         if (ev.ok) { ok = true; channel = "evolution"; lastErr = ""; lastRes = ev.body; }
         else { lastErr = `${lastErr}${lastErr ? " | " : ""}evolution: ${ev.error}`; }
       }
