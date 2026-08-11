@@ -2076,6 +2076,38 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
   };
 
   // ============ Import Functions ============
+  // Divide uma linha CSV respeitando aspas (evita desalinhar colunas quando o nome tem vírgula)
+  const splitCsvLine = (line: string, delimiter: string): string[] => {
+    const out: string[] = [];
+    let cur = '';
+    let inQuotes = false;
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (ch === '"') {
+        if (inQuotes && line[i + 1] === '"') { cur += '"'; i++; }
+        else inQuotes = !inQuotes;
+      } else if (ch === delimiter && !inQuotes) {
+        out.push(cur.trim());
+        cur = '';
+      } else {
+        cur += ch;
+      }
+    }
+    out.push(cur.trim());
+    return out.map(v => v.replace(/^["']|["']$/g, '').trim());
+  };
+
+  // Impede criar servidores a partir de telefones/números (ex.: "99883E+11" vindo do Excel)
+  const isValidServerName = (value?: string | null): boolean => {
+    const v = String(value || '').trim();
+    if (!v) return false;
+    if (v.length < 2 || v.length > 60) return false;
+    if (/^[\d\s.,+()-]+$/.test(v)) return false; // só números/telefone
+    if (/^\d+([.,]\d+)?e[+-]?\d+$/i.test(v)) return false; // notação científica
+    if (!/[a-zà-ú]/i.test(v)) return false; // precisa ter letras
+    return true;
+  };
+
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
