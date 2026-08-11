@@ -393,28 +393,70 @@ export default function CrmOficialChatbots({ embed = false, overrideToken }: { e
 
   const __content = (
       <div className={cn("space-y-5 max-w-7xl mx-auto p-4 md:p-6", embed && "p-0 max-w-full")}>
-        {!embed && !searchParams.get('token') ? (
-          <div className="flex flex-col gap-6">
-            {apiKey && (
+        {!embed && (
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-2xl bg-emerald-500/15 flex items-center justify-center">
+                  <Bot className="w-6 h-6 text-emerald-400" />
+                </div>
+                <div>
+                  <h1 className="text-xl md:text-2xl font-bold text-foreground">Robô CRM</h1>
+                  <p className="text-xs md:text-sm text-muted-foreground">
+                    Crie e gerencie fluxos automáticos de atendimento no WhatsApp
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" onClick={() => void loadBots()} disabled={syncing || !apiKey}>
+                  <RefreshCw className={cn('w-4 h-4 mr-2', syncing && 'animate-spin')} /> Atualizar
+                </Button>
+                <Button onClick={openNew} disabled={!apiKey}>
+                  <Plus className="w-4 h-4 mr-2" /> Novo robô
+                </Button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              {[
+                { label: 'Robôs', value: bots.length, icon: Bot },
+                { label: 'Ativos', value: activeBots, icon: Play },
+                { label: 'Pausados', value: Math.max(0, bots.length - activeBots), icon: Pause },
+                { label: 'Conexões', value: channels.length, icon: LinkIcon },
+              ].map(({ label, value, icon: Icon }) => (
+                <Card key={label} className="border-border/60 bg-card/60">
+                  <CardContent className="p-4 flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-xl bg-emerald-500/10 flex items-center justify-center">
+                      <Icon className="w-4 h-4 text-emerald-400" />
+                    </div>
+                    <div>
+                      <p className="text-lg font-bold leading-none">{value}</p>
+                      <p className="text-[11px] text-muted-foreground uppercase tracking-wide">{label}</p>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+
+            {apiKey && !searchParams.get('token') && (
               <div className="relative w-full h-[800px] bg-[#0b0b0d] rounded-2xl overflow-hidden border border-white/5 shadow-2xl">
-                <iframe 
+                <iframe
                   src={`https://zapcrm.top/embed/chatbots?token=${apiKey}`}
                   className="w-full h-full border-0"
-                  title="Chatbot Editor"
+                  title="Editor de Robôs"
                   allow="clipboard-write"
                 />
               </div>
             )}
           </div>
-        ) : (
-          null
         )}
+
 
 
         {!apiKey && <Alert variant="destructive"><AlertCircle className="h-4 w-4" /><AlertDescription>Configure sua chave em Configurações → CRM Oficial.</AlertDescription></Alert>}
         {apiKey && !enabled && <Alert><AlertCircle className="h-4 w-4" /><AlertDescription>A integração está desativada; ative em Configurações para disparos automáticos.</AlertDescription></Alert>}
 
-        {!apiKey && (
+        {!embed && (
           <>
             {loading || syncing ? (
               <div className="flex justify-center py-12"><Loader2 className="w-7 h-7 animate-spin text-emerald-500" /></div>
