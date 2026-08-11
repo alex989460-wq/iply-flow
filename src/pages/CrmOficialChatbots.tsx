@@ -392,7 +392,7 @@ export default function CrmOficialChatbots({ embed = false, overrideToken }: { e
   const activeBots = useMemo(() => bots.filter(b => b.enabled || b.active).length, [bots]);
 
   const __content = (
-      <div className={cn("space-y-5 max-w-7xl mx-auto p-4 md:p-6", embed && "p-0 max-w-full")}>
+      <div className={cn("space-y-5 w-full p-4 md:p-6", embed && "p-0")}>
         {!embed && (
           <div className="flex flex-col gap-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
@@ -439,14 +439,15 @@ export default function CrmOficialChatbots({ embed = false, overrideToken }: { e
             </div>
 
             {apiKey && !searchParams.get('token') && (
-              <div className="relative w-full h-[800px] bg-[#0b0b0d] rounded-2xl overflow-hidden border border-white/5 shadow-2xl">
+              <div className="relative w-full h-[calc(100vh-300px)] min-h-[620px] bg-[#0b0b0d] rounded-2xl overflow-hidden border border-white/5 shadow-2xl">
                 <iframe
                   src={`https://zapcrm.top/embed/chatbots?token=${apiKey}`}
-                  className="w-full h-full border-0"
+                  className="absolute inset-0 w-full h-full border-0"
                   title="Editor de Robôs"
                   allow="clipboard-write"
                 />
               </div>
+
             )}
           </div>
         )}
