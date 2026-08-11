@@ -313,6 +313,7 @@ export default function Servers() {
                     <TableHead>Nome</TableHead>
                     <TableHead>Host</TableHead>
                     <TableHead className="text-center">Clientes</TableHead>
+                    <TableHead className="text-right">Custo/crédito</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Descrição</TableHead>
                     <TableHead className="text-right">Ações</TableHead>
@@ -328,8 +329,12 @@ export default function Servers() {
                           {customerCounts?.[server.id] || 0}
                         </span>
                       </TableCell>
+                      <TableCell className="text-right font-medium">
+                        R$ {Number((server as any).credit_cost || 0).toFixed(2)}
+                      </TableCell>
                       <TableCell>{getStatusBadge(server.status)}</TableCell>
                       <TableCell className="text-muted-foreground">{server.description || '-'}</TableCell>
+
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-2">
                           <Button
