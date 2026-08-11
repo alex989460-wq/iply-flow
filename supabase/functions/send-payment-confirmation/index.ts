@@ -135,9 +135,23 @@ Deno.serve(async (req) => {
     }
 
     // Fallback: envio pela API NÃO oficial (Evolution) quando não há canal oficial
-    const sendViaEvolution = async (phone: string, text: string) => {
+    const sendViaEvolution = async (phone: string, text: string, withImage = false) => {
       if (!phone || !text) return { ok: false, error: "phone/text vazios" };
+      const imageUrl = withImage ? (billing?.renewal_image_url || "") : "";
       try {
+        const payload = imageUrl
+          ? {
+              action: "send-media",
+              phone,
+              mediaUrl: imageUrl,
+              mediaType: "image",
+              mimetype: "image/jpeg",
+              filename: `confirmacao-${Date.now()}.jpg`,
+              caption: text,
+              user_id: ownerId,
+            }
+          : { action: "send", phone, text, user_id: ownerId };
+
         const r = await fetchT(`${SUPABASE_URL}/functions/v1/evolution-send`, {
           method: "POST",
           headers: {
@@ -145,15 +159,31 @@ Deno.serve(async (req) => {
             "Authorization": `Bearer ${SRK}`,
             "x-internal-token": SRK,
           },
-          body: JSON.stringify({ action: "send", phone, text, user_id: ownerId }),
+          body: JSON.stringify(payload),
         });
         const j = await r.json().catch(() => ({}));
-        const ok = r.ok && !j?.error;
+        let ok = r.ok && !j?.error;
+        // Se a mídia falhar, envia ao menos o texto
+        if (!ok && imageUrl) {
+          const r2 = await fetchT(`${SUPABASE_URL}/functions/v1/evolution-send`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${SRK}`,
+              "x-internal-token": SRK,
+            },
+            body: JSON.stringify({ action: "send", phone, text, user_id: ownerId }),
+          });
+          const j2 = await r2.json().catch(() => ({}));
+          ok = r2.ok && !j2?.error;
+          return { ok, error: ok ? "" : (j2?.error || j?.error || `HTTP ${r2.status}`), body: j2 };
+        }
         return { ok, error: ok ? "" : (j?.error || `HTTP ${r.status}`), body: j };
       } catch (e) {
         return { ok: false, error: String(e) };
       }
     };
+
 
     // 2) Dynamic text message (respeita regra admin/both)
     if (shouldSendToClient && clientMetaPhone) {
@@ -200,7 +230,7 @@ Deno.serve(async (req) => {
 
       // Fallback API não oficial (Evolution)
       if (!ok) {
-        const ev = await sendViaEvolution(clientMetaPhone, msg);
+        const ev = await sendViaEvolution(clientMetaPhone, msg, true);
         if (ev.ok) { ok = true; channel = "evolution"; lastErr = ""; lastRes = ev.body; }
         else { lastErr = `${lastErr}${lastErr ? " | " : ""}evolution: ${ev.error}`; }
       }
@@ -235,7 +265,7 @@ Deno.serve(async (req) => {
             extraOk = r.ok && j?.success !== false;
           } catch (e) { console.warn("[send-payment-confirmation] extra_phone err:", e); }
         }
-        if (!extraOk) await sendViaEvolution(extra, msg);
+        if (!extraOk) await sendViaEvolution(extra, msg, true);
       }
     }
 
