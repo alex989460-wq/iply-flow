@@ -237,22 +237,7 @@ export default function ResellerApiSettings() {
           {/* Webhook URL para copiar */}
           <div className="space-y-2">
             <Label>URL do Webhook (cole na Cakto)</Label>
-            <div className="flex gap-2">
-              <Input
-                readOnly
-                value={webhookUrl}
-                className="bg-muted font-mono text-xs"
-              />
-              <Button
-                type="button"
-                variant="outline"
-                size="icon"
-                onClick={() => copyToClipboard(webhookUrl, 'URL do Webhook')}
-                title="Copiar URL"
-              >
-                <Copy className="w-4 h-4" />
-              </Button>
-            </div>
+            <MaskedUrlField url={webhookUrl} label="URL do Webhook" />
             <p className="text-xs text-muted-foreground">
               Cole esta URL no campo de webhook da Cakto
             </p>
