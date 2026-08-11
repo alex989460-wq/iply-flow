@@ -173,19 +173,19 @@ export default function StatsCard({
         "bg-gradient-to-tr from-white/[0.04] via-transparent to-transparent"
       )} />
       
-      <div className="relative p-4 sm:p-5 lg:p-6 flex items-center justify-between gap-3">
-        <div className="space-y-1.5 min-w-0 flex-1">
+      <div className="relative p-3 sm:p-4 lg:p-5 flex items-center justify-between gap-2">
+        <div className="space-y-1 min-w-0 flex-1">
           <p className={cn(
-            "text-[11px] sm:text-xs font-semibold uppercase tracking-wider truncate transition-colors duration-300",
+            "text-[10px] sm:text-[11px] font-semibold uppercase tracking-wide leading-tight line-clamp-2 transition-colors duration-300",
             titleColors[variant]
           )}>
             {title}
           </p>
-          <p className="text-2xl sm:text-3xl lg:text-4xl font-bold text-foreground truncate tracking-tight tabular-nums">
+          <p className="text-lg sm:text-xl lg:text-2xl xl:text-3xl font-bold text-foreground tracking-tight tabular-nums leading-none break-words">
             {displayValue}
           </p>
           {description && (
-            <p className="text-xs sm:text-sm text-muted-foreground/80 truncate font-medium">
+            <p className="text-[10px] sm:text-xs text-muted-foreground/80 line-clamp-2 font-medium leading-snug">
               {description}
             </p>
           )}
