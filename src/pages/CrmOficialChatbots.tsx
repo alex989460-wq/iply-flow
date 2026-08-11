@@ -392,7 +392,7 @@ export default function CrmOficialChatbots({ embed = false, overrideToken }: { e
   const activeBots = useMemo(() => bots.filter(b => b.enabled || b.active).length, [bots]);
 
   const __content = (
-      <div className={cn("space-y-5 max-w-7xl mx-auto p-4 md:p-6", embed && "p-0 max-w-full")}>
+      <div className={cn("space-y-5 w-full p-4 md:p-6", embed && "p-0")}>
         {!embed && (
           <div className="flex flex-col gap-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
