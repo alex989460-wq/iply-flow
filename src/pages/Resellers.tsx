@@ -886,6 +886,7 @@ export default function Resellers() {
                         const evos = evoByUser.get(reseller.user_id) || [];
                         const official = officialByUser.get(reseller.user_id);
                         const hasOfficial = !!official?.api_key && official?.enabled !== false;
+                        const phones = officialPhones?.[reseller.user_id] || [];
                         return (
                           <div className="pl-2">
                             <p className="mb-1 flex items-center gap-1 text-[10px] uppercase tracking-wide text-muted-foreground">
@@ -895,21 +896,37 @@ export default function Resellers() {
                               <p className="text-xs text-muted-foreground">Nenhuma conexão ativa</p>
                             ) : (
                               <div className="flex flex-wrap gap-1.5">
-                                {hasOfficial && (
-                                  <Badge variant="secondary" className="gap-1 text-[10px] font-medium">
-                                    <BadgeCheck className="h-3 w-3" />
-                                    API Oficial{official?.last_test_ok === false ? ' (com erro)' : ''}
+                                {hasOfficial && (phones.length ? phones : ['']).map((p, idx) => (
+                                  <Badge
+                                    key={`off-${idx}`}
+                                    variant="secondary"
+                                    className="gap-1 text-[10px] font-medium"
+                                    title="API Oficial (Meta)"
+                                  >
+                                    <MetaLogo className="h-3 w-3" />
+                                    <span className="tabular-nums">{formatPhoneDisplay(p) || 'API Oficial'}</span>
+                                    <span className="text-muted-foreground">· Oficial</span>
+                                    {official?.last_test_ok === false && <span className="text-destructive">· erro</span>}
                                   </Badge>
-                                )}
+                                ))}
                                 {evos.map((i) => (
-                                  <Badge key={i.instance_name} variant="outline" className="gap-1 text-[10px] font-medium">
-                                    <Smartphone className="h-3 w-3" />
-                                    {i.owner_phone || i.profile_name || i.instance_name}
+                                  <Badge
+                                    key={i.instance_name}
+                                    variant="outline"
+                                    className="gap-1 text-[10px] font-medium"
+                                    title="API não oficial (WhatsApp)"
+                                  >
+                                    <img src={whatsappLogo.url} alt="WhatsApp" className="h-3 w-3 object-contain" />
+                                    <span className="tabular-nums">
+                                      {formatPhoneDisplay(i.owner_phone) || i.profile_name || i.instance_name}
+                                    </span>
+                                    <span className="text-muted-foreground">· Não oficial</span>
                                   </Badge>
                                 ))}
                               </div>
                             )}
                           </div>
+
                         );
                       })()}
 
