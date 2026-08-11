@@ -143,6 +143,39 @@ export default function Resellers() {
     },
   });
 
+  // Números oficiais (Meta) de cada revenda, buscados via CRM oficial
+  const officialKeys = (officialSettings || [])
+    .filter((o) => !!o.api_key && o.enabled !== false)
+    .map((o) => ({ user_id: o.user_id, api_key: o.api_key as string }));
+
+  const { data: officialPhones } = useQuery({
+    queryKey: ['resellers-official-phones', officialKeys.map((k) => k.user_id).join(',')],
+    enabled: officialKeys.length > 0,
+    staleTime: 5 * 60 * 1000,
+    queryFn: async () => {
+      const map: Record<string, string[]> = {};
+      await Promise.all(
+        officialKeys.map(async ({ user_id, api_key }) => {
+          try {
+            const { data } = await supabase.functions.invoke('crm-oficial-sync', {
+              body: { action: 'list-channels', data: { apiKey: api_key } },
+            });
+            const body = data?.results?.channels?.body;
+            const list = Array.isArray(body) ? body : Array.isArray(body?.channels) ? body.channels : [];
+            const phones = list
+              .map((c: any) => c.display_phone_number || c.phone_number || c.phone || c.number || '')
+              .filter((p: string) => typeof p === 'string' && p.trim())
+              .map((p: string) => p.trim());
+            if (phones.length) map[user_id] = Array.from(new Set(phones));
+          } catch {
+            /* ignora falhas por revenda */
+          }
+        }),
+      );
+      return map;
+    },
+  });
+
   const evoByUser = new Map<string, Array<{ instance_name: string; owner_phone: string | null; profile_name: string | null }>>();
   (evoInstances || []).forEach((i) => {
     const list = evoByUser.get(i.user_id) || [];
@@ -150,6 +183,7 @@ export default function Resellers() {
     evoByUser.set(i.user_id, list);
   });
   const officialByUser = new Map((officialSettings || []).map((o) => [o.user_id, o]));
+
 
 
 
