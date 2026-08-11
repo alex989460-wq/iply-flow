@@ -107,10 +107,10 @@ export default function StatsCard({
   
   // Format the animated value
   const displayValue = typeof value === 'number' 
-    ? Math.round(animatedValue)
+    ? Math.round(animatedValue).toLocaleString('pt-BR')
     : isMonetary 
-      ? `R$ ${animatedValue.toFixed(2)}`
-      : Math.round(animatedValue);
+      ? `R$ ${animatedValue.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+      : Math.round(animatedValue).toLocaleString('pt-BR');
 
   // Mouse follow effect
   useEffect(() => {
