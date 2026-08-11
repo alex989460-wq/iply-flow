@@ -84,8 +84,19 @@ async function sendEvoText(baseUrl: string, apiKey: string, instance: string, in
 }
 
 async function sendEvoImage(baseUrl: string, apiKey: string, instance: string, instAuth: any, phone: string, imageUrl: string, caption: string) {
-  const body = { number: phone, mediatype: 'image', mimetype: 'image/jpeg', fileName: 'image.jpg', caption, media: imageUrl };
-  const goBody = { number: phone, type: 'image', url: imageUrl, filename: 'image.jpg', caption };
+  const mediaResponse = await fetch(imageUrl, { signal: AbortSignal.timeout(20000) }).catch(() => null);
+  if (!mediaResponse?.ok) {
+    return { ok: false, status: mediaResponse?.status || 0, data: { error: 'Não foi possível baixar a imagem configurada para a cobrança.' } };
+  }
+  const mime = mediaResponse.headers.get('content-type')?.split(';')[0] || 'image/jpeg';
+  const bytes = new Uint8Array(await mediaResponse.arrayBuffer());
+  let binary = '';
+  for (let offset = 0; offset < bytes.length; offset += 0x8000) {
+    binary += String.fromCharCode(...bytes.subarray(offset, offset + 0x8000));
+  }
+  const mediaBase64 = btoa(binary);
+  const body = { number: phone, mediatype: 'image', mimetype: mime, fileName: 'image.jpg', caption, media: mediaBase64 };
+  const goBody = { number: phone, type: 'image', media: mediaBase64, mimetype: mime, filename: 'image.jpg', caption };
   const attempts = [
     { url: `${baseUrl}/send/media`, headers: evoHeaders(instAuth.apiKey, true, instAuth.instanceId), body: goBody },
     { url: `${baseUrl}/message/sendMedia/${encodeURIComponent(instance)}`, headers: evoHeaders(apiKey, true), body },

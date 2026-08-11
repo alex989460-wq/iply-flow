@@ -840,6 +840,7 @@ export default function Billing() {
 
         if (batchError) {
           console.error('Batch error:', batchError);
+          const batchErrorMessage = batchError?.message || batchData?.error || 'Falha de conexão com o servidor.';
           // Mark batch as errors
           const errorResults = batch.map((c: any) => ({
             customer: c.name,
@@ -847,7 +848,7 @@ export default function Billing() {
             billingType: c.billingType,
             template: '',
             status: 'error' as const,
-            error: 'Erro de conexão',
+            error: batchErrorMessage,
           }));
           totalErrors += batch.length;
           
@@ -923,11 +924,11 @@ export default function Billing() {
       queryClient.invalidateQueries({ queryKey: ['billing-logs-today'] });
       queryClient.invalidateQueries({ queryKey: ['pending-billings'] });
 
-    } catch (error) {
+    } catch (error: any) {
       console.error('Unexpected error:', error);
       toast({
         title: 'Erro inesperado',
-        description: 'Não foi possível processar as cobranças',
+        description: error?.message || 'Não foi possível processar as cobranças.',
         variant: 'destructive',
       });
     } finally {

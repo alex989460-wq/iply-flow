@@ -11,6 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
 import { ListPlus, Send, Loader2, RefreshCw } from 'lucide-react';
+import { getErrorMessage } from '@/lib/error-message';
 
 export type PlaylistTemplate = {
   id: string;
@@ -41,14 +42,7 @@ async function extractFnError(error: any, data: any): Promise<string | null> {
   const payloadError = (data as any)?.error || ((data as any)?.success === false ? (data as any)?.message : null);
   if (payloadError) return String(payloadError);
   if (!error) return null;
-  try {
-    const res = (error as any)?.context;
-    if (res && typeof res.json === 'function') {
-      const j = await res.clone().json();
-      if (j?.error || j?.message) return String(j.error || j.message);
-    }
-  } catch { /* ignore */ }
-  return error?.message || 'Falha ao enviar a lista';
+  return getErrorMessage(error, data, 'Falha ao enviar a lista.');
 }
 
 export function formatMac(raw: string) {
@@ -179,7 +173,12 @@ export default function SendPlaylistDialog({
   }, [tab, listUrl, email, mac, deviceKey, captcha, captchaToken, needsCaptcha]);
 
   const handleSend = async () => {
-    if (!canSend) return toast.error('Preencha os campos obrigatórios.');
+    if (!listUrl.trim()) return toast.error('Informe a URL M3U da lista.');
+    if (tab === 'clouddy' && !email.trim()) return toast.error('Informe o e-mail cadastrado no Clouddy.');
+    if (tab !== 'clouddy' && mac.replace(/[^0-9a-f]/gi, '').length !== 12) return toast.error('Informe um MAC válido com 12 caracteres.');
+    if (tab !== 'clouddy' && !deviceKey.trim()) return toast.error('Informe a Device Key (senha exibida no aplicativo).');
+    if (needsCaptcha && (!captcha.trim() || !captchaToken)) return toast.error('Digite o captcha exibido para continuar.');
+    if (!canSend) return toast.error('Revise os campos obrigatórios antes de enviar.');
     setSending(true);
     try {
       const body =
