@@ -107,10 +107,10 @@ export default function StatsCard({
   
   // Format the animated value
   const displayValue = typeof value === 'number' 
-    ? Math.round(animatedValue)
+    ? Math.round(animatedValue).toLocaleString('pt-BR')
     : isMonetary 
-      ? `R$ ${animatedValue.toFixed(2)}`
-      : Math.round(animatedValue);
+      ? `R$ ${animatedValue.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+      : Math.round(animatedValue).toLocaleString('pt-BR');
 
   // Mouse follow effect
   useEffect(() => {
@@ -173,19 +173,19 @@ export default function StatsCard({
         "bg-gradient-to-tr from-white/[0.04] via-transparent to-transparent"
       )} />
       
-      <div className="relative p-4 sm:p-5 lg:p-6 flex items-center justify-between gap-3">
-        <div className="space-y-1.5 min-w-0 flex-1">
+      <div className="relative p-3 sm:p-4 lg:p-5 flex items-center justify-between gap-2">
+        <div className="space-y-1 min-w-0 flex-1">
           <p className={cn(
-            "text-[11px] sm:text-xs font-semibold uppercase tracking-wider truncate transition-colors duration-300",
+            "text-[10px] sm:text-[11px] font-semibold uppercase tracking-wide leading-tight line-clamp-2 transition-colors duration-300",
             titleColors[variant]
           )}>
             {title}
           </p>
-          <p className="text-2xl sm:text-3xl lg:text-4xl font-bold text-foreground truncate tracking-tight tabular-nums">
+          <p className="text-base sm:text-lg lg:text-xl xl:text-2xl font-bold text-foreground tracking-tight tabular-nums leading-tight break-words">
             {displayValue}
           </p>
           {description && (
-            <p className="text-xs sm:text-sm text-muted-foreground/80 truncate font-medium">
+            <p className="text-[10px] sm:text-xs text-muted-foreground/80 line-clamp-2 font-medium leading-snug">
               {description}
             </p>
           )}
@@ -204,12 +204,12 @@ export default function StatsCard({
         
         {/* Icon container with enhanced hover effects */}
         <div className={cn(
-          "w-10 h-10 sm:w-12 sm:h-12 lg:w-14 lg:h-14 rounded-xl flex items-center justify-center flex-shrink-0",
+          "w-9 h-9 sm:w-10 sm:h-10 lg:w-12 lg:h-12 rounded-xl flex items-center justify-center flex-shrink-0",
           "transition-all duration-500 ease-out",
           iconBgStyles[variant],
           "group-hover:scale-110 group-hover:rotate-3 group-hover:shadow-lg"
         )}>
-          <Icon className="w-5 h-5 sm:w-6 sm:h-6 lg:w-7 lg:h-7 transition-transform duration-300 group-hover:scale-110" />
+          <Icon className="w-4 h-4 sm:w-5 sm:h-5 lg:w-6 lg:h-6 transition-transform duration-300 group-hover:scale-110" />
         </div>
       </div>
     </div>
