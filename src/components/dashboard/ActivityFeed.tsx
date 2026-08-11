@@ -28,12 +28,12 @@ interface ActivityItem {
 }
 
 export default function ActivityFeed() {
-  const { user, isAdmin } = useAuth();
+  const { user } = useAuth();
   const [activities, setActivities] = useState<ActivityItem[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!user || !isAdmin) {
+    if (!user) {
       setLoading(false);
       return;
     }
@@ -43,10 +43,11 @@ export default function ActivityFeed() {
       const now = new Date();
       const threeDaysAgo = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000);
 
-      // Fetch recent payments (renewals)
+      // Somente clientes do próprio usuário (revenda/admin veem apenas os seus)
       const { data: payments } = await supabase
         .from('payments')
-        .select('id, amount, payment_date, created_at, customer:customers(name)')
+        .select('id, amount, payment_date, created_at, customer:customers!inner(name, created_by)')
+        .eq('customer.created_by', user.id)
         .gte('created_at', threeDaysAgo.toISOString())
         .order('created_at', { ascending: false })
         .limit(10);
@@ -57,7 +58,7 @@ export default function ActivityFeed() {
             id: `payment-${p.id}`,
             type: 'customer_renewed',
             title: 'Cliente renovado',
-            description: `${p.customer?.name || 'Cliente'} - R$ ${p.amount.toFixed(2)}`,
+            description: `${p.customer?.name || 'Cliente'} - R$ ${Number(p.amount).toFixed(2)}`,
             timestamp: new Date(p.created_at),
             icon: RefreshCw,
             color: 'text-emerald-500 bg-emerald-500/10',
@@ -69,6 +70,7 @@ export default function ActivityFeed() {
       const { data: newCustomers } = await supabase
         .from('customers')
         .select('id, name, created_at, start_date')
+        .eq('created_by', user.id)
         .gte('created_at', threeDaysAgo.toISOString())
         .order('created_at', { ascending: false })
         .limit(10);
@@ -93,14 +95,11 @@ export default function ActivityFeed() {
         });
       }
 
-      // For modified customers, we can look at customers that were updated but not just created
-      // We'll check if there are any recently modified customers by comparing dates
-      // Since we don't have an updated_at in customers, we approximate with payments
-      
       // Fetch recent billing logs
       const { data: billings } = await supabase
         .from('billing_logs')
-        .select('id, billing_type, sent_at, customer:customers(name)')
+        .select('id, billing_type, sent_at, customer:customers!inner(name, created_by)')
+        .eq('customer.created_by', user.id)
         .gte('sent_at', threeDaysAgo.toISOString())
         .order('sent_at', { ascending: false })
         .limit(10);
@@ -122,7 +121,8 @@ export default function ActivityFeed() {
       // Fetch recent broadcasts
       const { data: broadcasts } = await supabase
         .from('broadcast_logs')
-        .select('id, template_name, last_sent_at, customer:customers(name)')
+        .select('id, template_name, last_sent_at, customer:customers!inner(name, created_by)')
+        .eq('customer.created_by', user.id)
         .not('last_sent_at', 'is', null)
         .gte('last_sent_at', threeDaysAgo.toISOString())
         .order('last_sent_at', { ascending: false })
@@ -149,9 +149,9 @@ export default function ActivityFeed() {
     };
 
     fetchActivities();
-  }, [user, isAdmin]);
+  }, [user]);
 
-  if (!isAdmin) return null;
+
 
   return (
     <Card className="h-full border-border/50 bg-card/50 backdrop-blur-sm">
