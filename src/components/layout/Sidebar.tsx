@@ -67,7 +67,7 @@ const menuItems: Array<{
 
 
   { icon: ImagePlus, label: 'Gerador de Banner', path: '/banner-generator', adminOnly: false },
-  { icon: Bot, label: 'Robô', path: '/robo', adminOnly: false },
+  
   { icon: GraduationCap, label: 'Treinamento e Automação IA', path: '/ai-training', adminOnly: false },
   { icon: Smartphone, label: 'Ativação de Apps', path: '/activation-apps', adminOnly: false },
 
