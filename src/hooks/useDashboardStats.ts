@@ -36,9 +36,14 @@ interface DashboardStats {
 
 interface RevenueStats {
   monthlyRevenue: number;
+  monthlyCost: number;
+  monthlyNetProfit: number;
   todayRevenue: number;
+  todayCost: number;
+  todayNetProfit: number;
   todayPaymentCount: number;
 }
+
 
 interface PlanDistItem {
   name: string;
