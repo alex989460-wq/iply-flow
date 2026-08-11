@@ -10,6 +10,21 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { MetaLogo } from "@/components/ui/meta-logo";
+import whatsappLogo from "@/assets/whatsapp-logo.png.asset.json";
+
+function formatPhoneDisplay(raw?: string | null) {
+  const digits = String(raw || "").replace(/\D/g, "");
+  if (!digits) return "";
+  if (digits.length >= 12 && digits.startsWith("55")) {
+    const ddd = digits.slice(2, 4);
+    const rest = digits.slice(4);
+    const mid = rest.length > 8 ? rest.slice(0, rest.length - 4) : rest.slice(0, 4);
+    const end = rest.slice(-4);
+    return `+55 (${ddd}) ${mid}-${end}`;
+  }
+  return `+${digits}`;
+}
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { format, addDays, isPast, differenceInDays } from "date-fns";
