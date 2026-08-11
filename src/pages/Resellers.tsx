@@ -956,7 +956,7 @@ export default function Resellers() {
                                   >
                                     <MetaLogo className="h-3.5 w-3.5" />
                                     <span className="tabular-nums">
-                                      {formatPhoneDisplay(c.phone) || c.label || 'API Oficial'}
+                                      {[c.label, formatPhoneDisplay(c.phone)].filter(Boolean).join(' · ') || 'API Oficial'}
                                     </span>
                                     <span className="text-muted-foreground">· Oficial</span>
                                     {official?.last_test_ok === false && <span className="text-destructive">· erro</span>}
@@ -971,7 +971,7 @@ export default function Resellers() {
                                   >
                                     <img src={whatsappLogo.url} alt="WhatsApp" className="h-3.5 w-3.5 object-contain" />
                                     <span className="tabular-nums">
-                                      {formatPhoneDisplay(c.phone) || c.label || c.instance}
+                                      {[c.label || c.instance, formatPhoneDisplay(c.phone)].filter(Boolean).join(' · ')}
                                     </span>
                                     <span className="text-muted-foreground">· Não oficial</span>
                                   </Badge>
