@@ -93,6 +93,7 @@ Deno.serve(async (req) => {
       const { data, error } = await supabase
         .from("pending_manual_renewals")
         .select("id, customer_id, customer_name, username, server_host, server_name, plan_name, new_due_date, created_at, owner_id")
+        .eq("owner_id", ownerId)
         .or(like)
         .order("created_at", { ascending: true })
         .limit(30);
@@ -195,6 +196,10 @@ Deno.serve(async (req) => {
         .maybeSingle();
       if (fetchErr) throw fetchErr;
       if (!pending) return json({ error: "not_found" }, 404);
+      if (pending.owner_id !== ownerId) {
+        console.warn(`[p2cine-queue] BLOCKED cross-reseller report: pending ${id} owner ${pending.owner_id} != token owner ${ownerId}`);
+        return json({ error: "forbidden", message: "Esta pendência pertence a outra revenda." }, 403);
+      }
 
       if (success) {
         // Check reseller access expiry before performing automated activation/renewal
