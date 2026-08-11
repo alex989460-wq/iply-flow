@@ -645,107 +645,29 @@ Obrigado pela preferência! 🙏`;
 
       setRenewalMessage(message);
 
-      // Send WhatsApp confirmation message
-      if (zapSettings?.selected_department_id) {
-        try {
-          // Fetch fresh billing settings to ensure we have the latest image URL and template
-          const { data: freshSettings } = await (supabase
-            .from('billing_settings' as any)
-            .select('*')
-            .eq('user_id', user?.id)
-            .maybeSingle() as any) as { data: typeof billingSettings };
-
-          const settings = freshSettings || billingSettings;
-
-          const phoneWithCode = normalizeWhatsAppPhone(customer.phone);
-          const extraPhone = (editedExtraPhone.trim() || customer.extra_phone || '').replace(/\D/g, '');
-          const extraPhoneWithCode = extraPhone ? normalizeWhatsAppPhone(editedExtraPhone.trim() || customer.extra_phone) : '';
-          const formattedTime = format(new Date(), 'HH:mm', { locale: ptBR });
-          const formattedDueDate = format(new Date(newDueDate + 'T12:00:00'), 'dd/MM/yyyy', { locale: ptBR });
-          const serverName = customer.server?.server_name || '-';
-
-          const defaultTemplate = `✅ Olá, *{{nome}}*. Obrigado por confirmar seu pagamento. Segue abaixo os dados da sua assinatura:\n\n==========================\n📅 Próx. Vencimento: *{{vencimento}} - {{hora}} hrs*\n💰 Valor: *{{valor}}*\n👤 Usuário: *{{usuario}}*\n📦 Plano: *{{plano}}*\n🔌 Status: *Ativo*\n💎 Obs: -\n⚡: *{{servidor}}*\n==========================`;
-          const template = settings?.renewal_message_template || defaultTemplate;
-          const whatsappMessage = template
-            .replace(/\{\{nome\}\}/g, customer.name)
-            .replace(/\{\{vencimento\}\}/g, formattedDueDate)
-            .replace(/\{\{hora\}\}/g, formattedTime)
-            .replace(/\{\{valor\}\}/g, amount.toFixed(2))
-            .replace(/\{\{usuario\}\}/g, displayUsername)
-            .replace(/\{\{plano\}\}/g, planName)
-            .replace(/\{\{servidor\}\}/g, serverName)
-            .replace(/\{\{obs\}\}/g, customer.notes || '-')
-            .replace(/\{\{telas\}\}/g, String(customer.screens || 1))
-            .replace(/\{\{telefone\}\}/g, customer.phone || '-')
-            .replace(/\{\{inicio\}\}/g, customer.start_date ? new Date(customer.start_date + 'T12:00:00').toLocaleDateString('pt-BR') : '-')
-            .replace(/\{\{status\}\}/g, customer.status || '-');
-
-          const imageUrl = settings?.renewal_image_url && settings.renewal_image_url.trim() !== '' 
-            ? settings.renewal_image_url 
-            : undefined;
-
-          console.log('[Renewal] Sending with image_url:', imageUrl ? 'yes' : 'no');
-
-          const { data: msgData, error: msgError } = await supabase.functions.invoke('zap-responder', {
-            body: {
-              action: 'enviar-mensagem',
-              department_id: zapSettings.selected_department_id,
-              number: phoneWithCode,
-              text: whatsappMessage,
-              image_url: imageUrl,
-            },
-          });
-
-          if (msgError) {
-            console.error('Erro ao enviar mensagem WhatsApp:', msgError);
-          } else if (!msgData?.success) {
-            console.error('Falha ao enviar mensagem WhatsApp:', msgData);
-          } else {
-            console.log('Mensagem de confirmação enviada:', msgData);
-            toast.success('Mensagem de confirmação enviada!');
-          }
-
-          if (extraPhoneWithCode && extraPhoneWithCode !== phoneWithCode && extraPhone.length >= 10) {
-            const { data: extraMsgData, error: extraMsgError } = await supabase.functions.invoke('zap-responder', {
-              body: {
-                action: 'enviar-mensagem',
-                department_id: zapSettings.selected_department_id,
-                number: extraPhoneWithCode,
-                text: whatsappMessage,
-                image_url: imageUrl,
-              },
-            });
-
-            if (extraMsgError) {
-              console.error('Erro ao enviar confirmação para telefone extra:', extraMsgError);
-            } else if (!extraMsgData?.success) {
-              console.error('Falha ao enviar confirmação para telefone extra:', extraMsgData);
-            } else {
-              console.log('Mensagem de confirmação enviada para telefone extra:', extraMsgData);
-            }
-          }
-
-          // Send admin/reseller notification
-          const notificationPhone = settings?.notification_phone;
-          if (notificationPhone) {
-            try {
-              const adminMsg = `🔔 *Renovação Manual (Chat)*\n\n👤 Cliente: *${customer.name}*\n📞 Tel: ${phoneWithCode}\n👤 Usuário: *${displayUsername}*\n💰 Valor: *R$ ${amount.toFixed(2)}*\n📦 Plano: *${planName}*\n🖥️ Servidor: *${customer.server?.server_name || '-'}*\n📅 Novo vencimento: *${formattedDueDate}*\n✅ Status: Renovado`;
-              await supabase.functions.invoke('zap-responder', {
-                body: {
-                  action: 'enviar-mensagem',
-                  department_id: zapSettings.selected_department_id,
-                  number: normalizeWhatsAppPhone(notificationPhone),
-                  text: adminMsg,
-                },
-              });
-            } catch (adminErr) {
-              console.error('Erro ao notificar:', adminErr);
-            }
-          }
-        } catch (e) {
-          console.error('Erro ao enviar mensagem WhatsApp:', e);
+      // Send confirmation via backend (official Meta/Zap + Evolution fallback + e-mail + admin)
+      try {
+        const { data: confData, error: confError } = await supabase.functions.invoke('send-payment-confirmation', {
+          body: {
+            customer_id: customer.id,
+            amount,
+            plan_name: planName,
+            new_due_date: newDueDate,
+            source: 'manual_chat',
+          },
+        });
+        if (confError) {
+          console.error('Erro ao enviar confirmação:', confError);
+          toast.warning('Renovado, mas falha ao enviar a confirmação automática.');
+        } else if (confData?.results?.text?.ok || confData?.results?.template?.ok) {
+          toast.success('Mensagem de confirmação enviada!');
+        } else if (confData?.results?.text && !confData.results.text.ok) {
+          toast.warning(`Renovado, mas a confirmação não foi enviada: ${confData.results.text.error || 'erro desconhecido'}`);
         }
+      } catch (e) {
+        console.error('Erro ao enviar confirmação:', e);
       }
+
 
       toast.success('Cliente renovado com sucesso!');
       queryClient.invalidateQueries({ queryKey: ['customer-search'] });
