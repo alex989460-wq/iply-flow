@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
 import { Loader2, Save, Globe, Copy, RefreshCw, ExternalLink, Key, Upload, X } from 'lucide-react';
+import MaskedUrlField from '@/components/ui/masked-url';
 
 interface Settings {
   id?: string;
