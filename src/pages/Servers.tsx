@@ -48,7 +48,9 @@ export default function Servers() {
     description: '',
     status: 'online' as ServerStatus,
     is_public: false,
+    credit_cost: 0,
   });
+
 
   const queryClient = useQueryClient();
   const { toast } = useToast();
