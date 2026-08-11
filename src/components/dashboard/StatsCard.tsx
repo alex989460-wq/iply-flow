@@ -204,12 +204,12 @@ export default function StatsCard({
         
         {/* Icon container with enhanced hover effects */}
         <div className={cn(
-          "w-10 h-10 sm:w-12 sm:h-12 lg:w-14 lg:h-14 rounded-xl flex items-center justify-center flex-shrink-0",
+          "w-9 h-9 sm:w-10 sm:h-10 lg:w-12 lg:h-12 rounded-xl flex items-center justify-center flex-shrink-0",
           "transition-all duration-500 ease-out",
           iconBgStyles[variant],
           "group-hover:scale-110 group-hover:rotate-3 group-hover:shadow-lg"
         )}>
-          <Icon className="w-5 h-5 sm:w-6 sm:h-6 lg:w-7 lg:h-7 transition-transform duration-300 group-hover:scale-110" />
+          <Icon className="w-4 h-4 sm:w-5 sm:h-5 lg:w-6 lg:h-6 transition-transform duration-300 group-hover:scale-110" />
         </div>
       </div>
     </div>
