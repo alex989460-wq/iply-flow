@@ -217,21 +217,29 @@ Deno.serve(async (req) => {
 
     // 3) Admin notification
     const notifPhone = billing?.notification_phone;
-    if (zap?.selected_department_id && notifPhone) {
-      try {
-        const adminMsg = `🔔 *Renovação Automática (${source})*\n\n👤 Cliente: *${cust.name}*\n📞 Tel: ${clientMetaPhone}\n👤 Usuário: *${cust.username || "-"}*\n💰 Valor: *R$ ${amount.toFixed(2)}*\n📦 Plano: *${planName || "-"}*\n🖥️ Servidor: *${serverName}*\n📅 Novo vencimento: *${fmtDue}*\n✅ Status: Renovado`;
-        const r = await fetchT(`${SUPABASE_URL}/functions/v1/crm-oficial-sync`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "Authorization": `Bearer ${SRK}` },
-          body: JSON.stringify({
-            action: "enviar-mensagem", department_id: zap.selected_department_id,
-            number: notifPhone, text: adminMsg, user_id: ownerId,
-            phone_number_id: billingPhoneNumberId,
-          }),
-        });
-        const j = await r.json().catch(() => ({}));
-        results.admin = { ok: r.ok && j?.success !== false };
-      } catch (e) { console.warn("[send-payment-confirmation] admin err:", e); }
+    if (notifPhone) {
+      const adminMsg = `🔔 *Renovação Automática (${source})*\n\n👤 Cliente: *${cust.name}*\n📞 Tel: ${clientMetaPhone}\n👤 Usuário: *${cust.username || "-"}*\n💰 Valor: *R$ ${amount.toFixed(2)}*\n📦 Plano: *${planName || "-"}*\n🖥️ Servidor: *${serverName}*\n📅 Novo vencimento: *${fmtDue}*\n✅ Status: Renovado`;
+      let adminOk = false;
+      if (zap?.selected_department_id) {
+        try {
+          const r = await fetchT(`${SUPABASE_URL}/functions/v1/crm-oficial-sync`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "Authorization": `Bearer ${SRK}` },
+            body: JSON.stringify({
+              action: "enviar-mensagem", department_id: zap.selected_department_id,
+              number: notifPhone, text: adminMsg, user_id: ownerId,
+              phone_number_id: billingPhoneNumberId,
+            }),
+          });
+          const j = await r.json().catch(() => ({}));
+          adminOk = r.ok && j?.success !== false;
+        } catch (e) { console.warn("[send-payment-confirmation] admin err:", e); }
+      }
+      if (!adminOk) {
+        const ev = await sendViaEvolution(toWaPhone(notifPhone), adminMsg);
+        adminOk = ev.ok;
+      }
+      results.admin = { ok: adminOk };
     }
 
     return json({ ok: true, results });
