@@ -265,7 +265,7 @@ Deno.serve(async (req) => {
             extraOk = r.ok && j?.success !== false;
           } catch (e) { console.warn("[send-payment-confirmation] extra_phone err:", e); }
         }
-        if (!extraOk) await sendViaEvolution(extra, msg);
+        if (!extraOk) await sendViaEvolution(extra, msg, true);
       }
     }
 
