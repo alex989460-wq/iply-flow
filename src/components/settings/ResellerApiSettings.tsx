@@ -8,6 +8,7 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { Loader2, Save, Eye, EyeOff, AlertCircle, CheckCircle2, Key, Copy, ExternalLink } from 'lucide-react';
+import MaskedUrlField from '@/components/ui/masked-url';
 
 export default function ResellerApiSettings() {
   const { user } = useAuth();
