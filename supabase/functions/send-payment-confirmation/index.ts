@@ -134,8 +134,29 @@ Deno.serve(async (req) => {
       } catch (e) { console.error("[send-payment-confirmation] template err:", e); }
     }
 
+    // Fallback: envio pela API NÃO oficial (Evolution) quando não há canal oficial
+    const sendViaEvolution = async (phone: string, text: string) => {
+      if (!phone || !text) return { ok: false, error: "phone/text vazios" };
+      try {
+        const r = await fetchT(`${SUPABASE_URL}/functions/v1/evolution-send`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${SRK}`,
+            "x-internal-token": SRK,
+          },
+          body: JSON.stringify({ action: "send", phone, text, user_id: ownerId }),
+        });
+        const j = await r.json().catch(() => ({}));
+        const ok = r.ok && !j?.error;
+        return { ok, error: ok ? "" : (j?.error || `HTTP ${r.status}`), body: j };
+      } catch (e) {
+        return { ok: false, error: String(e) };
+      }
+    };
+
     // 2) Dynamic text message (respeita regra admin/both)
-    if (zap?.selected_department_id && shouldSendToClient && clientMetaPhone) {
+    if (shouldSendToClient && clientMetaPhone) {
       const defaultTpl = `✅ Olá, *{{nome}}*. Obrigado por confirmar seu pagamento. Segue abaixo os dados da sua assinatura:\n\n==========================\n📅 Próx. Vencimento: *{{vencimento}} - {{hora}} hrs*\n💰 Valor: *{{valor}}*\n👤 Usuário: *{{usuario}}*\n📦 Plano: *{{plano}}*\n🔌 Status: *Ativo*\n⚡: *{{servidor}}*\n==========================`;
       const tpl = billing?.renewal_message_template || defaultTpl;
       const msg = tpl
@@ -151,51 +172,70 @@ Deno.serve(async (req) => {
         .replace(/\{\{telefone\}\}/g, cust.phone || "-")
         .replace(/\{\{status\}\}/g, cust.status || "-");
 
-      let ok = false, lastErr = "", lastRes: any = null;
-      for (let i = 1; i <= 2; i++) {
-        try {
-          const r = await fetchT(`${SUPABASE_URL}/functions/v1/crm-oficial-sync`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json", "Authorization": `Bearer ${SRK}` },
-            body: JSON.stringify({
-              action: "sendText", number: clientMetaPhone, text: msg, user_id: ownerId,
-              image_url: billing?.renewal_image_url || undefined,
-              require_media: !!billing?.renewal_image_url,
-              phone_number_id: billingPhoneNumberId,
-            }),
-          });
-          const j = await r.json().catch(() => ({}));
-          lastRes = j;
-          if (r.ok && j?.success !== false) { ok = true; break; }
-          lastErr = j?.message || j?.error || `HTTP ${r.status}`;
-          if (i < 2) await new Promise((rr) => setTimeout(rr, 3000));
-        } catch (e) { lastErr = String(e); if (i < 2) await new Promise((rr) => setTimeout(rr, 3000)); }
+      let ok = false, lastErr = "", lastRes: any = null, channel = "oficial";
+
+      if (zap?.selected_department_id) {
+        for (let i = 1; i <= 2; i++) {
+          try {
+            const r = await fetchT(`${SUPABASE_URL}/functions/v1/crm-oficial-sync`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json", "Authorization": `Bearer ${SRK}` },
+              body: JSON.stringify({
+                action: "sendText", number: clientMetaPhone, text: msg, user_id: ownerId,
+                image_url: billing?.renewal_image_url || undefined,
+                require_media: !!billing?.renewal_image_url,
+                phone_number_id: billingPhoneNumberId,
+              }),
+            });
+            const j = await r.json().catch(() => ({}));
+            lastRes = j;
+            if (r.ok && j?.success !== false) { ok = true; break; }
+            lastErr = j?.message || j?.error || `HTTP ${r.status}`;
+            if (i < 2) await new Promise((rr) => setTimeout(rr, 3000));
+          } catch (e) { lastErr = String(e); if (i < 2) await new Promise((rr) => setTimeout(rr, 3000)); }
+        }
+      } else {
+        lastErr = "sem canal oficial configurado";
       }
-      results.text = { ok, error: lastErr };
+
+      // Fallback API não oficial (Evolution)
+      if (!ok) {
+        const ev = await sendViaEvolution(clientMetaPhone, msg);
+        if (ev.ok) { ok = true; channel = "evolution"; lastErr = ""; lastRes = ev.body; }
+        else { lastErr = `${lastErr}${lastErr ? " | " : ""}evolution: ${ev.error}`; }
+      }
+
+      results.text = { ok, error: lastErr, channel };
       await admin.from("message_logs").insert({
         user_id: ownerId, customer_id: cust.id, customer_name: cust.name, customer_phone: clientMetaPhone,
         message_type: "confirmation", source, status: ok ? "success" : "error",
         error_message: ok ? null : lastErr, whatsapp_response: lastRes,
-        metadata: { amount, plan: planName, server: serverName },
+        metadata: { amount, plan: planName, server: serverName, channel },
       });
 
       // Extra phone
       const extraRaw = (cust as any).extra_phone;
       if (extraRaw && String(extraRaw).replace(/\D/g, "").length >= 10) {
-        try {
-          const extra = toWaPhone(extraRaw);
-          await fetchT(`${SUPABASE_URL}/functions/v1/crm-oficial-sync`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json", "Authorization": `Bearer ${SRK}` },
-            body: JSON.stringify({
-              action: "sendText", department_id: zap.selected_department_id,
-              number: extra, text: msg, user_id: ownerId,
-              image_url: billing?.renewal_image_url || undefined,
-              require_media: !!billing?.renewal_image_url,
-              phone_number_id: billingPhoneNumberId,
-            }),
-          });
-        } catch (e) { console.warn("[send-payment-confirmation] extra_phone err:", e); }
+        const extra = toWaPhone(extraRaw);
+        let extraOk = false;
+        if (zap?.selected_department_id) {
+          try {
+            const r = await fetchT(`${SUPABASE_URL}/functions/v1/crm-oficial-sync`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json", "Authorization": `Bearer ${SRK}` },
+              body: JSON.stringify({
+                action: "sendText", department_id: zap.selected_department_id,
+                number: extra, text: msg, user_id: ownerId,
+                image_url: billing?.renewal_image_url || undefined,
+                require_media: !!billing?.renewal_image_url,
+                phone_number_id: billingPhoneNumberId,
+              }),
+            });
+            const j = await r.json().catch(() => ({}));
+            extraOk = r.ok && j?.success !== false;
+          } catch (e) { console.warn("[send-payment-confirmation] extra_phone err:", e); }
+        }
+        if (!extraOk) await sendViaEvolution(extra, msg);
       }
     }
 
