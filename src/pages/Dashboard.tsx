@@ -262,7 +262,7 @@ export default function Dashboard() {
 
         {/* Activity Feed + Monthly Goals Row */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 lg:gap-6 animate-fade-in" style={{ animationDelay: '550ms' }}>
-          {isAdmin && <ActivityFeed />}
+          <ActivityFeed />
           <MonthlyGoals />
         </div>
 
