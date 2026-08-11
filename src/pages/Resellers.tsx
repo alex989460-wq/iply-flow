@@ -197,7 +197,7 @@ export default function Resellers() {
                 instance: c.evolution_instance_name || undefined,
               };
             });
-            if (items.length) map[user_id] = items;
+            map[user_id] = items;
           } catch {
             /* ignora falhas por revenda */
           }
@@ -918,6 +918,7 @@ export default function Resellers() {
                         const evosDb = evoByUser.get(reseller.user_id) || [];
                         const official = officialByUser.get(reseller.user_id);
                         const hasOfficialKey = !!official?.api_key && official?.enabled !== false;
+                        const crmLoaded = Array.isArray(crmChannelsByUser?.[reseller.user_id]);
                         const crm = crmChannelsByUser?.[reseller.user_id] || [];
                         const officialChannels = crm.filter((c) => c.official);
                         const evoChannels = crm.filter((c) => !c.official);
@@ -930,10 +931,12 @@ export default function Resellers() {
                             instance: i.instance_name,
                           }));
                         const evoAll = [...evoChannels, ...evoExtra];
+                        // Só usa o rótulo genérico enquanto o CRM ainda não respondeu.
+                        // Se o CRM respondeu e não há canal oficial, não mostra nada.
                         const officialAll = officialChannels.length
                           ? officialChannels
-                          : hasOfficialKey
-                            ? [{ official: true, phone: '', label: 'API Oficial' }]
+                          : (!crmLoaded && hasOfficialKey)
+                            ? [{ official: true, phone: '', label: 'Carregando…' }]
                             : [];
                         return (
                           <div className="pl-2">
@@ -953,7 +956,7 @@ export default function Resellers() {
                                   >
                                     <MetaLogo className="h-3.5 w-3.5" />
                                     <span className="tabular-nums">
-                                      {formatPhoneDisplay(c.phone) || c.label || 'API Oficial'}
+                                      {[c.label, formatPhoneDisplay(c.phone)].filter(Boolean).join(' · ') || 'API Oficial'}
                                     </span>
                                     <span className="text-muted-foreground">· Oficial</span>
                                     {official?.last_test_ok === false && <span className="text-destructive">· erro</span>}
@@ -968,7 +971,7 @@ export default function Resellers() {
                                   >
                                     <img src={whatsappLogo.url} alt="WhatsApp" className="h-3.5 w-3.5 object-contain" />
                                     <span className="tabular-nums">
-                                      {formatPhoneDisplay(c.phone) || c.label || c.instance}
+                                      {[c.label || c.instance, formatPhoneDisplay(c.phone)].filter(Boolean).join(' · ')}
                                     </span>
                                     <span className="text-muted-foreground">· Não oficial</span>
                                   </Badge>
