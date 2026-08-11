@@ -181,7 +181,7 @@ export default function StatsCard({
           )}>
             {title}
           </p>
-          <p className="text-lg sm:text-xl lg:text-2xl xl:text-3xl font-bold text-foreground tracking-tight tabular-nums leading-none break-words">
+          <p className="text-base sm:text-lg lg:text-xl xl:text-2xl font-bold text-foreground tracking-tight tabular-nums leading-tight break-words">
             {displayValue}
           </p>
           {description && (
