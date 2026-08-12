@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { resolvePanel } from '@/lib/panel-detect';
 import { useAuth } from '@/contexts/AuthContext';
 import { Input } from '@/components/ui/input';
 import { PhoneInput } from '@/components/ui/phone-input';
@@ -132,17 +133,18 @@ export default function QuickCustomerForm({ onSuccess, onCancel, initialPhone = 
         try {
           const { data: serverData } = await supabase
             .from('servers')
-            .select('server_name, host')
+            .select('server_name, host, panel_type')
             .eq('id', newCustomer.server_id)
             .single();
 
           if (serverData) {
             const serverHost = serverData.host || '';
             const serverName = serverData.server_name || '';
-            const isTheBest = serverName.toLowerCase().includes('best') || serverHost.toLowerCase().includes('best');
-            const isNatv = serverName.toLowerCase().includes('natv') || serverHost.toLowerCase().includes('pixbot') || serverHost.toLowerCase().includes('natv');
-            const isVplay = serverName.toLowerCase().includes('vplay') || serverHost.toLowerCase().includes('vplay');
-            const isRush = serverName.toLowerCase().includes('rush') || serverHost.toLowerCase().includes('rush');
+            const panel = resolvePanel(serverData as any);
+            const isTheBest = panel === 'thebest';
+            const isNatv = panel === 'natv' || panel === 'natv2';
+            const isVplay = panel === 'vplay';
+            const isRush = panel === 'rush';
 
             if (isTheBest) {
               const months = Math.max(1, Math.round((plan?.duration_days || 30) / 30));
