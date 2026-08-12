@@ -93,7 +93,13 @@ export default function ResellerApiSettings() {
           uniplay_username: d.uniplay_username || '',
           uniplay_password: d.uniplay_password || '',
           uniplay_base_url: d.uniplay_base_url || '',
+          vplay_mysql_host: d.vplay_mysql_host || '',
+          vplay_mysql_port: d.vplay_mysql_port ? String(d.vplay_mysql_port) : '3306',
+          vplay_mysql_user: d.vplay_mysql_user || '',
+          vplay_mysql_password: d.vplay_mysql_password || '',
+          vplay_mysql_database: d.vplay_mysql_database || '',
         });
+
       }
     } catch (err) {
       console.error('Error fetching API settings:', err);
