@@ -251,6 +251,8 @@ export default function ResellerApiSettings() {
   const hasTheBest = !!settings.the_best_api_key || (!!settings.the_best_username && !!settings.the_best_password);
   const hasRush = !!settings.rush_username && !!settings.rush_password && !!settings.rush_token;
   const hasUniplay = !!settings.uniplay_username && !!settings.uniplay_password;
+  const hasVplay = !!settings.vplay_mysql_host && !!settings.vplay_mysql_user && !!settings.vplay_mysql_password && !!settings.vplay_mysql_database;
+
 
   return (
     <div className="space-y-6">
