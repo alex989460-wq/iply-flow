@@ -111,34 +111,42 @@ serve(async (req) => {
     let tbPassword = the_best_password || '';
     let tbBaseUrl = (the_best_base_url || '').replace(/\/+$/, '') || DEFAULT_BASE_URL;
 
-    // If not passed, try to load from reseller settings
-    if (!tbUsername && customer_id) {
+    // If not passed, try to load from reseller settings (dono do cliente ou o próprio chamador)
+    if (!tbUsername && (customer_id || callerUserId)) {
       const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
       if (serviceRoleKey) {
         const supabaseAdmin = createClient(Deno.env.get('SUPABASE_URL')!, serviceRoleKey, {
           auth: { autoRefreshToken: false, persistSession: false },
         });
 
-        // Get customer owner
-        const { data: customerData } = await supabaseAdmin
-          .from('customers')
-          .select('created_by')
-          .eq('id', customer_id)
-          .maybeSingle();
-
-        const ownerId = customerData?.created_by || callerUserId;
-        if (ownerId) {
-          const { data: apiSettings } = await supabaseAdmin
-            .from('reseller_api_settings')
-            .select('the_best_username, the_best_password, the_best_base_url')
-            .eq('user_id', ownerId)
+        let ownerId: string | null = callerUserId;
+        if (customer_id) {
+          const { data: customerData } = await supabaseAdmin
+            .from('customers')
+            .select('created_by')
+            .eq('id', customer_id)
             .maybeSingle();
+          ownerId = customerData?.created_by || callerUserId;
+        }
 
-          if (apiSettings?.the_best_username && apiSettings?.the_best_password) {
-            tbUsername = apiSettings.the_best_username;
-            tbPassword = apiSettings.the_best_password;
-            tbBaseUrl = (apiSettings.the_best_base_url || '').replace(/\/+$/, '') || DEFAULT_BASE_URL;
-            console.log('[TheBest] Usando credenciais do revendedor');
+        if (ownerId) {
+          const candidates = [ownerId, callerUserId].filter(
+            (v, i, arr): v is string => !!v && arr.indexOf(v) === i,
+          );
+          for (const uid of candidates) {
+            const { data: apiSettings } = await supabaseAdmin
+              .from('reseller_api_settings')
+              .select('the_best_username, the_best_password, the_best_base_url')
+              .eq('user_id', uid)
+              .maybeSingle();
+
+            if (apiSettings?.the_best_username && apiSettings?.the_best_password) {
+              tbUsername = apiSettings.the_best_username;
+              tbPassword = apiSettings.the_best_password;
+              tbBaseUrl = (apiSettings.the_best_base_url || '').replace(/\/+$/, '') || DEFAULT_BASE_URL;
+              console.log('[TheBest] Usando credenciais do revendedor');
+              break;
+            }
           }
         }
       }
