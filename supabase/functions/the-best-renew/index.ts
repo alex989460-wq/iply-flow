@@ -94,9 +94,11 @@ serve(async (req) => {
       console.log('[TheBest] Chamada interna autorizada pelo webhook da Cakto');
     }
 
-    const { username, months, customer_id, the_best_username, the_best_password, the_best_base_url } = await req.json();
+    const { action, username, months, customer_id, the_best_username, the_best_password, the_best_base_url } = await req.json();
 
-    if (!username) {
+    const isTest = action === 'test';
+
+    if (!isTest && !username) {
       return new Response(
         JSON.stringify({ error: 'Username é obrigatório' }),
         { status: 400, headers: jsonHeaders },
@@ -104,7 +106,7 @@ serve(async (req) => {
     }
 
     const renewMonths = months || 1;
-    console.log(`[TheBest] Renovando usuário: ${username}, meses: ${renewMonths}`);
+    if (!isTest) console.log(`[TheBest] Renovando usuário: ${username}, meses: ${renewMonths}`);
 
     // Determine credentials: passed directly (from webhook) or from reseller settings or global
     let tbUsername = the_best_username || '';
