@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { resolvePanel } from '@/lib/panel-detect';
 import { useAuth } from '@/contexts/AuthContext';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -403,7 +404,7 @@ export default function QuickRenewalPanel({ isMobile = false, onClose, initialPh
           notes,
           start_date,
           plan:plans(id, plan_name, price, duration_days),
-          server:servers(id, server_name, host)
+          server:servers(id, server_name, host, panel_type)
         `)
         .or(orFilter)
         .limit(10);
@@ -493,16 +494,14 @@ export default function QuickRenewalPanel({ isMobile = false, onClose, initialPh
         try {
           const serverHost = customer.server?.host || '';
           const serverName = customer.server?.server_name || '';
-          const sn = serverName.toLowerCase();
-          const sh = serverHost.toLowerCase();
-          const isNatv2 = sn.includes('natv²') || sn.includes('natv2') || sh.includes('natv2');
-          const isTheBest = sn.includes('best') || sh.includes('best');
-          const isNatv = !isNatv2 && (sn.includes('natv') || sh.includes('pixbot') || sh.includes('natv'));
-          const isVplay = sn.includes('vplay') || sh.includes('vplay');
-          const isRush = sn.includes('rush') || sh.includes('rush');
-          const extHay = `${sn} ${sh}`;
-          const isUniplay = extHay.includes('uniplay') || extHay.includes('searchdefense') || extHay.includes('gesapioffice');
-          const isP2Cine = extHay.includes('p2cine') || extHay.includes('daily3') || extHay.includes('painelacesso') || /\bp2c\b/.test(extHay);
+          const panel = resolvePanel(customer.server as any);
+          const isNatv2 = panel === 'natv2';
+          const isTheBest = panel === 'thebest';
+          const isNatv = panel === 'natv';
+          const isVplay = panel === 'vplay';
+          const isRush = panel === 'rush';
+          const isUniplay = panel === 'uniplay';
+          const isP2Cine = panel === 'p2cine';
 
           if (isNatv2) {
             const months = Math.max(1, Math.round(durationDays / 30));

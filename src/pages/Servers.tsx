@@ -35,6 +35,7 @@ import { Plus, Pencil, Trash2, Loader2, Server, Globe } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { cn } from '@/lib/utils';
 import type { Database } from '@/integrations/supabase/types';
+import { PANEL_OPTIONS } from '@/lib/panel-detect';
 
 type ServerStatus = Database['public']['Enums']['server_status'];
 type ServerRow = Database['public']['Tables']['servers']['Row'];
@@ -49,6 +50,7 @@ export default function Servers() {
     status: 'online' as ServerStatus,
     is_public: false,
     credit_cost: 0,
+    panel_type: 'auto',
   });
 
 
@@ -97,10 +99,12 @@ export default function Servers() {
 
   const createMutation = useMutation({
     mutationFn: async (data: typeof formData) => {
+      const { panel_type, ...rest } = data;
       const { error } = await supabase.from('servers').insert({
-        ...data,
+        ...rest,
+        panel_type: panel_type === 'auto' ? null : panel_type,
         created_by: user?.id,
-      });
+      } as any);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -116,7 +120,11 @@ export default function Servers() {
 
   const updateMutation = useMutation({
     mutationFn: async ({ id, data }: { id: string; data: typeof formData }) => {
-      const { error } = await supabase.from('servers').update(data).eq('id', id);
+      const { panel_type, ...rest } = data;
+      const { error } = await supabase
+        .from('servers')
+        .update({ ...rest, panel_type: panel_type === 'auto' ? null : panel_type } as any)
+        .eq('id', id);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -145,7 +153,7 @@ export default function Servers() {
   });
 
   const resetForm = () => {
-    setFormData({ server_name: '', host: '', description: '', status: 'online', is_public: false, credit_cost: 0 });
+    setFormData({ server_name: '', host: '', description: '', status: 'online', is_public: false, credit_cost: 0, panel_type: 'auto' });
     setEditingServer(null);
   };
 
@@ -158,6 +166,7 @@ export default function Servers() {
       status: server.status,
       is_public: (server as any).is_public || false,
       credit_cost: Number((server as any).credit_cost || 0),
+      panel_type: ((server as any).panel_type as string) || 'auto',
     });
     setIsOpen(true);
   };
@@ -241,6 +250,25 @@ export default function Servers() {
                       <SelectItem value="manutencao">Manutenção</SelectItem>
                     </SelectContent>
                   </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Painel / API de renovação</Label>
+                  <Select
+                    value={formData.panel_type}
+                    onValueChange={(value) => setFormData({ ...formData, panel_type: value })}
+                  >
+                    <SelectTrigger className="bg-secondary/50">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {PANEL_OPTIONS.map((opt) => (
+                        <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Define qual API será chamada ao renovar clientes deste servidor. Em "Automático", o sistema detecta pelo nome/host (comportamento atual).
+                  </p>
                 </div>
                 <div className="space-y-2">
                   <Label>Custo por crédito (R$)</Label>

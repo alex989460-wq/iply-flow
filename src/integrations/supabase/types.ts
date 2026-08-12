@@ -2889,6 +2889,7 @@ export type Database = {
           host: string
           id: string
           is_public: boolean | null
+          panel_type: string | null
           server_name: string
           status: Database["public"]["Enums"]["server_status"]
         }
@@ -2901,6 +2902,7 @@ export type Database = {
           host: string
           id?: string
           is_public?: boolean | null
+          panel_type?: string | null
           server_name: string
           status?: Database["public"]["Enums"]["server_status"]
         }
@@ -2913,6 +2915,7 @@ export type Database = {
           host?: string
           id?: string
           is_public?: boolean | null
+          panel_type?: string | null
           server_name?: string
           status?: Database["public"]["Enums"]["server_status"]
         }

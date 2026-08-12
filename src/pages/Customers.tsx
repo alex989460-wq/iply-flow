@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
+import { resolvePanel } from '@/lib/panel-detect';
 import { useAuth } from '@/contexts/AuthContext';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Button } from '@/components/ui/button';
@@ -540,18 +541,19 @@ export default function Customers() {
         try {
           const { data: serverData } = await supabase
             .from('servers')
-            .select('server_name, host')
+            .select('server_name, host, panel_type')
             .eq('id', newCustomer.server_id)
             .single();
 
           if (serverData) {
             const serverHost = serverData.host || '';
             const serverName = serverData.server_name || '';
-            const isTheBest = serverName.toLowerCase().includes('best') || serverHost.toLowerCase().includes('best');
-            const isNatv = serverName.toLowerCase().includes('natv') || serverHost.toLowerCase().includes('pixbot') || serverHost.toLowerCase().includes('natv');
-            const isVplay = serverName.toLowerCase().includes('vplay') || serverHost.toLowerCase().includes('vplay');
-            const isRush = serverName.toLowerCase().includes('rush') || serverHost.toLowerCase().includes('rush');
-            const isUniplay = serverName.toLowerCase().includes('uniplay') || serverHost.toLowerCase().includes('uniplay') || serverHost.toLowerCase().includes('searchdefense') || serverHost.toLowerCase().includes('gesapioffice');
+            const panel = resolvePanel(serverData as any);
+            const isTheBest = panel === 'thebest';
+            const isNatv = panel === 'natv' || panel === 'natv2';
+            const isVplay = panel === 'vplay';
+            const isRush = panel === 'rush';
+            const isUniplay = panel === 'uniplay';
             const plan = plans?.find(p => p.id === newCustomer.plan_id);
 
             if (isTheBest) {
@@ -698,7 +700,7 @@ export default function Customers() {
       // Always fetch the latest customer data from the backend (avoids stale cache)
       const { data: customer, error: fetchCustomerError } = await supabase
         .from('customers')
-        .select('id, name, phone, email, due_date, username, notes, server_id, created_by, screens, start_date, status, servers(server_name, host)')
+        .select('id, name, phone, email, due_date, username, notes, server_id, created_by, screens, start_date, status, servers(server_name, host, panel_type)')
         .eq('id', customerId)
         .single();
       if (fetchCustomerError) throw fetchCustomerError;
@@ -730,13 +732,13 @@ export default function Customers() {
         try {
           const serverHost = (customer as any).servers?.host || '';
           const serverName = (customer as any).servers?.server_name || '';
-          const isTheBest = serverName.toLowerCase().includes('best') || serverHost.toLowerCase().includes('best');
-          const isNatv = serverName.toLowerCase().includes('natv') || serverHost.toLowerCase().includes('pixbot') || serverHost.toLowerCase().includes('natv');
-          const isVplay = serverName.toLowerCase().includes('vplay') || serverHost.toLowerCase().includes('vplay');
-          const isRush = serverName.toLowerCase().includes('rush') || serverHost.toLowerCase().includes('rush');
-          const isUniplay = serverName.toLowerCase().includes('uniplay') || serverHost.toLowerCase().includes('uniplay') || serverHost.toLowerCase().includes('searchdefense') || serverHost.toLowerCase().includes('gesapioffice');
-          const p2Hay = `${serverName} ${serverHost}`.toLowerCase();
-          const isP2Cine = p2Hay.includes('p2cine') || p2Hay.includes('daily3') || p2Hay.includes('painelacesso') || /\bp2c\b/.test(p2Hay);
+          const panel = resolvePanel((customer as any).servers);
+          const isTheBest = panel === 'thebest';
+          const isNatv = panel === 'natv' || panel === 'natv2';
+          const isVplay = panel === 'vplay';
+          const isRush = panel === 'rush';
+          const isUniplay = panel === 'uniplay';
+          const isP2Cine = panel === 'p2cine';
           
           if (isTheBest) {
             const months = Math.max(1, Math.round(plan.duration_days / 30));
@@ -1125,7 +1127,7 @@ export default function Customers() {
         // Fetch latest customer data
         const { data: latestCustomer, error: fetchError } = await supabase
           .from('customers')
-          .select('id, name, phone, due_date, username, notes, server_id, screens, start_date, status, servers(server_name, host)')
+          .select('id, name, phone, due_date, username, notes, server_id, screens, start_date, status, servers(server_name, host, panel_type)')
           .eq('id', customer.id)
           .single();
         
@@ -1163,13 +1165,13 @@ export default function Customers() {
           try {
             const serverHost = (latestCustomer as any).servers?.host || '';
             const serverName = (latestCustomer as any).servers?.server_name || '';
-            const isTheBest = serverName.toLowerCase().includes('best') || serverHost.toLowerCase().includes('best');
-            const isNatv = serverName.toLowerCase().includes('natv') || serverHost.toLowerCase().includes('pixbot') || serverHost.toLowerCase().includes('natv');
-            const isVplay = serverName.toLowerCase().includes('vplay') || serverHost.toLowerCase().includes('vplay');
-            const isRush = serverName.toLowerCase().includes('rush') || serverHost.toLowerCase().includes('rush');
-            const isUniplay = serverName.toLowerCase().includes('uniplay') || serverHost.toLowerCase().includes('uniplay') || serverHost.toLowerCase().includes('searchdefense') || serverHost.toLowerCase().includes('gesapioffice');
-            const p2Hay = `${serverName} ${serverHost}`.toLowerCase();
-            const isP2Cine = p2Hay.includes('p2cine') || p2Hay.includes('daily3') || p2Hay.includes('painelacesso') || /\bp2c\b/.test(p2Hay);
+            const panel = resolvePanel((latestCustomer as any).servers);
+            const isTheBest = panel === 'thebest';
+            const isNatv = panel === 'natv' || panel === 'natv2';
+            const isVplay = panel === 'vplay';
+            const isRush = panel === 'rush';
+            const isUniplay = panel === 'uniplay';
+            const isP2Cine = panel === 'p2cine';
 
             if (isTheBest) {
               const months = Math.max(1, Math.round(plan.duration_days / 30));
