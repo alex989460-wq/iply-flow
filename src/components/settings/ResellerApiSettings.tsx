@@ -639,6 +639,97 @@ export default function ResellerApiSettings() {
         </CardContent>
       </Card>
 
+      {/* VPlay */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Key className="w-5 h-5 text-sky-500" />
+            VPlay (Painel)
+            {hasVplay && <CheckCircle2 className="w-5 h-5 text-green-500" />}
+          </CardTitle>
+          <CardDescription>
+            Credenciais do seu painel VPlay/XUI para renovar seus clientes
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <Alert>
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>
+              <strong>Como configurar:</strong>
+              <ol className="list-decimal ml-4 mt-1 space-y-1 text-sm">
+                <li>Peça ao seu provedor o <strong>host, usuário, senha e banco</strong> de acesso do painel VPlay</li>
+                <li>A porta padrão é <code>3306</code></li>
+                <li>Sem esses dados, o sistema usa as credenciais globais (se existirem)</li>
+              </ol>
+            </AlertDescription>
+          </Alert>
+
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="vplay_host">Host</Label>
+              <Input
+                id="vplay_host"
+                value={settings.vplay_mysql_host}
+                onChange={(e) => setSettings({ ...settings, vplay_mysql_host: e.target.value })}
+                placeholder="Endereço do seu painel VPlay"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="vplay_port">Porta</Label>
+              <Input
+                id="vplay_port"
+                value={settings.vplay_mysql_port}
+                onChange={(e) => setSettings({ ...settings, vplay_mysql_port: e.target.value.replace(/\D/g, '') })}
+                placeholder="3306"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="vplay_user">Usuário da Revenda</Label>
+              <Input
+                id="vplay_user"
+                value={settings.vplay_mysql_user}
+                onChange={(e) => setSettings({ ...settings, vplay_mysql_user: e.target.value })}
+                placeholder="Seu usuário do painel VPlay"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="vplay_password">Senha da Revenda</Label>
+              <div className="relative">
+                <Input
+                  id="vplay_password"
+                  type={showVplayPassword ? 'text' : 'password'}
+                  value={settings.vplay_mysql_password}
+                  onChange={(e) => setSettings({ ...settings, vplay_mysql_password: e.target.value })}
+                  placeholder="Sua senha do painel VPlay"
+                  className="pr-10"
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="absolute right-0 top-0 h-full"
+                  onClick={() => setShowVplayPassword(!showVplayPassword)}
+                >
+                  {showVplayPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="vplay_database">Banco de Dados</Label>
+            <Input
+              id="vplay_database"
+              value={settings.vplay_mysql_database}
+              onChange={(e) => setSettings({ ...settings, vplay_mysql_database: e.target.value })}
+              placeholder="Nome do banco do painel"
+            />
+          </div>
+        </CardContent>
+      </Card>
 
 
       <div className="flex justify-end">
