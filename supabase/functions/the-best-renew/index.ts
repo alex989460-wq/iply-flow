@@ -94,9 +94,11 @@ serve(async (req) => {
       console.log('[TheBest] Chamada interna autorizada pelo webhook da Cakto');
     }
 
-    const { username, months, customer_id, the_best_username, the_best_password, the_best_base_url } = await req.json();
+    const { action, username, months, customer_id, the_best_username, the_best_password, the_best_base_url } = await req.json();
 
-    if (!username) {
+    const isTest = action === 'test';
+
+    if (!isTest && !username) {
       return new Response(
         JSON.stringify({ error: 'Username é obrigatório' }),
         { status: 400, headers: jsonHeaders },
@@ -104,41 +106,49 @@ serve(async (req) => {
     }
 
     const renewMonths = months || 1;
-    console.log(`[TheBest] Renovando usuário: ${username}, meses: ${renewMonths}`);
+    if (!isTest) console.log(`[TheBest] Renovando usuário: ${username}, meses: ${renewMonths}`);
 
     // Determine credentials: passed directly (from webhook) or from reseller settings or global
     let tbUsername = the_best_username || '';
     let tbPassword = the_best_password || '';
     let tbBaseUrl = (the_best_base_url || '').replace(/\/+$/, '') || DEFAULT_BASE_URL;
 
-    // If not passed, try to load from reseller settings
-    if (!tbUsername && customer_id) {
+    // If not passed, try to load from reseller settings (dono do cliente ou o próprio chamador)
+    if (!tbUsername && (customer_id || callerUserId)) {
       const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
       if (serviceRoleKey) {
         const supabaseAdmin = createClient(Deno.env.get('SUPABASE_URL')!, serviceRoleKey, {
           auth: { autoRefreshToken: false, persistSession: false },
         });
 
-        // Get customer owner
-        const { data: customerData } = await supabaseAdmin
-          .from('customers')
-          .select('created_by')
-          .eq('id', customer_id)
-          .maybeSingle();
-
-        const ownerId = customerData?.created_by || callerUserId;
-        if (ownerId) {
-          const { data: apiSettings } = await supabaseAdmin
-            .from('reseller_api_settings')
-            .select('the_best_username, the_best_password, the_best_base_url')
-            .eq('user_id', ownerId)
+        let ownerId: string | null = callerUserId;
+        if (customer_id) {
+          const { data: customerData } = await supabaseAdmin
+            .from('customers')
+            .select('created_by')
+            .eq('id', customer_id)
             .maybeSingle();
+          ownerId = customerData?.created_by || callerUserId;
+        }
 
-          if (apiSettings?.the_best_username && apiSettings?.the_best_password) {
-            tbUsername = apiSettings.the_best_username;
-            tbPassword = apiSettings.the_best_password;
-            tbBaseUrl = (apiSettings.the_best_base_url || '').replace(/\/+$/, '') || DEFAULT_BASE_URL;
-            console.log('[TheBest] Usando credenciais do revendedor');
+        if (ownerId) {
+          const candidates = [ownerId, callerUserId].filter(
+            (v, i, arr): v is string => !!v && arr.indexOf(v) === i,
+          );
+          for (const uid of candidates) {
+            const { data: apiSettings } = await supabaseAdmin
+              .from('reseller_api_settings')
+              .select('the_best_username, the_best_password, the_best_base_url')
+              .eq('user_id', uid)
+              .maybeSingle();
+
+            if (apiSettings?.the_best_username && apiSettings?.the_best_password) {
+              tbUsername = apiSettings.the_best_username;
+              tbPassword = apiSettings.the_best_password;
+              tbBaseUrl = (apiSettings.the_best_base_url || '').replace(/\/+$/, '') || DEFAULT_BASE_URL;
+              console.log('[TheBest] Usando credenciais do revendedor');
+              break;
+            }
           }
         }
       }
@@ -150,6 +160,22 @@ serve(async (req) => {
         { status: 400, headers: jsonHeaders },
       );
     }
+
+    if (isTest) {
+      try {
+        await getTheBestToken(tbBaseUrl, tbUsername, tbPassword);
+        return new Response(
+          JSON.stringify({ success: true, message: `Login OK como ${tbUsername}` }),
+          { headers: jsonHeaders },
+        );
+      } catch (e: any) {
+        return new Response(
+          JSON.stringify({ success: false, error: e?.message || 'Falha no login do painel The Best' }),
+          { status: 200, headers: jsonHeaders },
+        );
+      }
+    }
+
 
     // Step 1: Login to get JWT token
     console.log(`[TheBest] Fazendo login como: ${tbUsername}`);

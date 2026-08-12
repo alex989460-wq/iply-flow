@@ -26,6 +26,7 @@ export default function ResellerApiSettings() {
   const [showNatv2Key, setShowNatv2Key] = useState(false);
   const [showUniplayPassword, setShowUniplayPassword] = useState(false);
   const [testingUniplay, setTestingUniplay] = useState(false);
+  const [testingTheBest, setTestingTheBest] = useState(false);
 
   const [settings, setSettings] = useState({
     cakto_webhook_secret: '',
@@ -119,19 +120,13 @@ export default function ResellerApiSettings() {
         updated_at: new Date().toISOString(),
       };
 
-      if (hasExisting) {
-        const { error } = await supabase
-          .from('reseller_api_settings' as any)
-          .update(payload)
-          .eq('user_id', user.id);
-        if (error) throw error;
-      } else {
-        const { error } = await supabase
-          .from('reseller_api_settings' as any)
-          .insert(payload);
-        if (error) throw error;
-        setHasExisting(true);
-      }
+      // Upsert evita erros de "duplicate key" / "0 linhas atualizadas"
+      // quando o registro do revendedor já existe (ou foi criado em outra aba).
+      const { error } = await supabase
+        .from('reseller_api_settings' as any)
+        .upsert(payload, { onConflict: 'user_id' });
+      if (error) throw error;
+      setHasExisting(true);
 
       toast({ title: 'Sucesso', description: 'Configurações de API salvas!' });
     } catch (err: any) {
@@ -145,6 +140,31 @@ export default function ResellerApiSettings() {
   const copyToClipboard = (text: string, label: string) => {
     navigator.clipboard.writeText(text);
     toast({ title: 'Copiado!', description: `${label} copiado para a área de transferência` });
+  };
+
+  const testTheBest = async () => {
+    if (!settings.the_best_username || !settings.the_best_password) {
+      toast({ title: 'Erro', description: 'Preencha usuário e senha do painel The Best', variant: 'destructive' });
+      return;
+    }
+    setTestingTheBest(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('the-best-renew', {
+        body: {
+          action: 'test',
+          the_best_username: settings.the_best_username,
+          the_best_password: settings.the_best_password,
+          the_best_base_url: settings.the_best_base_url,
+        },
+      });
+      if (error) throw error;
+      if (!data?.success) throw new Error(data?.error || 'Falha no login');
+      toast({ title: 'Conexão OK', description: data.message || 'Credenciais válidas' });
+    } catch (err: any) {
+      toast({ title: 'Falha na conexão', description: err.message || String(err), variant: 'destructive' });
+    } finally {
+      setTestingTheBest(false);
+    }
   };
 
   const testUniplay = async () => {
@@ -478,6 +498,11 @@ export default function ResellerApiSettings() {
               Padrão: https://api.painel.best
             </p>
           </div>
+
+          <Button variant="outline" onClick={testTheBest} disabled={testingTheBest}>
+            {testingTheBest ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <CheckCircle2 className="w-4 h-4 mr-2" />}
+            Testar conexão
+          </Button>
         </CardContent>
       </Card>
 
