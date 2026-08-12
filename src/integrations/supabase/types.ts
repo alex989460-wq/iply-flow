@@ -2771,6 +2771,11 @@ export type Database = {
           uniplay_username: string | null
           updated_at: string
           user_id: string
+          vplay_mysql_database: string | null
+          vplay_mysql_host: string | null
+          vplay_mysql_password: string | null
+          vplay_mysql_port: number | null
+          vplay_mysql_user: string | null
         }
         Insert: {
           cakto_client_id?: string | null
@@ -2795,6 +2800,11 @@ export type Database = {
           uniplay_username?: string | null
           updated_at?: string
           user_id: string
+          vplay_mysql_database?: string | null
+          vplay_mysql_host?: string | null
+          vplay_mysql_password?: string | null
+          vplay_mysql_port?: number | null
+          vplay_mysql_user?: string | null
         }
         Update: {
           cakto_client_id?: string | null
@@ -2819,6 +2829,11 @@ export type Database = {
           uniplay_username?: string | null
           updated_at?: string
           user_id?: string
+          vplay_mysql_database?: string | null
+          vplay_mysql_host?: string | null
+          vplay_mysql_password?: string | null
+          vplay_mysql_port?: number | null
+          vplay_mysql_user?: string | null
         }
         Relationships: []
       }
