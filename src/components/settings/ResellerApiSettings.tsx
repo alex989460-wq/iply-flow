@@ -25,6 +25,8 @@ export default function ResellerApiSettings() {
   const [showRushToken, setShowRushToken] = useState(false);
   const [showNatv2Key, setShowNatv2Key] = useState(false);
   const [showUniplayPassword, setShowUniplayPassword] = useState(false);
+  const [showVplayPassword, setShowVplayPassword] = useState(false);
+
   const [testingUniplay, setTestingUniplay] = useState(false);
   const [testingTheBest, setTestingTheBest] = useState(false);
 
