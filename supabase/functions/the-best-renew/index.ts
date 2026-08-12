@@ -161,6 +161,22 @@ serve(async (req) => {
       );
     }
 
+    if (isTest) {
+      try {
+        await getTheBestToken(tbBaseUrl, tbUsername, tbPassword);
+        return new Response(
+          JSON.stringify({ success: true, message: `Login OK como ${tbUsername}` }),
+          { headers: jsonHeaders },
+        );
+      } catch (e: any) {
+        return new Response(
+          JSON.stringify({ success: false, error: e?.message || 'Falha no login do painel The Best' }),
+          { status: 200, headers: jsonHeaders },
+        );
+      }
+    }
+
+
     // Step 1: Login to get JWT token
     console.log(`[TheBest] Fazendo login como: ${tbUsername}`);
     const token = await getTheBestToken(tbBaseUrl, tbUsername, tbPassword);
