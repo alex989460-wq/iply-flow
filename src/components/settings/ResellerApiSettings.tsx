@@ -26,6 +26,7 @@ export default function ResellerApiSettings() {
   const [showNatv2Key, setShowNatv2Key] = useState(false);
   const [showUniplayPassword, setShowUniplayPassword] = useState(false);
   const [showVplayPassword, setShowVplayPassword] = useState(false);
+  const [showVplayDbPassword, setShowVplayDbPassword] = useState(false);
 
   const [testingUniplay, setTestingUniplay] = useState(false);
   const [testingTheBest, setTestingTheBest] = useState(false);
@@ -49,6 +50,8 @@ export default function ResellerApiSettings() {
     uniplay_username: '',
     uniplay_password: '',
     uniplay_base_url: '',
+    vplay_panel_username: '',
+    vplay_panel_password: '',
     vplay_mysql_host: '',
     vplay_mysql_port: '3306',
     vplay_mysql_user: '',
@@ -95,6 +98,8 @@ export default function ResellerApiSettings() {
           uniplay_username: d.uniplay_username || '',
           uniplay_password: d.uniplay_password || '',
           uniplay_base_url: d.uniplay_base_url || '',
+          vplay_panel_username: (d as any).vplay_panel_username || '',
+          vplay_panel_password: (d as any).vplay_panel_password || '',
           vplay_mysql_host: d.vplay_mysql_host || '',
           vplay_mysql_port: d.vplay_mysql_port ? String(d.vplay_mysql_port) : '3306',
           vplay_mysql_user: d.vplay_mysql_user || '',
@@ -134,6 +139,8 @@ export default function ResellerApiSettings() {
         uniplay_username: settings.uniplay_username || '',
         uniplay_password: settings.uniplay_password || '',
         uniplay_base_url: settings.uniplay_base_url || '',
+        vplay_panel_username: settings.vplay_panel_username || null,
+        vplay_panel_password: settings.vplay_panel_password || null,
         vplay_mysql_host: settings.vplay_mysql_host || null,
         vplay_mysql_port: settings.vplay_mysql_port ? Number(settings.vplay_mysql_port) : null,
         vplay_mysql_user: settings.vplay_mysql_user || null,
@@ -251,7 +258,8 @@ export default function ResellerApiSettings() {
   const hasTheBest = !!settings.the_best_api_key || (!!settings.the_best_username && !!settings.the_best_password);
   const hasRush = !!settings.rush_username && !!settings.rush_password && !!settings.rush_token;
   const hasUniplay = !!settings.uniplay_username && !!settings.uniplay_password;
-  const hasVplay = !!settings.vplay_mysql_host && !!settings.vplay_mysql_user && !!settings.vplay_mysql_password && !!settings.vplay_mysql_database;
+  const hasVplay = (!!settings.vplay_panel_username && !!settings.vplay_panel_password)
+    || (!!settings.vplay_mysql_host && !!settings.vplay_mysql_user && !!settings.vplay_mysql_password && !!settings.vplay_mysql_database);
 
 
   return (

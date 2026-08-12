@@ -2776,6 +2776,8 @@ export type Database = {
           vplay_mysql_password: string | null
           vplay_mysql_port: number | null
           vplay_mysql_user: string | null
+          vplay_panel_password: string | null
+          vplay_panel_username: string | null
         }
         Insert: {
           cakto_client_id?: string | null
@@ -2805,6 +2807,8 @@ export type Database = {
           vplay_mysql_password?: string | null
           vplay_mysql_port?: number | null
           vplay_mysql_user?: string | null
+          vplay_panel_password?: string | null
+          vplay_panel_username?: string | null
         }
         Update: {
           cakto_client_id?: string | null
@@ -2834,6 +2838,8 @@ export type Database = {
           vplay_mysql_password?: string | null
           vplay_mysql_port?: number | null
           vplay_mysql_user?: string | null
+          vplay_panel_password?: string | null
+          vplay_panel_username?: string | null
         }
         Relationships: []
       }
