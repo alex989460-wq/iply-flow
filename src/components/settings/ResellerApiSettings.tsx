@@ -36,6 +36,7 @@ export default function ResellerApiSettings() {
     natv_base_url: '',
     natv2_api_key: '',
     natv2_base_url: '',
+    the_best_api_key: '',
     the_best_username: '',
     the_best_password: '',
     the_best_base_url: '',
@@ -75,6 +76,7 @@ export default function ResellerApiSettings() {
           natv_base_url: d.natv_base_url || '',
           natv2_api_key: d.natv2_api_key || '',
           natv2_base_url: d.natv2_base_url || '',
+          the_best_api_key: d.the_best_api_key || '',
           the_best_username: d.the_best_username || '',
           the_best_password: d.the_best_password || '',
           the_best_base_url: d.the_best_base_url || '',
@@ -107,6 +109,7 @@ export default function ResellerApiSettings() {
         natv_base_url: settings.natv_base_url || '',
         natv2_api_key: settings.natv2_api_key || '',
         natv2_base_url: settings.natv2_base_url || '',
+        the_best_api_key: settings.the_best_api_key || null,
         the_best_username: settings.the_best_username || '',
         the_best_password: settings.the_best_password || '',
         the_best_base_url: settings.the_best_base_url || '',
@@ -143,8 +146,8 @@ export default function ResellerApiSettings() {
   };
 
   const testTheBest = async () => {
-    if (!settings.the_best_username || !settings.the_best_password) {
-      toast({ title: 'Erro', description: 'Preencha usuário e senha do painel The Best', variant: 'destructive' });
+    if (!settings.the_best_api_key && (!settings.the_best_username || !settings.the_best_password)) {
+      toast({ title: 'Erro', description: 'Informe a Chave de API ou usuário e senha do painel The Best', variant: 'destructive' });
       return;
     }
     setTestingTheBest(true);
@@ -152,6 +155,7 @@ export default function ResellerApiSettings() {
       const { data, error } = await supabase.functions.invoke('the-best-renew', {
         body: {
           action: 'test',
+          the_best_api_key: settings.the_best_api_key,
           the_best_username: settings.the_best_username,
           the_best_password: settings.the_best_password,
           the_best_base_url: settings.the_best_base_url,
@@ -224,7 +228,7 @@ export default function ResellerApiSettings() {
   const hasCakto = !!settings.cakto_webhook_secret;
   const hasNatv = !!settings.natv_api_key && !!settings.natv_base_url;
   const hasNatv2 = !!settings.natv2_api_key && !!settings.natv2_base_url;
-  const hasTheBest = !!settings.the_best_username && !!settings.the_best_password;
+  const hasTheBest = !!settings.the_best_api_key || (!!settings.the_best_username && !!settings.the_best_password);
   const hasRush = !!settings.rush_username && !!settings.rush_password && !!settings.rush_token;
   const hasUniplay = !!settings.uniplay_username && !!settings.uniplay_password;
 
@@ -444,12 +448,25 @@ export default function ResellerApiSettings() {
             <AlertDescription>
               <strong>Como configurar:</strong>
               <ol className="list-decimal ml-4 mt-1 space-y-1 text-sm">
-                <li>Use o <strong>usuário e senha</strong> do seu painel The Best (revendedor)</li>
-                <li>O sistema fará login automaticamente para obter o token JWT</li>
+                <li><strong>Recomendado:</strong> cole a <strong>Chave de API</strong> gerada no seu perfil do painel The Best (campo "API KEY")</li>
+                <li>Alternativa: informe <strong>usuário e senha</strong> — o sistema fará login para obter o token JWT</li>
                 <li>A URL base padrão é <code>https://api.painel.best</code></li>
               </ol>
             </AlertDescription>
           </Alert>
+
+          <div className="space-y-2">
+            <Label htmlFor="the_best_api_key">Chave de API (API KEY)</Label>
+            <Input
+              id="the_best_api_key"
+              value={settings.the_best_api_key}
+              onChange={(e) => setSettings({ ...settings, the_best_api_key: e.target.value })}
+              placeholder="Cole aqui a API KEY do seu perfil no painel The Best"
+            />
+            <p className="text-xs text-muted-foreground">
+              Quando preenchida, é usada no lugar do usuário e senha (header Api-Key).
+            </p>
+          </div>
 
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">

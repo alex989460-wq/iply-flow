@@ -8,6 +8,11 @@ const corsHeaders = {
 
 const DEFAULT_BASE_URL = 'https://api.painel.best';
 
+function authHeaders(token: string | null, apiKey: string | null): Record<string, string> {
+  if (apiKey) return { 'Api-Key': apiKey, 'Accept': 'application/json' };
+  return { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' };
+}
+
 async function getTheBestToken(baseUrl: string, username: string, password: string): Promise<string> {
   const resp = await fetch(`${baseUrl}/auth/token/`, {
     method: 'POST',
@@ -94,7 +99,7 @@ serve(async (req) => {
       console.log('[TheBest] Chamada interna autorizada pelo webhook da Cakto');
     }
 
-    const { action, username, months, customer_id, the_best_username, the_best_password, the_best_base_url } = await req.json();
+    const { action, username, months, customer_id, the_best_username, the_best_password, the_best_base_url, the_best_api_key } = await req.json();
 
     const isTest = action === 'test';
 
@@ -111,10 +116,11 @@ serve(async (req) => {
     // Determine credentials: passed directly (from webhook) or from reseller settings or global
     let tbUsername = the_best_username || '';
     let tbPassword = the_best_password || '';
+    let tbApiKey = the_best_api_key || '';
     let tbBaseUrl = (the_best_base_url || '').replace(/\/+$/, '') || DEFAULT_BASE_URL;
 
     // If not passed, try to load from reseller settings (dono do cliente ou o próprio chamador)
-    if (!tbUsername && (customer_id || callerUserId)) {
+    if (!tbUsername && !tbApiKey && (customer_id || callerUserId)) {
       const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
       if (serviceRoleKey) {
         const supabaseAdmin = createClient(Deno.env.get('SUPABASE_URL')!, serviceRoleKey, {
@@ -138,13 +144,14 @@ serve(async (req) => {
           for (const uid of candidates) {
             const { data: apiSettings } = await supabaseAdmin
               .from('reseller_api_settings')
-              .select('the_best_username, the_best_password, the_best_base_url')
+              .select('the_best_username, the_best_password, the_best_base_url, the_best_api_key')
               .eq('user_id', uid)
               .maybeSingle();
 
-            if (apiSettings?.the_best_username && apiSettings?.the_best_password) {
-              tbUsername = apiSettings.the_best_username;
-              tbPassword = apiSettings.the_best_password;
+            if (apiSettings?.the_best_api_key || (apiSettings?.the_best_username && apiSettings?.the_best_password)) {
+              tbApiKey = apiSettings.the_best_api_key || '';
+              tbUsername = apiSettings.the_best_username || '';
+              tbPassword = apiSettings.the_best_password || '';
               tbBaseUrl = (apiSettings.the_best_base_url || '').replace(/\/+$/, '') || DEFAULT_BASE_URL;
               console.log('[TheBest] Usando credenciais do revendedor');
               break;
@@ -154,15 +161,26 @@ serve(async (req) => {
       }
     }
 
-    if (!tbUsername || !tbPassword) {
+    if (!tbApiKey && (!tbUsername || !tbPassword)) {
       return new Response(
-        JSON.stringify({ error: 'Credenciais do The Best não configuradas. Configure usuário e senha nas configurações.' }),
+        JSON.stringify({ error: 'Credenciais do The Best não configuradas. Informe a Chave de API (Api-Key) ou usuário e senha nas configurações.' }),
         { status: 400, headers: jsonHeaders },
       );
     }
 
     if (isTest) {
       try {
+        if (tbApiKey) {
+          const r = await fetch(`${tbBaseUrl}/user/`, { headers: authHeaders(null, tbApiKey) });
+          const body = await r.text();
+          if (!r.ok) throw new Error(`Chave de API rejeitada (${r.status}): ${body.slice(0, 200)}`);
+          let who = '';
+          try { who = JSON.parse(body)?.username || ''; } catch { /* ignore */ }
+          return new Response(
+            JSON.stringify({ success: true, message: `Chave de API válida${who ? ` (${who})` : ''}` }),
+            { headers: jsonHeaders },
+          );
+        }
         await getTheBestToken(tbBaseUrl, tbUsername, tbPassword);
         return new Response(
           JSON.stringify({ success: true, message: `Login OK como ${tbUsername}` }),
@@ -177,10 +195,15 @@ serve(async (req) => {
     }
 
 
-    // Step 1: Login to get JWT token
-    console.log(`[TheBest] Fazendo login como: ${tbUsername}`);
-    const token = await getTheBestToken(tbBaseUrl, tbUsername, tbPassword);
-    console.log(`[TheBest] Token obtido com sucesso`);
+    // Step 1: authenticate (Api-Key header when available, otherwise JWT login)
+    let token: string | null = null;
+    if (tbApiKey) {
+      console.log('[TheBest] Usando Chave de API (header Api-Key)');
+    } else {
+      console.log(`[TheBest] Fazendo login como: ${tbUsername}`);
+      token = await getTheBestToken(tbBaseUrl, tbUsername, tbPassword);
+      console.log(`[TheBest] Token obtido com sucesso`);
+    }
 
     // Step 2: Search for the user by username (with fallback variants)
     const usernameCandidates = buildUsernameVariants(username);
@@ -197,7 +220,7 @@ serve(async (req) => {
 
       const searchResponse = await fetch(searchUrl, {
         method: 'GET',
-        headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' },
+        headers: authHeaders(token, tbApiKey),
       });
 
       if (!searchResponse.ok) {
@@ -253,11 +276,7 @@ serve(async (req) => {
 
     const renewResponse = await fetch(renewUrl, {
       method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-      },
+      headers: { ...authHeaders(token, tbApiKey), 'Content-Type': 'application/json' },
       body: JSON.stringify({ months: renewMonths }),
     });
 
