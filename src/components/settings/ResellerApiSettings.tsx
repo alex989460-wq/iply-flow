@@ -132,6 +132,12 @@ export default function ResellerApiSettings() {
         uniplay_username: settings.uniplay_username || '',
         uniplay_password: settings.uniplay_password || '',
         uniplay_base_url: settings.uniplay_base_url || '',
+        vplay_mysql_host: settings.vplay_mysql_host || null,
+        vplay_mysql_port: settings.vplay_mysql_port ? Number(settings.vplay_mysql_port) : null,
+        vplay_mysql_user: settings.vplay_mysql_user || null,
+        vplay_mysql_password: settings.vplay_mysql_password || null,
+        vplay_mysql_database: settings.vplay_mysql_database || null,
+
         updated_at: new Date().toISOString(),
       };
 
