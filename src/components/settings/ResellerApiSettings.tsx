@@ -50,6 +50,8 @@ export default function ResellerApiSettings() {
     uniplay_username: '',
     uniplay_password: '',
     uniplay_base_url: '',
+    vplay_panel_username: '',
+    vplay_panel_password: '',
     vplay_mysql_host: '',
     vplay_mysql_port: '3306',
     vplay_mysql_user: '',
