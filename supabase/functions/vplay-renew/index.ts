@@ -19,6 +19,8 @@ serve(async (req) => {
     const isInternalWebhookCall =
       !!configuredWebhookSecret && internalSecret === configuredWebhookSecret;
 
+    let callerId: string | null = null;
+
     if (!isInternalWebhookCall) {
       const authHeader = req.headers.get('Authorization');
       if (!authHeader?.startsWith('Bearer ')) {
@@ -39,6 +41,7 @@ serve(async (req) => {
           status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
+      callerId = user.id;
     } else {
       console.log('[VPlay] Chamada interna autorizada pelo webhook da Cakto');
     }
@@ -54,16 +57,65 @@ serve(async (req) => {
 
     console.log(`[VPlay] Renovando usuário: ${username}, nova data: ${new_due_date}`);
 
-    // Connect to VPlay MySQL database
-    const host = Deno.env.get('VPLAY_MYSQL_HOST');
-    const user = Deno.env.get('VPLAY_MYSQL_USER');
-    const password = Deno.env.get('VPLAY_MYSQL_PASSWORD');
-    const database = (Deno.env.get('VPLAY_MYSQL_DATABASE') || '').trim();
-    const port = Number.parseInt((Deno.env.get('VPLAY_MYSQL_PORT') || '3306').trim(), 10);
+    // 1) Credenciais MySQL próprias do revendedor (dono do cliente ou quem chamou)
+    let host = '';
+    let user = '';
+    let password = '';
+    let database = '';
+    let port = 3306;
+
+    const serviceRoleKeyForLookup = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    if (serviceRoleKeyForLookup) {
+      const lookupClient = createClient(Deno.env.get('SUPABASE_URL')!, serviceRoleKeyForLookup, {
+        auth: { autoRefreshToken: false, persistSession: false },
+      });
+
+      let ownerId: string | null = callerId;
+      if (customer_id) {
+        const { data: customerOwner } = await lookupClient
+          .from('customers')
+          .select('created_by')
+          .eq('id', customer_id)
+          .maybeSingle();
+        if (customerOwner?.created_by) ownerId = customerOwner.created_by;
+      }
+
+      if (ownerId) {
+        const { data: settings } = await lookupClient
+          .from('reseller_api_settings')
+          .select('vplay_mysql_host, vplay_mysql_port, vplay_mysql_user, vplay_mysql_password, vplay_mysql_database')
+          .eq('user_id', ownerId)
+          .maybeSingle();
+
+        if (settings?.vplay_mysql_host && settings?.vplay_mysql_user && settings?.vplay_mysql_password && settings?.vplay_mysql_database) {
+          host = String(settings.vplay_mysql_host).trim();
+          user = String(settings.vplay_mysql_user).trim();
+          password = String(settings.vplay_mysql_password);
+          database = String(settings.vplay_mysql_database).trim();
+          port = Number(settings.vplay_mysql_port) || 3306;
+          console.log('[VPlay] Usando credenciais MySQL do revendedor');
+        }
+      }
+    }
+
+    // 2) Fallback: credenciais globais
+    if (!host || !user || !password || !database) {
+      host = (Deno.env.get('VPLAY_MYSQL_HOST') || '').trim();
+      user = (Deno.env.get('VPLAY_MYSQL_USER') || '').trim();
+      password = Deno.env.get('VPLAY_MYSQL_PASSWORD') || '';
+      database = (Deno.env.get('VPLAY_MYSQL_DATABASE') || '').trim();
+      port = Number.parseInt((Deno.env.get('VPLAY_MYSQL_PORT') || '3306').trim(), 10);
+      if (host && user && password && database) {
+        console.log('[VPlay] Usando credenciais MySQL globais (fallback)');
+      }
+    }
 
     if (!host || !user || !password || !database) {
       return new Response(
-        JSON.stringify({ success: false, error: 'Credenciais MySQL do VPlay não configuradas' }),
+        JSON.stringify({
+          success: false,
+          error: 'Credenciais do painel VPlay não configuradas. Preencha host, usuário, senha e banco em Configurações > APIs dos Painéis.',
+        }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
       );
     }
@@ -73,6 +125,7 @@ serve(async (req) => {
       port: Number.isFinite(port) ? port : 3306,
       connectTimeout: 10000,
     });
+
 
     const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
     const supabaseAdmin = serviceRoleKey
