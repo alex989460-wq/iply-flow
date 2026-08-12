@@ -47,7 +47,13 @@ export default function ResellerApiSettings() {
     uniplay_username: '',
     uniplay_password: '',
     uniplay_base_url: '',
+    vplay_mysql_host: '',
+    vplay_mysql_port: '3306',
+    vplay_mysql_user: '',
+    vplay_mysql_password: '',
+    vplay_mysql_database: '',
   });
+
 
   const webhookUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/cakto-webhook`;
 
