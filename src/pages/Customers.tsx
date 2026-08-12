@@ -547,7 +547,7 @@ export default function Customers() {
           if (serverData) {
             const serverHost = serverData.host || '';
             const serverName = serverData.server_name || '';
-            const isTheBest = serverName.toLowerCase().includes('the best') || serverHost.toLowerCase().includes('the-best') || serverHost.toLowerCase().includes('painel.best');
+            const isTheBest = serverName.toLowerCase().includes('best') || serverHost.toLowerCase().includes('best');
             const isNatv = serverName.toLowerCase().includes('natv') || serverHost.toLowerCase().includes('pixbot') || serverHost.toLowerCase().includes('natv');
             const isVplay = serverName.toLowerCase().includes('vplay') || serverHost.toLowerCase().includes('vplay');
             const isRush = serverName.toLowerCase().includes('rush') || serverHost.toLowerCase().includes('rush');
@@ -730,7 +730,7 @@ export default function Customers() {
         try {
           const serverHost = (customer as any).servers?.host || '';
           const serverName = (customer as any).servers?.server_name || '';
-          const isTheBest = serverName.toLowerCase().includes('the best') || serverHost.toLowerCase().includes('the-best') || serverHost.toLowerCase().includes('painel.best');
+          const isTheBest = serverName.toLowerCase().includes('best') || serverHost.toLowerCase().includes('best');
           const isNatv = serverName.toLowerCase().includes('natv') || serverHost.toLowerCase().includes('pixbot') || serverHost.toLowerCase().includes('natv');
           const isVplay = serverName.toLowerCase().includes('vplay') || serverHost.toLowerCase().includes('vplay');
           const isRush = serverName.toLowerCase().includes('rush') || serverHost.toLowerCase().includes('rush');
@@ -1163,7 +1163,7 @@ export default function Customers() {
           try {
             const serverHost = (latestCustomer as any).servers?.host || '';
             const serverName = (latestCustomer as any).servers?.server_name || '';
-            const isTheBest = serverName.toLowerCase().includes('the best') || serverHost.toLowerCase().includes('the-best') || serverHost.toLowerCase().includes('painel.best');
+            const isTheBest = serverName.toLowerCase().includes('best') || serverHost.toLowerCase().includes('best');
             const isNatv = serverName.toLowerCase().includes('natv') || serverHost.toLowerCase().includes('pixbot') || serverHost.toLowerCase().includes('natv');
             const isVplay = serverName.toLowerCase().includes('vplay') || serverHost.toLowerCase().includes('vplay');
             const isRush = serverName.toLowerCase().includes('rush') || serverHost.toLowerCase().includes('rush');
