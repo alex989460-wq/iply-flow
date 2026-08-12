@@ -2762,6 +2762,7 @@ export type Database = {
           rush_password: string | null
           rush_token: string | null
           rush_username: string | null
+          the_best_api_key: string | null
           the_best_base_url: string | null
           the_best_password: string | null
           the_best_username: string | null
@@ -2785,6 +2786,7 @@ export type Database = {
           rush_password?: string | null
           rush_token?: string | null
           rush_username?: string | null
+          the_best_api_key?: string | null
           the_best_base_url?: string | null
           the_best_password?: string | null
           the_best_username?: string | null
@@ -2808,6 +2810,7 @@ export type Database = {
           rush_password?: string | null
           rush_token?: string | null
           rush_username?: string | null
+          the_best_api_key?: string | null
           the_best_base_url?: string | null
           the_best_password?: string | null
           the_best_username?: string | null
