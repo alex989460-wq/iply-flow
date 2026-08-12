@@ -173,17 +173,22 @@ serve(async (req) => {
         if (tbApiKey) {
           const r = await fetch(`${tbBaseUrl}/user/`, { headers: authHeaders(null, tbApiKey) });
           const body = await r.text();
-          if (!r.ok) throw new Error(`Chave de API rejeitada (${r.status}): ${body.slice(0, 200)}`);
-          let who = '';
-          try { who = JSON.parse(body)?.username || ''; } catch { /* ignore */ }
-          return new Response(
-            JSON.stringify({ success: true, message: `Chave de API válida${who ? ` (${who})` : ''}` }),
-            { headers: jsonHeaders },
-          );
+          if (r.ok) {
+            let who = '';
+            try { who = JSON.parse(body)?.username || ''; } catch { /* ignore */ }
+            return new Response(
+              JSON.stringify({ success: true, message: `Chave de API válida${who ? ` (${who})` : ''}` }),
+              { headers: jsonHeaders },
+            );
+          }
+          if (!(tbUsername && tbPassword)) {
+            throw new Error(`Chave de API rejeitada (${r.status}): ${body.slice(0, 200)}`);
+          }
+          console.log('[TheBest] Chave rejeitada, tentando login com usuário/senha');
         }
         await getTheBestToken(tbBaseUrl, tbUsername, tbPassword);
         return new Response(
-          JSON.stringify({ success: true, message: `Login OK como ${tbUsername}` }),
+          JSON.stringify({ success: true, message: `Login OK como ${tbUsername}${tbApiKey ? ' (chave de API inválida, usando usuário/senha)' : ''}` }),
           { headers: jsonHeaders },
         );
       } catch (e: any) {
@@ -198,7 +203,22 @@ serve(async (req) => {
     // Step 1: authenticate (Api-Key header when available, otherwise JWT login)
     let token: string | null = null;
     if (tbApiKey) {
-      console.log('[TheBest] Usando Chave de API (header Api-Key)');
+      // Valida a chave; se rejeitada e houver usuário/senha, cai para login JWT
+      try {
+        const probe = await fetch(`${tbBaseUrl}/user/`, { headers: authHeaders(null, tbApiKey) });
+        if (!probe.ok && tbUsername && tbPassword) {
+          console.log(`[TheBest] Chave de API rejeitada (${probe.status}); usando login usuário/senha`);
+          tbApiKey = '';
+          token = await getTheBestToken(tbBaseUrl, tbUsername, tbPassword);
+        } else {
+          console.log('[TheBest] Usando Chave de API (header Api-Key)');
+        }
+      } catch (_e) {
+        if (tbUsername && tbPassword) {
+          tbApiKey = '';
+          token = await getTheBestToken(tbBaseUrl, tbUsername, tbPassword);
+        }
+      }
     } else {
       console.log(`[TheBest] Fazendo login como: ${tbUsername}`);
       token = await getTheBestToken(tbBaseUrl, tbUsername, tbPassword);
