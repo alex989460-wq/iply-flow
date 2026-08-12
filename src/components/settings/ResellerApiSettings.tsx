@@ -119,19 +119,13 @@ export default function ResellerApiSettings() {
         updated_at: new Date().toISOString(),
       };
 
-      if (hasExisting) {
-        const { error } = await supabase
-          .from('reseller_api_settings' as any)
-          .update(payload)
-          .eq('user_id', user.id);
-        if (error) throw error;
-      } else {
-        const { error } = await supabase
-          .from('reseller_api_settings' as any)
-          .insert(payload);
-        if (error) throw error;
-        setHasExisting(true);
-      }
+      // Upsert evita erros de "duplicate key" / "0 linhas atualizadas"
+      // quando o registro do revendedor já existe (ou foi criado em outra aba).
+      const { error } = await supabase
+        .from('reseller_api_settings' as any)
+        .upsert(payload, { onConflict: 'user_id' });
+      if (error) throw error;
+      setHasExisting(true);
 
       toast({ title: 'Sucesso', description: 'Configurações de API salvas!' });
     } catch (err: any) {
