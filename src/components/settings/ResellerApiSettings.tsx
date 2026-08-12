@@ -472,6 +472,11 @@ export default function ResellerApiSettings() {
               Padrão: https://api.painel.best
             </p>
           </div>
+
+          <Button variant="outline" onClick={testTheBest} disabled={testingTheBest}>
+            {testingTheBest ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <CheckCircle2 className="w-4 h-4 mr-2" />}
+            Testar conexão
+          </Button>
         </CardContent>
       </Card>
 
