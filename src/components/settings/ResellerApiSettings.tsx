@@ -142,6 +142,31 @@ export default function ResellerApiSettings() {
     toast({ title: 'Copiado!', description: `${label} copiado para a área de transferência` });
   };
 
+  const testTheBest = async () => {
+    if (!settings.the_best_username || !settings.the_best_password) {
+      toast({ title: 'Erro', description: 'Preencha usuário e senha do painel The Best', variant: 'destructive' });
+      return;
+    }
+    setTestingTheBest(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('the-best-renew', {
+        body: {
+          action: 'test',
+          the_best_username: settings.the_best_username,
+          the_best_password: settings.the_best_password,
+          the_best_base_url: settings.the_best_base_url,
+        },
+      });
+      if (error) throw error;
+      if (!data?.success) throw new Error(data?.error || 'Falha no login');
+      toast({ title: 'Conexão OK', description: data.message || 'Credenciais válidas' });
+    } catch (err: any) {
+      toast({ title: 'Falha na conexão', description: err.message || String(err), variant: 'destructive' });
+    } finally {
+      setTestingTheBest(false);
+    }
+  };
+
   const testUniplay = async () => {
     if (!settings.uniplay_username || !settings.uniplay_password) {
       toast({ title: 'Erro', description: 'Preencha usuário e senha do Uniplay', variant: 'destructive' });
