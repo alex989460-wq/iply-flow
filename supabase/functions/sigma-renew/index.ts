@@ -107,9 +107,9 @@ Deno.serve(async (req) => {
       .eq("user_id", ownerId)
       .maybeSingle();
 
-    const base = normBase((cfg as any)?.sigma_base_url || "");
-    const user = String((cfg as any)?.sigma_username || "").trim();
-    const pass = String((cfg as any)?.sigma_password || "");
+    const base = normBase(action === "test" ? (body.sigma_base_url || (cfg as any)?.sigma_base_url || "") : ((cfg as any)?.sigma_base_url || ""));
+    const user = String(action === "test" ? (body.sigma_username || (cfg as any)?.sigma_username || "") : ((cfg as any)?.sigma_username || "")).trim();
+    const pass = String(action === "test" ? (body.sigma_password || (cfg as any)?.sigma_password || "") : ((cfg as any)?.sigma_password || ""));
     if (!base || !user || !pass) {
       return json({ error: "Credenciais do Painel Sigma não configuradas. Preencha URL, usuário e senha em Configurações → APIs." }, 400);
     }

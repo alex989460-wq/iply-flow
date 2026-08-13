@@ -29,6 +29,7 @@ export default function ResellerApiSettings() {
   const [showVplayDbPassword, setShowVplayDbPassword] = useState(false);
   const [showSigmaPassword, setShowSigmaPassword] = useState(false);
   const [testingSigma, setTestingSigma] = useState(false);
+  const [testingVplay, setTestingVplay] = useState(false);
 
   const [testingUniplay, setTestingUniplay] = useState(false);
   const [testingTheBest, setTestingTheBest] = useState(false);
@@ -271,10 +272,28 @@ export default function ResellerApiSettings() {
   const hasSigma = !!settings.sigma_base_url && !!settings.sigma_username && !!settings.sigma_password;
 
   const handleTestSigma = async () => {
+    if (!settings.sigma_base_url.trim() || !settings.sigma_username.trim() || !settings.sigma_password) {
+      toast({ title: 'Dados incompletos', description: 'Informe a URL, o usuário e a senha do Sigma.', variant: 'destructive' });
+      return;
+    }
     setTestingSigma(true);
     try {
-      const { data, error } = await supabase.functions.invoke('sigma-renew', { body: { action: 'test' } });
-      if (error) throw error;
+      const { data, error } = await supabase.functions.invoke('sigma-renew', {
+        body: {
+          action: 'test',
+          sigma_base_url: settings.sigma_base_url.trim(),
+          sigma_username: settings.sigma_username.trim(),
+          sigma_password: settings.sigma_password,
+        },
+      });
+      if (error) {
+        const response = (error as any)?.context;
+        if (response instanceof Response) {
+          const detail = await response.json().catch(() => null);
+          throw new Error(detail?.error || error.message);
+        }
+        throw error;
+      }
       if ((data as any)?.error) throw new Error((data as any).error);
       const servers = (data as any)?.servers || [];
       toast({
@@ -294,6 +313,37 @@ export default function ResellerApiSettings() {
 
   const hasVplay = (!!settings.vplay_panel_username && !!settings.vplay_panel_password)
     || (!!settings.vplay_mysql_host && !!settings.vplay_mysql_user && !!settings.vplay_mysql_password && !!settings.vplay_mysql_database);
+
+  const handleTestVplay = async () => {
+    if (!settings.vplay_panel_username.trim() || !settings.vplay_panel_password) {
+      toast({ title: 'Dados incompletos', description: 'Informe o usuário e a senha do painel VPlay.', variant: 'destructive' });
+      return;
+    }
+    setTestingVplay(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('vplay-renew', {
+        body: {
+          action: 'test',
+          vplay_panel_username: settings.vplay_panel_username.trim(),
+          vplay_panel_password: settings.vplay_panel_password,
+        },
+      });
+      if (error) {
+        const response = (error as any)?.context;
+        if (response instanceof Response) {
+          const detail = await response.json().catch(() => null);
+          throw new Error(detail?.error || error.message);
+        }
+        throw error;
+      }
+      if (!data?.success) throw new Error(data?.error || 'Não foi possível validar a conexão VPlay.');
+      toast({ title: 'Conexão VPlay OK', description: data.message || 'Painel e servidor disponíveis.' });
+    } catch (e: any) {
+      toast({ title: 'Falha ao conectar no VPlay', description: e?.message || 'Confira o usuário e a senha.', variant: 'destructive' });
+    } finally {
+      setTestingVplay(false);
+    }
+  };
 
 
   return (
@@ -739,6 +789,10 @@ export default function ResellerApiSettings() {
               Basta informar o seu usuário e senha do painel VPlay. A conexão com o servidor já está configurada pelo sistema.
             </AlertDescription>
           </Alert>
+          <Button variant="outline" onClick={handleTestVplay} disabled={testingVplay}>
+            {testingVplay ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <CheckCircle2 className="w-4 h-4 mr-2" />}
+            Testar conexão VPlay
+          </Button>
         </CardContent>
       </Card>
 
