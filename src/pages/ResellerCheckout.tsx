@@ -108,6 +108,9 @@ export default function ResellerCheckout() {
 
   const [creating, setCreating] = useState(false);
   const [pix, setPix] = useState<{ txid: string; qr: string; copy: string; amount: number } | null>(null);
+  const [coupon, setCoupon] = useState('');
+  const [couponInfo, setCouponInfo] = useState<{ code: string; amount: number; discount: number } | null>(null);
+  const [checkingCoupon, setCheckingCoupon] = useState(false);
   const [paid, setPaid] = useState(false);
 
   useEffect(() => {
@@ -223,6 +226,31 @@ export default function ResellerCheckout() {
     setStep('method');
   };
 
+  const validateCoupon = async () => {
+    setCheckingCoupon(true);
+    try {
+      const base = selectedIds.reduce((s, id) => {
+        const c = customers.find(x => x.id === id);
+        return s + Number((c as any)?.custom_price ?? group?.pix?.price ?? group?.card?.price ?? 0);
+      }, 0);
+
+      const res = await fetch(`${FN_BASE}/reseller-checkout-charge`, {
+        method: 'POST',
+        headers: { apikey: ANON, Authorization: `Bearer ${ANON}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'validate_coupon', slug, coupon_code: coupon.trim(), amount: base }),
+      });
+      const j = await res.json();
+      if (!res.ok || j.error) throw new Error(j.error || 'Cupom inválido');
+      setCouponInfo({ code: j.coupon.code, amount: Number(j.amount ?? base), discount: Number(j.discount ?? 0) });
+      toast.success('Cupom aplicado com sucesso!');
+    } catch (e: any) {
+      setCouponInfo(null);
+      toast.error(e.message || 'Cupom inválido');
+    } finally {
+      setCheckingCoupon(false);
+    }
+  };
+
   const pay = async (method: 'pix' | 'cakto' | 'cakto_card') => {
     if (!group) return;
     let plan: Plan | undefined;
@@ -238,6 +266,7 @@ export default function ResellerCheckout() {
         body: JSON.stringify({
           action: 'create', slug, plan_id: plan.id, method,
           customer_ids: selectedIds,
+          coupon_code: coupon.trim() || undefined,
         }),
       });
       const j = await res.json();
@@ -546,7 +575,34 @@ export default function ResellerCheckout() {
             <>
               <p className="text-sm text-white/70">Plano <b className="text-white">{durationLabel(group.duration_days)}</b> — {group.screens} tela(s)</p>
               <p className="text-sm text-white/70">Renovando <b className="text-white">{selectedIds.length}</b> conta(s) ({totalSelectedScreens} tela(s))</p>
+              {/* Cupom de desconto */}
+              <div className="rounded-lg border border-white/10 bg-white/[0.03] p-3 space-y-2">
+                <p className="text-xs font-bold text-white/70 tracking-wide">CUPOM DE DESCONTO</p>
+                <div className="flex gap-2">
+                  <input
+                    value={coupon}
+                    onChange={(e) => { setCoupon(e.target.value.toUpperCase().replace(/\s/g, '')); setCouponInfo(null); }}
+                    placeholder="Digite seu cupom"
+                    className="flex-1 h-10 rounded-lg bg-black/30 border border-white/10 px-3 text-sm outline-none focus:border-white/30"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={checkingCoupon || !coupon.trim()}
+                    onClick={validateCoupon}
+                    className="h-10 bg-transparent border-white/15 text-white hover:bg-white/5"
+                  >
+                    {checkingCoupon ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Aplicar'}
+                  </Button>
+                </div>
+                {couponInfo && (
+                  <p className="text-xs text-emerald-400">
+                    Cupom {couponInfo.code} aplicado — você economiza {fmtBRL(couponInfo.discount)} (total: {fmtBRL(couponInfo.amount)}).
+                  </p>
+                )}
+              </div>
               <p className="text-sm text-white/80 font-semibold pt-1">Escolha a forma de pagamento:</p>
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {data.methods.efi && group.pix && (
                   <button onClick={() => pay('pix')} disabled={creating}
@@ -556,7 +612,7 @@ export default function ResellerCheckout() {
                     </div>
                     <p className="font-bold text-sm tracking-wide">PIX INSTANTÂNEO</p>
                     <p className="text-[10px] text-white/50 -mt-1">Aprovação imediata</p>
-                    <p className="text-xl font-extrabold">{fmtBRL(pixTotal || group.pix.price)}</p>
+                    <p className="text-xl font-extrabold">{fmtBRL(couponInfo ? couponInfo.amount : (pixTotal || group.pix.price))}</p>
                   </button>
                 )}
                 {data.methods.cakto && (group.pix?.card_url || group.card?.cakto_url) && (
@@ -578,7 +634,7 @@ export default function ResellerCheckout() {
                     </div>
                     <p className="font-bold text-sm tracking-wide">PIX (CAKTO)</p>
                     <p className="text-[10px] text-white/50 -mt-1">Link Cakto</p>
-                    <p className="text-xl font-extrabold">{fmtBRL(pixTotal || group.pix.price)}</p>
+                    <p className="text-xl font-extrabold">{fmtBRL(couponInfo ? couponInfo.amount : (pixTotal || group.pix.price))}</p>
                   </button>
                 )}
               </div>

@@ -6,6 +6,7 @@ export type PanelType =
   | 'thebest'
   | 'uniplay'
   | 'p2cine'
+  | 'sigma'
   | 'none';
 
 export const PANEL_OPTIONS: { value: PanelType | 'auto'; label: string }[] = [
@@ -17,10 +18,12 @@ export const PANEL_OPTIONS: { value: PanelType | 'auto'; label: string }[] = [
   { value: 'thebest', label: 'The Best' },
   { value: 'uniplay', label: 'Uniplay' },
   { value: 'p2cine', label: 'P2Cine' },
+  { value: 'sigma', label: 'Sigma' },
   { value: 'none', label: 'Nenhum (renovar só no sistema)' },
 ];
 
-const VALID: PanelType[] = ['natv', 'natv2', 'vplay', 'rush', 'thebest', 'uniplay', 'p2cine', 'none'];
+const VALID: PanelType[] = ['natv', 'natv2', 'vplay', 'rush', 'thebest', 'uniplay', 'p2cine', 'sigma', 'none'];
+
 
 /**
  * Resolve qual painel externo deve ser usado para um servidor.

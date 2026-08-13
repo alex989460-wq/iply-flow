@@ -36,6 +36,36 @@ function phoneVariants(raw: string): string[] {
   return Array.from(set);
 }
 
+/** Busca e valida um cupom do revendedor. Retorna null se inválido. */
+async function findCoupon(admin: any, ownerId: string, rawCode: string) {
+  const code = String(rawCode || "").trim().toUpperCase();
+  if (!code) return null;
+  const { data } = await admin
+    .from("discount_coupons")
+    .select("id, code, discount_type, discount_value, is_active, max_uses, used_count, expires_at")
+    .eq("owner_id", ownerId)
+    .ilike("code", code)
+    .maybeSingle();
+  if (!data) return { error: "Cupom não encontrado." };
+  if (!data.is_active) return { error: "Este cupom está desativado." };
+  if (data.expires_at && new Date(data.expires_at).getTime() < Date.now()) {
+    return { error: "Este cupom expirou." };
+  }
+  if (data.max_uses != null && Number(data.used_count) >= Number(data.max_uses)) {
+    return { error: "Este cupom atingiu o limite de usos." };
+  }
+  return { coupon: data };
+}
+
+function applyDiscount(amount: number, coupon: any) {
+  const value = Number(coupon.discount_value || 0);
+  const discount = coupon.discount_type === "fixed"
+    ? value
+    : (amount * value) / 100;
+  const final = Math.max(0.01, Math.round((amount - discount) * 100) / 100);
+  return { final, discount: Math.round((amount - final) * 100) / 100 };
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: cors });
   if (req.method !== "POST") return json({ error: "method_not_allowed" }, 405);
@@ -58,6 +88,26 @@ Deno.serve(async (req) => {
       if (!charge) return json({ error: "not_found" }, 404);
       return json({ status: charge.status, paid_at: charge.paid_at });
     }
+
+    // ---- validate_coupon ----
+    if (action === "validate_coupon") {
+      const slug0 = String(body.slug || "").trim().toLowerCase();
+      const { data: st } = await admin
+        .from("reseller_checkout_settings").select("user_id, is_active").eq("slug", slug0).maybeSingle();
+      if (!st || !st.is_active) return json({ error: "Revendedor não encontrado." }, 404);
+      const res = await findCoupon(admin, st.user_id, body.coupon_code || body.code);
+      if (!res || (res as any).error) return json({ error: (res as any)?.error || "Cupom inválido." }, 400);
+      const c = (res as any).coupon;
+      const base = Number(body.amount || 0);
+      const preview = base > 0 ? applyDiscount(base, c) : null;
+      return json({
+        ok: true,
+        coupon: { code: c.code, discount_type: c.discount_type, discount_value: Number(c.discount_value) },
+        amount: preview?.final ?? null,
+        discount: preview?.discount ?? null,
+      });
+    }
+
 
     // ---- create ----
     const slug = String(body.slug || "").trim().toLowerCase();
@@ -154,6 +204,20 @@ Deno.serve(async (req) => {
     }
     amount = Math.round(amount * 100) / 100;
 
+    // ---- cupom de desconto (opcional) ----
+    let appliedCoupon: any = null;
+    let discountValue = 0;
+    const couponCode = String(body.coupon_code || body.coupon || "").trim();
+    if (couponCode) {
+      const res = await findCoupon(admin, ownerId, couponCode);
+      if (!res || (res as any).error) return json({ error: (res as any)?.error || "Cupom inválido." }, 400);
+      appliedCoupon = (res as any).coupon;
+      const applied = applyDiscount(amount, appliedCoupon);
+      discountValue = applied.discount;
+      amount = applied.final;
+    }
+
+
     const { data: efi } = await admin
       .from("efi_settings").select("*").eq("user_id", ownerId).eq("enabled", true).maybeSingle();
     if (!efi) return json({ error: "efi_not_configured" }, 400);
@@ -197,17 +261,29 @@ Deno.serve(async (req) => {
         checkout_codes: customers.map((c: any) => c.checkout_code).filter(Boolean),
         usernames: customers.map((c: any) => c.username || c.name),
         screens: customers.map((c: any) => c.screens || 1),
+        coupon_code: appliedCoupon?.code || null,
+        discount: discountValue || 0,
       },
       expires_at: new Date(Date.now() + 86400_000).toISOString(),
     });
+
+    if (appliedCoupon) {
+      await admin
+        .from("discount_coupons")
+        .update({ used_count: Number(appliedCoupon.used_count || 0) + 1 })
+        .eq("id", appliedCoupon.id);
+    }
 
     return json({
       ok: true,
       method: "pix",
       txid,
       amount,
+      discount: discountValue || 0,
+      coupon_code: appliedCoupon?.code || null,
       pix_copia_cola: cob.body?.pixCopiaECola || "",
       qrcode_base64: qrcodeBase64,
+
     });
   } catch (err) {
     console.error("[reseller-checkout-charge]", err);

@@ -27,6 +27,8 @@ export default function ResellerApiSettings() {
   const [showUniplayPassword, setShowUniplayPassword] = useState(false);
   const [showVplayPassword, setShowVplayPassword] = useState(false);
   const [showVplayDbPassword, setShowVplayDbPassword] = useState(false);
+  const [showSigmaPassword, setShowSigmaPassword] = useState(false);
+  const [testingSigma, setTestingSigma] = useState(false);
 
   const [testingUniplay, setTestingUniplay] = useState(false);
   const [testingTheBest, setTestingTheBest] = useState(false);
@@ -57,6 +59,9 @@ export default function ResellerApiSettings() {
     vplay_mysql_user: '',
     vplay_mysql_password: '',
     vplay_mysql_database: '',
+    sigma_base_url: '',
+    sigma_username: '',
+    sigma_password: '',
   });
 
 
@@ -105,6 +110,9 @@ export default function ResellerApiSettings() {
           vplay_mysql_user: d.vplay_mysql_user || '',
           vplay_mysql_password: d.vplay_mysql_password || '',
           vplay_mysql_database: d.vplay_mysql_database || '',
+          sigma_base_url: (d as any).sigma_base_url || '',
+          sigma_username: (d as any).sigma_username || '',
+          sigma_password: (d as any).sigma_password || '',
         });
 
       }
@@ -146,6 +154,9 @@ export default function ResellerApiSettings() {
         vplay_mysql_user: settings.vplay_mysql_user || null,
         vplay_mysql_password: settings.vplay_mysql_password || null,
         vplay_mysql_database: settings.vplay_mysql_database || null,
+        sigma_base_url: settings.sigma_base_url || null,
+        sigma_username: settings.sigma_username || null,
+        sigma_password: settings.sigma_password || null,
         updated_at: new Date().toISOString(),
       };
 
@@ -257,6 +268,30 @@ export default function ResellerApiSettings() {
   const hasTheBest = !!settings.the_best_api_key || (!!settings.the_best_username && !!settings.the_best_password);
   const hasRush = !!settings.rush_username && !!settings.rush_password && !!settings.rush_token;
   const hasUniplay = !!settings.uniplay_username && !!settings.uniplay_password;
+  const hasSigma = !!settings.sigma_base_url && !!settings.sigma_username && !!settings.sigma_password;
+
+  const handleTestSigma = async () => {
+    setTestingSigma(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('sigma-renew', { body: { action: 'test' } });
+      if (error) throw error;
+      if ((data as any)?.error) throw new Error((data as any).error);
+      const servers = (data as any)?.servers || [];
+      toast({
+        title: 'Conexão Sigma OK',
+        description: `Conectado como ${(data as any)?.username || ''} • ${servers.length} servidor(es) disponível(is).`,
+      });
+    } catch (e: any) {
+      toast({
+        title: 'Falha ao conectar no Sigma',
+        description: e?.message || 'Verifique URL, usuário e senha e salve antes de testar.',
+        variant: 'destructive',
+      });
+    } finally {
+      setTestingSigma(false);
+    }
+  };
+
   const hasVplay = (!!settings.vplay_panel_username && !!settings.vplay_panel_password)
     || (!!settings.vplay_mysql_host && !!settings.vplay_mysql_user && !!settings.vplay_mysql_password && !!settings.vplay_mysql_database);
 
@@ -701,51 +736,54 @@ export default function ResellerApiSettings() {
           <Alert className="bg-muted/50">
             <AlertCircle className="h-4 w-4" />
             <AlertDescription className="text-xs">
-              <strong>Avançado:</strong> Os campos abaixo são para conexão direta ao banco de dados MySQL. Preencha apenas se souber o que está fazendo.
+              Basta informar o seu usuário e senha do painel VPlay. A conexão com o servidor já está configurada pelo sistema.
             </AlertDescription>
           </Alert>
+        </CardContent>
+      </Card>
 
+      {/* Sigma */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Key className="w-5 h-5 text-violet-500" />
+            Painel Sigma
+            {hasSigma && <CheckCircle2 className="w-5 h-5 text-green-500" />}
+          </CardTitle>
+          <CardDescription>
+            Conecte qualquer painel Sigma (ex.: painel.newbr.top) para gerar testes e renovar clientes automaticamente.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="sigma_base_url">URL do Painel</Label>
+            <Input
+              id="sigma_base_url"
+              value={settings.sigma_base_url}
+              onChange={(e) => setSettings({ ...settings, sigma_base_url: e.target.value })}
+              placeholder="https://painel.seudominio.top"
+            />
+          </div>
 
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
-              <Label htmlFor="vplay_host">Host</Label>
+              <Label htmlFor="sigma_username">Usuário</Label>
               <Input
-                id="vplay_host"
-                value={settings.vplay_mysql_host}
-                onChange={(e) => setSettings({ ...settings, vplay_mysql_host: e.target.value })}
-                placeholder="Endereço do seu painel VPlay"
+                id="sigma_username"
+                value={settings.sigma_username}
+                onChange={(e) => setSettings({ ...settings, sigma_username: e.target.value })}
+                placeholder="Seu usuário no painel Sigma"
               />
             </div>
-
             <div className="space-y-2">
-              <Label htmlFor="vplay_port">Porta</Label>
-              <Input
-                id="vplay_port"
-                value={settings.vplay_mysql_port}
-                onChange={(e) => setSettings({ ...settings, vplay_mysql_port: e.target.value.replace(/\D/g, '') })}
-                placeholder="3306"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="vplay_user">Usuário da Revenda</Label>
-              <Input
-                id="vplay_user"
-                value={settings.vplay_mysql_user}
-                onChange={(e) => setSettings({ ...settings, vplay_mysql_user: e.target.value })}
-                placeholder="Seu usuário do painel VPlay"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="vplay_db_password">Senha do Banco de Dados</Label>
+              <Label htmlFor="sigma_password">Senha</Label>
               <div className="relative">
                 <Input
-                  id="vplay_db_password"
-                  type={showVplayDbPassword ? 'text' : 'password'}
-                  value={settings.vplay_mysql_password}
-                  onChange={(e) => setSettings({ ...settings, vplay_mysql_password: e.target.value })}
-                  placeholder="Senha do banco de dados"
+                  id="sigma_password"
+                  type={showSigmaPassword ? 'text' : 'password'}
+                  value={settings.sigma_password}
+                  onChange={(e) => setSettings({ ...settings, sigma_password: e.target.value })}
+                  placeholder="Sua senha no painel Sigma"
                   className="pr-10"
                 />
                 <Button
@@ -753,25 +791,29 @@ export default function ResellerApiSettings() {
                   variant="ghost"
                   size="icon"
                   className="absolute right-0 top-0 h-full"
-                  onClick={() => setShowVplayDbPassword(!showVplayDbPassword)}
+                  onClick={() => setShowSigmaPassword(!showSigmaPassword)}
                 >
-                  {showVplayDbPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  {showSigmaPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </Button>
               </div>
             </div>
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="vplay_database">Banco de Dados</Label>
-            <Input
-              id="vplay_database"
-              value={settings.vplay_mysql_database}
-              onChange={(e) => setSettings({ ...settings, vplay_mysql_database: e.target.value })}
-              placeholder="Nome do banco do painel"
-            />
-          </div>
+          <Button variant="outline" onClick={handleTestSigma} disabled={testingSigma}>
+            {testingSigma ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <CheckCircle2 className="w-4 h-4 mr-2" />}
+            Testar conexão Sigma
+          </Button>
+
+          <Alert className="bg-muted/50">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription className="text-xs">
+              Deixe em branco se você não usa Sigma. Depois de salvar, marque o painel "Sigma" no cadastro do servidor
+              para que as renovações e testes usem essa integração.
+            </AlertDescription>
+          </Alert>
         </CardContent>
       </Card>
+
 
 
       <div className="flex justify-end">
