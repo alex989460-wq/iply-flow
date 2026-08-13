@@ -698,7 +698,7 @@ export default function ResellerApiSettings() {
             </div>
           </div>
 
-          <Alert variant="secondary" className="bg-muted/50">
+          <Alert className="bg-muted/50">
             <AlertCircle className="h-4 w-4" />
             <AlertDescription className="text-xs">
               <strong>Avançado:</strong> Os campos abaixo são para conexão direta ao banco de dados MySQL. Preencha apenas se souber o que está fazendo.
