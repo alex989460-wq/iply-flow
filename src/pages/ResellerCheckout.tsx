@@ -114,7 +114,11 @@ export default function ResellerCheckout() {
   const [checkingCoupon, setCheckingCoupon] = useState(false);
   const [paid, setPaid] = useState(false);
 
+  const [registeredCid, setRegisteredCid] = useState<string | null>(null);
+
   useEffect(() => {
+    const cid = searchParams.get('cid');
+    if (cid) setRegisteredCid(cid);
     const registeredPhone = searchParams.get('phone')?.replace(/\D/g, '') || '';
     const country = COUNTRIES.find((item) => registeredPhone.startsWith(item.ddi));
     if (!registeredPhone || !country) return;
