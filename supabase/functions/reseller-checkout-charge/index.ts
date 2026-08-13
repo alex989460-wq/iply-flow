@@ -36,6 +36,36 @@ function phoneVariants(raw: string): string[] {
   return Array.from(set);
 }
 
+/** Busca e valida um cupom do revendedor. Retorna null se inválido. */
+async function findCoupon(admin: any, ownerId: string, rawCode: string) {
+  const code = String(rawCode || "").trim().toUpperCase();
+  if (!code) return null;
+  const { data } = await admin
+    .from("discount_coupons")
+    .select("id, code, discount_type, discount_value, is_active, max_uses, used_count, expires_at")
+    .eq("owner_id", ownerId)
+    .ilike("code", code)
+    .maybeSingle();
+  if (!data) return { error: "Cupom não encontrado." };
+  if (!data.is_active) return { error: "Este cupom está desativado." };
+  if (data.expires_at && new Date(data.expires_at).getTime() < Date.now()) {
+    return { error: "Este cupom expirou." };
+  }
+  if (data.max_uses != null && Number(data.used_count) >= Number(data.max_uses)) {
+    return { error: "Este cupom atingiu o limite de usos." };
+  }
+  return { coupon: data };
+}
+
+function applyDiscount(amount: number, coupon: any) {
+  const value = Number(coupon.discount_value || 0);
+  const discount = coupon.discount_type === "fixed"
+    ? value
+    : (amount * value) / 100;
+  const final = Math.max(0.01, Math.round((amount - discount) * 100) / 100);
+  return { final, discount: Math.round((amount - final) * 100) / 100 };
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: cors });
   if (req.method !== "POST") return json({ error: "method_not_allowed" }, 405);
@@ -58,6 +88,26 @@ Deno.serve(async (req) => {
       if (!charge) return json({ error: "not_found" }, 404);
       return json({ status: charge.status, paid_at: charge.paid_at });
     }
+
+    // ---- validate_coupon ----
+    if (action === "validate_coupon") {
+      const slug0 = String(body.slug || "").trim().toLowerCase();
+      const { data: st } = await admin
+        .from("reseller_checkout_settings").select("user_id, is_active").eq("slug", slug0).maybeSingle();
+      if (!st || !st.is_active) return json({ error: "Revendedor não encontrado." }, 404);
+      const res = await findCoupon(admin, st.user_id, body.coupon_code || body.code);
+      if (!res || (res as any).error) return json({ error: (res as any)?.error || "Cupom inválido." }, 400);
+      const c = (res as any).coupon;
+      const base = Number(body.amount || 0);
+      const preview = base > 0 ? applyDiscount(base, c) : null;
+      return json({
+        ok: true,
+        coupon: { code: c.code, discount_type: c.discount_type, discount_value: Number(c.discount_value) },
+        amount: preview?.final ?? null,
+        discount: preview?.discount ?? null,
+      });
+    }
+
 
     // ---- create ----
     const slug = String(body.slug || "").trim().toLowerCase();
