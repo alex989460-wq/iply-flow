@@ -195,7 +195,7 @@ export default function ResellerCheckout() {
       const res = await fetch(`${FN_BASE}/reseller-checkout-lookup`, {
         method: 'POST',
         headers: { apikey: ANON, Authorization: `Bearer ${ANON}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ slug, phone: fullPhone }),
+        body: JSON.stringify({ slug, phone: fullPhone, customer_id: registeredCid || undefined }),
       });
       const j = await res.json();
       if (!res.ok) throw new Error(j.error || 'Falha');
