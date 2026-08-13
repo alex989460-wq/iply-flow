@@ -546,7 +546,34 @@ export default function ResellerCheckout() {
             <>
               <p className="text-sm text-white/70">Plano <b className="text-white">{durationLabel(group.duration_days)}</b> — {group.screens} tela(s)</p>
               <p className="text-sm text-white/70">Renovando <b className="text-white">{selectedIds.length}</b> conta(s) ({totalSelectedScreens} tela(s))</p>
+              {/* Cupom de desconto */}
+              <div className="rounded-lg border border-white/10 bg-white/[0.03] p-3 space-y-2">
+                <p className="text-xs font-bold text-white/70 tracking-wide">CUPOM DE DESCONTO</p>
+                <div className="flex gap-2">
+                  <input
+                    value={coupon}
+                    onChange={(e) => { setCoupon(e.target.value.toUpperCase().replace(/\s/g, '')); setCouponInfo(null); }}
+                    placeholder="Digite seu cupom"
+                    className="flex-1 h-10 rounded-lg bg-black/30 border border-white/10 px-3 text-sm outline-none focus:border-white/30"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={checkingCoupon || !coupon.trim()}
+                    onClick={validateCoupon}
+                    className="h-10 bg-transparent border-white/15 text-white hover:bg-white/5"
+                  >
+                    {checkingCoupon ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Aplicar'}
+                  </Button>
+                </div>
+                {couponInfo && (
+                  <p className="text-xs text-emerald-400">
+                    Cupom {couponInfo.code} aplicado — você economiza {fmtBRL(couponInfo.discount)} (total: {fmtBRL(couponInfo.amount)}).
+                  </p>
+                )}
+              </div>
               <p className="text-sm text-white/80 font-semibold pt-1">Escolha a forma de pagamento:</p>
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {data.methods.efi && group.pix && (
                   <button onClick={() => pay('pix')} disabled={creating}
