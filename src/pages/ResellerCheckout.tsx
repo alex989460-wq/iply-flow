@@ -229,7 +229,11 @@ export default function ResellerCheckout() {
   const validateCoupon = async () => {
     setCheckingCoupon(true);
     try {
-      const base = pixTotalRef.current;
+      const base = selectedIds.reduce((s, id) => {
+        const c = customers.find(x => x.id === id);
+        return s + Number((c as any)?.custom_price ?? group?.pix?.price ?? group?.card?.price ?? 0);
+      }, 0);
+
       const res = await fetch(`${FN_BASE}/reseller-checkout-charge`, {
         method: 'POST',
         headers: { apikey: ANON, Authorization: `Bearer ${ANON}`, 'Content-Type': 'application/json' },
