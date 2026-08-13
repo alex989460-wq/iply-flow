@@ -30,6 +30,8 @@ export default function BillingSettings() {
 
         <EfiSettingsCard />
         <ResellerCheckoutCard />
+        <DiscountCouponsCard />
+
       </div>
     </DashboardLayout>
   );
