@@ -3004,6 +3004,42 @@ export type Database = {
           },
         ]
       }
+      sigma_panel_connections: {
+        Row: {
+          base_url: string
+          created_at: string
+          id: string
+          is_active: boolean
+          name: string
+          password: string
+          updated_at: string
+          user_id: string
+          username: string
+        }
+        Insert: {
+          base_url: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name: string
+          password: string
+          updated_at?: string
+          user_id: string
+          username: string
+        }
+        Update: {
+          base_url?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          password?: string
+          updated_at?: string
+          user_id?: string
+          username?: string
+        }
+        Relationships: []
+      }
       suppressed_emails: {
         Row: {
           created_at: string
