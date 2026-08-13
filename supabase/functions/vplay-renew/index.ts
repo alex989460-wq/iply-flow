@@ -65,6 +65,8 @@ serve(async (req) => {
     let password = '';
     let database = '';
     let port = 3306;
+    let ownerId: string | null = callerId;
+    let vplayPanelUsername = '';
 
     const serviceRoleKeyForLookup = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
     if (serviceRoleKeyForLookup) {
@@ -72,7 +74,6 @@ serve(async (req) => {
         auth: { autoRefreshToken: false, persistSession: false },
       });
 
-      let ownerId: string | null = callerId;
       if (customer_id) {
         const { data: customerOwner } = await lookupClient
           .from('customers')
@@ -89,8 +90,7 @@ serve(async (req) => {
           .eq('user_id', ownerId)
           .maybeSingle();
 
-        const vplay_panel_username = settings?.vplay_panel_username;
-        const vplay_panel_password = settings?.vplay_panel_password;
+        vplayPanelUsername = String(settings?.vplay_panel_username || '').trim();
 
         if (settings?.vplay_mysql_host && settings?.vplay_mysql_user && settings?.vplay_mysql_password && settings?.vplay_mysql_database) {
           host = String(settings.vplay_mysql_host).trim();
@@ -339,19 +339,13 @@ serve(async (req) => {
         if (!chargedAccessId && chargedSource !== 'backend') {
           // Priority 1: Use reseller's panel username from settings
           // Priority 2: Use owner column from found user record
-          const vplay_panel_username = (await lookupClient
-            ?.from('reseller_api_settings')
-            .select('vplay_panel_username')
-            .eq('user_id', ownerId)
-            .maybeSingle())?.data?.vplay_panel_username;
-
           let ownerQueryWhere = '';
           let ownerQueryParam: any = null;
 
-          if (vplay_panel_username) {
+          if (vplayPanelUsername) {
             ownerQueryWhere = '`username` = ?';
-            ownerQueryParam = vplay_panel_username;
-            console.log(`[VPlay] Tentando descontar créditos do usuário do painel: ${vplay_panel_username}`);
+            ownerQueryParam = vplayPanelUsername;
+            console.log(`[VPlay] Tentando descontar créditos do usuário do painel: ${vplayPanelUsername}`);
           } else {
             const ownerIdColumn = ['member_id', 'admin_id', 'user_id', 'owner_id', 'reseller_id']
               .find((c) => foundColumns.has(c) && foundUser[c] !== undefined && foundUser[c] !== null && foundUser[c] !== 0);
