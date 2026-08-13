@@ -17,7 +17,7 @@ import {
 } from '@/components/ui/select';
 import { toast } from 'sonner';
 import { Ticket, Plus, Trash2, Loader2 } from 'lucide-react';
-import { getErrorMessage } from '@/lib/error-message';
+
 
 interface Coupon {
   id: string;
@@ -76,7 +76,7 @@ export default function DiscountCouponsCard() {
       setForm({ code: '', discount_type: 'percent', discount_value: '', max_uses: '', expires_at: '' });
       queryClient.invalidateQueries({ queryKey: ['discount-coupons'] });
     },
-    onError: (e) => toast.error(getErrorMessage(e)),
+    onError: (e) => toast.error((e as Error)?.message || 'Erro inesperado'),
   });
 
   const toggleMutation = useMutation({
@@ -88,7 +88,7 @@ export default function DiscountCouponsCard() {
       if (error) throw error;
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['discount-coupons'] }),
-    onError: (e) => toast.error(getErrorMessage(e)),
+    onError: (e) => toast.error((e as Error)?.message || 'Erro inesperado'),
   });
 
   const deleteMutation = useMutation({
@@ -100,7 +100,7 @@ export default function DiscountCouponsCard() {
       toast.success('Cupom removido');
       queryClient.invalidateQueries({ queryKey: ['discount-coupons'] });
     },
-    onError: (e) => toast.error(getErrorMessage(e)),
+    onError: (e) => toast.error((e as Error)?.message || 'Erro inesperado'),
   });
 
   return (
