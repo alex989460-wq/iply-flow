@@ -322,13 +322,34 @@ serve(async (req) => {
 
         // Fallback: deduct from XUI MySQL (table users, column credits)
         if (!chargedAccessId && chargedSource !== 'backend') {
-          const ownerIdColumn = ['member_id', 'admin_id', 'user_id', 'owner_id', 'reseller_id']
-            .find((c) => foundColumns.has(c) && foundUser[c] !== undefined && foundUser[c] !== null && foundUser[c] !== 0);
+          // Priority 1: Use reseller's panel username from settings
+          // Priority 2: Use owner column from found user record
+          const vplay_panel_username = (await lookupClient
+            ?.from('reseller_api_settings')
+            .select('vplay_panel_username')
+            .eq('user_id', ownerId)
+            .maybeSingle())?.data?.vplay_panel_username;
 
-          if (ownerIdColumn) {
-            const ownerIdValue = foundUser[ownerIdColumn];
+          let ownerQueryWhere = '';
+          let ownerQueryParam: any = null;
+
+          if (vplay_panel_username) {
+            ownerQueryWhere = '`username` = ?';
+            ownerQueryParam = vplay_panel_username;
+            console.log(`[VPlay] Tentando descontar créditos do usuário do painel: ${vplay_panel_username}`);
+          } else {
+            const ownerIdColumn = ['member_id', 'admin_id', 'user_id', 'owner_id', 'reseller_id']
+              .find((c) => foundColumns.has(c) && foundUser[c] !== undefined && foundUser[c] !== null && foundUser[c] !== 0);
+            
+            if (ownerIdColumn) {
+              ownerQueryWhere = '`id` = ?';
+              ownerQueryParam = foundUser[ownerIdColumn];
+              console.log(`[VPlay] Tentando descontar créditos do ID do dono: ${ownerQueryParam}`);
+            }
+          }
+
+          if (ownerQueryParam) {
             const ownerTable = 'users';
-
             try {
               const [columnsResult] = await connection.query(`SHOW COLUMNS FROM \`${ownerTable}\``);
               const cols = new Set((columnsResult as any[]).map((c) => String(c.Field)));
@@ -336,8 +357,8 @@ serve(async (req) => {
 
               if (balanceCol) {
                 const [ownerRows] = await connection.execute(
-                  `SELECT * FROM \`${ownerTable}\` WHERE \`id\` = ? LIMIT 1`,
-                  [ownerIdValue],
+                  `SELECT * FROM \`${ownerTable}\` WHERE ${ownerQueryWhere} LIMIT 1`,
+                  [ownerQueryParam],
                 );
                 const owners = ownerRows as any[];
                 if (owners.length > 0) {
@@ -365,9 +386,10 @@ serve(async (req) => {
               console.warn(`[VPlay] Fallback MySQL falhou:`, e);
             }
           } else {
-            console.warn(`[VPlay] Sem coluna de owner encontrada. Renovação prossegue sem desconto.`);
+            console.warn(`[VPlay] Sem coluna de owner ou usuário de painel encontrada. Renovação prossegue sem desconto.`);
           }
         }
+
       }
 
       // ─── RENEWAL (update expiry in MySQL) ───
