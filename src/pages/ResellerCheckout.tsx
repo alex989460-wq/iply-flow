@@ -4,7 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
-import { Loader2, Check, Phone, QrCode, ArrowLeft, Copy, Sparkles, ShieldCheck, Tv, User as UserIcon, AlertTriangle, Server, Smartphone, ChevronRight } from 'lucide-react';
+import { Loader2, Check, Phone, QrCode, ArrowLeft, Copy, Sparkles, ShieldCheck, Tv, User as UserIcon, AlertTriangle, Server, Smartphone, ChevronRight, AlertCircle, Plus } from 'lucide-react';
 import { toast } from 'sonner';
 import pixLogo from '@/assets/pix-logo.png.asset.json';
 import cardLogo from '@/assets/card-logo.png.asset.json';
@@ -97,7 +97,7 @@ export default function ResellerCheckout() {
   const [loading, setLoading] = useState(true);
 
   // Modal steps: 'phone' -> 'accounts' -> 'method' -> 'pix'
-  const [step, setStep] = useState<null | 'phone' | 'accounts' | 'method' | 'pix'>(null);
+  const [step, setStep] = useState<null | 'phone' | 'accounts' | 'method' | 'pix' | 'not_found'>(null);
   const [group, setGroup] = useState<PlanGroup | null>(null);
 
   const [phone, setPhone] = useState('');
@@ -183,7 +183,10 @@ export default function ResellerCheckout() {
       const j = await res.json();
       if (!res.ok) throw new Error(j.error || 'Falha');
       const list: Customer[] = j.customers || [];
-      if (!list.length) { toast.warning('Nenhum usuário encontrado. Verifique o telefone.'); return; }
+      if (!list.length) {
+        setStep('not_found');
+        return;
+      }
       // Only include accounts with screens <= plan.screens
       const eligible = list.filter(c => (c.screens || 1) <= requiredScreens);
       if (!eligible.length) {
@@ -340,14 +343,20 @@ export default function ResellerCheckout() {
             <h1 className="text-2xl md:text-3xl font-extrabold" style={{ color: brand }}>{data.display_name || 'Assinatura'}</h1>
           )}
         </div>
-        <div className="flex-1 flex justify-end">
-          <Link
-            to={`/r/${slug}/ativar`}
-            className="hidden sm:inline-flex items-center gap-2 px-4 py-2 text-xs font-bold tracking-wide rounded-full border border-white/15 bg-white/[0.03] hover:bg-white/[0.08] transition-all hover:border-[var(--brand)]"
-          >
-            <Smartphone className="w-4 h-4" style={{ color: brand }} /> ATIVAR APP
-          </Link>
-        </div>
+          <div className="hidden sm:flex items-center gap-2">
+            <Link
+              to={`/r/${slug}/registrar`}
+              className="inline-flex items-center gap-2 px-4 py-2 text-xs font-bold tracking-wide rounded-full border border-white/15 bg-white/[0.03] hover:bg-white/[0.08] transition-all hover:border-[var(--brand)]"
+            >
+              <UserIcon className="w-4 h-4" style={{ color: brand }} /> NOVO CLIENTE
+            </Link>
+            <Link
+              to={`/r/${slug}/ativar`}
+              className="inline-flex items-center gap-2 px-4 py-2 text-xs font-bold tracking-wide rounded-full border border-white/15 bg-white/[0.03] hover:bg-white/[0.08] transition-all hover:border-[var(--brand)]"
+            >
+              <Smartphone className="w-4 h-4" style={{ color: brand }} /> ATIVAR APP
+            </Link>
+          </div>
       </header>
 
       <main className="relative max-w-6xl mx-auto px-4 pb-20 space-y-12">
@@ -360,12 +369,20 @@ export default function ResellerCheckout() {
             Escolha seu <span style={{ color: brand }}>Plano</span>
           </h1>
           <p className="text-white/50 text-sm">{data.subheadline || 'Assista onde e quando quiser. Cancele a qualquer momento.'}</p>
-          <Link
-            to={`/r/${slug}/ativar`}
-            className="sm:hidden inline-flex items-center gap-2 mt-2 px-4 py-2 text-xs font-bold tracking-wide rounded-full border border-white/15 bg-white/[0.03]"
-          >
-            <Smartphone className="w-4 h-4" style={{ color: brand }} /> ATIVAR APP
-          </Link>
+          <div className="sm:hidden flex flex-col gap-2 items-center">
+            <Link
+              to={`/r/${slug}/registrar`}
+              className="inline-flex items-center gap-2 px-4 py-2 text-xs font-bold tracking-wide rounded-full border border-white/15 bg-white/[0.03]"
+            >
+              <UserIcon className="w-4 h-4" style={{ color: brand }} /> NOVO CLIENTE
+            </Link>
+            <Link
+              to={`/r/${slug}/ativar`}
+              className="inline-flex items-center gap-2 px-4 py-2 text-xs font-bold tracking-wide rounded-full border border-white/15 bg-white/[0.03]"
+            >
+              <Smartphone className="w-4 h-4" style={{ color: brand }} /> ATIVAR APP
+            </Link>
+          </div>
         </section>
 
         {/* 1 tela */}
@@ -623,6 +640,51 @@ export default function ResellerCheckout() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* ------- Dialog: Not Found ------- */}
+      <Dialog open={step === 'not_found'} onOpenChange={(o) => !o && resetAll()}>
+        <DialogContent className="bg-[#151515] border-white/10 text-white max-w-md">
+          <DialogHeader>
+            <div className="flex flex-col items-center gap-4 text-center">
+              <div className="w-16 h-16 rounded-full flex items-center justify-center bg-amber-500/20 text-amber-400">
+                <AlertCircle className="w-10 h-10" />
+              </div>
+              <DialogTitle className="text-2xl font-bold">Telefone não encontrado</DialogTitle>
+            </div>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="bg-[#0d0d0d] rounded-xl p-4 border border-white/5 space-y-3">
+              <p className="text-sm text-white/70 leading-relaxed">
+                O número <b className="text-white">+{phone.replace(/\D/g, '')}</b> não foi localizado em nossa base de dados.
+              </p>
+              <ul className="text-xs text-white/50 space-y-2 list-disc ml-4">
+                <li>Verifique se digitou o DDD corretamente</li>
+                <li>Confirme se este é o número cadastrado com seu revendedor</li>
+              </ul>
+            </div>
+            
+            <div className="grid grid-cols-1 gap-3 pt-2">
+              <Link 
+                to={`/r/${slug}/registrar`}
+                className="w-full h-12 flex items-center justify-center gap-2 font-bold text-white rounded-xl shadow-lg transition-transform active:scale-[0.98]"
+                style={{ background: brand }}
+              >
+                <Plus className="w-5 h-5" /> SOU NOVO CLIENTE
+              </Link>
+              <Button 
+                variant="outline" 
+                onClick={() => setStep('phone')} 
+                className="h-12 bg-transparent border-white/10 text-white hover:bg-white/5 rounded-xl font-bold"
+              >
+                TENTAR OUTRO NÚMERO
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+
+
     </div>
   );
 }

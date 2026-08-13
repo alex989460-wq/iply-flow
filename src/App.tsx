@@ -57,6 +57,7 @@ import Tutorials from "./pages/Tutorials";
 import Unsubscribe from "./pages/Unsubscribe";
 import EmbedChatbots from "./pages/EmbedChatbots";
 
+import ResellerNewCustomerCheckout from "./pages/ResellerNewCustomerCheckout";
 import { Loader2 } from "lucide-react";
 import { useOneSignal } from "@/hooks/useOneSignal";
 
@@ -121,6 +122,7 @@ function AppRoutes() {
       <Route path="/checkout/:userId" element={<PublicCheckout />} />
       <Route path="/r/:slug" element={<ResellerCheckout />} />
       <Route path="/r/:slug/ativar" element={<ResellerActivation />} />
+      <Route path="/r/:slug/registrar" element={<ResellerNewCustomerCheckout />} />
       <Route path="/dashboard" element={<ProtectedRoute><Index /></ProtectedRoute>} />
       <Route path="/servers" element={<ProtectedRoute><Servers /></ProtectedRoute>} />
       <Route path="/plans" element={<ProtectedRoute><Plans /></ProtectedRoute>} />
