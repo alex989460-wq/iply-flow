@@ -83,9 +83,12 @@ serve(async (req) => {
       if (ownerId) {
         const { data: settings } = await lookupClient
           .from('reseller_api_settings')
-          .select('vplay_mysql_host, vplay_mysql_port, vplay_mysql_user, vplay_mysql_password, vplay_mysql_database')
+          .select('vplay_mysql_host, vplay_mysql_port, vplay_mysql_user, vplay_mysql_password, vplay_mysql_database, vplay_panel_username, vplay_panel_password')
           .eq('user_id', ownerId)
           .maybeSingle();
+
+        const vplay_panel_username = settings?.vplay_panel_username;
+        const vplay_panel_password = settings?.vplay_panel_password;
 
         if (settings?.vplay_mysql_host && settings?.vplay_mysql_user && settings?.vplay_mysql_password && settings?.vplay_mysql_database) {
           host = String(settings.vplay_mysql_host).trim();
