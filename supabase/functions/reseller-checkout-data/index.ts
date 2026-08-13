@@ -59,36 +59,51 @@ Deno.serve(async (req) => {
       }
 
       const today = saoPauloDate();
-      const { data: existing } = await admin.from("customers").select("id").eq("created_by", st.user_id).ilike("username", username).maybeSingle();
-      if (existing) return json({ error: "Esse usuário já está cadastrado. Use a opção Já sou cliente." }, 409);
-
-      const { data: customer, error: customerError } = await admin.from("customers").insert({
-        created_by: st.user_id, name, phone, username, server_id: serverId,
-        start_date: today, due_date: today, status: "inativa",
-      }).select("id").single();
-      if (customerError) return json({ error: `Não foi possível cadastrar o cliente: ${customerError.message}` }, 400);
-
-      const { data: inserted, error } = await admin
-        .from("pending_new_customers")
-        .insert({
-          owner_id: st.user_id,
-          name,
-          phone,
-          username,
-          server_id: serverId,
-        })
-        .select("id")
-        .single();
-
-      if (error) {
-        await admin.from("customers").delete().eq("id", customer.id).eq("created_by", st.user_id);
-        const msg = /duplicate|unique|already/i.test(error.message)
-          ? "Esse usuário já está em uso. Escolha outro nome de usuário."
-          : `Não foi possível concluir o cadastro: ${error.message}`;
-        return json({ error: msg }, 400);
+      const { data: existing } = await admin
+        .from("customers")
+        .select("id, status")
+        .eq("created_by", st.user_id)
+        .ilike("username", username)
+        .maybeSingle();
+      if (existing?.status === "ativa") {
+        return json({ error: "Esse usuário já possui uma assinatura ativa. Use a opção Já sou cliente." }, 409);
       }
 
-      return json({ ok: true, id: inserted.id, customer_id: customer.id, phone });
+      let customerId = existing?.id || "";
+      if (existing) {
+        const { error: updateError } = await admin.from("customers").update({
+          name, phone, server_id: serverId,
+        }).eq("id", existing.id).eq("created_by", st.user_id);
+        if (updateError) return json({ error: `Não foi possível atualizar o cadastro: ${updateError.message}` }, 400);
+      } else {
+        const { data: customer, error: customerError } = await admin.from("customers").insert({
+          created_by: st.user_id, name, phone, username, server_id: serverId,
+          start_date: today, due_date: today, status: "inativa",
+        }).select("id").single();
+        if (customerError) return json({ error: `Não foi possível cadastrar o cliente: ${customerError.message}` }, 400);
+        customerId = customer.id;
+      }
+
+      const { data: pending } = await admin.from("pending_new_customers")
+        .select("id")
+        .eq("owner_id", st.user_id)
+        .ilike("username", username)
+        .eq("used", false)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      const pendingQuery = pending
+        ? admin.from("pending_new_customers").update({ name, phone, server_id: serverId }).eq("id", pending.id).select("id").single()
+        : admin.from("pending_new_customers").insert({ owner_id: st.user_id, name, phone, username, server_id: serverId }).select("id").single();
+      const { data: inserted, error } = await pendingQuery;
+
+      if (error) {
+        if (!existing && customerId) await admin.from("customers").delete().eq("id", customerId).eq("created_by", st.user_id);
+        return json({ error: `Não foi possível concluir o cadastro: ${error.message}` }, 400);
+      }
+
+      return json({ ok: true, id: inserted.id, customer_id: customerId, phone });
     }
 
     const url = new URL(req.url);

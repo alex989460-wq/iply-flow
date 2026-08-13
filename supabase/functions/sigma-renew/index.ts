@@ -26,7 +26,14 @@ function normBase(u: string) {
 async function sigmaLogin(base: string, username: string, password: string) {
   const res = await fetch(`${base}/api/auth/login`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", "Accept": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      "Accept": "application/json, text/plain, */*",
+      "locale": "pt",
+      "x-app-version": "3.89",
+      "Origin": base,
+      "Referer": `${base}/`,
+    },
     body: JSON.stringify({
       username,
       password,
@@ -37,12 +44,15 @@ async function sigmaLogin(base: string, username: string, password: string) {
       twofactor_trusted_device_id: "",
     }),
   });
-  const body = await res.json().catch(() => ({}));
+  const responseText = await res.text();
+  let body: any = {};
+  try { body = responseText ? JSON.parse(responseText) : {}; } catch { body = {}; }
   if (!res.ok || !body?.token) {
+    const panelMessage = body?.message || body?.error || body?.errors?.username?.[0] || body?.errors?.password?.[0];
     throw new Error(
-      body?.message
-        ? `Painel Sigma recusou o login: ${body.message}`
-        : "Não foi possível autenticar no Painel Sigma. Confira URL, usuário e senha.",
+      panelMessage
+        ? `Painel Sigma recusou o login: ${panelMessage}`
+        : `Não foi possível autenticar no Painel Sigma (HTTP ${res.status}). Confira URL, usuário e senha.`,
     );
   }
   return { token: String(body.token), me: body };

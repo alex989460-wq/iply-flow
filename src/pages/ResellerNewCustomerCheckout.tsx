@@ -77,13 +77,13 @@ export default function ResellerNewCustomerCheckout() {
         }),
       });
       const j = await res.json();
-      if (!res.ok || j?.error) throw new Error(j?.error || 'Erro ao realizar cadastro');
+      if (!res.ok || j?.error) throw new Error(j?.error || 'Não foi possível realizar o cadastro. Tente novamente.');
 
       setSuccess(true);
       toast.success('Cadastro realizado! Agora escolha seu plano.');
       window.setTimeout(() => navigate(`/r/${slug}?phone=${encodeURIComponent(fullPhone)}`), 700);
     } catch (err: any) {
-      toast.error(err.message || 'Erro ao realizar cadastro');
+      toast.error(err.message || 'Não foi possível realizar o cadastro. Tente novamente.');
     } finally {
       setLoading(false);
     }

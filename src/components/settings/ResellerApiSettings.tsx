@@ -354,8 +354,8 @@ export default function ResellerApiSettings() {
     || (!!settings.vplay_mysql_host && !!settings.vplay_mysql_user && !!settings.vplay_mysql_password && !!settings.vplay_mysql_database);
 
   const handleTestVplay = async () => {
-    if (!settings.vplay_panel_username.trim() || !settings.vplay_panel_password) {
-      toast({ title: 'Dados incompletos', description: 'Informe o usuário e a senha do painel VPlay.', variant: 'destructive' });
+    if (!settings.vplay_mysql_host.trim() || !settings.vplay_mysql_user.trim() || !settings.vplay_mysql_password || !settings.vplay_mysql_database.trim()) {
+      toast({ title: 'Dados incompletos', description: 'Informe host, usuário, senha e banco MySQL do VPlay.', variant: 'destructive' });
       return;
     }
     setTestingVplay(true);
@@ -365,6 +365,11 @@ export default function ResellerApiSettings() {
           action: 'test',
           vplay_panel_username: settings.vplay_panel_username.trim(),
           vplay_panel_password: settings.vplay_panel_password,
+          vplay_mysql_host: settings.vplay_mysql_host.trim(),
+          vplay_mysql_port: settings.vplay_mysql_port,
+          vplay_mysql_user: settings.vplay_mysql_user.trim(),
+          vplay_mysql_password: settings.vplay_mysql_password,
+          vplay_mysql_database: settings.vplay_mysql_database.trim(),
         },
       });
       if (error) {
