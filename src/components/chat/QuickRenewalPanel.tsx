@@ -558,7 +558,21 @@ export default function QuickRenewalPanel({ isMobile = false, onClose, initialPh
             } else {
               console.log('[VPlay] Sucesso:', vpResult);
             }
+          } else if (panel === 'sigma') {
+            const months = Math.max(1, Math.round(durationDays / 30));
+            const { data: sgResult, error: sgError } = await supabase.functions.invoke('sigma-renew', {
+              body: { action: 'renew', username: xuiUsername, months, customer_id: customer.id },
+            });
+            if (sgError) {
+              console.error('[Sigma] Erro:', sgError);
+              toast.warning(`Renovado localmente, mas falha no Painel Sigma: ${sgError.message}`);
+            } else if ((sgResult as any)?.error) {
+              toast.warning(`Renovado localmente, mas: ${(sgResult as any).error}`);
+            } else {
+              console.log('[Sigma] Sucesso:', sgResult);
+            }
           } else if (isRush) {
+
             const months = Math.max(1, Math.round(durationDays / 30));
             const { data: rushResult, error: rushError } = await supabase.functions.invoke('rush-renew', {
               body: { username: xuiUsername, months, customer_id: customer.id },
