@@ -46,9 +46,20 @@ async function discoverSigmaApiBase(base: string): Promise<string | null> {
   }
 }
 
+function preferredSigmaApiBase(base: string, discovered: string | null): string {
+  try {
+    const hostname = new URL(base).hostname.toLowerCase();
+    if (discovered && !hostname.endsWith("sigma.vin")) return discovered;
+  } catch {
+    return discovered || base;
+  }
+  return base;
+}
+
 async function sigmaLogin(base: string, username: string, password: string) {
   const discoveredBase = await discoverSigmaApiBase(base);
-  const candidates = [base, discoveredBase].filter((value, index, all): value is string => !!value && all.indexOf(value) === index);
+  const preferredBase = preferredSigmaApiBase(base, discoveredBase);
+  const candidates = [preferredBase, base, discoveredBase].filter((value, index, all): value is string => !!value && all.indexOf(value) === index);
   let lastStatus = 0;
   let lastMessage = "";
 
