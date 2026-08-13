@@ -23,39 +23,71 @@ function normBase(u: string) {
   return s.replace(/\/api$/i, "");
 }
 
-async function sigmaLogin(base: string, username: string, password: string) {
-  const res = await fetch(`${base}/api/auth/login`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Accept": "application/json, text/plain, */*",
-      "locale": "pt",
-      "x-app-version": "3.89",
-      "Origin": base,
-      "Referer": `${base}/`,
-    },
-    body: JSON.stringify({
-      username,
-      password,
-      captcha: "not-a-robot",
-      captchaChecked: true,
-      twofactor_code: "",
-      twofactor_recovery_code: "",
-      twofactor_trusted_device_id: "",
-    }),
-  });
-  const responseText = await res.text();
-  let body: any = {};
-  try { body = responseText ? JSON.parse(responseText) : {}; } catch { body = {}; }
-  if (!res.ok || !body?.token) {
-    const panelMessage = body?.message || body?.error || body?.errors?.username?.[0] || body?.errors?.password?.[0];
-    throw new Error(
-      panelMessage
-        ? `Painel Sigma recusou o login: ${panelMessage}`
-        : `Não foi possível autenticar no Painel Sigma (HTTP ${res.status}). Confira URL, usuário e senha.`,
-    );
+const browserHeaders = {
+  "Accept": "application/json, text/plain, */*",
+  "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
+  "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36",
+  "locale": "pt",
+  "x-app-version": "3.89",
+};
+
+async function discoverSigmaApiBase(base: string): Promise<string | null> {
+  try {
+    const response = await fetch(`${base}/api/settings/public`, { headers: browserHeaders });
+    if (!response.ok) return null;
+    const body = await response.json();
+    const settings = Array.isArray(body?.data) ? body.data : [];
+    const panelHost = String(settings.find((item: any) => item?.variable === "panel_url")?.value || "").trim();
+    if (!panelHost) return null;
+    const discovered = normBase(panelHost);
+    return discovered && discovered !== base ? discovered : null;
+  } catch {
+    return null;
   }
-  return { token: String(body.token), me: body };
+}
+
+function preferredSigmaApiBase(base: string, discovered: string | null): string {
+  try {
+    const hostname = new URL(base).hostname.toLowerCase();
+    if (discovered && !hostname.endsWith("sigma.vin")) return discovered;
+  } catch {
+    return discovered || base;
+  }
+  return base;
+}
+
+async function sigmaLogin(base: string, username: string, password: string) {
+  const discoveredBase = await discoverSigmaApiBase(base);
+  const preferredBase = preferredSigmaApiBase(base, discoveredBase);
+  const candidates = [preferredBase, base, discoveredBase].filter((value, index, all): value is string => !!value && all.indexOf(value) === index);
+  let lastStatus = 0;
+  let lastMessage = "";
+
+  for (const apiBase of candidates) {
+    const res = await fetch(`${apiBase}/api/auth/login`, {
+      method: "POST",
+      headers: { ...browserHeaders, "Content-Type": "application/json", "Origin": apiBase, "Referer": `${apiBase}/` },
+      body: JSON.stringify({
+        username,
+        password,
+        captcha: "not-a-robot",
+        captchaChecked: true,
+        twofactor_code: "",
+        twofactor_recovery_code: "",
+        twofactor_trusted_device_id: "",
+      }),
+    });
+    lastStatus = res.status;
+    const responseText = await res.text();
+    let body: any = {};
+    try { body = responseText ? JSON.parse(responseText) : {}; } catch { body = {}; }
+    if (res.ok && body?.token) return { token: String(body.token), me: body, apiBase };
+    lastMessage = body?.message || body?.error || body?.errors?.username?.[0] || body?.errors?.password?.[0] || "";
+  }
+
+  throw new Error(lastMessage
+    ? `Painel Sigma recusou o login: ${lastMessage}`
+    : `Não foi possível autenticar no Painel Sigma (HTTP ${lastStatus || "sem resposta"}). Confira URL, usuário e senha.`);
 }
 
 async function sigmaFetch(base: string, token: string, path: string, init: RequestInit = {}) {
@@ -63,7 +95,7 @@ async function sigmaFetch(base: string, token: string, path: string, init: Reque
     ...init,
     headers: {
       "Authorization": `Bearer ${token}`,
-      "Accept": "application/json",
+      ...browserHeaders,
       "Content-Type": "application/json",
       ...(init.headers || {}),
     },
@@ -136,11 +168,11 @@ Deno.serve(async (req) => {
       return json({ error: "Credenciais do Painel Sigma não configuradas. Preencha URL, usuário e senha em Configurações → APIs." }, 400);
     }
 
-    const { token, me } = await sigmaLogin(base, user, pass);
+    const { token, me, apiBase } = await sigmaLogin(base, user, pass);
 
     // ---- servidores/pacotes ----
     const loadServers = async () => {
-      const r = await sigmaFetch(base, token, "/api/servers");
+      const r = await sigmaFetch(apiBase, token, "/api/servers");
       const list = Array.isArray(r.body?.data) ? r.body.data : [];
       return list.map((s: any) => ({
         id: s.id,
@@ -164,7 +196,7 @@ Deno.serve(async (req) => {
       const servers = await loadServers();
       return json({
         ok: true,
-        panel_url: me?.panel_url || base,
+        panel_url: me?.panel_url || apiBase,
         username: me?.username || user,
         credits: me?.credits ?? null,
         servers,
@@ -184,7 +216,7 @@ Deno.serve(async (req) => {
       const pkg = server.packages.find((p: any) => p.id === pkgId);
       const hours = Number(body.hours || pkg?.duration || 4);
 
-      const created = await sigmaFetch(base, token, "/api/customers", {
+      const created = await sigmaFetch(apiBase, token, "/api/customers", {
         method: "POST",
         body: JSON.stringify({
           server_id: server.id,
@@ -201,7 +233,7 @@ Deno.serve(async (req) => {
       // Lista/template (idioma pt quando disponível)
       let playlist = "";
       try {
-        const pl = await sigmaFetch(base, token, `/api/customers/${c.id}/playlist`);
+        const pl = await sigmaFetch(apiBase, token, `/api/customers/${c.id}/playlist`);
         const arr = Array.isArray(pl.body) ? pl.body : [];
         playlist = String(arr.find((x: any) => x.key === "pt")?.template || arr[0]?.template || "");
       } catch { /* opcional */ }
@@ -226,7 +258,7 @@ Deno.serve(async (req) => {
       const connections = Number(body.connections || 1);
 
       const found = await sigmaFetch(
-        base,
+        apiBase,
         token,
         `/api/customers?page=1&username=${encodeURIComponent(username)}`,
       );
@@ -248,7 +280,7 @@ Deno.serve(async (req) => {
       }
       if (!packageId) return json({ error: "Nenhum pacote de renovação encontrado no Sigma para esse cliente." }, 400);
 
-      const renewed = await sigmaFetch(base, token, `/api/customers/${customer.id}/renew`, {
+      const renewed = await sigmaFetch(apiBase, token, `/api/customers/${customer.id}/renew`, {
         method: "POST",
         body: JSON.stringify({
           package_id: packageId,

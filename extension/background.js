@@ -1,4 +1,4 @@
-// SuperGestor Panel Auto-Renew - background service worker (v2.0.0)
+// SuperGestor Panel Auto-Renew - background service worker (v2.0.1)
 const QUEUE_URL = "https://fphqfgxfeaylldpxjqan.supabase.co/functions/v1/p2cine-queue";
 const SUPABASE_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZwaHFmZ3hmZWF5bGxkcHhqcWFuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY5OTYwMDAsImV4cCI6MjA4MjU3MjAwMH0.PsIJenRZEAWTlxbdGYvJWrBUfiIifPn9Q_UVeUyrFs8";
 const POLL_SECONDS = 20;
@@ -84,74 +84,6 @@ async function reportResult(token, id, success, message, http_status) {
     },
     body: JSON.stringify({ id, success, message, http_status }),
   });
-}
-
-function normalizePanelBase(value) {
-  try {
-    const raw = String(value || "").trim();
-    return new URL(/^https?:\/\//i.test(raw) ? raw : `https://${raw}`).origin;
-  } catch {
-    return "";
-  }
-}
-
-async function renewSigma(item, months) {
-  const base = normalizePanelBase(item.server_host);
-  if (!base) return { error: "invalid_sigma_url", msg: "A URL do painel Sigma não está configurada no servidor." };
-  const tabs = await chrome.tabs.query({ url: `${base}/*` });
-  let tab = tabs[0];
-  if (!tab?.id) {
-    const opened = await openHiddenTab(base);
-    if (opened.error) return { error: "no_sigma_tab" };
-    tab = { id: opened.tabId };
-  }
-  try {
-    const [execution] = await chrome.scripting.executeScript({
-      target: { tabId: tab.id },
-      world: "MAIN",
-      func: async (username, monthCount) => {
-        const readJson = async (url, options = {}) => {
-          const response = await fetch(url, {
-            ...options,
-            credentials: "include",
-            headers: { Accept: "application/json", "Content-Type": "application/json", locale: "pt", "x-app-version": "3.89", ...(options.headers || {}) },
-          });
-          const text = await response.text();
-          let data = null;
-          try { data = text ? JSON.parse(text) : null; } catch {}
-          return { response, data, text };
-        };
-        const me = await readJson("/api/auth/me");
-        if (me.response.status === 401 || me.response.status === 403 || !me.response.ok) return { error: "logged_out", status: me.response.status };
-        const params = new URLSearchParams({ page: "1", username: String(username), serverId: "", packageId: "", expiryFrom: "", expiryTo: "", createdFrom: "", createdTo: "", status: "", isTrial: "", connections: "", perPage: "20" });
-        const listed = await readJson(`/api/customers?${params}`);
-        if (!listed.response.ok) return { error: "list_failed", status: listed.response.status, msg: listed.data?.message || listed.text.slice(0, 180) };
-        const customers = Array.isArray(listed.data?.data) ? listed.data.data : [];
-        const normalized = String(username).trim().toLowerCase();
-        const customer = customers.find((row) => String(row?.username || "").trim().toLowerCase() === normalized);
-        if (!customer?.id) return { error: "not_found", status: 404 };
-        const catalog = await readJson("/api/servers");
-        if (!catalog.response.ok) return { error: "catalog_failed", status: catalog.response.status };
-        const servers = Array.isArray(catalog.data?.data) ? catalog.data.data : [];
-        const server = servers.find((row) => String(row?.id) === String(customer.server_id));
-        const packages = Array.isArray(server?.packages) ? server.packages : [];
-        const wantedMonths = Math.max(1, Number(monthCount) || 1);
-        const packageRow = packages.find((row) => row?.status === "ACTIVE" && row?.is_trial === "NO" && String(row?.duration_in).toUpperCase() === "MONTHS" && Number(row?.duration) === wantedMonths && Number(row?.connections || 1) === Number(customer.connections || 1))
-          || packages.find((row) => row?.status === "ACTIVE" && row?.is_trial === "NO" && String(row?.duration_in).toUpperCase() === "MONTHS" && Number(row?.duration) === wantedMonths);
-        if (!packageRow?.id) return { error: "package_not_found", status: 404, msg: `Plano Sigma de ${wantedMonths} mês(es) não encontrado.` };
-        const renewed = await readJson(`/api/customers/${customer.id}/renew`, {
-          method: "POST",
-          body: JSON.stringify({ package_id: packageRow.id, connections: Number(customer.connections || 1), reference: "SuperGestor", create_manual_customer_order: false, manual_payment_total: null }),
-        });
-        if (!renewed.response.ok) return { error: "renew_failed", status: renewed.response.status, msg: renewed.data?.message || renewed.data?.error || renewed.text.slice(0, 180) };
-        return { ok: true, status: renewed.response.status, msg: `Sigma renovado por ${wantedMonths} mês(es)` };
-      },
-      args: [item.username, months],
-    });
-    return execution?.result || { error: "no_result" };
-  } catch (error) {
-    return { error: "script_error", msg: error?.message || String(error) };
-  }
 }
 
 function waitForTabComplete(tabId, timeoutMs = 12000) {
@@ -521,33 +453,6 @@ async function tick() {
     return log("Erro consultando fila: " + e.message, "fail");
   }
   if (!next || !next.username) return;
-
-  if (next.panel_type === "sigma") {
-    const months = String(next.months || cfg.months || "1");
-    const r = await renewSigma(next, months);
-    const name = next.customer_name || next.username;
-    if (r.error) {
-      const msg = ({
-        logged_out: "Sessão Sigma desconectada. Abra o painel e faça login novamente.",
-        no_sigma_tab: "Não foi possível abrir o painel Sigma.",
-        invalid_sigma_url: r.msg,
-        not_found: `Usuário ${next.username} não encontrado no Sigma.`,
-        package_not_found: r.msg,
-        catalog_failed: "Não foi possível carregar os planos do Sigma.",
-        list_failed: r.msg,
-        renew_failed: r.msg,
-        script_error: "Não foi possível acessar a aba do Sigma. Recarregue o painel.",
-      })[r.error] || r.msg || `Erro Sigma: ${r.error}`;
-      await reportResult(cfg.token, next.id, false, msg, r.status);
-      await pushHistory({ panel: "sigma", name, username: next.username, months, ok: false, msg });
-      return log(`${name}: ${msg}`, "fail");
-    }
-    await reportResult(cfg.token, next.id, true, r.msg, r.status);
-    await pushHistory({ panel: "sigma", name, username: next.username, months, ok: true, msg: r.msg });
-    await log(`${name} (${months}m): ${r.msg}`, "ok");
-    chrome.notifications.create({ type: "basic", iconUrl: "icon.png", title: "Sigma renovado", message: `${name}` });
-    return;
-  }
 
   if (next.panel_type === "uniplay") {
     const months = String(next.months || cfg.months || "1");
