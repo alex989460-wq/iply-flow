@@ -261,17 +261,29 @@ Deno.serve(async (req) => {
         checkout_codes: customers.map((c: any) => c.checkout_code).filter(Boolean),
         usernames: customers.map((c: any) => c.username || c.name),
         screens: customers.map((c: any) => c.screens || 1),
+        coupon_code: appliedCoupon?.code || null,
+        discount: discountValue || 0,
       },
       expires_at: new Date(Date.now() + 86400_000).toISOString(),
     });
+
+    if (appliedCoupon) {
+      await admin
+        .from("discount_coupons")
+        .update({ used_count: Number(appliedCoupon.used_count || 0) + 1 })
+        .eq("id", appliedCoupon.id);
+    }
 
     return json({
       ok: true,
       method: "pix",
       txid,
       amount,
+      discount: discountValue || 0,
+      coupon_code: appliedCoupon?.code || null,
       pix_copia_cola: cob.body?.pixCopiaECola || "",
       qrcode_base64: qrcodeBase64,
+
     });
   } catch (err) {
     console.error("[reseller-checkout-charge]", err);
