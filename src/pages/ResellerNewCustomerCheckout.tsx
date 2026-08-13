@@ -1,50 +1,68 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { toast } from 'sonner';
-import { Loader2, Tv, ChevronRight, Check, ShieldCheck, User as UserIcon, Phone } from 'lucide-react';
+import { Loader2, ChevronRight, Check, ShieldCheck, User as UserIcon, Phone, AtSign, Server } from 'lucide-react';
 
 const FN_BASE = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1`;
 const ANON = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+
+interface ServerOption { id: string; name: string }
 
 export default function ResellerNewCustomerCheckout() {
   const { slug } = useParams<{ slug: string }>();
   const [phone, setPhone] = useState('');
   const [name, setName] = useState('');
+  const [username, setUsername] = useState('');
+  const [serverId, setServerId] = useState('');
+  const [servers, setServers] = useState<ServerOption[]>([]);
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
 
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch(`${FN_BASE}/reseller-checkout-data?slug=${encodeURIComponent(slug || '')}`, {
+          headers: { apikey: ANON, Authorization: `Bearer ${ANON}` },
+        });
+        const j = await res.json();
+        if (Array.isArray(j?.servers)) setServers(j.servers);
+      } catch {
+        /* silencioso: servidor é opcional */
+      }
+    })();
+  }, [slug]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim() || !phone.trim()) {
-      toast.error('Preencha nome e telefone');
+    if (!name.trim() || !phone.trim() || !username.trim()) {
+      toast.error('Preencha nome, WhatsApp e usuário desejado');
       return;
     }
     setLoading(true);
     try {
-      // 1. Resolve reseller by slug
-      const { data: resData, error: resError } = await supabase
-        .from('profiles' as any)
-        .select('user_id')
-        .eq('checkout_code', slug)
-        .maybeSingle();
-
-      if (resError || !resData) {
-        throw new Error('Revendedor não encontrado');
-      }
-
-      // 2. Insert into pending_new_customers
-      const { error: insError } = await supabase
-        .from('pending_new_customers' as any)
-        .insert({
+      const res = await fetch(`${FN_BASE}/reseller-checkout-data`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', apikey: ANON, Authorization: `Bearer ${ANON}` },
+        body: JSON.stringify({
+          action: 'register',
+          slug,
           name: name.trim(),
-          phone: phone.trim().replace(/\D/g, ''),
-          owner_id: (resData as any).user_id
-        });
-
-      if (insError) throw insError;
+          phone: phone.replace(/\D/g, ''),
+          username: username.trim(),
+          server_id: serverId || null,
+        }),
+      });
+      const j = await res.json();
+      if (!res.ok || j?.error) throw new Error(j?.error || 'Erro ao realizar cadastro');
 
       setSuccess(true);
       toast.success('Cadastro realizado! Agora escolha seu plano.');
@@ -65,7 +83,7 @@ export default function ResellerNewCustomerCheckout() {
         <p className="text-white/60 mb-8 max-w-md">
           Seus dados foram recebidos. Clique no botão abaixo para escolher seu plano e realizar o pagamento.
         </p>
-        <Link 
+        <Link
           to={`/r/${slug}`}
           className="bg-primary hover:bg-primary/90 text-white font-bold py-3 px-8 rounded-xl flex items-center gap-2 transition-all"
         >
@@ -78,7 +96,7 @@ export default function ResellerNewCustomerCheckout() {
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-white flex flex-col items-center justify-center p-6 relative overflow-hidden">
       <div className="absolute -top-40 left-1/2 -translate-x-1/2 w-[600px] h-[600px] rounded-full blur-3xl opacity-20 bg-primary" />
-      
+
       <div className="w-full max-w-md space-y-8 relative z-10">
         <div className="text-center space-y-2">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-[10px] font-bold tracking-widest bg-primary/10 text-primary border border-primary/20 mb-4">
@@ -93,7 +111,7 @@ export default function ResellerNewCustomerCheckout() {
             <label className="text-sm font-bold text-white/70 ml-1">NOME COMPLETO</label>
             <div className="relative">
               <UserIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-white/30" />
-              <Input 
+              <Input
                 placeholder="Ex: João Silva"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
@@ -107,7 +125,7 @@ export default function ResellerNewCustomerCheckout() {
             <label className="text-sm font-bold text-white/70 ml-1">WHATSAPP COM DDD</label>
             <div className="relative">
               <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-white/30" />
-              <Input 
+              <Input
                 placeholder="Ex: 11999999999"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
@@ -117,8 +135,42 @@ export default function ResellerNewCustomerCheckout() {
             </div>
           </div>
 
-          <Button 
-            type="submit" 
+          <div className="space-y-2">
+            <label className="text-sm font-bold text-white/70 ml-1">USUÁRIO DESEJADO</label>
+            <div className="relative">
+              <AtSign className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-white/30" />
+              <Input
+                placeholder="Ex: joao123"
+                value={username}
+                onChange={(e) => setUsername(e.target.value.replace(/\s/g, ''))}
+                className="bg-black/20 border-white/10 pl-10 h-12 rounded-xl focus:ring-primary/50"
+                required
+              />
+            </div>
+            <p className="text-[11px] text-white/30 ml-1">Será o login usado no seu aplicativo.</p>
+          </div>
+
+          {servers.length > 0 && (
+            <div className="space-y-2">
+              <label className="text-sm font-bold text-white/70 ml-1">SERVIDOR</label>
+              <Select value={serverId} onValueChange={setServerId}>
+                <SelectTrigger className="bg-black/20 border-white/10 h-12 rounded-xl">
+                  <div className="flex items-center gap-2">
+                    <Server className="w-4 h-4 text-white/30" />
+                    <SelectValue placeholder="Selecione o servidor" />
+                  </div>
+                </SelectTrigger>
+                <SelectContent>
+                  {servers.map((s) => (
+                    <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          <Button
+            type="submit"
             disabled={loading}
             className="w-full h-12 text-lg font-bold rounded-xl shadow-[0_0_20px_-5px_var(--brand)] transition-all active:scale-[0.98]"
           >

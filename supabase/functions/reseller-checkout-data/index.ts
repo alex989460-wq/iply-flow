@@ -1,11 +1,12 @@
 // Public endpoint: returns the reseller's checkout config + plans for a given slug.
 // GET  /reseller-checkout-data?slug=xxx
+// POST /reseller-checkout-data { action: "register", slug, name, phone, username, server_id? }
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-  "Access-Control-Allow-Methods": "GET, OPTIONS",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
 };
 const json = (b: unknown, s = 200) =>
   new Response(JSON.stringify(b), { status: s, headers: { ...cors, "Content-Type": "application/json" } });
@@ -13,15 +14,62 @@ const json = (b: unknown, s = 200) =>
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: cors });
   try {
-    const url = new URL(req.url);
-    const slug = (url.searchParams.get("slug") || "").trim().toLowerCase();
-    if (!slug) return json({ error: "slug_required" }, 400);
-
     const admin = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
       { auth: { autoRefreshToken: false, persistSession: false } },
     );
+
+    // ---------- POST: cadastro público de novo assinante ----------
+    if (req.method === "POST") {
+      const body = await req.json().catch(() => ({} as any));
+      const action = String(body.action || "register");
+      const slug = String(body.slug || "").trim().toLowerCase();
+      if (!slug) return json({ error: "Link de checkout inválido." }, 400);
+
+      const { data: st } = await admin
+        .from("reseller_checkout_settings")
+        .select("user_id, is_active")
+        .eq("slug", slug)
+        .eq("is_active", true)
+        .maybeSingle();
+      if (!st) return json({ error: "Revendedor não encontrado." }, 404);
+
+      if (action !== "register") return json({ error: "Ação inválida." }, 400);
+
+      const name = String(body.name || "").trim();
+      const phone = String(body.phone || "").replace(/\D/g, "");
+      const username = String(body.username || "").trim();
+      const serverId = String(body.server_id || "").trim() || null;
+      if (!name || !phone || !username) {
+        return json({ error: "Preencha nome, WhatsApp e usuário desejado." }, 400);
+      }
+
+      const { data: inserted, error } = await admin
+        .from("pending_new_customers")
+        .insert({
+          owner_id: st.user_id,
+          name,
+          phone,
+          username,
+          server_id: serverId,
+        })
+        .select("id")
+        .single();
+
+      if (error) {
+        const msg = /duplicate|unique|already/i.test(error.message)
+          ? "Esse usuário já está em uso. Escolha outro nome de usuário."
+          : `Não foi possível concluir o cadastro: ${error.message}`;
+        return json({ error: msg }, 400);
+      }
+
+      return json({ ok: true, id: inserted.id });
+    }
+
+    const url = new URL(req.url);
+    const slug = (url.searchParams.get("slug") || "").trim().toLowerCase();
+    if (!slug) return json({ error: "slug_required" }, 400);
 
     const { data: settings } = await admin
       .from("reseller_checkout_settings")
@@ -47,6 +95,13 @@ Deno.serve(async (req) => {
       .select("id, plan_name, duration_days, price, checkout_url, card_checkout_url")
       .eq("created_by", ownerId)
       .order("price", { ascending: true });
+
+    // Servers of this reseller (public listing for new customer registration).
+    const { data: servers } = await admin
+      .from("servers")
+      .select("id, server_name, status")
+      .eq("created_by", ownerId)
+      .order("server_name", { ascending: true });
 
     // Activation apps configured by this reseller (public listing).
     const { data: apps } = await admin
@@ -76,6 +131,9 @@ Deno.serve(async (req) => {
         cakto_url: p.checkout_url || null,
         card_url: p.card_checkout_url || null,
       })),
+      servers: (servers || [])
+        .filter((s: any) => s.status !== "manutencao")
+        .map((s: any) => ({ id: s.id, name: s.server_name })),
       apps: (apps || []).map((a: any) => ({
         id: a.id,
         name: a.app_name,
