@@ -68,6 +68,15 @@ serve(async (req) => {
     let ownerId: string | null = callerId;
     let vplayPanelUsername = '';
 
+    if (action === 'test') {
+      host = String(requestBody.vplay_mysql_host || '').trim();
+      user = String(requestBody.vplay_mysql_user || '').trim();
+      password = String(requestBody.vplay_mysql_password || '');
+      database = String(requestBody.vplay_mysql_database || '').trim();
+      port = Number(requestBody.vplay_mysql_port) || 3306;
+      vplayPanelUsername = String(requestBody.vplay_panel_username || '').trim();
+    }
+
     const serviceRoleKeyForLookup = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
     if (serviceRoleKeyForLookup) {
       const lookupClient = createClient(Deno.env.get('SUPABASE_URL')!, serviceRoleKeyForLookup, {
@@ -92,7 +101,7 @@ serve(async (req) => {
 
         vplayPanelUsername = String(settings?.vplay_panel_username || '').trim();
 
-        if (settings?.vplay_mysql_host && settings?.vplay_mysql_user && settings?.vplay_mysql_password && settings?.vplay_mysql_database) {
+        if ((!host || !user || !password || !database) && settings?.vplay_mysql_host && settings?.vplay_mysql_user && settings?.vplay_mysql_password && settings?.vplay_mysql_database) {
           host = String(settings.vplay_mysql_host).trim();
           user = String(settings.vplay_mysql_user).trim();
           password = String(settings.vplay_mysql_password);
@@ -158,7 +167,11 @@ serve(async (req) => {
     let externalRefund: { tableName: string; balanceColumn: string; whereColumn: string; whereValue: string | number } | null = null;
 
     try {
-      const expDateString = `${new_due_date} 23:59:59`;
+      const normalizedDueDate = String(new_due_date).split('T')[0];
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(normalizedDueDate)) {
+        throw new Error('A data de vencimento recebida é inválida. Use o formato AAAA-MM-DD.');
+      }
+      const expDateString = `${normalizedDueDate} 23:59:59`;
       const normalizedUsername = String(username).trim();
 
       // Build username variants (phone number variations)
@@ -166,6 +179,7 @@ serve(async (req) => {
       const digits = normalizedUsername.replace(/\D/g, '');
       if (digits) {
         usernameVariants.add(digits);
+        usernameVariants.add(`+${digits}`);
         if (digits.startsWith('55') && digits.length >= 12) {
           const withoutCountry = digits.slice(2);
           usernameVariants.add(withoutCountry);
