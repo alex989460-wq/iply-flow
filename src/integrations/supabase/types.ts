@@ -2966,6 +2966,7 @@ export type Database = {
           is_public: boolean | null
           panel_type: string | null
           server_name: string
+          sigma_connection_id: string | null
           status: Database["public"]["Enums"]["server_status"]
         }
         Insert: {
@@ -2979,6 +2980,7 @@ export type Database = {
           is_public?: boolean | null
           panel_type?: string | null
           server_name: string
+          sigma_connection_id?: string | null
           status?: Database["public"]["Enums"]["server_status"]
         }
         Update: {
@@ -2992,6 +2994,7 @@ export type Database = {
           is_public?: boolean | null
           panel_type?: string | null
           server_name?: string
+          sigma_connection_id?: string | null
           status?: Database["public"]["Enums"]["server_status"]
         }
         Relationships: [
@@ -3001,6 +3004,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "servers_sigma_connection_id_fkey"
+            columns: ["sigma_connection_id"]
+            isOneToOne: false
+            referencedRelation: "sigma_panel_connections"
+            referencedColumns: ["id"]
           },
         ]
       }
