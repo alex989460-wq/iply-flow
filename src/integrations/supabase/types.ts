@@ -1406,6 +1406,51 @@ export type Database = {
         }
         Relationships: []
       }
+      discount_coupons: {
+        Row: {
+          applies_to: string
+          code: string
+          created_at: string
+          discount_type: string
+          discount_value: number
+          expires_at: string | null
+          id: string
+          is_active: boolean
+          max_uses: number | null
+          owner_id: string
+          updated_at: string
+          used_count: number
+        }
+        Insert: {
+          applies_to?: string
+          code: string
+          created_at?: string
+          discount_type?: string
+          discount_value?: number
+          expires_at?: string | null
+          id?: string
+          is_active?: boolean
+          max_uses?: number | null
+          owner_id: string
+          updated_at?: string
+          used_count?: number
+        }
+        Update: {
+          applies_to?: string
+          code?: string
+          created_at?: string
+          discount_type?: string
+          discount_value?: number
+          expires_at?: string | null
+          id?: string
+          is_active?: boolean
+          max_uses?: number | null
+          owner_id?: string
+          updated_at?: string
+          used_count?: number
+        }
+        Relationships: []
+      }
       efi_charges: {
         Row: {
           amount: number
@@ -2762,6 +2807,9 @@ export type Database = {
           rush_password: string | null
           rush_token: string | null
           rush_username: string | null
+          sigma_base_url: string | null
+          sigma_password: string | null
+          sigma_username: string | null
           the_best_api_key: string | null
           the_best_base_url: string | null
           the_best_password: string | null
@@ -2793,6 +2841,9 @@ export type Database = {
           rush_password?: string | null
           rush_token?: string | null
           rush_username?: string | null
+          sigma_base_url?: string | null
+          sigma_password?: string | null
+          sigma_username?: string | null
           the_best_api_key?: string | null
           the_best_base_url?: string | null
           the_best_password?: string | null
@@ -2824,6 +2875,9 @@ export type Database = {
           rush_password?: string | null
           rush_token?: string | null
           rush_username?: string | null
+          sigma_base_url?: string | null
+          sigma_password?: string | null
+          sigma_username?: string | null
           the_best_api_key?: string | null
           the_best_base_url?: string | null
           the_best_password?: string | null
