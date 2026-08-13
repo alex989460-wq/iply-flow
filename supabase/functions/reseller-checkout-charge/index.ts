@@ -204,6 +204,20 @@ Deno.serve(async (req) => {
     }
     amount = Math.round(amount * 100) / 100;
 
+    // ---- cupom de desconto (opcional) ----
+    let appliedCoupon: any = null;
+    let discountValue = 0;
+    const couponCode = String(body.coupon_code || body.coupon || "").trim();
+    if (couponCode) {
+      const res = await findCoupon(admin, ownerId, couponCode);
+      if (!res || (res as any).error) return json({ error: (res as any)?.error || "Cupom inválido." }, 400);
+      appliedCoupon = (res as any).coupon;
+      const applied = applyDiscount(amount, appliedCoupon);
+      discountValue = applied.discount;
+      amount = applied.final;
+    }
+
+
     const { data: efi } = await admin
       .from("efi_settings").select("*").eq("user_id", ownerId).eq("enabled", true).maybeSingle();
     if (!efi) return json({ error: "efi_not_configured" }, 400);
