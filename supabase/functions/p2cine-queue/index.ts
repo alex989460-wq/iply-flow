@@ -1,7 +1,7 @@
 // Panel queue: consumed by the browser extension using the user's real session.
 // The extension polls GET to receive the next pending renewal, executes it inside
 // the logged-in panel tab, then POSTs the result back so we can update the
-// customer's due_date and clear the pending item. Supports P2Cine, Uniplay and Sigma.
+// customer's due_date and clear the pending item. Supports P2Cine and Uniplay.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
 const corsHeaders = {
@@ -36,13 +36,6 @@ function isUniplay(row: { server_host?: string | null; server_name?: string | nu
   const n = (row.server_name || "").toLowerCase().trim();
   const hay = `${h} ${n}`;
   return hay.includes("uniplay") || hay.includes("searchdefense") || hay.includes("gesapioffice");
-}
-
-function isSigma(row: { server_host?: string | null; server_name?: string | null }) {
-  const h = (row.server_host || "").toLowerCase().trim();
-  const n = (row.server_name || "").toLowerCase().trim();
-  const hay = `${h} ${n}`;
-  return hay.includes("sigma") || hay.includes("newbr.top");
 }
 
 async function resolveOwner(token: string): Promise<string | null> {
@@ -94,8 +87,6 @@ Deno.serve(async (req) => {
         "server_host.ilike.%uniplay%", "server_name.ilike.%uniplay%",
         "server_host.ilike.%searchdefense%", "server_name.ilike.%searchdefense%",
         "server_host.ilike.%gesapioffice%", "server_name.ilike.%gesapioffice%",
-        "server_host.ilike.%sigma%", "server_name.ilike.%sigma%",
-        "server_host.ilike.%newbr.top%", "server_name.ilike.%newbr.top%",
         "server_host.ilike.%p2c%", "server_name.ilike.%p2c%",
       ].join(",");
 
@@ -108,7 +99,7 @@ Deno.serve(async (req) => {
         .limit(30);
       if (error) throw error;
 
-      const candidates = (data ?? []).filter((row) => isP2Cine(row) || isUniplay(row) || isSigma(row));
+      const candidates = (data ?? []).filter((row) => isP2Cine(row) || isUniplay(row));
       if (candidates.length === 0) return json({ item: null });
 
       // A pendência SEMPRE nasce depois de um pagamento (é a falha da renovação no
@@ -159,7 +150,7 @@ Deno.serve(async (req) => {
 
 
 
-      const panelType = isSigma(next) ? "sigma" : isUniplay(next) ? "uniplay" : "p2cine";
+      const panelType = isUniplay(next) ? "uniplay" : "p2cine";
 
       // Resolve months from the plan registered in the system (fallback 1).
       let months = 1;
@@ -260,7 +251,7 @@ Deno.serve(async (req) => {
             return json({ ok: true, action: "skipped_duplicate", recent_source: recentPay.source });
           }
 
-          const panelSource = isSigma(pending) ? "sigma_extension" : isUniplay(pending) ? "uniplay_extension" : "p2cine_extension";
+          const panelSource = isUniplay(pending) ? "uniplay_extension" : "p2cine_extension";
           const { error: payErr } = await supabase.from("payments").insert({
             customer_id: pending.customer_id,
             amount: pending.amount ?? 0,
@@ -280,7 +271,7 @@ Deno.serve(async (req) => {
       await supabase
         .from("pending_manual_renewals")
         .update({
-          reason: `${isSigma(pending) ? "sigma" : isUniplay(pending) ? "uniplay" : "p2cine"}_extension_failed`,
+          reason: `${isUniplay(pending) ? "uniplay" : "p2cine"}_extension_failed`,
           error_details: { message: message ?? "unknown", http_status: http_status ?? null },
         })
         .eq("id", id);
