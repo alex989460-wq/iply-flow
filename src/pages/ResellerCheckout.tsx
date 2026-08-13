@@ -4,7 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
-import { Loader2, Check, Phone, QrCode, ArrowLeft, Copy, Sparkles, ShieldCheck, Tv, User as UserIcon, AlertTriangle, Server, Smartphone, ChevronRight } from 'lucide-react';
+import { Loader2, Check, Phone, QrCode, ArrowLeft, Copy, Sparkles, ShieldCheck, Tv, User as UserIcon, AlertTriangle, Server, Smartphone, ChevronRight, AlertCircle, Plus } from 'lucide-react';
 import { toast } from 'sonner';
 import pixLogo from '@/assets/pix-logo.png.asset.json';
 import cardLogo from '@/assets/card-logo.png.asset.json';
@@ -97,7 +97,7 @@ export default function ResellerCheckout() {
   const [loading, setLoading] = useState(true);
 
   // Modal steps: 'phone' -> 'accounts' -> 'method' -> 'pix'
-  const [step, setStep] = useState<null | 'phone' | 'accounts' | 'method' | 'pix'>(null);
+  const [step, setStep] = useState<null | 'phone' | 'accounts' | 'method' | 'pix' | 'not_found'>(null);
   const [group, setGroup] = useState<PlanGroup | null>(null);
 
   const [phone, setPhone] = useState('');
