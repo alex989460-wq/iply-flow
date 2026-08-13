@@ -503,6 +503,22 @@ export default function BillingSettingsCard() {
           </div>
 
           <div className="space-y-2">
+            <Label className="text-sm">Envio para clientes internacionais</Label>
+            <div className="flex items-center gap-2 p-3 rounded-md border border-border bg-muted/20">
+              <Switch
+                id="intl-billing"
+                checked={!!(formData as any).allow_intl_billing}
+                onCheckedChange={(checked) => setFormData(prev => ({ ...prev, allow_intl_billing: checked } as any))}
+              />
+              <Label htmlFor="intl-billing" className="text-xs cursor-pointer">Permitir envio automático de cobranças para números fora do Brasil</Label>
+            </div>
+            <p className="text-[10px] text-muted-foreground ml-1">
+              Ative se tiver clientes de outros países. Caso contrário, o sistema focará apenas em números brasileiros (+55).
+            </p>
+          </div>
+
+
+          <div className="space-y-2">
             <Label className="text-sm">Mensagem de Renovação (Template)</Label>
             <Textarea
               placeholder={DEFAULT_RENEWAL_TEMPLATE}
