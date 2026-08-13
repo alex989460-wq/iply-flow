@@ -46,16 +46,18 @@ serve(async (req) => {
       console.log('[VPlay] Chamada interna autorizada pelo webhook da Cakto');
     }
 
-    const { username, new_due_date, customer_id } = await req.json();
+    const requestBody = await req.json();
+    const { username, new_due_date, customer_id } = requestBody;
+    const action = String(requestBody.action || 'renew');
 
-    if (!username || !new_due_date) {
+    if (action !== 'test' && (!username || !new_due_date)) {
       return new Response(
         JSON.stringify({ error: 'Username e nova data de vencimento são obrigatórios' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
       );
     }
 
-    console.log(`[VPlay] Renovando usuário: ${username}, nova data: ${new_due_date}`);
+    if (action !== 'test') console.log(`[VPlay] Renovando usuário: ${username}, nova data: ${new_due_date}`);
 
     // 1) Credenciais MySQL próprias do revendedor (dono do cliente ou quem chamou)
     let host = '';
@@ -128,6 +130,19 @@ serve(async (req) => {
       port: Number.isFinite(port) ? port : 3306,
       connectTimeout: 10000,
     });
+
+    if (action === 'test') {
+      try {
+        await connection.query('SELECT 1');
+        await connection.end();
+        return new Response(JSON.stringify({ success: true, message: 'Conexão com o VPlay validada com sucesso.' }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      } catch (testError) {
+        await connection.end().catch(() => undefined);
+        throw testError;
+      }
+    }
 
 
     const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');

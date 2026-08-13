@@ -404,7 +404,7 @@ export default function QuickRenewalPanel({ isMobile = false, onClose, initialPh
           notes,
           start_date,
           plan:plans(id, plan_name, price, duration_days),
-          server:servers(id, server_name, host, panel_type)
+          server:servers(id, server_name, host, panel_type, sigma_connection_id)
         `)
         .or(orFilter)
         .limit(10);
@@ -561,7 +561,7 @@ export default function QuickRenewalPanel({ isMobile = false, onClose, initialPh
           } else if (panel === 'sigma') {
             const months = Math.max(1, Math.round(durationDays / 30));
             const { data: sgResult, error: sgError } = await supabase.functions.invoke('sigma-renew', {
-              body: { action: 'renew', username: xuiUsername, months, customer_id: customer.id },
+              body: { action: 'renew', username: xuiUsername, months, customer_id: customer.id, connection_id: (customer.server as any)?.sigma_connection_id || null },
             });
             if (sgError) {
               console.error('[Sigma] Erro:', sgError);

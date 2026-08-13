@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -10,15 +10,28 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { Loader2, ChevronRight, Check, ShieldCheck, User as UserIcon, Phone, AtSign, Server } from 'lucide-react';
+import { Loader2, ChevronRight, Check, ShieldCheck, User as UserIcon, Phone, Server } from 'lucide-react';
+import { normalizeWhatsAppPhone } from '@/lib/phone';
 
 const FN_BASE = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1`;
 const ANON = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
 interface ServerOption { id: string; name: string }
 
+const COUNTRIES = [
+  { flag: '🇧🇷', ddi: '55', name: 'Brasil' }, { flag: '🇵🇹', ddi: '351', name: 'Portugal' },
+  { flag: '🇺🇸', ddi: '1', name: 'EUA/Canadá' }, { flag: '🇪🇸', ddi: '34', name: 'Espanha' },
+  { flag: '🇮🇹', ddi: '39', name: 'Itália' }, { flag: '🇫🇷', ddi: '33', name: 'França' },
+  { flag: '🇩🇪', ddi: '49', name: 'Alemanha' }, { flag: '🇬🇧', ddi: '44', name: 'Reino Unido' },
+  { flag: '🇦🇷', ddi: '54', name: 'Argentina' }, { flag: '🇨🇱', ddi: '56', name: 'Chile' },
+  { flag: '🇨🇴', ddi: '57', name: 'Colômbia' }, { flag: '🇲🇽', ddi: '52', name: 'México' },
+  { flag: '🇵🇾', ddi: '595', name: 'Paraguai' }, { flag: '🇺🇾', ddi: '598', name: 'Uruguai' },
+];
+
 export default function ResellerNewCustomerCheckout() {
   const { slug } = useParams<{ slug: string }>();
+  const navigate = useNavigate();
+  const [ddi, setDdi] = useState('55');
   const [phone, setPhone] = useState('');
   const [name, setName] = useState('');
   const [username, setUsername] = useState('');
@@ -49,6 +62,8 @@ export default function ResellerNewCustomerCheckout() {
     }
     setLoading(true);
     try {
+      const localPhone = phone.replace(/\D/g, '').replace(new RegExp(`^${ddi}`), '');
+      const fullPhone = normalizeWhatsAppPhone(`+${ddi}${localPhone}`);
       const res = await fetch(`${FN_BASE}/reseller-checkout-data`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', apikey: ANON, Authorization: `Bearer ${ANON}` },
@@ -56,7 +71,7 @@ export default function ResellerNewCustomerCheckout() {
           action: 'register',
           slug,
           name: name.trim(),
-          phone: phone.replace(/\D/g, ''),
+          phone: fullPhone,
           username: username.trim(),
           server_id: serverId || null,
         }),
@@ -66,6 +81,7 @@ export default function ResellerNewCustomerCheckout() {
 
       setSuccess(true);
       toast.success('Cadastro realizado! Agora escolha seu plano.');
+      window.setTimeout(() => navigate(`/r/${slug}?phone=${encodeURIComponent(fullPhone)}`), 700);
     } catch (err: any) {
       toast.error(err.message || 'Erro ao realizar cadastro');
     } finally {
@@ -108,55 +124,64 @@ export default function ResellerNewCustomerCheckout() {
 
         <form onSubmit={handleSubmit} className="bg-[#161616] border border-white/5 p-8 rounded-2xl shadow-2xl space-y-6">
           <div className="space-y-2">
-            <label className="text-sm font-bold text-white/70 ml-1">NOME COMPLETO</label>
+            <label className="text-sm font-bold text-white ml-1">NOME COMPLETO</label>
             <div className="relative">
-              <UserIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-white/30" />
+              <UserIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-white" />
               <Input
                 placeholder="Ex: João Silva"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                className="bg-black/20 border-white/10 pl-10 h-12 rounded-xl focus:ring-primary/50"
+                className="bg-black/20 border-white/20 pl-10 h-12 rounded-xl text-white placeholder:text-white/50 focus:ring-primary/50"
                 required
               />
             </div>
           </div>
 
           <div className="space-y-2">
-            <label className="text-sm font-bold text-white/70 ml-1">WHATSAPP COM DDD</label>
-            <div className="relative">
-              <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-white/30" />
+            <label className="text-sm font-bold text-white ml-1">WHATSAPP</label>
+            <div className="flex gap-2">
+              <Select value={ddi} onValueChange={setDdi}>
+                <SelectTrigger className="w-32 bg-black/20 border-white/20 h-12 text-white">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {COUNTRIES.map((country) => <SelectItem key={country.ddi} value={country.ddi}>{country.flag} +{country.ddi}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <div className="relative flex-1">
+                <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-white" />
               <Input
-                placeholder="Ex: 11999999999"
+                placeholder="Número com DDD"
                 value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                className="bg-black/20 border-white/10 pl-10 h-12 rounded-xl focus:ring-primary/50"
+                onChange={(e) => setPhone(e.target.value.replace(/[^\d ()-]/g, ''))}
+                className="bg-black/20 border-white/20 pl-10 h-12 rounded-xl text-white placeholder:text-white/50 focus:ring-primary/50"
                 required
               />
+              </div>
             </div>
           </div>
 
           <div className="space-y-2">
-            <label className="text-sm font-bold text-white/70 ml-1">USUÁRIO DESEJADO</label>
-            <div className="relative">
-              <AtSign className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-white/30" />
+            <label className="text-sm font-bold text-white ml-1">USUÁRIO RECEBIDO NO TESTE</label>
+            <div>
               <Input
-                placeholder="Ex: joao123"
+                placeholder="Digite o usuário recebido no teste"
                 value={username}
                 onChange={(e) => setUsername(e.target.value.replace(/\s/g, ''))}
-                className="bg-black/20 border-white/10 pl-10 h-12 rounded-xl focus:ring-primary/50"
+                className="bg-black/20 border-white/20 h-12 rounded-xl text-white placeholder:text-white/50 focus:ring-primary/50"
                 required
               />
             </div>
-            <p className="text-[11px] text-white/30 ml-1">Será o login usado no seu aplicativo.</p>
+            <p className="text-[11px] text-white/70 ml-1">Informe exatamente o usuário gerado no seu teste.</p>
           </div>
 
           {servers.length > 0 && (
             <div className="space-y-2">
-              <label className="text-sm font-bold text-white/70 ml-1">SERVIDOR</label>
+              <label className="text-sm font-bold text-white ml-1">SERVIDOR</label>
               <Select value={serverId} onValueChange={setServerId}>
-                <SelectTrigger className="bg-black/20 border-white/10 h-12 rounded-xl">
+                <SelectTrigger className="bg-black/20 border-white/20 h-12 rounded-xl text-white">
                   <div className="flex items-center gap-2">
-                    <Server className="w-4 h-4 text-white/30" />
+                    <Server className="w-4 h-4 text-white" />
                     <SelectValue placeholder="Selecione o servidor" />
                   </div>
                 </SelectTrigger>

@@ -11,6 +11,14 @@ const cors = {
 const json = (b: unknown, s = 200) =>
   new Response(JSON.stringify(b), { status: s, headers: { ...cors, "Content-Type": "application/json" } });
 
+function saoPauloDate(): string {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Sao_Paulo", year: "numeric", month: "2-digit", day: "2-digit",
+  }).formatToParts(new Date());
+  const value = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return `${value.year}-${value.month}-${value.day}`;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: cors });
   try {
@@ -45,6 +53,21 @@ Deno.serve(async (req) => {
         return json({ error: "Preencha nome, WhatsApp e usuário desejado." }, 400);
       }
 
+      if (serverId) {
+        const { data: ownedServer } = await admin.from("servers").select("id").eq("id", serverId).eq("created_by", st.user_id).maybeSingle();
+        if (!ownedServer) return json({ error: "Servidor inválido para este revendedor." }, 400);
+      }
+
+      const today = saoPauloDate();
+      const { data: existing } = await admin.from("customers").select("id").eq("created_by", st.user_id).ilike("username", username).maybeSingle();
+      if (existing) return json({ error: "Esse usuário já está cadastrado. Use a opção Já sou cliente." }, 409);
+
+      const { data: customer, error: customerError } = await admin.from("customers").insert({
+        created_by: st.user_id, name, phone, username, server_id: serverId,
+        start_date: today, due_date: today, status: "inativa",
+      }).select("id").single();
+      if (customerError) return json({ error: `Não foi possível cadastrar o cliente: ${customerError.message}` }, 400);
+
       const { data: inserted, error } = await admin
         .from("pending_new_customers")
         .insert({
@@ -58,13 +81,14 @@ Deno.serve(async (req) => {
         .single();
 
       if (error) {
+        await admin.from("customers").delete().eq("id", customer.id).eq("created_by", st.user_id);
         const msg = /duplicate|unique|already/i.test(error.message)
           ? "Esse usuário já está em uso. Escolha outro nome de usuário."
           : `Não foi possível concluir o cadastro: ${error.message}`;
         return json({ error: msg }, 400);
       }
 
-      return json({ ok: true, id: inserted.id });
+      return json({ ok: true, id: inserted.id, customer_id: customer.id, phone });
     }
 
     const url = new URL(req.url);

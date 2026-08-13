@@ -7,7 +7,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { Loader2, Save, Eye, EyeOff, AlertCircle, CheckCircle2, Key, Copy, ExternalLink } from 'lucide-react';
+import { Loader2, Save, Eye, EyeOff, AlertCircle, CheckCircle2, Key, Copy, ExternalLink, Plus, Trash2 } from 'lucide-react';
 import MaskedUrlField from '@/components/ui/masked-url';
 
 export default function ResellerApiSettings() {
@@ -29,6 +29,9 @@ export default function ResellerApiSettings() {
   const [showVplayDbPassword, setShowVplayDbPassword] = useState(false);
   const [showSigmaPassword, setShowSigmaPassword] = useState(false);
   const [testingSigma, setTestingSigma] = useState(false);
+  const [testingVplay, setTestingVplay] = useState(false);
+  const [sigmaConnections, setSigmaConnections] = useState<any[]>([]);
+  const [savingSigmaConnection, setSavingSigmaConnection] = useState(false);
 
   const [testingUniplay, setTestingUniplay] = useState(false);
   const [testingTheBest, setTestingTheBest] = useState(false);
@@ -73,13 +76,14 @@ export default function ResellerApiSettings() {
 
   const fetchSettings = async () => {
     try {
-      const { data, error } = await supabase
-        .from('reseller_api_settings' as any)
-        .select('*')
-        .eq('user_id', user?.id)
-        .maybeSingle();
+      const [{ data, error }, { data: connections, error: connectionsError }] = await Promise.all([
+        supabase.from('reseller_api_settings' as any).select('*').eq('user_id', user?.id).maybeSingle(),
+        supabase.from('sigma_panel_connections' as any).select('*').eq('user_id', user?.id).order('created_at'),
+      ]);
 
       if (error) throw error;
+      if (connectionsError) throw connectionsError;
+      setSigmaConnections(connections || []);
 
       if (data) {
         setHasExisting(true);
@@ -268,13 +272,31 @@ export default function ResellerApiSettings() {
   const hasTheBest = !!settings.the_best_api_key || (!!settings.the_best_username && !!settings.the_best_password);
   const hasRush = !!settings.rush_username && !!settings.rush_password && !!settings.rush_token;
   const hasUniplay = !!settings.uniplay_username && !!settings.uniplay_password;
-  const hasSigma = !!settings.sigma_base_url && !!settings.sigma_username && !!settings.sigma_password;
+  const hasSigma = sigmaConnections.length > 0 || (!!settings.sigma_base_url && !!settings.sigma_username && !!settings.sigma_password);
 
   const handleTestSigma = async () => {
+    if (!settings.sigma_base_url.trim() || !settings.sigma_username.trim() || !settings.sigma_password) {
+      toast({ title: 'Dados incompletos', description: 'Informe a URL, o usuário e a senha do Sigma.', variant: 'destructive' });
+      return;
+    }
     setTestingSigma(true);
     try {
-      const { data, error } = await supabase.functions.invoke('sigma-renew', { body: { action: 'test' } });
-      if (error) throw error;
+      const { data, error } = await supabase.functions.invoke('sigma-renew', {
+        body: {
+          action: 'test',
+          sigma_base_url: settings.sigma_base_url.trim(),
+          sigma_username: settings.sigma_username.trim(),
+          sigma_password: settings.sigma_password,
+        },
+      });
+      if (error) {
+        const response = (error as any)?.context;
+        if (response instanceof Response) {
+          const detail = await response.json().catch(() => null);
+          throw new Error(detail?.error || error.message);
+        }
+        throw error;
+      }
       if ((data as any)?.error) throw new Error((data as any).error);
       const servers = (data as any)?.servers || [];
       toast({
@@ -292,8 +314,75 @@ export default function ResellerApiSettings() {
     }
   };
 
+  const addSigmaConnection = async () => {
+    if (!user || !settings.sigma_base_url.trim() || !settings.sigma_username.trim() || !settings.sigma_password) {
+      toast({ title: 'Dados incompletos', description: 'Informe URL, usuário e senha para adicionar a conexão.', variant: 'destructive' });
+      return;
+    }
+    setSavingSigmaConnection(true);
+    try {
+      const hostname = settings.sigma_base_url.replace(/^https?:\/\//i, '').replace(/\/+$/, '');
+      const { error } = await supabase.from('sigma_panel_connections' as any).insert({
+        user_id: user.id,
+        name: hostname || 'Painel Sigma',
+        base_url: settings.sigma_base_url.trim(),
+        username: settings.sigma_username.trim(),
+        password: settings.sigma_password,
+      });
+      if (error) throw error;
+      setSettings((current) => ({ ...current, sigma_base_url: '', sigma_username: '', sigma_password: '' }));
+      await fetchSettings();
+      toast({ title: 'Conexão Sigma adicionada' });
+    } catch (error: any) {
+      toast({ title: 'Erro ao adicionar Sigma', description: error?.message || 'Não foi possível salvar a conexão.', variant: 'destructive' });
+    } finally {
+      setSavingSigmaConnection(false);
+    }
+  };
+
+  const removeSigmaConnection = async (id: string) => {
+    const { error } = await supabase.from('sigma_panel_connections' as any).delete().eq('id', id).eq('user_id', user?.id);
+    if (error) {
+      toast({ title: 'Erro ao remover conexão', description: error.message, variant: 'destructive' });
+      return;
+    }
+    setSigmaConnections((current) => current.filter((connection) => connection.id !== id));
+    toast({ title: 'Conexão Sigma removida' });
+  };
+
   const hasVplay = (!!settings.vplay_panel_username && !!settings.vplay_panel_password)
     || (!!settings.vplay_mysql_host && !!settings.vplay_mysql_user && !!settings.vplay_mysql_password && !!settings.vplay_mysql_database);
+
+  const handleTestVplay = async () => {
+    if (!settings.vplay_panel_username.trim() || !settings.vplay_panel_password) {
+      toast({ title: 'Dados incompletos', description: 'Informe o usuário e a senha do painel VPlay.', variant: 'destructive' });
+      return;
+    }
+    setTestingVplay(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('vplay-renew', {
+        body: {
+          action: 'test',
+          vplay_panel_username: settings.vplay_panel_username.trim(),
+          vplay_panel_password: settings.vplay_panel_password,
+        },
+      });
+      if (error) {
+        const response = (error as any)?.context;
+        if (response instanceof Response) {
+          const detail = await response.json().catch(() => null);
+          throw new Error(detail?.error || error.message);
+        }
+        throw error;
+      }
+      if (!data?.success) throw new Error(data?.error || 'Não foi possível validar a conexão VPlay.');
+      toast({ title: 'Conexão VPlay OK', description: data.message || 'Painel e servidor disponíveis.' });
+    } catch (e: any) {
+      toast({ title: 'Falha ao conectar no VPlay', description: e?.message || 'Confira o usuário e a senha.', variant: 'destructive' });
+    } finally {
+      setTestingVplay(false);
+    }
+  };
 
 
   return (
@@ -739,6 +828,10 @@ export default function ResellerApiSettings() {
               Basta informar o seu usuário e senha do painel VPlay. A conexão com o servidor já está configurada pelo sistema.
             </AlertDescription>
           </Alert>
+          <Button variant="outline" onClick={handleTestVplay} disabled={testingVplay}>
+            {testingVplay ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <CheckCircle2 className="w-4 h-4 mr-2" />}
+            Testar conexão VPlay
+          </Button>
         </CardContent>
       </Card>
 
@@ -803,12 +896,32 @@ export default function ResellerApiSettings() {
             {testingSigma ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <CheckCircle2 className="w-4 h-4 mr-2" />}
             Testar conexão Sigma
           </Button>
+          <Button type="button" onClick={addSigmaConnection} disabled={savingSigmaConnection}>
+            {savingSigmaConnection ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Plus className="w-4 h-4 mr-2" />}
+            Adicionar conexão Sigma
+          </Button>
+
+          {sigmaConnections.length > 0 && (
+            <div className="space-y-2">
+              <Label>Conexões cadastradas</Label>
+              {sigmaConnections.map((connection) => (
+                <div key={connection.id} className="flex items-center justify-between gap-3 rounded-md border border-border p-3">
+                  <div className="min-w-0">
+                    <p className="font-medium truncate">{connection.name}</p>
+                    <p className="text-xs text-muted-foreground truncate">{connection.base_url} • {connection.username}</p>
+                  </div>
+                  <Button type="button" variant="ghost" size="icon" onClick={() => removeSigmaConnection(connection.id)} aria-label="Remover conexão Sigma">
+                    <Trash2 className="w-4 h-4 text-destructive" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
 
           <Alert className="bg-muted/50">
             <AlertCircle className="h-4 w-4" />
             <AlertDescription className="text-xs">
-              Deixe em branco se você não usa Sigma. Depois de salvar, marque o painel "Sigma" no cadastro do servidor
-              para que as renovações e testes usem essa integração.
+              Adicione quantas conexões precisar. Depois, selecione a conexão correta no cadastro de cada servidor Sigma.
             </AlertDescription>
           </Alert>
         </CardContent>

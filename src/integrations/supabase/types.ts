@@ -2966,6 +2966,7 @@ export type Database = {
           is_public: boolean | null
           panel_type: string | null
           server_name: string
+          sigma_connection_id: string | null
           status: Database["public"]["Enums"]["server_status"]
         }
         Insert: {
@@ -2979,6 +2980,7 @@ export type Database = {
           is_public?: boolean | null
           panel_type?: string | null
           server_name: string
+          sigma_connection_id?: string | null
           status?: Database["public"]["Enums"]["server_status"]
         }
         Update: {
@@ -2992,6 +2994,7 @@ export type Database = {
           is_public?: boolean | null
           panel_type?: string | null
           server_name?: string
+          sigma_connection_id?: string | null
           status?: Database["public"]["Enums"]["server_status"]
         }
         Relationships: [
@@ -3002,7 +3005,50 @@ export type Database = {
             referencedRelation: "profiles"
             referencedColumns: ["user_id"]
           },
+          {
+            foreignKeyName: "servers_sigma_connection_id_fkey"
+            columns: ["sigma_connection_id"]
+            isOneToOne: false
+            referencedRelation: "sigma_panel_connections"
+            referencedColumns: ["id"]
+          },
         ]
+      }
+      sigma_panel_connections: {
+        Row: {
+          base_url: string
+          created_at: string
+          id: string
+          is_active: boolean
+          name: string
+          password: string
+          updated_at: string
+          user_id: string
+          username: string
+        }
+        Insert: {
+          base_url: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name: string
+          password: string
+          updated_at?: string
+          user_id: string
+          username: string
+        }
+        Update: {
+          base_url?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          password?: string
+          updated_at?: string
+          user_id?: string
+          username?: string
+        }
+        Relationships: []
       }
       suppressed_emails: {
         Row: {
