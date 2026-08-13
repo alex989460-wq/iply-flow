@@ -612,7 +612,7 @@ export default function ResellerCheckout() {
                     </div>
                     <p className="font-bold text-sm tracking-wide">PIX INSTANTÂNEO</p>
                     <p className="text-[10px] text-white/50 -mt-1">Aprovação imediata</p>
-                    <p className="text-xl font-extrabold">{fmtBRL(pixTotal || group.pix.price)}</p>
+                    <p className="text-xl font-extrabold">{fmtBRL(couponInfo ? couponInfo.amount : (pixTotal || group.pix.price))}</p>
                   </button>
                 )}
                 {data.methods.cakto && (group.pix?.card_url || group.card?.cakto_url) && (
@@ -634,7 +634,7 @@ export default function ResellerCheckout() {
                     </div>
                     <p className="font-bold text-sm tracking-wide">PIX (CAKTO)</p>
                     <p className="text-[10px] text-white/50 -mt-1">Link Cakto</p>
-                    <p className="text-xl font-extrabold">{fmtBRL(pixTotal || group.pix.price)}</p>
+                    <p className="text-xl font-extrabold">{fmtBRL(couponInfo ? couponInfo.amount : (pixTotal || group.pix.price))}</p>
                   </button>
                 )}
               </div>
