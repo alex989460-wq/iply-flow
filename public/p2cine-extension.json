@@ -1,5 +1,5 @@
 {
-  "version": "1.9.0",
+  "version": "2.0.0",
   "download": "https://supergestor.top/p2cine-extension.zip",
-  "notes": "Agora reconhece o painel P2Cine tambem em painelacesso1.com (alem de daily3.news). Mantem Uniplay e IBO Sol funcionando normalmente."
+  "notes": "Adiciona renovação Sigma pelo navegador para contornar o bloqueio regional do Cloudflare. Mantém P2Cine, Uniplay e IBO Sol."
 }
