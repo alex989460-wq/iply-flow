@@ -7,7 +7,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { Loader2, Save, Eye, EyeOff, AlertCircle, CheckCircle2, Key, Copy, ExternalLink } from 'lucide-react';
+import { Loader2, Save, Eye, EyeOff, AlertCircle, CheckCircle2, Key, Copy, ExternalLink, Plus, Trash2 } from 'lucide-react';
 import MaskedUrlField from '@/components/ui/masked-url';
 
 export default function ResellerApiSettings() {
@@ -30,6 +30,8 @@ export default function ResellerApiSettings() {
   const [showSigmaPassword, setShowSigmaPassword] = useState(false);
   const [testingSigma, setTestingSigma] = useState(false);
   const [testingVplay, setTestingVplay] = useState(false);
+  const [sigmaConnections, setSigmaConnections] = useState<any[]>([]);
+  const [savingSigmaConnection, setSavingSigmaConnection] = useState(false);
 
   const [testingUniplay, setTestingUniplay] = useState(false);
   const [testingTheBest, setTestingTheBest] = useState(false);
@@ -74,13 +76,14 @@ export default function ResellerApiSettings() {
 
   const fetchSettings = async () => {
     try {
-      const { data, error } = await supabase
-        .from('reseller_api_settings' as any)
-        .select('*')
-        .eq('user_id', user?.id)
-        .maybeSingle();
+      const [{ data, error }, { data: connections, error: connectionsError }] = await Promise.all([
+        supabase.from('reseller_api_settings' as any).select('*').eq('user_id', user?.id).maybeSingle(),
+        supabase.from('sigma_panel_connections' as any).select('*').eq('user_id', user?.id).order('created_at'),
+      ]);
 
       if (error) throw error;
+      if (connectionsError) throw connectionsError;
+      setSigmaConnections(connections || []);
 
       if (data) {
         setHasExisting(true);
@@ -309,6 +312,42 @@ export default function ResellerApiSettings() {
     } finally {
       setTestingSigma(false);
     }
+  };
+
+  const addSigmaConnection = async () => {
+    if (!user || !settings.sigma_base_url.trim() || !settings.sigma_username.trim() || !settings.sigma_password) {
+      toast({ title: 'Dados incompletos', description: 'Informe URL, usuário e senha para adicionar a conexão.', variant: 'destructive' });
+      return;
+    }
+    setSavingSigmaConnection(true);
+    try {
+      const hostname = settings.sigma_base_url.replace(/^https?:\/\//i, '').replace(/\/+$/, '');
+      const { error } = await supabase.from('sigma_panel_connections' as any).insert({
+        user_id: user.id,
+        name: hostname || 'Painel Sigma',
+        base_url: settings.sigma_base_url.trim(),
+        username: settings.sigma_username.trim(),
+        password: settings.sigma_password,
+      });
+      if (error) throw error;
+      setSettings((current) => ({ ...current, sigma_base_url: '', sigma_username: '', sigma_password: '' }));
+      await fetchSettings();
+      toast({ title: 'Conexão Sigma adicionada' });
+    } catch (error: any) {
+      toast({ title: 'Erro ao adicionar Sigma', description: error?.message || 'Não foi possível salvar a conexão.', variant: 'destructive' });
+    } finally {
+      setSavingSigmaConnection(false);
+    }
+  };
+
+  const removeSigmaConnection = async (id: string) => {
+    const { error } = await supabase.from('sigma_panel_connections' as any).delete().eq('id', id).eq('user_id', user?.id);
+    if (error) {
+      toast({ title: 'Erro ao remover conexão', description: error.message, variant: 'destructive' });
+      return;
+    }
+    setSigmaConnections((current) => current.filter((connection) => connection.id !== id));
+    toast({ title: 'Conexão Sigma removida' });
   };
 
   const hasVplay = (!!settings.vplay_panel_username && !!settings.vplay_panel_password)
@@ -857,12 +896,32 @@ export default function ResellerApiSettings() {
             {testingSigma ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <CheckCircle2 className="w-4 h-4 mr-2" />}
             Testar conexão Sigma
           </Button>
+          <Button type="button" onClick={addSigmaConnection} disabled={savingSigmaConnection}>
+            {savingSigmaConnection ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Plus className="w-4 h-4 mr-2" />}
+            Adicionar conexão Sigma
+          </Button>
+
+          {sigmaConnections.length > 0 && (
+            <div className="space-y-2">
+              <Label>Conexões cadastradas</Label>
+              {sigmaConnections.map((connection) => (
+                <div key={connection.id} className="flex items-center justify-between gap-3 rounded-md border border-border p-3">
+                  <div className="min-w-0">
+                    <p className="font-medium truncate">{connection.name}</p>
+                    <p className="text-xs text-muted-foreground truncate">{connection.base_url} • {connection.username}</p>
+                  </div>
+                  <Button type="button" variant="ghost" size="icon" onClick={() => removeSigmaConnection(connection.id)} aria-label="Remover conexão Sigma">
+                    <Trash2 className="w-4 h-4 text-destructive" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
 
           <Alert className="bg-muted/50">
             <AlertCircle className="h-4 w-4" />
             <AlertDescription className="text-xs">
-              Deixe em branco se você não usa Sigma. Depois de salvar, marque o painel "Sigma" no cadastro do servidor
-              para que as renovações e testes usem essa integração.
+              Adicione quantas conexões precisar. Depois, selecione a conexão correta no cadastro de cada servidor Sigma.
             </AlertDescription>
           </Alert>
         </CardContent>

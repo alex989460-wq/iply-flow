@@ -107,9 +107,21 @@ Deno.serve(async (req) => {
       .eq("user_id", ownerId)
       .maybeSingle();
 
-    const base = normBase(action === "test" ? (body.sigma_base_url || (cfg as any)?.sigma_base_url || "") : ((cfg as any)?.sigma_base_url || ""));
-    const user = String(action === "test" ? (body.sigma_username || (cfg as any)?.sigma_username || "") : ((cfg as any)?.sigma_username || "")).trim();
-    const pass = String(action === "test" ? (body.sigma_password || (cfg as any)?.sigma_password || "") : ((cfg as any)?.sigma_password || ""));
+    let connectionId = String(body.connection_id || "").trim();
+    if (!connectionId && body.customer_id) {
+      const { data: customer } = await admin.from("customers").select("server_id").eq("id", String(body.customer_id)).eq("created_by", ownerId).maybeSingle();
+      if (customer?.server_id) {
+        const { data: server } = await admin.from("servers").select("sigma_connection_id").eq("id", customer.server_id).eq("created_by", ownerId).maybeSingle();
+        connectionId = String(server?.sigma_connection_id || "");
+      }
+    }
+    const { data: connection } = connectionId
+      ? await admin.from("sigma_panel_connections").select("base_url, username, password").eq("id", connectionId).eq("user_id", ownerId).eq("is_active", true).maybeSingle()
+      : { data: null };
+
+    const base = normBase(action === "test" ? (body.sigma_base_url || connection?.base_url || (cfg as any)?.sigma_base_url || "") : (connection?.base_url || (cfg as any)?.sigma_base_url || ""));
+    const user = String(action === "test" ? (body.sigma_username || connection?.username || (cfg as any)?.sigma_username || "") : (connection?.username || (cfg as any)?.sigma_username || "")).trim();
+    const pass = String(action === "test" ? (body.sigma_password || connection?.password || (cfg as any)?.sigma_password || "") : (connection?.password || (cfg as any)?.sigma_password || ""));
     if (!base || !user || !pass) {
       return json({ error: "Credenciais do Painel Sigma não configuradas. Preencha URL, usuário e senha em Configurações → APIs." }, 400);
     }
