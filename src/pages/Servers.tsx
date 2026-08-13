@@ -238,19 +238,6 @@ export default function Servers() {
                     className="bg-secondary/50"
                   />
                 </div>
-                {formData.panel_type === 'sigma' && (
-                  <div className="space-y-2">
-                    <Label>Conexão Sigma</Label>
-                    <Select value={formData.sigma_connection_id} onValueChange={(value) => setFormData({ ...formData, sigma_connection_id: value })}>
-                      <SelectTrigger className="bg-secondary/50"><SelectValue placeholder="Selecione a URL e credencial" /></SelectTrigger>
-                      <SelectContent>
-                        {sigmaConnections.map((connection) => (
-                          <SelectItem key={connection.id} value={connection.id}>{connection.name} — {connection.base_url}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
                 <div className="space-y-2">
                   <Label>Host / IP</Label>
                   <Input
@@ -296,6 +283,19 @@ export default function Servers() {
                     Define qual API será chamada ao renovar clientes deste servidor. Em "Automático", o sistema detecta pelo nome/host (comportamento atual).
                   </p>
                 </div>
+                {formData.panel_type === 'sigma' && (
+                  <div className="space-y-2">
+                    <Label>Conexão Sigma</Label>
+                    <Select value={formData.sigma_connection_id} onValueChange={(value) => setFormData({ ...formData, sigma_connection_id: value })}>
+                      <SelectTrigger className="bg-secondary/50"><SelectValue placeholder="Selecione a URL e credencial" /></SelectTrigger>
+                      <SelectContent>
+                        {sigmaConnections.map((connection) => (
+                          <SelectItem key={connection.id} value={connection.id}>{connection.name} — {connection.base_url}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
                 <div className="space-y-2">
                   <Label>Custo por crédito (R$)</Label>
                   <Input

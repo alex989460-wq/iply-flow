@@ -272,7 +272,7 @@ export default function ResellerApiSettings() {
   const hasTheBest = !!settings.the_best_api_key || (!!settings.the_best_username && !!settings.the_best_password);
   const hasRush = !!settings.rush_username && !!settings.rush_password && !!settings.rush_token;
   const hasUniplay = !!settings.uniplay_username && !!settings.uniplay_password;
-  const hasSigma = !!settings.sigma_base_url && !!settings.sigma_username && !!settings.sigma_password;
+  const hasSigma = sigmaConnections.length > 0 || (!!settings.sigma_base_url && !!settings.sigma_username && !!settings.sigma_password);
 
   const handleTestSigma = async () => {
     if (!settings.sigma_base_url.trim() || !settings.sigma_username.trim() || !settings.sigma_password) {
