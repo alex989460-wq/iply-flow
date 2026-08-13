@@ -684,47 +684,6 @@ export default function ResellerCheckout() {
       </Dialog>
 
 
-      {/* ------- Dialog: Not Found ------- */}
-      <Dialog open={step === 'not_found'} onOpenChange={(o) => !o && resetAll()}>
-        <DialogContent className="bg-[#151515] border-white/10 text-white max-w-md">
-          <DialogHeader>
-            <div className="flex flex-col items-center gap-4 text-center">
-              <div className="w-16 h-16 rounded-full flex items-center justify-center bg-amber-500/20 text-amber-400">
-                <AlertCircle className="w-10 h-10" />
-              </div>
-              <DialogTitle className="text-2xl font-bold">Telefone não encontrado</DialogTitle>
-            </div>
-          </DialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="bg-[#0d0d0d] rounded-xl p-4 border border-white/5 space-y-3">
-              <p className="text-sm text-white/70 leading-relaxed">
-                O número <b className="text-white">+{phone.replace(/\D/g, '')}</b> não foi localizado em nossa base de dados.
-              </p>
-              <ul className="text-xs text-white/50 space-y-2 list-disc ml-4">
-                <li>Verifique se digitou o DDD corretamente</li>
-                <li>Confirme se este é o número cadastrado com seu revendedor</li>
-              </ul>
-            </div>
-            
-            <div className="grid grid-cols-1 gap-3 pt-2">
-              <Link 
-                to={`/r/${slug}/registrar`}
-                className="w-full h-12 flex items-center justify-center gap-2 font-bold text-white rounded-xl shadow-lg transition-transform active:scale-[0.98]"
-                style={{ background: brand }}
-              >
-                <Plus className="w-5 h-5" /> SOU NOVO CLIENTE
-              </Link>
-              <Button 
-                variant="outline" 
-                onClick={() => setStep('phone')} 
-                className="h-12 bg-transparent border-white/10 text-white hover:bg-white/5 rounded-xl font-bold"
-              >
-                TENTAR OUTRO NÚMERO
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
 
     </div>
   );
