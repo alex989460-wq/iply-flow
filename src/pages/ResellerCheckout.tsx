@@ -108,6 +108,9 @@ export default function ResellerCheckout() {
 
   const [creating, setCreating] = useState(false);
   const [pix, setPix] = useState<{ txid: string; qr: string; copy: string; amount: number } | null>(null);
+  const [coupon, setCoupon] = useState('');
+  const [couponInfo, setCouponInfo] = useState<{ code: string; amount: number; discount: number } | null>(null);
+  const [checkingCoupon, setCheckingCoupon] = useState(false);
   const [paid, setPaid] = useState(false);
 
   useEffect(() => {
@@ -223,6 +226,27 @@ export default function ResellerCheckout() {
     setStep('method');
   };
 
+  const validateCoupon = async () => {
+    setCheckingCoupon(true);
+    try {
+      const base = pixTotalRef.current;
+      const res = await fetch(`${FN_BASE}/reseller-checkout-charge`, {
+        method: 'POST',
+        headers: { apikey: ANON, Authorization: `Bearer ${ANON}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'validate_coupon', slug, coupon_code: coupon.trim(), amount: base }),
+      });
+      const j = await res.json();
+      if (!res.ok || j.error) throw new Error(j.error || 'Cupom inválido');
+      setCouponInfo({ code: j.coupon.code, amount: Number(j.amount ?? base), discount: Number(j.discount ?? 0) });
+      toast.success('Cupom aplicado com sucesso!');
+    } catch (e: any) {
+      setCouponInfo(null);
+      toast.error(e.message || 'Cupom inválido');
+    } finally {
+      setCheckingCoupon(false);
+    }
+  };
+
   const pay = async (method: 'pix' | 'cakto' | 'cakto_card') => {
     if (!group) return;
     let plan: Plan | undefined;
@@ -238,6 +262,7 @@ export default function ResellerCheckout() {
         body: JSON.stringify({
           action: 'create', slug, plan_id: plan.id, method,
           customer_ids: selectedIds,
+          coupon_code: coupon.trim() || undefined,
         }),
       });
       const j = await res.json();
