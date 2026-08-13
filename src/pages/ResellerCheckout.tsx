@@ -183,7 +183,10 @@ export default function ResellerCheckout() {
       const j = await res.json();
       if (!res.ok) throw new Error(j.error || 'Falha');
       const list: Customer[] = j.customers || [];
-      if (!list.length) { toast.warning('Nenhum usuário encontrado. Verifique o telefone.'); return; }
+      if (!list.length) {
+        setStep('not_found');
+        return;
+      }
       // Only include accounts with screens <= plan.screens
       const eligible = list.filter(c => (c.screens || 1) <= requiredScreens);
       if (!eligible.length) {
