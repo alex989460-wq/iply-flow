@@ -27,6 +27,8 @@ export default function ResellerApiSettings() {
   const [showUniplayPassword, setShowUniplayPassword] = useState(false);
   const [showVplayPassword, setShowVplayPassword] = useState(false);
   const [showVplayDbPassword, setShowVplayDbPassword] = useState(false);
+  const [showSigmaPassword, setShowSigmaPassword] = useState(false);
+  const [testingSigma, setTestingSigma] = useState(false);
 
   const [testingUniplay, setTestingUniplay] = useState(false);
   const [testingTheBest, setTestingTheBest] = useState(false);
@@ -57,6 +59,9 @@ export default function ResellerApiSettings() {
     vplay_mysql_user: '',
     vplay_mysql_password: '',
     vplay_mysql_database: '',
+    sigma_base_url: '',
+    sigma_username: '',
+    sigma_password: '',
   });
 
 
@@ -105,6 +110,9 @@ export default function ResellerApiSettings() {
           vplay_mysql_user: d.vplay_mysql_user || '',
           vplay_mysql_password: d.vplay_mysql_password || '',
           vplay_mysql_database: d.vplay_mysql_database || '',
+          sigma_base_url: (d as any).sigma_base_url || '',
+          sigma_username: (d as any).sigma_username || '',
+          sigma_password: (d as any).sigma_password || '',
         });
 
       }
@@ -146,6 +154,9 @@ export default function ResellerApiSettings() {
         vplay_mysql_user: settings.vplay_mysql_user || null,
         vplay_mysql_password: settings.vplay_mysql_password || null,
         vplay_mysql_database: settings.vplay_mysql_database || null,
+        sigma_base_url: settings.sigma_base_url || null,
+        sigma_username: settings.sigma_username || null,
+        sigma_password: settings.sigma_password || null,
         updated_at: new Date().toISOString(),
       };
 
@@ -257,6 +268,30 @@ export default function ResellerApiSettings() {
   const hasTheBest = !!settings.the_best_api_key || (!!settings.the_best_username && !!settings.the_best_password);
   const hasRush = !!settings.rush_username && !!settings.rush_password && !!settings.rush_token;
   const hasUniplay = !!settings.uniplay_username && !!settings.uniplay_password;
+  const hasSigma = !!settings.sigma_base_url && !!settings.sigma_username && !!settings.sigma_password;
+
+  const handleTestSigma = async () => {
+    setTestingSigma(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('sigma-renew', { body: { action: 'test' } });
+      if (error) throw error;
+      if ((data as any)?.error) throw new Error((data as any).error);
+      const servers = (data as any)?.servers || [];
+      toast({
+        title: 'Conexão Sigma OK',
+        description: `Conectado como ${(data as any)?.username || ''} • ${servers.length} servidor(es) disponível(is).`,
+      });
+    } catch (e: any) {
+      toast({
+        title: 'Falha ao conectar no Sigma',
+        description: e?.message || 'Verifique URL, usuário e senha e salve antes de testar.',
+        variant: 'destructive',
+      });
+    } finally {
+      setTestingSigma(false);
+    }
+  };
+
   const hasVplay = (!!settings.vplay_panel_username && !!settings.vplay_panel_password)
     || (!!settings.vplay_mysql_host && !!settings.vplay_mysql_user && !!settings.vplay_mysql_password && !!settings.vplay_mysql_database);
 
