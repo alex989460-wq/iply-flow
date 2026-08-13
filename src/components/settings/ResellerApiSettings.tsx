@@ -146,7 +146,6 @@ export default function ResellerApiSettings() {
         vplay_mysql_user: settings.vplay_mysql_user || null,
         vplay_mysql_password: settings.vplay_mysql_password || null,
         vplay_mysql_database: settings.vplay_mysql_database || null,
-
         updated_at: new Date().toISOString(),
       };
 
@@ -664,17 +663,48 @@ export default function ResellerApiSettings() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <Alert>
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="vplay_panel_username">Seu Usuário (Painel VPlay)</Label>
+              <Input
+                id="vplay_panel_username"
+                value={settings.vplay_panel_username}
+                onChange={(e) => setSettings({ ...settings, vplay_panel_username: e.target.value })}
+                placeholder="Seu usuário de revenda no VPlay"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="vplay_panel_password">Sua Senha (Painel VPlay)</Label>
+              <div className="relative">
+                <Input
+                  id="vplay_panel_password"
+                  type={showVplayPassword ? 'text' : 'password'}
+                  value={settings.vplay_panel_password}
+                  onChange={(e) => setSettings({ ...settings, vplay_panel_password: e.target.value })}
+                  placeholder="Sua senha de revenda no VPlay"
+                  className="pr-10"
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="absolute right-0 top-0 h-full"
+                  onClick={() => setShowVplayPassword(!showVplayPassword)}
+                >
+                  {showVplayPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          <Alert variant="secondary" className="bg-muted/50">
             <AlertCircle className="h-4 w-4" />
-            <AlertDescription>
-              <strong>Como configurar:</strong>
-              <ol className="list-decimal ml-4 mt-1 space-y-1 text-sm">
-                <li>Peça ao seu provedor o <strong>host, usuário, senha e banco</strong> de acesso do painel VPlay</li>
-                <li>A porta padrão é <code>3306</code></li>
-                <li>Sem esses dados, o sistema usa as credenciais globais (se existirem)</li>
-              </ol>
+            <AlertDescription className="text-xs">
+              <strong>Avançado:</strong> Os campos abaixo são para conexão direta ao banco de dados MySQL. Preencha apenas se souber o que está fazendo.
             </AlertDescription>
           </Alert>
+
 
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
@@ -708,14 +738,14 @@ export default function ResellerApiSettings() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="vplay_password">Senha da Revenda</Label>
+              <Label htmlFor="vplay_db_password">Senha do Banco de Dados</Label>
               <div className="relative">
                 <Input
-                  id="vplay_password"
-                  type={showVplayPassword ? 'text' : 'password'}
+                  id="vplay_db_password"
+                  type={showVplayDbPassword ? 'text' : 'password'}
                   value={settings.vplay_mysql_password}
                   onChange={(e) => setSettings({ ...settings, vplay_mysql_password: e.target.value })}
-                  placeholder="Sua senha do painel VPlay"
+                  placeholder="Senha do banco de dados"
                   className="pr-10"
                 />
                 <Button
@@ -723,9 +753,9 @@ export default function ResellerApiSettings() {
                   variant="ghost"
                   size="icon"
                   className="absolute right-0 top-0 h-full"
-                  onClick={() => setShowVplayPassword(!showVplayPassword)}
+                  onClick={() => setShowVplayDbPassword(!showVplayDbPassword)}
                 >
-                  {showVplayPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  {showVplayDbPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </Button>
               </div>
             </div>
