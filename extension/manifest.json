@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "SuperGestor Panel Auto-Renew",
-  "version": "1.9.0",
-  "description": "Renova clientes P2Cine (daily3.news e painelacesso1.com) e Uniplay usando a sessao real logada. Mantem a sessao IBO Sol viva automaticamente.",
+  "version": "2.0.0",
+  "description": "Renova clientes P2Cine, Uniplay e Sigma usando a sessao real logada. Mantem a sessao IBO Sol viva automaticamente.",
 
   "permissions": ["storage", "alarms", "notifications", "tabs", "scripting"],
   "host_permissions": [
@@ -17,6 +17,7 @@
     "https://ibosol.com/*",
     "https://*.ibosol.com/*",
     "https://backend-apis.ibosol.com/*",
+    "https://*.top/*",
     "https://fphqfgxfeaylldpxjqan.supabase.co/*"
   ],
   "background": { "service_worker": "background.js" },
