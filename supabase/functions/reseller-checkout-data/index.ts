@@ -11,6 +11,14 @@ const cors = {
 const json = (b: unknown, s = 200) =>
   new Response(JSON.stringify(b), { status: s, headers: { ...cors, "Content-Type": "application/json" } });
 
+function saoPauloDate(): string {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Sao_Paulo", year: "numeric", month: "2-digit", day: "2-digit",
+  }).formatToParts(new Date());
+  const value = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return `${value.year}-${value.month}-${value.day}`;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: cors });
   try {
@@ -50,7 +58,7 @@ Deno.serve(async (req) => {
         if (!ownedServer) return json({ error: "Servidor inválido para este revendedor." }, 400);
       }
 
-      const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+      const today = saoPauloDate();
       const { data: existing } = await admin.from("customers").select("id").eq("created_by", st.user_id).ilike("username", username).maybeSingle();
       if (existing) return json({ error: "Esse usuário já está cadastrado. Use a opção Já sou cliente." }, 409);
 

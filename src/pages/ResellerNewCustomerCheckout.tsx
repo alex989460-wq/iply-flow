@@ -124,14 +124,14 @@ export default function ResellerNewCustomerCheckout() {
 
         <form onSubmit={handleSubmit} className="bg-[#161616] border border-white/5 p-8 rounded-2xl shadow-2xl space-y-6">
           <div className="space-y-2">
-            <label className="text-sm font-bold text-white/70 ml-1">NOME COMPLETO</label>
+            <label className="text-sm font-bold text-white ml-1">NOME COMPLETO</label>
             <div className="relative">
-              <UserIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-white/30" />
+              <UserIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-white" />
               <Input
                 placeholder="Ex: João Silva"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                className="bg-black/20 border-white/10 pl-10 h-12 rounded-xl focus:ring-primary/50"
+                className="bg-black/20 border-white/20 pl-10 h-12 rounded-xl text-white placeholder:text-white/50 focus:ring-primary/50"
                 required
               />
             </div>
@@ -177,11 +177,11 @@ export default function ResellerNewCustomerCheckout() {
 
           {servers.length > 0 && (
             <div className="space-y-2">
-              <label className="text-sm font-bold text-white/70 ml-1">SERVIDOR</label>
+              <label className="text-sm font-bold text-white ml-1">SERVIDOR</label>
               <Select value={serverId} onValueChange={setServerId}>
-                <SelectTrigger className="bg-black/20 border-white/10 h-12 rounded-xl">
+                <SelectTrigger className="bg-black/20 border-white/20 h-12 rounded-xl text-white">
                   <div className="flex items-center gap-2">
-                    <Server className="w-4 h-4 text-white/30" />
+                    <Server className="w-4 h-4 text-white" />
                     <SelectValue placeholder="Selecione o servidor" />
                   </div>
                 </SelectTrigger>

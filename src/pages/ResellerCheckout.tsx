@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -93,6 +93,7 @@ const COUNTRIES = [
 
 export default function ResellerCheckout() {
   const { slug } = useParams<{ slug: string }>();
+  const [searchParams] = useSearchParams();
   const [data, setData] = useState<CheckoutData | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -112,6 +113,15 @@ export default function ResellerCheckout() {
   const [couponInfo, setCouponInfo] = useState<{ code: string; amount: number; discount: number } | null>(null);
   const [checkingCoupon, setCheckingCoupon] = useState(false);
   const [paid, setPaid] = useState(false);
+
+  useEffect(() => {
+    const registeredPhone = searchParams.get('phone')?.replace(/\D/g, '') || '';
+    const country = COUNTRIES.find((item) => registeredPhone.startsWith(item.ddi));
+    if (!registeredPhone || !country) return;
+    setDdi(country.ddi);
+    setPhone(registeredPhone.slice(country.ddi.length));
+    toast.success('Cadastro concluído. Agora selecione o plano para pagar.');
+  }, [searchParams]);
 
   useEffect(() => {
     (async () => {
