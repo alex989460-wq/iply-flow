@@ -183,6 +183,21 @@ Deno.serve(async (req) => {
       return json({ error: "customer_not_found" }, 404);
     }
 
+    // Persist the plan selected after registration before redirecting to either
+    // payment provider, so the webhook activates the exact chosen plan.
+    await admin.from("customers")
+      .update({ plan_id: plan.id })
+      .in("id", customerIds)
+      .eq("created_by", ownerId);
+    const selectedUsernames = customers.map((customer: any) => String(customer.username || "").trim()).filter(Boolean);
+    if (selectedUsernames.length > 0) {
+      await admin.from("pending_new_customers")
+        .update({ plan_id: plan.id })
+        .eq("owner_id", ownerId)
+        .eq("used", false)
+        .in("username", selectedUsernames);
+    }
+
     if (method === "cakto" || method === "cakto_card") {
       if (!settings.enable_cakto) return json({ error: "cakto_disabled" }, 400);
       const link = method === "cakto_card"
