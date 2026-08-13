@@ -340,14 +340,20 @@ export default function ResellerCheckout() {
             <h1 className="text-2xl md:text-3xl font-extrabold" style={{ color: brand }}>{data.display_name || 'Assinatura'}</h1>
           )}
         </div>
-        <div className="flex-1 flex justify-end">
-          <Link
-            to={`/r/${slug}/ativar`}
-            className="hidden sm:inline-flex items-center gap-2 px-4 py-2 text-xs font-bold tracking-wide rounded-full border border-white/15 bg-white/[0.03] hover:bg-white/[0.08] transition-all hover:border-[var(--brand)]"
-          >
-            <Smartphone className="w-4 h-4" style={{ color: brand }} /> ATIVAR APP
-          </Link>
-        </div>
+          <div className="hidden sm:flex items-center gap-2">
+            <Link
+              to={`/r/${slug}/registrar`}
+              className="inline-flex items-center gap-2 px-4 py-2 text-xs font-bold tracking-wide rounded-full border border-white/15 bg-white/[0.03] hover:bg-white/[0.08] transition-all hover:border-[var(--brand)]"
+            >
+              <UserIcon className="w-4 h-4" style={{ color: brand }} /> NOVO CLIENTE
+            </Link>
+            <Link
+              to={`/r/${slug}/ativar`}
+              className="inline-flex items-center gap-2 px-4 py-2 text-xs font-bold tracking-wide rounded-full border border-white/15 bg-white/[0.03] hover:bg-white/[0.08] transition-all hover:border-[var(--brand)]"
+            >
+              <Smartphone className="w-4 h-4" style={{ color: brand }} /> ATIVAR APP
+            </Link>
+          </div>
       </header>
 
       <main className="relative max-w-6xl mx-auto px-4 pb-20 space-y-12">
@@ -360,12 +366,20 @@ export default function ResellerCheckout() {
             Escolha seu <span style={{ color: brand }}>Plano</span>
           </h1>
           <p className="text-white/50 text-sm">{data.subheadline || 'Assista onde e quando quiser. Cancele a qualquer momento.'}</p>
-          <Link
-            to={`/r/${slug}/ativar`}
-            className="sm:hidden inline-flex items-center gap-2 mt-2 px-4 py-2 text-xs font-bold tracking-wide rounded-full border border-white/15 bg-white/[0.03]"
-          >
-            <Smartphone className="w-4 h-4" style={{ color: brand }} /> ATIVAR APP
-          </Link>
+          <div className="sm:hidden flex flex-col gap-2 items-center">
+            <Link
+              to={`/r/${slug}/registrar`}
+              className="inline-flex items-center gap-2 px-4 py-2 text-xs font-bold tracking-wide rounded-full border border-white/15 bg-white/[0.03]"
+            >
+              <UserIcon className="w-4 h-4" style={{ color: brand }} /> NOVO CLIENTE
+            </Link>
+            <Link
+              to={`/r/${slug}/ativar`}
+              className="inline-flex items-center gap-2 px-4 py-2 text-xs font-bold tracking-wide rounded-full border border-white/15 bg-white/[0.03]"
+            >
+              <Smartphone className="w-4 h-4" style={{ color: brand }} /> ATIVAR APP
+            </Link>
+          </div>
         </section>
 
         {/* 1 tela */}
