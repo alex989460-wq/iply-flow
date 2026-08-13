@@ -50,6 +50,30 @@ Deno.serve(async (req) => {
       .maybeSingle();
     if (!settings || !settings.is_active) return json({ error: "not_found" }, 404);
 
+    const customerId = String(body.customer_id || "").trim();
+    const selectCols = "id, checkout_code, name, username, due_date, status, plan_id, screens, plans:plan_id(plan_name)";
+    const mapRow = (c: any) => ({
+      id: c.id,
+      checkout_code: c.checkout_code,
+      name: maskName(c.name),
+      username: c.username,
+      due_date: c.due_date,
+      status: c.status,
+      screens: c.screens,
+      current_plan: c.plans?.plan_name || null,
+    });
+
+    // Direct lookup by customer id (used right after public registration).
+    if (customerId) {
+      const { data: direct } = await admin
+        .from("customers")
+        .select(selectCols)
+        .eq("id", customerId)
+        .eq("created_by", settings.user_id)
+        .maybeSingle();
+      if (direct) return json({ customers: [mapRow(direct)] });
+    }
+
     const variants = phoneVariants(phoneRaw);
     if (variants.length === 0) return json({ customers: [] });
 
@@ -60,22 +84,13 @@ Deno.serve(async (req) => {
 
     const { data: customers } = await admin
       .from("customers")
-      .select("id, checkout_code, name, username, due_date, status, plan_id, screens, plans:plan_id(plan_name)")
+      .select(selectCols)
       .eq("created_by", settings.user_id)
       .or(orExact + orFuzzy)
       .limit(20);
 
     return json({
-      customers: (customers || []).map((c: any) => ({
-        id: c.id,
-        checkout_code: c.checkout_code,
-        name: maskName(c.name),
-        username: c.username,
-        due_date: c.due_date,
-        status: c.status,
-        screens: c.screens,
-        current_plan: c.plans?.plan_name || null,
-      })),
+      customers: (customers || []).map(mapRow),
     });
   } catch (err) {
     console.error("[reseller-checkout-lookup]", err);

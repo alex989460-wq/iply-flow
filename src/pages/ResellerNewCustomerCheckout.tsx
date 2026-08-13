@@ -81,7 +81,8 @@ export default function ResellerNewCustomerCheckout() {
 
       setSuccess(true);
       toast.success('Cadastro realizado! Agora escolha seu plano.');
-      window.setTimeout(() => navigate(`/r/${slug}?phone=${encodeURIComponent(fullPhone)}`), 700);
+      const cid = j?.customer_id ? `&cid=${encodeURIComponent(j.customer_id)}` : '';
+      window.setTimeout(() => navigate(`/r/${slug}?phone=${encodeURIComponent(fullPhone)}${cid}`), 700);
     } catch (err: any) {
       toast.error(err.message || 'Não foi possível realizar o cadastro. Tente novamente.');
     } finally {

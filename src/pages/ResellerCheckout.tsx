@@ -114,7 +114,11 @@ export default function ResellerCheckout() {
   const [checkingCoupon, setCheckingCoupon] = useState(false);
   const [paid, setPaid] = useState(false);
 
+  const [registeredCid, setRegisteredCid] = useState<string | null>(null);
+
   useEffect(() => {
+    const cid = searchParams.get('cid');
+    if (cid) setRegisteredCid(cid);
     const registeredPhone = searchParams.get('phone')?.replace(/\D/g, '') || '';
     const country = COUNTRIES.find((item) => registeredPhone.startsWith(item.ddi));
     if (!registeredPhone || !country) return;
@@ -191,7 +195,7 @@ export default function ResellerCheckout() {
       const res = await fetch(`${FN_BASE}/reseller-checkout-lookup`, {
         method: 'POST',
         headers: { apikey: ANON, Authorization: `Bearer ${ANON}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ slug, phone: fullPhone }),
+        body: JSON.stringify({ slug, phone: fullPhone, customer_id: registeredCid || undefined }),
       });
       const j = await res.json();
       if (!res.ok) throw new Error(j.error || 'Falha');
