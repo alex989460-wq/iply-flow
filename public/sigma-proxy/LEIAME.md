@@ -7,7 +7,7 @@ máquina (ou numa VPS/conexão residencial) e repassa as chamadas usando o seu I
 
 Instale o Node.js 18 ou superior: https://nodejs.org
 
-Baixe o arquivo `server.js` desta mesma pasta.
+Baixe o arquivo `server.cjs` desta mesma pasta.
 
 ## 2. Escolher uma chave secreta
 
@@ -18,13 +18,13 @@ Crie uma senha longa (mínimo 12 caracteres). Ela protege o seu proxy para que s
 Windows (PowerShell):
 
 ```powershell
-$env:SIGMA_PROXY_SECRET="sua-chave-secreta"; node server.js
+$env:SIGMA_PROXY_SECRET="sua-chave-secreta"; node server.cjs
 ```
 
 Linux ou macOS:
 
 ```bash
-SIGMA_PROXY_SECRET="sua-chave-secreta" node server.js
+SIGMA_PROXY_SECRET="sua-chave-secreta" node server.cjs
 ```
 
 Deve aparecer: `Mini Proxy Sigma ativo em http://localhost:8787`.

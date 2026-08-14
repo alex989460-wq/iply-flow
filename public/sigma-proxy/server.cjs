@@ -8,9 +8,9 @@
  * Como usar:
  *   1) Instale o Node.js 18 ou superior (https://nodejs.org)
  *   2) Abra o terminal na pasta deste arquivo e rode:
- *        SIGMA_PROXY_SECRET="sua-chave-secreta" node server.js
+ *        SIGMA_PROXY_SECRET="sua-chave-secreta" node server.cjs
  *      (no Windows PowerShell:
- *        $env:SIGMA_PROXY_SECRET="sua-chave-secreta"; node server.js )
+ *        $env:SIGMA_PROXY_SECRET="sua-chave-secreta"; node server.cjs )
  *   3) Deixe a janela aberta. Ele escuta na porta 8787.
  *   4) Exponha com um túnel gratuito, por exemplo:
  *        cloudflared tunnel --url http://localhost:8787

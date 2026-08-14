@@ -924,7 +924,7 @@ export default function ResellerApiSettings() {
             </div>
             <p className="text-xs text-muted-foreground">
               O painel Sigma bloqueia chamadas vindas de servidores de nuvem. Rode o mini proxy na sua máquina
-              (arquivo <a className="underline" href="/sigma-proxy/server.js" target="_blank" rel="noreferrer">server.js</a>) e informe abaixo a URL do túnel e a chave secreta.
+              (arquivo <a className="underline" href="/sigma-proxy/server.cjs" target="_blank" rel="noreferrer">server.cjs</a>) e informe abaixo a URL do túnel e a chave secreta.
             </p>
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
