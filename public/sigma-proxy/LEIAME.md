@@ -54,3 +54,22 @@ Clique em **Testar conexão Sigma**. Se aparecer a lista de servidores, está fu
 - Nenhuma senha do painel fica salva no proxy: ele apenas repassa a requisição.
 - Enquanto o proxy estiver desligado, o SuperGestor tenta a conexão direta e avisa se o painel bloquear.
 - Para rodar sempre ativo, use um túnel nomeado do Cloudflare ou mantenha o computador ligado.
+
+## Importante: VPS pode ser bloqueada
+
+O Cloudflare do painel Sigma bloqueia IPs de datacenter (VPS Hostinger, AWS, etc.)
+com o erro "Attention Required! | Cloudflare" (HTTP 403), mesmo com a chave correta.
+
+Se isso acontecer, rode o proxy no **seu computador de casa** (IP residencial, o
+mesmo que você usa para abrir o painel no navegador):
+
+```bash
+# Windows PowerShell
+$env:SIGMA_PROXY_SECRET="sua-chave-secreta"; node server.cjs
+# Em outro terminal, para expor com HTTPS:
+cloudflared tunnel --url http://localhost:8787
+```
+
+Depois é só informar a URL https:// gerada e a mesma chave secreta no SuperGestor.
+Outra alternativa é pedir ao dono do painel Sigma para liberar o IP da VPS no
+firewall do Cloudflare (whitelist) — assim a VPS volta a funcionar 24h por dia.
