@@ -25,11 +25,12 @@ function json(body: unknown, status = 200) {
 async function triggerExternalRenewal(admin: any, customerId: string, source: string) {
   const { data: customer } = await admin
     .from("customers")
-    .select("id, name, phone, username, due_date, screens, server_id, plan_id, created_by, servers(server_name, host, sigma_connection_id), plans(plan_name, duration_days)")
+    .select("id, name, phone, username, due_date, screens, server_id, plan_id, created_by, servers(id, server_name, host, panel_type, sigma_connection_id, koffice_connection_id), plans(plan_name, duration_days)")
     .eq("id", customerId)
     .maybeSingle();
 
   if (!customer?.username?.trim() || !customer.server_id) return { skipped: true, reason: "missing_username_or_server" };
+
 
   const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
   const SRK = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
