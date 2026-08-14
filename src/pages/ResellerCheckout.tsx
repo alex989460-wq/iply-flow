@@ -21,7 +21,7 @@ interface Customer {
 interface CheckoutData {
   slug: string; display_name: string | null; logo_url: string | null; brand_color: string;
   headline: string | null; subheadline: string | null;
-  methods: { efi: boolean; cakto: boolean };
+  methods: { efi: boolean; cakto: boolean; mercadopago?: boolean };
   plans: any[];
 }
 
@@ -265,10 +265,10 @@ export default function ResellerCheckout() {
     }
   };
 
-  const pay = async (method: 'pix' | 'cakto' | 'cakto_card') => {
+  const pay = async (method: 'pix' | 'mercadopago' | 'cakto' | 'cakto_card') => {
     if (!group) return;
     let plan: Plan | undefined;
-    if (method === 'pix') plan = group.pix || group.card;
+    if (method === 'pix' || method === 'mercadopago') plan = group.pix || group.card;
     else if (method === 'cakto_card') plan = group.pix?.card_url ? group.pix : (group.card || group.pix);
     else plan = group.pix || group.card;
     if (!plan) { toast.error('Plano indisponível'); return; }
@@ -625,6 +625,17 @@ export default function ResellerCheckout() {
                       {creating ? <Loader2 className="w-6 h-6 animate-spin text-emerald-500" /> : <img src={pixLogo.url} alt="Pix" className="w-9 h-9" />}
                     </div>
                     <p className="font-bold text-sm tracking-wide">PIX INSTANTÂNEO</p>
+                    <p className="text-[10px] text-white/50 -mt-1">Aprovação imediata</p>
+                    <p className="text-xl font-extrabold">{fmtBRL(couponInfo ? couponInfo.amount : (pixTotal || group.pix.price))}</p>
+                  </button>
+                )}
+                {(data.methods as any).mercadopago && group.pix && (
+                  <button onClick={() => pay('mercadopago')} disabled={creating}
+                    className="group rounded-xl border border-white/10 bg-gradient-to-br from-cyan-400/[0.06] to-transparent hover:border-cyan-300/70 hover:from-cyan-400/[0.12] p-5 flex flex-col items-center gap-2 transition-all disabled:opacity-50 hover:-translate-y-0.5 hover:shadow-[0_0_25px_-6px_rgba(34,211,238,0.6)]">
+                    <div className="w-14 h-14 rounded-xl bg-white flex items-center justify-center shadow-sm">
+                      {creating ? <Loader2 className="w-6 h-6 animate-spin text-cyan-500" /> : <img src={pixLogo.url} alt="Pix" className="w-9 h-9" />}
+                    </div>
+                    <p className="font-bold text-sm tracking-wide">PIX MERCADO PAGO</p>
                     <p className="text-[10px] text-white/50 -mt-1">Aprovação imediata</p>
                     <p className="text-xl font-extrabold">{fmtBRL(couponInfo ? couponInfo.amount : (pixTotal || group.pix.price))}</p>
                   </button>

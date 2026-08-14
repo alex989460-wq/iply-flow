@@ -21,6 +21,7 @@ interface Settings {
   subheadline: string;
   enable_efi: boolean;
   enable_cakto: boolean;
+  enable_mercadopago: boolean;
   api_key: string;
   webhook_url: string;
   is_active: boolean;
@@ -30,7 +31,7 @@ interface Settings {
 const EMPTY: Settings = {
   slug: '', display_name: '', logo_url: '', brand_color: '#e11d48',
   headline: '', subheadline: '',
-  enable_efi: true, enable_cakto: true,
+  enable_efi: true, enable_cakto: true, enable_mercadopago: false,
   api_key: '', webhook_url: '', is_active: true,
   activation_cakto_url: '',
 };
@@ -114,6 +115,7 @@ export default function ResellerCheckoutCard() {
         headline: (form.headline || '').trim() || null,
         subheadline: (form.subheadline || '').trim() || null,
         enable_efi: form.enable_efi,
+        enable_mercadopago: form.enable_mercadopago,
         enable_cakto: form.enable_cakto,
         api_key: form.api_key || genApiKey(),
         webhook_url: (form.webhook_url || '').trim() || null,
@@ -262,6 +264,13 @@ export default function ResellerCheckoutCard() {
           <div className="flex items-center gap-2">
             <Switch checked={form.enable_efi} onCheckedChange={(v) => setForm((f) => ({ ...f, enable_efi: v }))} />
             <span className="text-sm">Aceitar Pix (Efí)</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Switch
+              checked={(form as any).enable_mercadopago ?? false}
+              onCheckedChange={(v) => setForm((f) => ({ ...(f as any), enable_mercadopago: v }))}
+            />
+            <span className="text-sm">Aceitar Pix (Mercado Pago)</span>
           </div>
           <div className="flex items-center gap-2">
             <Switch checked={form.enable_cakto} onCheckedChange={(v) => setForm((f) => ({ ...f, enable_cakto: v }))} />

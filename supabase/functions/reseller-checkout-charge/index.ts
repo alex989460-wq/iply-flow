@@ -7,6 +7,7 @@
 //   action = "poll"   -> polls Efí charge status by txid
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { buildCredentials, createCharge, getQrCode, newTxid } from "../_shared/efi-client.ts";
+import { createPixPayment } from "../_shared/mercadopago-client.ts";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -124,7 +125,7 @@ Deno.serve(async (req) => {
 
     const { data: settings } = await admin
       .from("reseller_checkout_settings")
-      .select("user_id, is_active, enable_efi, enable_cakto")
+      .select("user_id, is_active, enable_efi, enable_cakto, enable_mercadopago")
       .eq("slug", slug)
       .maybeSingle();
     if (!settings || !settings.is_active) return json({ error: "not_found" }, 404);
@@ -207,8 +208,13 @@ Deno.serve(async (req) => {
       return json({ ok: true, method, checkout_url: link });
     }
 
-    if (method !== "pix") return json({ error: "unknown_method" }, 400);
-    if (!settings.enable_efi) return json({ error: "efi_disabled" }, 400);
+    const isMercadoPago = method === "mercadopago" || method === "pix_mp";
+    if (method !== "pix" && !isMercadoPago) return json({ error: "unknown_method" }, 400);
+    if (isMercadoPago) {
+      if (!(settings as any).enable_mercadopago) return json({ error: "mercadopago_disabled" }, 400);
+    } else if (!settings.enable_efi) {
+      return json({ error: "efi_disabled" }, 400);
+    }
 
     // Sum per-customer prices (custom_price override supported).
     let amount = 0;
@@ -230,6 +236,84 @@ Deno.serve(async (req) => {
       const applied = applyDiscount(amount, appliedCoupon);
       discountValue = applied.discount;
       amount = applied.final;
+    }
+
+    const chargeMetadata = {
+      source: "reseller_checkout",
+      slug,
+      plan_id: plan.id,
+      plan_name: plan.plan_name,
+      customer_ids: customers.map((c: any) => c.id),
+      checkout_codes: customers.map((c: any) => c.checkout_code).filter(Boolean),
+      usernames: customers.map((c: any) => c.username || c.name),
+      screens: customers.map((c: any) => c.screens || 1),
+      coupon_code: appliedCoupon?.code || null,
+      discount: discountValue || 0,
+    };
+
+    const bumpCoupon = async () => {
+      if (!appliedCoupon) return;
+      await admin
+        .from("discount_coupons")
+        .update({ used_count: Number(appliedCoupon.used_count || 0) + 1 })
+        .eq("id", appliedCoupon.id);
+    };
+
+    // ---------------- Mercado Pago (Pix) ----------------
+    if (isMercadoPago) {
+      const { data: mp } = await admin
+        .from("mercadopago_settings").select("*").eq("user_id", ownerId).eq("enabled", true).maybeSingle();
+      if (!mp?.access_token) return json({ error: "mercadopago_not_configured" }, 400);
+
+      const mpTxid = newTxid();
+      const label = customers.map((c: any) => c.username || c.name).join(", ").slice(0, 100);
+      const payment = await createPixPayment(mp as any, {
+        amount,
+        description: `${plan.plan_name} — ${label}`,
+        externalReference: mpTxid,
+        notificationUrl: `${Deno.env.get("SUPABASE_URL")}/functions/v1/mercadopago-webhook`,
+        payerEmail: String(body.email || "").trim() || undefined,
+        payerName: customers[0]?.name || undefined,
+        expiresInSec: 86400,
+      });
+      if (!payment.ok || !payment.id) {
+        console.error("[reseller-checkout-charge] mp failed", payment.status, payment.body);
+        return json({
+          error: "mercadopago_falhou",
+          message: payment.body?.message || "Não foi possível gerar o Pix no Mercado Pago.",
+        }, 400);
+      }
+
+      await admin.from("efi_charges").insert({
+        owner_id: ownerId,
+        customer_id: customers[0].id,
+        pending_id: null,
+        pending_kind: null,
+        txid: mpTxid,
+        amount,
+        environment: String(mp.environment || "production"),
+        provider: "mercadopago",
+        provider_payment_id: payment.id,
+        pix_copia_cola: payment.qrCode || "",
+        qrcode_base64: stripDataPrefix(payment.qrCodeBase64 || ""),
+        metadata: { ...chargeMetadata, provider: "mercadopago", ticket_url: payment.ticketUrl || null },
+        expires_at: new Date(Date.now() + 86400_000).toISOString(),
+      });
+
+      await bumpCoupon();
+
+      return json({
+        ok: true,
+        method: "mercadopago",
+        provider: "mercadopago",
+        txid: mpTxid,
+        amount,
+        discount: discountValue || 0,
+        coupon_code: appliedCoupon?.code || null,
+        pix_copia_cola: payment.qrCode || "",
+        qrcode_base64: stripDataPrefix(payment.qrCodeBase64 || ""),
+        ticket_url: payment.ticketUrl || null,
+      });
     }
 
 

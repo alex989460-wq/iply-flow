@@ -1465,6 +1465,8 @@ export type Database = {
           pending_id: string | null
           pending_kind: string | null
           pix_copia_cola: string | null
+          provider: string
+          provider_payment_id: string | null
           qrcode_base64: string | null
           status: string
           txid: string
@@ -1483,6 +1485,8 @@ export type Database = {
           pending_id?: string | null
           pending_kind?: string | null
           pix_copia_cola?: string | null
+          provider?: string
+          provider_payment_id?: string | null
           qrcode_base64?: string | null
           status?: string
           txid: string
@@ -1501,6 +1505,8 @@ export type Database = {
           pending_id?: string | null
           pending_kind?: string | null
           pix_copia_cola?: string | null
+          provider?: string
+          provider_payment_id?: string | null
           qrcode_base64?: string | null
           status?: string
           txid?: string
@@ -2162,6 +2168,48 @@ export type Database = {
           updated_at?: string
           user_id?: string
           username?: string
+        }
+        Relationships: []
+      }
+      mercadopago_settings: {
+        Row: {
+          access_token: string | null
+          created_at: string
+          enabled: boolean
+          environment: string
+          id: string
+          payer_email: string | null
+          public_key: string | null
+          updated_at: string
+          user_id: string
+          webhook_configured_at: string | null
+          webhook_secret: string | null
+        }
+        Insert: {
+          access_token?: string | null
+          created_at?: string
+          enabled?: boolean
+          environment?: string
+          id?: string
+          payer_email?: string | null
+          public_key?: string | null
+          updated_at?: string
+          user_id: string
+          webhook_configured_at?: string | null
+          webhook_secret?: string | null
+        }
+        Update: {
+          access_token?: string | null
+          created_at?: string
+          enabled?: boolean
+          environment?: string
+          id?: string
+          payer_email?: string | null
+          public_key?: string | null
+          updated_at?: string
+          user_id?: string
+          webhook_configured_at?: string | null
+          webhook_secret?: string | null
         }
         Relationships: []
       }
@@ -2975,6 +3023,7 @@ export type Database = {
           display_name: string | null
           enable_cakto: boolean
           enable_efi: boolean
+          enable_mercadopago: boolean
           headline: string | null
           id: string
           is_active: boolean
@@ -2993,6 +3042,7 @@ export type Database = {
           display_name?: string | null
           enable_cakto?: boolean
           enable_efi?: boolean
+          enable_mercadopago?: boolean
           headline?: string | null
           id?: string
           is_active?: boolean
@@ -3011,6 +3061,7 @@ export type Database = {
           display_name?: string | null
           enable_cakto?: boolean
           enable_efi?: boolean
+          enable_mercadopago?: boolean
           headline?: string | null
           id?: string
           is_active?: boolean
