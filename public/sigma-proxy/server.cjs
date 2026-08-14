@@ -390,7 +390,7 @@ const server = http.createServer(async (req, res) => {
     return send(res, 200, {
       ok: true,
       service: "sigma-proxy",
-      version: "1.7.0",
+      version: "1.8.0",
       mode: BRIGHTDATA_WS ? "brightdata" : "direct",
       browser: browserAvailable,
       captcha_solver: CAPTCHA_KEY ? "2captcha" : (BRIGHTDATA_WS ? "brightdata" : null),
