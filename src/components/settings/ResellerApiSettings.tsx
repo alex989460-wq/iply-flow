@@ -428,6 +428,61 @@ export default function ResellerApiSettings() {
     toast({ title: 'Conexão Sigma removida' });
   };
 
+  const addKofficeConnection = async () => {
+    if (!user || !settings.p2cine_base_url.trim() || !settings.p2cine_username.trim() || !settings.p2cine_api_key.trim()) {
+      toast({
+        title: 'Dados incompletos',
+        description: 'Informe URL do painel, usuário e chave de API para adicionar o painel kOffice.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    setSavingKofficeConnection(true);
+    try {
+      const base = settings.p2cine_base_url.trim();
+      const hostname = base.replace(/^https?:\/\//i, '').replace(/\/+$/, '');
+
+      const { data, error } = await supabase.functions.invoke('p2cine-renew', {
+        body: {
+          action: 'test',
+          p2cine_username: settings.p2cine_username.trim(),
+          p2cine_password: settings.p2cine_password,
+          p2cine_base_url: base,
+          p2cine_api_key: settings.p2cine_api_key.trim(),
+        },
+      });
+      if (error) throw error;
+      if (!data?.success) throw new Error(data?.error || 'O painel recusou a conexão.');
+
+      const { error: insertError } = await supabase.from('koffice_panel_connections' as any).insert({
+        user_id: user.id,
+        name: hostname || 'Painel kOffice',
+        base_url: base,
+        username: settings.p2cine_username.trim(),
+        api_key: settings.p2cine_api_key.trim(),
+      });
+      if (insertError) throw insertError;
+
+      setSettings((current) => ({ ...current, p2cine_base_url: '', p2cine_username: '', p2cine_password: '', p2cine_api_key: '' }));
+      await fetchSettings();
+      toast({ title: 'Painel kOffice adicionado', description: data.message || 'Conexão validada e salva.' });
+    } catch (e: any) {
+      toast({ title: 'Erro ao adicionar painel kOffice', description: e?.message || 'Não foi possível validar a conexão.', variant: 'destructive' });
+    } finally {
+      setSavingKofficeConnection(false);
+    }
+  };
+
+  const removeKofficeConnection = async (id: string) => {
+    const { error } = await supabase.from('koffice_panel_connections' as any).delete().eq('id', id).eq('user_id', user?.id);
+    if (error) {
+      toast({ title: 'Erro ao remover painel', description: error.message, variant: 'destructive' });
+      return;
+    }
+    setKofficeConnections((current) => current.filter((c) => c.id !== id));
+    toast({ title: 'Painel kOffice removido' });
+  };
+
   const hasVplay = (!!settings.vplay_panel_username && !!settings.vplay_panel_password)
     || (!!settings.vplay_mysql_host && !!settings.vplay_mysql_user && !!settings.vplay_mysql_password && !!settings.vplay_mysql_database);
 
