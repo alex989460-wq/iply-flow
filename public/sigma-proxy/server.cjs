@@ -30,17 +30,50 @@ if (!SECRET || SECRET.length < 12) {
   process.exit(1);
 }
 
+// Caminho do Chrome/Chromium instalado nesta máquina (modo navegador local).
+const CHROME_PATH = String(process.env.CHROME_PATH || "").trim() ||
+  ["/usr/bin/chromium", "/usr/bin/chromium-browser", "/usr/bin/google-chrome", "/usr/bin/google-chrome-stable"]
+    .find((p) => { try { return require("fs").existsSync(p); } catch { return false; } }) || "";
+
 let puppeteer = null;
+try {
+  puppeteer = require("puppeteer-core");
+} catch {
+  puppeteer = null;
+}
+
 if (BRIGHTDATA_WS) {
-  try {
-    puppeteer = require("puppeteer-core");
-    console.log("[sigma-proxy] modo Bright Data ativo (Scraping Browser).");
-  } catch {
+  if (!puppeteer) {
     console.error("[sigma-proxy] BRIGHTDATA_WS definido mas 'puppeteer-core' não está instalado. Rode: npm i puppeteer-core");
     process.exit(1);
   }
+  console.log("[sigma-proxy] modo Bright Data ativo (Scraping Browser).");
+} else if (puppeteer && CHROME_PATH) {
+  console.log(`[sigma-proxy] modo direto + navegador local (${CHROME_PATH}).`);
 } else {
-  console.log("[sigma-proxy] modo direto (usa o IP desta máquina).");
+  console.log("[sigma-proxy] modo direto (usa o IP desta máquina, sem navegador).");
+}
+
+const browserAvailable = Boolean(puppeteer && (BRIGHTDATA_WS || CHROME_PATH));
+
+// Abre o navegador: Bright Data quando configurado, senão o Chrome local da VPS.
+async function openBrowser() {
+  if (BRIGHTDATA_WS) {
+    return { browser: await puppeteer.connect({ browserWSEndpoint: BRIGHTDATA_WS }), remote: true };
+  }
+  const browser = await puppeteer.launch({
+    executablePath: CHROME_PATH,
+    headless: "new",
+    args: [
+      "--no-sandbox",
+      "--disable-setuid-sandbox",
+      "--disable-dev-shm-usage",
+      "--disable-blink-features=AutomationControlled",
+      "--window-size=1366,768",
+      "--lang=pt-BR",
+    ],
+  });
+  return { browser, remote: false };
 }
 
 function send(res, status, payload) {
