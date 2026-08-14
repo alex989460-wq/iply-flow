@@ -134,10 +134,15 @@ export default function Servers() {
 
   const updateMutation = useMutation({
     mutationFn: async ({ id, data }: { id: string; data: typeof formData }) => {
-      const { panel_type, sigma_connection_id, ...rest } = data;
+      const { panel_type, sigma_connection_id, koffice_connection_id, ...rest } = data;
       const { error } = await supabase
         .from('servers')
-        .update({ ...rest, panel_type: panel_type === 'auto' ? null : panel_type, sigma_connection_id: panel_type === 'sigma' ? sigma_connection_id || null : null } as any)
+        .update({
+          ...rest,
+          panel_type: panel_type === 'auto' ? null : panel_type,
+          sigma_connection_id: panel_type === 'sigma' ? sigma_connection_id || null : null,
+          koffice_connection_id: panel_type === 'koffice' ? koffice_connection_id || null : null,
+        } as any)
         .eq('id', id);
       if (error) throw error;
     },
