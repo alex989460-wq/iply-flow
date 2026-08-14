@@ -5,12 +5,12 @@ function paintStatus(status) {
   const set = (dotId, txtId, entry) => {
     const dot = document.getElementById(dotId);
     const txt = document.getElementById(txtId);
+    if (!dot || !txt) return;
     if (!entry) { dot.className = "dot pending"; txt.className = "warn"; txt.textContent = "verificando..."; return; }
     if (entry.logged) { dot.className = "dot on"; txt.className = "ok"; txt.textContent = "logado"; }
     else if (entry.open) { dot.className = "dot off"; txt.className = "bad"; txt.textContent = "deslogado - refaca login"; }
     else { dot.className = "dot off"; txt.className = "bad"; txt.textContent = "aba fechada"; }
   };
-  set("dot-p2", "txt-p2", s.p2cine);
   set("dot-up", "txt-up", s.uniplay);
 }
 

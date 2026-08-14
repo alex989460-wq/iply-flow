@@ -45,7 +45,7 @@ export default function P2CineCredentialsCard() {
             <Monitor className="w-5 h-5 text-primary" />
           </div>
           <div>
-            <CardTitle>Extensão SuperGestor (P2Cine + Uniplay)</CardTitle>
+            <CardTitle>Extensão SuperGestor (Uniplay)</CardTitle>
             <CardDescription>
               Renovação protegida usando a sessão real do seu navegador
             </CardDescription>
@@ -57,17 +57,20 @@ export default function P2CineCredentialsCard() {
           <AlertTriangle className="h-4 w-4" />
           <AlertDescription className="text-xs space-y-2">
             <p>
-              <strong>Renovação automática via extensão do navegador:</strong> P2Cine e Uniplay
-              precisam da sessão real do Chrome. A extensão roda dentro do <em>seu</em> navegador,
-              usando a aba logada em <span className="font-mono">daily3.news</span> ou
-              <span className="font-mono"> searchdefense.top</span>. Sem cookie falso e sem bypass
-              de captcha — você faz login normalmente e a extensão automatiza a renovação.
+              <strong>Renovação automática via extensão do navegador:</strong> apenas o Uniplay
+              ainda precisa da sessão real do Chrome (o reCAPTCHA do Google não pode ser
+              contornado pelo servidor). A extensão roda dentro do <em>seu</em> navegador, usando a
+              aba logada em <span className="font-mono">searchdefense.top</span>.
+            </p>
+            <p>
+              O <strong>P2Cine (kOffice)</strong> não usa mais a extensão: agora ele renova
+              automaticamente pela API nativa do painel, direto no servidor.
             </p>
             <ol className="list-decimal ml-4 space-y-1">
               <li>Baixe o ZIP abaixo e descompacte.</li>
               <li>Abra <span className="font-mono">chrome://extensions</span>, ative "Modo desenvolvedor".</li>
               <li>Clique "Carregar sem compactação" e selecione a pasta descompactada.</li>
-              <li>Abra o ícone da extensão, cole o token, ative e mantenha a aba do painel necessária logada.</li>
+              <li>Abra o ícone da extensão, cole o token, ative e mantenha a aba do Uniplay logada.</li>
             </ol>
           </AlertDescription>
         </Alert>
@@ -75,8 +78,8 @@ export default function P2CineCredentialsCard() {
         <div className="rounded-lg border p-3 space-y-2 bg-muted/30">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-semibold">Extensão SuperGestor 1.8.0</p>
-              <p className="text-xs text-muted-foreground">Mantém a sessão IBO Sol viva automaticamente, além de renovar P2Cine e Uniplay.</p>
+              <p className="text-sm font-semibold">Extensão SuperGestor 2.1.0</p>
+              <p className="text-xs text-muted-foreground">Renova o Uniplay e mantém a sessão IBO Sol viva automaticamente.</p>
             </div>
             <Button size="sm" variant="secondary" onClick={downloadExtension}>
               Baixar extensão
