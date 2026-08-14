@@ -2905,31 +2905,48 @@ serve(async (req) => {
       let serverHost = '';
       let autoRenew = false;
       let sigmaConnectionId = '';
+      let serverRow: any = null;
 
       if (matchedCustomer.server_id) {
         const { data: serverData } = await supabaseAdmin
           .from('servers')
-          .select('server_name, host, auto_renew, sigma_connection_id')
+          .select('id, server_name, host, auto_renew, panel_type, sigma_connection_id, koffice_connection_id')
           .eq('id', matchedCustomer.server_id)
           .maybeSingle();
 
+        serverRow = serverData;
         serverName = serverData?.server_name || '';
         serverHost = serverData?.host || '';
         autoRenew = serverData?.auto_renew ?? false;
         sigmaConnectionId = (serverData as any)?.sigma_connection_id || '';
       }
 
+      // Roteador automático: qualquer painel novo cadastrado (Sigma ou kOffice)
+      // é reconhecido aqui sem precisar de ajuste no código.
+      const routedPanel = await resolvePanel(
+        supabaseAdmin,
+        serverRow || { server_name: serverName, host: serverHost },
+        matchedCustomer.created_by,
+      );
+      if (routedPanel.kind === 'sigma' && (routedPanel.extra as any)?.connection_id) {
+        sigmaConnectionId = String((routedPanel.extra as any).connection_id);
+      }
+
       const sNameLower = serverName.toLowerCase();
       const sHostLower = serverHost.toLowerCase();
-      const isVplay = sNameLower.includes('vplay') || sHostLower.includes('vplay');
-      const isRush = sNameLower.includes('rush') || sHostLower.includes('rush');
-      const isTheBest = sNameLower.includes('best') || sHostLower.includes('best');
-      const isNatv2 = sNameLower.includes('natv²') || sNameLower.includes('natv2') || sHostLower.includes('natv2');
-      const isNatv = !isNatv2 && (sNameLower.includes('natv') || sHostLower.includes('natv'));
+      const isSigma = routedPanel.kind === 'sigma';
+      const isKoffice = routedPanel.kind === 'koffice';
+      const kofficeBaseUrl = String((routedPanel.extra as any)?.p2cine_base_url || '');
+      const isVplay = !isSigma && !isKoffice && (sNameLower.includes('vplay') || sHostLower.includes('vplay'));
+      const isRush = !isSigma && !isKoffice && (sNameLower.includes('rush') || sHostLower.includes('rush'));
+      const isTheBest = !isSigma && !isKoffice && (sNameLower.includes('best') || sHostLower.includes('best'));
+      const isNatv2 = !isSigma && !isKoffice && (sNameLower.includes('natv²') || sNameLower.includes('natv2') || sHostLower.includes('natv2'));
+      const isNatv = !isNatv2 && !isSigma && !isKoffice && (sNameLower.includes('natv') || sHostLower.includes('natv'));
 
-      console.log(`[Cakto] Servidor: "${serverName}" (host: "${serverHost}") | auto_renew: ${autoRenew} | Tipo: ${isVplay ? 'VPlay' : isRush ? 'Rush' : isTheBest ? 'The Best' : isNatv2 ? 'NATV2' : isNatv ? 'NATV' : 'desconhecido'}`);
+      console.log(`[Cakto] Servidor: "${serverName}" (host: "${serverHost}") | auto_renew: ${autoRenew} | Painel: ${routedPanel.kind}`);
 
-      const isKnownApiServer = isVplay || isRush || isTheBest || isNatv || isNatv2 || isSigma;
+      const isKnownApiServer = isVplay || isRush || isTheBest || isNatv || isNatv2 || isSigma || isKoffice;
+
 
       // ── Helper: insert pendência manual ──
       const insertManualPending = async (reason: string, details: any) => {
