@@ -65,8 +65,12 @@ export default function ResellerApiSettings() {
     sigma_base_url: '',
     sigma_username: '',
     sigma_password: '',
+    p2cine_username: '',
+    p2cine_password: '',
+    p2cine_base_url: '',
 
   });
+
 
 
   const webhookUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/cakto-webhook`;
