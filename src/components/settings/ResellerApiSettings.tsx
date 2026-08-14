@@ -423,8 +423,10 @@ export default function ResellerApiSettings() {
     || (!!settings.vplay_mysql_host && !!settings.vplay_mysql_user && !!settings.vplay_mysql_password && !!settings.vplay_mysql_database);
 
   const handleTestVplay = async () => {
-    if (!settings.vplay_mysql_host.trim() || !settings.vplay_mysql_user.trim() || !settings.vplay_mysql_password || !settings.vplay_mysql_database.trim()) {
-      toast({ title: 'Dados incompletos', description: 'Informe host, usuário, senha e banco MySQL do VPlay.', variant: 'destructive' });
+    const hasOwnMysql = !!settings.vplay_mysql_host.trim() && !!settings.vplay_mysql_user.trim()
+      && !!settings.vplay_mysql_password && !!settings.vplay_mysql_database.trim();
+    if (!hasOwnMysql && (!settings.vplay_panel_username.trim() || !settings.vplay_panel_password)) {
+      toast({ title: 'Dados incompletos', description: 'Informe o seu usuário e a senha do painel VPlay.', variant: 'destructive' });
       return;
     }
     setTestingVplay(true);
