@@ -111,6 +111,7 @@ async function sigmaLogin(base: string, username: string, password: string, prox
   const candidates = [preferredBase, base, discoveredBase].filter((value, index, all): value is string => !!value && all.indexOf(value) === index);
   let lastStatus = 0;
   let lastMessage = "";
+  let lastPreview = "";
 
   for (const apiBase of candidates) {
     const res = await relay(`${apiBase}/api/auth/login`, {
@@ -131,6 +132,8 @@ async function sigmaLogin(base: string, username: string, password: string, prox
     try { body = res.text ? JSON.parse(res.text) : {}; } catch { body = {}; }
     if (res.ok && body?.token) return { token: String(body.token), me: body, apiBase };
     lastMessage = body?.message || body?.error || body?.errors?.username?.[0] || body?.errors?.password?.[0] || "";
+    lastPreview = String(res.text || "").replace(/\s+/g, " ").slice(0, 300);
+    console.log(`[Sigma] login ${apiBase} -> ${res.status} | ${lastPreview}`);
   }
 
   if (!proxy && (lastStatus === 403 || lastStatus === 404 || lastStatus === 503)) {
@@ -139,7 +142,8 @@ async function sigmaLogin(base: string, username: string, password: string, prox
 
   throw new Error(lastMessage
     ? `Painel Sigma recusou o login: ${lastMessage}`
-    : `Não foi possível autenticar no Painel Sigma (HTTP ${lastStatus || "sem resposta"}). Confira URL, usuário e senha.`);
+    : `Não foi possível autenticar no Painel Sigma (HTTP ${lastStatus || "sem resposta"}). Resposta: ${lastPreview || "vazia"}`);
+
 }
 
 async function sigmaFetch(base: string, token: string, path: string, init: RequestInit = {}, proxy: Proxy = null) {
