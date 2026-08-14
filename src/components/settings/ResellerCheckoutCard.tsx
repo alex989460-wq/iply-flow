@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import efiLogo from '@/assets/efi-logo.png.asset.json';
+import mpLogo from '@/assets/mercadopago-logo.png.asset.json';
+import caktoLogo from '@/assets/cakto-logo.png.asset.json';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -263,18 +266,18 @@ export default function ResellerCheckoutCard() {
         <div className="flex flex-wrap gap-6 items-center border-t pt-4">
           <div className="flex items-center gap-2">
             <Switch checked={form.enable_efi} onCheckedChange={(v) => setForm((f) => ({ ...f, enable_efi: v }))} />
-            <span className="text-sm">Aceitar Pix (Efí)</span>
+            <span className="text-sm flex items-center gap-2"><img src={efiLogo.url} alt="Efí" className="w-4 h-4 rounded-[4px]" /> Aceitar Pix (Efí)</span>
           </div>
           <div className="flex items-center gap-2">
             <Switch
               checked={(form as any).enable_mercadopago ?? false}
               onCheckedChange={(v) => setForm((f) => ({ ...(f as any), enable_mercadopago: v }))}
             />
-            <span className="text-sm">Aceitar Pix (Mercado Pago)</span>
+            <span className="text-sm flex items-center gap-2"><img src={mpLogo.url} alt="Mercado Pago" className="w-4 h-4 rounded-[4px]" /> Aceitar Pix (Mercado Pago)</span>
           </div>
           <div className="flex items-center gap-2">
             <Switch checked={form.enable_cakto} onCheckedChange={(v) => setForm((f) => ({ ...f, enable_cakto: v }))} />
-            <span className="text-sm">Aceitar Cakto (link do plano)</span>
+            <span className="text-sm flex items-center gap-2"><img src={caktoLogo.url} alt="Cakto" className="w-4 h-4 rounded-[4px]" /> Aceitar Cakto (link do plano)</span>
           </div>
         </div>
 

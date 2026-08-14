@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { toast } from 'sonner';
 import { Loader2, Save, Upload, Zap, CheckCircle2, AlertCircle, Radio } from 'lucide-react';
 import pixLogo from '@/assets/pix-logo.png.asset.json';
+import efiLogo from '@/assets/efi-logo.png.asset.json';
 
 interface EfiSettings {
   id?: string;
@@ -156,7 +157,7 @@ export default function EfiSettingsCard() {
         <div className="flex items-start justify-between gap-4">
           <div>
             <CardTitle className="text-lg flex items-center gap-2">
-              <img src={pixLogo.url} alt="Pix" className="w-6 h-6" /> Efí Pix (Gerencianet)
+              <img src={efiLogo.url} alt="Efí" className="w-6 h-6 rounded-md" /> Efí Pix (Gerencianet)
             </CardTitle>
             <CardDescription>
               Segundo meio de pagamento no checkout público. Não afeta o Cakto — os dois convivem lado a lado.

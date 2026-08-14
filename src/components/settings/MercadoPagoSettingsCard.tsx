@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import mpLogo from '@/assets/mercadopago-logo.png.asset.json';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
@@ -111,7 +112,7 @@ export default function MercadoPagoSettingsCard() {
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <Wallet className="w-5 h-5 text-primary" />
+          <img src={mpLogo.url} alt="Mercado Pago" className="w-6 h-6 rounded-md" />
           Mercado Pago (Pix)
         </CardTitle>
         <CardDescription>
