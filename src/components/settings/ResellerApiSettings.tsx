@@ -271,6 +271,31 @@ export default function ResellerApiSettings() {
     }
   };
 
+  const testP2cine = async () => {
+    if (!settings.p2cine_username || !settings.p2cine_password) {
+      toast({ title: 'Dados incompletos', description: 'Preencha usuário e senha do P2Cine.', variant: 'destructive' });
+      return;
+    }
+    setTestingP2cine(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('p2cine-renew', {
+        body: {
+          action: 'test',
+          p2cine_username: settings.p2cine_username.trim(),
+          p2cine_password: settings.p2cine_password,
+          p2cine_base_url: settings.p2cine_base_url.trim(),
+        },
+      });
+      if (error) throw error;
+      if (!data?.success) throw new Error(data?.error || 'Não foi possível validar a conexão P2Cine.');
+      toast({ title: 'Conexão P2Cine OK', description: data.message || `Autenticado como ${data.username}.` });
+    } catch (e: any) {
+      toast({ title: 'Falha ao conectar no P2Cine', description: e?.message || 'Confira o usuário e a senha.', variant: 'destructive' });
+    } finally {
+      setTestingP2cine(false);
+    }
+  };
+
   if (loading) {
     return (
       <Card>
@@ -287,6 +312,7 @@ export default function ResellerApiSettings() {
   const hasTheBest = !!settings.the_best_api_key || (!!settings.the_best_username && !!settings.the_best_password);
   const hasRush = !!settings.rush_username && !!settings.rush_password && !!settings.rush_token;
   const hasUniplay = !!settings.uniplay_username && !!settings.uniplay_password;
+  const hasP2cine = !!settings.p2cine_username && !!settings.p2cine_password;
   const hasSigma = sigmaConnections.length > 0 || (!!settings.sigma_base_url && !!settings.sigma_username && !!settings.sigma_password);
 
   const handleTestSigma = async () => {
