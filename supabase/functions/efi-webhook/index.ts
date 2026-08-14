@@ -9,6 +9,7 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { resolvePanel } from "../_shared/panel-router.ts";
+import { reportScreensMismatch } from "../_shared/screens-mismatch.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -39,6 +40,15 @@ async function triggerExternalRenewal(admin: any, customerId: string, source: st
   const serverHost = String(customer.servers?.host || "");
   const durationDays = Number(customer.plans?.duration_days || 30);
   const months = Math.max(1, Math.round(durationDays / 30));
+
+  // Alerta: plano pago tem mais telas que o cadastro atual do cliente.
+  await reportScreensMismatch(admin, {
+    customer,
+    planName: customer.plans?.plan_name || null,
+    serverName,
+    serverHost,
+    source,
+  });
 
   const post = async (fn: string, body: Record<string, unknown>) => {
     try {

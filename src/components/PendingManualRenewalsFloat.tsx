@@ -34,6 +34,7 @@ const REASON_LABEL: Record<string, string> = {
   app_activation: 'Ativação de App',
   clouddy_session_expired: 'Sessão Clouddy expirada',
   p2cine_session_expired: 'Sessão P2Cine expirada',
+  screens_upgrade_required: 'Ajustar telas/conexões',
 };
 
 const REASON_COLOR: Record<string, string> = {
@@ -47,6 +48,7 @@ const REASON_COLOR: Record<string, string> = {
   app_activation: 'bg-emerald-600',
   clouddy_session_expired: 'bg-amber-600',
   p2cine_session_expired: 'bg-amber-700',
+  screens_upgrade_required: 'bg-cyan-600',
 };
 
 export default function PendingManualRenewalsFloat() {
