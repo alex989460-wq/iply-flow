@@ -296,8 +296,11 @@ export default function ResellerApiSettings() {
           sigma_base_url: settings.sigma_base_url.trim(),
           sigma_username: settings.sigma_username.trim(),
           sigma_password: settings.sigma_password,
+          sigma_proxy_url: settings.sigma_proxy_url.trim(),
+          sigma_proxy_secret: settings.sigma_proxy_secret,
         },
       });
+
       if (error) {
         const response = (error as any)?.context;
         if (response instanceof Response) {
