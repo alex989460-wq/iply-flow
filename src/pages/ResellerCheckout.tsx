@@ -21,7 +21,7 @@ interface Customer {
 interface CheckoutData {
   slug: string; display_name: string | null; logo_url: string | null; brand_color: string;
   headline: string | null; subheadline: string | null;
-  methods: { efi: boolean; cakto: boolean };
+  methods: { efi: boolean; cakto: boolean; mercadopago?: boolean };
   plans: any[];
 }
 
