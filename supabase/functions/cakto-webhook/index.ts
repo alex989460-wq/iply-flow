@@ -3219,7 +3219,38 @@ serve(async (req) => {
           }
         }
 
-        if (!isVplay && !isNatv && !isNatv2 && !isTheBest && !isRush && !isSigma) {
+        // ── Painel kOffice / P2Cine ──
+        if (isKoffice) {
+          const kMonths = Math.max(1, Math.round(durationDays / 30));
+          for (const username of allUsernames) {
+            try {
+              console.log(`[Cakto] Renovando kOffice: ${username} por ${kMonths} mês(es)`);
+              const kResp = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/p2cine-renew`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+                },
+                body: JSON.stringify({
+                  action: 'renew',
+                  owner_id: matchedCustomer.created_by,
+                  customer_id: matchedCustomer.id,
+                  username,
+                  months: kMonths,
+                  p2cine_base_url: kofficeBaseUrl || undefined,
+                }),
+              });
+              const kResult = await kResp.json().catch(() => ({}));
+              renewResults.push({ panel: 'koffice', username, success: kResp.ok && kResult?.success === true, result: kResult });
+              console.log(`[Cakto] kOffice renew ${username}:`, JSON.stringify(kResult));
+            } catch (e) {
+              const errMsg = e instanceof Error ? e.message : 'Erro desconhecido';
+              renewResults.push({ panel: 'koffice', username, success: false, error: errMsg });
+            }
+          }
+        }
+
+        if (!isVplay && !isNatv && !isNatv2 && !isTheBest && !isRush && !isSigma && !isKoffice) {
           console.log(`[Cakto] Tipo de servidor não reconhecido: "${serverName}". Nenhuma renovação externa. Apenas due_date atualizado.`);
           try {
             await supabaseAdmin.from('pending_manual_renewals').insert({
