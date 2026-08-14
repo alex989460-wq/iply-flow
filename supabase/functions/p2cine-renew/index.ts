@@ -354,6 +354,13 @@ Deno.serve(async (req) => {
       apiKeyDiagnostic = apiResult.detail;
     }
 
+    if (!username || !password) {
+      return json({
+        success: false,
+        error: `A chave de API não foi aceita pelo painel P2Cine.${apiKeyDiagnostic ? ` Detalhe: ${apiKeyDiagnostic}.` : ""} Preencha também o usuário e a senha do painel para tentar o login automático.`,
+      }, 200);
+    }
+
 
     const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, {
       auth: { autoRefreshToken: false, persistSession: false },
