@@ -177,7 +177,7 @@ Deno.serve(async (req) => {
 
     const { data: customers } = await admin
       .from("customers")
-      .select("id, checkout_code, name, username, created_by, custom_price, screens")
+      .select("id, checkout_code, name, username, created_by, custom_price, screens, plan_id")
       .in("id", customerIds)
       .eq("created_by", ownerId);
     if (!customers || customers.length !== customerIds.length) {
