@@ -265,10 +265,10 @@ export default function ResellerCheckout() {
     }
   };
 
-  const pay = async (method: 'pix' | 'cakto' | 'cakto_card') => {
+  const pay = async (method: 'pix' | 'mercadopago' | 'cakto' | 'cakto_card') => {
     if (!group) return;
     let plan: Plan | undefined;
-    if (method === 'pix') plan = group.pix || group.card;
+    if (method === 'pix' || method === 'mercadopago') plan = group.pix || group.card;
     else if (method === 'cakto_card') plan = group.pix?.card_url ? group.pix : (group.card || group.pix);
     else plan = group.pix || group.card;
     if (!plan) { toast.error('Plano indisponível'); return; }
