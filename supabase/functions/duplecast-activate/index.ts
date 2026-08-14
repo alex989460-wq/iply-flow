@@ -110,15 +110,26 @@ serve(async (request) => {
     // Follow redirect to ensure session cookies stick
     await req(jar, `${BASE}/plugin/duplecast/device_main/`);
 
-    // 3) Auto-pick an unused code if not provided
+    // 3) Auto-pick an unused code if not provided.
+    // IMPORTANTE: a listagem padrão ("all") mostra primeiro os códigos JÁ USADOS,
+    // que não possuem link de ativação. É preciso consultar o filtro "unused".
     let codeClean = String(code || "").replace(/\D/g, "");
     if (!codeClean) {
-      const listRes = await req(jar, `${BASE}/plugin/duplecast/client_codes/`);
-      const listHtml = await listRes.text();
+      const listUrls = [
+        `${BASE}/client/plugin/duplecast/client_codes/index/unused/`,
+        `${BASE}/plugin/duplecast/client_codes/index/unused/`,
+        `${BASE}/client/plugin/duplecast/client_codes/index/all/`,
+        `${BASE}/plugin/duplecast/client_codes/`,
+      ];
       const found = new Set<string>();
-      const re = /\/plugin\/duplecast\/client_codes\/activate\/(\d+)\/?/gi;
-      let m: RegExpExecArray | null;
-      while ((m = re.exec(listHtml))) found.add(m[1]);
+      for (const url of listUrls) {
+        const listRes = await req(jar, url);
+        const listHtml = await listRes.text();
+        const re = /client_codes\/activate\/(\d+)\/?/gi;
+        let m: RegExpExecArray | null;
+        while ((m = re.exec(listHtml))) found.add(m[1]);
+        if (found.size) break;
+      }
       const first = [...found][0];
       if (!first) {
         return new Response(
@@ -128,6 +139,7 @@ serve(async (request) => {
       }
       codeClean = first;
     }
+
     const actUrl = `${BASE}/plugin/duplecast/client_codes/activate/${codeClean}/`;
 
     const actPage = await req(jar, actUrl);
