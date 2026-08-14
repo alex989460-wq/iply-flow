@@ -188,6 +188,7 @@ Deno.serve(async (req) => {
       methods: {
         efi: settings.enable_efi && efi_ready,
         cakto: settings.enable_cakto,
+        mercadopago: !!(settings as any).enable_mercadopago && mp_ready,
       },
       plans: (plans || []).map((p: any) => ({
         id: p.id,
