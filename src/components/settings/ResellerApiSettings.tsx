@@ -1082,14 +1082,22 @@ export default function ResellerApiSettings() {
               />
             </div>
           </div>
-          <Button type="button" variant="outline" onClick={testP2cine} disabled={testingP2cine}>
-            {testingP2cine && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-            Testar conexão P2Cine
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" variant="outline" onClick={testP2cine} disabled={testingP2cine || connectingP2cine}>
+              {testingP2cine && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              Testar conexão P2Cine
+            </Button>
+            <Button type="button" onClick={connectP2cine} disabled={connectingP2cine || testingP2cine}>
+              {connectingP2cine && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              Conectar e manter logado (sem extensão)
+            </Button>
+          </div>
           <Alert className="bg-muted/50">
             <AlertCircle className="h-4 w-4" />
             <AlertDescription className="text-xs">
-              Se o painel exigir captcha no login, a renovação continua pela extensão do SuperGestor.
+              Ao conectar, o SuperGestor abre o painel num navegador real com IP residencial, faz o login e
+              guarda a sessão. Depois disso as renovações acontecem sozinhas, sem precisar da extensão nem
+              de manter o navegador aberto. Se a sessão cair, é só clicar em conectar de novo.
             </AlertDescription>
           </Alert>
         </CardContent>
