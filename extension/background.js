@@ -534,30 +534,6 @@ async function checkForUpdate() {
   } catch {}
 }
 
-async function keepAlive() {
-  const r = await runInPanel(async () => {
-    try {
-      const body = new URLSearchParams();
-      body.set("draw", "1");
-      body.set("start", "0");
-      body.set("length", "1");
-      body.set("search[value]", "__keepalive__");
-      body.set("search[regex]", "false");
-      const res = await fetch("/clients/api/?get_clients", {
-        method: "POST",
-        credentials: "same-origin",
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
-          "X-Requested-With": "XMLHttpRequest",
-          "Accept": "application/json, text/javascript, */*; q=0.01",
-        },
-        body: body.toString(),
-      });
-      return { status: res.status, ok: res.ok };
-    } catch (e) { return { error: String(e?.message || e) }; }
-  }, [], false);
-  await chrome.storage.local.set({ lastKeepAlive: new Date().toISOString(), lastKeepAliveResult: JSON.stringify(r) });
-}
 
 async function getIbosolTab({ autoOpen = true } = {}) {
   const tabs = await chrome.tabs.query({ url: IBOSOL_PANEL_URLS });
