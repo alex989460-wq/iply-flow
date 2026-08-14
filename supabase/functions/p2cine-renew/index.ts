@@ -166,7 +166,7 @@ async function apiFetch(
 ): Promise<Relayed> {
   try {
     const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 15000);
+    const timer = setTimeout(() => ctrl.abort(), 8000);
     const res = await fetch(url, {
       method: init.method || "GET",
       headers: init.headers,
@@ -175,12 +175,17 @@ async function apiFetch(
     });
     clearTimeout(timer);
     const text = await res.text();
-    if (res.status < 400 && !/just a moment|cf-challenge/i.test(text)) {
+    // Resposta JSON da API (mesmo com erro) já é definitiva: não vale a pena
+    // repetir a chamada pelo proxy residencial, que é bem mais lento.
+    let isJson = false;
+    try { JSON.parse(text); isJson = true; } catch { /* HTML */ }
+    if (isJson || (res.status < 400 && !/just a moment|cf-challenge/i.test(text))) {
       return { status: res.status, body: text, cookies: [], headers: {} };
     }
   } catch { /* cai para o proxy */ }
   return await relay(url, init);
 }
+
 
 // Faz uma chamada autenticada na API usando o token JWT da sessão de API.
 async function apiCall(base: string, token: string, action: string, params: Record<string, string> = {}) {
