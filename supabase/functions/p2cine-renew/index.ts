@@ -391,7 +391,14 @@ Deno.serve(async (req) => {
     }
 
     // Login pelo navegador real da VPS e salva a sessão para os próximos usos.
-    const cookieHeader = await browserLogin(base, username, password);
+    let cookieHeader: string;
+    try {
+      cookieHeader = await browserLogin(base, username, password);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      throw new Error(apiKeyDiagnostic ? `${msg} (A chave de API também foi recusada — ${apiKeyDiagnostic})` : msg);
+    }
+
     await admin
       .from("reseller_api_settings")
       .update({
