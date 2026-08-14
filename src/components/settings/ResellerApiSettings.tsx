@@ -65,8 +65,6 @@ export default function ResellerApiSettings() {
     sigma_base_url: '',
     sigma_username: '',
     sigma_password: '',
-    sigma_proxy_url: '',
-    sigma_proxy_secret: '',
 
   });
 
@@ -120,8 +118,6 @@ export default function ResellerApiSettings() {
           sigma_base_url: (d as any).sigma_base_url || '',
           sigma_username: (d as any).sigma_username || '',
           sigma_password: (d as any).sigma_password || '',
-          sigma_proxy_url: (d as any).sigma_proxy_url || '',
-          sigma_proxy_secret: (d as any).sigma_proxy_secret || '',
 
         });
 
@@ -167,8 +163,6 @@ export default function ResellerApiSettings() {
         sigma_base_url: settings.sigma_base_url || null,
         sigma_username: settings.sigma_username || null,
         sigma_password: settings.sigma_password || null,
-        sigma_proxy_url: settings.sigma_proxy_url || null,
-        sigma_proxy_secret: settings.sigma_proxy_secret || null,
 
         updated_at: new Date().toISOString(),
       };
@@ -296,8 +290,6 @@ export default function ResellerApiSettings() {
           sigma_base_url: settings.sigma_base_url.trim(),
           sigma_username: settings.sigma_username.trim(),
           sigma_password: settings.sigma_password,
-          sigma_proxy_url: settings.sigma_proxy_url.trim(),
-          sigma_proxy_secret: settings.sigma_proxy_secret,
         },
       });
 
@@ -340,8 +332,6 @@ export default function ResellerApiSettings() {
         base_url: settings.sigma_base_url.trim(),
         username: settings.sigma_username.trim(),
         password: settings.sigma_password,
-        proxy_url: settings.sigma_proxy_url.trim() || null,
-        proxy_secret: settings.sigma_proxy_secret || null,
       });
       if (error) throw error;
       setSettings((current) => ({ ...current, sigma_base_url: '', sigma_username: '', sigma_password: '' }));
