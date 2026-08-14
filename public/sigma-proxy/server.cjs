@@ -1,35 +1,46 @@
 /**
  * SuperGestor - Mini Proxy Sigma
  * ------------------------------------------------------------
- * Rode este arquivo no SEU computador (ou na sua VPS residencial).
- * Ele apenas repassa as chamadas do SuperGestor para o painel Sigma
- * usando o SEU IP, que é aceito pelo firewall do painel.
+ * Repassa as chamadas do SuperGestor para o painel Sigma.
  *
- * Como usar:
- *   1) Instale o Node.js 18 ou superior (https://nodejs.org)
- *   2) Abra o terminal na pasta deste arquivo e rode:
- *        SIGMA_PROXY_SECRET="sua-chave-secreta" node server.cjs
- *      (no Windows PowerShell:
- *        $env:SIGMA_PROXY_SECRET="sua-chave-secreta"; node server.cjs )
- *   3) Deixe a janela aberta. Ele escuta na porta 8787.
- *   4) Exponha com um túnel gratuito, por exemplo:
- *        cloudflared tunnel --url http://localhost:8787
- *      Copie a URL https://... gerada.
- *   5) No SuperGestor, em Configurações → APIs → Painel Sigma,
- *      cole a URL do túnel e a mesma chave secreta.
+ * Dois modos:
+ *  1) DIRETO  - usa o IP da máquina onde o proxy roda (bom para IP residencial).
+ *  2) BRIGHT DATA - quando BRIGHTDATA_WS está definido, a chamada sai pelo
+ *     Scraping Browser da Bright Data, que resolve o Cloudflare do painel.
+ *     Necessário na VPS (IP de datacenter é bloqueado pelo Cloudflare).
  *
- * Nenhuma senha fica salva aqui: o proxy só repassa as requisições.
+ * Como usar (VPS / PC):
+ *   npm i puppeteer-core            # só necessário no modo Bright Data
+ *   SIGMA_PROXY_SECRET="sua-chave" \
+ *   BRIGHTDATA_WS="wss://USER:PASS@brd.superproxy.io:9222" \
+ *   node server.cjs
+ *
+ * Nenhuma senha do painel fica salva aqui: o proxy só repassa as requisições.
  */
 
 const http = require("http");
 
 const PORT = Number(process.env.PORT || 8787);
 const SECRET = String(process.env.SIGMA_PROXY_SECRET || "");
+const BRIGHTDATA_WS = String(process.env.BRIGHTDATA_WS || "").trim();
 const MAX_BODY = 2 * 1024 * 1024; // 2 MB
 
 if (!SECRET || SECRET.length < 12) {
   console.error("Defina SIGMA_PROXY_SECRET com pelo menos 12 caracteres antes de iniciar.");
   process.exit(1);
+}
+
+let puppeteer = null;
+if (BRIGHTDATA_WS) {
+  try {
+    puppeteer = require("puppeteer-core");
+    console.log("[sigma-proxy] modo Bright Data ativo (Scraping Browser).");
+  } catch {
+    console.error("[sigma-proxy] BRIGHTDATA_WS definido mas 'puppeteer-core' não está instalado. Rode: npm i puppeteer-core");
+    process.exit(1);
+  }
+} else {
+  console.log("[sigma-proxy] modo direto (usa o IP desta máquina).");
 }
 
 function send(res, status, payload) {
@@ -64,20 +75,54 @@ function readBody(req) {
 
 // Só permite repassar chamadas http/https (a chave secreta já protege o proxy).
 function isAllowedTarget(rawUrl) {
-  let parsed;
   try {
-    parsed = new URL(rawUrl);
+    const parsed = new URL(rawUrl);
+    return parsed.protocol === "https:" || parsed.protocol === "http:";
   } catch {
     return false;
   }
-  return parsed.protocol === "https:" || parsed.protocol === "http:";
+}
+
+// Executa o fetch de dentro do navegador da Bright Data (passa pelo Cloudflare).
+async function fetchViaBrightData(target, method, headers, body) {
+  const browser = await puppeteer.connect({ browserWSEndpoint: BRIGHTDATA_WS });
+  try {
+    const page = await browser.newPage();
+    const origin = new URL(target).origin;
+    // Abre o domínio primeiro para resolver o desafio do Cloudflare e ganhar os cookies.
+    await page.goto(origin, { waitUntil: "domcontentloaded", timeout: 90000 });
+    const result = await page.evaluate(
+      async (url, method, headers, body) => {
+        const res = await fetch(url, {
+          method,
+          headers,
+          body: method === "GET" || method === "HEAD" ? undefined : body,
+          credentials: "include",
+        });
+        return { status: res.status, body: await res.text() };
+      },
+      target,
+      method,
+      headers,
+      body ?? null,
+    );
+    await page.close().catch(() => {});
+    return result;
+  } finally {
+    await browser.close().catch(() => {});
+  }
 }
 
 const server = http.createServer(async (req, res) => {
   if (req.method === "OPTIONS") return send(res, 200, { ok: true });
 
   if (req.method === "GET" && req.url === "/health") {
-    return send(res, 200, { ok: true, service: "sigma-proxy", version: "1.0.0" });
+    return send(res, 200, {
+      ok: true,
+      service: "sigma-proxy",
+      version: "1.1.0",
+      mode: BRIGHTDATA_WS ? "brightdata" : "direct",
+    });
   }
 
   if (req.method !== "POST") return send(res, 405, { error: "metodo_nao_permitido" });
@@ -97,7 +142,7 @@ const server = http.createServer(async (req, res) => {
 
   const target = String(payload.url || "");
   if (!isAllowedTarget(target)) {
-    return send(res, 400, { error: "url_nao_permitida", message: "Apenas endpoints /api/ do painel Sigma são aceitos." });
+    return send(res, 400, { error: "url_nao_permitida", message: "Informe uma URL http(s) válida do painel." });
   }
 
   const method = String(payload.method || "GET").toUpperCase();
@@ -105,6 +150,12 @@ const server = http.createServer(async (req, res) => {
   const body = typeof payload.body === "string" ? payload.body : undefined;
 
   try {
+    if (BRIGHTDATA_WS) {
+      const out = await fetchViaBrightData(target, method, headers, body);
+      console.log(`[sigma-proxy/brd] ${method} ${target} -> ${out.status}`);
+      return send(res, 200, { status: out.status, ok: out.status >= 200 && out.status < 300, body: out.body });
+    }
+
     const upstream = await fetch(target, {
       method,
       headers,
@@ -122,5 +173,4 @@ const server = http.createServer(async (req, res) => {
 
 server.listen(PORT, () => {
   console.log(`Mini Proxy Sigma ativo em http://localhost:${PORT}`);
-  console.log("Agora exponha com: cloudflared tunnel --url http://localhost:" + PORT);
 });
