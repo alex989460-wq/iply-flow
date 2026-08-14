@@ -111,11 +111,12 @@ export default function Servers() {
 
   const createMutation = useMutation({
     mutationFn: async (data: typeof formData) => {
-      const { panel_type, sigma_connection_id, ...rest } = data;
+      const { panel_type, sigma_connection_id, koffice_connection_id, ...rest } = data;
       const { error } = await supabase.from('servers').insert({
         ...rest,
         panel_type: panel_type === 'auto' ? null : panel_type,
         sigma_connection_id: panel_type === 'sigma' ? sigma_connection_id || null : null,
+        koffice_connection_id: panel_type === 'koffice' ? koffice_connection_id || null : null,
         created_by: user?.id,
       } as any);
       if (error) throw error;
