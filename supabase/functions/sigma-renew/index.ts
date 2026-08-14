@@ -195,7 +195,7 @@ Deno.serve(async (req) => {
 
     const { data: cfg } = await admin
       .from("reseller_api_settings")
-      .select("sigma_base_url, sigma_username, sigma_password")
+      .select("sigma_base_url, sigma_username, sigma_password, sigma_proxy_url, sigma_proxy_secret")
       .eq("user_id", ownerId)
       .maybeSingle();
 
@@ -208,7 +208,7 @@ Deno.serve(async (req) => {
       }
     }
     const { data: connection } = connectionId
-      ? await admin.from("sigma_panel_connections").select("base_url, username, password").eq("id", connectionId).eq("user_id", ownerId).eq("is_active", true).maybeSingle()
+      ? await admin.from("sigma_panel_connections").select("base_url, username, password, proxy_url, proxy_secret").eq("id", connectionId).eq("user_id", ownerId).eq("is_active", true).maybeSingle()
       : { data: null };
 
     const base = normBase(action === "test" ? (body.sigma_base_url || connection?.base_url || (cfg as any)?.sigma_base_url || "") : (connection?.base_url || (cfg as any)?.sigma_base_url || ""));
@@ -218,11 +218,17 @@ Deno.serve(async (req) => {
       return json({ error: "Credenciais do Painel Sigma não configuradas. Preencha URL, usuário e senha em Configurações → APIs." }, 400);
     }
 
-    const { token, me, apiBase } = await sigmaLogin(base, user, pass);
+    const proxy = buildProxy(
+      action === "test" ? (body.sigma_proxy_url || (connection as any)?.proxy_url || (cfg as any)?.sigma_proxy_url) : ((connection as any)?.proxy_url || (cfg as any)?.sigma_proxy_url),
+      action === "test" ? (body.sigma_proxy_secret || (connection as any)?.proxy_secret || (cfg as any)?.sigma_proxy_secret) : ((connection as any)?.proxy_secret || (cfg as any)?.sigma_proxy_secret),
+    );
+
+    const { token, me, apiBase } = await sigmaLogin(base, user, pass, proxy);
 
     // ---- servidores/pacotes ----
     const loadServers = async () => {
-      const r = await sigmaFetch(apiBase, token, "/api/servers");
+      const r = await sigmaFetch(apiBase, token, "/api/servers", {}, proxy);
+
       const list = Array.isArray(r.body?.data) ? r.body.data : [];
       return list.map((s: any) => ({
         id: s.id,
