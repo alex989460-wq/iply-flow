@@ -759,9 +759,11 @@ export default function Settings() {
           </TabsContent>
 
           {/* Backups Tab */}
-          <TabsContent value="backups" className="mt-6">
-            <BackupManagerCard />
-          </TabsContent>
+          {isAdmin && (
+            <TabsContent value="backups" className="mt-6">
+              <BackupManagerCard />
+            </TabsContent>
+          )}
         </Tabs>
       </div>
     </DashboardLayout>
