@@ -258,6 +258,8 @@ Deno.serve(async (req) => {
     if (authError || !user) return json({ error: "Não autorizado" }, 401);
 
     const body = await req.json().catch(() => ({}));
+    let apiKeyDiagnostic = "";
+
     const action = String(body?.action || "test");
 
     // Diagnóstico rápido do proxy (versão, navegador, solucionador de captcha).
