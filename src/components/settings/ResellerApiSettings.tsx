@@ -37,6 +37,8 @@ export default function ResellerApiSettings() {
   const [testingP2cine, setTestingP2cine] = useState(false);
   const [connectingP2cine, setConnectingP2cine] = useState(false);
   const [showP2cinePassword, setShowP2cinePassword] = useState(false);
+  const [kofficeConnections, setKofficeConnections] = useState<any[]>([]);
+  const [savingKofficeConnection, setSavingKofficeConnection] = useState(false);
   const [testingTheBest, setTestingTheBest] = useState(false);
 
   const [settings, setSettings] = useState({
