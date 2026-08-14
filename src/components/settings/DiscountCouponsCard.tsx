@@ -42,11 +42,13 @@ export default function DiscountCouponsCard() {
   });
 
   const { data: coupons = [], isLoading } = useQuery({
-    queryKey: ['discount-coupons'],
+    queryKey: ['discount-coupons', user?.id],
+    enabled: !!user?.id,
     queryFn: async () => {
       const { data, error } = await supabase
         .from('discount_coupons' as any)
         .select('*')
+        .eq('owner_id', user!.id)
         .order('created_at', { ascending: false });
       if (error) throw error;
       return (data || []) as unknown as Coupon[];
