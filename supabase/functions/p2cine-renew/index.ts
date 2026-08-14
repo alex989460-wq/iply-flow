@@ -121,7 +121,7 @@ async function apiLogin(
   base: string,
   username: string,
   apiKey: string,
-): Promise<{ ok: boolean; token?: string; detail: string }> {
+): Promise<{ ok: boolean; token?: string; uid?: string; detail: string }> {
   try {
     const res = await apiFetch(`${base}/api/login`, {
       method: "POST",
@@ -151,8 +151,10 @@ async function apiLogin(
     }
 
     const token = String(parsed.token || parsed.access_token || parsed.jwt || parsed.data?.token || "").trim();
+    const uid = String(parsed.uid ?? parsed.data?.uid ?? "").trim();
     if (!token) return { ok: false, detail: "o painel autenticou mas não devolveu o token da API" };
-    return { ok: true, token, detail: "" };
+    return { ok: true, token, uid, detail: "" };
+
   } catch (e) {
     return { ok: false, detail: e instanceof Error ? e.message : String(e) };
   }
@@ -166,7 +168,7 @@ async function apiFetch(
 ): Promise<Relayed> {
   try {
     const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 15000);
+    const timer = setTimeout(() => ctrl.abort(), 8000);
     const res = await fetch(url, {
       method: init.method || "GET",
       headers: init.headers,
@@ -175,12 +177,17 @@ async function apiFetch(
     });
     clearTimeout(timer);
     const text = await res.text();
-    if (res.status < 400 && !/just a moment|cf-challenge/i.test(text)) {
+    // Resposta JSON da API (mesmo com erro) já é definitiva: não vale a pena
+    // repetir a chamada pelo proxy residencial, que é bem mais lento.
+    let isJson = false;
+    try { JSON.parse(text); isJson = true; } catch { /* HTML */ }
+    if (isJson || (res.status < 400 && !/just a moment|cf-challenge/i.test(text))) {
       return { status: res.status, body: text, cookies: [], headers: {} };
     }
   } catch { /* cai para o proxy */ }
   return await relay(url, init);
 }
+
 
 // Faz uma chamada autenticada na API usando o token JWT da sessão de API.
 async function apiCall(base: string, token: string, action: string, params: Record<string, string> = {}) {
@@ -226,57 +233,49 @@ async function panelPost(base: string, token: string, action: string, params: Re
   return { status: res.status, text, parsed };
 }
 
-// Procura o client_id do login informado na lista de clientes do painel.
-async function findClientId(base: string, token: string, login: string): Promise<string | null> {
+// Procura o client_id do login informado usando a pesquisa nativa do painel.
+// O painel só devolve resultados com o payload completo do DataTables e com
+// reseller_id = uid da conta autenticada (o uid vem do /api/login).
+async function findClientId(base: string, token: string, login: string, resellerId?: string): Promise<string | null> {
   const wanted = login.toLowerCase().trim();
 
-  const page = async (start: number, length: number, search: string) => {
+  const page = async (search: string, length: number) => {
     const form = new URLSearchParams();
     form.set("draw", "1");
-    form.set("start", String(start));
+    form.set("start", "0");
     form.set("length", String(length));
     form.set("search[value]", search);
     form.set("search[regex]", "false");
     form.set("filter_value", "#");
     form.set("search_column", "login");
-    form.set("reseller_id", "-1");
-    form.set("columns[0][data]", "0");
-    form.set("columns[0][searchable]", "true");
-    form.set("columns[0][orderable]", "true");
+    form.set("reseller_id", String(resellerId || "-1"));
+    for (let i = 0; i < 10; i++) {
+      form.set(`columns[${i}][data]`, String(i));
+      form.set(`columns[${i}][searchable]`, "true");
+      form.set(`columns[${i}][orderable]`, "true");
+      form.set(`columns[${i}][search][value]`, "");
+      form.set(`columns[${i}][search][regex]`, "false");
+    }
     form.set("order[0][column]", "0");
-    form.set("order[0][dir]", "asc");
+    form.set("order[0][dir]", "desc");
     const { parsed } = await panelPost(base, token, "get_clients", {}, form);
     return Array.isArray(parsed?.data) ? (parsed.data as any[]) : [];
   };
 
   const pick = (rows: any[]): string | null => {
     for (const row of rows) {
-      const cells = (row as any[]).map((c) => String(c ?? ""));
-      // coluna 0 = id interno, coluna 1 = login do cliente
-      if (cells.slice(0, 3).some((c) => c.toLowerCase().trim() === wanted)) {
+      const cells = (row as any[]).map((c) => String(c ?? "").replace(/<[^>]*>/g, "").trim());
+      if (cells.slice(0, 3).some((c) => c.toLowerCase() === wanted)) {
         return String(cells[0] || "").trim() || null;
       }
     }
     return null;
   };
 
-  // 1) tenta a pesquisa nativa do painel
-  const searched = await page(0, 50, login).catch(() => []);
-  const hit = pick(searched);
-  if (hit) return hit;
-
-  // 2) fallback: pagina a lista e compara localmente (o filtro do painel nem
-  // sempre é aplicado quando a chamada não vem do DataTables do navegador).
-  const PAGE = 500;
-  for (let start = 0; start < 5000; start += PAGE) {
-    const rows = await page(start, PAGE, "").catch(() => []);
-    if (!rows.length) break;
-    const found = pick(rows);
-    if (found) return found;
-    if (rows.length < PAGE) break;
-  }
-  return null;
+  const searched = await page(login, 25).catch(() => []);
+  return pick(searched);
 }
+
 
 
 // Renova o cliente pela rota interna do painel (mesma do botão "Renovar").
@@ -543,7 +542,7 @@ Deno.serve(async (req) => {
       const clientLogin = String(body?.username || body?.client_login || "").trim();
       if (!clientLogin) return json({ success: false, error: "Informe o usuário do cliente no painel." }, 200);
 
-      const clientId = String(body?.client_id || "").trim() || await findClientId(base, login.token!, clientLogin);
+      const clientId = String(body?.client_id || "").trim() || await findClientId(base, login.token!, clientLogin, login.uid);
       if (!clientId) {
         return json({ success: false, error: `Cliente "${clientLogin}" não encontrado no painel.` }, 200);
       }
@@ -589,9 +588,18 @@ Deno.serve(async (req) => {
         });
       }
       apiKeyDiagnostic = login.detail;
+      // Falha rápida: com chave de API cadastrada não abrimos o navegador do
+      // proxy (que demora minutos). O erro quase sempre é chave de outro painel.
+      return json({
+        success: false,
+        base_url: base,
+        username,
+        error: `O painel ${base.replace(/^https?:\/\//, "")} recusou essa chave de API. ${login.detail}. Confira se a URL do painel é exatamente a mesma de onde a chave foi gerada (Perfil → API KEY).`,
+      }, 200);
     } else if (apiKey && !username) {
       apiKeyDiagnostic = "a API do painel exige o usuário junto com a chave — preencha o campo Usuário.";
     }
+
 
 
     if (!username || !password) {
