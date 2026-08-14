@@ -172,12 +172,13 @@ export default function Servers() {
   });
 
   const resetForm = () => {
-    setFormData({ server_name: '', host: '', description: '', status: 'online', is_public: false, credit_cost: 0, panel_type: 'auto', sigma_connection_id: '' });
+    setFormData({ server_name: '', host: '', description: '', status: 'online', is_public: false, credit_cost: 0, panel_type: 'auto', sigma_connection_id: '', koffice_connection_id: '' });
     setEditingServer(null);
   };
 
   const handleEdit = (server: ServerRow) => {
     setEditingServer(server);
+    const rawPanel = ((server as any).panel_type as string) || 'auto';
     setFormData({
       server_name: server.server_name,
       host: server.host,
@@ -185,8 +186,9 @@ export default function Servers() {
       status: server.status,
       is_public: (server as any).is_public || false,
       credit_cost: Number((server as any).credit_cost || 0),
-      panel_type: ((server as any).panel_type as string) || 'auto',
+      panel_type: rawPanel === 'p2cine' ? 'koffice' : rawPanel,
       sigma_connection_id: (server as any).sigma_connection_id || '',
+      koffice_connection_id: (server as any).koffice_connection_id || '',
     });
     setIsOpen(true);
   };
