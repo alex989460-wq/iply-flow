@@ -1,0 +1,1 @@
+UPDATE public.activation_requests SET status = 'completed', updated_at = now() WHERE id = '2de16ea5-7e61-4b0c-a66d-bb0b82a126dd';
