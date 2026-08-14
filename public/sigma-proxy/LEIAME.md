@@ -55,6 +55,24 @@ Clique em **Testar conexão Sigma**. Se aparecer a lista de servidores, está fu
 - Enquanto o proxy estiver desligado, o SuperGestor tenta a conexão direta e avisa se o painel bloquear.
 - Para rodar sempre ativo, use um túnel nomeado do Cloudflare ou mantenha o computador ligado.
 
+## Modo Bright Data (recomendado para VPS)
+
+O Cloudflare do painel Sigma bloqueia IPs de datacenter. Para rodar o proxy numa VPS,
+use o Scraping Browser da Bright Data (https://brightdata.com.br):
+
+```bash
+cd /opt/sigma-proxy
+npm i puppeteer-core
+sudo systemctl edit sigma-proxy   # ou edite o arquivo do serviço e adicione:
+# Environment=BRIGHTDATA_WS=wss://SEU_USUARIO:SUA_SENHA@brd.superproxy.io:9222
+sudo systemctl restart sigma-proxy
+curl -s http://localhost:8787/health   # deve mostrar "mode":"brightdata"
+```
+
+Com `BRIGHTDATA_WS` definido, todas as chamadas ao painel saem pelo navegador da
+Bright Data, que resolve o desafio do Cloudflare automaticamente. Sem essa variável,
+o proxy usa o IP da própria máquina (modo direto, bom para IP residencial).
+
 ## Importante: VPS pode ser bloqueada
 
 O Cloudflare do painel Sigma bloqueia IPs de datacenter (VPS Hostinger, AWS, etc.)
