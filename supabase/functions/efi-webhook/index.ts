@@ -25,7 +25,7 @@ function json(body: unknown, status = 200) {
 async function triggerExternalRenewal(admin: any, customerId: string, source: string) {
   const { data: customer } = await admin
     .from("customers")
-    .select("id, name, phone, username, due_date, screens, server_id, plan_id, created_by, servers(server_name, host), plans(plan_name, duration_days)")
+    .select("id, name, phone, username, due_date, screens, server_id, plan_id, created_by, servers(server_name, host, sigma_connection_id), plans(plan_name, duration_days)")
     .eq("id", customerId)
     .maybeSingle();
 
@@ -57,8 +57,22 @@ async function triggerExternalRenewal(admin: any, customerId: string, source: st
     }
   };
 
+  const sigmaConnectionId = String((customer.servers as any)?.sigma_connection_id || "");
+
   let result: any;
-  if (haystack.includes("the best") || haystack.includes("the-best") || haystack.includes("painel.best")) {
+  if (sigmaConnectionId || haystack.includes("sigma")) {
+    // Painel Sigma: renova pela conexão vinculada ao servidor.
+    result = await post("sigma-renew", {
+      action: "renew",
+      owner_id: customer.created_by,
+      customer_id: customer.id,
+      connection_id: sigmaConnectionId || undefined,
+      username: customer.username.trim(),
+      months,
+      connections: customer.screens || 1,
+    });
+    result = { ...result, ok: result.ok && result.body?.ok === true };
+  } else if (haystack.includes("the best") || haystack.includes("the-best") || haystack.includes("painel.best")) {
     result = await post("the-best-renew", { username: customer.username.trim(), months, customer_id: customer.id });
   } else if (haystack.includes("natv") || haystack.includes("pixbot")) {
     result = await post("natv-renew", { username: customer.username.trim(), months, duration_days: durationDays, customer_id: customer.id });
