@@ -126,7 +126,7 @@ Deno.serve(async (req) => {
 
     const { data: settings } = await admin
       .from("reseller_checkout_settings")
-      .select("user_id, slug, display_name, logo_url, brand_color, headline, subheadline, enable_efi, enable_cakto, is_active, activation_cakto_url")
+      .select("user_id, slug, display_name, logo_url, brand_color, headline, subheadline, enable_efi, enable_cakto, enable_mercadopago, is_active, activation_cakto_url")
       .eq("slug", slug)
       .eq("is_active", true)
       .maybeSingle();
@@ -141,6 +141,14 @@ Deno.serve(async (req) => {
       .eq("user_id", ownerId)
       .maybeSingle();
     const efi_ready = !!(efi?.enabled && efi.pix_key && efi.client_id && efi.cert_p12_base64);
+
+    // Mercado Pago availability for this owner.
+    const { data: mp } = await admin
+      .from("mercadopago_settings")
+      .select("enabled, access_token")
+      .eq("user_id", ownerId)
+      .maybeSingle();
+    const mp_ready = !!(mp?.enabled && mp.access_token);
 
     // Plans of this reseller.
     const { data: plans } = await admin
