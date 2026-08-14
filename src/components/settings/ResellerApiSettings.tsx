@@ -65,6 +65,9 @@ export default function ResellerApiSettings() {
     sigma_base_url: '',
     sigma_username: '',
     sigma_password: '',
+    sigma_proxy_url: '',
+    sigma_proxy_secret: '',
+
   });
 
 
@@ -117,6 +120,9 @@ export default function ResellerApiSettings() {
           sigma_base_url: (d as any).sigma_base_url || '',
           sigma_username: (d as any).sigma_username || '',
           sigma_password: (d as any).sigma_password || '',
+          sigma_proxy_url: (d as any).sigma_proxy_url || '',
+          sigma_proxy_secret: (d as any).sigma_proxy_secret || '',
+
         });
 
       }
