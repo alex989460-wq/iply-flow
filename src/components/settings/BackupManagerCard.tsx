@@ -66,14 +66,17 @@ export default function BackupManagerCard() {
   const fetchSettings = async () => {
     const { data } = await supabase
       .from('backup_settings')
-      .select('id, enabled, interval_hours, last_run_at')
+      .select('id, enabled, interval_hours, interval_minutes, last_run_at')
       .order('updated_at', { ascending: false })
       .limit(1)
       .maybeSingle();
     if (data) {
       setSettingsId(data.id);
       setEnabled(data.enabled);
-      setIntervalHours(String(data.interval_hours));
+      const minutes = Number(data.interval_minutes) > 0
+        ? Number(data.interval_minutes)
+        : Math.max(1, Number(data.interval_hours) || 3) * 60;
+      setIntervalMinutes(String(minutes));
       setLastRunAt(data.last_run_at);
     }
   };
@@ -81,16 +84,19 @@ export default function BackupManagerCard() {
   const saveSettings = async () => {
     setSavingSettings(true);
     try {
+      const minutes = Math.max(1, Number(intervalMinutes) || 60);
       const payload = {
         enabled,
-        interval_hours: Number(intervalHours),
+        interval_minutes: minutes,
+        interval_hours: Math.max(1, Math.round(minutes / 60)),
         updated_at: new Date().toISOString(),
       };
       const { error } = settingsId
         ? await supabase.from('backup_settings').update(payload).eq('id', settingsId)
         : await supabase.from('backup_settings').insert(payload);
       if (error) throw error;
-      toast({ title: 'Configuração salva', description: `Backup automático a cada ${intervalHours}h.` });
+      const label = INTERVALS.find((i) => i.value === minutes)?.label ?? `${minutes} minutos`;
+      toast({ title: 'Configuração salva', description: `Backup automático a cada ${label}.` });
       fetchSettings();
     } catch (err: any) {
       toast({ title: 'Erro', description: err.message, variant: 'destructive' });
