@@ -8,6 +8,9 @@ import { Loader2, Check, Phone, QrCode, ArrowLeft, Copy, Sparkles, ShieldCheck, 
 import { toast } from 'sonner';
 import pixLogo from '@/assets/pix-logo.png.asset.json';
 import cardLogo from '@/assets/card-logo.png.asset.json';
+import efiLogo from '@/assets/efi-logo.png.asset.json';
+import mpLogo from '@/assets/mercadopago-logo.png.asset.json';
+import caktoLogo from '@/assets/cakto-logo.png.asset.json';
 
 interface Plan {
   id: string; name: string; duration_days: number; price: number;
@@ -625,7 +628,7 @@ export default function ResellerCheckout() {
                       {creating ? <Loader2 className="w-6 h-6 animate-spin text-emerald-500" /> : <img src={pixLogo.url} alt="Pix" className="w-9 h-9" />}
                     </div>
                     <p className="font-bold text-sm tracking-wide">PIX INSTANTÂNEO</p>
-                    <p className="text-[10px] text-white/50 -mt-1">Aprovação imediata</p>
+                    <p className="text-[10px] text-white/50 -mt-1 flex items-center gap-1 justify-center"><img src={efiLogo.url} alt="Efí" className="w-3.5 h-3.5 rounded-[3px]" /> Efí — aprovação imediata</p>
                     <p className="text-xl font-extrabold">{fmtBRL(couponInfo ? couponInfo.amount : (pixTotal || group.pix.price))}</p>
                   </button>
                 )}
@@ -633,10 +636,10 @@ export default function ResellerCheckout() {
                   <button onClick={() => pay('mercadopago')} disabled={creating}
                     className="group rounded-xl border border-white/10 bg-gradient-to-br from-cyan-400/[0.06] to-transparent hover:border-cyan-300/70 hover:from-cyan-400/[0.12] p-5 flex flex-col items-center gap-2 transition-all disabled:opacity-50 hover:-translate-y-0.5 hover:shadow-[0_0_25px_-6px_rgba(34,211,238,0.6)]">
                     <div className="w-14 h-14 rounded-xl bg-white flex items-center justify-center shadow-sm">
-                      {creating ? <Loader2 className="w-6 h-6 animate-spin text-cyan-500" /> : <img src={pixLogo.url} alt="Pix" className="w-9 h-9" />}
+                      {creating ? <Loader2 className="w-6 h-6 animate-spin text-cyan-500" /> : <img src={mpLogo.url} alt="Mercado Pago" className="w-9 h-9" />}
                     </div>
                     <p className="font-bold text-sm tracking-wide">PIX MERCADO PAGO</p>
-                    <p className="text-[10px] text-white/50 -mt-1">Aprovação imediata</p>
+                    <p className="text-[10px] text-white/50 -mt-1 flex items-center gap-1 justify-center"><img src={pixLogo.url} alt="Pix" className="w-3.5 h-3.5" /> Aprovação imediata</p>
                     <p className="text-xl font-extrabold">{fmtBRL(couponInfo ? couponInfo.amount : (pixTotal || group.pix.price))}</p>
                   </button>
                 )}
@@ -647,7 +650,7 @@ export default function ResellerCheckout() {
                       <img src={cardLogo.url} alt="Cartão" className="w-9 h-9" />
                     </div>
                     <p className="font-bold text-sm tracking-wide">CARTÃO DE CRÉDITO</p>
-                    <p className="text-[10px] text-white/50 -mt-1">Processado pela Cakto</p>
+                    <p className="text-[10px] text-white/50 -mt-1 flex items-center gap-1 justify-center"><img src={caktoLogo.url} alt="Cakto" className="w-3.5 h-3.5 rounded-[3px]" /> Processado pela Cakto</p>
                     <p className="text-xl font-extrabold">{fmtBRL(cardTotal || group.pix?.price || group.card?.price || 0)}</p>
                   </button>
                 )}
@@ -658,7 +661,7 @@ export default function ResellerCheckout() {
                       <img src={pixLogo.url} alt="Pix" className="w-9 h-9" />
                     </div>
                     <p className="font-bold text-sm tracking-wide">PIX (CAKTO)</p>
-                    <p className="text-[10px] text-white/50 -mt-1">Link Cakto</p>
+                    <p className="text-[10px] text-white/50 -mt-1 flex items-center gap-1 justify-center"><img src={caktoLogo.url} alt="Cakto" className="w-3.5 h-3.5 rounded-[3px]" /> Link Cakto</p>
                     <p className="text-xl font-extrabold">{fmtBRL(couponInfo ? couponInfo.amount : (pixTotal || group.pix.price))}</p>
                   </button>
                 )}
