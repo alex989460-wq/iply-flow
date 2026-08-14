@@ -124,7 +124,7 @@ Deno.serve(async (req) => {
 
     const { data: settings } = await admin
       .from("reseller_checkout_settings")
-      .select("user_id, is_active, enable_efi, enable_cakto")
+      .select("user_id, is_active, enable_efi, enable_cakto, enable_mercadopago")
       .eq("slug", slug)
       .maybeSingle();
     if (!settings || !settings.is_active) return json({ error: "not_found" }, 404);
