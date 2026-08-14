@@ -207,8 +207,13 @@ Deno.serve(async (req) => {
       return json({ ok: true, method, checkout_url: link });
     }
 
-    if (method !== "pix") return json({ error: "unknown_method" }, 400);
-    if (!settings.enable_efi) return json({ error: "efi_disabled" }, 400);
+    const isMercadoPago = method === "mercadopago" || method === "pix_mp";
+    if (method !== "pix" && !isMercadoPago) return json({ error: "unknown_method" }, 400);
+    if (isMercadoPago) {
+      if (!(settings as any).enable_mercadopago) return json({ error: "mercadopago_disabled" }, 400);
+    } else if (!settings.enable_efi) {
+      return json({ error: "efi_disabled" }, 400);
+    }
 
     // Sum per-customer prices (custom_price override supported).
     let amount = 0;
