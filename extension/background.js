@@ -706,8 +706,6 @@ async function checkPanelsStatus() {
 
 async function openPanels() {
   const opened = [];
-  const p2 = await chrome.tabs.query({ url: P2CINE_PANEL_URLS });
-  if (p2.length === 0) { await chrome.tabs.create({ url: CLIENTS_PAGE, active: false }); opened.push("p2cine"); }
   const up = await chrome.tabs.query({ url: UNIPLAY_PANEL_URLS });
   if (up.length === 0) { await chrome.tabs.create({ url: UNIPLAY_PANEL_URL, active: false }); opened.push("uniplay"); }
   const ib = await chrome.tabs.query({ url: IBOSOL_PANEL_URLS });
@@ -716,20 +714,18 @@ async function openPanels() {
 }
 
 function setupAlarms() {
-  chrome.alarms.create("p2cine-tick", { periodInMinutes: POLL_SECONDS / 60 });
-  chrome.alarms.create("p2cine-update", { periodInMinutes: 60 });
-  chrome.alarms.create("p2cine-keepalive", { periodInMinutes: 3 });
-  chrome.alarms.create("p2cine-status", { periodInMinutes: 2 });
+  chrome.alarms.create("sg-tick", { periodInMinutes: POLL_SECONDS / 60 });
+  chrome.alarms.create("sg-update", { periodInMinutes: 60 });
+  chrome.alarms.create("sg-status", { periodInMinutes: 2 });
   chrome.alarms.create("ibosol-keepalive", { periodInMinutes: 4 });
 }
 
-chrome.runtime.onInstalled.addListener(() => { setupAlarms(); checkForUpdate(); keepAlive(); ibosolKeepAlive(); checkPanelsStatus(); });
-chrome.runtime.onStartup.addListener(() => { setupAlarms(); checkForUpdate(); keepAlive(); ibosolKeepAlive(); checkPanelsStatus(); });
+chrome.runtime.onInstalled.addListener(() => { setupAlarms(); checkForUpdate(); ibosolKeepAlive(); checkPanelsStatus(); });
+chrome.runtime.onStartup.addListener(() => { setupAlarms(); checkForUpdate(); ibosolKeepAlive(); checkPanelsStatus(); });
 chrome.alarms.onAlarm.addListener((a) => {
-  if (a.name === "p2cine-tick") tick();
-  if (a.name === "p2cine-update") checkForUpdate();
-  if (a.name === "p2cine-keepalive") keepAlive();
-  if (a.name === "p2cine-status") checkPanelsStatus();
+  if (a.name === "sg-tick") tick();
+  if (a.name === "sg-update") checkForUpdate();
+  if (a.name === "sg-status") checkPanelsStatus();
   if (a.name === "ibosol-keepalive") ibosolKeepAlive();
 });
 
