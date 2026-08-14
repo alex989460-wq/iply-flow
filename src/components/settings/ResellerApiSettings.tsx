@@ -167,6 +167,9 @@ export default function ResellerApiSettings() {
         sigma_base_url: settings.sigma_base_url || null,
         sigma_username: settings.sigma_username || null,
         sigma_password: settings.sigma_password || null,
+        sigma_proxy_url: settings.sigma_proxy_url || null,
+        sigma_proxy_secret: settings.sigma_proxy_secret || null,
+
         updated_at: new Date().toISOString(),
       };
 
