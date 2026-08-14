@@ -118,6 +118,52 @@ function buildUsernameVariants(raw: string): string[] {
   return [...set].filter(Boolean);
 }
 
+// ---------------------------------------------------------------------------
+// Proxy global (VPS com IP residencial). Evita bloqueio de IP de datacenter.
+// Mesma infraestrutura usada pelo Sigma: SIGMA_PROXY_URL / SIGMA_PROXY_SECRET.
+// ---------------------------------------------------------------------------
+function proxyConfig(): { url: string; secret: string } | null {
+  const u = String(Deno.env.get("SIGMA_PROXY_URL") || "").trim().replace(/\/+$/, "");
+  const s = String(Deno.env.get("SIGMA_PROXY_SECRET") || "").trim();
+  if (!u || !s) return null;
+  return { url: /^https?:\/\//i.test(u) ? u : `https://${u}`, secret: s };
+}
+
+async function pfetch(url: string, init: RequestInit = {}): Promise<Response> {
+  const proxy = proxyConfig();
+  if (!proxy) return await fetch(url, init);
+
+  const headers: Record<string, string> = {};
+  for (const [k, v] of Object.entries((init.headers || {}) as Record<string, string>)) headers[k] = String(v);
+
+  let relayed: Response;
+  try {
+    relayed = await fetch(proxy.url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-sigma-proxy-secret": proxy.secret },
+      body: JSON.stringify({
+        url,
+        method: init.method || "GET",
+        headers,
+        body: typeof init.body === "string" ? init.body : undefined,
+      }),
+    });
+  } catch (err) {
+    // Se o proxy estiver fora do ar, tenta direto para não travar a renovação.
+    console.warn("[Uniplay] proxy indisponível, tentando conexão direta:", err instanceof Error ? err.message : String(err));
+    return await fetch(url, init);
+  }
+
+  const payload = await relayed.json().catch(() => null) as any;
+  if (!relayed.ok || !payload || typeof payload.status !== "number") {
+    console.warn("[Uniplay] proxy respondeu com erro, tentando conexão direta");
+    return await fetch(url, init);
+  }
+  const text = String(payload.body ?? "");
+  const contentType = String(payload.headers?.["content-type"] || (text.trim().startsWith("{") || text.trim().startsWith("[") ? "application/json" : "text/html"));
+  return new Response(text, { status: payload.status, headers: { "content-type": contentType } });
+}
+
 interface LoginResp {
   access_token: string;
   crypt_pass: string;
@@ -127,7 +173,7 @@ interface LoginResp {
 
 async function login(baseUrl: string, username: string, password: string): Promise<LoginResp> {
   const endpoint = `${baseUrl}/api/login`;
-  const res = await fetch(endpoint, {
+  const res = await pfetch(endpoint, {
     method: "POST",
     headers: uniplayHeaders({ "Content-Type": "application/json;charset=UTF-8" }),
     body: JSON.stringify({ username, password, code: "" }),
@@ -159,7 +205,7 @@ async function loginWithFallback(
 
 async function listIptv(baseUrl: string, token: string, cryptPass: string): Promise<any[]> {
   const url = `${baseUrl}/api/users-iptv?reg_password=${encodeURIComponent(cryptPass)}`;
-  const res = await fetch(url, {
+  const res = await pfetch(url, {
     headers: uniplayHeaders({ Authorization: `Bearer ${token}` }),
   });
   return await parseJsonResponse<any[]>(res, url, "Listagem IPTV Uniplay");
@@ -167,7 +213,7 @@ async function listIptv(baseUrl: string, token: string, cryptPass: string): Prom
 
 async function listP2p(baseUrl: string, token: string): Promise<any[]> {
   const endpoint = `${baseUrl}/api/users-p2p`;
-  const res = await fetch(endpoint, {
+  const res = await pfetch(endpoint, {
     headers: uniplayHeaders({ Authorization: `Bearer ${token}` }),
   });
   return await parseJsonResponse<any[]>(res, endpoint, "Listagem P2P Uniplay");
@@ -180,7 +226,7 @@ async function extend(
   id: number | string,
   credits: number,
 ): Promise<{ ok: boolean; body: string; status: number }> {
-  const res = await fetch(`${baseUrl}/api/users-${kind}/${id}`, {
+  const res = await pfetch(`${baseUrl}/api/users-${kind}/${id}`, {
     method: "PUT",
     headers: uniplayHeaders({
       Authorization: `Bearer ${token}`,
