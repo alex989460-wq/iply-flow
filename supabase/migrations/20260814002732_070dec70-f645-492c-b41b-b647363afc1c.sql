@@ -1,0 +1,2 @@
+UPDATE public.activation_requests SET status = 'completed', updated_at = now() WHERE id = 'c15ac3dc-e472-479b-a3b5-99ef2d0ab96f';
+DELETE FROM public.pending_manual_renewals WHERE reason = 'app_activation' AND customer_name = 'Ronaldo Damasceno Gomes';
