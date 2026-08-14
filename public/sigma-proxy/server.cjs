@@ -300,10 +300,11 @@ async function browserSession(payload) {
     // Resolve qualquer CAPTCHA já presente na tela de login.
     let captcha = await solveCaptcha(page, remote, String(payload.url));
 
+    const stepsLog = [];
     for (const step of Array.isArray(payload.steps) ? payload.steps : []) {
       try {
         if (step.selector) {
-          await page.waitForSelector(step.selector, { timeout: 30000 });
+          await page.waitForSelector(step.selector, { timeout: 30000, visible: true });
           if (typeof step.value === "string") {
             await page.click(step.selector, { clickCount: 3 }).catch(() => {});
             await page.type(step.selector, step.value, { delay: 40 });
@@ -316,12 +317,15 @@ async function browserSession(payload) {
             }
             await page.click(step.selector);
           }
+          stepsLog.push({ selector: step.selector, ok: true });
         }
         if (step.wait_ms) await new Promise((r) => setTimeout(r, Number(step.wait_ms)));
       } catch (err) {
+        stepsLog.push({ selector: step.selector, ok: false, error: err && err.message });
         console.warn("[browser] passo falhou:", step.selector, err && err.message);
       }
     }
+
 
     // Segunda tentativa (alguns painéis só mostram o captcha após o submit).
     try {
