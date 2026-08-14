@@ -332,9 +332,11 @@ async function browserSession(payload) {
       .evaluate(() => {
         const out = {};
         try { for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); out[k] = localStorage.getItem(k); } } catch { /* noop */ }
+        try { for (let i = 0; i < sessionStorage.length; i++) { const k = sessionStorage.key(i); out["ss:" + k] = sessionStorage.getItem(k); } } catch { /* noop */ }
         return out;
       })
       .catch(() => ({}));
+
 
     await page.close().catch(() => {});
     return { final_url: finalUrl, cookies, html, captcha, storage };
