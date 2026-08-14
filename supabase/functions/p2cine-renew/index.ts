@@ -387,16 +387,29 @@ Deno.serve(async (req) => {
     const authHeader = req.headers.get("Authorization") || "";
     if (!authHeader.startsWith("Bearer ")) return json({ error: "Não autorizado" }, 401);
 
-    const sb = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_ANON_KEY")!, {
-      global: { headers: { Authorization: authHeader } },
-    });
-    const { data: { user }, error: authError } = await sb.auth.getUser();
-    if (authError || !user) return json({ error: "Não autorizado" }, 401);
-
     const body = await req.json().catch(() => ({}));
     let apiKeyDiagnostic = "";
-
     const action = String(body?.action || "test");
+
+    // Chamada interna (outras Edge Functions) usa a chave de serviço + owner_id.
+    const srk = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const internal = authHeader.slice(7).trim() === srk;
+    let user: { id: string } | null = null;
+
+    if (internal) {
+      const ownerId = String(body?.owner_id || "").trim();
+      if (!ownerId) return json({ error: "owner_id é obrigatório na chamada interna" }, 400);
+      user = { id: ownerId };
+    } else {
+      const sb = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_ANON_KEY")!, {
+        global: { headers: { Authorization: authHeader } },
+      });
+      const { data: { user: authed }, error: authError } = await sb.auth.getUser();
+      if (authError || !authed) return json({ error: "Não autorizado" }, 401);
+      user = { id: authed.id };
+    }
+
+
 
     // Diagnóstico rápido do proxy (versão, navegador, solucionador de captcha).
     if (action === "proxy_health") {
