@@ -291,9 +291,10 @@ async function browserLoginUniplay(
     const html = String(payload.html || "");
     const captchaStatus = String(payload?.captcha?.status || "sem_captcha");
     const keys = Object.keys(storage).slice(0, 12).join(", ") || "nenhuma";
-    if (/captcha/i.test(html) || /solve_failed|need_key/i.test(captchaStatus)) {
+    if (/captcha/i.test(html) || /solve_failed|need_key|unavailable|failed/i.test(captchaStatus)) {
+      const captchaMessage = String(payload?.captcha?.message || "").trim();
       throw new UniplayExternalError(
-        `O painel Uniplay pediu captcha e o proxy não conseguiu resolver (${captchaStatus}). Configure a chave do 2Captcha na VPS.`,
+        `O painel Uniplay pediu captcha e o proxy não conseguiu resolver (${captchaStatus}).${captchaMessage ? ` Detalhe: ${captchaMessage}` : " Verifique a chave e o saldo do 2Captcha na VPS."}`,
       );
     }
     const net = captured
