@@ -263,7 +263,30 @@ async function browserLoginUniplay(
     }
   }
 
+  // O painel pode não guardar nada no navegador: então lê o token direto da
+  // resposta de login capturada pelo proxy.
+  const captured: any[] = Array.isArray(payload.captured) ? payload.captured : [];
   if (!token) {
+    for (const item of captured) {
+      const raw = String(item?.body || "");
+      if (!raw.trim().startsWith("{")) continue;
+      try {
+        const obj = JSON.parse(raw);
+        const data = obj?.data && typeof obj.data === "object" ? obj.data : obj;
+        const found = String(data.access_token || data.token || obj.access_token || obj.token || "");
+        if (found) {
+          token = found;
+          cryptPass = cryptPass || String(data.crypt_pass || obj.crypt_pass || "");
+          id = id || Number(data.id || obj.id || 0);
+          user = String(data.username || obj.username || user);
+          break;
+        }
+      } catch { /* ignora */ }
+    }
+  }
+
+  if (!token) {
+
     const finalUrl = String(payload.final_url || "");
     const html = String(payload.html || "");
     const captchaStatus = String(payload?.captcha?.status || "sem_captcha");
