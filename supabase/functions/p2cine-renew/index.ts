@@ -377,21 +377,35 @@ Deno.serve(async (req) => {
       return json({ error: `Ação não suportada: ${action}` }, 400);
     }
 
-    // 1) Tenta autenticar direto pela chave de API do painel (sem navegador nem captcha).
-    if (apiKey && (action === "test" || action === "connect")) {
-      const apiResult = await tryApiKey(base, apiKey);
-      if (apiResult.ok) {
+    // 1) Caminho preferido: API oficial do painel (usuário + chave de API).
+    // Não abre o painel, não passa por captcha e não depende de sessão de navegador.
+    if (apiKey && username && (action === "test" || action === "connect" || action === "status")) {
+      const login = await apiLogin(base, username, apiKey);
+      if (login.ok) {
+        let credits: number | null = null;
+        try {
+          const info = await apiCall(base, login.token!, "get_credits");
+          const raw = info?.credits ?? info?.data?.credits ?? info?.saldo;
+          if (raw !== undefined && raw !== null) credits = Number(raw);
+        } catch { /* saldo é opcional */ }
+
         return json({
           success: true,
           base_url: base,
           username,
           connected: true,
           auth_mode: "api_key",
-          message: `Chave de API do P2Cine aceita pelo painel (${apiResult.endpoint}).`,
+          credits,
+          message: credits === null
+            ? "Conectado pela API do painel (usuário + chave). Não é preciso logar no painel."
+            : `Conectado pela API do painel (usuário + chave). Créditos disponíveis: ${credits}.`,
         });
       }
-      apiKeyDiagnostic = apiResult.detail;
+      apiKeyDiagnostic = login.detail;
+    } else if (apiKey && !username) {
+      apiKeyDiagnostic = "a API do painel exige o usuário junto com a chave — preencha o campo Usuário.";
     }
+
 
     if (!username || !password) {
       return json({
