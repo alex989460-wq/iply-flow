@@ -123,7 +123,7 @@ async function apiLogin(
   apiKey: string,
 ): Promise<{ ok: boolean; token?: string; detail: string }> {
   try {
-    const res = await relay(`${base}/api/login`, {
+    const res = await apiFetch(`${base}/api/login`, {
       method: "POST",
       headers: {
         ...browserHeaders,
