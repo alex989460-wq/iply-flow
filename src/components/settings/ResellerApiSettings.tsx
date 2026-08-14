@@ -35,6 +35,7 @@ export default function ResellerApiSettings() {
 
   const [testingUniplay, setTestingUniplay] = useState(false);
   const [testingP2cine, setTestingP2cine] = useState(false);
+  const [connectingP2cine, setConnectingP2cine] = useState(false);
   const [showP2cinePassword, setShowP2cinePassword] = useState(false);
   const [testingTheBest, setTestingTheBest] = useState(false);
 
@@ -293,6 +294,31 @@ export default function ResellerApiSettings() {
       toast({ title: 'Falha ao conectar no P2Cine', description: e?.message || 'Confira o usuário e a senha.', variant: 'destructive' });
     } finally {
       setTestingP2cine(false);
+    }
+  };
+
+  const connectP2cine = async () => {
+    if (!settings.p2cine_username || !settings.p2cine_password) {
+      toast({ title: 'Dados incompletos', description: 'Preencha usuário e senha do P2Cine.', variant: 'destructive' });
+      return;
+    }
+    setConnectingP2cine(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('p2cine-renew', {
+        body: {
+          action: 'connect',
+          p2cine_username: settings.p2cine_username.trim(),
+          p2cine_password: settings.p2cine_password,
+          p2cine_base_url: settings.p2cine_base_url.trim(),
+        },
+      });
+      if (error) throw error;
+      if (!data?.success) throw new Error(data?.error || 'Não foi possível conectar no P2Cine.');
+      toast({ title: 'P2Cine conectado', description: data.message || 'Sessão salva. A renovação funciona sem a extensão.' });
+    } catch (e: any) {
+      toast({ title: 'Falha ao conectar no P2Cine', description: e?.message || 'Confira o usuário e a senha.', variant: 'destructive' });
+    } finally {
+      setConnectingP2cine(false);
     }
   };
 
@@ -1082,14 +1108,22 @@ export default function ResellerApiSettings() {
               />
             </div>
           </div>
-          <Button type="button" variant="outline" onClick={testP2cine} disabled={testingP2cine}>
-            {testingP2cine && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-            Testar conexão P2Cine
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" variant="outline" onClick={testP2cine} disabled={testingP2cine || connectingP2cine}>
+              {testingP2cine && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              Testar conexão P2Cine
+            </Button>
+            <Button type="button" onClick={connectP2cine} disabled={connectingP2cine || testingP2cine}>
+              {connectingP2cine && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              Conectar e manter logado (sem extensão)
+            </Button>
+          </div>
           <Alert className="bg-muted/50">
             <AlertCircle className="h-4 w-4" />
             <AlertDescription className="text-xs">
-              Se o painel exigir captcha no login, a renovação continua pela extensão do SuperGestor.
+              Ao conectar, o SuperGestor abre o painel num navegador real com IP residencial, faz o login e
+              guarda a sessão. Depois disso as renovações acontecem sozinhas, sem precisar da extensão nem
+              de manter o navegador aberto. Se a sessão cair, é só clicar em conectar de novo.
             </AlertDescription>
           </Alert>
         </CardContent>

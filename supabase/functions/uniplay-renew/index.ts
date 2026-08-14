@@ -203,6 +203,69 @@ async function loginWithFallback(
   );
 }
 
+// Faz o login dentro de um navegador real na VPS (IP residencial) e captura o
+// token que o painel guarda no navegador. Assim a conta fica logada sem extensão.
+async function browserLoginUniplay(
+  username: string,
+  password: string,
+): Promise<{ access_token: string; crypt_pass: string; id: number; username: string }> {
+  const proxy = proxyConfig();
+  if (!proxy) throw new UniplayExternalError("O proxy do painel não está configurado. Fale com o suporte do SuperGestor.");
+
+  const res = await fetch(proxy.url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "x-sigma-proxy-secret": proxy.secret },
+    body: JSON.stringify({
+      browser: true,
+      url: `https://${PANEL_HOST}/login`,
+      wait_ms: 9000,
+      steps: [
+        { selector: "input[name='username'], input[type='text'], #username", value: username },
+        { selector: "input[name='password'], input[type='password'], #password", value: password },
+        { selector: "button[type='submit'], .btn-login, button", click: true, wait_ms: 9000 },
+      ],
+    }),
+  }).catch((err) => {
+    throw new UniplayExternalError(
+      `Não foi possível falar com o proxy do painel. Verifique se a VPS do proxy está ligada. Detalhe: ${err instanceof Error ? err.message : String(err)}`,
+    );
+  });
+
+  const payload = await res.json().catch(() => null) as any;
+  if (!res.ok || !payload?.ok) {
+    const msg = String(payload?.message || payload?.error || `HTTP ${res.status}`);
+    if (payload?.error === "navegador_indisponivel") {
+      throw new UniplayExternalError("O navegador do proxy não está instalado na VPS. Atualize o proxy para a versão 1.4.0.");
+    }
+    throw new UniplayExternalError(`Falha ao abrir o painel Uniplay no navegador do proxy: ${msg}`);
+  }
+
+  const storage = (payload.storage && typeof payload.storage === "object" ? payload.storage : {}) as Record<string, string>;
+  let token = "";
+  let cryptPass = "";
+  let id = 0;
+  let user = username;
+
+  for (const raw of Object.values(storage)) {
+    const value = String(raw ?? "");
+    if (!token && /^ey[A-Za-z0-9_\-]+\./.test(value)) token = value;
+    if (value.trim().startsWith("{")) {
+      try {
+        const obj = JSON.parse(value);
+        token = token || String(obj.access_token || obj.token || "");
+        cryptPass = cryptPass || String(obj.crypt_pass || "");
+        id = id || Number(obj.id || 0);
+        user = String(obj.username || user);
+      } catch { /* ignora */ }
+    }
+  }
+
+  if (!token) {
+    throw new UniplayExternalError("Login Uniplay recusado pelo painel. Confira usuário e senha.");
+  }
+  return { access_token: token, crypt_pass: cryptPass, id, username: user };
+}
+
 async function listIptv(baseUrl: string, token: string, cryptPass: string): Promise<any[]> {
   const url = `${baseUrl}/api/users-iptv?reg_password=${encodeURIComponent(cryptPass)}`;
   const res = await pfetch(url, {
@@ -329,8 +392,63 @@ serve(async (req) => {
     }
 
     console.log(`[Uniplay] Login as ${uUser} @ ${uBase}`);
-    const { session, apiBaseUrl } = await loginWithFallback(uBase, uUser, uPass);
-    uBase = apiBaseUrl;
+
+    // Dono das credenciais (para salvar/reaproveitar a sessão).
+    let sessionOwnerId: string | null = callerUserId;
+    if (!sessionOwnerId && customer_id) {
+      const { data: co } = await admin.from("customers").select("created_by").eq("id", customer_id).maybeSingle();
+      sessionOwnerId = co?.created_by || null;
+    }
+
+    let session: LoginResp;
+    try {
+      const out = await loginWithFallback(uBase, uUser, uPass);
+      session = out.session;
+      uBase = out.apiBaseUrl;
+    } catch (loginErr) {
+      console.warn("[Uniplay] login por API falhou, tentando sessão salva/navegador:", loginErr instanceof Error ? loginErr.message : loginErr);
+
+      let saved: any = null;
+      if (sessionOwnerId) {
+        const { data } = await admin
+          .from("reseller_api_settings")
+          .select("uniplay_session_token, uniplay_session_pass")
+          .eq("user_id", sessionOwnerId)
+          .maybeSingle();
+        saved = data;
+      }
+
+      let candidate: LoginResp | null = saved?.uniplay_session_token
+        ? {
+          access_token: String(saved.uniplay_session_token),
+          crypt_pass: String(saved.uniplay_session_pass || ""),
+          id: 0,
+          username: uUser,
+        }
+        : null;
+
+      // Valida a sessão salva; se estiver vencida, refaz o login pelo navegador da VPS.
+      let alive = false;
+      if (candidate) {
+        alive = await listP2p(uBase, candidate.access_token).then(() => true).catch(() => false);
+      }
+
+      if (!alive) {
+        candidate = await browserLoginUniplay(uUser, uPass);
+        if (sessionOwnerId) {
+          await admin
+            .from("reseller_api_settings")
+            .update({
+              uniplay_session_token: candidate.access_token,
+              uniplay_session_pass: candidate.crypt_pass,
+              uniplay_session_at: new Date().toISOString(),
+            })
+            .eq("user_id", sessionOwnerId);
+        }
+      }
+
+      session = candidate!;
+    }
 
     if (action === "test") {
       return new Response(

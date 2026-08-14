@@ -118,7 +118,7 @@ function isAllowedTarget(rawUrl) {
 
 // Executa o fetch de dentro do navegador da Bright Data (passa pelo Cloudflare).
 async function fetchViaBrightData(target, method, headers, body) {
-  const browser = await puppeteer.connect({ browserWSEndpoint: BRIGHTDATA_WS });
+  const { browser } = await openBrowser();
   try {
     const page = await browser.newPage();
     const origin = new URL(target).origin;
@@ -154,7 +154,7 @@ async function fetchViaBrightData(target, method, headers, body) {
 // Retorna: { final_url, cookies, html (trecho), captcha }
 // ---------------------------------------------------------------------------
 async function browserSession(payload) {
-  const browser = await puppeteer.connect({ browserWSEndpoint: BRIGHTDATA_WS });
+  const { browser, remote } = await openBrowser();
   try {
     const page = await browser.newPage();
     await page.setViewport({ width: 1366, height: 768 });
@@ -163,6 +163,7 @@ async function browserSession(payload) {
     // Pede ao Scraping Browser para resolver qualquer CAPTCHA presente.
     let captcha = { status: "none" };
     try {
+      if (!remote) throw new Error("navegador local nao resolve captcha");
       const client = await page.createCDPSession();
       captcha = await client.send("Captcha.solve", { detectTimeout: 30000 });
     } catch (err) {
@@ -187,6 +188,7 @@ async function browserSession(payload) {
 
     // Segunda tentativa de CAPTCHA (alguns painéis só mostram após o submit).
     try {
+      if (!remote) throw new Error("navegador local nao resolve captcha");
       const client2 = await page.createCDPSession();
       const c2 = await client2.send("Captcha.solve", { detectTimeout: 20000 });
       if (c2 && c2.status && c2.status !== "not_detected") captcha = c2;
@@ -219,9 +221,10 @@ const server = http.createServer(async (req, res) => {
     return send(res, 200, {
       ok: true,
       service: "sigma-proxy",
-      version: "1.3.0",
+      version: "1.4.0",
       mode: BRIGHTDATA_WS ? "brightdata" : "direct",
-      browser: Boolean(BRIGHTDATA_WS),
+      browser: browserAvailable,
+      chrome: CHROME_PATH || null,
     });
   }
 
@@ -248,7 +251,12 @@ const server = http.createServer(async (req, res) => {
 
   // Modo navegador (login com CAPTCHA)
   if (payload.browser === true) {
-    if (!BRIGHTDATA_WS) return send(res, 400, { error: "brightdata_nao_configurado" });
+    if (!browserAvailable) {
+      return send(res, 400, {
+        error: "navegador_indisponivel",
+        message: "Instale o Chrome nesta VPS (npm i puppeteer-core + apt install chromium) ou configure BRIGHTDATA_WS.",
+      });
+    }
     try {
       const out = await browserSession(payload);
       console.log(`[browser] ${target} -> ${out.final_url} captcha=${out.captcha && out.captcha.status}`);
