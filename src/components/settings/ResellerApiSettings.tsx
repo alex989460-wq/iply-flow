@@ -35,6 +35,7 @@ export default function ResellerApiSettings() {
 
   const [testingUniplay, setTestingUniplay] = useState(false);
   const [testingP2cine, setTestingP2cine] = useState(false);
+  const [connectingP2cine, setConnectingP2cine] = useState(false);
   const [showP2cinePassword, setShowP2cinePassword] = useState(false);
   const [testingTheBest, setTestingTheBest] = useState(false);
 
