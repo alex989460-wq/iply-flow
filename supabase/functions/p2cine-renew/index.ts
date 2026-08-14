@@ -222,6 +222,21 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     const action = String(body?.action || "test");
 
+    // Diagnóstico rápido do proxy (versão, navegador, solucionador de captcha).
+    if (action === "proxy_health") {
+      const proxy = proxyConfig();
+      if (!proxy) return json({ success: false, error: "Proxy não configurado (SIGMA_PROXY_URL / SIGMA_PROXY_SECRET)." }, 200);
+      try {
+        const healthUrl = proxy.url.replace(/\/+$/, "") + "/health";
+        const r = await fetch(healthUrl, { headers: { "x-sigma-proxy-secret": proxy.secret } });
+        const txt = await r.text();
+        return json({ success: r.ok, status: r.status, health: txt.slice(0, 800), proxy_url: proxy.url });
+      } catch (e) {
+        return json({ success: false, error: `Proxy inacessível: ${e instanceof Error ? e.message : String(e)}` }, 200);
+      }
+    }
+
+
     let base = normBase(body?.p2cine_base_url);
     let username = String(body?.p2cine_username || "").trim();
     let password = String(body?.p2cine_password || "");
