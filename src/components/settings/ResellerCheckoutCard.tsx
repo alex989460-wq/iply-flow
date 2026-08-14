@@ -115,6 +115,7 @@ export default function ResellerCheckoutCard() {
         headline: (form.headline || '').trim() || null,
         subheadline: (form.subheadline || '').trim() || null,
         enable_efi: form.enable_efi,
+        enable_mercadopago: form.enable_mercadopago,
         enable_cakto: form.enable_cakto,
         api_key: form.api_key || genApiKey(),
         webhook_url: (form.webhook_url || '').trim() || null,
