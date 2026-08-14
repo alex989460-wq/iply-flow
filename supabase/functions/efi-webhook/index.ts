@@ -9,6 +9,7 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { resolvePanel } from "../_shared/panel-router.ts";
+import { reportScreensMismatch } from "../_shared/screens-mismatch.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
