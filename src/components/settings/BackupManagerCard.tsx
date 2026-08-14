@@ -21,7 +21,20 @@ interface Backup {
   backup_type: string;
 }
 
-const INTERVALS = [1, 2, 3, 6, 12, 24];
+// Intervalos em minutos
+const INTERVALS: { value: number; label: string }[] = [
+  { value: 1, label: '1 minuto' },
+  { value: 5, label: '5 minutos' },
+  { value: 10, label: '10 minutos' },
+  { value: 15, label: '15 minutos' },
+  { value: 30, label: '30 minutos' },
+  { value: 60, label: '1 hora' },
+  { value: 120, label: '2 horas' },
+  { value: 180, label: '3 horas' },
+  { value: 360, label: '6 horas' },
+  { value: 720, label: '12 horas' },
+  { value: 1440, label: '24 horas' },
+];
 
 export default function BackupManagerCard() {
   const { toast } = useToast();
