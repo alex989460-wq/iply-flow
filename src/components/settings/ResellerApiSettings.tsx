@@ -1174,7 +1174,7 @@ export default function ResellerApiSettings() {
               />
             </div>
             <div className="space-y-2 md:col-span-2">
-              <Label htmlFor="p2cine_api_key">Chave de API (opcional)</Label>
+              <Label htmlFor="p2cine_api_key">Chave de API</Label>
               <Input
                 id="p2cine_api_key"
                 type="password"
@@ -1184,7 +1184,8 @@ export default function ResellerApiSettings() {
                 autoComplete="off"
               />
               <p className="text-xs text-muted-foreground">
-                A chave fica isolada nesta revenda. O login automático continua usando usuário e senha até o fornecedor disponibilizar a documentação oficial da API.
+                Com usuário + chave + URL o painel autentica pela API oficial: não precisa de senha, navegador nem captcha.
+                A senha só é usada como plano B no login automático.
               </p>
             </div>
           </div>
@@ -1193,11 +1194,33 @@ export default function ResellerApiSettings() {
               {testingP2cine && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
               Testar conexão P2Cine
             </Button>
-            <Button type="button" onClick={connectP2cine} disabled={connectingP2cine || testingP2cine}>
+            <Button type="button" onClick={addKofficeConnection} disabled={savingKofficeConnection}>
+              {savingKofficeConnection ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Plus className="w-4 h-4 mr-2" />}
+              Adicionar painel kOffice
+            </Button>
+            <Button type="button" variant="secondary" onClick={connectP2cine} disabled={connectingP2cine || testingP2cine}>
               {connectingP2cine && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
               Conectar e manter logado (sem extensão)
             </Button>
           </div>
+
+          {kofficeConnections.length > 0 && (
+            <div className="space-y-2">
+              <Label>Painéis kOffice conectados</Label>
+              {kofficeConnections.map((connection) => (
+                <div key={connection.id} className="flex items-center justify-between rounded-md border p-3">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium truncate">{connection.name}</p>
+                    <p className="text-xs text-muted-foreground truncate">{connection.username} • {connection.base_url}</p>
+                  </div>
+                  <Button type="button" variant="ghost" size="icon" onClick={() => removeKofficeConnection(connection.id)} aria-label="Remover painel kOffice">
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+
           <Alert className="bg-muted/50">
             <AlertCircle className="h-4 w-4" />
             <AlertDescription className="text-xs">
