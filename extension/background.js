@@ -1,18 +1,10 @@
-// SuperGestor Panel Auto-Renew - background service worker (v2.0.1)
+// SuperGestor Panel Auto-Renew - background service worker (v2.1.0)
+// P2Cine (kOffice) foi removido: agora renova direto pela API nativa no servidor.
+// A extensao cuida apenas do Uniplay (reCAPTCHA do Google ainda nao contornado)
+// e do keep-alive da sessao IBO Sol.
 const QUEUE_URL = "https://fphqfgxfeaylldpxjqan.supabase.co/functions/v1/p2cine-queue";
 const SUPABASE_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZwaHFmZ3hmZWF5bGxkcHhqcWFuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY5OTYwMDAsImV4cCI6MjA4MjU3MjAwMH0.PsIJenRZEAWTlxbdGYvJWrBUfiIifPn9Q_UVeUyrFs8";
 const POLL_SECONDS = 20;
-// P2Cine roda em dois dominios com o mesmo painel: daily3.news e painelacesso1.com.
-// A extensao aceita qualquer aba logada em um deles.
-const P2CINE_PANEL_URLS = [
-  "https://daily3.news/*",
-  "https://*.daily3.news/*",
-  "https://painelacesso1.com/*",
-  "https://*.painelacesso1.com/*",
-];
-const P2CINE_PANEL_BASES = ["https://daily3.news", "https://painelacesso1.com"];
-const PANEL_BASE = "https://painelacesso1.com";
-const CLIENTS_PAGE = `${PANEL_BASE}/clients/`;
 const UNIPLAY_PANEL_URL = "https://searchdefense.top/";
 const UNIPLAY_PANEL_URLS = ["https://searchdefense.top/*", "http://searchdefense.top/*"];
 const UNIPLAY_API_BASE = "https://gesapioffice.com";
@@ -22,10 +14,6 @@ const IBOSOL_PANEL_URL = "https://ibosol.com/multi-apps-activation";
 const IBOSOL_PANEL_URLS = ["https://ibosol.com/*", "https://*.ibosol.com/*"];
 const IBOSOL_API_BASE = "https://backend-apis.ibosol.com/api";
 
-function isClientsPageUrl(url) {
-  if (!url) return false;
-  return P2CINE_PANEL_BASES.some((b) => url.startsWith(`${b}/clients/`));
-}
 
 
 async function getConfig() {
