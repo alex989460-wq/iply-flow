@@ -121,7 +121,7 @@ async function apiLogin(
   base: string,
   username: string,
   apiKey: string,
-): Promise<{ ok: boolean; token?: string; detail: string }> {
+): Promise<{ ok: boolean; token?: string; uid?: string; detail: string }> {
   try {
     const res = await apiFetch(`${base}/api/login`, {
       method: "POST",
@@ -151,8 +151,10 @@ async function apiLogin(
     }
 
     const token = String(parsed.token || parsed.access_token || parsed.jwt || parsed.data?.token || "").trim();
+    const uid = String(parsed.uid ?? parsed.data?.uid ?? "").trim();
     if (!token) return { ok: false, detail: "o painel autenticou mas não devolveu o token da API" };
-    return { ok: true, token, detail: "" };
+    return { ok: true, token, uid, detail: "" };
+
   } catch (e) {
     return { ok: false, detail: e instanceof Error ? e.message : String(e) };
   }
