@@ -100,39 +100,103 @@ async function browserLogin(base: string, username: string, password: string) {
   return cookies.join("; ");
 }
 
-// Tenta usar a chave de API do painel (Perfil → API KEY) em vários formatos aceitos
-// por painéis kOffice. Retorna ok=true assim que um deles responder autenticado.
-async function tryApiKey(base: string, apiKey: string): Promise<{ ok: boolean; endpoint?: string; detail: string }> {
-  const attempts: Array<{ label: string; url: string; headers: Record<string, string> }> = [
-    { label: "token na URL", url: `${base}/api/get_credits?token=${encodeURIComponent(apiKey)}`, headers: {} },
-    { label: "api_key na URL", url: `${base}/api/get_credits?api_key=${encodeURIComponent(apiKey)}`, headers: {} },
-    { label: "cabeçalho Authorization", url: `${base}/api/get_credits`, headers: { Authorization: `Bearer ${apiKey}` } },
-    { label: "cabeçalho Api-Key", url: `${base}/api/get_credits`, headers: { "Api-Key": apiKey } },
-  ];
+// Mensagens de erro da API do painel traduzidas para português.
+const API_ERRORS: Record<string, string> = {
+  MISSING_CREDENTIALS: 'O painel exigiu "username" e "api_key" na chamada.',
+  INVALID_DATA:
+    "O painel recusou o par usuário + chave de API. Confira se a chave foi copiada inteira e se ela pertence exatamente a esse usuário (Perfil → API KEY).",
+  ACCESS_DENIED: "Esse usuário não tem a API liberada no painel.",
+};
 
-  const notes: string[] = [];
-  for (const attempt of attempts) {
-    try {
-      const res = await relay(attempt.url, {
-        headers: { ...browserHeaders, Accept: "application/json", ...attempt.headers },
-      });
-      const text = String(res.body || "").trim();
-      let parsed: any = null;
-      try { parsed = JSON.parse(text); } catch { /* HTML */ }
-
-      if (parsed && res.status < 400 && String(parsed.result || "").toLowerCase() !== "failed" && !parsed.error) {
-        return { ok: true, endpoint: attempt.label, detail: "" };
-      }
-      const reason = parsed
-        ? String(parsed.message || parsed.error || JSON.stringify(parsed)).slice(0, 120)
-        : (/login/i.test(text) ? "o painel devolveu a tela de login (chave ignorada)" : `HTTP ${res.status}`);
-      notes.push(`${attempt.label}: ${reason}`);
-    } catch (e) {
-      notes.push(`${attempt.label}: ${e instanceof Error ? e.message : String(e)}`);
-    }
-  }
-  return { ok: false, detail: notes.join(" | ") };
+function apiErrorPt(payload: any): string {
+  const code = String(payload?.error_code || "").toUpperCase();
+  if (API_ERRORS[code]) return API_ERRORS[code];
+  const raw = String(payload?.error_message || payload?.message || "").trim();
+  return raw || "resposta não reconhecida do painel";
 }
+
+// Autentica direto na API do painel (POST /api/login com username + api_key).
+// Retorna o token JWT da sessão de API — sem navegador, sem captcha, sem login no painel.
+async function apiLogin(
+  base: string,
+  username: string,
+  apiKey: string,
+): Promise<{ ok: boolean; token?: string; detail: string }> {
+  try {
+    const res = await apiFetch(`${base}/api/login`, {
+      method: "POST",
+      headers: {
+        ...browserHeaders,
+        Accept: "application/json",
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: new URLSearchParams({ username, api_key: apiKey }).toString(),
+    });
+
+    const text = String(res.body || "").trim();
+    let parsed: any = null;
+    try { parsed = JSON.parse(text); } catch { /* HTML */ }
+
+    if (!parsed) {
+      return {
+        ok: false,
+        detail: /just a moment|cloudflare/i.test(text)
+          ? "o Cloudflare do painel bloqueou a chamada da API"
+          : `o painel respondeu HTTP ${res.status} sem JSON`,
+      };
+    }
+
+    if (String(parsed.result || "").toLowerCase() === "failed") {
+      return { ok: false, detail: apiErrorPt(parsed) };
+    }
+
+    const token = String(parsed.token || parsed.access_token || parsed.jwt || parsed.data?.token || "").trim();
+    if (!token) return { ok: false, detail: "o painel autenticou mas não devolveu o token da API" };
+    return { ok: true, token, detail: "" };
+  } catch (e) {
+    return { ok: false, detail: e instanceof Error ? e.message : String(e) };
+  }
+}
+
+// A API JSON do painel não usa captcha: chamamos direto (rápido) e só caímos
+// no proxy residencial se o Cloudflare bloquear a requisição direta.
+async function apiFetch(
+  url: string,
+  init: { method?: string; headers?: Record<string, string>; body?: string },
+): Promise<Relayed> {
+  try {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 15000);
+    const res = await fetch(url, {
+      method: init.method || "GET",
+      headers: init.headers,
+      body: init.body,
+      signal: ctrl.signal,
+    });
+    clearTimeout(timer);
+    const text = await res.text();
+    if (res.status < 400 && !/just a moment|cf-challenge/i.test(text)) {
+      return { status: res.status, body: text, cookies: [], headers: {} };
+    }
+  } catch { /* cai para o proxy */ }
+  return await relay(url, init);
+}
+
+// Faz uma chamada autenticada na API usando o token JWT da sessão de API.
+async function apiCall(base: string, token: string, action: string, params: Record<string, string> = {}) {
+  const qs = new URLSearchParams({ token, ...params }).toString();
+  const res = await apiFetch(`${base}/api/${action}?${qs}`, {
+    headers: { ...browserHeaders, Accept: "application/json" },
+  });
+  const text = String(res.body || "").trim();
+  let parsed: any = null;
+  try { parsed = JSON.parse(text); } catch { /* HTML */ }
+  if (!parsed) throw new Error(`O painel respondeu HTTP ${res.status} sem JSON na ação "${action}".`);
+  if (String(parsed.result || "").toLowerCase() === "failed") throw new Error(apiErrorPt(parsed));
+  return parsed;
+}
+
+
 
 // Confere se a sessão salva ainda está válida.
 async function sessionAlive(base: string, cookieHeader: string): Promise<boolean> {
@@ -338,21 +402,35 @@ Deno.serve(async (req) => {
       return json({ error: `Ação não suportada: ${action}` }, 400);
     }
 
-    // 1) Tenta autenticar direto pela chave de API do painel (sem navegador nem captcha).
-    if (apiKey && (action === "test" || action === "connect")) {
-      const apiResult = await tryApiKey(base, apiKey);
-      if (apiResult.ok) {
+    // 1) Caminho preferido: API oficial do painel (usuário + chave de API).
+    // Não abre o painel, não passa por captcha e não depende de sessão de navegador.
+    if (apiKey && username && (action === "test" || action === "connect" || action === "status")) {
+      const login = await apiLogin(base, username, apiKey);
+      if (login.ok) {
+        let credits: number | null = null;
+        try {
+          const info = await apiCall(base, login.token!, "get_credits");
+          const raw = info?.credits ?? info?.data?.credits ?? info?.saldo;
+          if (raw !== undefined && raw !== null) credits = Number(raw);
+        } catch { /* saldo é opcional */ }
+
         return json({
           success: true,
           base_url: base,
           username,
           connected: true,
           auth_mode: "api_key",
-          message: `Chave de API do P2Cine aceita pelo painel (${apiResult.endpoint}).`,
+          credits,
+          message: credits === null
+            ? "Conectado pela API do painel (usuário + chave). Não é preciso logar no painel."
+            : `Conectado pela API do painel (usuário + chave). Créditos disponíveis: ${credits}.`,
         });
       }
-      apiKeyDiagnostic = apiResult.detail;
+      apiKeyDiagnostic = login.detail;
+    } else if (apiKey && !username) {
+      apiKeyDiagnostic = "a API do painel exige o usuário junto com a chave — preencha o campo Usuário.";
     }
+
 
     if (!username || !password) {
       return json({
