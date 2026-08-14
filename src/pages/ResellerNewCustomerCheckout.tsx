@@ -60,6 +60,11 @@ export default function ResellerNewCustomerCheckout() {
       toast.error('Preencha nome, WhatsApp e usuário desejado');
       return;
     }
+    if (servers.length > 0 && !serverId) {
+      toast.error('Selecione o servidor do seu acesso');
+      return;
+    }
+
     setLoading(true);
     try {
       const localPhone = phone.replace(/\D/g, '').replace(new RegExp(`^${ddi}`), '');

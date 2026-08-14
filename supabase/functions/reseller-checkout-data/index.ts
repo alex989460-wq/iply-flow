@@ -48,7 +48,7 @@ Deno.serve(async (req) => {
       const name = String(body.name || "").trim();
       const phone = String(body.phone || "").replace(/\D/g, "");
       const username = String(body.username || "").trim();
-      const serverId = String(body.server_id || "").trim() || null;
+      let serverId = String(body.server_id || "").trim() || null;
       if (!name || !phone || !username) {
         return json({ error: "Preencha nome, WhatsApp e usuário desejado." }, 400);
       }
@@ -56,7 +56,20 @@ Deno.serve(async (req) => {
       if (serverId) {
         const { data: ownedServer } = await admin.from("servers").select("id").eq("id", serverId).eq("created_by", st.user_id).maybeSingle();
         if (!ownedServer) return json({ error: "Servidor inválido para este revendedor." }, 400);
+      } else {
+        // Sem servidor a renovação automática no painel externo nunca acontece.
+        // Se o revendedor só tem um servidor público (ou um único servidor),
+        // vinculamos automaticamente.
+        const { data: pub } = await admin.from("servers")
+          .select("id").eq("created_by", st.user_id).eq("is_public", true).limit(2);
+        if (pub?.length === 1) serverId = pub[0].id;
+        if (!serverId) {
+          const { data: all } = await admin.from("servers")
+            .select("id").eq("created_by", st.user_id).limit(2);
+          if (all?.length === 1) serverId = all[0].id;
+        }
       }
+
 
       const today = saoPauloDate();
       const { data: existing } = await admin
@@ -71,9 +84,10 @@ Deno.serve(async (req) => {
 
       let customerId = existing?.id || "";
       if (existing) {
-        const { error: updateError } = await admin.from("customers").update({
-          name, phone, server_id: serverId,
-        }).eq("id", existing.id).eq("created_by", st.user_id);
+        const { error: updateError } = await admin.from("customers").update(
+          serverId ? { name, phone, server_id: serverId } : { name, phone },
+        ).eq("id", existing.id).eq("created_by", st.user_id);
+
         if (updateError) return json({ error: `Não foi possível atualizar o cadastro: ${updateError.message}` }, 400);
       } else {
         const { data: customer, error: customerError } = await admin.from("customers").insert({

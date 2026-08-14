@@ -72,19 +72,37 @@ Deno.serve(async (req) => {
     if (action === "verify-connection") {
       // Just try to mint a token — proves cert + client_id/secret work.
       const token = await getAccessToken(creds);
-      const wh = await getWebhook(creds).catch((e) => ({ status: 0, body: { message: String(e) } }));
+      let wh = await getWebhook(creds).catch((e) => ({ status: 0, body: { message: String(e) } }));
+
+      // Auto-registro: se o webhook não existe (404) ou aponta para outra URL,
+      // registramos agora. Sem isso o pagamento nunca chega no sistema.
+      const expectedUrl = webhookUrlFor();
+      const currentUrl = String((wh as any)?.body?.webhookUrl || "");
+      let webhookConfiguredAt: string | null = settings.webhook_configured_at ?? null;
+      if (wh.status !== 200 || !currentUrl.includes("/functions/v1/efi-webhook")) {
+        const reg = await registerWebhook(creds, expectedUrl).catch((e) => ({ status: 0, body: { message: String(e) } }));
+        const ok = reg.status === 200 || reg.status === 204;
+        webhookConfiguredAt = ok ? new Date().toISOString() : null;
+        if (ok) wh = await getWebhook(creds).catch(() => wh);
+      } else {
+        webhookConfiguredAt = webhookConfiguredAt ?? new Date().toISOString();
+      }
+
       await admin.from("efi_settings").update({
         last_verified_at: new Date().toISOString(),
+        webhook_configured_at: webhookConfiguredAt,
         last_error: null,
       }).eq("user_id", userId);
       return json({
         ok: true,
         environment: creds.env,
         token_prefix: token.slice(0, 12) + "…",
+        webhook_configured: !!webhookConfiguredAt,
         webhook_status: wh.status,
         webhook_body: wh.body,
       });
     }
+
 
     if (action === "register-webhook") {
       const url = webhookUrlFor();

@@ -196,6 +196,103 @@ async function apiCall(base: string, token: string, action: string, params: Reco
   return parsed;
 }
 
+// ---------------------------------------------------------------------------
+// Renovação sem extensão: o token da API também autentica as rotas internas do
+// painel (basta enviá-lo na query). Assim usamos as mesmas chamadas que o painel
+// faz no navegador — sem captcha e sem sessão de navegador.
+//   POST /clients/api/?get_clients&token=...        -> localiza o client_id
+//   POST /clients/api/?renew_client_plus&client_id=&months=&token=... -> renova
+// ---------------------------------------------------------------------------
+async function panelPost(base: string, token: string, action: string, params: Record<string, string>, form?: URLSearchParams) {
+  const qs = new URLSearchParams({ ...params, token }).toString();
+  const res = await apiFetch(`${base}/clients/api/?${action}&${qs}`, {
+    method: "POST",
+    headers: {
+      ...browserHeaders,
+      Accept: "application/json, text/javascript, */*; q=0.01",
+      "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+      "X-Requested-With": "XMLHttpRequest",
+      Origin: base,
+      Referer: `${base}/clients/?token=${token}`,
+    },
+    body: (form ?? new URLSearchParams()).toString(),
+  });
+  const text = String(res.body || "").trim();
+  if (/<meta http-equiv="Refresh"|\/login\//i.test(text) && text.length < 400) {
+    throw new Error("O painel não aceitou o token da API (sessão expirada). Confira usuário e chave de API.");
+  }
+  let parsed: any = null;
+  try { parsed = JSON.parse(text); } catch { /* pode ser texto simples */ }
+  return { status: res.status, text, parsed };
+}
+
+// Procura o client_id do login informado na lista de clientes do painel.
+async function findClientId(base: string, token: string, login: string): Promise<string | null> {
+  const wanted = login.toLowerCase().trim();
+
+  const page = async (start: number, length: number, search: string) => {
+    const form = new URLSearchParams();
+    form.set("draw", "1");
+    form.set("start", String(start));
+    form.set("length", String(length));
+    form.set("search[value]", search);
+    form.set("search[regex]", "false");
+    form.set("filter_value", "#");
+    form.set("search_column", "login");
+    form.set("reseller_id", "-1");
+    form.set("columns[0][data]", "0");
+    form.set("columns[0][searchable]", "true");
+    form.set("columns[0][orderable]", "true");
+    form.set("order[0][column]", "0");
+    form.set("order[0][dir]", "asc");
+    const { parsed } = await panelPost(base, token, "get_clients", {}, form);
+    return Array.isArray(parsed?.data) ? (parsed.data as any[]) : [];
+  };
+
+  const pick = (rows: any[]): string | null => {
+    for (const row of rows) {
+      const cells = (row as any[]).map((c) => String(c ?? ""));
+      // coluna 0 = id interno, coluna 1 = login do cliente
+      if (cells.slice(0, 3).some((c) => c.toLowerCase().trim() === wanted)) {
+        return String(cells[0] || "").trim() || null;
+      }
+    }
+    return null;
+  };
+
+  // 1) tenta a pesquisa nativa do painel
+  const searched = await page(0, 50, login).catch(() => []);
+  const hit = pick(searched);
+  if (hit) return hit;
+
+  // 2) fallback: pagina a lista e compara localmente (o filtro do painel nem
+  // sempre é aplicado quando a chamada não vem do DataTables do navegador).
+  const PAGE = 500;
+  for (let start = 0; start < 5000; start += PAGE) {
+    const rows = await page(start, PAGE, "").catch(() => []);
+    if (!rows.length) break;
+    const found = pick(rows);
+    if (found) return found;
+    if (rows.length < PAGE) break;
+  }
+  return null;
+}
+
+
+// Renova o cliente pela rota interna do painel (mesma do botão "Renovar").
+async function renewClient(base: string, token: string, clientId: string, months: number) {
+  const { text, parsed } = await panelPost(base, token, "renew_client_plus", {
+    client_id: clientId,
+    months: String(Math.max(1, months)),
+  });
+  const result = String(parsed?.result || "").toLowerCase();
+  if (result === "success" || /success|sucesso|renovad/i.test(text)) {
+    return { ok: true, detail: String(parsed?.message || "Cliente renovado no painel.") };
+  }
+  return { ok: false, detail: parsed ? apiErrorPt(parsed) : text.slice(0, 200) || "resposta não reconhecida do painel" };
+}
+
+
 
 
 // Confere se a sessão salva ainda está válida.
@@ -315,16 +412,29 @@ Deno.serve(async (req) => {
     const authHeader = req.headers.get("Authorization") || "";
     if (!authHeader.startsWith("Bearer ")) return json({ error: "Não autorizado" }, 401);
 
-    const sb = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_ANON_KEY")!, {
-      global: { headers: { Authorization: authHeader } },
-    });
-    const { data: { user }, error: authError } = await sb.auth.getUser();
-    if (authError || !user) return json({ error: "Não autorizado" }, 401);
-
     const body = await req.json().catch(() => ({}));
     let apiKeyDiagnostic = "";
-
     const action = String(body?.action || "test");
+
+    // Chamada interna (outras Edge Functions) usa a chave de serviço + owner_id.
+    const srk = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const internal = authHeader.slice(7).trim() === srk;
+    let user: { id: string } | null = null;
+
+    if (internal) {
+      const ownerId = String(body?.owner_id || "").trim();
+      if (!ownerId) return json({ error: "owner_id é obrigatório na chamada interna" }, 400);
+      user = { id: ownerId };
+    } else {
+      const sb = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_ANON_KEY")!, {
+        global: { headers: { Authorization: authHeader } },
+      });
+      const { data: { user: authed }, error: authError } = await sb.auth.getUser();
+      if (authError || !authed) return json({ error: "Não autorizado" }, 401);
+      user = { id: authed.id };
+    }
+
+
 
     // Diagnóstico rápido do proxy (versão, navegador, solucionador de captcha).
     if (action === "proxy_health") {
@@ -416,9 +526,43 @@ Deno.serve(async (req) => {
       return json({ error: "Informe a chave de API ou o usuário e a senha do painel P2Cine em Configurações → APIs." }, 400);
     }
 
-    if (action !== "test" && action !== "connect" && action !== "status") {
+    if (!["test", "connect", "status", "renew", "lookup"].includes(action)) {
       return json({ error: `Ação não suportada: ${action}` }, 400);
     }
+
+    // Renovação/consulta direto pela API do painel — sem extensão e sem captcha.
+    if (action === "renew" || action === "lookup") {
+      if (!apiKey || !username) {
+        return json({ success: false, error: "Cadastre o usuário e a chave de API do painel kOffice em Configurações → APIs." }, 200);
+      }
+      const login = await apiLogin(base, username, apiKey);
+      if (!login.ok) {
+        return json({ success: false, error: `A API do painel recusou a autenticação: ${login.detail}` }, 200);
+      }
+
+      const clientLogin = String(body?.username || body?.client_login || "").trim();
+      if (!clientLogin) return json({ success: false, error: "Informe o usuário do cliente no painel." }, 200);
+
+      const clientId = String(body?.client_id || "").trim() || await findClientId(base, login.token!, clientLogin);
+      if (!clientId) {
+        return json({ success: false, error: `Cliente "${clientLogin}" não encontrado no painel.` }, 200);
+      }
+      if (action === "lookup") {
+        return json({ success: true, client_id: clientId, username: clientLogin, base_url: base });
+      }
+
+      const months = Math.max(1, Number(body?.months || 1));
+      const result = await renewClient(base, login.token!, clientId, months);
+      return json({
+        success: result.ok,
+        client_id: clientId,
+        months,
+        base_url: base,
+        message: result.ok ? `Cliente renovado no painel por ${months} mês(es).` : undefined,
+        error: result.ok ? undefined : `Falha ao renovar no painel: ${result.detail}`,
+      }, 200);
+    }
+
 
     // 1) Caminho preferido: API oficial do painel (usuário + chave de API).
     // Não abre o painel, não passa por captcha e não depende de sessão de navegador.
