@@ -36,7 +36,7 @@ async function log(msg, result) {
     successCount: cfg.successCount + (result === "ok" ? 1 : 0),
     failCount: cfg.failCount + (result === "fail" ? 1 : 0),
   });
-  console.log("[P2Cine]", msg);
+  console.log("[SuperGestor]", msg);
 }
 
 async function pushHistory(entry) {
