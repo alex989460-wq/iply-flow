@@ -165,9 +165,8 @@ Deno.serve(async (req) => {
       .order("server_name", { ascending: true });
 
     // Só aparecem no checkout os servidores marcados como "Visível na Página de Checkout".
-    // Se o revendedor ainda não marcou nenhum, mantém o comportamento antigo (mostra todos).
-    const publicServers = (allServers || []).filter((s: any) => s.is_public === true);
-    const servers = publicServers.length > 0 ? publicServers : (allServers || []);
+    const servers = (allServers || []).filter((s: any) => s.is_public === true);
+
 
     // Activation apps configured by this reseller (public listing).
     const { data: apps } = await admin
