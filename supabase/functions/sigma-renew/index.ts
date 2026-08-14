@@ -31,11 +31,58 @@ const browserHeaders = {
   "x-app-version": "3.89",
 };
 
-async function discoverSigmaApiBase(base: string): Promise<string | null> {
+type Proxy = { url: string; secret: string } | null;
+
+function buildProxy(url?: string | null, secret?: string | null): Proxy {
+  const u = String(url || "").trim().replace(/\/+$/, "");
+  const s = String(secret || "").trim();
+  if (!u || !s) return null;
+  return { url: /^https?:\/\//i.test(u) ? u : `https://${u}`, secret: s };
+}
+
+type RelayResponse = { ok: boolean; status: number; text: string };
+
+// Todas as chamadas ao painel passam por aqui. Quando o revendedor configurou o
+// mini proxy próprio, a requisição sai do IP dele (aceito pelo firewall do Sigma).
+async function relay(target: string, init: RequestInit, proxy: Proxy): Promise<RelayResponse> {
+  if (!proxy) {
+    const res = await fetch(target, init);
+    return { ok: res.ok, status: res.status, text: await res.text() };
+  }
+
+  const headers: Record<string, string> = {};
+  const rawHeaders = (init.headers || {}) as Record<string, string>;
+  for (const [key, value] of Object.entries(rawHeaders)) headers[key] = String(value);
+
+  let res: Response;
   try {
-    const response = await fetch(`${base}/api/settings/public`, { headers: browserHeaders });
+    res = await fetch(proxy.url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-sigma-proxy-secret": proxy.secret },
+      body: JSON.stringify({
+        url: target,
+        method: init.method || "GET",
+        headers,
+        body: typeof init.body === "string" ? init.body : undefined,
+      }),
+    });
+  } catch (err) {
+    throw new Error(`Não foi possível falar com o seu proxy Sigma (${proxy.url}). Verifique se ele está ligado. Detalhe: ${err instanceof Error ? err.message : String(err)}`);
+  }
+
+  const payload = await res.json().catch(() => null) as any;
+  if (res.status === 401) throw new Error("A chave do proxy Sigma está incorreta. Confira a chave secreta usada ao iniciar o proxy.");
+  if (!res.ok || !payload || typeof payload.status !== "number") {
+    throw new Error(`O proxy Sigma respondeu com erro: ${payload?.message || payload?.error || `HTTP ${res.status}`}`);
+  }
+  return { ok: payload.status >= 200 && payload.status < 300, status: payload.status, text: String(payload.body ?? "") };
+}
+
+async function discoverSigmaApiBase(base: string, proxy: Proxy): Promise<string | null> {
+  try {
+    const response = await relay(`${base}/api/settings/public`, { headers: browserHeaders }, proxy);
     if (!response.ok) return null;
-    const body = await response.json();
+    const body = JSON.parse(response.text || "{}");
     const settings = Array.isArray(body?.data) ? body.data : [];
     const panelHost = String(settings.find((item: any) => item?.variable === "panel_url")?.value || "").trim();
     if (!panelHost) return null;
@@ -56,15 +103,15 @@ function preferredSigmaApiBase(base: string, discovered: string | null): string 
   return base;
 }
 
-async function sigmaLogin(base: string, username: string, password: string) {
-  const discoveredBase = await discoverSigmaApiBase(base);
+async function sigmaLogin(base: string, username: string, password: string, proxy: Proxy) {
+  const discoveredBase = await discoverSigmaApiBase(base, proxy);
   const preferredBase = preferredSigmaApiBase(base, discoveredBase);
   const candidates = [preferredBase, base, discoveredBase].filter((value, index, all): value is string => !!value && all.indexOf(value) === index);
   let lastStatus = 0;
   let lastMessage = "";
 
   for (const apiBase of candidates) {
-    const res = await fetch(`${apiBase}/api/auth/login`, {
+    const res = await relay(`${apiBase}/api/auth/login`, {
       method: "POST",
       headers: { ...browserHeaders, "Content-Type": "application/json", "Origin": apiBase, "Referer": `${apiBase}/` },
       body: JSON.stringify({
@@ -76,13 +123,16 @@ async function sigmaLogin(base: string, username: string, password: string) {
         twofactor_recovery_code: "",
         twofactor_trusted_device_id: "",
       }),
-    });
+    }, proxy);
     lastStatus = res.status;
-    const responseText = await res.text();
     let body: any = {};
-    try { body = responseText ? JSON.parse(responseText) : {}; } catch { body = {}; }
+    try { body = res.text ? JSON.parse(res.text) : {}; } catch { body = {}; }
     if (res.ok && body?.token) return { token: String(body.token), me: body, apiBase };
     lastMessage = body?.message || body?.error || body?.errors?.username?.[0] || body?.errors?.password?.[0] || "";
+  }
+
+  if (!proxy && (lastStatus === 403 || lastStatus === 404 || lastStatus === 503)) {
+    throw new Error("O painel Sigma bloqueou a conexão vinda do servidor (proteção de firewall). Configure o Mini Proxy Sigma em Configurações → APIs para que as chamadas saiam do seu próprio IP.");
   }
 
   throw new Error(lastMessage
@@ -90,8 +140,8 @@ async function sigmaLogin(base: string, username: string, password: string) {
     : `Não foi possível autenticar no Painel Sigma (HTTP ${lastStatus || "sem resposta"}). Confira URL, usuário e senha.`);
 }
 
-async function sigmaFetch(base: string, token: string, path: string, init: RequestInit = {}) {
-  const res = await fetch(`${base}${path}`, {
+async function sigmaFetch(base: string, token: string, path: string, init: RequestInit = {}, proxy: Proxy = null) {
+  const res = await relay(`${base}${path}`, {
     ...init,
     headers: {
       "Authorization": `Bearer ${token}`,
@@ -99,12 +149,12 @@ async function sigmaFetch(base: string, token: string, path: string, init: Reque
       "Content-Type": "application/json",
       ...(init.headers || {}),
     },
-  });
-  const text = await res.text();
+  }, proxy);
   let body: any = null;
-  try { body = text ? JSON.parse(text) : null; } catch { body = { raw: text }; }
+  try { body = res.text ? JSON.parse(res.text) : null; } catch { body = { raw: res.text }; }
   return { ok: res.ok, status: res.status, body };
 }
+
 
 function pkgDurationDays(p: any): number {
   const d = Number(p?.duration || 0);
