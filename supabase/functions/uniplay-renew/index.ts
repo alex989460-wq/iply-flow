@@ -217,14 +217,17 @@ async function browserLoginUniplay(
     headers: { "Content-Type": "application/json", "x-sigma-proxy-secret": proxy.secret },
     body: JSON.stringify({
       browser: true,
-      url: `https://${PANEL_HOST}/login`,
-      wait_ms: 9000,
+      // O painel é uma SPA com rota em hash (#/login).
+      url: `https://${PANEL_HOST}/#/login`,
+      wait_ms: 12000,
+      capture: "login|auth|token|signin",
       steps: [
-        { selector: "input[name='username'], input[type='text'], #username", value: username },
-        { selector: "input[name='password'], input[type='password'], #password", value: password },
-        { selector: "button[type='submit'], .btn-login, button", click: true, wait_ms: 9000 },
+        { selector: "input[name='username'], input[type='text'], #username", value: username, wait_ms: 800 },
+        { selector: "input[name='password'], input[type='password'], #password", value: password, wait_ms: 800 },
+        { selector: "button[type='submit'], .btn-login, form button, button", click: true, wait_ms: 12000 },
       ],
     }),
+
   }).catch((err) => {
     throw new UniplayExternalError(
       `Não foi possível falar com o proxy do painel. Verifique se a VPS do proxy está ligada. Detalhe: ${err instanceof Error ? err.message : String(err)}`,
