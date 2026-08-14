@@ -480,36 +480,9 @@ async function tick() {
     return;
   }
 
-  const lookup = await findClientId(next.username);
-  const name = next.customer_name || next.username;
-  if (lookup.error) {
-    const msg = ({
-      logged_out: "Sessao P2Cine deslogada. Faca login em daily3.news.",
-      no_tab: "Abra uma aba logada em daily3.news e tente novamente.",
-      script_error: "Nao consegui acessar a aba do daily3.news. Recarregue a pagina do painel.",
-      captcha: "Captcha exigido pelo painel. Resolva manualmente.",
-      not_found: `Login ${next.username} nao encontrado no painel`,
-      bad_json: "Resposta invalida do get_clients",
-    })[lookup.error] || `Erro: ${lookup.error}`;
-    await reportResult(cfg.token, next.id, false, msg, lookup.status);
-    await pushHistory({ panel: "p2cine", name, username: next.username, ok: false, msg });
-    return log(`${name}: ${msg}`, "fail");
-  }
-
-  const months = String(next.months || cfg.months || "1");
-  const r = await renewClient(lookup.clientId, months);
-  await reportResult(cfg.token, next.id, r.ok, r.msg, r.status);
-  await pushHistory({ panel: "p2cine", name, username: next.username, months, ok: r.ok, msg: r.msg });
-  await log(`${name} (id=${lookup.clientId}, ${months}m): ${r.msg}`, r.ok ? "ok" : "fail");
-
-  if (r.ok) {
-    chrome.notifications.create({
-      type: "basic",
-      iconUrl: "icon.png",
-      title: "P2Cine renovado",
-      message: `${name}`,
-    });
-  }
+  // Qualquer outro painel (ex.: P2Cine/kOffice) nao usa mais a extensao:
+  // a renovacao acontece direto pela API nativa no servidor.
+  return;
 }
 
 
