@@ -58,55 +58,25 @@ async function triggerExternalRenewal(admin: any, customerId: string, source: st
     }
   };
 
-  const sigmaConnectionId = String((customer.servers as any)?.sigma_connection_id || "");
+  // Descobre o painel automaticamente (Sigma, kOffice/P2Cine, NATV, VPlay...).
+  const panel = await resolvePanel(admin, (customer.servers as any) || { host: serverHost, server_name: serverName }, customer.created_by);
 
-  let result: any;
-  if (sigmaConnectionId || haystack.includes("sigma")) {
-    // Painel Sigma: renova pela conexão vinculada ao servidor.
-    result = await post("sigma-renew", {
-      action: "renew",
-      owner_id: customer.created_by,
-      customer_id: customer.id,
-      connection_id: sigmaConnectionId || undefined,
-      username: customer.username.trim(),
-      months,
-      connections: customer.screens || 1,
-    });
-    result = { ...result, ok: result.ok && result.body?.ok === true };
-  } else if (haystack.includes("the best") || haystack.includes("the-best") || haystack.includes("painel.best")) {
-    result = await post("the-best-renew", { username: customer.username.trim(), months, customer_id: customer.id });
-  } else if (haystack.includes("natv") || haystack.includes("pixbot")) {
-    result = await post("natv-renew", { username: customer.username.trim(), months, duration_days: durationDays, customer_id: customer.id });
-  } else if (haystack.includes("vplay")) {
-    result = await post("vplay-renew", { username: customer.username.trim(), new_due_date: customer.due_date, customer_id: customer.id });
-  } else if (haystack.includes("rush")) {
-    result = await post("rush-renew", { username: customer.username.trim(), months, customer_id: customer.id, screens: customer.screens || 1 });
-  } else if (
-    haystack.includes("uniplay") || haystack.includes("searchdefense") || haystack.includes("gesapioffice") ||
-    haystack.includes("p2cine") || haystack.includes("daily3") || haystack.includes("painelacesso") ||
-    /\bp2c\b/.test(haystack)
-  ) {
-    const isUni = haystack.includes("uniplay") || haystack.includes("searchdefense") || haystack.includes("gesapioffice");
-    const { error } = await admin.from("pending_manual_renewals").insert({
-      owner_id: customer.created_by,
-      customer_id: customer.id,
-      customer_name: customer.name,
-      customer_phone: customer.phone,
-      username: customer.username.trim(),
-      server_id: customer.server_id,
-      server_name: serverName,
-      server_host: serverHost,
-      plan_name: customer.plans?.plan_name || null,
-      amount: 0,
-      new_due_date: customer.due_date,
-      reason: isUni ? "uniplay_extension_pending" : "p2cine_extension_pending",
-      source,
-      error_details: { message: "Aguardando extensão para concluir renovação externa" },
-    });
-    result = { ok: !error, status: error ? 500 : 200, body: error || { queued: true } };
-  } else {
-    result = await post("xui-renew", { username: customer.username.trim(), new_due_date: customer.due_date, customer_id: customer.id });
-  }
+  const baseBody: Record<string, unknown> = {
+    username: customer.username.trim(),
+    customer_id: customer.id,
+    owner_id: customer.created_by,
+    months,
+    duration_days: durationDays,
+    new_due_date: customer.due_date,
+    screens: customer.screens || 1,
+    connections: customer.screens || 1,
+    ...panel.extra,
+  };
+
+  let result: any = await post(panel.fn, panel.kind === "sigma" ? { action: "renew", ...baseBody } : { action: "renew", ...baseBody });
+  if (panel.kind === "sigma") result = { ...result, ok: result.ok && result.body?.ok === true };
+  if (panel.kind === "koffice") result = { ...result, ok: result.ok && result.body?.success === true };
+
 
   if (!result?.ok) {
     await admin.from("pending_manual_renewals").insert({
