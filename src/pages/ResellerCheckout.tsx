@@ -629,6 +629,17 @@ export default function ResellerCheckout() {
                     <p className="text-xl font-extrabold">{fmtBRL(couponInfo ? couponInfo.amount : (pixTotal || group.pix.price))}</p>
                   </button>
                 )}
+                {(data.methods as any).mercadopago && group.pix && (
+                  <button onClick={() => pay('mercadopago')} disabled={creating}
+                    className="group rounded-xl border border-white/10 bg-gradient-to-br from-cyan-400/[0.06] to-transparent hover:border-cyan-300/70 hover:from-cyan-400/[0.12] p-5 flex flex-col items-center gap-2 transition-all disabled:opacity-50 hover:-translate-y-0.5 hover:shadow-[0_0_25px_-6px_rgba(34,211,238,0.6)]">
+                    <div className="w-14 h-14 rounded-xl bg-white flex items-center justify-center shadow-sm">
+                      {creating ? <Loader2 className="w-6 h-6 animate-spin text-cyan-500" /> : <img src={pixLogo.url} alt="Pix" className="w-9 h-9" />}
+                    </div>
+                    <p className="font-bold text-sm tracking-wide">PIX MERCADO PAGO</p>
+                    <p className="text-[10px] text-white/50 -mt-1">Aprovação imediata</p>
+                    <p className="text-xl font-extrabold">{fmtBRL(couponInfo ? couponInfo.amount : (pixTotal || group.pix.price))}</p>
+                  </button>
+                )}
                 {data.methods.cakto && (group.pix?.card_url || group.card?.cakto_url) && (
                   <button onClick={() => pay('cakto_card')} disabled={creating}
                     className="group rounded-xl border border-white/10 bg-gradient-to-br from-sky-500/[0.06] to-transparent hover:border-sky-400/70 hover:from-sky-500/[0.12] p-5 flex flex-col items-center gap-2 transition-all disabled:opacity-50 hover:-translate-y-0.5 hover:shadow-[0_0_25px_-6px_rgba(56,189,248,0.6)]">
