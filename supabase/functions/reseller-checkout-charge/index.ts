@@ -177,7 +177,7 @@ Deno.serve(async (req) => {
 
     const { data: customers } = await admin
       .from("customers")
-      .select("id, checkout_code, name, username, created_by, custom_price, screens")
+      .select("id, checkout_code, name, username, created_by, custom_price, screens, plan_id")
       .in("id", customerIds)
       .eq("created_by", ownerId);
     if (!customers || customers.length !== customerIds.length) {
@@ -216,10 +216,14 @@ Deno.serve(async (req) => {
       return json({ error: "efi_disabled" }, 400);
     }
 
-    // Sum per-customer prices (custom_price override supported).
+    // Sum per-customer prices. custom_price só vale quando o cliente está
+    // comprando exatamente o mesmo plano que já possui — caso contrário o preço
+    // do plano selecionado é o correto (evita cobrar valor de outro plano).
     let amount = 0;
     for (const c of customers) {
-      const p = Number((c as any).custom_price ?? plan.price);
+      const custom = Number((c as any).custom_price);
+      const samePlan = String((c as any).plan_id || "") === String(plan.id);
+      const p = samePlan && isFinite(custom) && custom > 0 ? custom : Number(plan.price);
       if (!isFinite(p) || p <= 0) return json({ error: "invalid_amount" }, 400);
       amount += p;
     }
