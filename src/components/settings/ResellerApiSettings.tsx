@@ -87,14 +87,17 @@ export default function ResellerApiSettings() {
 
   const fetchSettings = async () => {
     try {
-      const [{ data, error }, { data: connections, error: connectionsError }] = await Promise.all([
+      const [{ data, error }, { data: connections, error: connectionsError }, { data: kofficeRows }] = await Promise.all([
         supabase.from('reseller_api_settings' as any).select('*').eq('user_id', user?.id).maybeSingle(),
         supabase.from('sigma_panel_connections' as any).select('*').eq('user_id', user?.id).order('created_at'),
+        supabase.from('koffice_panel_connections' as any).select('*').eq('user_id', user?.id).order('created_at'),
       ]);
 
       if (error) throw error;
       if (connectionsError) throw connectionsError;
       setSigmaConnections(connections || []);
+      setKofficeConnections(kofficeRows || []);
+
 
       if (data) {
         setHasExisting(true);
