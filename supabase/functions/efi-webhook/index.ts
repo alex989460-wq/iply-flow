@@ -8,6 +8,7 @@
 // If they don't match, we log and reject.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { resolvePanel } from "../_shared/panel-router.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -36,7 +37,7 @@ async function triggerExternalRenewal(admin: any, customerId: string, source: st
   const SRK = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const serverName = String(customer.servers?.server_name || "");
   const serverHost = String(customer.servers?.host || "");
-  const haystack = `${serverName} ${serverHost}`.toLowerCase();
+  const durationDays = Number(customer.plans?.duration_days || 30);
   const durationDays = Number(customer.plans?.duration_days || 30);
   const months = Math.max(1, Math.round(durationDays / 30));
 
