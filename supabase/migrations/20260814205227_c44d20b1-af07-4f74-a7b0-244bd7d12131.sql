@@ -1,0 +1,1 @@
+ALTER TABLE public.backup_settings ADD COLUMN IF NOT EXISTS interval_minutes integer NOT NULL DEFAULT 0;
