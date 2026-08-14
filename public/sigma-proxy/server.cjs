@@ -570,18 +570,42 @@ const server = http.createServer(async (req, res) => {
       return send(res, 200, { status: out.status, ok: out.status >= 200 && out.status < 300, body: out.body });
     }
 
-    const upstream = await fetch(target, {
-      method,
-      headers,
-      body: method === "GET" || method === "HEAD" ? undefined : body,
-      redirect: payload.redirect === "manual" ? "manual" : "follow",
-    });
-    const text = await upstream.text();
-    const outHeaders = {};
-    upstream.headers.forEach((value, key) => { outHeaders[key] = value; });
-    let cookies = [];
-    try { cookies = typeof upstream.headers.getSetCookie === "function" ? upstream.headers.getSetCookie() : []; } catch {}
-    if (!cookies.length && outHeaders["set-cookie"]) cookies = [outHeaders["set-cookie"]];
+    const origin = new URL(target).origin;
+    const host = new URL(target).host;
+
+    const doFetch = async (hdrs) => {
+      const upstream = await fetch(target, {
+        method,
+        headers: hdrs,
+        body: method === "GET" || method === "HEAD" ? undefined : body,
+        redirect: payload.redirect === "manual" ? "manual" : "follow",
+      });
+      const text = await upstream.text();
+      const outHeaders = {};
+      upstream.headers.forEach((value, key) => { outHeaders[key] = value; });
+      let cookies = [];
+      try { cookies = typeof upstream.headers.getSetCookie === "function" ? upstream.headers.getSetCookie() : []; } catch {}
+      if (!cookies.length && outHeaders["set-cookie"]) cookies = [outHeaders["set-cookie"]];
+      return { upstream, text, outHeaders, cookies };
+    };
+
+    // Se já temos um cf_clearance válido para este domínio, usa desde a 1ª tentativa.
+    const cached = clearanceCache.get(host);
+    const validCached = cached && Date.now() - cached.ts < CLEARANCE_TTL_MS ? cached : null;
+    let result = await doFetch(withClearance(headers, validCached));
+
+    // Cloudflare barrou? Resolve o desafio no navegador e repete uma vez.
+    if (isCloudflareChallenge(result.upstream.status, result.text)) {
+      console.log(`[cloudflare] desafio detectado em ${target}, resolvendo...`);
+      clearanceCache.delete(host);
+      let entry = null;
+      try { entry = await solveCloudflare(origin); } catch (err) {
+        console.warn("[cloudflare] falha ao resolver:", err && err.message);
+      }
+      if (entry) result = await doFetch(withClearance(headers, entry));
+    }
+
+    const { upstream, text, outHeaders, cookies } = result;
     console.log(`[sigma-proxy] ${method} ${target} -> ${upstream.status}`);
     return send(res, 200, { status: upstream.status, ok: upstream.ok, body: text, headers: outHeaders, cookies, final_url: upstream.url || target });
   } catch (err) {
