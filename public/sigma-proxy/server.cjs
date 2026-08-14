@@ -147,7 +147,128 @@ async function fetchViaBrightData(target, method, headers, body) {
 }
 
 // ---------------------------------------------------------------------------
-// Sessão de navegador com resolução automática de CAPTCHA (Bright Data).
+// Resolução de CAPTCHA no navegador local usando 2Captcha / Anti-Captcha.
+// Basta definir CAPTCHA_API_KEY (2captcha.com) na VPS. Custo ~US$0,001 por login.
+// ---------------------------------------------------------------------------
+const CAPTCHA_KEY = String(process.env.CAPTCHA_API_KEY || "").trim();
+const CAPTCHA_API = String(process.env.CAPTCHA_API_URL || "https://api.2captcha.com").replace(/\/+$/, "");
+
+async function twoCaptchaSolve(task) {
+  const createRes = await fetch(`${CAPTCHA_API}/createTask`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ clientKey: CAPTCHA_KEY, task }),
+  });
+  const created = await createRes.json();
+  if (created.errorId) throw new Error(`2captcha: ${created.errorDescription || created.errorCode}`);
+  const taskId = created.taskId;
+
+  for (let i = 0; i < 40; i++) {
+    await new Promise((r) => setTimeout(r, 5000));
+    const res = await fetch(`${CAPTCHA_API}/getTaskResult`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ clientKey: CAPTCHA_KEY, taskId }),
+    });
+    const out = await res.json();
+    if (out.errorId) throw new Error(`2captcha: ${out.errorDescription || out.errorCode}`);
+    if (out.status === "ready") {
+      return out.solution?.gRecaptchaResponse || out.solution?.token || "";
+    }
+  }
+  throw new Error("2captcha: tempo esgotado ao resolver o captcha");
+}
+
+// Descobre se a página tem hCaptcha / reCAPTCHA / Turnstile e devolve o sitekey.
+async function detectCaptcha(page) {
+  return await page.evaluate(() => {
+    const grab = (sel, attr) => {
+      const el = document.querySelector(sel);
+      return el ? el.getAttribute(attr) || "" : "";
+    };
+    let key = grab(".h-captcha", "data-sitekey") || grab("[data-hcaptcha-sitekey]", "data-hcaptcha-sitekey");
+    if (key) return { type: "hcaptcha", key };
+    key = grab(".g-recaptcha", "data-sitekey") || grab("[data-sitekey]", "data-sitekey");
+    if (key) return { type: "recaptcha", key };
+    key = grab(".cf-turnstile", "data-sitekey");
+    if (key) return { type: "turnstile", key };
+    const iframe = document.querySelector("iframe[src*='hcaptcha.com'], iframe[src*='recaptcha']");
+    if (iframe) {
+      const src = iframe.getAttribute("src") || "";
+      const m = src.match(/[?&]sitekey=([^&]+)/) || src.match(/[?&]k=([^&]+)/);
+      if (m) return { type: src.includes("hcaptcha") ? "hcaptcha" : "recaptcha", key: m[1] };
+    }
+    return null;
+  }).catch(() => null);
+}
+
+// Injeta o token resolvido nos campos que o painel espera e dispara os callbacks.
+async function injectCaptchaToken(page, type, token) {
+  await page.evaluate((type, token) => {
+    const names = type === "hcaptcha"
+      ? ["h-captcha-response", "g-recaptcha-response"]
+      : type === "turnstile"
+        ? ["cf-turnstile-response", "g-recaptcha-response"]
+        : ["g-recaptcha-response"];
+    for (const name of names) {
+      let el = document.querySelector(`[name="${name}"]`);
+      if (!el) {
+        el = document.createElement("textarea");
+        el.name = name;
+        el.id = name;
+        el.style.display = "none";
+        (document.forms[0] || document.body).appendChild(el);
+      }
+      el.value = token;
+      el.dispatchEvent(new Event("change", { bubbles: true }));
+    }
+    // Executa callbacks registrados pelo widget (quando existirem).
+    try {
+      const cbs = [];
+      for (const k in window) {
+        if (/captchaCallback|onCaptcha|captchaSuccess/i.test(k) && typeof window[k] === "function") cbs.push(window[k]);
+      }
+      cbs.forEach((fn) => { try { fn(token); } catch { /* noop */ } });
+    } catch { /* noop */ }
+  }, type, token);
+}
+
+// Resolve o CAPTCHA da página atual: Bright Data quando remoto, 2Captcha no Chrome local.
+async function solveCaptcha(page, remote, pageUrl) {
+  if (remote) {
+    try {
+      const client = await page.createCDPSession();
+      return await client.send("Captcha.solve", { detectTimeout: 30000 });
+    } catch (err) {
+      return { status: "unavailable", message: String(err && err.message) };
+    }
+  }
+
+  const found = await detectCaptcha(page);
+  if (!found) return { status: "not_detected" };
+  if (!CAPTCHA_KEY) {
+    return { status: "unavailable", message: "Defina CAPTCHA_API_KEY (2captcha) na VPS para resolver o captcha." };
+  }
+
+  const websiteURL = pageUrl || page.url();
+  const task = found.type === "hcaptcha"
+    ? { type: "HCaptchaTaskProxyless", websiteURL, websiteKey: found.key }
+    : found.type === "turnstile"
+      ? { type: "TurnstileTaskProxyless", websiteURL, websiteKey: found.key }
+      : { type: "RecaptchaV2TaskProxyless", websiteURL, websiteKey: found.key };
+
+  try {
+    const token = await twoCaptchaSolve(task);
+    if (!token) return { status: "failed", message: "2captcha nao devolveu token" };
+    await injectCaptchaToken(page, found.type, token);
+    return { status: "solve_finished", provider: "2captcha", captcha_type: found.type };
+  } catch (err) {
+    return { status: "failed", provider: "2captcha", message: String(err && err.message) };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Sessão de navegador com resolução automática de CAPTCHA.
 // Usado para painéis que exigem hCaptcha/reCAPTCHA no login (P2Cine, Uniplay).
 // Payload:
 //   { browser: true, url, steps: [{selector, value?, click?, wait_ms?}], wait_ms, final_url_contains? }
@@ -160,15 +281,8 @@ async function browserSession(payload) {
     await page.setViewport({ width: 1366, height: 768 });
     await page.goto(String(payload.url), { waitUntil: "domcontentloaded", timeout: 120000 });
 
-    // Pede ao Scraping Browser para resolver qualquer CAPTCHA presente.
-    let captcha = { status: "none" };
-    try {
-      if (!remote) throw new Error("navegador local nao resolve captcha");
-      const client = await page.createCDPSession();
-      captcha = await client.send("Captcha.solve", { detectTimeout: 30000 });
-    } catch (err) {
-      captcha = { status: "unavailable", message: String(err && err.message) };
-    }
+    // Resolve qualquer CAPTCHA já presente na tela de login.
+    let captcha = await solveCaptcha(page, remote, String(payload.url));
 
     for (const step of Array.isArray(payload.steps) ? payload.steps : []) {
       try {
@@ -178,7 +292,14 @@ async function browserSession(payload) {
             await page.click(step.selector, { clickCount: 3 }).catch(() => {});
             await page.type(step.selector, step.value, { delay: 40 });
           }
-          if (step.click) await page.click(step.selector);
+          if (step.click) {
+            // Antes de submeter, garante que o token do captcha esteja preenchido.
+            if (!captcha || !["solve_finished", "not_detected"].includes(captcha.status)) {
+              const retry = await solveCaptcha(page, remote, page.url());
+              if (retry && retry.status !== "not_detected") captcha = retry;
+            }
+            await page.click(step.selector);
+          }
         }
         if (step.wait_ms) await new Promise((r) => setTimeout(r, Number(step.wait_ms)));
       } catch (err) {
@@ -186,13 +307,21 @@ async function browserSession(payload) {
       }
     }
 
-    // Segunda tentativa de CAPTCHA (alguns painéis só mostram após o submit).
+    // Segunda tentativa (alguns painéis só mostram o captcha após o submit).
     try {
-      if (!remote) throw new Error("navegador local nao resolve captcha");
-      const client2 = await page.createCDPSession();
-      const c2 = await client2.send("Captcha.solve", { detectTimeout: 20000 });
-      if (c2 && c2.status && c2.status !== "not_detected") captcha = c2;
+      const c2 = await solveCaptcha(page, remote, page.url());
+      if (c2 && c2.status && c2.status !== "not_detected") {
+        captcha = c2;
+        if (c2.status === "solve_finished") {
+          const submit = (payload.steps || []).find((s) => s.click);
+          if (submit && submit.selector) {
+            await page.click(submit.selector).catch(() => {});
+            await new Promise((r) => setTimeout(r, 8000));
+          }
+        }
+      }
     } catch { /* ignora */ }
+
 
     await new Promise((r) => setTimeout(r, Number(payload.wait_ms || 5000)));
 
