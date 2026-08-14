@@ -687,6 +687,29 @@ const server = http.createServer(async (req, res) => {
     if (isCloudflareChallenge(result.upstream.status, result.text)) {
       console.log(`[cloudflare] desafio detectado em ${target}, resolvendo...`);
       clearanceCache.delete(host);
+
+      // 1) Caminho preferido: refazer a chamada dentro do Chromium local.
+      if (browserAvailable) {
+        try {
+          const viaBrowser = await fetchViaLocalBrowser(target, method, headers, body);
+          console.log(`[cloudflare] via navegador ${method} ${target} -> ${viaBrowser.status}`);
+          if (!isCloudflareChallenge(viaBrowser.status, viaBrowser.body)) {
+            return send(res, 200, {
+              status: viaBrowser.status,
+              ok: viaBrowser.status >= 200 && viaBrowser.status < 300,
+              body: viaBrowser.body,
+              headers: {},
+              cookies: [],
+              final_url: target,
+              via: "browser",
+            });
+          }
+        } catch (err) {
+          console.warn("[cloudflare] navegador falhou:", err && err.message);
+        }
+      }
+
+      // 2) Alternativa: obter cf_clearance e repetir com fetch normal.
       let entry = null;
       try { entry = await solveCloudflare(origin); } catch (err) {
         console.warn("[cloudflare] falha ao resolver:", err && err.message);
@@ -696,6 +719,7 @@ const server = http.createServer(async (req, res) => {
 
     const { upstream, text, outHeaders, cookies } = result;
     console.log(`[sigma-proxy] ${method} ${target} -> ${upstream.status}`);
+
     return send(res, 200, { status: upstream.status, ok: upstream.ok, body: text, headers: outHeaders, cookies, final_url: upstream.url || target });
   } catch (err) {
     console.error("[sigma-proxy] falha ao chamar o painel:", err && err.message);
