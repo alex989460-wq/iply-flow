@@ -7,6 +7,7 @@
 //   action = "poll"   -> polls Efí charge status by txid
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { buildCredentials, createCharge, getQrCode, newTxid } from "../_shared/efi-client.ts";
+import { createPixPayment } from "../_shared/mercadopago-client.ts";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
