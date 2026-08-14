@@ -41,6 +41,15 @@ async function triggerExternalRenewal(admin: any, customerId: string, source: st
   const durationDays = Number(customer.plans?.duration_days || 30);
   const months = Math.max(1, Math.round(durationDays / 30));
 
+  // Alerta: plano pago tem mais telas que o cadastro atual do cliente.
+  await reportScreensMismatch(admin, {
+    customer,
+    planName: customer.plans?.plan_name || null,
+    serverName,
+    serverHost,
+    source,
+  });
+
   const post = async (fn: string, body: Record<string, unknown>) => {
     try {
       const res = await fetch(`${SUPABASE_URL}/functions/v1/${fn}`, {
