@@ -78,16 +78,12 @@ Deno.serve(async (req) => {
 
   try {
     if (req.method === "GET") {
-      // Filter panel rows on the server so P2Cine/Uniplay items are never pushed out
-      // of the window by unrelated pending rows (previous limit(50) hid them).
+      // Apenas Uniplay usa a extensão. O P2Cine (kOffice) agora renova direto
+      // pela API nativa, então nunca entra na fila da extensão.
       const like = [
-        "server_host.ilike.%p2cine%", "server_name.ilike.%p2cine%",
-        "server_host.ilike.%daily3%", "server_name.ilike.%daily3%",
-        "server_host.ilike.%painelacesso%", "server_name.ilike.%painelacesso%",
         "server_host.ilike.%uniplay%", "server_name.ilike.%uniplay%",
         "server_host.ilike.%searchdefense%", "server_name.ilike.%searchdefense%",
         "server_host.ilike.%gesapioffice%", "server_name.ilike.%gesapioffice%",
-        "server_host.ilike.%p2c%", "server_name.ilike.%p2c%",
       ].join(",");
 
       const { data, error } = await supabase
@@ -99,7 +95,7 @@ Deno.serve(async (req) => {
         .limit(30);
       if (error) throw error;
 
-      const candidates = (data ?? []).filter((row) => isP2Cine(row) || isUniplay(row));
+      const candidates = (data ?? []).filter((row) => isUniplay(row));
       if (candidates.length === 0) return json({ item: null });
 
       // A pendência SEMPRE nasce depois de um pagamento (é a falha da renovação no
