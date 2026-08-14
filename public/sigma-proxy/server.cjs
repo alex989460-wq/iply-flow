@@ -186,7 +186,7 @@ const server = http.createServer(async (req, res) => {
     return send(res, 200, {
       ok: true,
       service: "sigma-proxy",
-      version: "1.2.0",
+      version: "1.3.0",
       mode: BRIGHTDATA_WS ? "brightdata" : "direct",
       browser: Boolean(BRIGHTDATA_WS),
     });
@@ -242,11 +242,16 @@ const server = http.createServer(async (req, res) => {
       method,
       headers,
       body: method === "GET" || method === "HEAD" ? undefined : body,
-      redirect: "follow",
+      redirect: payload.redirect === "manual" ? "manual" : "follow",
     });
     const text = await upstream.text();
+    const outHeaders = {};
+    upstream.headers.forEach((value, key) => { outHeaders[key] = value; });
+    let cookies = [];
+    try { cookies = typeof upstream.headers.getSetCookie === "function" ? upstream.headers.getSetCookie() : []; } catch {}
+    if (!cookies.length && outHeaders["set-cookie"]) cookies = [outHeaders["set-cookie"]];
     console.log(`[sigma-proxy] ${method} ${target} -> ${upstream.status}`);
-    return send(res, 200, { status: upstream.status, ok: upstream.ok, body: text });
+    return send(res, 200, { status: upstream.status, ok: upstream.ok, body: text, headers: outHeaders, cookies, final_url: upstream.url || target });
   } catch (err) {
     console.error("[sigma-proxy] falha ao chamar o painel:", err && err.message);
     return send(res, 502, { error: "falha_no_painel", message: String(err && err.message) });

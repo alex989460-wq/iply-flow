@@ -34,6 +34,8 @@ export default function ResellerApiSettings() {
   const [savingSigmaConnection, setSavingSigmaConnection] = useState(false);
 
   const [testingUniplay, setTestingUniplay] = useState(false);
+  const [testingP2cine, setTestingP2cine] = useState(false);
+  const [showP2cinePassword, setShowP2cinePassword] = useState(false);
   const [testingTheBest, setTestingTheBest] = useState(false);
 
   const [settings, setSettings] = useState({
@@ -65,8 +67,12 @@ export default function ResellerApiSettings() {
     sigma_base_url: '',
     sigma_username: '',
     sigma_password: '',
+    p2cine_username: '',
+    p2cine_password: '',
+    p2cine_base_url: '',
 
   });
+
 
 
   const webhookUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/cakto-webhook`;
@@ -118,6 +124,9 @@ export default function ResellerApiSettings() {
           sigma_base_url: (d as any).sigma_base_url || '',
           sigma_username: (d as any).sigma_username || '',
           sigma_password: (d as any).sigma_password || '',
+          p2cine_username: (d as any).p2cine_username || '',
+          p2cine_password: (d as any).p2cine_password || '',
+          p2cine_base_url: (d as any).p2cine_base_url || '',
 
         });
 
@@ -163,6 +172,9 @@ export default function ResellerApiSettings() {
         sigma_base_url: settings.sigma_base_url || null,
         sigma_username: settings.sigma_username || null,
         sigma_password: settings.sigma_password || null,
+        p2cine_username: settings.p2cine_username || null,
+        p2cine_password: settings.p2cine_password || null,
+        p2cine_base_url: settings.p2cine_base_url || null,
 
         updated_at: new Date().toISOString(),
       };
@@ -259,6 +271,31 @@ export default function ResellerApiSettings() {
     }
   };
 
+  const testP2cine = async () => {
+    if (!settings.p2cine_username || !settings.p2cine_password) {
+      toast({ title: 'Dados incompletos', description: 'Preencha usuário e senha do P2Cine.', variant: 'destructive' });
+      return;
+    }
+    setTestingP2cine(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('p2cine-renew', {
+        body: {
+          action: 'test',
+          p2cine_username: settings.p2cine_username.trim(),
+          p2cine_password: settings.p2cine_password,
+          p2cine_base_url: settings.p2cine_base_url.trim(),
+        },
+      });
+      if (error) throw error;
+      if (!data?.success) throw new Error(data?.error || 'Não foi possível validar a conexão P2Cine.');
+      toast({ title: 'Conexão P2Cine OK', description: data.message || `Autenticado como ${data.username}.` });
+    } catch (e: any) {
+      toast({ title: 'Falha ao conectar no P2Cine', description: e?.message || 'Confira o usuário e a senha.', variant: 'destructive' });
+    } finally {
+      setTestingP2cine(false);
+    }
+  };
+
   if (loading) {
     return (
       <Card>
@@ -275,6 +312,7 @@ export default function ResellerApiSettings() {
   const hasTheBest = !!settings.the_best_api_key || (!!settings.the_best_username && !!settings.the_best_password);
   const hasRush = !!settings.rush_username && !!settings.rush_password && !!settings.rush_token;
   const hasUniplay = !!settings.uniplay_username && !!settings.uniplay_password;
+  const hasP2cine = !!settings.p2cine_username && !!settings.p2cine_password;
   const hasSigma = sigmaConnections.length > 0 || (!!settings.sigma_base_url && !!settings.sigma_username && !!settings.sigma_password);
 
   const handleTestSigma = async () => {
@@ -939,6 +977,123 @@ export default function ResellerApiSettings() {
         </CardContent>
       </Card>
 
+      {/* Uniplay */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Key className="w-5 h-5 text-emerald-500" />
+            Uniplay (Painel)
+            {hasUniplay && <CheckCircle2 className="w-5 h-5 text-green-500" />}
+          </CardTitle>
+          <CardDescription>
+            Usuário e senha do painel Uniplay. As chamadas saem pelo proxy com IP residencial.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="uniplay_username">Usuário</Label>
+              <Input
+                id="uniplay_username"
+                value={settings.uniplay_username}
+                onChange={(e) => setSettings({ ...settings, uniplay_username: e.target.value })}
+                placeholder="Seu usuário do Uniplay"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="uniplay_password">Senha</Label>
+              <div className="relative">
+                <Input
+                  id="uniplay_password"
+                  type={showUniplayPassword ? 'text' : 'password'}
+                  value={settings.uniplay_password}
+                  onChange={(e) => setSettings({ ...settings, uniplay_password: e.target.value })}
+                  placeholder="Sua senha do Uniplay"
+                  className="pr-10"
+                />
+                <Button type="button" variant="ghost" size="icon" className="absolute right-0 top-0 h-full" onClick={() => setShowUniplayPassword(!showUniplayPassword)}>
+                  {showUniplayPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </Button>
+              </div>
+            </div>
+            <div className="space-y-2 md:col-span-2">
+              <Label htmlFor="uniplay_base_url">URL do painel (opcional)</Label>
+              <Input
+                id="uniplay_base_url"
+                value={settings.uniplay_base_url}
+                onChange={(e) => setSettings({ ...settings, uniplay_base_url: e.target.value })}
+                placeholder="https://searchdefense.top"
+              />
+            </div>
+          </div>
+          <Button type="button" variant="outline" onClick={testUniplay} disabled={testingUniplay}>
+            {testingUniplay && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+            Testar conexão Uniplay
+          </Button>
+        </CardContent>
+      </Card>
+
+      {/* P2Cine */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Key className="w-5 h-5 text-pink-500" />
+            P2Cine (Painel)
+            {hasP2cine && <CheckCircle2 className="w-5 h-5 text-green-500" />}
+          </CardTitle>
+          <CardDescription>
+            Usuário e senha do painel P2Cine. As chamadas saem pelo proxy com IP residencial.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="p2cine_username">Usuário</Label>
+              <Input
+                id="p2cine_username"
+                value={settings.p2cine_username}
+                onChange={(e) => setSettings({ ...settings, p2cine_username: e.target.value })}
+                placeholder="Seu usuário do P2Cine"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="p2cine_password">Senha</Label>
+              <div className="relative">
+                <Input
+                  id="p2cine_password"
+                  type={showP2cinePassword ? 'text' : 'password'}
+                  value={settings.p2cine_password}
+                  onChange={(e) => setSettings({ ...settings, p2cine_password: e.target.value })}
+                  placeholder="Sua senha do P2Cine"
+                  className="pr-10"
+                />
+                <Button type="button" variant="ghost" size="icon" className="absolute right-0 top-0 h-full" onClick={() => setShowP2cinePassword(!showP2cinePassword)}>
+                  {showP2cinePassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </Button>
+              </div>
+            </div>
+            <div className="space-y-2 md:col-span-2">
+              <Label htmlFor="p2cine_base_url">URL do painel</Label>
+              <Input
+                id="p2cine_base_url"
+                value={settings.p2cine_base_url}
+                onChange={(e) => setSettings({ ...settings, p2cine_base_url: e.target.value })}
+                placeholder="https://daily3.news"
+              />
+            </div>
+          </div>
+          <Button type="button" variant="outline" onClick={testP2cine} disabled={testingP2cine}>
+            {testingP2cine && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+            Testar conexão P2Cine
+          </Button>
+          <Alert className="bg-muted/50">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription className="text-xs">
+              Se o painel exigir captcha no login, a renovação continua pela extensão do SuperGestor.
+            </AlertDescription>
+          </Alert>
+        </CardContent>
+      </Card>
 
 
       <div className="flex justify-end">
