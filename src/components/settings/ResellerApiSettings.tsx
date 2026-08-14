@@ -340,9 +340,12 @@ export default function ResellerApiSettings() {
         base_url: settings.sigma_base_url.trim(),
         username: settings.sigma_username.trim(),
         password: settings.sigma_password,
+        proxy_url: settings.sigma_proxy_url.trim() || null,
+        proxy_secret: settings.sigma_proxy_secret || null,
       });
       if (error) throw error;
       setSettings((current) => ({ ...current, sigma_base_url: '', sigma_username: '', sigma_password: '' }));
+
       await fetchSettings();
       toast({ title: 'Conexão Sigma adicionada' });
     } catch (error: any) {
