@@ -259,6 +259,9 @@ Deno.serve(async (req) => {
         error: payload?.error || payload?.message,
         storage_keys: Object.keys(payload?.storage || {}),
         captured: payload?.captured,
+        steps: payload?.steps,
+        fields: payload?.fields,
+
         html: body?.html_grep
           ? (String(payload?.html || "").match(new RegExp(String(body.html_grep), "gi")) || []).slice(0, 40)
           : String(payload?.html || "").slice(0, Number(body?.html_len || 4000)),
