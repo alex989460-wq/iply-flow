@@ -1,0 +1,1 @@
+DELETE FROM public.pending_manual_renewals WHERE id = 'a1d60d7d-4361-4b9d-981e-897617490173';
