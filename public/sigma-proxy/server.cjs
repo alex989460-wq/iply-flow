@@ -300,10 +300,11 @@ async function browserSession(payload) {
     // Resolve qualquer CAPTCHA já presente na tela de login.
     let captcha = await solveCaptcha(page, remote, String(payload.url));
 
+    const stepsLog = [];
     for (const step of Array.isArray(payload.steps) ? payload.steps : []) {
       try {
         if (step.selector) {
-          await page.waitForSelector(step.selector, { timeout: 30000 });
+          await page.waitForSelector(step.selector, { timeout: 30000, visible: true });
           if (typeof step.value === "string") {
             await page.click(step.selector, { clickCount: 3 }).catch(() => {});
             await page.type(step.selector, step.value, { delay: 40 });
@@ -316,12 +317,15 @@ async function browserSession(payload) {
             }
             await page.click(step.selector);
           }
+          stepsLog.push({ selector: step.selector, ok: true });
         }
         if (step.wait_ms) await new Promise((r) => setTimeout(r, Number(step.wait_ms)));
       } catch (err) {
+        stepsLog.push({ selector: step.selector, ok: false, error: err && err.message });
         console.warn("[browser] passo falhou:", step.selector, err && err.message);
       }
     }
+
 
     // Segunda tentativa (alguns painéis só mostram o captcha após o submit).
     try {
@@ -343,7 +347,7 @@ async function browserSession(payload) {
 
     const cookies = await page.cookies();
     const finalUrl = page.url();
-    const html = (await page.content()).slice(0, 4000);
+    const html = (await page.content()).slice(0, 150000);
     const storage = await page
       .evaluate(() => {
         const out = {};
@@ -353,9 +357,27 @@ async function browserSession(payload) {
       })
       .catch(() => ({}));
 
+    // Lista os campos e botões visíveis, para descobrir os seletores certos.
+    const fields = await page
+      .evaluate(() => {
+        const list = [];
+        document.querySelectorAll("input, button, [type=submit]").forEach((el) => {
+          list.push({
+            tag: el.tagName.toLowerCase(),
+            type: el.getAttribute("type") || "",
+            name: el.getAttribute("name") || "",
+            id: el.id || "",
+            placeholder: el.getAttribute("placeholder") || "",
+            text: (el.innerText || "").trim().slice(0, 40),
+          });
+        });
+        return list.slice(0, 40);
+      })
+      .catch(() => []);
 
     await page.close().catch(() => {});
-    return { final_url: finalUrl, cookies, html, captcha, storage, captured };
+    return { final_url: finalUrl, cookies, html, captcha, storage, captured, steps: stepsLog, fields };
+
   } finally {
     await browser.close().catch(() => {});
   }
@@ -368,7 +390,7 @@ const server = http.createServer(async (req, res) => {
     return send(res, 200, {
       ok: true,
       service: "sigma-proxy",
-      version: "1.7.0",
+      version: "1.8.0",
       mode: BRIGHTDATA_WS ? "brightdata" : "direct",
       browser: browserAvailable,
       captcha_solver: CAPTCHA_KEY ? "2captcha" : (BRIGHTDATA_WS ? "brightdata" : null),

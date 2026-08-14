@@ -236,6 +236,39 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Abre uma página no navegador da VPS e devolve o que apareceu (diagnóstico).
+    if (action === "browser_debug") {
+      const proxy = proxyConfig();
+      if (!proxy) return json({ success: false, error: "Proxy não configurado." }, 200);
+      const r = await fetch(proxy.url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-sigma-proxy-secret": proxy.secret },
+        body: JSON.stringify({
+          browser: true,
+          url: String(body?.url || ""),
+          wait_ms: Number(body?.wait_ms || 9000),
+          capture: body?.capture,
+          steps: Array.isArray(body?.steps) ? body.steps : [],
+        }),
+      });
+      const payload = await r.json().catch(() => null) as any;
+      return json({
+        success: r.ok,
+        final_url: payload?.final_url,
+        captcha: payload?.captcha,
+        error: payload?.error || payload?.message,
+        storage_keys: Object.keys(payload?.storage || {}),
+        captured: payload?.captured,
+        steps: payload?.steps,
+        fields: payload?.fields,
+
+        html: body?.html_grep
+          ? (String(payload?.html || "").match(new RegExp(String(body.html_grep), "gi")) || []).slice(0, 40)
+          : String(payload?.html || "").slice(0, Number(body?.html_len || 4000)),
+
+      });
+    }
+
 
     let base = normBase(body?.p2cine_base_url);
     let username = String(body?.p2cine_username || "").trim();
