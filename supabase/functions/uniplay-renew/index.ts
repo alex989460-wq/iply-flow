@@ -261,8 +261,20 @@ async function browserLoginUniplay(
   }
 
   if (!token) {
-    throw new UniplayExternalError("Login Uniplay recusado pelo painel. Confira usuário e senha.");
+    const finalUrl = String(payload.final_url || "");
+    const html = String(payload.html || "");
+    const captchaStatus = String(payload?.captcha?.status || "sem_captcha");
+    const keys = Object.keys(storage).slice(0, 12).join(", ") || "nenhuma";
+    if (/captcha/i.test(html) || /solve_failed|need_key/i.test(captchaStatus)) {
+      throw new UniplayExternalError(
+        `O painel Uniplay pediu captcha e o proxy não conseguiu resolver (${captchaStatus}). Configure a chave do 2Captcha na VPS.`,
+      );
+    }
+    throw new UniplayExternalError(
+      `Login Uniplay não retornou o token. Página final: ${finalUrl || "desconhecida"}. Captcha: ${captchaStatus}. Chaves salvas no navegador: ${keys}.`,
+    );
   }
+
   return { access_token: token, crypt_pass: cryptPass, id, username: user };
 }
 
