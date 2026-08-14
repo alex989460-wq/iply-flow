@@ -100,8 +100,43 @@ async function browserLogin(base: string, username: string, password: string) {
   return cookies.join("; ");
 }
 
+// Tenta usar a chave de API do painel (Perfil → API KEY) em vários formatos aceitos
+// por painéis kOffice. Retorna ok=true assim que um deles responder autenticado.
+async function tryApiKey(base: string, apiKey: string): Promise<{ ok: boolean; endpoint?: string; detail: string }> {
+  const attempts: Array<{ label: string; url: string; headers: Record<string, string> }> = [
+    { label: "token na URL", url: `${base}/api/get_credits?token=${encodeURIComponent(apiKey)}`, headers: {} },
+    { label: "api_key na URL", url: `${base}/api/get_credits?api_key=${encodeURIComponent(apiKey)}`, headers: {} },
+    { label: "cabeçalho Authorization", url: `${base}/api/get_credits`, headers: { Authorization: `Bearer ${apiKey}` } },
+    { label: "cabeçalho Api-Key", url: `${base}/api/get_credits`, headers: { "Api-Key": apiKey } },
+  ];
+
+  const notes: string[] = [];
+  for (const attempt of attempts) {
+    try {
+      const res = await relay(attempt.url, {
+        headers: { ...browserHeaders, Accept: "application/json", ...attempt.headers },
+      });
+      const text = String(res.body || "").trim();
+      let parsed: any = null;
+      try { parsed = JSON.parse(text); } catch { /* HTML */ }
+
+      if (parsed && res.status < 400 && String(parsed.result || "").toLowerCase() !== "failed" && !parsed.error) {
+        return { ok: true, endpoint: attempt.label, detail: "" };
+      }
+      const reason = parsed
+        ? String(parsed.message || parsed.error || JSON.stringify(parsed)).slice(0, 120)
+        : (/login/i.test(text) ? "o painel devolveu a tela de login (chave ignorada)" : `HTTP ${res.status}`);
+      notes.push(`${attempt.label}: ${reason}`);
+    } catch (e) {
+      notes.push(`${attempt.label}: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+  return { ok: false, detail: notes.join(" | ") };
+}
+
 // Confere se a sessão salva ainda está válida.
 async function sessionAlive(base: string, cookieHeader: string): Promise<boolean> {
+
   if (!cookieHeader) return false;
   try {
     const res = await relay(`${base}/dashboard`, { headers: { ...browserHeaders, Cookie: cookieHeader } });
