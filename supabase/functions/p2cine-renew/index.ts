@@ -594,9 +594,18 @@ Deno.serve(async (req) => {
         });
       }
       apiKeyDiagnostic = login.detail;
+      // Falha rápida: com chave de API cadastrada não abrimos o navegador do
+      // proxy (que demora minutos). O erro quase sempre é chave de outro painel.
+      return json({
+        success: false,
+        base_url: base,
+        username,
+        error: `O painel ${base.replace(/^https?:\/\//, "")} recusou essa chave de API. ${login.detail}. Confira se a URL do painel é exatamente a mesma de onde a chave foi gerada (Perfil → API KEY).`,
+      }, 200);
     } else if (apiKey && !username) {
       apiKeyDiagnostic = "a API do painel exige o usuário junto com a chave — preencha o campo Usuário.";
     }
+
 
 
     if (!username || !password) {
