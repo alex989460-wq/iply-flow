@@ -37,6 +37,8 @@ export default function ResellerApiSettings() {
   const [testingP2cine, setTestingP2cine] = useState(false);
   const [connectingP2cine, setConnectingP2cine] = useState(false);
   const [showP2cinePassword, setShowP2cinePassword] = useState(false);
+  const [kofficeConnections, setKofficeConnections] = useState<any[]>([]);
+  const [savingKofficeConnection, setSavingKofficeConnection] = useState(false);
   const [testingTheBest, setTestingTheBest] = useState(false);
 
   const [settings, setSettings] = useState({
@@ -85,14 +87,17 @@ export default function ResellerApiSettings() {
 
   const fetchSettings = async () => {
     try {
-      const [{ data, error }, { data: connections, error: connectionsError }] = await Promise.all([
+      const [{ data, error }, { data: connections, error: connectionsError }, { data: kofficeRows }] = await Promise.all([
         supabase.from('reseller_api_settings' as any).select('*').eq('user_id', user?.id).maybeSingle(),
         supabase.from('sigma_panel_connections' as any).select('*').eq('user_id', user?.id).order('created_at'),
+        supabase.from('koffice_panel_connections' as any).select('*').eq('user_id', user?.id).order('created_at'),
       ]);
 
       if (error) throw error;
       if (connectionsError) throw connectionsError;
       setSigmaConnections(connections || []);
+      setKofficeConnections(kofficeRows || []);
+
 
       if (data) {
         setHasExisting(true);
@@ -421,6 +426,61 @@ export default function ResellerApiSettings() {
     }
     setSigmaConnections((current) => current.filter((connection) => connection.id !== id));
     toast({ title: 'Conexão Sigma removida' });
+  };
+
+  const addKofficeConnection = async () => {
+    if (!user || !settings.p2cine_base_url.trim() || !settings.p2cine_username.trim() || !settings.p2cine_api_key.trim()) {
+      toast({
+        title: 'Dados incompletos',
+        description: 'Informe URL do painel, usuário e chave de API para adicionar o painel kOffice.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    setSavingKofficeConnection(true);
+    try {
+      const base = settings.p2cine_base_url.trim();
+      const hostname = base.replace(/^https?:\/\//i, '').replace(/\/+$/, '');
+
+      const { data, error } = await supabase.functions.invoke('p2cine-renew', {
+        body: {
+          action: 'test',
+          p2cine_username: settings.p2cine_username.trim(),
+          p2cine_password: settings.p2cine_password,
+          p2cine_base_url: base,
+          p2cine_api_key: settings.p2cine_api_key.trim(),
+        },
+      });
+      if (error) throw error;
+      if (!data?.success) throw new Error(data?.error || 'O painel recusou a conexão.');
+
+      const { error: insertError } = await supabase.from('koffice_panel_connections' as any).insert({
+        user_id: user.id,
+        name: hostname || 'Painel kOffice',
+        base_url: base,
+        username: settings.p2cine_username.trim(),
+        api_key: settings.p2cine_api_key.trim(),
+      });
+      if (insertError) throw insertError;
+
+      setSettings((current) => ({ ...current, p2cine_base_url: '', p2cine_username: '', p2cine_password: '', p2cine_api_key: '' }));
+      await fetchSettings();
+      toast({ title: 'Painel kOffice adicionado', description: data.message || 'Conexão validada e salva.' });
+    } catch (e: any) {
+      toast({ title: 'Erro ao adicionar painel kOffice', description: e?.message || 'Não foi possível validar a conexão.', variant: 'destructive' });
+    } finally {
+      setSavingKofficeConnection(false);
+    }
+  };
+
+  const removeKofficeConnection = async (id: string) => {
+    const { error } = await supabase.from('koffice_panel_connections' as any).delete().eq('id', id).eq('user_id', user?.id);
+    if (error) {
+      toast({ title: 'Erro ao remover painel', description: error.message, variant: 'destructive' });
+      return;
+    }
+    setKofficeConnections((current) => current.filter((c) => c.id !== id));
+    toast({ title: 'Painel kOffice removido' });
   };
 
   const hasVplay = (!!settings.vplay_panel_username && !!settings.vplay_panel_password)
@@ -1114,7 +1174,7 @@ export default function ResellerApiSettings() {
               />
             </div>
             <div className="space-y-2 md:col-span-2">
-              <Label htmlFor="p2cine_api_key">Chave de API (opcional)</Label>
+              <Label htmlFor="p2cine_api_key">Chave de API</Label>
               <Input
                 id="p2cine_api_key"
                 type="password"
@@ -1124,7 +1184,8 @@ export default function ResellerApiSettings() {
                 autoComplete="off"
               />
               <p className="text-xs text-muted-foreground">
-                A chave fica isolada nesta revenda. O login automático continua usando usuário e senha até o fornecedor disponibilizar a documentação oficial da API.
+                Com usuário + chave + URL o painel autentica pela API oficial: não precisa de senha, navegador nem captcha.
+                A senha só é usada como plano B no login automático.
               </p>
             </div>
           </div>
@@ -1133,11 +1194,33 @@ export default function ResellerApiSettings() {
               {testingP2cine && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
               Testar conexão P2Cine
             </Button>
-            <Button type="button" onClick={connectP2cine} disabled={connectingP2cine || testingP2cine}>
+            <Button type="button" onClick={addKofficeConnection} disabled={savingKofficeConnection}>
+              {savingKofficeConnection ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Plus className="w-4 h-4 mr-2" />}
+              Adicionar painel kOffice
+            </Button>
+            <Button type="button" variant="secondary" onClick={connectP2cine} disabled={connectingP2cine || testingP2cine}>
               {connectingP2cine && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
               Conectar e manter logado (sem extensão)
             </Button>
           </div>
+
+          {kofficeConnections.length > 0 && (
+            <div className="space-y-2">
+              <Label>Painéis kOffice conectados</Label>
+              {kofficeConnections.map((connection) => (
+                <div key={connection.id} className="flex items-center justify-between rounded-md border p-3">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium truncate">{connection.name}</p>
+                    <p className="text-xs text-muted-foreground truncate">{connection.username} • {connection.base_url}</p>
+                  </div>
+                  <Button type="button" variant="ghost" size="icon" onClick={() => removeKofficeConnection(connection.id)} aria-label="Remover painel kOffice">
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+
           <Alert className="bg-muted/50">
             <AlertCircle className="h-4 w-4" />
             <AlertDescription className="text-xs">

@@ -392,7 +392,25 @@ Deno.serve(async (req) => {
       password = password || String((s as any)?.p2cine_password || "");
       apiKey = apiKey || String((s as any)?.p2cine_api_key || "");
       if (!body?.p2cine_base_url) base = normBase((s as any)?.p2cine_base_url);
+
+      // Painéis kOffice cadastrados na lista (usuário + chave de API por painel).
+      if (!apiKey || !username || !base) {
+        const { data: conns } = await admin
+          .from("koffice_panel_connections")
+          .select("name, base_url, username, api_key, is_active")
+          .eq("user_id", user.id)
+          .eq("is_active", true)
+          .order("created_at");
+        const wanted = normBase(body?.p2cine_base_url || base);
+        const picked = (conns || []).find((c: any) => wanted && normBase(c.base_url) === wanted) || (conns || [])[0];
+        if (picked) {
+          base = normBase((picked as any).base_url);
+          username = String((picked as any).username || "");
+          apiKey = String((picked as any).api_key || "");
+        }
+      }
     }
+
 
     if (!apiKey && (!username || !password)) {
       return json({ error: "Informe a chave de API ou o usuário e a senha do painel P2Cine em Configurações → APIs." }, 400);
