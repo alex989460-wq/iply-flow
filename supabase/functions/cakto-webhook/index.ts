@@ -1922,6 +1922,14 @@ serve(async (req) => {
 
     console.log(`[Cakto] Plano detectado: ${matchedPlanName || 'padrão'} (${durationDays} dias) | Valor pago: R$ ${amountNumeric.toFixed(2)} | Telas: ${matchedCustomer.screens || 1}`);
 
+    // Alerta: plano pago tem mais telas do que o cadastro atual do cliente.
+    await reportScreensMismatch(supabaseAdmin, {
+      customer: matchedCustomer as any,
+      planName: matchedPlanName,
+      amount: amountNumeric,
+      source: 'cakto-webhook',
+    });
+
     // Prepare calendar month mapping
     const today = new Date();
     const daysToMonths: Record<number, number> = { 30: 1, 90: 3, 180: 6, 365: 12 };
