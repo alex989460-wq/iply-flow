@@ -49,7 +49,7 @@ export default function BackupManagerCard() {
   // Configuração de agendamento
   const [settingsId, setSettingsId] = useState<string | null>(null);
   const [enabled, setEnabled] = useState(true);
-  const [intervalHours, setIntervalHours] = useState('3');
+  const [intervalMinutes, setIntervalMinutes] = useState('180');
   const [lastRunAt, setLastRunAt] = useState<string | null>(null);
   const [savingSettings, setSavingSettings] = useState(false);
 
