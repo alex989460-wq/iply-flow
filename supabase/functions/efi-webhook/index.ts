@@ -38,7 +38,6 @@ async function triggerExternalRenewal(admin: any, customerId: string, source: st
   const serverName = String(customer.servers?.server_name || "");
   const serverHost = String(customer.servers?.host || "");
   const durationDays = Number(customer.plans?.duration_days || 30);
-  const durationDays = Number(customer.plans?.duration_days || 30);
   const months = Math.max(1, Math.round(durationDays / 30));
 
   const post = async (fn: string, body: Record<string, unknown>) => {
