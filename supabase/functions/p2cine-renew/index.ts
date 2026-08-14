@@ -501,9 +501,43 @@ Deno.serve(async (req) => {
       return json({ error: "Informe a chave de API ou o usuário e a senha do painel P2Cine em Configurações → APIs." }, 400);
     }
 
-    if (action !== "test" && action !== "connect" && action !== "status") {
+    if (!["test", "connect", "status", "renew", "lookup"].includes(action)) {
       return json({ error: `Ação não suportada: ${action}` }, 400);
     }
+
+    // Renovação/consulta direto pela API do painel — sem extensão e sem captcha.
+    if (action === "renew" || action === "lookup") {
+      if (!apiKey || !username) {
+        return json({ success: false, error: "Cadastre o usuário e a chave de API do painel kOffice em Configurações → APIs." }, 200);
+      }
+      const login = await apiLogin(base, username, apiKey);
+      if (!login.ok) {
+        return json({ success: false, error: `A API do painel recusou a autenticação: ${login.detail}` }, 200);
+      }
+
+      const clientLogin = String(body?.username || body?.client_login || "").trim();
+      if (!clientLogin) return json({ success: false, error: "Informe o usuário do cliente no painel." }, 200);
+
+      const clientId = String(body?.client_id || "").trim() || await findClientId(base, login.token!, clientLogin);
+      if (!clientId) {
+        return json({ success: false, error: `Cliente "${clientLogin}" não encontrado no painel.` }, 200);
+      }
+      if (action === "lookup") {
+        return json({ success: true, client_id: clientId, username: clientLogin, base_url: base });
+      }
+
+      const months = Math.max(1, Number(body?.months || 1));
+      const result = await renewClient(base, login.token!, clientId, months);
+      return json({
+        success: result.ok,
+        client_id: clientId,
+        months,
+        base_url: base,
+        message: result.ok ? `Cliente renovado no painel por ${months} mês(es).` : undefined,
+        error: result.ok ? undefined : `Falha ao renovar no painel: ${result.detail}`,
+      }, 200);
+    }
+
 
     // 1) Caminho preferido: API oficial do painel (usuário + chave de API).
     // Não abre o painel, não passa por captcha e não depende de sessão de navegador.
