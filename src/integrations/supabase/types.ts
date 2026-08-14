@@ -2803,6 +2803,7 @@ export type Database = {
           natv_base_url: string | null
           natv2_api_key: string | null
           natv2_base_url: string | null
+          p2cine_api_key: string | null
           p2cine_base_url: string | null
           p2cine_password: string | null
           p2cine_session_at: string | null
@@ -2847,6 +2848,7 @@ export type Database = {
           natv_base_url?: string | null
           natv2_api_key?: string | null
           natv2_base_url?: string | null
+          p2cine_api_key?: string | null
           p2cine_base_url?: string | null
           p2cine_password?: string | null
           p2cine_session_at?: string | null
@@ -2891,6 +2893,7 @@ export type Database = {
           natv_base_url?: string | null
           natv2_api_key?: string | null
           natv2_base_url?: string | null
+          p2cine_api_key?: string | null
           p2cine_base_url?: string | null
           p2cine_password?: string | null
           p2cine_session_at?: string | null

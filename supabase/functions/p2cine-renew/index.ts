@@ -89,7 +89,10 @@ async function browserLogin(base: string, username: string, password: string) {
   const stillOnLogin = /\/login/i.test(finalUrl) || /name="password"/i.test(html);
   if (!cookies.length || stillOnLogin) {
     if (/captcha/i.test(html)) {
-      throw new Error("O painel pediu captcha e o navegador do proxy não conseguiu passar. Tente novamente em alguns minutos.");
+      const captchaStatus = String(payload?.captcha?.status || "desconhecido");
+      const captchaMessage = String(payload?.captcha?.message || "").trim();
+      const detail = captchaMessage ? ` Detalhe: ${captchaMessage}` : ` Status do resolvedor: ${captchaStatus}.`;
+      throw new Error(`O painel pediu hCaptcha e o proxy não concluiu a validação.${detail}`);
     }
     throw new Error("Login recusado pelo painel. Confira usuário e senha do P2Cine.");
   }

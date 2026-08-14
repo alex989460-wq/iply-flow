@@ -71,6 +71,7 @@ export default function ResellerApiSettings() {
     p2cine_username: '',
     p2cine_password: '',
     p2cine_base_url: '',
+    p2cine_api_key: '',
 
   });
 
@@ -128,6 +129,7 @@ export default function ResellerApiSettings() {
           p2cine_username: (d as any).p2cine_username || '',
           p2cine_password: (d as any).p2cine_password || '',
           p2cine_base_url: (d as any).p2cine_base_url || '',
+          p2cine_api_key: (d as any).p2cine_api_key || '',
 
         });
 
@@ -176,6 +178,7 @@ export default function ResellerApiSettings() {
         p2cine_username: settings.p2cine_username || null,
         p2cine_password: settings.p2cine_password || null,
         p2cine_base_url: settings.p2cine_base_url || null,
+        p2cine_api_key: settings.p2cine_api_key || null,
 
         updated_at: new Date().toISOString(),
       };
@@ -261,10 +264,8 @@ export default function ResellerApiSettings() {
     } catch (err: any) {
       const message = err.message || String(err);
       toast({
-        title: 'Uniplay exige extensão',
-        description: message.includes('404') || message.includes('Não foi possível conectar')
-          ? 'A API direta do Uniplay está respondendo 404. Use a extensão 1.6.0 com uma aba logada em searchdefense.top.'
-          : message,
+        title: 'Falha ao conectar no Uniplay',
+        description: message,
         variant: 'destructive',
       });
     } finally {
@@ -338,7 +339,7 @@ export default function ResellerApiSettings() {
   const hasTheBest = !!settings.the_best_api_key || (!!settings.the_best_username && !!settings.the_best_password);
   const hasRush = !!settings.rush_username && !!settings.rush_password && !!settings.rush_token;
   const hasUniplay = !!settings.uniplay_username && !!settings.uniplay_password;
-  const hasP2cine = !!settings.p2cine_username && !!settings.p2cine_password;
+  const hasP2cine = (!!settings.p2cine_username && !!settings.p2cine_password) || !!settings.p2cine_api_key;
   const hasSigma = sigmaConnections.length > 0 || (!!settings.sigma_base_url && !!settings.sigma_username && !!settings.sigma_password);
 
   const handleTestSigma = async () => {
@@ -1070,7 +1071,7 @@ export default function ResellerApiSettings() {
             {hasP2cine && <CheckCircle2 className="w-5 h-5 text-green-500" />}
           </CardTitle>
           <CardDescription>
-            Usuário e senha do painel P2Cine. As chamadas saem pelo proxy com IP residencial.
+            Credenciais do painel P2Cine/kOffice. As chamadas saem pelo proxy com IP residencial.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -1108,6 +1109,20 @@ export default function ResellerApiSettings() {
                 onChange={(e) => setSettings({ ...settings, p2cine_base_url: e.target.value })}
                 placeholder="https://daily3.news"
               />
+            </div>
+            <div className="space-y-2 md:col-span-2">
+              <Label htmlFor="p2cine_api_key">Chave de API (opcional)</Label>
+              <Input
+                id="p2cine_api_key"
+                type="password"
+                value={settings.p2cine_api_key}
+                onChange={(e) => setSettings({ ...settings, p2cine_api_key: e.target.value.trim() })}
+                placeholder="Chave exibida no perfil do kOffice"
+                autoComplete="off"
+              />
+              <p className="text-xs text-muted-foreground">
+                A chave fica isolada nesta revenda. O login automático continua usando usuário e senha até o fornecedor disponibilizar a documentação oficial da API.
+              </p>
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
