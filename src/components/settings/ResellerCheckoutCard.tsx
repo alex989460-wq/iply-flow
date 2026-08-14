@@ -264,6 +264,13 @@ export default function ResellerCheckoutCard() {
             <span className="text-sm">Aceitar Pix (Efí)</span>
           </div>
           <div className="flex items-center gap-2">
+            <Switch
+              checked={(form as any).enable_mercadopago ?? false}
+              onCheckedChange={(v) => setForm((f) => ({ ...(f as any), enable_mercadopago: v }))}
+            />
+            <span className="text-sm">Aceitar Pix (Mercado Pago)</span>
+          </div>
+          <div className="flex items-center gap-2">
             <Switch checked={form.enable_cakto} onCheckedChange={(v) => setForm((f) => ({ ...f, enable_cakto: v }))} />
             <span className="text-sm">Aceitar Cakto (link do plano)</span>
           </div>
