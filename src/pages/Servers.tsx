@@ -52,6 +52,7 @@ export default function Servers() {
     credit_cost: 0,
     panel_type: 'auto',
     sigma_connection_id: '',
+    koffice_connection_id: '',
   });
 
 
