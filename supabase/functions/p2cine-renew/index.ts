@@ -44,6 +44,71 @@ function proxyConfig(): { url: string; secret: string } | null {
 
 type Relayed = { status: number; body: string; cookies: string[]; headers: Record<string, string> };
 
+// Abre o painel num navegador real na VPS (IP residencial) e faz o login lá.
+// É assim que a sessão fica salva sem precisar da extensão do navegador.
+async function browserLogin(base: string, username: string, password: string) {
+  const proxy = proxyConfig();
+  if (!proxy) {
+    throw new Error("O proxy do painel não está configurado. Fale com o suporte do SuperGestor.");
+  }
+
+  const res = await fetch(proxy.url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "x-sigma-proxy-secret": proxy.secret },
+    body: JSON.stringify({
+      browser: true,
+      url: `${base}/login`,
+      wait_ms: 8000,
+      steps: [
+        { selector: "input[name='username'], #username", value: username },
+        { selector: "input[name='password'], #password", value: password },
+        { selector: "button[type='submit'], input[type='submit'], .btn-login", click: true, wait_ms: 9000 },
+      ],
+    }),
+  }).catch((err) => {
+    throw new Error(
+      `Não foi possível falar com o proxy do painel. Verifique se a VPS do proxy está ligada. Detalhe: ${err instanceof Error ? err.message : String(err)}`,
+    );
+  });
+
+  const payload = await res.json().catch(() => null) as any;
+  if (res.status === 401) throw new Error("A chave secreta do proxy está incorreta.");
+  if (!res.ok || !payload?.ok) {
+    const msg = String(payload?.message || payload?.error || `HTTP ${res.status}`);
+    if (/navegador_indisponivel/i.test(msg) || payload?.error === "navegador_indisponivel") {
+      throw new Error("O navegador do proxy não está instalado na VPS. Atualize o proxy para a versão 1.4.0.");
+    }
+    throw new Error(`Falha ao abrir o painel no navegador do proxy: ${msg}`);
+  }
+
+  const cookies: string[] = (Array.isArray(payload.cookies) ? payload.cookies : [])
+    .map((c: any) => `${c.name}=${c.value}`);
+  const finalUrl = String(payload.final_url || "");
+  const html = String(payload.html || "");
+
+  const stillOnLogin = /\/login/i.test(finalUrl) || /name="password"/i.test(html);
+  if (!cookies.length || stillOnLogin) {
+    if (/captcha/i.test(html)) {
+      throw new Error("O painel pediu captcha e o navegador do proxy não conseguiu passar. Tente novamente em alguns minutos.");
+    }
+    throw new Error("Login recusado pelo painel. Confira usuário e senha do P2Cine.");
+  }
+
+  return cookies.join("; ");
+}
+
+// Confere se a sessão salva ainda está válida.
+async function sessionAlive(base: string, cookieHeader: string): Promise<boolean> {
+  if (!cookieHeader) return false;
+  try {
+    const res = await relay(`${base}/dashboard`, { headers: { ...browserHeaders, Cookie: cookieHeader } });
+    if (res.status >= 400) return false;
+    return !/name="password"/i.test(res.body);
+  } catch {
+    return false;
+  }
+}
+
 async function relay(
   url: string,
   init: { method?: string; headers?: Record<string, string>; body?: string },
@@ -179,10 +244,56 @@ Deno.serve(async (req) => {
       return json({ error: "Informe usuário e senha do painel P2Cine em Configurações → APIs." }, 400);
     }
 
-    if (action !== "test") return json({ error: `Ação não suportada: ${action}` }, 400);
+    if (action !== "test" && action !== "connect" && action !== "status") {
+      return json({ error: `Ação não suportada: ${action}` }, 400);
+    }
 
-    const session = await login(base, username, password);
-    return json({ success: true, base_url: base, username, message: session.message });
+    const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+
+    const { data: saved } = await admin
+      .from("reseller_api_settings")
+      .select("p2cine_session_cookie, p2cine_session_at")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    const savedCookie = String((saved as any)?.p2cine_session_cookie || "");
+
+    if (action === "status") {
+      const alive = await sessionAlive(base, savedCookie);
+      return json({ success: true, connected: alive, session_at: (saved as any)?.p2cine_session_at ?? null });
+    }
+
+    // Sessão salva ainda válida: não precisa logar de novo (nem da extensão).
+    if (action === "test" && await sessionAlive(base, savedCookie)) {
+      return json({
+        success: true,
+        base_url: base,
+        username,
+        connected: true,
+        message: "Sessão salva do P2Cine está ativa. Não é preciso usar a extensão.",
+      });
+    }
+
+    // Login pelo navegador real da VPS e salva a sessão para os próximos usos.
+    const cookieHeader = await browserLogin(base, username, password);
+    await admin
+      .from("reseller_api_settings")
+      .update({
+        p2cine_session_cookie: cookieHeader,
+        p2cine_session_at: new Date().toISOString(),
+        p2cine_base_url: base,
+      })
+      .eq("user_id", user.id);
+
+    return json({
+      success: true,
+      base_url: base,
+      username,
+      connected: true,
+      message: "Conectado ao P2Cine e sessão salva. A renovação funciona sem a extensão.",
+    });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error("[p2cine-renew]", message);
