@@ -297,6 +297,31 @@ export default function ResellerApiSettings() {
     }
   };
 
+  const connectP2cine = async () => {
+    if (!settings.p2cine_username || !settings.p2cine_password) {
+      toast({ title: 'Dados incompletos', description: 'Preencha usuário e senha do P2Cine.', variant: 'destructive' });
+      return;
+    }
+    setConnectingP2cine(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('p2cine-renew', {
+        body: {
+          action: 'connect',
+          p2cine_username: settings.p2cine_username.trim(),
+          p2cine_password: settings.p2cine_password,
+          p2cine_base_url: settings.p2cine_base_url.trim(),
+        },
+      });
+      if (error) throw error;
+      if (!data?.success) throw new Error(data?.error || 'Não foi possível conectar no P2Cine.');
+      toast({ title: 'P2Cine conectado', description: data.message || 'Sessão salva. A renovação funciona sem a extensão.' });
+    } catch (e: any) {
+      toast({ title: 'Falha ao conectar no P2Cine', description: e?.message || 'Confira o usuário e a senha.', variant: 'destructive' });
+    } finally {
+      setConnectingP2cine(false);
+    }
+  };
+
   if (loading) {
     return (
       <Card>
