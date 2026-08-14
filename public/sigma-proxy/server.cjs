@@ -347,7 +347,7 @@ async function browserSession(payload) {
 
     const cookies = await page.cookies();
     const finalUrl = page.url();
-    const html = (await page.content()).slice(0, 4000);
+    const html = (await page.content()).slice(0, 150000);
     const storage = await page
       .evaluate(() => {
         const out = {};
@@ -357,9 +357,27 @@ async function browserSession(payload) {
       })
       .catch(() => ({}));
 
+    // Lista os campos e botões visíveis, para descobrir os seletores certos.
+    const fields = await page
+      .evaluate(() => {
+        const list = [];
+        document.querySelectorAll("input, button, [type=submit]").forEach((el) => {
+          list.push({
+            tag: el.tagName.toLowerCase(),
+            type: el.getAttribute("type") || "",
+            name: el.getAttribute("name") || "",
+            id: el.id || "",
+            placeholder: el.getAttribute("placeholder") || "",
+            text: (el.innerText || "").trim().slice(0, 40),
+          });
+        });
+        return list.slice(0, 40);
+      })
+      .catch(() => []);
 
     await page.close().catch(() => {});
-    return { final_url: finalUrl, cookies, html, captcha, storage, captured };
+    return { final_url: finalUrl, cookies, html, captcha, storage, captured, steps: stepsLog, fields };
+
   } finally {
     await browser.close().catch(() => {});
   }
