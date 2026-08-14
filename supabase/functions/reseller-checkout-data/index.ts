@@ -136,11 +136,16 @@ Deno.serve(async (req) => {
       .order("price", { ascending: true });
 
     // Servers of this reseller (public listing for new customer registration).
-    const { data: servers } = await admin
+    const { data: allServers } = await admin
       .from("servers")
-      .select("id, server_name, status")
+      .select("id, server_name, status, is_public")
       .eq("created_by", ownerId)
       .order("server_name", { ascending: true });
+
+    // Só aparecem no checkout os servidores marcados como "Visível na Página de Checkout".
+    // Se o revendedor ainda não marcou nenhum, mantém o comportamento antigo (mostra todos).
+    const publicServers = (allServers || []).filter((s: any) => s.is_public === true);
+    const servers = publicServers.length > 0 ? publicServers : (allServers || []);
 
     // Activation apps configured by this reseller (public listing).
     const { data: apps } = await admin

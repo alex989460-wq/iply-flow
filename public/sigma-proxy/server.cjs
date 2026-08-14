@@ -383,6 +383,127 @@ async function browserSession(payload) {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Cloudflare "Just a moment" (desafio gerenciado).
+// Alguns painéis Sigma passaram a proteger /api/auth/login com o desafio do
+// Cloudflare. Aqui abrimos o navegador local, aguardamos (e, se preciso,
+// resolvemos o Turnstile via 2Captcha) para obter o cookie cf_clearance.
+// O cookie é reaproveitado por 25 minutos por domínio.
+// ---------------------------------------------------------------------------
+const clearanceCache = new Map(); // host -> { cookie, userAgent, ts }
+const CLEARANCE_TTL_MS = 25 * 60 * 1000;
+
+function isCloudflareChallenge(status, body) {
+  if (status !== 403 && status !== 503 && status !== 429) return false;
+  const text = String(body || "");
+  return /Just a moment|cf-chl|challenge-platform|cf_chl_opt|Attention Required/i.test(text);
+}
+
+async function solveCloudflare(origin) {
+  const host = new URL(origin).host;
+  const cached = clearanceCache.get(host);
+  if (cached && Date.now() - cached.ts < CLEARANCE_TTL_MS) return cached;
+  if (!browserAvailable) return null;
+
+  const { browser } = await openBrowser();
+  try {
+    const page = await browser.newPage();
+    const userAgent = (await browser.userAgent()).replace("HeadlessChrome", "Chrome");
+    await page.setUserAgent(userAgent);
+    await page.setExtraHTTPHeaders({ "Accept-Language": "pt-BR,pt;q=0.9,en;q=0.8" });
+    await page.evaluateOnNewDocument(() => {
+      Object.defineProperty(navigator, "webdriver", { get: () => undefined });
+      Object.defineProperty(navigator, "languages", { get: () => ["pt-BR", "pt", "en-US"] });
+      Object.defineProperty(navigator, "plugins", { get: () => [1, 2, 3, 4, 5] });
+      window.chrome = window.chrome || { runtime: {} };
+    });
+
+    await page.goto(origin, { waitUntil: "domcontentloaded", timeout: 120000 });
+
+    const stillChallenged = async () => await page
+      .evaluate(() => /just a moment|attention required/i.test(document.title) ||
+        !!document.querySelector("#challenge-form, #cf-chl-widget, input[name='cf-turnstile-response']"))
+      .catch(() => false);
+
+    // 1) Espera o desafio automático (a maioria passa sozinho em poucos segundos).
+    for (let i = 0; i < 12; i++) {
+      if (!(await stillChallenged())) break;
+      await new Promise((r) => setTimeout(r, 2500));
+    }
+
+    // 2) Ainda travado? Resolve o Turnstile do Cloudflare via 2Captcha.
+    if (await stillChallenged()) {
+      if (!CAPTCHA_KEY) {
+        console.warn("[cloudflare] desafio ativo e CAPTCHA_API_KEY não definida.");
+      } else {
+        const info = await page.evaluate(() => {
+          const opt = window._cf_chl_opt || {};
+          const el = document.querySelector("[data-sitekey]");
+          return {
+            key: (el && el.getAttribute("data-sitekey")) || opt.chlApiSitekey || "",
+            action: opt.chlApiWidgetId ? "" : (opt.chlApiAction || ""),
+            cdata: opt.chlApiCData || "",
+          };
+        }).catch(() => null);
+
+        if (info && info.key) {
+          try {
+            const token = await twoCaptchaSolve({
+              type: "TurnstileTaskProxyless",
+              websiteURL: page.url(),
+              websiteKey: info.key,
+              ...(info.action ? { action: info.action } : {}),
+              ...(info.cdata ? { data: info.cdata } : {}),
+            });
+            if (token) {
+              await injectCaptchaToken(page, "turnstile", token);
+              await page.evaluate((t) => {
+                try {
+                  const cbs = window.turnstile && window.turnstile._cbs;
+                  if (Array.isArray(cbs)) cbs.forEach((fn) => fn(t));
+                } catch { /* noop */ }
+                const form = document.querySelector("#challenge-form");
+                if (form) form.submit();
+              }, token).catch(() => {});
+              await new Promise((r) => setTimeout(r, 8000));
+            }
+          } catch (err) {
+            console.warn("[cloudflare] 2captcha falhou:", err && err.message);
+          }
+        }
+      }
+    }
+
+    const cookies = await page.cookies();
+    const clearance = cookies.find((c) => c.name === "cf_clearance");
+    await page.close().catch(() => {});
+    if (!clearance) {
+      console.warn(`[cloudflare] não foi possível obter cf_clearance de ${host}`);
+      return null;
+    }
+    const entry = {
+      cookie: cookies.map((c) => `${c.name}=${c.value}`).join("; "),
+      userAgent,
+      ts: Date.now(),
+    };
+    clearanceCache.set(host, entry);
+    console.log(`[cloudflare] cf_clearance obtido para ${host}`);
+    return entry;
+  } finally {
+    await browser.close().catch(() => {});
+  }
+}
+
+function withClearance(headers, entry) {
+  if (!entry) return headers;
+  const out = { ...headers };
+  const existing = out.Cookie || out.cookie || "";
+  delete out.cookie;
+  out.Cookie = existing ? `${existing}; ${entry.cookie}` : entry.cookie;
+  out["User-Agent"] = entry.userAgent;
+  return out;
+}
+
 const server = http.createServer(async (req, res) => {
   if (req.method === "OPTIONS") return send(res, 200, { ok: true });
 
@@ -390,7 +511,7 @@ const server = http.createServer(async (req, res) => {
     return send(res, 200, {
       ok: true,
       service: "sigma-proxy",
-      version: "1.8.0",
+      version: "1.9.0",
       mode: BRIGHTDATA_WS ? "brightdata" : "direct",
       browser: browserAvailable,
       captcha_solver: CAPTCHA_KEY ? "2captcha" : (BRIGHTDATA_WS ? "brightdata" : null),
@@ -449,18 +570,42 @@ const server = http.createServer(async (req, res) => {
       return send(res, 200, { status: out.status, ok: out.status >= 200 && out.status < 300, body: out.body });
     }
 
-    const upstream = await fetch(target, {
-      method,
-      headers,
-      body: method === "GET" || method === "HEAD" ? undefined : body,
-      redirect: payload.redirect === "manual" ? "manual" : "follow",
-    });
-    const text = await upstream.text();
-    const outHeaders = {};
-    upstream.headers.forEach((value, key) => { outHeaders[key] = value; });
-    let cookies = [];
-    try { cookies = typeof upstream.headers.getSetCookie === "function" ? upstream.headers.getSetCookie() : []; } catch {}
-    if (!cookies.length && outHeaders["set-cookie"]) cookies = [outHeaders["set-cookie"]];
+    const origin = new URL(target).origin;
+    const host = new URL(target).host;
+
+    const doFetch = async (hdrs) => {
+      const upstream = await fetch(target, {
+        method,
+        headers: hdrs,
+        body: method === "GET" || method === "HEAD" ? undefined : body,
+        redirect: payload.redirect === "manual" ? "manual" : "follow",
+      });
+      const text = await upstream.text();
+      const outHeaders = {};
+      upstream.headers.forEach((value, key) => { outHeaders[key] = value; });
+      let cookies = [];
+      try { cookies = typeof upstream.headers.getSetCookie === "function" ? upstream.headers.getSetCookie() : []; } catch {}
+      if (!cookies.length && outHeaders["set-cookie"]) cookies = [outHeaders["set-cookie"]];
+      return { upstream, text, outHeaders, cookies };
+    };
+
+    // Se já temos um cf_clearance válido para este domínio, usa desde a 1ª tentativa.
+    const cached = clearanceCache.get(host);
+    const validCached = cached && Date.now() - cached.ts < CLEARANCE_TTL_MS ? cached : null;
+    let result = await doFetch(withClearance(headers, validCached));
+
+    // Cloudflare barrou? Resolve o desafio no navegador e repete uma vez.
+    if (isCloudflareChallenge(result.upstream.status, result.text)) {
+      console.log(`[cloudflare] desafio detectado em ${target}, resolvendo...`);
+      clearanceCache.delete(host);
+      let entry = null;
+      try { entry = await solveCloudflare(origin); } catch (err) {
+        console.warn("[cloudflare] falha ao resolver:", err && err.message);
+      }
+      if (entry) result = await doFetch(withClearance(headers, entry));
+    }
+
+    const { upstream, text, outHeaders, cookies } = result;
     console.log(`[sigma-proxy] ${method} ${target} -> ${upstream.status}`);
     return send(res, 200, { status: upstream.status, ok: upstream.ok, body: text, headers: outHeaders, cookies, final_url: upstream.url || target });
   } catch (err) {
