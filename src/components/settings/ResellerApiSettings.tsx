@@ -34,6 +34,8 @@ export default function ResellerApiSettings() {
   const [savingSigmaConnection, setSavingSigmaConnection] = useState(false);
 
   const [testingUniplay, setTestingUniplay] = useState(false);
+  const [testingP2cine, setTestingP2cine] = useState(false);
+  const [showP2cinePassword, setShowP2cinePassword] = useState(false);
   const [testingTheBest, setTestingTheBest] = useState(false);
 
   const [settings, setSettings] = useState({
@@ -122,6 +124,9 @@ export default function ResellerApiSettings() {
           sigma_base_url: (d as any).sigma_base_url || '',
           sigma_username: (d as any).sigma_username || '',
           sigma_password: (d as any).sigma_password || '',
+          p2cine_username: (d as any).p2cine_username || '',
+          p2cine_password: (d as any).p2cine_password || '',
+          p2cine_base_url: (d as any).p2cine_base_url || '',
 
         });
 
@@ -167,6 +172,9 @@ export default function ResellerApiSettings() {
         sigma_base_url: settings.sigma_base_url || null,
         sigma_username: settings.sigma_username || null,
         sigma_password: settings.sigma_password || null,
+        p2cine_username: settings.p2cine_username || null,
+        p2cine_password: settings.p2cine_password || null,
+        p2cine_base_url: settings.p2cine_base_url || null,
 
         updated_at: new Date().toISOString(),
       };
