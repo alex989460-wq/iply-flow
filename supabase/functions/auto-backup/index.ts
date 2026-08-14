@@ -288,7 +288,7 @@ serve(async (req) => {
     if (isCron) {
       const { data: cfg } = await supabaseAdmin
         .from('backup_settings')
-        .select('id, enabled, interval_hours, last_run_at')
+        .select('id, enabled, interval_hours, interval_minutes, last_run_at')
         .order('updated_at', { ascending: false })
         .limit(1)
         .maybeSingle();
@@ -298,8 +298,12 @@ serve(async (req) => {
         if (!cfg.enabled) {
           return new Response(JSON.stringify({ skipped: true, reason: 'disabled' }), { headers: jsonHeaders });
         }
-        const intervalMs = Math.max(1, cfg.interval_hours || 3) * 3600_000;
-        if (cfg.last_run_at && Date.now() - new Date(cfg.last_run_at).getTime() < intervalMs - 60_000) {
+        const minutes = Number((cfg as any).interval_minutes) > 0
+          ? Number((cfg as any).interval_minutes)
+          : Math.max(1, cfg.interval_hours || 3) * 60;
+        const intervalMs = Math.max(1, minutes) * 60_000;
+        const tolerance = minutes <= 5 ? 5_000 : 60_000;
+        if (cfg.last_run_at && Date.now() - new Date(cfg.last_run_at).getTime() < intervalMs - tolerance) {
           return new Response(JSON.stringify({ skipped: true, reason: 'interval_not_reached' }), { headers: jsonHeaders });
         }
       }

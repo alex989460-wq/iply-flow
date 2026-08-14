@@ -696,11 +696,13 @@ export default function Settings() {
               <span className="hidden sm:inline">Metas</span>
               <span className="sm:hidden">Metas</span>
             </TabsTrigger>
-            <TabsTrigger value="backups" className="flex items-center gap-2">
-              <Database className="w-4 h-4 text-blue-500" />
-              <span className="hidden sm:inline">Backups</span>
-              <span className="sm:hidden">Back.</span>
-            </TabsTrigger>
+            {isAdmin && (
+              <TabsTrigger value="backups" className="flex items-center gap-2">
+                <Database className="w-4 h-4 text-blue-500" />
+                <span className="hidden sm:inline">Backups</span>
+                <span className="sm:hidden">Back.</span>
+              </TabsTrigger>
+            )}
             <TabsTrigger value="seguranca" className="flex items-center gap-2">
               <Shield className="w-4 h-4 text-emerald-500" />
               <span className="hidden sm:inline">Segurança</span>
@@ -757,9 +759,11 @@ export default function Settings() {
           </TabsContent>
 
           {/* Backups Tab */}
-          <TabsContent value="backups" className="mt-6">
-            <BackupManagerCard />
-          </TabsContent>
+          {isAdmin && (
+            <TabsContent value="backups" className="mt-6">
+              <BackupManagerCard />
+            </TabsContent>
+          )}
         </Tabs>
       </div>
     </DashboardLayout>

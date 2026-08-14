@@ -21,7 +21,20 @@ interface Backup {
   backup_type: string;
 }
 
-const INTERVALS = [1, 2, 3, 6, 12, 24];
+// Intervalos em minutos
+const INTERVALS: { value: number; label: string }[] = [
+  { value: 1, label: '1 minuto' },
+  { value: 5, label: '5 minutos' },
+  { value: 10, label: '10 minutos' },
+  { value: 15, label: '15 minutos' },
+  { value: 30, label: '30 minutos' },
+  { value: 60, label: '1 hora' },
+  { value: 120, label: '2 horas' },
+  { value: 180, label: '3 horas' },
+  { value: 360, label: '6 horas' },
+  { value: 720, label: '12 horas' },
+  { value: 1440, label: '24 horas' },
+];
 
 export default function BackupManagerCard() {
   const { toast } = useToast();
@@ -36,7 +49,7 @@ export default function BackupManagerCard() {
   // Configuração de agendamento
   const [settingsId, setSettingsId] = useState<string | null>(null);
   const [enabled, setEnabled] = useState(true);
-  const [intervalHours, setIntervalHours] = useState('3');
+  const [intervalMinutes, setIntervalMinutes] = useState('180');
   const [lastRunAt, setLastRunAt] = useState<string | null>(null);
   const [savingSettings, setSavingSettings] = useState(false);
 
@@ -53,14 +66,17 @@ export default function BackupManagerCard() {
   const fetchSettings = async () => {
     const { data } = await supabase
       .from('backup_settings')
-      .select('id, enabled, interval_hours, last_run_at')
+      .select('id, enabled, interval_hours, interval_minutes, last_run_at')
       .order('updated_at', { ascending: false })
       .limit(1)
       .maybeSingle();
     if (data) {
       setSettingsId(data.id);
       setEnabled(data.enabled);
-      setIntervalHours(String(data.interval_hours));
+      const minutes = Number(data.interval_minutes) > 0
+        ? Number(data.interval_minutes)
+        : Math.max(1, Number(data.interval_hours) || 3) * 60;
+      setIntervalMinutes(String(minutes));
       setLastRunAt(data.last_run_at);
     }
   };
@@ -68,16 +84,19 @@ export default function BackupManagerCard() {
   const saveSettings = async () => {
     setSavingSettings(true);
     try {
+      const minutes = Math.max(1, Number(intervalMinutes) || 60);
       const payload = {
         enabled,
-        interval_hours: Number(intervalHours),
+        interval_minutes: minutes,
+        interval_hours: Math.max(1, Math.round(minutes / 60)),
         updated_at: new Date().toISOString(),
       };
       const { error } = settingsId
         ? await supabase.from('backup_settings').update(payload).eq('id', settingsId)
         : await supabase.from('backup_settings').insert(payload);
       if (error) throw error;
-      toast({ title: 'Configuração salva', description: `Backup automático a cada ${intervalHours}h.` });
+      const label = INTERVALS.find((i) => i.value === minutes)?.label ?? `${minutes} minutos`;
+      toast({ title: 'Configuração salva', description: `Backup automático a cada ${label}.` });
       fetchSettings();
     } catch (err: any) {
       toast({ title: 'Erro', description: err.message, variant: 'destructive' });
@@ -249,13 +268,13 @@ export default function BackupManagerCard() {
             <div className="flex flex-wrap items-end gap-3">
               <div className="space-y-1">
                 <Label className="text-xs">Gerar a cada</Label>
-                <Select value={intervalHours} onValueChange={setIntervalHours}>
+                <Select value={intervalMinutes} onValueChange={setIntervalMinutes}>
                   <SelectTrigger className="w-36">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {INTERVALS.map((h) => (
-                      <SelectItem key={h} value={String(h)}>{h} hora{h > 1 ? 's' : ''}</SelectItem>
+                    {INTERVALS.map((i) => (
+                      <SelectItem key={i.value} value={String(i.value)}>{i.label}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>

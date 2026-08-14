@@ -642,6 +642,7 @@ export type Database = {
           enabled: boolean
           id: string
           interval_hours: number
+          interval_minutes: number
           last_run_at: string | null
           updated_at: string
         }
@@ -649,6 +650,7 @@ export type Database = {
           enabled?: boolean
           id?: string
           interval_hours?: number
+          interval_minutes?: number
           last_run_at?: string | null
           updated_at?: string
         }
@@ -656,6 +658,7 @@ export type Database = {
           enabled?: boolean
           id?: string
           interval_hours?: number
+          interval_minutes?: number
           last_run_at?: string | null
           updated_at?: string
         }
