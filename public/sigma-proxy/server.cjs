@@ -279,7 +279,23 @@ async function browserSession(payload) {
   try {
     const page = await browser.newPage();
     await page.setViewport({ width: 1366, height: 768 });
+
+    // Captura respostas de rede que interessam (ex.: endpoint de login do painel).
+    const captured = [];
+    const capturePattern = payload.capture ? new RegExp(String(payload.capture), "i") : null;
+    if (capturePattern) {
+      page.on("response", async (resp) => {
+        try {
+          const url = resp.url();
+          if (!capturePattern.test(url)) return;
+          const body = await resp.text().catch(() => "");
+          captured.push({ url, status: resp.status(), body: String(body).slice(0, 2000) });
+        } catch { /* ignora */ }
+      });
+    }
+
     await page.goto(String(payload.url), { waitUntil: "domcontentloaded", timeout: 120000 });
+
 
     // Resolve qualquer CAPTCHA já presente na tela de login.
     let captcha = await solveCaptcha(page, remote, String(payload.url));
