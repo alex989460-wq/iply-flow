@@ -1102,6 +1102,8 @@ serve(async (req) => {
             const isTheBest = sNameLower.includes('best') || sHostLower.includes('best');
             const isNatv2 = sNameLower.includes('natv²') || sNameLower.includes('natv2') || sHostLower.includes('natv2');
             const isNatv = !isNatv2 && (sNameLower.includes('natv') || sHostLower.includes('natv'));
+      // Painel Sigma: identificado pela conexão vinculada ao servidor (Configurações → APIs).
+      const isSigma = Boolean(sigmaConnectionId) || sNameLower.includes('sigma') || sHostLower.includes('sigma');
 
             try {
               if (isTheBest && resellerApiSettings?.the_best_username && resellerApiSettings?.the_best_password) {
@@ -2902,17 +2904,19 @@ serve(async (req) => {
       let serverName = '';
       let serverHost = '';
       let autoRenew = false;
+      let sigmaConnectionId = '';
 
       if (matchedCustomer.server_id) {
         const { data: serverData } = await supabaseAdmin
           .from('servers')
-          .select('server_name, host, auto_renew')
+          .select('server_name, host, auto_renew, sigma_connection_id')
           .eq('id', matchedCustomer.server_id)
           .maybeSingle();
 
         serverName = serverData?.server_name || '';
         serverHost = serverData?.host || '';
         autoRenew = serverData?.auto_renew ?? false;
+        sigmaConnectionId = (serverData as any)?.sigma_connection_id || '';
       }
 
       const sNameLower = serverName.toLowerCase();
@@ -2925,7 +2929,7 @@ serve(async (req) => {
 
       console.log(`[Cakto] Servidor: "${serverName}" (host: "${serverHost}") | auto_renew: ${autoRenew} | Tipo: ${isVplay ? 'VPlay' : isRush ? 'Rush' : isTheBest ? 'The Best' : isNatv2 ? 'NATV2' : isNatv ? 'NATV' : 'desconhecido'}`);
 
-      const isKnownApiServer = isVplay || isRush || isTheBest || isNatv || isNatv2;
+      const isKnownApiServer = isVplay || isRush || isTheBest || isNatv || isNatv2 || isSigma;
 
       // ── Helper: insert pendência manual ──
       const insertManualPending = async (reason: string, details: any) => {
@@ -3163,7 +3167,41 @@ serve(async (req) => {
           }
         }
 
-        if (!isVplay && !isNatv && !isNatv2 && !isTheBest && !isRush) {
+        // ── Painel Sigma ──
+        if (isSigma) {
+          const sigmaMonths = Math.max(1, Math.round(durationDays / 30));
+          for (const username of allUsernames) {
+            try {
+              console.log(`[Cakto] Renovando Sigma: ${username} por ${sigmaMonths} mês(es)`);
+              const sigmaResp = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/sigma-renew`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${Deno.env.get('SUPABASE_ANON_KEY')}`,
+                  'x-cakto-webhook-secret': globalWebhookSecret || '',
+                },
+                body: JSON.stringify({
+                  action: 'renew',
+                  owner_id: matchedCustomer.created_by,
+                  customer_id: matchedCustomer.id,
+                  connection_id: sigmaConnectionId || undefined,
+                  username,
+                  months: sigmaMonths,
+                  connections: matchedCustomer.screens || 1,
+                }),
+              });
+              const sigmaResult = await sigmaResp.json().catch(() => ({}));
+              renewResults.push({ panel: 'sigma', username, success: sigmaResp.ok && sigmaResult?.ok === true, result: sigmaResult });
+              console.log(`[Cakto] Sigma renew ${username}:`, JSON.stringify(sigmaResult));
+            } catch (e) {
+              const errMsg = e instanceof Error ? e.message : 'Erro desconhecido';
+              renewResults.push({ panel: 'sigma', username, success: false, error: errMsg });
+              console.error(`[Cakto] Erro renovando Sigma ${username}:`, e);
+            }
+          }
+        }
+
+        if (!isVplay && !isNatv && !isNatv2 && !isTheBest && !isRush && !isSigma) {
           console.log(`[Cakto] Tipo de servidor não reconhecido: "${serverName}". Nenhuma renovação externa. Apenas due_date atualizado.`);
           try {
             await supabaseAdmin.from('pending_manual_renewals').insert({
