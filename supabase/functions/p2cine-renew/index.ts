@@ -158,10 +158,34 @@ async function apiLogin(
   }
 }
 
+// A API JSON do painel não usa captcha: chamamos direto (rápido) e só caímos
+// no proxy residencial se o Cloudflare bloquear a requisição direta.
+async function apiFetch(
+  url: string,
+  init: { method?: string; headers?: Record<string, string>; body?: string },
+): Promise<Relayed> {
+  try {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 15000);
+    const res = await fetch(url, {
+      method: init.method || "GET",
+      headers: init.headers,
+      body: init.body,
+      signal: ctrl.signal,
+    });
+    clearTimeout(timer);
+    const text = await res.text();
+    if (res.status < 400 && !/just a moment|cf-challenge/i.test(text)) {
+      return { status: res.status, body: text, cookies: [], headers: {} };
+    }
+  } catch { /* cai para o proxy */ }
+  return await relay(url, init);
+}
+
 // Faz uma chamada autenticada na API usando o token JWT da sessão de API.
 async function apiCall(base: string, token: string, action: string, params: Record<string, string> = {}) {
   const qs = new URLSearchParams({ token, ...params }).toString();
-  const res = await relay(`${base}/api/${action}?${qs}`, {
+  const res = await apiFetch(`${base}/api/${action}?${qs}`, {
     headers: { ...browserHeaders, Accept: "application/json" },
   });
   const text = String(res.body || "").trim();
@@ -171,6 +195,7 @@ async function apiCall(base: string, token: string, action: string, params: Reco
   if (String(parsed.result || "").toLowerCase() === "failed") throw new Error(apiErrorPt(parsed));
   return parsed;
 }
+
 
 
 // Confere se a sessão salva ainda está válida.
