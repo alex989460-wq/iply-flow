@@ -355,7 +355,7 @@ async function browserSession(payload) {
 
 
     await page.close().catch(() => {});
-    return { final_url: finalUrl, cookies, html, captcha, storage };
+    return { final_url: finalUrl, cookies, html, captcha, storage, captured };
   } finally {
     await browser.close().catch(() => {});
   }
