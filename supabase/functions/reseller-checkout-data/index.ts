@@ -84,9 +84,10 @@ Deno.serve(async (req) => {
 
       let customerId = existing?.id || "";
       if (existing) {
-        const { error: updateError } = await admin.from("customers").update({
-          name, phone, server_id: serverId,
-        }).eq("id", existing.id).eq("created_by", st.user_id);
+        const { error: updateError } = await admin.from("customers").update(
+          serverId ? { name, phone, server_id: serverId } : { name, phone },
+        ).eq("id", existing.id).eq("created_by", st.user_id);
+
         if (updateError) return json({ error: `Não foi possível atualizar o cadastro: ${updateError.message}` }, 400);
       } else {
         const { data: customer, error: customerError } = await admin.from("customers").insert({
