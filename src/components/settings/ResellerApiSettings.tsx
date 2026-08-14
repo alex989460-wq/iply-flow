@@ -1125,55 +1125,40 @@ export default function ResellerApiSettings() {
         </CardContent>
       </Card>
 
-      {/* P2Cine */}
+      {/* kOffice Panel (P2Cine) */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Key className="w-5 h-5 text-pink-500" />
-            P2Cine (Painel)
-            {hasP2cine && <CheckCircle2 className="w-5 h-5 text-green-500" />}
+            kOffice Panel
+            {(kofficeConnections.length > 0 || hasP2cine) && <CheckCircle2 className="w-5 h-5 text-green-500" />}
           </CardTitle>
           <CardDescription>
-            Credenciais do painel P2Cine/kOffice. As chamadas saem pelo proxy com IP residencial.
+            Adicione quantos painéis kOffice/P2Cine quiser. Informe apenas URL, usuário e chave de API —
+            a renovação é feita direto pela API oficial do painel, sem navegador nem captcha.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid gap-4 md:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="p2cine_username">Usuário</Label>
-              <Input
-                id="p2cine_username"
-                value={settings.p2cine_username}
-                onChange={(e) => setSettings({ ...settings, p2cine_username: e.target.value })}
-                placeholder="Seu usuário do P2Cine"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="p2cine_password">Senha</Label>
-              <div className="relative">
-                <Input
-                  id="p2cine_password"
-                  type={showP2cinePassword ? 'text' : 'password'}
-                  value={settings.p2cine_password}
-                  onChange={(e) => setSettings({ ...settings, p2cine_password: e.target.value })}
-                  placeholder="Sua senha do P2Cine"
-                  className="pr-10"
-                />
-                <Button type="button" variant="ghost" size="icon" className="absolute right-0 top-0 h-full" onClick={() => setShowP2cinePassword(!showP2cinePassword)}>
-                  {showP2cinePassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </Button>
-              </div>
-            </div>
             <div className="space-y-2 md:col-span-2">
               <Label htmlFor="p2cine_base_url">URL do painel</Label>
               <Input
                 id="p2cine_base_url"
                 value={settings.p2cine_base_url}
                 onChange={(e) => setSettings({ ...settings, p2cine_base_url: e.target.value })}
-                placeholder="https://daily3.news"
+                placeholder="https://painelacesso1.com"
               />
             </div>
-            <div className="space-y-2 md:col-span-2">
+            <div className="space-y-2">
+              <Label htmlFor="p2cine_username">Usuário</Label>
+              <Input
+                id="p2cine_username"
+                value={settings.p2cine_username}
+                onChange={(e) => setSettings({ ...settings, p2cine_username: e.target.value })}
+                placeholder="Seu usuário do painel"
+              />
+            </div>
+            <div className="space-y-2">
               <Label htmlFor="p2cine_api_key">Chave de API</Label>
               <Input
                 id="p2cine_api_key"
@@ -1183,24 +1168,16 @@ export default function ResellerApiSettings() {
                 placeholder="Chave exibida no perfil do kOffice"
                 autoComplete="off"
               />
-              <p className="text-xs text-muted-foreground">
-                Com usuário + chave + URL o painel autentica pela API oficial: não precisa de senha, navegador nem captcha.
-                A senha só é usada como plano B no login automático.
-              </p>
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Button type="button" variant="outline" onClick={testP2cine} disabled={testingP2cine || connectingP2cine}>
+            <Button type="button" variant="outline" onClick={testP2cine} disabled={testingP2cine || savingKofficeConnection}>
               {testingP2cine && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-              Testar conexão P2Cine
+              Testar conexão
             </Button>
             <Button type="button" onClick={addKofficeConnection} disabled={savingKofficeConnection}>
               {savingKofficeConnection ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Plus className="w-4 h-4 mr-2" />}
-              Adicionar painel kOffice
-            </Button>
-            <Button type="button" variant="secondary" onClick={connectP2cine} disabled={connectingP2cine || testingP2cine}>
-              {connectingP2cine && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-              Conectar e manter logado (sem extensão)
+              Adicionar painel
             </Button>
           </div>
 
@@ -1224,13 +1201,13 @@ export default function ResellerApiSettings() {
           <Alert className="bg-muted/50">
             <AlertCircle className="h-4 w-4" />
             <AlertDescription className="text-xs">
-              Ao conectar, o SuperGestor abre o painel num navegador real com IP residencial, faz o login e
-              guarda a sessão. Depois disso as renovações acontecem sozinhas, sem precisar da extensão nem
-              de manter o navegador aberto. Se a sessão cair, é só clicar em conectar de novo.
+              O sistema identifica sozinho qual painel usar comparando a URL cadastrada aqui com o endereço
+              do servidor do cliente — novos painéis passam a renovar automaticamente sem nenhum ajuste extra.
             </AlertDescription>
           </Alert>
         </CardContent>
       </Card>
+
 
 
       <div className="flex justify-end">
