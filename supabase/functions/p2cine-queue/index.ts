@@ -146,7 +146,7 @@ Deno.serve(async (req) => {
 
 
 
-      const panelType = isUniplay(next) ? "uniplay" : "p2cine";
+      const panelType = "uniplay";
 
       // Resolve months from the plan registered in the system (fallback 1).
       let months = 1;
