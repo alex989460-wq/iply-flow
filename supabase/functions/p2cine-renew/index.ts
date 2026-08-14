@@ -276,28 +276,47 @@ Deno.serve(async (req) => {
     let base = normBase(body?.p2cine_base_url);
     let username = String(body?.p2cine_username || "").trim();
     let password = String(body?.p2cine_password || "");
+    let apiKey = String(body?.p2cine_api_key || "").trim();
 
-    if (!username || !password) {
+    if (!username || !password || !apiKey) {
       const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, {
         auth: { autoRefreshToken: false, persistSession: false },
       });
       const { data: s } = await admin
         .from("reseller_api_settings")
-        .select("p2cine_username, p2cine_password, p2cine_base_url")
+        .select("p2cine_username, p2cine_password, p2cine_base_url, p2cine_api_key")
         .eq("user_id", user.id)
         .maybeSingle();
       username = username || String((s as any)?.p2cine_username || "");
       password = password || String((s as any)?.p2cine_password || "");
+      apiKey = apiKey || String((s as any)?.p2cine_api_key || "");
       if (!body?.p2cine_base_url) base = normBase((s as any)?.p2cine_base_url);
     }
 
-    if (!username || !password) {
-      return json({ error: "Informe usuário e senha do painel P2Cine em Configurações → APIs." }, 400);
+    if (!apiKey && (!username || !password)) {
+      return json({ error: "Informe a chave de API ou o usuário e a senha do painel P2Cine em Configurações → APIs." }, 400);
     }
 
     if (action !== "test" && action !== "connect" && action !== "status") {
       return json({ error: `Ação não suportada: ${action}` }, 400);
     }
+
+    // 1) Tenta autenticar direto pela chave de API do painel (sem navegador nem captcha).
+    if (apiKey && (action === "test" || action === "connect")) {
+      const apiResult = await tryApiKey(base, apiKey);
+      if (apiResult.ok) {
+        return json({
+          success: true,
+          base_url: base,
+          username,
+          connected: true,
+          auth_mode: "api_key",
+          message: `Chave de API do P2Cine aceita pelo painel (${apiResult.endpoint}).`,
+        });
+      }
+      apiKeyDiagnostic = apiResult.detail;
+    }
+
 
     const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, {
       auth: { autoRefreshToken: false, persistSession: false },
