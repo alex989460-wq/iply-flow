@@ -113,6 +113,72 @@ async function fetchViaBrightData(target, method, headers, body) {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Sessão de navegador com resolução automática de CAPTCHA (Bright Data).
+// Usado para painéis que exigem hCaptcha/reCAPTCHA no login (P2Cine, Uniplay).
+// Payload:
+//   { browser: true, url, steps: [{selector, value?, click?, wait_ms?}], wait_ms, final_url_contains? }
+// Retorna: { final_url, cookies, html (trecho), captcha }
+// ---------------------------------------------------------------------------
+async function browserSession(payload) {
+  const browser = await puppeteer.connect({ browserWSEndpoint: BRIGHTDATA_WS });
+  try {
+    const page = await browser.newPage();
+    await page.setViewport({ width: 1366, height: 768 });
+    await page.goto(String(payload.url), { waitUntil: "domcontentloaded", timeout: 120000 });
+
+    // Pede ao Scraping Browser para resolver qualquer CAPTCHA presente.
+    let captcha = { status: "none" };
+    try {
+      const client = await page.createCDPSession();
+      captcha = await client.send("Captcha.solve", { detectTimeout: 30000 });
+    } catch (err) {
+      captcha = { status: "unavailable", message: String(err && err.message) };
+    }
+
+    for (const step of Array.isArray(payload.steps) ? payload.steps : []) {
+      try {
+        if (step.selector) {
+          await page.waitForSelector(step.selector, { timeout: 30000 });
+          if (typeof step.value === "string") {
+            await page.click(step.selector, { clickCount: 3 }).catch(() => {});
+            await page.type(step.selector, step.value, { delay: 40 });
+          }
+          if (step.click) await page.click(step.selector);
+        }
+        if (step.wait_ms) await new Promise((r) => setTimeout(r, Number(step.wait_ms)));
+      } catch (err) {
+        console.warn("[browser] passo falhou:", step.selector, err && err.message);
+      }
+    }
+
+    // Segunda tentativa de CAPTCHA (alguns painéis só mostram após o submit).
+    try {
+      const client2 = await page.createCDPSession();
+      const c2 = await client2.send("Captcha.solve", { detectTimeout: 20000 });
+      if (c2 && c2.status && c2.status !== "not_detected") captcha = c2;
+    } catch { /* ignora */ }
+
+    await new Promise((r) => setTimeout(r, Number(payload.wait_ms || 5000)));
+
+    const cookies = await page.cookies();
+    const finalUrl = page.url();
+    const html = (await page.content()).slice(0, 4000);
+    const storage = await page
+      .evaluate(() => {
+        const out = {};
+        try { for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); out[k] = localStorage.getItem(k); } } catch { /* noop */ }
+        return out;
+      })
+      .catch(() => ({}));
+
+    await page.close().catch(() => {});
+    return { final_url: finalUrl, cookies, html, captcha, storage };
+  } finally {
+    await browser.close().catch(() => {});
+  }
+}
+
 const server = http.createServer(async (req, res) => {
   if (req.method === "OPTIONS") return send(res, 200, { ok: true });
 
@@ -120,12 +186,14 @@ const server = http.createServer(async (req, res) => {
     return send(res, 200, {
       ok: true,
       service: "sigma-proxy",
-      version: "1.1.0",
+      version: "1.2.0",
       mode: BRIGHTDATA_WS ? "brightdata" : "direct",
+      browser: Boolean(BRIGHTDATA_WS),
     });
   }
 
   if (req.method !== "POST") return send(res, 405, { error: "metodo_nao_permitido" });
+
 
   const provided = String(req.headers["x-sigma-proxy-secret"] || "");
   if (provided !== SECRET) {
