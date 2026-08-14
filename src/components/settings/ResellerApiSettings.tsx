@@ -65,8 +65,6 @@ export default function ResellerApiSettings() {
     sigma_base_url: '',
     sigma_username: '',
     sigma_password: '',
-    sigma_proxy_url: '',
-    sigma_proxy_secret: '',
 
   });
 
@@ -120,8 +118,6 @@ export default function ResellerApiSettings() {
           sigma_base_url: (d as any).sigma_base_url || '',
           sigma_username: (d as any).sigma_username || '',
           sigma_password: (d as any).sigma_password || '',
-          sigma_proxy_url: (d as any).sigma_proxy_url || '',
-          sigma_proxy_secret: (d as any).sigma_proxy_secret || '',
 
         });
 
@@ -167,8 +163,6 @@ export default function ResellerApiSettings() {
         sigma_base_url: settings.sigma_base_url || null,
         sigma_username: settings.sigma_username || null,
         sigma_password: settings.sigma_password || null,
-        sigma_proxy_url: settings.sigma_proxy_url || null,
-        sigma_proxy_secret: settings.sigma_proxy_secret || null,
 
         updated_at: new Date().toISOString(),
       };
@@ -296,8 +290,6 @@ export default function ResellerApiSettings() {
           sigma_base_url: settings.sigma_base_url.trim(),
           sigma_username: settings.sigma_username.trim(),
           sigma_password: settings.sigma_password,
-          sigma_proxy_url: settings.sigma_proxy_url.trim(),
-          sigma_proxy_secret: settings.sigma_proxy_secret,
         },
       });
 
@@ -340,8 +332,6 @@ export default function ResellerApiSettings() {
         base_url: settings.sigma_base_url.trim(),
         username: settings.sigma_username.trim(),
         password: settings.sigma_password,
-        proxy_url: settings.sigma_proxy_url.trim() || null,
-        proxy_secret: settings.sigma_proxy_secret || null,
       });
       if (error) throw error;
       setSettings((current) => ({ ...current, sigma_base_url: '', sigma_username: '', sigma_password: '' }));
@@ -912,42 +902,6 @@ export default function ResellerApiSettings() {
             </div>
           </div>
 
-          <div className="rounded-md border border-border p-3 space-y-3">
-            <div className="flex items-center justify-between gap-2">
-              <Label className="text-sm">Mini Proxy Sigma (recomendado)</Label>
-              <Button type="button" variant="ghost" size="sm" asChild>
-                <a href="/sigma-proxy/LEIAME.md" target="_blank" rel="noreferrer">
-                  <ExternalLink className="w-4 h-4 mr-2" />
-                  Como instalar
-                </a>
-              </Button>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              O painel Sigma bloqueia chamadas vindas de servidores de nuvem. Rode o mini proxy na sua máquina
-              (arquivo <a className="underline" href="/sigma-proxy/server.cjs" target="_blank" rel="noreferrer">server.cjs</a>) e informe abaixo a URL do túnel e a chave secreta.
-            </p>
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="sigma_proxy_url">URL do Proxy</Label>
-                <Input
-                  id="sigma_proxy_url"
-                  value={settings.sigma_proxy_url}
-                  onChange={(e) => setSettings({ ...settings, sigma_proxy_url: e.target.value })}
-                  placeholder="https://seu-tunel.trycloudflare.com"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="sigma_proxy_secret">Chave do Proxy</Label>
-                <Input
-                  id="sigma_proxy_secret"
-                  type="password"
-                  value={settings.sigma_proxy_secret}
-                  onChange={(e) => setSettings({ ...settings, sigma_proxy_secret: e.target.value })}
-                  placeholder="A mesma chave usada ao iniciar o proxy"
-                />
-              </div>
-            </div>
-          </div>
 
           <Button variant="outline" onClick={handleTestSigma} disabled={testingSigma}>
             {testingSigma ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <CheckCircle2 className="w-4 h-4 mr-2" />}
