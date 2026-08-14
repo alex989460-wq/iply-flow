@@ -2809,6 +2809,8 @@ export type Database = {
           rush_username: string | null
           sigma_base_url: string | null
           sigma_password: string | null
+          sigma_proxy_secret: string | null
+          sigma_proxy_url: string | null
           sigma_username: string | null
           the_best_api_key: string | null
           the_best_base_url: string | null
@@ -2843,6 +2845,8 @@ export type Database = {
           rush_username?: string | null
           sigma_base_url?: string | null
           sigma_password?: string | null
+          sigma_proxy_secret?: string | null
+          sigma_proxy_url?: string | null
           sigma_username?: string | null
           the_best_api_key?: string | null
           the_best_base_url?: string | null
@@ -2877,6 +2881,8 @@ export type Database = {
           rush_username?: string | null
           sigma_base_url?: string | null
           sigma_password?: string | null
+          sigma_proxy_secret?: string | null
+          sigma_proxy_url?: string | null
           sigma_username?: string | null
           the_best_api_key?: string | null
           the_best_base_url?: string | null
@@ -3022,6 +3028,8 @@ export type Database = {
           is_active: boolean
           name: string
           password: string
+          proxy_secret: string | null
+          proxy_url: string | null
           updated_at: string
           user_id: string
           username: string
@@ -3033,6 +3041,8 @@ export type Database = {
           is_active?: boolean
           name: string
           password: string
+          proxy_secret?: string | null
+          proxy_url?: string | null
           updated_at?: string
           user_id: string
           username: string
@@ -3044,6 +3054,8 @@ export type Database = {
           is_active?: boolean
           name?: string
           password?: string
+          proxy_secret?: string | null
+          proxy_url?: string | null
           updated_at?: string
           user_id?: string
           username?: string
