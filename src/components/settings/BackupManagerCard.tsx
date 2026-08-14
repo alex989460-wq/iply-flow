@@ -268,13 +268,13 @@ export default function BackupManagerCard() {
             <div className="flex flex-wrap items-end gap-3">
               <div className="space-y-1">
                 <Label className="text-xs">Gerar a cada</Label>
-                <Select value={intervalHours} onValueChange={setIntervalHours}>
+                <Select value={intervalMinutes} onValueChange={setIntervalMinutes}>
                   <SelectTrigger className="w-36">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {INTERVALS.map((h) => (
-                      <SelectItem key={h} value={String(h)}>{h} hora{h > 1 ? 's' : ''}</SelectItem>
+                    {INTERVALS.map((i) => (
+                      <SelectItem key={i.value} value={String(i.value)}>{i.label}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
