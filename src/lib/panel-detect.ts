@@ -39,7 +39,7 @@ export function resolvePanel(server?: {
 } | null): PanelType | null {
   const manual = String(server?.panel_type || '').trim().toLowerCase();
   if (manual && manual !== 'auto' && VALID.includes(manual as PanelType)) {
-    return manual as PanelType;
+    return (manual === 'koffice' ? 'p2cine' : manual) as PanelType;
   }
 
   const sn = String(server?.server_name || '').toLowerCase();
