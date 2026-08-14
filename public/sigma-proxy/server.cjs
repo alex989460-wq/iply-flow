@@ -213,9 +213,23 @@ const server = http.createServer(async (req, res) => {
     return send(res, 400, { error: "url_nao_permitida", message: "Informe uma URL http(s) válida do painel." });
   }
 
+  // Modo navegador (login com CAPTCHA)
+  if (payload.browser === true) {
+    if (!BRIGHTDATA_WS) return send(res, 400, { error: "brightdata_nao_configurado" });
+    try {
+      const out = await browserSession(payload);
+      console.log(`[browser] ${target} -> ${out.final_url} captcha=${out.captcha && out.captcha.status}`);
+      return send(res, 200, { ok: true, ...out });
+    } catch (err) {
+      console.error("[browser] falha:", err && err.message);
+      return send(res, 502, { error: "falha_no_navegador", message: String(err && err.message) });
+    }
+  }
+
   const method = String(payload.method || "GET").toUpperCase();
   const headers = payload.headers && typeof payload.headers === "object" ? payload.headers : {};
   const body = typeof payload.body === "string" ? payload.body : undefined;
+
 
   try {
     if (BRIGHTDATA_WS) {
