@@ -34,8 +34,10 @@ const browserHeaders = {
 type Proxy = { url: string; secret: string } | null;
 
 function buildProxy(url?: string | null, secret?: string | null): Proxy {
-  const u = String(url || "").trim().replace(/\/+$/, "");
-  const s = String(secret || "").trim();
+  // Proxy global (configurado uma única vez pelo admin da plataforma).
+  // Assim os revendedores só precisam informar URL, usuário e senha do painel.
+  const u = String(url || Deno.env.get("SIGMA_PROXY_URL") || "").trim().replace(/\/+$/, "");
+  const s = String(secret || Deno.env.get("SIGMA_PROXY_SECRET") || "").trim();
   if (!u || !s) return null;
   return { url: /^https?:\/\//i.test(u) ? u : `https://${u}`, secret: s };
 }
@@ -132,7 +134,7 @@ async function sigmaLogin(base: string, username: string, password: string, prox
   }
 
   if (!proxy && (lastStatus === 403 || lastStatus === 404 || lastStatus === 503)) {
-    throw new Error("O painel Sigma bloqueou a conexão vinda do servidor (proteção de firewall). Configure o Mini Proxy Sigma em Configurações → APIs para que as chamadas saiam do seu próprio IP.");
+    throw new Error("O painel Sigma bloqueou a conexão vinda do servidor (proteção de firewall). Avise o suporte do SuperGestor para liberar o acesso ao seu painel.");
   }
 
   throw new Error(lastMessage
