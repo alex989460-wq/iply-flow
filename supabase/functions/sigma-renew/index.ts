@@ -231,6 +231,42 @@ Deno.serve(async (req) => {
 
     const { token, me, apiBase } = await sigmaLogin(base, user, pass, proxy);
 
+
+  // Busca robusta do cliente no Sigma: tenta múltiplos parâmetros de pesquisa e,
+  // em último caso, pagina a lista completa procurando o usuário exato.
+  const findSigmaCustomer = async (apiBase: string, token: string, username: string, proxy: any) => {
+    const uname = username.toLowerCase();
+    const pick = (body: any) => {
+      const list = Array.isArray(body?.data) ? body.data : (Array.isArray(body) ? body : []);
+      return list.find((c: any) => String(c.username || "").toLowerCase() === uname) || null;
+    };
+    const queries = [
+      `/api/customers?page=1&username=${encodeURIComponent(username)}`,
+      `/api/customers?page=1&search=${encodeURIComponent(username)}`,
+      `/api/customers?page=1&filter[username]=${encodeURIComponent(username)}`,
+      `/api/customers?page=1&query=${encodeURIComponent(username)}`,
+      `/api/customers?page=1&keyword=${encodeURIComponent(username)}`,
+    ];
+    for (const q of queries) {
+      try {
+        const r = await sigmaFetch(apiBase, token, q, {}, proxy);
+        const hit = pick(r.body);
+        if (hit) return hit;
+      } catch (_e) { /* tenta o próximo formato */ }
+    }
+    // fallback: varre as páginas (limite de segurança)
+    for (let page = 1; page <= 25; page++) {
+      try {
+        const r = await sigmaFetch(apiBase, token, `/api/customers?page=${page}&per_page=100`, {}, proxy);
+        const hit = pick(r.body);
+        if (hit) return hit;
+        const list = Array.isArray(r.body?.data) ? r.body.data : [];
+        if (list.length === 0) break;
+      } catch (_e) { break; }
+    }
+    return null;
+  };
+
     // ---- servidores/pacotes ----
     const loadServers = async () => {
       const r = await sigmaFetch(apiBase, token, "/api/servers", {}, proxy);
@@ -313,6 +349,15 @@ Deno.serve(async (req) => {
       });
     }
 
+    // ---- consulta (debug/verificação) ----
+    if (action === "lookup") {
+      const username = String(body.username || "").trim();
+      if (!username) return json({ error: "Informe o usuário a consultar." }, 400);
+      const found = await findSigmaCustomer(apiBase, token, username, proxy);
+      if (!found) return json({ ok: false, found: false, error: `Usuário "${username}" não encontrado no Painel Sigma.` }, 200);
+      return json({ ok: true, found: true, customer: { id: found.id, username: found.username, server_id: found.server_id, package_id: found.package_id, expires_at: found.expires_at, status: found.status } });
+    }
+
     // ---- renovar ----
     if (action === "renew") {
       const username = String(body.username || "").trim();
@@ -320,18 +365,7 @@ Deno.serve(async (req) => {
       const months = Math.max(1, Number(body.months || 1));
       const connections = Number(body.connections || 1);
 
-      const found = await sigmaFetch(
-        apiBase,
-        token,
-        `/api/customers?page=1&username=${encodeURIComponent(username)}`,
-        {},
-        proxy,
-      );
-
-      const list = Array.isArray(found.body?.data) ? found.body.data : [];
-      const customer = list.find(
-        (c: any) => String(c.username || "").toLowerCase() === username.toLowerCase(),
-      ) || list[0];
+      const customer = await findSigmaCustomer(apiBase, token, username, proxy);
       if (!customer) return json({ error: `Usuário "${username}" não encontrado no Painel Sigma.` }, 404);
 
       // escolhe pacote: o informado, ou o pacote atual, ou o que casa com a duração
