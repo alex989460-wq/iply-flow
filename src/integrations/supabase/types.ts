@@ -2805,6 +2805,8 @@ export type Database = {
           natv2_base_url: string | null
           p2cine_base_url: string | null
           p2cine_password: string | null
+          p2cine_session_at: string | null
+          p2cine_session_cookie: string | null
           p2cine_username: string | null
           rush_base_url: string | null
           rush_password: string | null
@@ -2821,6 +2823,9 @@ export type Database = {
           the_best_username: string | null
           uniplay_base_url: string | null
           uniplay_password: string | null
+          uniplay_session_at: string | null
+          uniplay_session_pass: string | null
+          uniplay_session_token: string | null
           uniplay_username: string | null
           updated_at: string
           user_id: string
@@ -2844,6 +2849,8 @@ export type Database = {
           natv2_base_url?: string | null
           p2cine_base_url?: string | null
           p2cine_password?: string | null
+          p2cine_session_at?: string | null
+          p2cine_session_cookie?: string | null
           p2cine_username?: string | null
           rush_base_url?: string | null
           rush_password?: string | null
@@ -2860,6 +2867,9 @@ export type Database = {
           the_best_username?: string | null
           uniplay_base_url?: string | null
           uniplay_password?: string | null
+          uniplay_session_at?: string | null
+          uniplay_session_pass?: string | null
+          uniplay_session_token?: string | null
           uniplay_username?: string | null
           updated_at?: string
           user_id: string
@@ -2883,6 +2893,8 @@ export type Database = {
           natv2_base_url?: string | null
           p2cine_base_url?: string | null
           p2cine_password?: string | null
+          p2cine_session_at?: string | null
+          p2cine_session_cookie?: string | null
           p2cine_username?: string | null
           rush_base_url?: string | null
           rush_password?: string | null
@@ -2899,6 +2911,9 @@ export type Database = {
           the_best_username?: string | null
           uniplay_base_url?: string | null
           uniplay_password?: string | null
+          uniplay_session_at?: string | null
+          uniplay_session_pass?: string | null
+          uniplay_session_token?: string | null
           uniplay_username?: string | null
           updated_at?: string
           user_id?: string
