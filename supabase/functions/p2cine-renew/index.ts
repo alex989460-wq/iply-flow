@@ -196,6 +196,78 @@ async function apiCall(base: string, token: string, action: string, params: Reco
   return parsed;
 }
 
+// ---------------------------------------------------------------------------
+// Renovação sem extensão: o token da API também autentica as rotas internas do
+// painel (basta enviá-lo na query). Assim usamos as mesmas chamadas que o painel
+// faz no navegador — sem captcha e sem sessão de navegador.
+//   POST /clients/api/?get_clients&token=...        -> localiza o client_id
+//   POST /clients/api/?renew_client_plus&client_id=&months=&token=... -> renova
+// ---------------------------------------------------------------------------
+async function panelPost(base: string, token: string, action: string, params: Record<string, string>, form?: URLSearchParams) {
+  const qs = new URLSearchParams({ ...params, token }).toString();
+  const res = await apiFetch(`${base}/clients/api/?${action}&${qs}`, {
+    method: "POST",
+    headers: {
+      ...browserHeaders,
+      Accept: "application/json, text/javascript, */*; q=0.01",
+      "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+      "X-Requested-With": "XMLHttpRequest",
+      Origin: base,
+      Referer: `${base}/clients/?token=${token}`,
+    },
+    body: (form ?? new URLSearchParams()).toString(),
+  });
+  const text = String(res.body || "").trim();
+  if (/<meta http-equiv="Refresh"|\/login\//i.test(text) && text.length < 400) {
+    throw new Error("O painel não aceitou o token da API (sessão expirada). Confira usuário e chave de API.");
+  }
+  let parsed: any = null;
+  try { parsed = JSON.parse(text); } catch { /* pode ser texto simples */ }
+  return { status: res.status, text, parsed };
+}
+
+// Procura o client_id do login informado na lista de clientes do painel.
+async function findClientId(base: string, token: string, login: string): Promise<string | null> {
+  const form = new URLSearchParams();
+  form.set("draw", "1");
+  form.set("start", "0");
+  form.set("length", "25");
+  form.set("search[value]", login);
+  form.set("search[regex]", "false");
+  form.set("filter_value", "#");
+  form.set("search_column", "login");
+  form.set("reseller_id", "-1");
+  form.set("columns[0][data]", "0");
+  form.set("columns[0][searchable]", "true");
+  form.set("columns[0][orderable]", "true");
+  form.set("order[0][column]", "0");
+  form.set("order[0][dir]", "asc");
+
+  const { parsed } = await panelPost(base, token, "get_clients", {}, form);
+  const rows: any[] = Array.isArray(parsed?.data) ? parsed.data : [];
+  const wanted = login.toLowerCase().trim();
+  for (const row of rows) {
+    const cells = (row as any[]).map((c) => String(c ?? ""));
+    const match = cells.some((c) => c.toLowerCase().trim() === wanted);
+    if (match) return String(cells[0] || "").trim() || null;
+  }
+  return null;
+}
+
+// Renova o cliente pela rota interna do painel (mesma do botão "Renovar").
+async function renewClient(base: string, token: string, clientId: string, months: number) {
+  const { text, parsed } = await panelPost(base, token, "renew_client_plus", {
+    client_id: clientId,
+    months: String(Math.max(1, months)),
+  });
+  const result = String(parsed?.result || "").toLowerCase();
+  if (result === "success" || /success|sucesso|renovad/i.test(text)) {
+    return { ok: true, detail: String(parsed?.message || "Cliente renovado no painel.") };
+  }
+  return { ok: false, detail: parsed ? apiErrorPt(parsed) : text.slice(0, 200) || "resposta não reconhecida do painel" };
+}
+
+
 
 
 // Confere se a sessão salva ainda está válida.
