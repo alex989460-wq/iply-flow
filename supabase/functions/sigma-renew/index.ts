@@ -280,7 +280,7 @@ Deno.serve(async (req) => {
           trial_hours: hours,
           connections: Number(body.connections || 1),
         }),
-      });
+      }, proxy);
       if (!created.ok) {
         return json({ error: `Falha ao gerar teste no Sigma: ${created.body?.message || created.status}` }, 400);
       }
@@ -289,7 +289,8 @@ Deno.serve(async (req) => {
       // Lista/template (idioma pt quando disponível)
       let playlist = "";
       try {
-        const pl = await sigmaFetch(apiBase, token, `/api/customers/${c.id}/playlist`);
+        const pl = await sigmaFetch(apiBase, token, `/api/customers/${c.id}/playlist`, {}, proxy);
+
         const arr = Array.isArray(pl.body) ? pl.body : [];
         playlist = String(arr.find((x: any) => x.key === "pt")?.template || arr[0]?.template || "");
       } catch { /* opcional */ }
@@ -317,7 +318,10 @@ Deno.serve(async (req) => {
         apiBase,
         token,
         `/api/customers?page=1&username=${encodeURIComponent(username)}`,
+        {},
+        proxy,
       );
+
       const list = Array.isArray(found.body?.data) ? found.body.data : [];
       const customer = list.find(
         (c: any) => String(c.username || "").toLowerCase() === username.toLowerCase(),
@@ -345,7 +349,8 @@ Deno.serve(async (req) => {
           create_manual_customer_order: false,
           manual_payment_total: null,
         }),
-      });
+      }, proxy);
+
       if (!renewed.ok) {
         return json({ error: `Falha ao renovar no Sigma: ${renewed.body?.message || renewed.status}` }, 400);
       }
