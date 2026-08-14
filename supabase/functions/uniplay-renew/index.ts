@@ -296,9 +296,14 @@ async function browserLoginUniplay(
         `O painel Uniplay pediu captcha e o proxy não conseguiu resolver (${captchaStatus}). Configure a chave do 2Captcha na VPS.`,
       );
     }
+    const net = captured
+      .map((c: any) => `${String(c?.url || "").slice(0, 90)} (${c?.status})`)
+      .slice(0, 6)
+      .join(" | ") || "nenhuma";
     throw new UniplayExternalError(
-      `Login Uniplay não retornou o token. Página final: ${finalUrl || "desconhecida"}. Captcha: ${captchaStatus}. Chaves salvas no navegador: ${keys}.`,
+      `Login Uniplay não retornou o token. Página final: ${finalUrl || "desconhecida"}. Captcha: ${captchaStatus}. Chaves no navegador: ${keys}. Chamadas de login vistas: ${net}.`,
     );
+
   }
 
   return { access_token: token, crypt_pass: cryptPass, id, username: user };
