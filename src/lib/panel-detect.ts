@@ -6,6 +6,7 @@ export type PanelType =
   | 'thebest'
   | 'uniplay'
   | 'p2cine'
+  | 'koffice'
   | 'sigma'
   | 'none';
 
@@ -17,12 +18,13 @@ export const PANEL_OPTIONS: { value: PanelType | 'auto'; label: string }[] = [
   { value: 'rush', label: 'Rush' },
   { value: 'thebest', label: 'The Best' },
   { value: 'uniplay', label: 'Uniplay' },
-  { value: 'p2cine', label: 'P2Cine' },
+  { value: 'koffice', label: 'kOffice Panel (P2Cine)' },
   { value: 'sigma', label: 'Sigma' },
   { value: 'none', label: 'Nenhum (renovar só no sistema)' },
 ];
 
-const VALID: PanelType[] = ['natv', 'natv2', 'vplay', 'rush', 'thebest', 'uniplay', 'p2cine', 'sigma', 'none'];
+const VALID: PanelType[] = ['natv', 'natv2', 'vplay', 'rush', 'thebest', 'uniplay', 'p2cine', 'koffice', 'sigma', 'none'];
+
 
 
 /**
@@ -37,7 +39,7 @@ export function resolvePanel(server?: {
 } | null): PanelType | null {
   const manual = String(server?.panel_type || '').trim().toLowerCase();
   if (manual && manual !== 'auto' && VALID.includes(manual as PanelType)) {
-    return manual as PanelType;
+    return (manual === 'koffice' ? 'p2cine' : manual) as PanelType;
   }
 
   const sn = String(server?.server_name || '').toLowerCase();

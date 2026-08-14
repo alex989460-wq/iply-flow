@@ -52,6 +52,7 @@ export default function Servers() {
     credit_cost: 0,
     panel_type: 'auto',
     sigma_connection_id: '',
+    koffice_connection_id: '',
   });
 
 
@@ -76,6 +77,16 @@ export default function Servers() {
     enabled: !!user,
     queryFn: async () => {
       const { data, error } = await supabase.from('sigma_panel_connections' as any).select('id, name, base_url').eq('user_id', user?.id).eq('is_active', true).order('name');
+      if (error) throw error;
+      return (data || []) as any[];
+    },
+  });
+
+  const { data: kofficeConnections = [] } = useQuery({
+    queryKey: ['koffice-panel-connections', user?.id],
+    enabled: !!user,
+    queryFn: async () => {
+      const { data, error } = await supabase.from('koffice_panel_connections' as any).select('id, name, base_url').eq('user_id', user?.id).eq('is_active', true).order('name');
       if (error) throw error;
       return (data || []) as any[];
     },
@@ -110,11 +121,12 @@ export default function Servers() {
 
   const createMutation = useMutation({
     mutationFn: async (data: typeof formData) => {
-      const { panel_type, sigma_connection_id, ...rest } = data;
+      const { panel_type, sigma_connection_id, koffice_connection_id, ...rest } = data;
       const { error } = await supabase.from('servers').insert({
         ...rest,
         panel_type: panel_type === 'auto' ? null : panel_type,
         sigma_connection_id: panel_type === 'sigma' ? sigma_connection_id || null : null,
+        koffice_connection_id: panel_type === 'koffice' ? koffice_connection_id || null : null,
         created_by: user?.id,
       } as any);
       if (error) throw error;
@@ -132,10 +144,15 @@ export default function Servers() {
 
   const updateMutation = useMutation({
     mutationFn: async ({ id, data }: { id: string; data: typeof formData }) => {
-      const { panel_type, sigma_connection_id, ...rest } = data;
+      const { panel_type, sigma_connection_id, koffice_connection_id, ...rest } = data;
       const { error } = await supabase
         .from('servers')
-        .update({ ...rest, panel_type: panel_type === 'auto' ? null : panel_type, sigma_connection_id: panel_type === 'sigma' ? sigma_connection_id || null : null } as any)
+        .update({
+          ...rest,
+          panel_type: panel_type === 'auto' ? null : panel_type,
+          sigma_connection_id: panel_type === 'sigma' ? sigma_connection_id || null : null,
+          koffice_connection_id: panel_type === 'koffice' ? koffice_connection_id || null : null,
+        } as any)
         .eq('id', id);
       if (error) throw error;
     },
@@ -165,12 +182,13 @@ export default function Servers() {
   });
 
   const resetForm = () => {
-    setFormData({ server_name: '', host: '', description: '', status: 'online', is_public: false, credit_cost: 0, panel_type: 'auto', sigma_connection_id: '' });
+    setFormData({ server_name: '', host: '', description: '', status: 'online', is_public: false, credit_cost: 0, panel_type: 'auto', sigma_connection_id: '', koffice_connection_id: '' });
     setEditingServer(null);
   };
 
   const handleEdit = (server: ServerRow) => {
     setEditingServer(server);
+    const rawPanel = ((server as any).panel_type as string) || 'auto';
     setFormData({
       server_name: server.server_name,
       host: server.host,
@@ -178,8 +196,9 @@ export default function Servers() {
       status: server.status,
       is_public: (server as any).is_public || false,
       credit_cost: Number((server as any).credit_cost || 0),
-      panel_type: ((server as any).panel_type as string) || 'auto',
+      panel_type: rawPanel === 'p2cine' ? 'koffice' : rawPanel,
       sigma_connection_id: (server as any).sigma_connection_id || '',
+      koffice_connection_id: (server as any).koffice_connection_id || '',
     });
     setIsOpen(true);
   };
@@ -296,6 +315,23 @@ export default function Servers() {
                     </Select>
                   </div>
                 )}
+                {formData.panel_type === 'koffice' && (
+                  <div className="space-y-2">
+                    <Label>Conexão kOffice</Label>
+                    <Select value={formData.koffice_connection_id} onValueChange={(value) => setFormData({ ...formData, koffice_connection_id: value })}>
+                      <SelectTrigger className="bg-secondary/50"><SelectValue placeholder="Selecione a URL e credencial" /></SelectTrigger>
+                      <SelectContent>
+                        {kofficeConnections.map((connection) => (
+                          <SelectItem key={connection.id} value={connection.id}>{connection.name} — {connection.base_url}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {kofficeConnections.length === 0 && (
+                      <p className="text-xs text-muted-foreground">Nenhuma conexão kOffice cadastrada. Adicione em Configurações → APIs.</p>
+                    )}
+                  </div>
+                )}
+
                 <div className="space-y-2">
                   <Label>Custo por crédito (R$)</Label>
                   <Input
