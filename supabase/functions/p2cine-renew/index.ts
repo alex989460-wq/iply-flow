@@ -542,7 +542,7 @@ Deno.serve(async (req) => {
       const clientLogin = String(body?.username || body?.client_login || "").trim();
       if (!clientLogin) return json({ success: false, error: "Informe o usuário do cliente no painel." }, 200);
 
-      const clientId = String(body?.client_id || "").trim() || await findClientId(base, login.token!, clientLogin);
+      const clientId = String(body?.client_id || "").trim() || await findClientId(base, login.token!, clientLogin, login.uid);
       if (!clientId) {
         return json({ success: false, error: `Cliente "${clientLogin}" não encontrado no painel.` }, 200);
       }
