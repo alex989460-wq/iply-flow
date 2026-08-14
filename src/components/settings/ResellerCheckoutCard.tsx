@@ -21,6 +21,7 @@ interface Settings {
   subheadline: string;
   enable_efi: boolean;
   enable_cakto: boolean;
+  enable_mercadopago: boolean;
   api_key: string;
   webhook_url: string;
   is_active: boolean;
@@ -30,7 +31,7 @@ interface Settings {
 const EMPTY: Settings = {
   slug: '', display_name: '', logo_url: '', brand_color: '#e11d48',
   headline: '', subheadline: '',
-  enable_efi: true, enable_cakto: true,
+  enable_efi: true, enable_cakto: true, enable_mercadopago: false,
   api_key: '', webhook_url: '', is_active: true,
   activation_cakto_url: '',
 };
