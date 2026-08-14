@@ -399,11 +399,100 @@ function isCloudflareChallenge(status, body) {
   return /Just a moment|cf-chl|challenge-platform|cf_chl_opt|Attention Required/i.test(text);
 }
 
+// Abre uma página já preparada (stealth) e passa pelo desafio do Cloudflare.
+async function openChallengedPage(browser, origin) {
+  const page = await browser.newPage();
+  const userAgent = (await browser.userAgent()).replace("HeadlessChrome", "Chrome");
+  await page.setUserAgent(userAgent);
+  await page.setExtraHTTPHeaders({ "Accept-Language": "pt-BR,pt;q=0.9,en;q=0.8" });
+  await page.evaluateOnNewDocument(() => {
+    Object.defineProperty(navigator, "webdriver", { get: () => undefined });
+    Object.defineProperty(navigator, "languages", { get: () => ["pt-BR", "pt", "en-US"] });
+    Object.defineProperty(navigator, "plugins", { get: () => [1, 2, 3, 4, 5] });
+    window.chrome = window.chrome || { runtime: {} };
+  });
+
+  await page.goto(origin, { waitUntil: "domcontentloaded", timeout: 120000 });
+
+  const stillChallenged = async () => await page
+    .evaluate(() => /just a moment|attention required/i.test(document.title) ||
+      !!document.querySelector("#challenge-form, #cf-chl-widget, input[name='cf-turnstile-response']"))
+    .catch(() => false);
+
+  for (let i = 0; i < 12; i++) {
+    if (!(await stillChallenged())) break;
+    await new Promise((r) => setTimeout(r, 2500));
+  }
+
+  if (await stillChallenged() && CAPTCHA_KEY) {
+    const info = await page.evaluate(() => {
+      const opt = window._cf_chl_opt || {};
+      const el = document.querySelector("[data-sitekey]");
+      return {
+        key: (el && el.getAttribute("data-sitekey")) || opt.chlApiSitekey || "",
+        action: opt.chlApiWidgetId ? "" : (opt.chlApiAction || ""),
+        cdata: opt.chlApiCData || "",
+      };
+    }).catch(() => null);
+    if (info && info.key) {
+      try {
+        const token = await twoCaptchaSolve({
+          type: "TurnstileTaskProxyless",
+          websiteURL: page.url(),
+          websiteKey: info.key,
+          ...(info.action ? { action: info.action } : {}),
+          ...(info.cdata ? { data: info.cdata } : {}),
+        });
+        if (token) {
+          await injectCaptchaToken(page, "turnstile", token);
+          await page.evaluate((t) => {
+            try {
+              const cbs = window.turnstile && window.turnstile._cbs;
+              if (Array.isArray(cbs)) cbs.forEach((fn) => fn(t));
+            } catch { /* noop */ }
+            const form = document.querySelector("#challenge-form");
+            if (form) form.submit();
+          }, token).catch(() => {});
+          await new Promise((r) => setTimeout(r, 8000));
+        }
+      } catch (err) {
+        console.warn("[cloudflare] 2captcha falhou:", err && err.message);
+      }
+    }
+  }
+
+  return { page, userAgent };
+}
+
+// Repassa a chamada de dentro do Chromium local (mesma impressão digital TLS que
+// o Cloudflare aceita). É o caminho usado quando o desafio aparece.
+async function fetchViaLocalBrowser(target, method, headers, body) {
+  const origin = new URL(target).origin;
+  const { browser } = await openBrowser();
+  try {
+    const { page } = await openChallengedPage(browser, origin);
+    const out = await page.evaluate(async (url, method, headers, body) => {
+      const res = await fetch(url, {
+        method,
+        headers,
+        body: method === "GET" || method === "HEAD" ? undefined : body,
+        credentials: "include",
+      });
+      return { status: res.status, body: await res.text() };
+    }, target, method, headers || {}, body ?? null);
+    await page.close().catch(() => {});
+    return out;
+  } finally {
+    await browser.close().catch(() => {});
+  }
+}
+
 async function solveCloudflare(origin) {
   const host = new URL(origin).host;
   const cached = clearanceCache.get(host);
   if (cached && Date.now() - cached.ts < CLEARANCE_TTL_MS) return cached;
   if (!browserAvailable) return null;
+
 
   const { browser } = await openBrowser();
   try {
