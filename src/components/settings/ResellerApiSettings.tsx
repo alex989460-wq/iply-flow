@@ -951,6 +951,123 @@ export default function ResellerApiSettings() {
         </CardContent>
       </Card>
 
+      {/* Uniplay */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Key className="w-5 h-5 text-emerald-500" />
+            Uniplay (Painel)
+            {hasUniplay && <CheckCircle2 className="w-5 h-5 text-green-500" />}
+          </CardTitle>
+          <CardDescription>
+            Usuário e senha do painel Uniplay. As chamadas saem pelo proxy com IP residencial.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="uniplay_username">Usuário</Label>
+              <Input
+                id="uniplay_username"
+                value={settings.uniplay_username}
+                onChange={(e) => setSettings({ ...settings, uniplay_username: e.target.value })}
+                placeholder="Seu usuário do Uniplay"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="uniplay_password">Senha</Label>
+              <div className="relative">
+                <Input
+                  id="uniplay_password"
+                  type={showUniplayPassword ? 'text' : 'password'}
+                  value={settings.uniplay_password}
+                  onChange={(e) => setSettings({ ...settings, uniplay_password: e.target.value })}
+                  placeholder="Sua senha do Uniplay"
+                  className="pr-10"
+                />
+                <Button type="button" variant="ghost" size="icon" className="absolute right-0 top-0 h-full" onClick={() => setShowUniplayPassword(!showUniplayPassword)}>
+                  {showUniplayPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </Button>
+              </div>
+            </div>
+            <div className="space-y-2 md:col-span-2">
+              <Label htmlFor="uniplay_base_url">URL do painel (opcional)</Label>
+              <Input
+                id="uniplay_base_url"
+                value={settings.uniplay_base_url}
+                onChange={(e) => setSettings({ ...settings, uniplay_base_url: e.target.value })}
+                placeholder="https://searchdefense.top"
+              />
+            </div>
+          </div>
+          <Button type="button" variant="outline" onClick={testUniplay} disabled={testingUniplay}>
+            {testingUniplay && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+            Testar conexão Uniplay
+          </Button>
+        </CardContent>
+      </Card>
+
+      {/* P2Cine */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Key className="w-5 h-5 text-pink-500" />
+            P2Cine (Painel)
+            {hasP2cine && <CheckCircle2 className="w-5 h-5 text-green-500" />}
+          </CardTitle>
+          <CardDescription>
+            Usuário e senha do painel P2Cine. As chamadas saem pelo proxy com IP residencial.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="p2cine_username">Usuário</Label>
+              <Input
+                id="p2cine_username"
+                value={settings.p2cine_username}
+                onChange={(e) => setSettings({ ...settings, p2cine_username: e.target.value })}
+                placeholder="Seu usuário do P2Cine"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="p2cine_password">Senha</Label>
+              <div className="relative">
+                <Input
+                  id="p2cine_password"
+                  type={showP2cinePassword ? 'text' : 'password'}
+                  value={settings.p2cine_password}
+                  onChange={(e) => setSettings({ ...settings, p2cine_password: e.target.value })}
+                  placeholder="Sua senha do P2Cine"
+                  className="pr-10"
+                />
+                <Button type="button" variant="ghost" size="icon" className="absolute right-0 top-0 h-full" onClick={() => setShowP2cinePassword(!showP2cinePassword)}>
+                  {showP2cinePassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </Button>
+              </div>
+            </div>
+            <div className="space-y-2 md:col-span-2">
+              <Label htmlFor="p2cine_base_url">URL do painel</Label>
+              <Input
+                id="p2cine_base_url"
+                value={settings.p2cine_base_url}
+                onChange={(e) => setSettings({ ...settings, p2cine_base_url: e.target.value })}
+                placeholder="https://daily3.news"
+              />
+            </div>
+          </div>
+          <Button type="button" variant="outline" onClick={testP2cine} disabled={testingP2cine}>
+            {testingP2cine && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+            Testar conexão P2Cine
+          </Button>
+          <Alert className="bg-muted/50">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription className="text-xs">
+              Se o painel exigir captcha no login, a renovação continua pela extensão do SuperGestor.
+            </AlertDescription>
+          </Alert>
+        </CardContent>
+      </Card>
 
 
       <div className="flex justify-end">
