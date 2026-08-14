@@ -296,6 +296,23 @@ export default function Servers() {
                     </Select>
                   </div>
                 )}
+                {formData.panel_type === 'koffice' && (
+                  <div className="space-y-2">
+                    <Label>Conexão kOffice</Label>
+                    <Select value={formData.koffice_connection_id} onValueChange={(value) => setFormData({ ...formData, koffice_connection_id: value })}>
+                      <SelectTrigger className="bg-secondary/50"><SelectValue placeholder="Selecione a URL e credencial" /></SelectTrigger>
+                      <SelectContent>
+                        {kofficeConnections.map((connection) => (
+                          <SelectItem key={connection.id} value={connection.id}>{connection.name} — {connection.base_url}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {kofficeConnections.length === 0 && (
+                      <p className="text-xs text-muted-foreground">Nenhuma conexão kOffice cadastrada. Adicione em Configurações → APIs.</p>
+                    )}
+                  </div>
+                )}
+
                 <div className="space-y-2">
                   <Label>Custo por crédito (R$)</Label>
                   <Input
