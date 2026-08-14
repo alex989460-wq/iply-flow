@@ -82,6 +82,16 @@ export default function Servers() {
     },
   });
 
+  const { data: kofficeConnections = [] } = useQuery({
+    queryKey: ['koffice-panel-connections', user?.id],
+    enabled: !!user,
+    queryFn: async () => {
+      const { data, error } = await supabase.from('koffice_panel_connections' as any).select('id, name, base_url').eq('user_id', user?.id).eq('is_active', true).order('name');
+      if (error) throw error;
+      return (data || []) as any[];
+    },
+  });
+
   // Fetch customer counts per server using count: exact to bypass 1000 row limit
   const { data: customerCounts } = useQuery({
     queryKey: ['server-customer-counts', servers?.map(s => s.id)],
