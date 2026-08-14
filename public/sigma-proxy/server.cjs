@@ -62,7 +62,7 @@ function readBody(req) {
   });
 }
 
-// Só permite repassar chamadas de API do painel Sigma.
+// Só permite repassar chamadas http/https (a chave secreta já protege o proxy).
 function isAllowedTarget(rawUrl) {
   let parsed;
   try {
@@ -70,9 +70,7 @@ function isAllowedTarget(rawUrl) {
   } catch {
     return false;
   }
-  if (parsed.protocol !== "https:" && parsed.protocol !== "http:") return false;
-  if (!parsed.pathname.startsWith("/api/")) return false;
-  return true;
+  return parsed.protocol === "https:" || parsed.protocol === "http:";
 }
 
 const server = http.createServer(async (req, res) => {
