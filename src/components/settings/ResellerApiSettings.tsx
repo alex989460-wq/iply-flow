@@ -274,8 +274,8 @@ export default function ResellerApiSettings() {
   };
 
   const testP2cine = async () => {
-    if (!settings.p2cine_username || !settings.p2cine_password) {
-      toast({ title: 'Dados incompletos', description: 'Preencha usuário e senha do P2Cine.', variant: 'destructive' });
+    if (!settings.p2cine_api_key && (!settings.p2cine_username || !settings.p2cine_password)) {
+      toast({ title: 'Dados incompletos', description: 'Preencha a chave de API ou o usuário e a senha do P2Cine.', variant: 'destructive' });
       return;
     }
     setTestingP2cine(true);
@@ -286,21 +286,22 @@ export default function ResellerApiSettings() {
           p2cine_username: settings.p2cine_username.trim(),
           p2cine_password: settings.p2cine_password,
           p2cine_base_url: settings.p2cine_base_url.trim(),
+          p2cine_api_key: settings.p2cine_api_key.trim(),
         },
       });
       if (error) throw error;
       if (!data?.success) throw new Error(data?.error || 'Não foi possível validar a conexão P2Cine.');
       toast({ title: 'Conexão P2Cine OK', description: data.message || `Autenticado como ${data.username}.` });
     } catch (e: any) {
-      toast({ title: 'Falha ao conectar no P2Cine', description: e?.message || 'Confira o usuário e a senha.', variant: 'destructive' });
+      toast({ title: 'Falha ao conectar no P2Cine', description: e?.message || 'Confira a chave de API, o usuário e a senha.', variant: 'destructive' });
     } finally {
       setTestingP2cine(false);
     }
   };
 
   const connectP2cine = async () => {
-    if (!settings.p2cine_username || !settings.p2cine_password) {
-      toast({ title: 'Dados incompletos', description: 'Preencha usuário e senha do P2Cine.', variant: 'destructive' });
+    if (!settings.p2cine_api_key && (!settings.p2cine_username || !settings.p2cine_password)) {
+      toast({ title: 'Dados incompletos', description: 'Preencha a chave de API ou o usuário e a senha do P2Cine.', variant: 'destructive' });
       return;
     }
     setConnectingP2cine(true);
@@ -311,6 +312,7 @@ export default function ResellerApiSettings() {
           p2cine_username: settings.p2cine_username.trim(),
           p2cine_password: settings.p2cine_password,
           p2cine_base_url: settings.p2cine_base_url.trim(),
+          p2cine_api_key: settings.p2cine_api_key.trim(),
         },
       });
       if (error) throw error;
@@ -322,6 +324,7 @@ export default function ResellerApiSettings() {
       setConnectingP2cine(false);
     }
   };
+
 
   if (loading) {
     return (

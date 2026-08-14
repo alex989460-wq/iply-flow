@@ -100,8 +100,43 @@ async function browserLogin(base: string, username: string, password: string) {
   return cookies.join("; ");
 }
 
+// Tenta usar a chave de API do painel (Perfil → API KEY) em vários formatos aceitos
+// por painéis kOffice. Retorna ok=true assim que um deles responder autenticado.
+async function tryApiKey(base: string, apiKey: string): Promise<{ ok: boolean; endpoint?: string; detail: string }> {
+  const attempts: Array<{ label: string; url: string; headers: Record<string, string> }> = [
+    { label: "token na URL", url: `${base}/api/get_credits?token=${encodeURIComponent(apiKey)}`, headers: {} },
+    { label: "api_key na URL", url: `${base}/api/get_credits?api_key=${encodeURIComponent(apiKey)}`, headers: {} },
+    { label: "cabeçalho Authorization", url: `${base}/api/get_credits`, headers: { Authorization: `Bearer ${apiKey}` } },
+    { label: "cabeçalho Api-Key", url: `${base}/api/get_credits`, headers: { "Api-Key": apiKey } },
+  ];
+
+  const notes: string[] = [];
+  for (const attempt of attempts) {
+    try {
+      const res = await relay(attempt.url, {
+        headers: { ...browserHeaders, Accept: "application/json", ...attempt.headers },
+      });
+      const text = String(res.body || "").trim();
+      let parsed: any = null;
+      try { parsed = JSON.parse(text); } catch { /* HTML */ }
+
+      if (parsed && res.status < 400 && String(parsed.result || "").toLowerCase() !== "failed" && !parsed.error) {
+        return { ok: true, endpoint: attempt.label, detail: "" };
+      }
+      const reason = parsed
+        ? String(parsed.message || parsed.error || JSON.stringify(parsed)).slice(0, 120)
+        : (/login/i.test(text) ? "o painel devolveu a tela de login (chave ignorada)" : `HTTP ${res.status}`);
+      notes.push(`${attempt.label}: ${reason}`);
+    } catch (e) {
+      notes.push(`${attempt.label}: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+  return { ok: false, detail: notes.join(" | ") };
+}
+
 // Confere se a sessão salva ainda está válida.
 async function sessionAlive(base: string, cookieHeader: string): Promise<boolean> {
+
   if (!cookieHeader) return false;
   try {
     const res = await relay(`${base}/dashboard`, { headers: { ...browserHeaders, Cookie: cookieHeader } });
@@ -223,6 +258,8 @@ Deno.serve(async (req) => {
     if (authError || !user) return json({ error: "Não autorizado" }, 401);
 
     const body = await req.json().catch(() => ({}));
+    let apiKeyDiagnostic = "";
+
     const action = String(body?.action || "test");
 
     // Diagnóstico rápido do proxy (versão, navegador, solucionador de captcha).
@@ -276,28 +313,54 @@ Deno.serve(async (req) => {
     let base = normBase(body?.p2cine_base_url);
     let username = String(body?.p2cine_username || "").trim();
     let password = String(body?.p2cine_password || "");
+    let apiKey = String(body?.p2cine_api_key || "").trim();
 
-    if (!username || !password) {
+    if (!username || !password || !apiKey) {
       const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, {
         auth: { autoRefreshToken: false, persistSession: false },
       });
       const { data: s } = await admin
         .from("reseller_api_settings")
-        .select("p2cine_username, p2cine_password, p2cine_base_url")
+        .select("p2cine_username, p2cine_password, p2cine_base_url, p2cine_api_key")
         .eq("user_id", user.id)
         .maybeSingle();
       username = username || String((s as any)?.p2cine_username || "");
       password = password || String((s as any)?.p2cine_password || "");
+      apiKey = apiKey || String((s as any)?.p2cine_api_key || "");
       if (!body?.p2cine_base_url) base = normBase((s as any)?.p2cine_base_url);
     }
 
-    if (!username || !password) {
-      return json({ error: "Informe usuário e senha do painel P2Cine em Configurações → APIs." }, 400);
+    if (!apiKey && (!username || !password)) {
+      return json({ error: "Informe a chave de API ou o usuário e a senha do painel P2Cine em Configurações → APIs." }, 400);
     }
 
     if (action !== "test" && action !== "connect" && action !== "status") {
       return json({ error: `Ação não suportada: ${action}` }, 400);
     }
+
+    // 1) Tenta autenticar direto pela chave de API do painel (sem navegador nem captcha).
+    if (apiKey && (action === "test" || action === "connect")) {
+      const apiResult = await tryApiKey(base, apiKey);
+      if (apiResult.ok) {
+        return json({
+          success: true,
+          base_url: base,
+          username,
+          connected: true,
+          auth_mode: "api_key",
+          message: `Chave de API do P2Cine aceita pelo painel (${apiResult.endpoint}).`,
+        });
+      }
+      apiKeyDiagnostic = apiResult.detail;
+    }
+
+    if (!username || !password) {
+      return json({
+        success: false,
+        error: `A chave de API não foi aceita pelo painel P2Cine.${apiKeyDiagnostic ? ` Detalhe: ${apiKeyDiagnostic}.` : ""} Preencha também o usuário e a senha do painel para tentar o login automático.`,
+      }, 200);
+    }
+
 
     const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, {
       auth: { autoRefreshToken: false, persistSession: false },
@@ -328,7 +391,14 @@ Deno.serve(async (req) => {
     }
 
     // Login pelo navegador real da VPS e salva a sessão para os próximos usos.
-    const cookieHeader = await browserLogin(base, username, password);
+    let cookieHeader: string;
+    try {
+      cookieHeader = await browserLogin(base, username, password);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      throw new Error(apiKeyDiagnostic ? `${msg} (A chave de API também foi recusada — ${apiKeyDiagnostic})` : msg);
+    }
+
     await admin
       .from("reseller_api_settings")
       .update({
