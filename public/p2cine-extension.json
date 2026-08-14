@@ -1,5 +1,5 @@
 {
-  "version": "2.0.1",
+  "version": "2.1.0",
   "download": "https://supergestor.top/p2cine-extension.zip",
-  "notes": "Remove o Sigma da extensão; a integração Sigma agora usa conexão direta no backend. Mantém P2Cine, Uniplay e IBO Sol."
+  "notes": "Remove o P2Cine da extensão: o painel kOffice/P2Cine agora renova direto pela API nativa no servidor. A extensão cuida apenas do Uniplay (reCAPTCHA) e do keep-alive do IBO Sol."
 }
