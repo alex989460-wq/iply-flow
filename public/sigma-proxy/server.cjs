@@ -279,7 +279,23 @@ async function browserSession(payload) {
   try {
     const page = await browser.newPage();
     await page.setViewport({ width: 1366, height: 768 });
+
+    // Captura respostas de rede que interessam (ex.: endpoint de login do painel).
+    const captured = [];
+    const capturePattern = payload.capture ? new RegExp(String(payload.capture), "i") : null;
+    if (capturePattern) {
+      page.on("response", async (resp) => {
+        try {
+          const url = resp.url();
+          if (!capturePattern.test(url)) return;
+          const body = await resp.text().catch(() => "");
+          captured.push({ url, status: resp.status(), body: String(body).slice(0, 2000) });
+        } catch { /* ignora */ }
+      });
+    }
+
     await page.goto(String(payload.url), { waitUntil: "domcontentloaded", timeout: 120000 });
+
 
     // Resolve qualquer CAPTCHA já presente na tela de login.
     let captcha = await solveCaptcha(page, remote, String(payload.url));
@@ -332,12 +348,14 @@ async function browserSession(payload) {
       .evaluate(() => {
         const out = {};
         try { for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); out[k] = localStorage.getItem(k); } } catch { /* noop */ }
+        try { for (let i = 0; i < sessionStorage.length; i++) { const k = sessionStorage.key(i); out["ss:" + k] = sessionStorage.getItem(k); } } catch { /* noop */ }
         return out;
       })
       .catch(() => ({}));
 
+
     await page.close().catch(() => {});
-    return { final_url: finalUrl, cookies, html, captcha, storage };
+    return { final_url: finalUrl, cookies, html, captcha, storage, captured };
   } finally {
     await browser.close().catch(() => {});
   }
@@ -350,7 +368,7 @@ const server = http.createServer(async (req, res) => {
     return send(res, 200, {
       ok: true,
       service: "sigma-proxy",
-      version: "1.5.0",
+      version: "1.7.0",
       mode: BRIGHTDATA_WS ? "brightdata" : "direct",
       browser: browserAvailable,
       captcha_solver: CAPTCHA_KEY ? "2captcha" : (BRIGHTDATA_WS ? "brightdata" : null),

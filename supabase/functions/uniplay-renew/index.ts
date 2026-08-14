@@ -217,14 +217,17 @@ async function browserLoginUniplay(
     headers: { "Content-Type": "application/json", "x-sigma-proxy-secret": proxy.secret },
     body: JSON.stringify({
       browser: true,
-      url: `https://${PANEL_HOST}/login`,
-      wait_ms: 9000,
+      // O painel é uma SPA com rota em hash (#/login).
+      url: `https://${PANEL_HOST}/#/login`,
+      wait_ms: 12000,
+      capture: "login|auth|token|signin",
       steps: [
-        { selector: "input[name='username'], input[type='text'], #username", value: username },
-        { selector: "input[name='password'], input[type='password'], #password", value: password },
-        { selector: "button[type='submit'], .btn-login, button", click: true, wait_ms: 9000 },
+        { selector: "input[name='username'], input[type='text'], #username", value: username, wait_ms: 800 },
+        { selector: "input[name='password'], input[type='password'], #password", value: password, wait_ms: 800 },
+        { selector: "button[type='submit'], .btn-login, form button, button", click: true, wait_ms: 12000 },
       ],
     }),
+
   }).catch((err) => {
     throw new UniplayExternalError(
       `Não foi possível falar com o proxy do painel. Verifique se a VPS do proxy está ligada. Detalhe: ${err instanceof Error ? err.message : String(err)}`,
@@ -260,9 +263,49 @@ async function browserLoginUniplay(
     }
   }
 
+  // O painel pode não guardar nada no navegador: então lê o token direto da
+  // resposta de login capturada pelo proxy.
+  const captured: any[] = Array.isArray(payload.captured) ? payload.captured : [];
   if (!token) {
-    throw new UniplayExternalError("Login Uniplay recusado pelo painel. Confira usuário e senha.");
+    for (const item of captured) {
+      const raw = String(item?.body || "");
+      if (!raw.trim().startsWith("{")) continue;
+      try {
+        const obj = JSON.parse(raw);
+        const data = obj?.data && typeof obj.data === "object" ? obj.data : obj;
+        const found = String(data.access_token || data.token || obj.access_token || obj.token || "");
+        if (found) {
+          token = found;
+          cryptPass = cryptPass || String(data.crypt_pass || obj.crypt_pass || "");
+          id = id || Number(data.id || obj.id || 0);
+          user = String(data.username || obj.username || user);
+          break;
+        }
+      } catch { /* ignora */ }
+    }
   }
+
+  if (!token) {
+
+    const finalUrl = String(payload.final_url || "");
+    const html = String(payload.html || "");
+    const captchaStatus = String(payload?.captcha?.status || "sem_captcha");
+    const keys = Object.keys(storage).slice(0, 12).join(", ") || "nenhuma";
+    if (/captcha/i.test(html) || /solve_failed|need_key/i.test(captchaStatus)) {
+      throw new UniplayExternalError(
+        `O painel Uniplay pediu captcha e o proxy não conseguiu resolver (${captchaStatus}). Configure a chave do 2Captcha na VPS.`,
+      );
+    }
+    const net = captured
+      .map((c: any) => `${String(c?.url || "").slice(0, 90)} (${c?.status})`)
+      .slice(0, 6)
+      .join(" | ") || "nenhuma";
+    throw new UniplayExternalError(
+      `Login Uniplay não retornou o token. Página final: ${finalUrl || "desconhecida"}. Captcha: ${captchaStatus}. Chaves no navegador: ${keys}. Chamadas de login vistas: ${net}.`,
+    );
+
+  }
+
   return { access_token: token, crypt_pass: cryptPass, id, username: user };
 }
 
