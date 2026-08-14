@@ -18,15 +18,19 @@ const UA =
 
 type Jar = Map<string, string>;
 
-function mergeSetCookie(jar: Jar, res: Response) {
-  // Deno exposes multiple Set-Cookie via getSetCookie()
-  // deno-lint-ignore no-explicit-any
-  const arr: string[] = (res.headers as any).getSetCookie?.() ?? [];
+type Res = { status: number; text: () => Promise<string> };
+
+function mergeCookieStrings(jar: Jar, arr: string[]) {
   for (const c of arr) {
-    const [pair] = c.split(";");
+    const [pair] = String(c).split(";");
     const eq = pair.indexOf("=");
     if (eq > 0) jar.set(pair.slice(0, eq).trim(), pair.slice(eq + 1).trim());
   }
+}
+function mergeSetCookie(jar: Jar, res: Response) {
+  // Deno exposes multiple Set-Cookie via getSetCookie()
+  // deno-lint-ignore no-explicit-any
+  mergeCookieStrings(jar, (res.headers as any).getSetCookie?.() ?? []);
 }
 function cookieHeader(jar: Jar) {
   return [...jar.entries()].map(([k, v]) => `${k}=${v}`).join("; ");
@@ -38,34 +42,62 @@ function extractCsrf(html: string): string | null {
   return m ? m[1] : null;
 }
 
+// Proxy residencial (mesmo usado pelo Sigma). O Duplecast está atrás do
+// Cloudflare e recusa chamadas vindas de datacenter, então, quando o proxy
+// estiver configurado, todas as requisições saem por ele.
+const PROXY_URL = String(Deno.env.get("SIGMA_PROXY_URL") || "").trim().replace(/\/+$/, "");
+const PROXY_SECRET = String(Deno.env.get("SIGMA_PROXY_SECRET") || "").trim();
+const useProxy = !!PROXY_URL && !!PROXY_SECRET;
+
 async function req(
   jar: Jar,
   url: string,
   init: RequestInit & { formData?: Record<string, string> } = {},
-) {
-  const headers = new Headers(init.headers || {});
-  headers.set("User-Agent", UA);
-  headers.set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8");
-  headers.set("Accept-Language", "pt-BR,pt;q=0.9,en;q=0.8");
-  if (jar.size) headers.set("Cookie", cookieHeader(jar));
+): Promise<Res> {
+  const headers: Record<string, string> = {
+    "User-Agent": UA,
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept-Language": "pt-BR,pt;q=0.9,en;q=0.8",
+  };
+  for (const [k, v] of Object.entries((init.headers || {}) as Record<string, string>)) {
+    headers[k] = String(v);
+  }
+  if (jar.size) headers["Cookie"] = cookieHeader(jar);
 
-  let body: BodyInit | undefined;
+  let body: string | undefined;
   if (init.formData) {
-    headers.set("Content-Type", "application/x-www-form-urlencoded");
+    headers["Content-Type"] = "application/x-www-form-urlencoded";
     body = new URLSearchParams(init.formData).toString();
-  } else {
-    body = init.body ?? undefined;
+  } else if (typeof init.body === "string") {
+    body = init.body;
   }
 
-  const res = await fetch(url, {
-    method: init.method || "GET",
-    headers,
-    body,
-    redirect: "manual",
-  });
+  const method = init.method || "GET";
+
+  if (useProxy) {
+    const proxyRes = await fetch(PROXY_URL.startsWith("http") ? PROXY_URL : `https://${PROXY_URL}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-sigma-proxy-secret": PROXY_SECRET },
+      body: JSON.stringify({ url, method, headers, body, redirect: "manual" }),
+    });
+    // deno-lint-ignore no-explicit-any
+    const payload = await proxyRes.json().catch(() => null) as any;
+    if (proxyRes.status === 401) throw new Error("Chave do proxy residencial incorreta.");
+    if (!payload || typeof payload.status !== "number") {
+      throw new Error(`O proxy residencial respondeu com erro: ${payload?.message || payload?.error || `HTTP ${proxyRes.status}`}`);
+    }
+    if (Array.isArray(payload.cookies)) mergeCookieStrings(jar, payload.cookies);
+    else if (payload.headers?.["set-cookie"]) mergeCookieStrings(jar, [String(payload.headers["set-cookie"])]);
+    const text = String(payload.body ?? "");
+    return { status: payload.status, text: () => Promise.resolve(text) };
+  }
+
+  const res = await fetch(url, { method, headers, body, redirect: "manual" });
   mergeSetCookie(jar, res);
-  return res;
+  const text = await res.text();
+  return { status: res.status, text: () => Promise.resolve(text) };
 }
+
 
 serve(async (request) => {
   if (request.method === "OPTIONS") return new Response(null, { headers: corsHeaders });

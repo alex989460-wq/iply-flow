@@ -3033,6 +3033,7 @@ export type Database = {
           host: string
           id: string
           is_public: boolean | null
+          koffice_connection_id: string | null
           panel_type: string | null
           server_name: string
           sigma_connection_id: string | null
@@ -3047,6 +3048,7 @@ export type Database = {
           host: string
           id?: string
           is_public?: boolean | null
+          koffice_connection_id?: string | null
           panel_type?: string | null
           server_name: string
           sigma_connection_id?: string | null
@@ -3061,6 +3063,7 @@ export type Database = {
           host?: string
           id?: string
           is_public?: boolean | null
+          koffice_connection_id?: string | null
           panel_type?: string | null
           server_name?: string
           sigma_connection_id?: string | null
@@ -3073,6 +3076,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "servers_koffice_connection_id_fkey"
+            columns: ["koffice_connection_id"]
+            isOneToOne: false
+            referencedRelation: "koffice_panel_connections"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "servers_sigma_connection_id_fkey"

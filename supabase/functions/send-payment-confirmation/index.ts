@@ -269,6 +269,29 @@ Deno.serve(async (req) => {
       }
     }
 
+    // 2.1) Garantia: se o canal oficial não estava disponível (fora da janela de 24h,
+    // template reprovado ou sem canal Meta), envia a confirmação pela API não oficial.
+    const officialDelivered = results.template?.ok === true || results.text?.ok === true;
+    if (!officialDelivered && clientMetaPhone) {
+      const fallbackMsg =
+        `✅ Olá, *${cust.name || "cliente"}*! Recebemos seu pagamento.\n\n` +
+        `👤 Usuário: *${cust.username || "-"}*\n` +
+        `💰 Valor: *R$ ${amount.toFixed(2)}*\n` +
+        `📦 Plano: *${planName || "-"}*\n` +
+        `⚡ Servidor: *${serverName}*\n` +
+        `📅 Novo vencimento: *${fmtDue}*\n🔌 Status: *Ativo*`;
+      const ev = await sendViaEvolution(clientMetaPhone, fallbackMsg, true);
+      results.fallback = { ok: ev.ok, error: ev.ok ? "" : ev.error };
+      await admin.from("message_logs").insert({
+        user_id: ownerId, customer_id: cust.id, customer_name: cust.name, customer_phone: clientMetaPhone,
+        message_type: "confirmation_fallback", source, status: ev.ok ? "success" : "error",
+        error_message: ev.ok ? null : ev.error, whatsapp_response: ev.body || null,
+        metadata: { channel: "evolution", reason: "canal_oficial_indisponivel" },
+      });
+    }
+
+
+
     // 2.5) E-mail de confirmação de pagamento
     try {
       results.email = await sendPaymentConfirmationEmail(admin, {

@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { sendPaymentConfirmationEmail } from "../_shared/payment-confirmation-email.ts";
+import { resolvePanel } from "../_shared/panel-router.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -2905,31 +2906,48 @@ serve(async (req) => {
       let serverHost = '';
       let autoRenew = false;
       let sigmaConnectionId = '';
+      let serverRow: any = null;
 
       if (matchedCustomer.server_id) {
         const { data: serverData } = await supabaseAdmin
           .from('servers')
-          .select('server_name, host, auto_renew, sigma_connection_id')
+          .select('id, server_name, host, auto_renew, panel_type, sigma_connection_id, koffice_connection_id')
           .eq('id', matchedCustomer.server_id)
           .maybeSingle();
 
+        serverRow = serverData;
         serverName = serverData?.server_name || '';
         serverHost = serverData?.host || '';
         autoRenew = serverData?.auto_renew ?? false;
         sigmaConnectionId = (serverData as any)?.sigma_connection_id || '';
       }
 
+      // Roteador automático: qualquer painel novo cadastrado (Sigma ou kOffice)
+      // é reconhecido aqui sem precisar de ajuste no código.
+      const routedPanel = await resolvePanel(
+        supabaseAdmin,
+        serverRow || { server_name: serverName, host: serverHost },
+        matchedCustomer.created_by,
+      );
+      if (routedPanel.kind === 'sigma' && (routedPanel.extra as any)?.connection_id) {
+        sigmaConnectionId = String((routedPanel.extra as any).connection_id);
+      }
+
       const sNameLower = serverName.toLowerCase();
       const sHostLower = serverHost.toLowerCase();
-      const isVplay = sNameLower.includes('vplay') || sHostLower.includes('vplay');
-      const isRush = sNameLower.includes('rush') || sHostLower.includes('rush');
-      const isTheBest = sNameLower.includes('best') || sHostLower.includes('best');
-      const isNatv2 = sNameLower.includes('natv²') || sNameLower.includes('natv2') || sHostLower.includes('natv2');
-      const isNatv = !isNatv2 && (sNameLower.includes('natv') || sHostLower.includes('natv'));
+      const isSigma = routedPanel.kind === 'sigma';
+      const isKoffice = routedPanel.kind === 'koffice';
+      const kofficeBaseUrl = String((routedPanel.extra as any)?.p2cine_base_url || '');
+      const isVplay = !isSigma && !isKoffice && (sNameLower.includes('vplay') || sHostLower.includes('vplay'));
+      const isRush = !isSigma && !isKoffice && (sNameLower.includes('rush') || sHostLower.includes('rush'));
+      const isTheBest = !isSigma && !isKoffice && (sNameLower.includes('best') || sHostLower.includes('best'));
+      const isNatv2 = !isSigma && !isKoffice && (sNameLower.includes('natv²') || sNameLower.includes('natv2') || sHostLower.includes('natv2'));
+      const isNatv = !isNatv2 && !isSigma && !isKoffice && (sNameLower.includes('natv') || sHostLower.includes('natv'));
 
-      console.log(`[Cakto] Servidor: "${serverName}" (host: "${serverHost}") | auto_renew: ${autoRenew} | Tipo: ${isVplay ? 'VPlay' : isRush ? 'Rush' : isTheBest ? 'The Best' : isNatv2 ? 'NATV2' : isNatv ? 'NATV' : 'desconhecido'}`);
+      console.log(`[Cakto] Servidor: "${serverName}" (host: "${serverHost}") | auto_renew: ${autoRenew} | Painel: ${routedPanel.kind}`);
 
-      const isKnownApiServer = isVplay || isRush || isTheBest || isNatv || isNatv2 || isSigma;
+      const isKnownApiServer = isVplay || isRush || isTheBest || isNatv || isNatv2 || isSigma || isKoffice;
+
 
       // ── Helper: insert pendência manual ──
       const insertManualPending = async (reason: string, details: any) => {
@@ -3201,7 +3219,38 @@ serve(async (req) => {
           }
         }
 
-        if (!isVplay && !isNatv && !isNatv2 && !isTheBest && !isRush && !isSigma) {
+        // ── Painel kOffice / P2Cine ──
+        if (isKoffice) {
+          const kMonths = Math.max(1, Math.round(durationDays / 30));
+          for (const username of allUsernames) {
+            try {
+              console.log(`[Cakto] Renovando kOffice: ${username} por ${kMonths} mês(es)`);
+              const kResp = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/p2cine-renew`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+                },
+                body: JSON.stringify({
+                  action: 'renew',
+                  owner_id: matchedCustomer.created_by,
+                  customer_id: matchedCustomer.id,
+                  username,
+                  months: kMonths,
+                  p2cine_base_url: kofficeBaseUrl || undefined,
+                }),
+              });
+              const kResult = await kResp.json().catch(() => ({}));
+              renewResults.push({ panel: 'koffice', username, success: kResp.ok && kResult?.success === true, result: kResult });
+              console.log(`[Cakto] kOffice renew ${username}:`, JSON.stringify(kResult));
+            } catch (e) {
+              const errMsg = e instanceof Error ? e.message : 'Erro desconhecido';
+              renewResults.push({ panel: 'koffice', username, success: false, error: errMsg });
+            }
+          }
+        }
+
+        if (!isVplay && !isNatv && !isNatv2 && !isTheBest && !isRush && !isSigma && !isKoffice) {
           console.log(`[Cakto] Tipo de servidor não reconhecido: "${serverName}". Nenhuma renovação externa. Apenas due_date atualizado.`);
           try {
             await supabaseAdmin.from('pending_manual_renewals').insert({
