@@ -912,10 +912,48 @@ export default function ResellerApiSettings() {
             </div>
           </div>
 
+          <div className="rounded-md border border-border p-3 space-y-3">
+            <div className="flex items-center justify-between gap-2">
+              <Label className="text-sm">Mini Proxy Sigma (recomendado)</Label>
+              <Button type="button" variant="ghost" size="sm" asChild>
+                <a href="/sigma-proxy/LEIAME.md" target="_blank" rel="noreferrer">
+                  <ExternalLink className="w-4 h-4 mr-2" />
+                  Como instalar
+                </a>
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              O painel Sigma bloqueia chamadas vindas de servidores de nuvem. Rode o mini proxy na sua máquina
+              (arquivo <a className="underline" href="/sigma-proxy/server.js" target="_blank" rel="noreferrer">server.js</a>) e informe abaixo a URL do túnel e a chave secreta.
+            </p>
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="sigma_proxy_url">URL do Proxy</Label>
+                <Input
+                  id="sigma_proxy_url"
+                  value={settings.sigma_proxy_url}
+                  onChange={(e) => setSettings({ ...settings, sigma_proxy_url: e.target.value })}
+                  placeholder="https://seu-tunel.trycloudflare.com"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="sigma_proxy_secret">Chave do Proxy</Label>
+                <Input
+                  id="sigma_proxy_secret"
+                  type="password"
+                  value={settings.sigma_proxy_secret}
+                  onChange={(e) => setSettings({ ...settings, sigma_proxy_secret: e.target.value })}
+                  placeholder="A mesma chave usada ao iniciar o proxy"
+                />
+              </div>
+            </div>
+          </div>
+
           <Button variant="outline" onClick={handleTestSigma} disabled={testingSigma}>
             {testingSigma ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <CheckCircle2 className="w-4 h-4 mr-2" />}
             Testar conexão Sigma
           </Button>
+
           <Button type="button" onClick={addSigmaConnection} disabled={savingSigmaConnection}>
             {savingSigmaConnection ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Plus className="w-4 h-4 mr-2" />}
             Adicionar conexão Sigma
