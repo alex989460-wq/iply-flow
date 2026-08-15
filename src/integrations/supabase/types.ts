@@ -2323,6 +2323,47 @@ export type Database = {
         }
         Relationships: []
       }
+      panel_stats_cache: {
+        Row: {
+          credits: number | null
+          error: string | null
+          id: string
+          online: number | null
+          panel: string | null
+          server_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          credits?: number | null
+          error?: string | null
+          id?: string
+          online?: number | null
+          panel?: string | null
+          server_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          credits?: number | null
+          error?: string | null
+          id?: string
+          online?: number | null
+          panel?: string | null
+          server_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "panel_stats_cache_server_id_fkey"
+            columns: ["server_id"]
+            isOneToOne: false
+            referencedRelation: "servers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       payment_confirmations: {
         Row: {
           amount: number

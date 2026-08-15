@@ -92,7 +92,7 @@ export default function Servers() {
     },
   });
 
-  // Fetch customer counts per server using count: exact to bypass 1000 row limit
+  // Contagem de clientes cadastrados por servidor (count exato, sem limite de 1000 linhas)
   const { data: customerCounts } = useQuery({
     queryKey: ['server-customer-counts', servers?.map(s => s.id)],
     enabled: !!servers && servers.length > 0,
@@ -119,40 +119,61 @@ export default function Servers() {
     },
   });
 
-  // ---- Créditos disponíveis nos painéis externos (Sigma / kOffice) ----
-  const [panelCredits, setPanelCredits] = useState<Record<string, { credits: number | null; error?: string }>>({});
+  // ---- Dados reais do painel (créditos + conexões online) ----
+  type PanelStat = { credits: number | null; online: number | null; error?: string | null; updated_at?: string | null };
+
+  const { data: panelStats = {} } = useQuery({
+    queryKey: ['panel-stats-cache', user?.id],
+    enabled: !!user,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('panel_stats_cache' as any)
+        .select('server_id, credits, online, error, updated_at')
+        .eq('user_id', user?.id);
+      if (error) throw error;
+      const map: Record<string, PanelStat> = {};
+      for (const row of (data || []) as any[]) {
+        map[row.server_id] = {
+          credits: row.credits === null ? null : Number(row.credits),
+          online: row.online === null ? null : Number(row.online),
+          error: row.error,
+          updated_at: row.updated_at,
+        };
+      }
+      return map;
+    },
+  });
+
   const [syncingCredits, setSyncingCredits] = useState(false);
 
   const syncCredits = async () => {
     if (!servers?.length) return;
     setSyncingCredits(true);
-    const results: Record<string, { credits: number | null; error?: string }> = {};
-    await Promise.all(
-      servers.map(async (server: any) => {
-        const panel = resolvePanel(server);
-        try {
-          if (panel === 'sigma') {
-            const { data, error } = await supabase.functions.invoke('sigma-renew', {
-              body: { action: 'test', connection_id: server.sigma_connection_id || undefined },
-            });
-            if (error) throw error;
-            results[server.id] = { credits: data?.credits ?? null, error: data?.error };
-          } else if (panel === 'p2cine' || panel === 'koffice') {
-            const { data, error } = await supabase.functions.invoke('p2cine-renew', {
-              body: { action: 'status', connection_id: server.koffice_connection_id || undefined },
-            });
-            if (error) throw error;
-            results[server.id] = { credits: data?.credits ?? null, error: data?.error };
-          }
-        } catch (e: any) {
-          results[server.id] = { credits: null, error: e?.message || 'Falha ao consultar o painel' };
-        }
-      })
-    );
-    setPanelCredits(results);
-    setSyncingCredits(false);
-    toast({ title: 'Créditos atualizados' });
+    try {
+      const { data, error } = await supabase.functions.invoke('panel-stats', {
+        body: { action: 'stats', server_ids: servers.map((s) => s.id) },
+      });
+      if (error) throw error;
+      if ((data as any)?.error) throw new Error((data as any).error);
+      await queryClient.invalidateQueries({ queryKey: ['panel-stats-cache'] });
+      const failures = Object.values(((data as any)?.stats || {}) as Record<string, PanelStat>).filter((s) => s.error).length;
+      toast({
+        title: 'Painéis consultados',
+        description: failures ? `${failures} servidor(es) retornaram erro — veja o detalhe no card.` : 'Créditos e clientes online atualizados.',
+        variant: failures ? 'destructive' : 'default',
+      });
+    } catch (e: any) {
+      toast({ title: 'Falha ao consultar os painéis', description: e?.message || 'Tente novamente', variant: 'destructive' });
+    } finally {
+      setSyncingCredits(false);
+    }
   };
+
+  const lastSync = (() => {
+    const dates = Object.values(panelStats).map((s) => s.updated_at).filter(Boolean) as string[];
+    if (!dates.length) return null;
+    return new Date(dates.sort().reverse()[0]);
+  })();
 
   const [search, setSearch] = useState('');
   const filteredServers = (servers || []).filter((s: any) => {
@@ -165,15 +186,18 @@ export default function Servers() {
     let total = 0;
     let active = 0;
     let credits: number | null = null;
+    let online: number | null = null;
     for (const s of servers || []) {
       const c = customerCounts?.[s.id];
       total += c?.total || 0;
       active += c?.active || 0;
-      const pc = panelCredits[s.id]?.credits;
-      if (typeof pc === 'number' && Number.isFinite(pc)) credits = (credits || 0) + pc;
+      const st = panelStats[s.id];
+      if (typeof st?.credits === 'number' && Number.isFinite(st.credits)) credits = (credits || 0) + st.credits;
+      if (typeof st?.online === 'number' && Number.isFinite(st.online)) online = (online || 0) + st.online;
     }
-    return { total, active, credits };
+    return { total, active, credits, online };
   })();
+
 
 
 
@@ -448,9 +472,10 @@ export default function Servers() {
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           {[
             { label: 'Servidores', value: servers?.length ?? 0, icon: Server, tone: 'text-primary bg-primary/10' },
-            { label: 'Clientes', value: totals.total, icon: Users, tone: 'text-sky-400 bg-sky-500/10' },
-            { label: 'Clientes online', value: totals.active, icon: Activity, tone: 'text-emerald-400 bg-emerald-500/10' },
+            { label: 'Clientes cadastrados', value: totals.total, icon: Users, tone: 'text-sky-400 bg-sky-500/10' },
+            { label: 'Online agora (painel)', value: totals.online === null ? '—' : totals.online, icon: Activity, tone: 'text-emerald-400 bg-emerald-500/10' },
             { label: 'Créditos nos painéis', value: totals.credits === null ? '—' : totals.credits, icon: Wallet, tone: 'text-amber-400 bg-amber-500/10' },
+
           ].map((card) => (
             <Card key={card.label} className="glass-card border-border/50">
               <CardContent className="p-4 flex items-center gap-3">
@@ -477,10 +502,11 @@ export default function Servers() {
               className="pl-9 bg-secondary/50"
             />
           </div>
-          <Button variant="outline" onClick={syncCredits} disabled={syncingCredits}>
+          <Button variant="outline" onClick={syncCredits} disabled={syncingCredits} title={lastSync ? `Última consulta: ${lastSync.toLocaleString('pt-BR')}` : undefined}>
             {syncingCredits ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />}
-            Atualizar créditos
+            {syncingCredits ? 'Consultando painéis...' : 'Atualizar créditos e online'}
           </Button>
+
         </div>
 
         {isLoading ? (
@@ -499,7 +525,7 @@ export default function Servers() {
             {filteredServers.map((server: any) => {
               const counts = customerCounts?.[server.id] || { total: 0, active: 0 };
               const panel = resolvePanel(server);
-              const credit = panelCredits[server.id];
+              const credit = panelStats[server.id];
               const ratio = counts.total > 0 ? Math.round((counts.active / counts.total) * 100) : 0;
               return (
                 <Card key={server.id} className="glass-card border-border/50 hover:border-primary/40 transition-colors group">
@@ -538,14 +564,20 @@ export default function Servers() {
                       )}
                     </div>
 
-                    <div className="grid grid-cols-3 gap-2 text-center">
+                    <div className="grid grid-cols-4 gap-2 text-center">
                       <div className="rounded-lg bg-secondary/40 p-2">
                         <p className="text-[11px] text-muted-foreground">Clientes</p>
                         <p className="font-bold text-sky-400">{counts.total}</p>
                       </div>
                       <div className="rounded-lg bg-secondary/40 p-2">
+                        <p className="text-[11px] text-muted-foreground">Ativos</p>
+                        <p className="font-bold text-teal-400">{counts.active}</p>
+                      </div>
+                      <div className="rounded-lg bg-secondary/40 p-2">
                         <p className="text-[11px] text-muted-foreground">Online</p>
-                        <p className="font-bold text-emerald-400">{counts.active}</p>
+                        <p className="font-bold text-emerald-400" title="Conexões ativas informadas pelo painel">
+                          {credit?.online ?? '—'}
+                        </p>
                       </div>
                       <div className="rounded-lg bg-secondary/40 p-2">
                         <p className="text-[11px] text-muted-foreground">Créditos</p>
@@ -554,6 +586,7 @@ export default function Servers() {
                         </p>
                       </div>
                     </div>
+
 
                     <div>
                       <div className="h-1.5 rounded-full bg-secondary overflow-hidden">
