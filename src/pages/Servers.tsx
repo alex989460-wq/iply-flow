@@ -421,72 +421,140 @@ export default function Servers() {
           </Dialog>
         </div>
 
-        <Card className="glass-card border-border/50 overflow-hidden">
-          <CardContent className="p-0 overflow-x-auto">
-            {isLoading ? (
-              <div className="flex items-center justify-center h-48">
-                <Loader2 className="w-8 h-8 animate-spin text-primary" />
-              </div>
-            ) : servers?.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-48 text-muted-foreground">
-                <Server className="w-12 h-12 mb-4 opacity-50" />
-                <p>Nenhum servidor cadastrado</p>
-              </div>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow className="border-border hover:bg-transparent">
-                    <TableHead>Nome</TableHead>
-                    <TableHead>Host</TableHead>
-                    <TableHead className="text-center">Clientes</TableHead>
-                    <TableHead className="text-right">Custo/crédito</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Descrição</TableHead>
-                    <TableHead className="text-right">Ações</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {servers?.map((server) => (
-                    <TableRow key={server.id} className="table-row-hover border-border">
-                      <TableCell className="font-medium">{server.server_name}</TableCell>
-                      <TableCell className="font-mono text-sm">{server.host}</TableCell>
-                      <TableCell className="text-center">
-                        <span className="inline-flex items-center justify-center min-w-[2rem] px-2 py-0.5 rounded-full bg-primary/10 text-primary font-medium text-sm">
-                          {customerCounts?.[server.id] || 0}
-                        </span>
-                      </TableCell>
-                      <TableCell className="text-right font-medium">
-                        R$ {Number((server as any).credit_cost || 0).toFixed(2)}
-                      </TableCell>
-                      <TableCell>{getStatusBadge(server.status)}</TableCell>
-                      <TableCell className="text-muted-foreground">{server.description || '-'}</TableCell>
+        {/* Resumo */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          {[
+            { label: 'Servidores', value: servers?.length ?? 0, icon: Server, tone: 'text-primary bg-primary/10' },
+            { label: 'Clientes', value: totals.total, icon: Users, tone: 'text-sky-400 bg-sky-500/10' },
+            { label: 'Clientes online', value: totals.active, icon: Activity, tone: 'text-emerald-400 bg-emerald-500/10' },
+            { label: 'Créditos nos painéis', value: totals.credits === null ? '—' : totals.credits, icon: Wallet, tone: 'text-amber-400 bg-amber-500/10' },
+          ].map((card) => (
+            <Card key={card.label} className="glass-card border-border/50">
+              <CardContent className="p-4 flex items-center gap-3">
+                <div className={cn('w-10 h-10 rounded-xl flex items-center justify-center', card.tone)}>
+                  <card.icon className="w-5 h-5" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs text-muted-foreground truncate">{card.label}</p>
+                  <p className="text-lg sm:text-xl font-bold">{card.value}</p>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
 
-                      <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleEdit(server)}
-                          >
-                            <Pencil className="w-4 h-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="text-destructive hover:text-destructive"
-                            onClick={() => deleteMutation.mutate(server.id)}
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
+        {/* Busca + sincronizar */}
+        <div className="flex flex-col sm:flex-row gap-2">
+          <div className="relative flex-1">
+            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Buscar por nome ou host..."
+              className="pl-9 bg-secondary/50"
+            />
+          </div>
+          <Button variant="outline" onClick={syncCredits} disabled={syncingCredits}>
+            {syncingCredits ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />}
+            Atualizar créditos
+          </Button>
+        </div>
+
+        {isLoading ? (
+          <div className="flex items-center justify-center h-48">
+            <Loader2 className="w-8 h-8 animate-spin text-primary" />
+          </div>
+        ) : filteredServers.length === 0 ? (
+          <Card className="glass-card border-border/50">
+            <CardContent className="flex flex-col items-center justify-center h-48 text-muted-foreground">
+              <Server className="w-12 h-12 mb-4 opacity-50" />
+              <p>Nenhum servidor encontrado</p>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {filteredServers.map((server: any) => {
+              const counts = customerCounts?.[server.id] || { total: 0, active: 0 };
+              const panel = resolvePanel(server);
+              const credit = panelCredits[server.id];
+              const ratio = counts.total > 0 ? Math.round((counts.active / counts.total) * 100) : 0;
+              return (
+                <Card key={server.id} className="glass-card border-border/50 hover:border-primary/40 transition-colors group">
+                  <CardContent className="p-4 space-y-4">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <h3 className="font-semibold truncate">{server.server_name}</h3>
+                          {getStatusBadge(server.status)}
                         </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            )}
-          </CardContent>
-        </Card>
+                        <p className="text-xs font-mono text-muted-foreground truncate mt-1">{server.host}</p>
+                      </div>
+                      <div className="flex items-center gap-1 opacity-70 group-hover:opacity-100 transition-opacity">
+                        <Button variant="ghost" size="icon" onClick={() => handleEdit(server)}>
+                          <Pencil className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="text-destructive hover:text-destructive"
+                          onClick={() => deleteMutation.mutate(server.id)}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap gap-1.5">
+                      <span className="text-[11px] px-2 py-0.5 rounded-full bg-secondary text-muted-foreground">
+                        {panel ? panel.toUpperCase() : 'SEM PAINEL'}
+                      </span>
+                      {server.is_public && (
+                        <span className="text-[11px] px-2 py-0.5 rounded-full bg-primary/10 text-primary flex items-center gap-1">
+                          <Globe className="w-3 h-3" /> Checkout
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-2 text-center">
+                      <div className="rounded-lg bg-secondary/40 p-2">
+                        <p className="text-[11px] text-muted-foreground">Clientes</p>
+                        <p className="font-bold text-sky-400">{counts.total}</p>
+                      </div>
+                      <div className="rounded-lg bg-secondary/40 p-2">
+                        <p className="text-[11px] text-muted-foreground">Online</p>
+                        <p className="font-bold text-emerald-400">{counts.active}</p>
+                      </div>
+                      <div className="rounded-lg bg-secondary/40 p-2">
+                        <p className="text-[11px] text-muted-foreground">Créditos</p>
+                        <p className="font-bold text-amber-400">
+                          {credit?.credits ?? '—'}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="h-1.5 rounded-full bg-secondary overflow-hidden">
+                        <div className="h-full bg-emerald-500 transition-all" style={{ width: `${ratio}%` }} />
+                      </div>
+                      <div className="flex items-center justify-between mt-1.5 text-xs text-muted-foreground">
+                        <span>{ratio}% ativos</span>
+                        <span>Custo/crédito: R$ {Number(server.credit_cost || 0).toFixed(2)}</span>
+                      </div>
+                    </div>
+
+                    {credit?.error && (
+                      <p className="text-xs text-destructive line-clamp-2">{credit.error}</p>
+                    )}
+                    {server.description && (
+                      <p className="text-xs text-muted-foreground line-clamp-2">{server.description}</p>
+                    )}
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        )}
+
       </div>
     </DashboardLayout>
   );
