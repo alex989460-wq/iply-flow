@@ -153,9 +153,21 @@ export default function RecaptchaSettingsCard() {
           <Switch checked={requireEmailConfirmation} onCheckedChange={setRequireEmailConfirmation} />
         </div>
 
+        <div className="flex items-center justify-between rounded-lg border border-border/60 p-3">
+          <div className="pr-4">
+            <Label className="text-sm font-medium">Bloquear ferramentas de desenvolvedor (F12)</Label>
+            <p className="text-xs text-muted-foreground">
+              Bloqueia F12, Ctrl+Shift+I/J/C, Ctrl+U e clique direito. Se o inspecionar for aberto, o visitante é
+              redirecionado para o Google. Não se aplica ao ambiente de pré-visualização.
+            </p>
+          </div>
+          <Switch checked={devtoolsProtection} onCheckedChange={setDevtoolsProtection} />
+        </div>
+
         <p className="text-[11px] text-muted-foreground">
           A autenticação em 2 fatores agora é gerenciada por cada revenda em Configurações → Segurança.
         </p>
+
 
 
         <div className="space-y-1.5 rounded-lg border border-border/60 p-3">
