@@ -355,7 +355,12 @@ Deno.serve(async (req) => {
           const database = String((cfg as any)?.vplay_mysql_database || "").trim();
           const panelUser = String((cfg as any)?.vplay_panel_username || "").trim();
           if (!host || !user || !password || !database) {
-            throw new Error("Credenciais MySQL do VPlay não configuradas em Configurações → APIs.");
+            throw new Error(
+              "O VPlay só informa créditos pela conexão MySQL. Preencha host, usuário, senha, banco e o usuário do painel em Configurações → APIs → VPlay.",
+            );
+          }
+          if (!panelUser) {
+            throw new Error("Informe o 'usuário do painel VPlay' em Configurações → APIs para eu localizar o saldo de créditos.");
           }
           const conn = await mysql.createConnection({
             host, user, password, database,
@@ -364,12 +369,19 @@ Deno.serve(async (req) => {
           });
           try {
             let credits: number | null = null;
-            if (panelUser) {
-              const [rows]: any = await conn.query(
-                "SELECT credits FROM users WHERE username = ? LIMIT 1", [panelUser],
-              ).catch(() => [[]]);
+            for (const sql of [
+              "SELECT credits FROM users WHERE username = ? LIMIT 1",
+              "SELECT credits FROM reg_users WHERE username = ? LIMIT 1",
+              "SELECT credits FROM users WHERE member_id = (SELECT id FROM reg_users WHERE username = ? LIMIT 1) LIMIT 1",
+            ]) {
+              const [rows]: any = await conn.query(sql, [panelUser]).catch(() => [[]]);
               credits = pickNumber(rows?.[0]?.credits);
+              if (credits !== null) break;
             }
+            if (credits === null) {
+              throw new Error(`O usuário "${panelUser}" não foi encontrado no banco do VPlay.`);
+            }
+
             let online: number | null = null;
             const [act]: any = await conn.query("SELECT COUNT(*) AS c FROM user_activity_now").catch(() => [null]);
             if (act) online = pickNumber(act?.[0]?.c);
