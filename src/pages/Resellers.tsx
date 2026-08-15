@@ -861,7 +861,7 @@ export default function Resellers() {
                         </Badge>
                       </div>
 
-                      {(() => {
+                      {isAdmin && (() => {
                         const own = countsByOwner.get(reseller.user_id) || { total: 0, active: 0 };
                         const tree = getTreeStats(reseller.user_id);
                         return (

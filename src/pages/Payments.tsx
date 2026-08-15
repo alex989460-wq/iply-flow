@@ -198,6 +198,7 @@ export default function Payments() {
 
   const getSourceKey = (src: string) => {
     if (src.startsWith('cakto')) return 'cakto';
+    if (src.startsWith('mp:') || src.startsWith('mercadopago')) return 'mercadopago';
     if (src.startsWith('pc_') || src.startsWith('pc:') || src.startsWith('efi:')) return 'checkout';
     return 'manual';
   };
@@ -356,7 +357,8 @@ export default function Payments() {
               <SelectContent>
                 <SelectItem value="all">Todas Origens</SelectItem>
                 <SelectItem value="cakto">Cakto</SelectItem>
-                <SelectItem value="checkout">Checkout</SelectItem>
+                <SelectItem value="checkout">Checkout / Efí</SelectItem>
+                <SelectItem value="mercadopago">Mercado Pago</SelectItem>
                 <SelectItem value="manual">Manual</SelectItem>
               </SelectContent>
             </Select>
@@ -419,6 +421,14 @@ export default function Payments() {
                               <Badge variant="secondary" className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 gap-1">
                                 <Bot className="w-3 h-3" />
                                 Cakto
+                              </Badge>
+                            );
+                          }
+                          if (key === 'mercadopago') {
+                            return (
+                              <Badge variant="secondary" className="bg-sky-500/20 text-sky-400 border-sky-500/30 gap-1">
+                                <Bot className="w-3 h-3" />
+                                Mercado Pago
                               </Badge>
                             );
                           }
