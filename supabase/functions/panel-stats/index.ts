@@ -230,7 +230,7 @@ Deno.serve(async (req) => {
     // ---- credenciais do revendedor ----
     const [{ data: cfg }, { data: sigmaConns }, { data: kofficeConns }] = await Promise.all([
       admin.from("reseller_api_settings")
-        .select("sigma_base_url, sigma_username, sigma_password, sigma_proxy_url, sigma_proxy_secret, p2cine_base_url, p2cine_username, p2cine_api_key, vplay_mysql_host, vplay_mysql_port, vplay_mysql_user, vplay_mysql_password, vplay_mysql_database, vplay_panel_username")
+        .select("sigma_base_url, sigma_username, sigma_password, sigma_proxy_url, sigma_proxy_secret, p2cine_base_url, p2cine_username, p2cine_api_key, vplay_mysql_host, vplay_mysql_port, vplay_mysql_user, vplay_mysql_password, vplay_mysql_database, vplay_panel_username, natv_api_key, natv_base_url, natv2_api_key, natv2_base_url")
         .eq("user_id", ownerId).maybeSingle(),
       admin.from("sigma_panel_connections").select("id, base_url, username, password, proxy_url, proxy_secret")
         .eq("user_id", ownerId).eq("is_active", true).order("created_at"),
