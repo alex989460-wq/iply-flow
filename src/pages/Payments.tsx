@@ -204,6 +204,17 @@ export default function Payments() {
     return 'manual';
   };
 
+  const getServerName = (p: any) => p?.customers?.servers?.server_name || '';
+
+  const serverOptions = useMemo(() => {
+    const set = new Set<string>();
+    (payments || []).forEach((p: any) => {
+      const n = getServerName(p);
+      if (n) set.add(n);
+    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [payments]);
+
   // Filter
   const filteredPayments = useMemo(() => {
     if (!payments) return [];
@@ -214,15 +225,20 @@ export default function Payments() {
         const key = getSourceKey(String(p.source || ''));
         if (key !== sourceFilter) return false;
       }
+      if (serverFilter !== 'all') {
+        const srvName = getServerName(p);
+        if (serverFilter === '__none__' ? !!srvName : srvName !== serverFilter) return false;
+      }
       if (term) {
         const name = (p.customers?.name || '').toLowerCase();
         const phone = (p.customers?.phone || '').toLowerCase();
         const username = (p.customers?.username || '').toLowerCase();
-        if (!name.includes(term) && !phone.includes(term) && !username.includes(term)) return false;
+        const srv = getServerName(p).toLowerCase();
+        if (!name.includes(term) && !phone.includes(term) && !username.includes(term) && !srv.includes(term)) return false;
       }
       return true;
     });
-  }, [payments, deferredSearch, methodFilter, sourceFilter]);
+  }, [payments, deferredSearch, methodFilter, sourceFilter, serverFilter]);
 
   const totalFiltered = filteredPayments.length;
   const totalPages = Math.max(1, Math.ceil(totalFiltered / pageSize));
@@ -230,9 +246,31 @@ export default function Payments() {
   const startIdx = (safePage - 1) * pageSize;
   const pagePayments = filteredPayments.slice(startIdx, startIdx + pageSize);
 
+  // Resumo dos pagamentos filtrados
+  const summary = useMemo(() => {
+    const todayStr = new Date().toISOString().split('T')[0];
+    const monthStr = todayStr.slice(0, 7);
+    let total = 0, month = 0, today = 0, monthCount = 0;
+    const byServer = new Map<string, number>();
+    for (const p of filteredPayments as any[]) {
+      const amt = Number(p.amount) || 0;
+      total += amt;
+      const d = String(p.payment_date || '');
+      if (d.startsWith(monthStr)) { month += amt; monthCount++; }
+      if (d === todayStr) today += amt;
+      const srv = getServerName(p) || 'Sem servidor';
+      byServer.set(srv, (byServer.get(srv) || 0) + amt);
+    }
+    const topServers = Array.from(byServer.entries()).sort((a, b) => b[1] - a[1]).slice(0, 4);
+    return { total, month, today, monthCount, count: filteredPayments.length, topServers };
+  }, [filteredPayments]);
+
+  const money = (v: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v || 0);
+
   const handleSearchChange = (v: string) => { setSearch(v); setCurrentPage(1); };
   const handleMethodChange = (v: string) => { setMethodFilter(v); setCurrentPage(1); };
   const handleSourceChange = (v: string) => { setSourceFilter(v); setCurrentPage(1); };
+  const handleServerChange = (v: string) => { setServerFilter(v); setCurrentPage(1); };
 
   return (
     <DashboardLayout>
