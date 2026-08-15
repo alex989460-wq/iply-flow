@@ -230,7 +230,7 @@ Deno.serve(async (req) => {
     // ---- credenciais do revendedor ----
     const [{ data: cfg }, { data: sigmaConns }, { data: kofficeConns }] = await Promise.all([
       admin.from("reseller_api_settings")
-        .select("sigma_base_url, sigma_username, sigma_password, sigma_proxy_url, sigma_proxy_secret, p2cine_base_url, p2cine_username, p2cine_api_key, vplay_mysql_host, vplay_mysql_port, vplay_mysql_user, vplay_mysql_password, vplay_mysql_database, vplay_panel_username")
+        .select("sigma_base_url, sigma_username, sigma_password, sigma_proxy_url, sigma_proxy_secret, p2cine_base_url, p2cine_username, p2cine_api_key, vplay_mysql_host, vplay_mysql_port, vplay_mysql_user, vplay_mysql_password, vplay_mysql_database, vplay_panel_username, natv_api_key, natv_base_url, natv2_api_key, natv2_base_url")
         .eq("user_id", ownerId).maybeSingle(),
       admin.from("sigma_panel_connections").select("id, base_url, username, password, proxy_url, proxy_secret")
         .eq("user_id", ownerId).eq("is_active", true).order("created_at"),
@@ -292,6 +292,49 @@ Deno.serve(async (req) => {
       }
       return kofficeCache.get(key)!;
     };
+
+    // ---- NATV / NATV² : créditos do revendedor via API ----
+    const natvCache = new Map<string, Promise<{ credits: number | null; online: number | null }>>();
+    const natvStats = (kind: "natv" | "natv2") => {
+      if (!natvCache.has(kind)) {
+        natvCache.set(kind, (async () => {
+          const apiKey = String((cfg as any)?.[`${kind}_api_key`] || "").trim();
+          const baseRaw = String((cfg as any)?.[`${kind}_base_url`] || "").trim();
+          if (!apiKey || !baseRaw) {
+            throw new Error(`Credenciais do ${kind.toUpperCase()} não configuradas em Configurações → APIs.`);
+          }
+          const base = normBase(baseRaw);
+          const bases = [base, `${base}/api`];
+          const paths = ["/reseller/credits", "/reseller", "/user/credits", "/credits", "/me", "/profile", "/user/me"];
+          let lastErr = "";
+          for (const b of bases) {
+            for (const p of paths) {
+              try {
+                const res = await fetch(`${b}${p}`, {
+                  headers: { ...browserHeaders, Authorization: `Bearer ${apiKey}`, Accept: "application/json" },
+                });
+                if (!res.ok) { lastErr = `HTTP ${res.status} em ${p}`; continue; }
+                const text = await res.text();
+                let body: any = null;
+                try { body = JSON.parse(text); } catch { continue; }
+                const d = body?.data ?? body?.user ?? body?.reseller ?? body;
+                const credits = pickNumber(
+                  d?.credits, d?.credit, d?.saldo, d?.balance, d?.available_credits, d?.creditos,
+                  body?.credits, body?.credit,
+                );
+                if (credits !== null) return { credits, online: null };
+                lastErr = `resposta sem campo de créditos em ${p}`;
+              } catch (e) {
+                lastErr = e instanceof Error ? e.message : String(e);
+              }
+            }
+          }
+          throw new Error(`Não foi possível ler os créditos do ${kind.toUpperCase()} (${lastErr || "sem resposta"}).`);
+        })());
+      }
+      return natvCache.get(kind)!;
+    };
+
 
     const vplayStats = () => {
       if (!vplayPromise) {
@@ -360,7 +403,10 @@ Deno.serve(async (req) => {
           Object.assign(entry, await kofficeStats(conn));
         } else if (panel === "vplay") {
           Object.assign(entry, await vplayStats());
+        } else if (panel === "natv" || panel === "natv2") {
+          Object.assign(entry, await natvStats(panel));
         }
+
       } catch (e) {
         entry.error = e instanceof Error ? e.message : String(e);
       }

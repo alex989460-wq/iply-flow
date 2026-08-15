@@ -159,7 +159,7 @@ export default function Servers() {
       const failures = Object.values(((data as any)?.stats || {}) as Record<string, PanelStat>).filter((s) => s.error).length;
       toast({
         title: 'Painéis consultados',
-        description: failures ? `${failures} servidor(es) retornaram erro — veja o detalhe no card.` : 'Créditos e clientes online atualizados.',
+        description: failures ? `${failures} servidor(es) retornaram erro — veja o detalhe no card.` : 'Créditos atualizados.',
         variant: failures ? 'destructive' : 'default',
       });
     } catch (e: any) {
@@ -473,8 +473,10 @@ export default function Servers() {
           {[
             { label: 'Servidores', value: servers?.length ?? 0, icon: Server, tone: 'text-primary bg-primary/10' },
             { label: 'Clientes cadastrados', value: totals.total, icon: Users, tone: 'text-sky-400 bg-sky-500/10' },
-            { label: 'Online agora (painel)', value: totals.online === null ? '—' : totals.online, icon: Activity, tone: 'text-emerald-400 bg-emerald-500/10' },
+            { label: 'Clientes ativos', value: totals.active, icon: Activity, tone: 'text-emerald-400 bg-emerald-500/10' },
             { label: 'Créditos nos painéis', value: totals.credits === null ? '—' : totals.credits, icon: Wallet, tone: 'text-amber-400 bg-amber-500/10' },
+
+
 
           ].map((card) => (
             <Card key={card.label} className="glass-card border-border/50">
@@ -504,7 +506,7 @@ export default function Servers() {
           </div>
           <Button variant="outline" onClick={syncCredits} disabled={syncingCredits} title={lastSync ? `Última consulta: ${lastSync.toLocaleString('pt-BR')}` : undefined}>
             {syncingCredits ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />}
-            {syncingCredits ? 'Consultando painéis...' : 'Atualizar créditos e online'}
+            {syncingCredits ? 'Consultando painéis...' : 'Atualizar créditos'}
           </Button>
 
         </div>
@@ -564,7 +566,7 @@ export default function Servers() {
                       )}
                     </div>
 
-                    <div className="grid grid-cols-4 gap-2 text-center">
+                    <div className="grid grid-cols-3 gap-2 text-center">
                       <div className="rounded-lg bg-secondary/40 p-2">
                         <p className="text-[11px] text-muted-foreground">Clientes</p>
                         <p className="font-bold text-sky-400">{counts.total}</p>
@@ -574,18 +576,13 @@ export default function Servers() {
                         <p className="font-bold text-teal-400">{counts.active}</p>
                       </div>
                       <div className="rounded-lg bg-secondary/40 p-2">
-                        <p className="text-[11px] text-muted-foreground">Online</p>
-                        <p className="font-bold text-emerald-400" title="Conexões ativas informadas pelo painel">
-                          {credit?.online ?? '—'}
-                        </p>
-                      </div>
-                      <div className="rounded-lg bg-secondary/40 p-2">
                         <p className="text-[11px] text-muted-foreground">Créditos</p>
                         <p className="font-bold text-amber-400">
                           {credit?.credits ?? '—'}
                         </p>
                       </div>
                     </div>
+
 
 
                     <div>
