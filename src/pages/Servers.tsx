@@ -523,7 +523,7 @@ export default function Servers() {
             {filteredServers.map((server: any) => {
               const counts = customerCounts?.[server.id] || { total: 0, active: 0 };
               const panel = resolvePanel(server);
-              const credit = panelCredits[server.id];
+              const credit = panelStats[server.id];
               const ratio = counts.total > 0 ? Math.round((counts.active / counts.total) * 100) : 0;
               return (
                 <Card key={server.id} className="glass-card border-border/50 hover:border-primary/40 transition-colors group">
