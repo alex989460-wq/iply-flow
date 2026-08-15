@@ -241,25 +241,8 @@ Deno.serve(async (req) => {
     const sigmaList = (sigmaConns || []) as any[];
     const kofficeList = (kofficeConns || []) as any[];
 
-    if (action === "probe") {
-      const conn = sigmaList.find((c) => c.id === String(body?.connection_id || "")) || sigmaList[0];
-      if (!conn) return json({ error: "Nenhuma conexão Sigma ativa" }, 400);
-      const base = normBase(conn.base_url);
-      const proxy = buildProxy(conn.proxy_url, conn.proxy_secret);
-      const { token, me } = await sigmaLogin(base, conn.username, conn.password, proxy);
-      const paths: string[] = Array.isArray(body?.paths) ? body.paths.map(String) : [String(body?.path || "/api/dashboard")];
-      const out: Record<string, string> = {};
-      for (const p of paths) {
-        try {
-          const r = await sigmaGet(base, token, p, proxy);
-          out[p] = `${r.status} ${JSON.stringify(r.body).slice(0, Number(body?.len || 400))}`;
-        } catch (e) {
-          out[p] = `erro ${e instanceof Error ? e.message : String(e)}`;
-        }
-      }
-      return json({ ok: true, credits: me?.credits ?? null, probes: out });
+    if (action !== "stats") return json({ error: `Ação não suportada: ${action}` }, 400);
 
-    }
 
     const ids: string[] = Array.isArray(body?.server_ids) ? body.server_ids.map(String) : [];
     let query = admin.from("servers").select("id, server_name, host, panel_type, sigma_connection_id, koffice_connection_id").eq("created_by", ownerId);
