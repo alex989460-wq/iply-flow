@@ -30,7 +30,7 @@ Deno.serve(async (req) => {
 
     const { data: settings } = await supabase
       .from('platform_settings')
-      .select('recaptcha_enabled, recaptcha_site_key, two_factor_enabled, require_email_confirmation')
+      .select('recaptcha_enabled, recaptcha_site_key, two_factor_enabled, require_email_confirmation, devtools_protection_enabled')
       .is('user_id', null)
       .order('created_at', { ascending: true })
       .limit(1)
@@ -44,8 +44,10 @@ Deno.serve(async (req) => {
         },
         twoFactorEnabled: Boolean(settings?.two_factor_enabled),
         requireEmailConfirmation: Boolean(settings?.require_email_confirmation),
+        devtoolsProtection: Boolean(settings?.devtools_protection_enabled),
       });
     }
+
 
     const email = String(body?.email ?? '').trim().toLowerCase();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
