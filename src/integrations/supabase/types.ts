@@ -2687,6 +2687,7 @@ export type Database = {
           ai_automation_enabled: boolean | null
           ai_provider: string | null
           created_at: string
+          devtools_protection_enabled: boolean
           id: string
           recaptcha_enabled: boolean
           recaptcha_min_score: number
@@ -2703,6 +2704,7 @@ export type Database = {
           ai_automation_enabled?: boolean | null
           ai_provider?: string | null
           created_at?: string
+          devtools_protection_enabled?: boolean
           id?: string
           recaptcha_enabled?: boolean
           recaptcha_min_score?: number
@@ -2719,6 +2721,7 @@ export type Database = {
           ai_automation_enabled?: boolean | null
           ai_provider?: string | null
           created_at?: string
+          devtools_protection_enabled?: boolean
           id?: string
           recaptcha_enabled?: boolean
           recaptcha_min_score?: number

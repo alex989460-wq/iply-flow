@@ -1,0 +1,1 @@
+ALTER TABLE public.platform_settings ADD COLUMN IF NOT EXISTS devtools_protection_enabled boolean NOT NULL DEFAULT false;

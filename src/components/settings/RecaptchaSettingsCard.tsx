@@ -18,13 +18,14 @@ export default function RecaptchaSettingsCard() {
   const [trialDays, setTrialDays] = useState('7');
   const [requireEmailConfirmation, setRequireEmailConfirmation] = useState(false);
   const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
+  const [devtoolsProtection, setDevtoolsProtection] = useState(false);
   const [settingsId, setSettingsId] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
       const { data } = await supabase
         .from('platform_settings')
-        .select('id, recaptcha_enabled, recaptcha_site_key, recaptcha_secret_key, trial_days, require_email_confirmation, two_factor_enabled')
+        .select('id, recaptcha_enabled, recaptcha_site_key, recaptcha_secret_key, trial_days, require_email_confirmation, two_factor_enabled, devtools_protection_enabled')
         .is('user_id', null)
         .order('created_at', { ascending: true })
         .limit(1)
@@ -38,6 +39,7 @@ export default function RecaptchaSettingsCard() {
         setTrialDays(String(data.trial_days ?? 7));
         setRequireEmailConfirmation(!!data.require_email_confirmation);
         setTwoFactorEnabled(!!data.two_factor_enabled);
+        setDevtoolsProtection(!!data.devtools_protection_enabled);
       }
       setLoading(false);
     })();
@@ -71,6 +73,7 @@ export default function RecaptchaSettingsCard() {
         trial_days: Math.round(days),
         require_email_confirmation: requireEmailConfirmation,
         two_factor_enabled: twoFactorEnabled,
+        devtools_protection_enabled: devtoolsProtection,
       })
       .eq('id', settingsId ?? '');
 
@@ -153,9 +156,21 @@ export default function RecaptchaSettingsCard() {
           <Switch checked={requireEmailConfirmation} onCheckedChange={setRequireEmailConfirmation} />
         </div>
 
+        <div className="flex items-center justify-between rounded-lg border border-border/60 p-3">
+          <div className="pr-4">
+            <Label className="text-sm font-medium">Bloquear ferramentas de desenvolvedor (F12)</Label>
+            <p className="text-xs text-muted-foreground">
+              Bloqueia F12, Ctrl+Shift+I/J/C, Ctrl+U e clique direito. Se o inspecionar for aberto, o visitante é
+              redirecionado para o Google. Não se aplica ao ambiente de pré-visualização.
+            </p>
+          </div>
+          <Switch checked={devtoolsProtection} onCheckedChange={setDevtoolsProtection} />
+        </div>
+
         <p className="text-[11px] text-muted-foreground">
           A autenticação em 2 fatores agora é gerenciada por cada revenda em Configurações → Segurança.
         </p>
+
 
 
         <div className="space-y-1.5 rounded-lg border border-border/60 p-3">

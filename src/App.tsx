@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { useDevtoolsGuard } from "@/hooks/useDevtoolsGuard";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -171,12 +172,18 @@ function AppRoutes() {
   );
 }
 
+const DevtoolsGuard = () => {
+  useDevtoolsGuard();
+  return null;
+};
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <ThemeProvider attribute="class" defaultTheme="dark" enableSystem>
       <TooltipProvider>
         <Toaster />
         <Sonner />
+        <DevtoolsGuard />
         <BrowserRouter>
           <AuthProvider>
             <AutoBackup />
@@ -189,5 +196,6 @@ const App = () => (
     </ThemeProvider>
   </QueryClientProvider>
 );
+
 
 export default App;
