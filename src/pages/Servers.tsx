@@ -473,8 +473,10 @@ export default function Servers() {
           {[
             { label: 'Servidores', value: servers?.length ?? 0, icon: Server, tone: 'text-primary bg-primary/10' },
             { label: 'Clientes cadastrados', value: totals.total, icon: Users, tone: 'text-sky-400 bg-sky-500/10' },
-            { label: 'Online agora (painel)', value: totals.online === null ? '—' : totals.online, icon: Activity, tone: 'text-emerald-400 bg-emerald-500/10' },
+            { label: 'Clientes ativos', value: totals.active, icon: Activity, tone: 'text-emerald-400 bg-emerald-500/10' },
             { label: 'Créditos nos painéis', value: totals.credits === null ? '—' : totals.credits, icon: Wallet, tone: 'text-amber-400 bg-amber-500/10' },
+
+
 
           ].map((card) => (
             <Card key={card.label} className="glass-card border-border/50">
