@@ -98,26 +98,62 @@ export default function Servers() {
     enabled: !!servers && servers.length > 0,
     queryFn: async () => {
       if (!servers || servers.length === 0) return {};
-      
-      const counts: Record<string, number> = {};
-      
-      // Fetch count for each server in parallel using head request with count: exact
+
+      const counts: Record<string, { total: number; active: number }> = {};
+
       await Promise.all(
         servers.map(async (server) => {
-          const { count, error } = await supabase
-            .from('customers')
-            .select('*', { count: 'exact', head: true })
-            .eq('server_id', server.id);
-          
-          if (!error && count !== null) {
-            counts[server.id] = count;
-          }
+          const [{ count: total }, { count: active }] = await Promise.all([
+            supabase.from('customers').select('*', { count: 'exact', head: true }).eq('server_id', server.id),
+            supabase
+              .from('customers')
+              .select('*', { count: 'exact', head: true })
+              .eq('server_id', server.id)
+              .eq('status', 'ativa'),
+          ]);
+          counts[server.id] = { total: total ?? 0, active: active ?? 0 };
         })
       );
-      
+
       return counts;
     },
   });
+
+  // ---- Créditos disponíveis nos painéis externos (Sigma / kOffice) ----
+  const [panelCredits, setPanelCredits] = useState<Record<string, { credits: number | null; error?: string }>>({});
+  const [syncingCredits, setSyncingCredits] = useState(false);
+
+  const syncCredits = async () => {
+    if (!servers?.length) return;
+    setSyncingCredits(true);
+    const results: Record<string, { credits: number | null; error?: string }> = {};
+    await Promise.all(
+      servers.map(async (server: any) => {
+        const panel = resolvePanel(server);
+        try {
+          if (panel === 'sigma') {
+            const { data, error } = await supabase.functions.invoke('sigma-renew', {
+              body: { action: 'test', connection_id: server.sigma_connection_id || undefined },
+            });
+            if (error) throw error;
+            results[server.id] = { credits: data?.credits ?? null, error: data?.error };
+          } else if (panel === 'p2cine' || panel === 'koffice') {
+            const { data, error } = await supabase.functions.invoke('p2cine-renew', {
+              body: { action: 'status', connection_id: server.koffice_connection_id || undefined },
+            });
+            if (error) throw error;
+            results[server.id] = { credits: data?.credits ?? null, error: data?.error };
+          }
+        } catch (e: any) {
+          results[server.id] = { credits: null, error: e?.message || 'Falha ao consultar o painel' };
+        }
+      })
+    );
+    setPanelCredits(results);
+    setSyncingCredits(false);
+    toast({ title: 'Créditos atualizados' });
+  };
+
 
   const createMutation = useMutation({
     mutationFn: async (data: typeof formData) => {
