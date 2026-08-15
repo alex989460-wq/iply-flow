@@ -154,6 +154,29 @@ export default function Servers() {
     toast({ title: 'Créditos atualizados' });
   };
 
+  const [search, setSearch] = useState('');
+  const filteredServers = (servers || []).filter((s: any) => {
+    const q = search.trim().toLowerCase();
+    if (!q) return true;
+    return `${s.server_name} ${s.host}`.toLowerCase().includes(q);
+  });
+
+  const totals = (() => {
+    let total = 0;
+    let active = 0;
+    let credits: number | null = null;
+    for (const s of servers || []) {
+      const c = customerCounts?.[s.id];
+      total += c?.total || 0;
+      active += c?.active || 0;
+      const pc = panelCredits[s.id]?.credits;
+      if (typeof pc === 'number' && Number.isFinite(pc)) credits = (credits || 0) + pc;
+    }
+    return { total, active, credits };
+  })();
+
+
+
 
   const createMutation = useMutation({
     mutationFn: async (data: typeof formData) => {
