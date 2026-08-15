@@ -502,10 +502,11 @@ export default function Servers() {
               className="pl-9 bg-secondary/50"
             />
           </div>
-          <Button variant="outline" onClick={syncCredits} disabled={syncingCredits}>
+          <Button variant="outline" onClick={syncCredits} disabled={syncingCredits} title={lastSync ? `Última consulta: ${lastSync.toLocaleString('pt-BR')}` : undefined}>
             {syncingCredits ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />}
-            Atualizar créditos
+            {syncingCredits ? 'Consultando painéis...' : 'Atualizar créditos e online'}
           </Button>
+
         </div>
 
         {isLoading ? (
