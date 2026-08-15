@@ -26,6 +26,7 @@ export interface TurnstileConfig {
 
 let scriptPromise: Promise<void> | null = null;
 let currentWidgetId: string | null = null;
+let pendingToken: Promise<string> | null = null;
 
 // O widget da Cloudflare não é servido dentro do iframe de preview do editor
 // (hostnames de preview / localhost). Nesses casos a verificação é ignorada.
