@@ -385,7 +385,9 @@ serve(async (req) => {
           message_type: action === 'reject' ? 'activation_rejected' : (autoActivationOk ? 'activation_completed' : 'activation_payment_confirmed'),
           source: 'confirm-activation',
           status: notified ? 'sent' : 'failed',
-          error_message: notified ? null : 'Nenhum canal WhatsApp disponível para o envio',
+          error_message: notified
+            ? (channelUsed === 'evolution' ? 'Enviado via API não oficial (fora da janela 24h)' : null)
+            : 'Nenhum canal WhatsApp disponível para o envio',
           metadata: { request_id, app_name: request.app_name },
         });
       } catch { /* ignore */ }
