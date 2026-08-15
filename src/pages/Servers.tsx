@@ -564,7 +564,7 @@ export default function Servers() {
                       )}
                     </div>
 
-                    <div className="grid grid-cols-4 gap-2 text-center">
+                    <div className="grid grid-cols-3 gap-2 text-center">
                       <div className="rounded-lg bg-secondary/40 p-2">
                         <p className="text-[11px] text-muted-foreground">Clientes</p>
                         <p className="font-bold text-sky-400">{counts.total}</p>
@@ -574,18 +574,13 @@ export default function Servers() {
                         <p className="font-bold text-teal-400">{counts.active}</p>
                       </div>
                       <div className="rounded-lg bg-secondary/40 p-2">
-                        <p className="text-[11px] text-muted-foreground">Online</p>
-                        <p className="font-bold text-emerald-400" title="Conexões ativas informadas pelo painel">
-                          {credit?.online ?? '—'}
-                        </p>
-                      </div>
-                      <div className="rounded-lg bg-secondary/40 p-2">
                         <p className="text-[11px] text-muted-foreground">Créditos</p>
                         <p className="font-bold text-amber-400">
                           {credit?.credits ?? '—'}
                         </p>
                       </div>
                     </div>
+
 
 
                     <div>
