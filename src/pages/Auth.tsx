@@ -10,7 +10,7 @@ import { Mail, Lock, User, Loader2, AlertCircle, Eye, EyeOff, ShieldCheck } from
 import { z } from 'zod';
 import logoSg from '@/assets/logo-sg.png';
 import { supabase } from '@/integrations/supabase/client';
-import { fetchTurnstileConfig, getTurnstileToken, verifyTurnstile, type TurnstileConfig } from '@/lib/turnstile';
+import { fetchTurnstileConfig, getTurnstileToken, primeTurnstile, verifyTurnstile, type TurnstileConfig } from '@/lib/turnstile';
 
 
 
@@ -49,6 +49,13 @@ export default function Auth() {
       .then(({ data }) => setTwoFactorEnabled(Boolean(data?.twoFactorEnabled)))
       .catch(() => setTwoFactorEnabled(false));
   }, []);
+
+  // Widget visível desde o carregamento da página (não só após preencher o formulário).
+  useEffect(() => {
+    if (!turnstile.enabled || twoFactorStep) return;
+    primeTurnstile(turnstile, isLogin ? 'login' : 'signup', turnstileContainerRef.current);
+  }, [turnstile, isLogin, twoFactorStep]);
+
 
 
   
