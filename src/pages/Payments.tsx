@@ -370,18 +370,79 @@ export default function Payments() {
           </Dialog>
         </div>
 
+        {/* Resumo */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          {[
+            { icon: Wallet, label: 'Total filtrado', value: money(summary.total) },
+            { icon: CalendarDays, label: 'Recebido no mês', value: money(summary.month) },
+            { icon: TrendingUp, label: 'Recebido hoje', value: money(summary.today) },
+            { icon: CreditCard, label: 'Pagamentos', value: String(summary.count) },
+          ].map((s) => (
+            <Card key={s.label} className="glass-card border-border/50 p-3 sm:p-4">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                  <s.icon className="w-4 h-4 text-primary" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[11px] uppercase tracking-wide text-muted-foreground truncate">{s.label}</p>
+                  <p className="text-lg font-bold text-foreground truncate">{s.value}</p>
+                </div>
+              </div>
+            </Card>
+          ))}
+        </div>
+
+        {/* Recebido por servidor */}
+        {summary.topServers.length > 0 && (
+          <Card className="glass-card border-border/50 p-3 sm:p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <Server className="w-4 h-4 text-primary" />
+              <span className="text-sm font-semibold text-foreground">Recebido por servidor</span>
+            </div>
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+              {summary.topServers.map(([name, value]) => {
+                const pct = summary.total > 0 ? (value / summary.total) * 100 : 0;
+                return (
+                  <div key={name} className="rounded-xl border border-border/50 bg-background/40 p-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-xs font-medium text-foreground truncate">{name}</span>
+                      <span className="text-xs text-success font-semibold">{money(value)}</span>
+                    </div>
+                    <div className="mt-2 h-1.5 rounded-full bg-muted overflow-hidden">
+                      <div className="h-full bg-primary rounded-full" style={{ width: `${pct}%` }} />
+                    </div>
+                    <p className="text-[10px] text-muted-foreground mt-1">{pct.toFixed(1)}% do total</p>
+                  </div>
+                );
+              })}
+            </div>
+          </Card>
+        )}
+
         {/* Filters */}
         <Card className="glass-card border-border/50 p-3 sm:p-4">
           <div className="flex flex-col lg:flex-row gap-2 lg:items-center">
             <div className="relative flex-1 min-w-[200px]">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input
-                placeholder="Buscar por nome, usuário ou telefone..."
+                placeholder="Buscar por nome, usuário, telefone ou servidor..."
                 value={search}
                 onChange={(e) => handleSearchChange(e.target.value)}
                 className="pl-9 bg-background/50 border-border/50 h-10"
               />
             </div>
+            <Select value={serverFilter} onValueChange={handleServerChange}>
+              <SelectTrigger className="w-full lg:w-[190px] bg-background/50 border-border/50 h-10">
+                <SelectValue placeholder="Servidor" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos Servidores</SelectItem>
+                <SelectItem value="__none__">Sem servidor</SelectItem>
+                {serverOptions.map((s) => (
+                  <SelectItem key={s} value={s}>{s}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <Select value={methodFilter} onValueChange={handleMethodChange}>
               <SelectTrigger className="w-full lg:w-[170px] bg-background/50 border-border/50 h-10">
                 <SelectValue placeholder="Método" />
