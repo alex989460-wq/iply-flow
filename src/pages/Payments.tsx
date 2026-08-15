@@ -50,6 +50,7 @@ export default function Payments() {
   const deferredSearch = useDeferredValue(search);
   const [methodFilter, setMethodFilter] = useState<string>('all');
   const [sourceFilter, setSourceFilter] = useState<string>('all');
+  const [serverFilter, setServerFilter] = useState<string>('all');
   const [pageSize, setPageSize] = useState<number>(50);
   const [currentPage, setCurrentPage] = useState<number>(1);
 
