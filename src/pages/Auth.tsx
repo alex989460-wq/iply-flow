@@ -50,6 +50,13 @@ export default function Auth() {
       .catch(() => setTwoFactorEnabled(false));
   }, []);
 
+  // Widget visível desde o carregamento da página (não só após preencher o formulário).
+  useEffect(() => {
+    if (!turnstile.enabled || twoFactorStep) return;
+    primeTurnstile(turnstile, isLogin ? 'login' : 'signup', turnstileContainerRef.current);
+  }, [turnstile, isLogin, twoFactorStep]);
+
+
 
   
   const { signIn, signUp, accessDeniedReason } = useAuth();
