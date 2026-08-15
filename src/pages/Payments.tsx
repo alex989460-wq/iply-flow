@@ -274,11 +274,16 @@ export default function Payments() {
 
   return (
     <DashboardLayout>
-      <div className="space-y-4 sm:space-y-6 animate-fade-in">
+      <div className="space-y-4 sm:space-y-5 animate-fade-in">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-foreground">Pagamentos</h1>
-            <p className="text-muted-foreground text-sm sm:text-base mt-1">Gerencie os pagamentos dos clientes</p>
+          <div className="flex items-center gap-3">
+            <div className="w-11 h-11 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center">
+              <CreditCard className="w-5 h-5 text-primary" />
+            </div>
+            <div>
+              <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-foreground">Pagamentos</h1>
+              <p className="text-muted-foreground text-sm mt-0.5">Recebimentos por origem, método e servidor</p>
+            </div>
           </div>
           <Dialog open={isOpen} onOpenChange={(open) => { setIsOpen(open); if (!open) resetForm(); }}>
             <DialogTrigger asChild>
