@@ -303,33 +303,43 @@ Deno.serve(async (req) => {
           if (!apiKey || !baseRaw) {
             throw new Error(`Credenciais do ${kind.toUpperCase()} não configuradas em Configurações → APIs.`);
           }
-          const base = normBase(baseRaw);
-          const bases = [base, `${base}/api`];
-          const paths = ["/reseller/credits", "/reseller", "/user/credits", "/credits", "/me", "/profile", "/user/me"];
+          // A API do NATV (revenda.pixbot.link) não tem rota de saldo; o campo "b"
+          // do último registro do extrato de ações é o saldo atual de créditos.
+          const root = normBase(baseRaw).replace(/\/api$/i, "");
+          const bases = [root, `${root}/api`];
           let lastErr = "";
           for (const b of bases) {
-            for (const p of paths) {
+            for (const p of ["/report/actionlog", "/report/extrato"]) {
               try {
                 const res = await fetch(`${b}${p}`, {
                   headers: { ...browserHeaders, Authorization: `Bearer ${apiKey}`, Accept: "application/json" },
                 });
-                if (!res.ok) { lastErr = `HTTP ${res.status} em ${p}`; continue; }
                 const text = await res.text();
+                if (!res.ok) {
+                  if (res.status === 429) {
+                    lastErr = "o painel limita 1 consulta por minuto — tente de novo em instantes";
+                  } else {
+                    let msg = "";
+                    try { msg = String(JSON.parse(text)?.detail || ""); } catch { /* ignore */ }
+                    lastErr = `HTTP ${res.status}${msg ? ` (${msg})` : ""} em ${p}`;
+                  }
+                  continue;
+                }
                 let body: any = null;
                 try { body = JSON.parse(text); } catch { continue; }
-                const d = body?.data ?? body?.user ?? body?.reseller ?? body;
-                const credits = pickNumber(
-                  d?.credits, d?.credit, d?.saldo, d?.balance, d?.available_credits, d?.creditos,
-                  body?.credits, body?.credit,
-                );
-                if (credits !== null) return { credits, online: null };
-                lastErr = `resposta sem campo de créditos em ${p}`;
+                const list = Array.isArray(body) ? body : (Array.isArray(body?.data) ? body.data : []);
+                for (const item of list) {
+                  const credits = pickNumber(item?.b, item?.balance, item?.saldo, item?.credits);
+                  if (credits !== null) return { credits, online: null };
+                }
+                lastErr = `o painel não devolveu saldo em ${p}`;
               } catch (e) {
                 lastErr = e instanceof Error ? e.message : String(e);
               }
             }
           }
           throw new Error(`Não foi possível ler os créditos do ${kind.toUpperCase()} (${lastErr || "sem resposta"}).`);
+
         })());
       }
       return natvCache.get(kind)!;
