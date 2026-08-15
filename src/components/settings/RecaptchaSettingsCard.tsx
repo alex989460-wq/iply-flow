@@ -18,6 +18,7 @@ export default function RecaptchaSettingsCard() {
   const [trialDays, setTrialDays] = useState('7');
   const [requireEmailConfirmation, setRequireEmailConfirmation] = useState(false);
   const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
+  const [devtoolsProtection, setDevtoolsProtection] = useState(false);
   const [settingsId, setSettingsId] = useState<string | null>(null);
 
   useEffect(() => {
