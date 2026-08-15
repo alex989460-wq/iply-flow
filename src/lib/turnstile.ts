@@ -79,17 +79,13 @@ function loadTurnstileScript(): Promise<void> {
   return scriptPromise;
 }
 
-export async function getTurnstileToken(
+function renderWidget(
   config: TurnstileConfig,
   action: 'login' | 'signup',
-  container: HTMLElement | null,
+  container: HTMLElement,
 ): Promise<string> {
-  if (!config.enabled || !config.siteKey) throw new Error('Turnstile não configurado.');
-  if (!container) throw new Error('Verificação de segurança indisponível. Recarregue a página.');
-
-  await loadTurnstileScript();
   const turnstile = window.turnstile;
-  if (!turnstile) throw new Error('Não foi possível carregar a proteção Cloudflare.');
+  if (!turnstile) return Promise.reject(new Error('Não foi possível carregar a proteção Cloudflare.'));
 
   if (currentWidgetId) {
     try {
@@ -101,7 +97,7 @@ export async function getTurnstileToken(
   }
   container.replaceChildren();
 
-  return await new Promise<string>((resolve, reject) => {
+  return new Promise<string>((resolve, reject) => {
     const timeout = window.setTimeout(() => reject(new Error('A verificação expirou. Tente novamente.')), 120_000);
     currentWidgetId = turnstile.render(container, {
       sitekey: config.siteKey as string,
@@ -117,11 +113,55 @@ export async function getTurnstileToken(
       },
       'expired-callback': () => {
         window.clearTimeout(timeout);
+        pendingToken = null;
         reject(new Error('A verificação expirou. Tente novamente.'));
       },
     });
   });
 }
+
+// Renderiza o widget assim que a página de login abre (não espera o envio do
+// formulário), deixando o token pronto antes do clique em "Entrar".
+export async function primeTurnstile(
+  config: TurnstileConfig,
+  action: 'login' | 'signup',
+  container: HTMLElement | null,
+): Promise<void> {
+  if (!config.enabled || !config.siteKey || !container) return;
+  try {
+    await loadTurnstileScript();
+    pendingToken = renderWidget(config, action, container);
+    pendingToken.catch(() => {
+      pendingToken = null;
+    });
+  } catch {
+    pendingToken = null;
+  }
+}
+
+export async function getTurnstileToken(
+  config: TurnstileConfig,
+  action: 'login' | 'signup',
+  container: HTMLElement | null,
+): Promise<string> {
+  if (!config.enabled || !config.siteKey) throw new Error('Turnstile não configurado.');
+  if (!container) throw new Error('Verificação de segurança indisponível. Recarregue a página.');
+
+  // Token já resolvido durante o carregamento da página.
+  if (pendingToken) {
+    try {
+      const token = await pendingToken;
+      pendingToken = null;
+      return token;
+    } catch {
+      pendingToken = null;
+    }
+  }
+
+  await loadTurnstileScript();
+  return await renderWidget(config, action, container);
+}
+
 
 export async function verifyTurnstile(token: string, action: 'login' | 'signup'): Promise<void> {
   const { data, error } = await supabase.functions.invoke('verify-recaptcha', {
