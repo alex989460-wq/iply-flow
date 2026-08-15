@@ -144,7 +144,7 @@ Deno.serve(async (req) => {
 
       const { data: charge } = await admin
         .from("efi_charges")
-        .select("id, owner_id, customer_id, pending_id, pending_kind, amount, status, environment, metadata")
+        .select("id, owner_id, customer_id, pending_id, pending_kind, amount, status, environment, metadata, provider")
         .eq("txid", txid)
         .maybeSingle();
 
@@ -185,6 +185,9 @@ Deno.serve(async (req) => {
       }
 
       // Mark charge paid.
+      // Marca a origem correta (Efí ou Mercado Pago) nos pagamentos gerados.
+      const srcTag = String((charge as any).provider || "") === "mercadopago" ? `mp:${txid}` : `efi:${txid}`;
+
       await admin.from("efi_charges").update({
         status: "paid",
         paid_at: new Date().toISOString(),
@@ -240,7 +243,7 @@ Deno.serve(async (req) => {
             payment_date: new Date().toISOString().slice(0, 10),
             method: "pix",
             confirmed: true,
-            source: `efi:${txid}`,
+            source: srcTag,
           });
 
           // Link the charge to the customer.
@@ -250,7 +253,7 @@ Deno.serve(async (req) => {
           await admin.from("pending_new_customers").delete().eq("id", pending.id);
 
           // Trigger external panel renewal (VPlay/NATV/The Best/Rush/XUI).
-          await triggerExternalRenewal(admin, customerId, `efi:${txid}`);
+          await triggerExternalRenewal(admin, customerId, srcTag);
         }
       } else if (charge.pending_kind === "activation_request" && charge.pending_id) {
         // Mark activation request as paid.
@@ -275,7 +278,7 @@ Deno.serve(async (req) => {
           const actRes = await fetch(`${SUPABASE_URL}/functions/v1/confirm-activation`, {
             method: "POST",
             headers: { "Content-Type": "application/json", "Authorization": `Bearer ${SRK}` },
-            body: JSON.stringify({ request_id: charge.pending_id, action: "activate", source: `efi:${txid}` }),
+            body: JSON.stringify({ request_id: charge.pending_id, action: "activate", source: srcTag }),
           });
           const actJson = await actRes.json().catch(() => ({}));
           autoActivateOk = actRes.ok && actJson?.success !== false;
@@ -399,7 +402,7 @@ Deno.serve(async (req) => {
                   const r = await fetch(`${SB_URL}/functions/v1/confirm-activation`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json", "Authorization": `Bearer ${SRK}` },
-                    body: JSON.stringify({ request_id: newActReq.id, action: "activate", source: `efi:${txid}` }),
+                    body: JSON.stringify({ request_id: newActReq.id, action: "activate", source: srcTag }),
                   });
                   const j = await r.json().catch(() => ({}));
                   autoOk = r.ok && j?.success !== false;
@@ -468,9 +471,9 @@ Deno.serve(async (req) => {
             payment_date: new Date().toISOString().slice(0, 10),
             method: "pix",
             confirmed: true,
-            source: `efi:${txid}`,
+            source: srcTag,
           });
-          await triggerExternalRenewal(admin, cid, `efi:${txid}`);
+          await triggerExternalRenewal(admin, cid, srcTag);
         }
       }
 
@@ -493,7 +496,7 @@ Deno.serve(async (req) => {
             amount: perAmount,
             plan_name: meta2.plan_name || null,
             new_due_date: freshCust?.due_date || null,
-            source: meta2.source ? `efi:${meta2.source}` : `efi:${txid}`,
+            source: meta2.source ? `efi:${meta2.source}` : srcTag,
           }),
         }).catch((e) => console.error("[efi-webhook] send-payment-confirmation err", e));
       }
