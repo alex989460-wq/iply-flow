@@ -293,6 +293,49 @@ Deno.serve(async (req) => {
       return kofficeCache.get(key)!;
     };
 
+    // ---- NATV / NATV² : créditos do revendedor via API ----
+    const natvCache = new Map<string, Promise<{ credits: number | null; online: number | null }>>();
+    const natvStats = (kind: "natv" | "natv2") => {
+      if (!natvCache.has(kind)) {
+        natvCache.set(kind, (async () => {
+          const apiKey = String((cfg as any)?.[`${kind}_api_key`] || "").trim();
+          const baseRaw = String((cfg as any)?.[`${kind}_base_url`] || "").trim();
+          if (!apiKey || !baseRaw) {
+            throw new Error(`Credenciais do ${kind.toUpperCase()} não configuradas em Configurações → APIs.`);
+          }
+          const base = normBase(baseRaw);
+          const bases = [base, `${base}/api`];
+          const paths = ["/reseller/credits", "/reseller", "/user/credits", "/credits", "/me", "/profile", "/user/me"];
+          let lastErr = "";
+          for (const b of bases) {
+            for (const p of paths) {
+              try {
+                const res = await fetch(`${b}${p}`, {
+                  headers: { ...browserHeaders, Authorization: `Bearer ${apiKey}`, Accept: "application/json" },
+                });
+                if (!res.ok) { lastErr = `HTTP ${res.status} em ${p}`; continue; }
+                const text = await res.text();
+                let body: any = null;
+                try { body = JSON.parse(text); } catch { continue; }
+                const d = body?.data ?? body?.user ?? body?.reseller ?? body;
+                const credits = pickNumber(
+                  d?.credits, d?.credit, d?.saldo, d?.balance, d?.available_credits, d?.creditos,
+                  body?.credits, body?.credit,
+                );
+                if (credits !== null) return { credits, online: null };
+                lastErr = `resposta sem campo de créditos em ${p}`;
+              } catch (e) {
+                lastErr = e instanceof Error ? e.message : String(e);
+              }
+            }
+          }
+          throw new Error(`Não foi possível ler os créditos do ${kind.toUpperCase()} (${lastErr || "sem resposta"}).`);
+        })());
+      }
+      return natvCache.get(kind)!;
+    };
+
+
     const vplayStats = () => {
       if (!vplayPromise) {
         vplayPromise = (async () => {
