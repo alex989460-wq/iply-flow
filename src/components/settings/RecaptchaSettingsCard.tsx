@@ -25,7 +25,7 @@ export default function RecaptchaSettingsCard() {
     (async () => {
       const { data } = await supabase
         .from('platform_settings')
-        .select('id, recaptcha_enabled, recaptcha_site_key, recaptcha_secret_key, trial_days, require_email_confirmation, two_factor_enabled')
+        .select('id, recaptcha_enabled, recaptcha_site_key, recaptcha_secret_key, trial_days, require_email_confirmation, two_factor_enabled, devtools_protection_enabled')
         .is('user_id', null)
         .order('created_at', { ascending: true })
         .limit(1)
@@ -39,6 +39,7 @@ export default function RecaptchaSettingsCard() {
         setTrialDays(String(data.trial_days ?? 7));
         setRequireEmailConfirmation(!!data.require_email_confirmation);
         setTwoFactorEnabled(!!data.two_factor_enabled);
+        setDevtoolsProtection(!!data.devtools_protection_enabled);
       }
       setLoading(false);
     })();
@@ -72,6 +73,7 @@ export default function RecaptchaSettingsCard() {
         trial_days: Math.round(days),
         require_email_confirmation: requireEmailConfirmation,
         two_factor_enabled: twoFactorEnabled,
+        devtools_protection_enabled: devtoolsProtection,
       })
       .eq('id', settingsId ?? '');
 
