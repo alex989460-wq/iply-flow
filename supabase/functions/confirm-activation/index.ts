@@ -281,9 +281,34 @@ serve(async (req) => {
         .eq('user_id', request.user_id)
         .maybeSingle();
 
-      let notified = false;
+      // ── Janela de 24h (Meta) ──────────────────────────────────────────────
+      // A API oficial só entrega texto livre se o cliente respondeu nas últimas
+      // 24h. Fora dessa janela a Meta devolve "re-engagement message" e a
+      // mensagem some. Então, quando não há registro de mensagem recebida
+      // recente, enviamos direto pela API não oficial (Evolution).
+      const phoneTail = customerPhone.slice(-8);
+      let inWindow = false;
+      try {
+        const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+        const { data: lastIn } = await supabaseAdmin
+          .from('evolution_messages')
+          .select('id')
+          .eq('user_id', request.user_id)
+          .eq('direction', 'in')
+          .like('phone', `%${phoneTail}`)
+          .gte('created_at', since)
+          .limit(1);
+        inWindow = !!(lastIn && lastIn.length);
+      } catch (winErr) {
+        console.warn('[ActivationAction] Falha ao checar janela de 24h:', winErr);
+      }
+      console.log(`[ActivationAction] Janela 24h para ${customerPhone}: ${inWindow ? 'aberta' : 'fechada'}`);
 
-      if (crmSettings?.enabled && crmSettings?.api_key) {
+      let notified = false;
+      let channelUsed = '';
+
+      const sendOfficial = async () => {
+        if (!(crmSettings?.enabled && crmSettings?.api_key)) return false;
         try {
           const resp = await fetch(`${SB_URL}/functions/v1/crm-oficial-sync`, {
             method: 'POST',
@@ -296,15 +321,19 @@ serve(async (req) => {
             }),
           });
           const j = await resp.json().catch(() => ({} as any));
-          notified = resp.ok && j?.error === undefined && j?.success !== false;
-          console.log(`[ActivationAction] CRM oficial → ${customerPhone}: ok=${notified}`);
+          const raw = JSON.stringify(j || '').toLowerCase();
+          // Mesmo com HTTP 200 a Meta pode recusar por fora da janela.
+          const reengagement = raw.includes('131047') || raw.includes('re-engagement') || raw.includes('24 hours');
+          const ok = resp.ok && j?.error === undefined && j?.success !== false && !reengagement;
+          console.log(`[ActivationAction] CRM oficial → ${customerPhone}: ok=${ok}`);
+          return ok;
         } catch (msgErr) {
           console.error('[ActivationAction] Erro ao enviar via CRM oficial:', msgErr);
+          return false;
         }
-      }
+      };
 
-      // Fallback: Evolution API (revendas sem CRM oficial habilitado).
-      if (!notified) {
+      const sendEvolution = async () => {
         try {
           const resp = await fetch(`${SB_URL}/functions/v1/evolution-send`, {
             method: 'POST',
@@ -321,10 +350,29 @@ serve(async (req) => {
             }),
           });
           const j = await resp.json().catch(() => ({} as any));
-          notified = resp.ok && !j?.error;
-          console.log(`[ActivationAction] Evolution → ${customerPhone}: ok=${notified} ${j?.error || ''}`);
+          const ok = resp.ok && !j?.error;
+          console.log(`[ActivationAction] Evolution → ${customerPhone}: ok=${ok} ${j?.error || ''}`);
+          return ok;
         } catch (msgErr) {
           console.error('[ActivationAction] Erro ao enviar via Evolution:', msgErr);
+          return false;
+        }
+      };
+
+      if (inWindow) {
+        notified = await sendOfficial();
+        if (notified) channelUsed = 'crm_oficial';
+        if (!notified) {
+          notified = await sendEvolution();
+          if (notified) channelUsed = 'evolution';
+        }
+      } else {
+        // Fora da janela de 24h → API não oficial primeiro.
+        notified = await sendEvolution();
+        if (notified) channelUsed = 'evolution';
+        if (!notified) {
+          notified = await sendOfficial();
+          if (notified) channelUsed = 'crm_oficial';
         }
       }
 
