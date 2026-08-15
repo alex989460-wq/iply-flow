@@ -530,14 +530,47 @@ export default function ActivationApps() {
     return 'Pendente';
   };
 
+  const pendingCount = requests.filter((r: any) => r.status === 'pending').length;
+  const completedCount = requests.filter((r: any) => r.status === 'completed' || r.status === 'activated').length;
+  const enabledPanels = panelCreds.filter((c: any) => c.is_enabled).length;
+  const enabledApps = apps.filter((a: any) => a.is_enabled).length;
+
   return (
     <DashboardLayout>
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-foreground">Ativação de Apps</h1>
-            <p className="text-muted-foreground">Gerencie apps e solicitações de ativação dos clientes</p>
+      <div className="space-y-5 animate-fade-in">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-11 h-11 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center">
+              <Smartphone className="w-5 h-5 text-primary" />
+            </div>
+            <div>
+              <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-foreground">Ativação de Apps</h1>
+              <p className="text-muted-foreground text-sm mt-0.5">
+                Solicitações, ativação manual, apps e painéis em um só lugar
+              </p>
+            </div>
           </div>
+        </div>
+
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          {[
+            { icon: Clock, label: 'Pendentes', value: String(pendingCount), tone: 'text-yellow-500' },
+            { icon: CheckCircle2, label: 'Ativados', value: String(completedCount), tone: 'text-emerald-500' },
+            { icon: Smartphone, label: 'Apps ativos', value: String(enabledApps), tone: 'text-primary' },
+            { icon: Settings2, label: 'Painéis conectados', value: String(enabledPanels), tone: 'text-sky-500' },
+          ].map((s) => (
+            <Card key={s.label} className="glass-card border-border/50 p-3 sm:p-4">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-muted/60 flex items-center justify-center shrink-0">
+                  <s.icon className={`w-4 h-4 ${s.tone}`} />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[11px] uppercase tracking-wide text-muted-foreground truncate">{s.label}</p>
+                  <p className="text-lg font-bold text-foreground">{s.value}</p>
+                </div>
+              </div>
+            </Card>
+          ))}
         </div>
 
         <CreateClouddyUserDialog
@@ -547,26 +580,28 @@ export default function ActivationApps() {
         />
 
         <Tabs defaultValue="requests" className="space-y-4">
-          <TabsList>
-            <TabsTrigger value="requests">
-              Solicitações
-              {requests.filter((r: any) => r.status === 'pending').length > 0 && (
-                <Badge variant="destructive" className="ml-2 h-5 px-1.5 text-xs">
-                  {requests.filter((r: any) => r.status === 'pending').length}
-                </Badge>
-              )}
-            </TabsTrigger>
-            <TabsTrigger value="manual">
-              <Zap className="w-3.5 h-3.5 mr-1" /> Ativação Manual
-            </TabsTrigger>
-            <TabsTrigger value="apps">Apps Configurados</TabsTrigger>
-            <TabsTrigger value="playlists">
-              <ListPlus className="w-3.5 h-3.5 mr-1" /> Enviar Lista
-            </TabsTrigger>
-            <TabsTrigger value="panels">
-              <Settings2 className="w-3.5 h-3.5 mr-1" /> Painéis
-            </TabsTrigger>
-          </TabsList>
+          <div className="overflow-x-auto -mx-1 px-1">
+            <TabsList className="h-auto p-1 bg-card/60 backdrop-blur-sm border border-border/50 rounded-2xl flex gap-1">
+              <TabsTrigger value="requests" className="rounded-xl px-3 py-2 text-sm data-[state=active]:bg-primary/15 data-[state=active]:text-primary whitespace-nowrap">
+                <Clock className="w-3.5 h-3.5 mr-1.5" /> Solicitações
+                {pendingCount > 0 && (
+                  <Badge variant="destructive" className="ml-2 h-5 px-1.5 text-xs">{pendingCount}</Badge>
+                )}
+              </TabsTrigger>
+              <TabsTrigger value="manual" className="rounded-xl px-3 py-2 text-sm data-[state=active]:bg-primary/15 data-[state=active]:text-primary whitespace-nowrap">
+                <Zap className="w-3.5 h-3.5 mr-1.5" /> Ativação Manual
+              </TabsTrigger>
+              <TabsTrigger value="apps" className="rounded-xl px-3 py-2 text-sm data-[state=active]:bg-primary/15 data-[state=active]:text-primary whitespace-nowrap">
+                <Smartphone className="w-3.5 h-3.5 mr-1.5" /> Apps
+              </TabsTrigger>
+              <TabsTrigger value="playlists" className="rounded-xl px-3 py-2 text-sm data-[state=active]:bg-primary/15 data-[state=active]:text-primary whitespace-nowrap">
+                <ListPlus className="w-3.5 h-3.5 mr-1.5" /> Enviar Lista
+              </TabsTrigger>
+              <TabsTrigger value="panels" className="rounded-xl px-3 py-2 text-sm data-[state=active]:bg-primary/15 data-[state=active]:text-primary whitespace-nowrap">
+                <Settings2 className="w-3.5 h-3.5 mr-1.5" /> Painéis
+              </TabsTrigger>
+            </TabsList>
+          </div>
 
           <TabsContent value="playlists">
             <PlaylistTemplatesCard />

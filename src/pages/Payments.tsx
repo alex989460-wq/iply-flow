@@ -29,7 +29,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Loader2, CreditCard, Pencil, Trash2, Bot, Search, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Plus, Loader2, CreditCard, Pencil, Trash2, Bot, Search, ChevronLeft, ChevronRight, Wallet, CalendarDays, TrendingUp, Server } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import type { Database } from '@/integrations/supabase/types';
 
@@ -50,6 +50,7 @@ export default function Payments() {
   const deferredSearch = useDeferredValue(search);
   const [methodFilter, setMethodFilter] = useState<string>('all');
   const [sourceFilter, setSourceFilter] = useState<string>('all');
+  const [serverFilter, setServerFilter] = useState<string>('all');
   const [pageSize, setPageSize] = useState<number>(50);
   const [currentPage, setCurrentPage] = useState<number>(1);
 
@@ -66,7 +67,7 @@ export default function Payments() {
       while (true) {
         const { data, error } = await supabase
           .from('payments')
-          .select('*, customers(name, phone, username)')
+          .select('*, customers(name, phone, username, servers(server_name))')
           .order('created_at', { ascending: false })
           .range(from, from + pageSizeFetch - 1);
         if (error) throw error;
@@ -203,6 +204,17 @@ export default function Payments() {
     return 'manual';
   };
 
+  const getServerName = (p: any) => p?.customers?.servers?.server_name || '';
+
+  const serverOptions = useMemo(() => {
+    const set = new Set<string>();
+    (payments || []).forEach((p: any) => {
+      const n = getServerName(p);
+      if (n) set.add(n);
+    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [payments]);
+
   // Filter
   const filteredPayments = useMemo(() => {
     if (!payments) return [];
@@ -213,15 +225,20 @@ export default function Payments() {
         const key = getSourceKey(String(p.source || ''));
         if (key !== sourceFilter) return false;
       }
+      if (serverFilter !== 'all') {
+        const srvName = getServerName(p);
+        if (serverFilter === '__none__' ? !!srvName : srvName !== serverFilter) return false;
+      }
       if (term) {
         const name = (p.customers?.name || '').toLowerCase();
         const phone = (p.customers?.phone || '').toLowerCase();
         const username = (p.customers?.username || '').toLowerCase();
-        if (!name.includes(term) && !phone.includes(term) && !username.includes(term)) return false;
+        const srv = getServerName(p).toLowerCase();
+        if (!name.includes(term) && !phone.includes(term) && !username.includes(term) && !srv.includes(term)) return false;
       }
       return true;
     });
-  }, [payments, deferredSearch, methodFilter, sourceFilter]);
+  }, [payments, deferredSearch, methodFilter, sourceFilter, serverFilter]);
 
   const totalFiltered = filteredPayments.length;
   const totalPages = Math.max(1, Math.ceil(totalFiltered / pageSize));
@@ -229,17 +246,44 @@ export default function Payments() {
   const startIdx = (safePage - 1) * pageSize;
   const pagePayments = filteredPayments.slice(startIdx, startIdx + pageSize);
 
+  // Resumo dos pagamentos filtrados
+  const summary = useMemo(() => {
+    const todayStr = new Date().toISOString().split('T')[0];
+    const monthStr = todayStr.slice(0, 7);
+    let total = 0, month = 0, today = 0, monthCount = 0;
+    const byServer = new Map<string, number>();
+    for (const p of filteredPayments as any[]) {
+      const amt = Number(p.amount) || 0;
+      total += amt;
+      const d = String(p.payment_date || '');
+      if (d.startsWith(monthStr)) { month += amt; monthCount++; }
+      if (d === todayStr) today += amt;
+      const srv = getServerName(p) || 'Sem servidor';
+      byServer.set(srv, (byServer.get(srv) || 0) + amt);
+    }
+    const topServers = Array.from(byServer.entries()).sort((a, b) => b[1] - a[1]).slice(0, 4);
+    return { total, month, today, monthCount, count: filteredPayments.length, topServers };
+  }, [filteredPayments]);
+
+  const money = (v: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v || 0);
+
   const handleSearchChange = (v: string) => { setSearch(v); setCurrentPage(1); };
   const handleMethodChange = (v: string) => { setMethodFilter(v); setCurrentPage(1); };
   const handleSourceChange = (v: string) => { setSourceFilter(v); setCurrentPage(1); };
+  const handleServerChange = (v: string) => { setServerFilter(v); setCurrentPage(1); };
 
   return (
     <DashboardLayout>
-      <div className="space-y-4 sm:space-y-6 animate-fade-in">
+      <div className="space-y-4 sm:space-y-5 animate-fade-in">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-foreground">Pagamentos</h1>
-            <p className="text-muted-foreground text-sm sm:text-base mt-1">Gerencie os pagamentos dos clientes</p>
+          <div className="flex items-center gap-3">
+            <div className="w-11 h-11 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center">
+              <CreditCard className="w-5 h-5 text-primary" />
+            </div>
+            <div>
+              <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-foreground">Pagamentos</h1>
+              <p className="text-muted-foreground text-sm mt-0.5">Recebimentos por origem, método e servidor</p>
+            </div>
           </div>
           <Dialog open={isOpen} onOpenChange={(open) => { setIsOpen(open); if (!open) resetForm(); }}>
             <DialogTrigger asChild>
@@ -326,18 +370,79 @@ export default function Payments() {
           </Dialog>
         </div>
 
+        {/* Resumo */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          {[
+            { icon: Wallet, label: 'Total filtrado', value: money(summary.total) },
+            { icon: CalendarDays, label: 'Recebido no mês', value: money(summary.month) },
+            { icon: TrendingUp, label: 'Recebido hoje', value: money(summary.today) },
+            { icon: CreditCard, label: 'Pagamentos', value: String(summary.count) },
+          ].map((s) => (
+            <Card key={s.label} className="glass-card border-border/50 p-3 sm:p-4">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                  <s.icon className="w-4 h-4 text-primary" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[11px] uppercase tracking-wide text-muted-foreground truncate">{s.label}</p>
+                  <p className="text-lg font-bold text-foreground truncate">{s.value}</p>
+                </div>
+              </div>
+            </Card>
+          ))}
+        </div>
+
+        {/* Recebido por servidor */}
+        {summary.topServers.length > 0 && (
+          <Card className="glass-card border-border/50 p-3 sm:p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <Server className="w-4 h-4 text-primary" />
+              <span className="text-sm font-semibold text-foreground">Recebido por servidor</span>
+            </div>
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+              {summary.topServers.map(([name, value]) => {
+                const pct = summary.total > 0 ? (value / summary.total) * 100 : 0;
+                return (
+                  <div key={name} className="rounded-xl border border-border/50 bg-background/40 p-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-xs font-medium text-foreground truncate">{name}</span>
+                      <span className="text-xs text-success font-semibold">{money(value)}</span>
+                    </div>
+                    <div className="mt-2 h-1.5 rounded-full bg-muted overflow-hidden">
+                      <div className="h-full bg-primary rounded-full" style={{ width: `${pct}%` }} />
+                    </div>
+                    <p className="text-[10px] text-muted-foreground mt-1">{pct.toFixed(1)}% do total</p>
+                  </div>
+                );
+              })}
+            </div>
+          </Card>
+        )}
+
         {/* Filters */}
         <Card className="glass-card border-border/50 p-3 sm:p-4">
           <div className="flex flex-col lg:flex-row gap-2 lg:items-center">
             <div className="relative flex-1 min-w-[200px]">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input
-                placeholder="Buscar por nome, usuário ou telefone..."
+                placeholder="Buscar por nome, usuário, telefone ou servidor..."
                 value={search}
                 onChange={(e) => handleSearchChange(e.target.value)}
                 className="pl-9 bg-background/50 border-border/50 h-10"
               />
             </div>
+            <Select value={serverFilter} onValueChange={handleServerChange}>
+              <SelectTrigger className="w-full lg:w-[190px] bg-background/50 border-border/50 h-10">
+                <SelectValue placeholder="Servidor" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos Servidores</SelectItem>
+                <SelectItem value="__none__">Sem servidor</SelectItem>
+                {serverOptions.map((s) => (
+                  <SelectItem key={s} value={s}>{s}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <Select value={methodFilter} onValueChange={handleMethodChange}>
               <SelectTrigger className="w-full lg:w-[170px] bg-background/50 border-border/50 h-10">
                 <SelectValue placeholder="Método" />
@@ -396,6 +501,7 @@ export default function Payments() {
                   <TableRow className="border-border hover:bg-transparent">
                      <TableHead>Cliente</TableHead>
                      <TableHead>Usuário</TableHead>
+                     <TableHead>Servidor</TableHead>
                      <TableHead>Valor</TableHead>
                      <TableHead>Método</TableHead>
                      <TableHead>Origem</TableHead>
@@ -408,8 +514,18 @@ export default function Payments() {
                      <TableRow key={payment.id} className="table-row-hover border-border">
                        <TableCell className="font-medium">{payment.customers?.name}</TableCell>
                        <TableCell className="text-muted-foreground">{payment.customers?.username || '—'}</TableCell>
+                       <TableCell>
+                         {getServerName(payment) ? (
+                           <Badge variant="outline" className="gap-1 text-xs border-border/60">
+                             <Server className="w-3 h-3" />
+                             {getServerName(payment)}
+                           </Badge>
+                         ) : (
+                           <span className="text-muted-foreground text-xs">—</span>
+                         )}
+                       </TableCell>
                       <TableCell className="text-success font-semibold">
-                        R$ {Number(payment.amount).toFixed(2)}
+                        {money(Number(payment.amount))}
                       </TableCell>
                       <TableCell>{getMethodLabel(payment.method)}</TableCell>
                       <TableCell>
