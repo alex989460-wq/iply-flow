@@ -66,7 +66,7 @@ export default function Payments() {
       while (true) {
         const { data, error } = await supabase
           .from('payments')
-          .select('*, customers(name, phone, username)')
+          .select('*, customers(name, phone, username, servers(server_name))')
           .order('created_at', { ascending: false })
           .range(from, from + pageSizeFetch - 1);
         if (error) throw error;
