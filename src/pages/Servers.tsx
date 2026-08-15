@@ -159,7 +159,7 @@ export default function Servers() {
       const failures = Object.values(((data as any)?.stats || {}) as Record<string, PanelStat>).filter((s) => s.error).length;
       toast({
         title: 'Painéis consultados',
-        description: failures ? `${failures} servidor(es) retornaram erro — veja o detalhe no card.` : 'Créditos e clientes online atualizados.',
+        description: failures ? `${failures} servidor(es) retornaram erro — veja o detalhe no card.` : 'Créditos atualizados.',
         variant: failures ? 'destructive' : 'default',
       });
     } catch (e: any) {
