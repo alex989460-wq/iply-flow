@@ -366,7 +366,22 @@ Deno.serve(async (req) => {
       }
     }));
 
+    // Guarda o último resultado para a tela abrir instantânea na próxima vez.
+    const rows = Object.entries(results).map(([server_id, r]) => ({
+      user_id: ownerId,
+      server_id,
+      panel: r.panel,
+      credits: r.credits,
+      online: r.online,
+      error: r.error ?? null,
+      updated_at: new Date().toISOString(),
+    }));
+    if (rows.length) {
+      await admin.from("panel_stats_cache").upsert(rows, { onConflict: "user_id,server_id" });
+    }
+
     return json({ ok: true, stats: results });
+
   } catch (e) {
     return json({ error: e instanceof Error ? e.message : String(e) }, 500);
   }
