@@ -29,7 +29,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Loader2, CreditCard, Pencil, Trash2, Bot, Search, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Plus, Loader2, CreditCard, Pencil, Trash2, Bot, Search, ChevronLeft, ChevronRight, Wallet, CalendarDays, TrendingUp, Server } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import type { Database } from '@/integrations/supabase/types';
 
