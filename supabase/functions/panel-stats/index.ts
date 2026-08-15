@@ -403,7 +403,10 @@ Deno.serve(async (req) => {
           Object.assign(entry, await kofficeStats(conn));
         } else if (panel === "vplay") {
           Object.assign(entry, await vplayStats());
+        } else if (panel === "natv" || panel === "natv2") {
+          Object.assign(entry, await natvStats(panel));
         }
+
       } catch (e) {
         entry.error = e instanceof Error ? e.message : String(e);
       }
