@@ -10,7 +10,7 @@ import { Mail, Lock, User, Loader2, AlertCircle, Eye, EyeOff, ShieldCheck } from
 import { z } from 'zod';
 import logoSg from '@/assets/logo-sg.png';
 import { supabase } from '@/integrations/supabase/client';
-import { fetchTurnstileConfig, getTurnstileToken, verifyTurnstile, type TurnstileConfig } from '@/lib/turnstile';
+import { fetchTurnstileConfig, getTurnstileToken, primeTurnstile, verifyTurnstile, type TurnstileConfig } from '@/lib/turnstile';
 
 
 
