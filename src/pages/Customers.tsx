@@ -771,7 +771,34 @@ export default function Customers() {
             if (rushError) console.error('[Rush] Erro:', rushError);
             else if (!rushResult?.success) console.warn('[Rush] Falha:', rushResult?.error);
             else console.log('[Rush] Renovado:', rushResult);
-          } else if (isUniplay || isP2Cine) {
+          } else if (isP2Cine) {
+            const months = Math.max(1, Math.round(plan.duration_days / 30));
+            const { data: pcResult, error: pcError } = await supabase.functions.invoke('p2cine-renew', {
+              body: { action: 'renew', username: customer.username.trim(), months, customer_id: customer.id },
+            });
+            const pcMsg = pcError?.message || (pcResult as any)?.error;
+            if (pcError || !(pcResult as any)?.success) {
+              console.warn('[P2Cine] Falha:', pcMsg);
+              await supabase.from('pending_manual_renewals' as any).insert({
+                owner_id: customer.created_by || user?.id,
+                customer_id: customer.id,
+                customer_name: customer.name,
+                customer_phone: customer.phone,
+                username: customer.username.trim(),
+                server_id: customer.server_id,
+                server_name: serverName,
+                server_host: serverHost,
+                plan_name: plan.plan_name,
+                amount,
+                new_due_date: newDueDateStr,
+                reason: 'p2cine_api_failed',
+                source: 'frontend_p2cine_renew',
+                error_details: { message: pcMsg || 'Falha na API do painel kOffice/P2Cine' },
+              });
+            } else {
+              console.log('[P2Cine] Renovado:', pcResult);
+            }
+          } else if (isUniplay) {
             const { error: queueError } = await supabase.from('pending_manual_renewals' as any).insert({
               owner_id: customer.created_by || user?.id,
               customer_id: customer.id,
