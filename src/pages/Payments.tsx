@@ -501,6 +501,7 @@ export default function Payments() {
                   <TableRow className="border-border hover:bg-transparent">
                      <TableHead>Cliente</TableHead>
                      <TableHead>Usuário</TableHead>
+                     <TableHead>Servidor</TableHead>
                      <TableHead>Valor</TableHead>
                      <TableHead>Método</TableHead>
                      <TableHead>Origem</TableHead>
@@ -513,8 +514,18 @@ export default function Payments() {
                      <TableRow key={payment.id} className="table-row-hover border-border">
                        <TableCell className="font-medium">{payment.customers?.name}</TableCell>
                        <TableCell className="text-muted-foreground">{payment.customers?.username || '—'}</TableCell>
+                       <TableCell>
+                         {getServerName(payment) ? (
+                           <Badge variant="outline" className="gap-1 text-xs border-border/60">
+                             <Server className="w-3 h-3" />
+                             {getServerName(payment)}
+                           </Badge>
+                         ) : (
+                           <span className="text-muted-foreground text-xs">—</span>
+                         )}
+                       </TableCell>
                       <TableCell className="text-success font-semibold">
-                        R$ {Number(payment.amount).toFixed(2)}
+                        {money(Number(payment.amount))}
                       </TableCell>
                       <TableCell>{getMethodLabel(payment.method)}</TableCell>
                       <TableCell>
