@@ -171,12 +171,18 @@ function AppRoutes() {
   );
 }
 
+const DevtoolsGuard = () => {
+  useDevtoolsGuard();
+  return null;
+};
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <ThemeProvider attribute="class" defaultTheme="dark" enableSystem>
       <TooltipProvider>
         <Toaster />
         <Sonner />
+        <DevtoolsGuard />
         <BrowserRouter>
           <AuthProvider>
             <AutoBackup />
@@ -189,5 +195,6 @@ const App = () => (
     </ThemeProvider>
   </QueryClientProvider>
 );
+
 
 export default App;
