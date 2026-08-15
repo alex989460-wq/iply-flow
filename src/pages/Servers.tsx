@@ -35,7 +35,7 @@ import { Plus, Pencil, Trash2, Loader2, Server, Globe } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { cn } from '@/lib/utils';
 import type { Database } from '@/integrations/supabase/types';
-import { PANEL_OPTIONS } from '@/lib/panel-detect';
+import { PANEL_OPTIONS, resolvePanel } from '@/lib/panel-detect';
 
 type ServerStatus = Database['public']['Enums']['server_status'];
 type ServerRow = Database['public']['Tables']['servers']['Row'];
