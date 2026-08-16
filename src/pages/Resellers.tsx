@@ -199,7 +199,9 @@ export default function Resellers() {
             });
             map[user_id] = items;
           } catch {
-            /* ignora falhas por revenda */
+            // Falha ao consultar o CRM desta revenda: marca como consultado para
+            // não deixar o card preso em "Carregando…" — o fallback mostra a chave configurada.
+            map[user_id] = [];
           }
         }),
       );
