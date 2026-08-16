@@ -933,12 +933,13 @@ export default function Resellers() {
                             instance: i.instance_name,
                           }));
                         const evoAll = [...evoChannels, ...evoExtra];
-                        // Só usa o rótulo genérico enquanto o CRM ainda não respondeu.
-                        // Se o CRM respondeu e não há canal oficial, não mostra nada.
+                        // Enquanto o CRM não respondeu, mostra "Carregando…".
+                        // Se respondeu sem canal, mas a revenda tem chave oficial salva,
+                        // mostra o estado real: chave configurada sem número conectado.
                         const officialAll = officialChannels.length
                           ? officialChannels
-                          : (!crmLoaded && hasOfficialKey)
-                            ? [{ official: true, phone: '', label: 'Carregando…' }]
+                          : hasOfficialKey
+                            ? [{ official: true, phone: '', label: crmLoaded ? 'API Oficial (sem número conectado)' : 'Carregando…' }]
                             : [];
                         return (
                           <div className="pl-2">
