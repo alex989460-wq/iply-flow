@@ -312,7 +312,7 @@ serve(async (req) => {
           if (customerData?.created_by) {
             const { data: ownerAccess } = await supabaseAdmin
               .from('reseller_access')
-              .select('id, credits')
+              .select('id, credits, parent_reseller_id')
               .eq('user_id', customerData.created_by)
               .maybeSingle();
 
@@ -326,10 +326,12 @@ serve(async (req) => {
                   .eq('role', 'admin')
                   .maybeSingle();
 
-                if (!adminRole) {
+                // Créditos da plataforma só valem para sub-revendas (quem tem um
+                // revendedor pai). Revenda com painel próprio usa o saldo do painel.
+                if (!adminRole && ownerAccess.parent_reseller_id) {
                   throw new Error(`Créditos insuficientes. Necessário: ${creditsToDeduct}, disponível: ${ownerAccess.credits ?? 0}`);
                 } else {
-                  console.log(`[VPlay] Admin detectado - prosseguindo sem desconto de créditos backend`);
+                  console.log(`[VPlay] Sem saldo na plataforma, mas revenda própria/admin - prosseguindo com o saldo do painel`);
                 }
               } else {
                 const newCredits = ownerAccess.credits - creditsToDeduct;

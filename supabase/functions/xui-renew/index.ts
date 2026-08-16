@@ -189,14 +189,17 @@ serve(async (req) => {
           if (customerData?.created_by) {
             const { data: ownerAccess } = await supabaseAdmin
               .from('reseller_access')
-              .select('id, credits')
+              .select('id, credits, parent_reseller_id')
               .eq('user_id', customerData.created_by)
               .maybeSingle();
 
             if (ownerAccess) {
               if ((ownerAccess.credits ?? 0) < creditsToDeduct) {
-                throw new Error(`Créditos insuficientes. Necessário: ${creditsToDeduct}, disponível: ${ownerAccess.credits ?? 0}`);
-              }
+                // Só bloqueia sub-revendas; revenda com painel próprio usa o saldo do painel.
+                if (ownerAccess.parent_reseller_id) {
+                  throw new Error(`Créditos insuficientes. Necessário: ${creditsToDeduct}, disponível: ${ownerAccess.credits ?? 0}`);
+                }
+              } else {
 
               const newCredits = ownerAccess.credits - creditsToDeduct;
               const { error: deductError } = await supabaseAdmin
@@ -210,6 +213,7 @@ serve(async (req) => {
               chargedCreditsAmount = creditsToDeduct;
               chargedSource = 'backend';
               console.log(`[XUI-Renew] ${creditsToDeduct} crédito(s) descontado(s) no backend. Saldo: ${newCredits}`);
+              }
             }
           }
         }
