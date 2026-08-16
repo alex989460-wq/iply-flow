@@ -516,7 +516,6 @@ Deno.serve(async (req) => {
               if (!r.ok) { lastErr = `HTTP ${r.status} em ${p}`; continue; }
               let b: any = null;
               try { b = JSON.parse(t); } catch { lastErr = `resposta não-JSON em ${p}`; continue; }
-              console.log(`[Rush] ${p} OK -> ${t.slice(0, 900)}`);
               credits = deepCredits(b);
               if (credits !== null) { console.log(`[Rush] créditos lidos em ${p}: ${credits}`); break; }
               lastErr = `sem campo de saldo em ${p}`;
