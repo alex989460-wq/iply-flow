@@ -230,7 +230,7 @@ Deno.serve(async (req) => {
     // ---- credenciais do revendedor ----
     const [{ data: cfg }, { data: sigmaConns }, { data: kofficeConns }] = await Promise.all([
       admin.from("reseller_api_settings")
-        .select("sigma_base_url, sigma_username, sigma_password, sigma_proxy_url, sigma_proxy_secret, p2cine_base_url, p2cine_username, p2cine_api_key, vplay_mysql_host, vplay_mysql_port, vplay_mysql_user, vplay_mysql_password, vplay_mysql_database, vplay_panel_username, natv_api_key, natv_base_url, natv2_api_key, natv2_base_url")
+        .select("sigma_base_url, sigma_username, sigma_password, sigma_proxy_url, sigma_proxy_secret, p2cine_base_url, p2cine_username, p2cine_api_key, vplay_mysql_host, vplay_mysql_port, vplay_mysql_user, vplay_mysql_password, vplay_mysql_database, vplay_panel_username, natv_api_key, natv_base_url, natv2_api_key, natv2_base_url, the_best_api_key, the_best_username, the_best_password, the_best_base_url, rush_username, rush_password, rush_token, rush_base_url")
         .eq("user_id", ownerId).maybeSingle(),
       admin.from("sigma_panel_connections").select("id, base_url, username, password, proxy_url, proxy_secret")
         .eq("user_id", ownerId).eq("is_active", true).order("created_at"),
@@ -349,11 +349,12 @@ Deno.serve(async (req) => {
     const vplayStats = () => {
       if (!vplayPromise) {
         vplayPromise = (async () => {
-          const host = String((cfg as any)?.vplay_mysql_host || "").trim();
-          const user = String((cfg as any)?.vplay_mysql_user || "").trim();
-          const password = String((cfg as any)?.vplay_mysql_password || "");
-          const database = String((cfg as any)?.vplay_mysql_database || "").trim();
-          const panelUser = String((cfg as any)?.vplay_panel_username || "").trim();
+          // Credenciais do revendedor e, se faltarem, as globais (mesma regra do vplay-renew).
+          const host = String((cfg as any)?.vplay_mysql_host || Deno.env.get("VPLAY_MYSQL_HOST") || "").trim();
+          const user = String((cfg as any)?.vplay_mysql_user || Deno.env.get("VPLAY_MYSQL_USER") || "").trim();
+          const password = String((cfg as any)?.vplay_mysql_password || Deno.env.get("VPLAY_MYSQL_PASSWORD") || "");
+          const database = String((cfg as any)?.vplay_mysql_database || Deno.env.get("VPLAY_MYSQL_DATABASE") || "").trim();
+          const panelUser = String((cfg as any)?.vplay_panel_username || Deno.env.get("VPLAY_PANEL_USERNAME") || "").trim();
           if (!host || !user || !password || !database) {
             throw new Error(
               "O VPlay só informa créditos pela conexão MySQL. Preencha host, usuário, senha, banco e o usuário do painel em Configurações → APIs → VPlay.",
@@ -364,15 +365,17 @@ Deno.serve(async (req) => {
           }
           const conn = await mysql.createConnection({
             host, user, password, database,
-            port: Number((cfg as any)?.vplay_mysql_port) || 3306,
+            port: Number((cfg as any)?.vplay_mysql_port || Deno.env.get("VPLAY_MYSQL_PORT")) || 3306,
             connectTimeout: 10000,
           });
           try {
             let credits: number | null = null;
             for (const sql of [
               "SELECT credits FROM users WHERE username = ? LIMIT 1",
-              "SELECT credits FROM reg_users WHERE username = ? LIMIT 1",
-              "SELECT credits FROM users WHERE member_id = (SELECT id FROM reg_users WHERE username = ? LIMIT 1) LIMIT 1",
+              "SELECT credits FROM users WHERE TRIM(username) = TRIM(?) LIMIT 1",
+              "SELECT credit AS credits FROM users WHERE TRIM(username) = TRIM(?) LIMIT 1",
+              "SELECT credits FROM reg_users WHERE TRIM(username) = TRIM(?) LIMIT 1",
+              "SELECT credits FROM users WHERE member_id = (SELECT id FROM reg_users WHERE TRIM(username) = TRIM(?) LIMIT 1) LIMIT 1",
             ]) {
               const [rows]: any = await conn.query(sql, [panelUser]).catch(() => [[]]);
               credits = pickNumber(rows?.[0]?.credits);
@@ -383,8 +386,17 @@ Deno.serve(async (req) => {
             }
 
             let online: number | null = null;
-            const [act]: any = await conn.query("SELECT COUNT(*) AS c FROM user_activity_now").catch(() => [null]);
-            if (act) online = pickNumber(act?.[0]?.c);
+            for (const sql of [
+              "SELECT COUNT(*) AS c FROM lines_live",
+              "SELECT COUNT(*) AS c FROM user_activity_now",
+              "SELECT COUNT(*) AS c FROM lines_activity WHERE date_end IS NULL",
+            ]) {
+              const [act]: any = await conn.query(sql).catch(() => [null]);
+              if (act) {
+                online = pickNumber(act?.[0]?.c);
+                if (online !== null) break;
+              }
+            }
             return { credits, online };
           } finally {
             await conn.end().catch(() => {});
@@ -392,6 +404,121 @@ Deno.serve(async (req) => {
         })();
       }
       return vplayPromise;
+    };
+
+    // ---- The Best ----
+    let theBestPromise: Promise<{ credits: number | null; online: number | null }> | null = null;
+    const theBestStats = () => {
+      if (!theBestPromise) {
+        theBestPromise = (async () => {
+          const apiKey = String((cfg as any)?.the_best_api_key || "").trim();
+          const username = String((cfg as any)?.the_best_username || "").trim();
+          const password = String((cfg as any)?.the_best_password || "").trim();
+          const base = normBase((cfg as any)?.the_best_base_url || "https://api.painel.best");
+          if (!apiKey && (!username || !password)) {
+            throw new Error("Credenciais do The Best não configuradas em Configurações → APIs.");
+          }
+
+          let headers: Record<string, string> = apiKey
+            ? { "Api-Key": apiKey, Accept: "application/json" }
+            : {};
+          if (!apiKey) {
+            const r = await fetch(`${base}/auth/token/`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ username, password }),
+            });
+            const t = await r.text();
+            if (!r.ok) throw new Error(`Login recusado (HTTP ${r.status}).`);
+            let tok = "";
+            try { const b = JSON.parse(t); tok = b.access || b.token || b.access_token || ""; } catch { /* ignore */ }
+            if (!tok) throw new Error("O painel não devolveu o token de acesso.");
+            headers = { Authorization: `Bearer ${tok}`, Accept: "application/json" };
+          }
+
+          let credits: number | null = null;
+          let lastErr = "";
+          for (const p of ["/user/", "/reseller/", "/dashboard/", "/user/me/"]) {
+            try {
+              const r = await fetch(`${base}${p}`, { headers });
+              const t = await r.text();
+              if (!r.ok) { lastErr = `HTTP ${r.status} em ${p}`; continue; }
+              let b: any = null;
+              try { b = JSON.parse(t); } catch { continue; }
+              const d = b?.data ?? b?.results ?? b;
+              const node = Array.isArray(d) ? d[0] : d;
+              credits = pickNumber(node?.credits, node?.credit, node?.balance, node?.saldo, node?.wallet);
+              if (credits !== null) break;
+            } catch (e) {
+              lastErr = e instanceof Error ? e.message : String(e);
+            }
+          }
+          if (credits === null) throw new Error(`Não foi possível ler os créditos do The Best (${lastErr || "sem campo de saldo na resposta"}).`);
+
+          let online: number | null = null;
+          for (const p of ["/lines/?online=true&per_page=1", "/lines/?is_online=true&per_page=1"]) {
+            try {
+              const r = await fetch(`${base}${p}`, { headers });
+              if (!r.ok) continue;
+              const b = await r.json();
+              online = pickNumber(b?.count, b?.total, b?.meta?.total);
+              if (online !== null) break;
+            } catch { /* opcional */ }
+          }
+          return { credits, online };
+        })();
+      }
+      return theBestPromise;
+    };
+
+    // ---- Rush ----
+    let rushPromise: Promise<{ credits: number | null; online: number | null }> | null = null;
+    const rushStats = () => {
+      if (!rushPromise) {
+        rushPromise = (async () => {
+          const rUser = String((cfg as any)?.rush_username || "").trim();
+          const rPass = String((cfg as any)?.rush_password || "").trim();
+          const rToken = String((cfg as any)?.rush_token || "").trim();
+          const base = normBase((cfg as any)?.rush_base_url || "https://api-new.painel.ai");
+          if (!rUser || !rPass || !rToken) {
+            throw new Error("Credenciais da Rush não configuradas em Configurações → APIs (usuário, senha e token).");
+          }
+          const auth = `username=${encodeURIComponent(rUser)}&password=${encodeURIComponent(rPass)}&token=${encodeURIComponent(rToken)}`;
+
+          let credits: number | null = null;
+          let lastErr = "";
+          for (const p of ["/user/info", "/user", "/me", "/reseller", "/dashboard", "/credits", "/iptv/credits"]) {
+            try {
+              const r = await fetch(`${base}${p}?${auth}`, { headers: { Accept: "application/json" } });
+              const t = await r.text();
+              if (!r.ok) { lastErr = `HTTP ${r.status} em ${p}`; continue; }
+              let b: any = null;
+              try { b = JSON.parse(t); } catch { continue; }
+              const d = b?.data ?? b?.user ?? b;
+              const node = Array.isArray(d) ? d[0] : d;
+              credits = pickNumber(node?.credits, node?.credit, node?.balance, node?.saldo, node?.wallet, node?.creditos);
+              if (credits !== null) { console.log(`[Rush] créditos lidos em ${p}`); break; }
+              lastErr = `sem campo de saldo em ${p}`;
+            } catch (e) {
+              lastErr = e instanceof Error ? e.message : String(e);
+            }
+          }
+          if (credits === null) throw new Error(`Não foi possível ler os créditos da Rush (${lastErr || "sem resposta"}).`);
+
+          let online: number | null = null;
+          for (const p of ["/iptv/online", "/p2p/online", "/iptv/list?online=1&per_page=1"]) {
+            try {
+              const r = await fetch(`${base}${p.includes("?") ? `${p}&` : `${p}?`}${auth}`, { headers: { Accept: "application/json" } });
+              if (!r.ok) continue;
+              const b = await r.json();
+              online = pickNumber(b?.online, b?.total, b?.count, Array.isArray(b?.items) ? b.items.length : null, Array.isArray(b) ? b.length : null);
+              if (online !== null) break;
+            } catch { /* opcional */ }
+          }
+          return { credits, online };
+        })();
+      }
+      return rushPromise;
     };
 
     await Promise.all((servers || []).map(async (server: any) => {
@@ -427,6 +554,10 @@ Deno.serve(async (req) => {
           Object.assign(entry, await vplayStats());
         } else if (panel === "natv" || panel === "natv2") {
           Object.assign(entry, await natvStats(panel));
+        } else if (panel === "thebest") {
+          Object.assign(entry, await theBestStats());
+        } else if (panel === "rush") {
+          Object.assign(entry, await rushStats());
         }
 
       } catch (e) {
