@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { explainPanelError } from "../_shared/panel-error.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -222,7 +223,7 @@ serve(async (req) => {
       const errorText = await renewResponse.text();
       console.error(`[Rush] Erro na renovação: ${renewResponse.status} - ${errorText}`);
       return new Response(
-        JSON.stringify({ error: `Erro ao renovar na API Rush: ${renewResponse.status} - ${errorText}` }),
+        JSON.stringify({ error: explainPanelError("Rush", renewResponse.status, errorText) }),
         { status: renewResponse.status, headers: jsonHeaders },
       );
     }
@@ -279,7 +280,7 @@ serve(async (req) => {
     const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
     console.error('[Rush] Erro:', error);
     return new Response(
-      JSON.stringify({ error: `Erro ao renovar na Rush: ${errorMessage}` }),
+      JSON.stringify({ error: explainPanelError("Rush", 0, errorMessage) }),
       { status: 500, headers: jsonHeaders },
     );
   }
