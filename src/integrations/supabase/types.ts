@@ -3191,12 +3191,67 @@ export type Database = {
           },
         ]
       }
+      sigma_bridge_jobs: {
+        Row: {
+          action: string
+          created_at: string | null
+          error_message: string | null
+          expires_at: string | null
+          id: string
+          payload: Json | null
+          processed_at: string | null
+          response_payload: Json | null
+          sigma_connection_id: string
+          status: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          action: string
+          created_at?: string | null
+          error_message?: string | null
+          expires_at?: string | null
+          id?: string
+          payload?: Json | null
+          processed_at?: string | null
+          response_payload?: Json | null
+          sigma_connection_id: string
+          status?: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          action?: string
+          created_at?: string | null
+          error_message?: string | null
+          expires_at?: string | null
+          id?: string
+          payload?: Json | null
+          processed_at?: string | null
+          response_payload?: Json | null
+          sigma_connection_id?: string
+          status?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sigma_bridge_jobs_sigma_connection_id_fkey"
+            columns: ["sigma_connection_id"]
+            isOneToOne: false
+            referencedRelation: "sigma_panel_connections"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       sigma_panel_connections: {
         Row: {
           base_url: string
+          bridge_token: string | null
           created_at: string
           id: string
           is_active: boolean
+          last_bridge_seen_at: string | null
           name: string
           password: string
           proxy_secret: string | null
@@ -3207,9 +3262,11 @@ export type Database = {
         }
         Insert: {
           base_url: string
+          bridge_token?: string | null
           created_at?: string
           id?: string
           is_active?: boolean
+          last_bridge_seen_at?: string | null
           name: string
           password: string
           proxy_secret?: string | null
@@ -3220,9 +3277,11 @@ export type Database = {
         }
         Update: {
           base_url?: string
+          bridge_token?: string | null
           created_at?: string
           id?: string
           is_active?: boolean
+          last_bridge_seen_at?: string | null
           name?: string
           password?: string
           proxy_secret?: string | null
