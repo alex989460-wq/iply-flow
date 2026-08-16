@@ -485,19 +485,40 @@ Deno.serve(async (req) => {
           }
           const auth = `username=${encodeURIComponent(rUser)}&password=${encodeURIComponent(rPass)}&token=${encodeURIComponent(rToken)}`;
 
+          // Procura o saldo em qualquer campo numérico com nome de crédito,
+          // em vários endpoints conhecidos do painel Rush.
+          const deepCredits = (obj: any, depth = 0): number | null => {
+            if (!obj || typeof obj !== "object" || depth > 3) return null;
+            for (const [k, v] of Object.entries(obj)) {
+              if (/^(credits?|creditos|credito|balance|saldo|wallet)$/i.test(k)) {
+                const n = pickNumber(v);
+                if (n !== null) return n;
+              }
+            }
+            for (const v of Object.values(obj)) {
+              const n = deepCredits(v, depth + 1);
+              if (n !== null) return n;
+            }
+            return null;
+          };
+
           let credits: number | null = null;
           let lastErr = "";
-          for (const p of ["/user/info", "/user", "/me", "/reseller", "/dashboard", "/credits", "/iptv/credits"]) {
+          for (const p of [
+            "/user/info", "/user", "/users/me", "/me", "/profile", "/account",
+            "/reseller", "/reseller/info", "/dashboard", "/dashboard/info",
+            "/credits", "/iptv/credits", "/iptv/user", "/iptv/info", "/iptv/dashboard",
+            "/iptv/list?per_page=1", "/p2p/list?per_page=1",
+          ]) {
             try {
-              const r = await fetch(`${base}${p}?${auth}`, { headers: { Accept: "application/json" } });
+              const r = await fetch(`${base}${p}${p.includes("?") ? "&" : "?"}${auth}`, { headers: { Accept: "application/json" } });
               const t = await r.text();
               if (!r.ok) { lastErr = `HTTP ${r.status} em ${p}`; continue; }
               let b: any = null;
-              try { b = JSON.parse(t); } catch { continue; }
-              const d = b?.data ?? b?.user ?? b;
-              const node = Array.isArray(d) ? d[0] : d;
-              credits = pickNumber(node?.credits, node?.credit, node?.balance, node?.saldo, node?.wallet, node?.creditos);
-              if (credits !== null) { console.log(`[Rush] créditos lidos em ${p}`); break; }
+              try { b = JSON.parse(t); } catch { lastErr = `resposta não-JSON em ${p}`; continue; }
+              console.log(`[Rush] ${p} OK chaves=${Object.keys(b || {}).slice(0, 15).join(",")}`);
+              credits = deepCredits(b);
+              if (credits !== null) { console.log(`[Rush] créditos lidos em ${p}: ${credits}`); break; }
               lastErr = `sem campo de saldo em ${p}`;
             } catch (e) {
               lastErr = e instanceof Error ? e.message : String(e);
