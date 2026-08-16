@@ -566,9 +566,9 @@ export default function QuickRenewalPanel({ isMobile = false, onClose, initialPh
             });
             if (sgError) {
               console.error('[Sigma] Erro:', sgError);
-              toast.warning(`Renovado localmente, mas falha no Painel Sigma: ${sgError.message}`);
+              toast.warning('Renovado localmente, mas ' + describePanelError('Sigma', sgError));
             } else if ((sgResult as any)?.error) {
-              toast.warning(`Renovado localmente, mas: ${(sgResult as any).error}`);
+              toast.warning('Renovado localmente, mas ' + describePanelError('Sigma', (sgResult as any).error));
             } else {
               console.log('[Sigma] Sucesso:', sgResult);
             }
@@ -595,7 +595,7 @@ export default function QuickRenewalPanel({ isMobile = false, onClose, initialPh
             const pcMsg = pcError?.message || (pcResult as any)?.error;
             if (pcError || !(pcResult as any)?.success) {
               console.error('[P2Cine] Falha:', pcMsg);
-              toast.warning(`Renovado localmente, mas: ${pcMsg || 'Falha no painel P2Cine'}`);
+              toast.warning('Renovado localmente, mas ' + describePanelError('P2Cine', pcMsg));
               await supabase.from('pending_manual_renewals' as any).insert({
                 owner_id: (customer as any).created_by || user?.id,
                 customer_id: customer.id,
@@ -717,7 +717,7 @@ Obrigado pela preferência! 🙏`;
       queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
     },
     onError: (error) => {
-      toast.error('Erro ao renovar: ' + error.message);
+      toast.error(describePanelError('Renovação', error));
     },
   });
 
