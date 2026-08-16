@@ -514,7 +514,7 @@ export default function QuickRenewalPanel({ isMobile = false, onClose, initialPh
               toast.warning('Renovado localmente, mas ' + describePanelError('NATV²', n2Error));
             } else if (!n2Result?.success) {
               console.warn('[NATV2] Falha:', n2Result?.error);
-              toast.warning('Renovado localmente, mas ' + describePanelError('Painel', n2Result?.error));
+              toast.warning('Renovado localmente, mas ' + describePanelError('NATV²', n2Result?.error));
             } else {
               console.log('[NATV2] Sucesso:', n2Result);
             }
@@ -528,7 +528,7 @@ export default function QuickRenewalPanel({ isMobile = false, onClose, initialPh
               toast.warning('Renovado localmente, mas ' + describePanelError('The Best', tbError));
             } else if (!tbResult?.success) {
               console.warn('[TheBest] Falha:', tbResult?.error);
-              toast.warning('Renovado localmente, mas ' + describePanelError('Painel', tbResult?.error));
+              toast.warning('Renovado localmente, mas ' + describePanelError('The Best', tbResult?.error));
             } else {
               console.log('[TheBest] Sucesso:', tbResult);
             }
@@ -542,7 +542,7 @@ export default function QuickRenewalPanel({ isMobile = false, onClose, initialPh
               toast.warning('Renovado localmente, mas ' + describePanelError('NATV', natvError));
             } else if (!natvResult?.success) {
               console.warn('[NATV] Falha:', natvResult?.error);
-              toast.warning('Renovado localmente, mas ' + describePanelError('Painel', natvResult?.error));
+              toast.warning('Renovado localmente, mas ' + describePanelError('NATV', natvResult?.error));
             } else {
               console.log('[NATV] Sucesso:', natvResult);
             }
@@ -555,7 +555,7 @@ export default function QuickRenewalPanel({ isMobile = false, onClose, initialPh
               toast.warning('Renovado localmente, mas ' + describePanelError('VPlay', vpError));
             } else if (!vpResult?.success) {
               console.warn('[VPlay] Falha:', vpResult?.error);
-              toast.warning('Renovado localmente, mas ' + describePanelError('Painel', vpResult?.error));
+              toast.warning('Renovado localmente, mas ' + describePanelError('VPlay', vpResult?.error));
             } else {
               console.log('[VPlay] Sucesso:', vpResult);
             }
@@ -583,7 +583,7 @@ export default function QuickRenewalPanel({ isMobile = false, onClose, initialPh
               toast.warning('Renovado localmente, mas ' + describePanelError('Rush', rushError));
             } else if (!rushResult?.success) {
               console.warn('[Rush] Falha:', rushResult?.error);
-              toast.warning('Renovado localmente, mas ' + describePanelError('Painel', rushResult?.error));
+              toast.warning('Renovado localmente, mas ' + describePanelError('Rush', rushResult?.error));
             } else {
               console.log('[Rush] Sucesso:', rushResult);
             }
@@ -645,7 +645,7 @@ export default function QuickRenewalPanel({ isMobile = false, onClose, initialPh
               toast.warning('Renovado localmente, mas ' + describePanelError('XUI', xuiError));
             } else if (!xuiResult?.success) {
               console.warn('[XUI-Renew] Falha:', xuiResult?.error);
-              toast.warning('Renovado localmente, mas ' + describePanelError('Painel', xuiResult?.error));
+              toast.warning('Renovado localmente, mas ' + describePanelError('XUI', xuiResult?.error));
             } else {
               console.log('[XUI-Renew] Sucesso:', xuiResult);
             }
