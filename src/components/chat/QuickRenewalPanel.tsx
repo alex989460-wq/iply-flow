@@ -35,6 +35,7 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { toast } from 'sonner';
+import { describePanelError } from '@/lib/panel-error';
 import { addDays, addMonths, format, startOfDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { normalizeWhatsAppPhone } from '@/lib/phone';
@@ -510,10 +511,10 @@ export default function QuickRenewalPanel({ isMobile = false, onClose, initialPh
             });
             if (n2Error) {
               console.error('[NATV2] Erro:', n2Error);
-              toast.warning(`Renovado localmente, mas falha no servidor NATV²: ${n2Error.message}`);
+              toast.warning('Renovado localmente, mas ' + describePanelError('NATV²', n2Error));
             } else if (!n2Result?.success) {
               console.warn('[NATV2] Falha:', n2Result?.error);
-              toast.warning(`Renovado localmente, mas: ${n2Result?.error || 'Falha no servidor NATV²'}`);
+              toast.warning('Renovado localmente, mas ' + describePanelError('NATV²', n2Result?.error));
             } else {
               console.log('[NATV2] Sucesso:', n2Result);
             }
@@ -524,10 +525,10 @@ export default function QuickRenewalPanel({ isMobile = false, onClose, initialPh
             });
             if (tbError) {
               console.error('[TheBest] Erro:', tbError);
-              toast.warning(`Renovado localmente, mas falha no servidor The Best: ${tbError.message}`);
+              toast.warning('Renovado localmente, mas ' + describePanelError('The Best', tbError));
             } else if (!tbResult?.success) {
               console.warn('[TheBest] Falha:', tbResult?.error);
-              toast.warning(`Renovado localmente, mas: ${tbResult?.error || 'Falha no servidor The Best'}`);
+              toast.warning('Renovado localmente, mas ' + describePanelError('The Best', tbResult?.error));
             } else {
               console.log('[TheBest] Sucesso:', tbResult);
             }
@@ -538,10 +539,10 @@ export default function QuickRenewalPanel({ isMobile = false, onClose, initialPh
             });
             if (natvError) {
               console.error('[NATV] Erro:', natvError);
-              toast.warning(`Renovado localmente, mas falha no servidor NATV: ${natvError.message}`);
+              toast.warning('Renovado localmente, mas ' + describePanelError('NATV', natvError));
             } else if (!natvResult?.success) {
               console.warn('[NATV] Falha:', natvResult?.error);
-              toast.warning(`Renovado localmente, mas: ${natvResult?.error || 'Falha no servidor NATV'}`);
+              toast.warning('Renovado localmente, mas ' + describePanelError('NATV', natvResult?.error));
             } else {
               console.log('[NATV] Sucesso:', natvResult);
             }
@@ -551,10 +552,10 @@ export default function QuickRenewalPanel({ isMobile = false, onClose, initialPh
             });
             if (vpError) {
               console.error('[VPlay] Erro:', vpError);
-              toast.warning(`Renovado localmente, mas falha no servidor VPlay: ${vpError.message}`);
+              toast.warning('Renovado localmente, mas ' + describePanelError('VPlay', vpError));
             } else if (!vpResult?.success) {
               console.warn('[VPlay] Falha:', vpResult?.error);
-              toast.warning(`Renovado localmente, mas: ${vpResult?.error || 'Falha no servidor VPlay'}`);
+              toast.warning('Renovado localmente, mas ' + describePanelError('VPlay', vpResult?.error));
             } else {
               console.log('[VPlay] Sucesso:', vpResult);
             }
@@ -565,9 +566,9 @@ export default function QuickRenewalPanel({ isMobile = false, onClose, initialPh
             });
             if (sgError) {
               console.error('[Sigma] Erro:', sgError);
-              toast.warning(`Renovado localmente, mas falha no Painel Sigma: ${sgError.message}`);
+              toast.warning('Renovado localmente, mas ' + describePanelError('Sigma', sgError));
             } else if ((sgResult as any)?.error) {
-              toast.warning(`Renovado localmente, mas: ${(sgResult as any).error}`);
+              toast.warning('Renovado localmente, mas ' + describePanelError('Sigma', (sgResult as any).error));
             } else {
               console.log('[Sigma] Sucesso:', sgResult);
             }
@@ -579,10 +580,10 @@ export default function QuickRenewalPanel({ isMobile = false, onClose, initialPh
             });
             if (rushError) {
               console.error('[Rush] Erro:', rushError);
-              toast.warning(`Renovado localmente, mas falha no servidor Rush: ${rushError.message}`);
+              toast.warning('Renovado localmente, mas ' + describePanelError('Rush', rushError));
             } else if (!rushResult?.success) {
               console.warn('[Rush] Falha:', rushResult?.error);
-              toast.warning(`Renovado localmente, mas: ${rushResult?.error || 'Falha no servidor Rush'}`);
+              toast.warning('Renovado localmente, mas ' + describePanelError('Rush', rushResult?.error));
             } else {
               console.log('[Rush] Sucesso:', rushResult);
             }
@@ -594,7 +595,7 @@ export default function QuickRenewalPanel({ isMobile = false, onClose, initialPh
             const pcMsg = pcError?.message || (pcResult as any)?.error;
             if (pcError || !(pcResult as any)?.success) {
               console.error('[P2Cine] Falha:', pcMsg);
-              toast.warning(`Renovado localmente, mas: ${pcMsg || 'Falha no painel P2Cine'}`);
+              toast.warning('Renovado localmente, mas ' + describePanelError('P2Cine', pcMsg));
               await supabase.from('pending_manual_renewals' as any).insert({
                 owner_id: (customer as any).created_by || user?.id,
                 customer_id: customer.id,
@@ -641,10 +642,10 @@ export default function QuickRenewalPanel({ isMobile = false, onClose, initialPh
             });
             if (xuiError) {
               console.error('[XUI-Renew] Erro:', xuiError);
-              toast.warning(`Renovado localmente, mas falha no servidor XUI: ${xuiError.message}`);
+              toast.warning('Renovado localmente, mas ' + describePanelError('XUI', xuiError));
             } else if (!xuiResult?.success) {
               console.warn('[XUI-Renew] Falha:', xuiResult?.error);
-              toast.warning(`Renovado localmente, mas: ${xuiResult?.error || 'Falha no servidor XUI'}`);
+              toast.warning('Renovado localmente, mas ' + describePanelError('XUI', xuiResult?.error));
             } else {
               console.log('[XUI-Renew] Sucesso:', xuiResult);
             }
@@ -716,7 +717,7 @@ Obrigado pela preferência! 🙏`;
       queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
     },
     onError: (error) => {
-      toast.error('Erro ao renovar: ' + error.message);
+      toast.error(describePanelError('Renovação', error));
     },
   });
 
