@@ -505,10 +505,10 @@ Deno.serve(async (req) => {
           let credits: number | null = null;
           let lastErr = "";
           for (const p of [
+            "/resale", "/resale/info", "/resale/me", "/resales", "/resale/balance",
             "/user/info", "/user", "/users/me", "/me", "/profile", "/account",
-            "/reseller", "/reseller/info", "/dashboard", "/dashboard/info",
-            "/credits", "/iptv/credits", "/iptv/user", "/iptv/info", "/iptv/dashboard",
-            "/iptv/list?per_page=1", "/p2p/list?per_page=1",
+            "/reseller", "/reseller/info", "/dashboard/info",
+            "/credits", "/iptv/credits", "/iptv/user", "/iptv/info",
           ]) {
             try {
               const r = await fetch(`${base}${p}${p.includes("?") ? "&" : "?"}${auth}`, { headers: { Accept: "application/json" } });
