@@ -103,14 +103,15 @@ function normalizeChannels(body: any): CrmChannel[] {
       primary: Boolean(c.primary || c.is_primary || c.id === 'primary'),
       is_active: Boolean(c.is_active ?? c.active ?? c.connected ?? c.primary),
     }))
-    // Somente canais da API Oficial (Cloud API): precisam ter phone_number_id e número.
-    // Isso evita selecionar instâncias não oficiais/QR Code, que causam erro de sessão no envio.
+    // Somente canais da API Oficial (Cloud API): basta ter phone_number_id.
+    // Canais híbridos (oficial + não oficial) entram aqui pelo lado oficial,
+    // mesmo quando a Meta não retorna o número formatado.
     .filter((c: any) => {
       const kind = String(c.kind || '').toLowerCase();
       const isUnofficial = /evolution|qr|baileys|web|zapresponder|unofficial/.test(kind);
-      const hasPhone = Boolean(c.display_phone_number || c.phone_number);
-      return !isUnofficial && Boolean(c.phone_number_id) && hasPhone;
+      return !isUnofficial && Boolean(c.phone_number_id);
     });
+
 }
 
 
