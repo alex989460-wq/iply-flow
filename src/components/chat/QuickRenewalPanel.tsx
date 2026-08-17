@@ -347,7 +347,10 @@ export default function QuickRenewalPanel({ isMobile = false, onClose, initialPh
                             {selectedCustomer.password && (
                               <Copy 
                                 className="h-3 w-3 text-muted-foreground opacity-0 group-hover/pw:opacity-100 hover:text-primary cursor-pointer transition-all" 
-                                onClick={() => handleCopyMessage(selectedCustomer.password!)}
+                                onClick={() => {
+                                  navigator.clipboard.writeText(selectedCustomer.password!);
+                                  toast.success('Senha copiada!');
+                                }}
                               />
                             )}
                           </div>
