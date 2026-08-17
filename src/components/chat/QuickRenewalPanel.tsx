@@ -1831,23 +1831,23 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
 
 
                 <div className="pt-2 border-t border-border space-y-2">
-
-                  
                   {/* Extra Months Confirmation Dialog */}
                   {showExtraMonthsConfirm && selectedCustomer.extra_months > 0 && (
-                    <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-lg space-y-2">
+                    <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-2xl space-y-2">
                       <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400">
-                        <AlertTriangle className="h-4 w-4" />
-                        <span className="text-sm font-semibold">Confirmar Renovação</span>
+                        <div className="p-1 rounded-lg bg-amber-500/20">
+                          <AlertTriangle className="h-3.5 w-3.5" />
+                        </div>
+                        <span className="text-sm font-bold">Confirmar Renovação</span>
                       </div>
                       <p className="text-xs text-foreground">
                         Este cliente ainda possui <strong>{selectedCustomer.extra_months} {selectedCustomer.extra_months === 1 ? 'mês extra' : 'meses extras'}</strong>.
                         Deseja realmente renovar? O contador será reduzido em 1.
                       </p>
                       <div className="flex gap-2">
-                        <Button 
-                          size="sm" 
-                          className="flex-1 h-8 bg-amber-600 hover:bg-amber-700 text-white"
+                        <Button
+                          size="sm"
+                          className="flex-1 h-9 rounded-xl bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-white shadow-lg shadow-amber-500/20 transition-all active:scale-[0.98]"
                           onClick={handleConfirmExtraMonthsRenewal}
                           disabled={registerPayment.isPending}
                         >
@@ -1858,10 +1858,10 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                           )}
                           Sim, Renovar
                         </Button>
-                        <Button 
-                          size="sm" 
-                          variant="outline" 
-                          className="h-8"
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-9 rounded-xl"
                           onClick={handleCancelExtraMonthsRenewal}
                         >
                           Cancelar
@@ -1872,20 +1872,20 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                   
                   {!showExtraMonthsConfirm && (
                     <div className="space-y-2">
-                      <div className="flex items-center gap-2 p-2 rounded-md bg-secondary/30 border border-border">
+                      <div className="flex items-center gap-2 p-2.5 rounded-xl bg-background/40 border border-border/30">
                         <Checkbox
                           id="activate_on_server_renewal"
                           checked={activateOnServer}
                           onCheckedChange={(checked) => setActivateOnServer(!!checked)}
+                          className="border-primary/50 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
                         />
-                        <Label htmlFor="activate_on_server_renewal" className="text-xs cursor-pointer">
+                        <Label htmlFor="activate_on_server_renewal" className="text-xs cursor-pointer font-medium">
                           ⚡ Renovar no painel do servidor
                         </Label>
                       </div>
                       <div className="flex gap-2">
-                        <Button 
-                          className="flex-1 h-10 rounded-xl font-semibold shadow-lg shadow-primary/20 bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 transition-all" 
-
+                        <Button
+                          className="flex-1 h-11 rounded-xl font-bold text-sm shadow-lg shadow-primary/25 bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 transition-all active:scale-[0.98]"
                           onClick={handleRenew}
                           disabled={registerPayment.isPending}
                         >
@@ -1896,9 +1896,9 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                           )}
                           Renovar
                         </Button>
-                        <Button 
+                        <Button
                           variant="outline"
-                          className="h-9"
+                          className="h-11 w-11 rounded-xl border-primary/20 hover:bg-primary/10 hover:text-primary transition-all active:scale-[0.98]"
                           onClick={handleCopyPaymentMessage}
                           title="Copiar mensagem de pagamento aprovado"
                         >
@@ -1910,25 +1910,28 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
 
                   {/* Renewal success message */}
                   {renewalMessage && (
-                    <div className="mt-3 p-3 bg-accent/30 border border-border rounded-lg space-y-2">
-                      <p className="text-xs text-primary font-semibold">✅ Renovação realizada!</p>
-                      <pre className="text-xs text-foreground whitespace-pre-wrap bg-background/50 p-2 rounded max-h-32 overflow-auto select-text">
+                    <div className="mt-3 p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-2xl space-y-2">
+                      <p className="text-xs text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-1.5">
+                        <CheckCircle className="h-3.5 w-3.5" />
+                        Renovação realizada!
+                      </p>
+                      <pre className="text-xs text-foreground whitespace-pre-wrap bg-background/50 p-2.5 rounded-xl border border-emerald-500/20 max-h-32 overflow-auto select-text">
                         {renewalMessage}
                       </pre>
                       <div className="flex gap-2">
-                        <Button 
-                          size="sm" 
-                          variant="outline" 
-                          className="flex-1 h-7 text-xs"
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="flex-1 h-8 text-xs rounded-xl border-emerald-500/30 hover:bg-emerald-500/10 hover:text-emerald-600"
                           onClick={handleCopyRenewalMessage}
                         >
                           <Copy className="h-3 w-3 mr-1" />
                           Copiar
                         </Button>
-                        <Button 
-                          size="sm" 
-                          variant="ghost" 
-                          className="h-7 text-xs"
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-8 text-xs rounded-xl"
                           onClick={handleCloseRenewal}
                         >
                           Fechar
@@ -1937,6 +1940,7 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                     </div>
                   )}
                 </div>
+
               </CardContent>
             </Card>
           </div>
