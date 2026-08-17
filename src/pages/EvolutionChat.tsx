@@ -2453,7 +2453,6 @@ export default function EvolutionChat({ embed = false }: { embed?: boolean } = {
                               {isNewsletter ? '📢' : isGroup ? '👥' : initials(displayName, c.phone)}
                             </AvatarFallback>
                           </Avatar>
-                          {/* Ícone do canal WhatsApp no canto inferior — estilo moderno */}
                           {!isStatusEntry && !isNewsletter && (
                             <span
                               className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-[#00a884] border-2 border-background flex items-center justify-center shadow-sm"
@@ -2470,7 +2469,6 @@ export default function EvolutionChat({ embed = false }: { embed?: boolean } = {
                               {isNewsletter && <span className="text-[9px] px-1 rounded bg-blue-500/20 text-blue-400 shrink-0">CANAL</span>}
                               {isGroup && <span className="text-[9px] px-1 rounded bg-purple-500/20 text-purple-400 shrink-0">GRUPO</span>}
                               <span className="truncate">{displayName}</span>
-                              {/* Headset — indicador de atendimento estilo ZapCRM */}
                               {!isStatusEntry && !isNewsletter && !isGroup && (
                                 <Headphones className="w-3 h-3 text-[#8696a0] shrink-0" />
                               )}
@@ -2488,7 +2486,6 @@ export default function EvolutionChat({ embed = false }: { embed?: boolean } = {
                             )}
                           </div>
 
-                          {/* Protocolo estilo ZapCRM (vermelho-alaranjado) */}
                           {!isStatusEntry && (
                             <div className="text-[10px] font-mono text-[#c9564e] mt-0.5 truncate tracking-wide">
                               {conversationProtocol(c.phone)}
@@ -2519,7 +2516,7 @@ export default function EvolutionChat({ embed = false }: { embed?: boolean } = {
                       <ContextMenuItem onClick={() => clearConversation(c.phone)} className="text-destructive focus:text-destructive">
                         <Trash2 className="w-4 h-4 mr-2" /> Excluir conversa
                       </ContextMenuItem>
-                    </ContextMenuContent>
+                    </DropdownMenuContent>
                   </ContextMenu>
                 );
               })}
