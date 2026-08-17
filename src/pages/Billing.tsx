@@ -767,10 +767,14 @@ export default function Billing() {
     }
 
     // Reset and open progress modal
+    cancelRef.current = false;
+    setIsCancelling(false);
+    setWasCancelled(false);
     setProgressResults([]);
     setProgressStats({ sent: 0, errors: 0, skipped: 0, total: 0 });
     setIsProgressComplete(false);
     setProgressModalOpen(true);
+
 
     setIsSending(true);
     setSendingType(billingType || 'all');
