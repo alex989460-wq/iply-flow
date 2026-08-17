@@ -578,18 +578,48 @@ export default function ActivationApps() {
                    onEnabledChange={(v) => handleToggle('ibosol', !!ibosol, v, (b) => setIbosolForm(f => ({ ...f, is_enabled: b })))}
                    saving={saveIbosol.isPending}
                    onSave={() => saveIbosol.mutate()}
-                   saveLabel="Salvar token"
-                   hint={<>Faça login em <span className="font-mono">ibosol.com</span>, abra o DevTools → <b>Network</b> → requisição <span className="font-mono">POST /api/login</span> e copie o campo <span className="font-mono">token</span> da resposta.</>}
+                   saveLabel="Salvar credenciais"
+                   hint={<>Com <b>e-mail e senha</b> o sistema faz o login sozinho (o agente de navegador resolve o Cloudflare) e renova o token quando expirar. O campo de token continua disponível como alternativa manual.</>}
                 >
-                   <div className="space-y-1.5">
-                      <Label className="text-xs">Token do IBO Sol (Bearer)</Label>
-                      <div className="relative">
-                         <Input type={showIboTok ? 'text' : 'password'} autoComplete="off" value={ibosolForm.token} onChange={e => setIbosolForm(f => ({ ...f, token: e.target.value }))} placeholder="5114508|tb3dyiNd5DRuzygqKTRRW9X2..." className="font-mono text-xs pr-9" />
-                         <button type="button" onClick={() => setShowIboTok(v => !v)} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground" aria-label={showIboTok ? 'Ocultar' : 'Mostrar'}>
-                            {showIboTok ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                         </button>
+                   <div className="space-y-3">
+                      <div className="grid gap-3 sm:grid-cols-2">
+                         <div className="space-y-1.5">
+                            <Label className="text-xs">E-mail do IBO Sol</Label>
+                            <Input type="email" autoComplete="off" value={ibosolForm.email} onChange={e => setIbosolForm(f => ({ ...f, email: e.target.value }))} placeholder="seu-email@exemplo.com" />
+                         </div>
+                         <div className="space-y-1.5">
+                            <Label className="text-xs">Senha</Label>
+                            <div className="relative">
+                               <Input type={showIboProPass ? 'text' : 'password'} autoComplete="new-password" value={ibosolForm.login_password} onChange={e => setIbosolForm(f => ({ ...f, login_password: e.target.value }))} placeholder="••••••••" className="pr-9" />
+                               <button type="button" onClick={() => setShowIboProPass(v => !v)} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground" aria-label={showIboProPass ? 'Ocultar' : 'Mostrar'}>
+                                  {showIboProPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                               </button>
+                            </div>
+                         </div>
+                      </div>
+
+                      <Button
+                         type="button"
+                         onClick={() => loginIbosol.mutate()}
+                         disabled={loginIbosol.isPending}
+                         className="w-full rounded-xl font-black uppercase text-[11px] tracking-wider"
+                      >
+                         {loginIbosol.isPending
+                            ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Conectando no painel…</>
+                            : <><ShieldCheck className="w-4 h-4 mr-2" /> Conectar e capturar token</>}
+                      </Button>
+
+                      <div className="space-y-1.5 pt-1 border-t border-border/40">
+                         <Label className="text-[10px] uppercase tracking-widest text-muted-foreground/70">Token Bearer (opcional / manual)</Label>
+                         <div className="relative">
+                            <Input type={showIboTok ? 'text' : 'password'} autoComplete="off" value={ibosolForm.token} onChange={e => setIbosolForm(f => ({ ...f, token: e.target.value }))} placeholder="5114508|tb3dyiNd5DRuzygqKTRRW9X2..." className="font-mono text-xs pr-9" />
+                            <button type="button" onClick={() => setShowIboTok(v => !v)} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground" aria-label={showIboTok ? 'Ocultar' : 'Mostrar'}>
+                               {showIboTok ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                            </button>
+                         </div>
                       </div>
                    </div>
+
                 </PanelCredentialCard>
 
                 <PanelCredentialCard
