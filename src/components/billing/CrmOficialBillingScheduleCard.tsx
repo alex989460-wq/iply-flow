@@ -372,7 +372,7 @@ export function CrmOficialBillingScheduleCard() {
             <SelectContent>
               {(channels || []).map((c) => (
                 <SelectItem key={c.id} value={c.id}>
-                  {(c.verified_name || c.name || 'WhatsApp')}{(c.display_phone_number || c.phone_number) ? ` • ${c.display_phone_number || c.phone_number}` : ''}
+                  {(c.verified_name || c.name || 'WhatsApp')}{(c.display_phone_number || c.phone_number) ? ` • ${c.display_phone_number || c.phone_number}` : (c.phone_number_id ? ` • ID ${c.phone_number_id}` : '')}
                 </SelectItem>
               ))}
             </SelectContent>
