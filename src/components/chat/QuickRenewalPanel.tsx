@@ -1496,34 +1496,46 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="p-4 pt-0 space-y-4 relative z-10">
-                <div className="space-y-2 text-sm">
-                  <div className="flex items-center gap-2">
-                    <PhoneFlagBadge phone={editedPhone} size="sm" />
-                    <Input
-                      value={editedPhone}
-                      onChange={(e) => setEditedPhone(e.target.value)}
-                      placeholder="Telefone principal"
-                      className="h-7 text-sm border-dashed"
-                    />
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1.5 p-3 rounded-2xl bg-background/40 border border-border/10 shadow-inner group/field">
+                      <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/40 flex items-center gap-1.5">
+                        <Phone className="h-3 w-3" />
+                        Principal
+                      </label>
+                      <div className="flex items-center gap-2">
+                        <PhoneFlagBadge phone={editedPhone} size="sm" />
+                        <Input
+                          value={editedPhone}
+                          onChange={(e) => setEditedPhone(e.target.value)}
+                          className="h-6 text-sm font-bold bg-transparent border-none focus:ring-0 p-0 shadow-none"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5 p-3 rounded-2xl bg-background/40 border border-border/10 shadow-inner group/field">
+                      <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/40 flex items-center gap-1.5">
+                        <Phone className="h-3 w-3 text-emerald-500" />
+                        Extra
+                      </label>
+                      <div className="flex items-center gap-2">
+                        <PhoneFlagBadge phone={editedExtraPhone} size="sm" fallbackIconColor="text-emerald-500" />
+                        <Input
+                          value={editedExtraPhone}
+                          onChange={(e) => setEditedExtraPhone(e.target.value)}
+                          placeholder="Adicionar..."
+                          className="h-6 text-sm font-bold bg-transparent border-none focus:ring-0 p-0 shadow-none placeholder:text-muted-foreground/20"
+                        />
+                      </div>
+                    </div>
                   </div>
 
-                  <div className="flex items-center gap-2">
-                    <PhoneFlagBadge phone={editedExtraPhone} size="sm" fallbackIconColor="text-emerald-500" />
-                    <Input
-                      value={editedExtraPhone}
-                      onChange={(e) => setEditedExtraPhone(e.target.value)}
-                      placeholder="Telefone extra (ex: esposa)"
-                      className="h-7 text-sm border-dashed"
-                    />
-                  </div>
-                  
-                  <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground/80">Status:</span>
+                  <div className="flex items-center justify-between p-3 rounded-2xl bg-primary/5 border border-primary/10">
+                    <span className="text-[10px] font-black uppercase tracking-widest text-primary/60">Status do Cliente</span>
                     <Select value={editedStatus} onValueChange={setEditedStatus}>
-                      <SelectTrigger className="h-7 w-[130px] text-xs">
+                      <SelectTrigger className="h-7 w-[110px] text-[11px] font-bold rounded-xl bg-background/50 border-none shadow-sm">
                         <SelectValue />
                       </SelectTrigger>
-                      <SelectContent>
+                      <SelectContent className="rounded-xl border-border/20 backdrop-blur-xl">
                         <SelectItem value="ativa">Ativa</SelectItem>
                         <SelectItem value="inativa">Inativa</SelectItem>
                         <SelectItem value="suspensa">Suspensa</SelectItem>
