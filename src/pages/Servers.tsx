@@ -474,7 +474,7 @@ export default function Servers() {
             { label: 'Servidores', value: servers?.length ?? 0, icon: Server, tone: 'text-primary bg-primary/10' },
             { label: 'Clientes cadastrados', value: totals.total, icon: Users, tone: 'text-sky-400 bg-sky-500/10' },
             { label: 'Clientes ativos', value: totals.active, icon: Activity, tone: 'text-emerald-400 bg-emerald-500/10' },
-            { label: 'Créditos nos painéis', value: totals.credits === null ? '—' : totals.credits, icon: Wallet, tone: 'text-amber-400 bg-amber-500/10' },
+            { label: 'Créditos nos painéis', value: totals.credits === null ? '—' : Math.round(Number(totals.credits)).toLocaleString('pt-BR'), icon: Wallet, tone: 'text-amber-400 bg-amber-500/10' },
 
 
 
@@ -486,7 +486,7 @@ export default function Servers() {
                 </div>
                 <div className="min-w-0">
                   <p className="text-xs text-muted-foreground truncate">{card.label}</p>
-                  <p className="text-lg sm:text-xl font-bold">{card.value}</p>
+                  <p className="text-base sm:text-xl font-bold truncate">{card.value}</p>
                 </div>
               </CardContent>
             </Card>

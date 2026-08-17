@@ -38,7 +38,7 @@ export default function DashboardLayout({ children, noPadding }: DashboardLayout
       )}>
         <div className={cn(
           "w-full max-w-[2000px] mx-auto h-full",
-          noPadding ? (isChatRoute ? 'absolute inset-0 pt-14 lg:pt-0 overflow-hidden' : '') : 'p-3 sm:p-4 lg:p-8 xl:p-10'
+          noPadding ? (isChatRoute ? 'absolute inset-0 pt-14 lg:pt-0 overflow-hidden' : '') : 'p-3 pb-28 sm:p-4 sm:pb-24 lg:p-8 lg:pb-10 xl:p-10'
         )}>
           {children}
         </div>
