@@ -123,24 +123,52 @@ serve(async (req) => {
 
   try {
     const authHeader = req.headers.get("Authorization") || "";
-    const supabase = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_ANON_KEY")!,
-      { global: { headers: { Authorization: authHeader } }, auth: { persistSession: false } },
-    );
-    const { data: auth } = await supabase.auth.getUser();
-    if (!auth?.user) {
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const isService = authHeader.replace(/^Bearer\s+/i, "").trim() === serviceKey;
+
+    const admin = createClient(Deno.env.get("SUPABASE_URL")!, serviceKey, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+
+    const body = await req.json().catch(() => ({}));
+    let userId: string | null = null;
+
+    if (isService) {
+      userId = String(body.user_id || "") || null;
+    } else {
+      const supabase = createClient(
+        Deno.env.get("SUPABASE_URL")!,
+        Deno.env.get("SUPABASE_ANON_KEY")!,
+        { global: { headers: { Authorization: authHeader } }, auth: { persistSession: false } },
+      );
+      const { data: auth } = await supabase.auth.getUser();
+      userId = auth?.user?.id || null;
+    }
+
+    if (!userId) {
       return new Response(JSON.stringify({ error: "Não autenticado" }), { status: 401, headers: jh });
     }
 
-    const body = await req.json().catch(() => ({}));
-    const email = String(body.email || "").trim();
-    const password = String(body.password || "");
+    let email = String(body.email || "").trim();
+    let password = String(body.password || "");
+
+    if (!email || !password) {
+      const { data: saved } = await admin
+        .from("activation_panel_credentials")
+        .select("extra")
+        .eq("user_id", userId)
+        .eq("panel_type", "ibosol")
+        .maybeSingle();
+      email = email || String((saved?.extra as any)?.email || "").trim();
+      password = password || String((saved?.extra as any)?.login_password || "");
+    }
+
     if (!email || !password) {
       return new Response(JSON.stringify({ error: "Informe e-mail e senha do IBO Sol." }), { status: 400, headers: jh });
     }
 
     const { token, final_url } = await ibosolBrowserLogin(email, password);
+
 
     const admin = createClient(
       Deno.env.get("SUPABASE_URL")!,
