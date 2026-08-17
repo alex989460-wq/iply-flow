@@ -15,4 +15,23 @@ export default defineConfig(({ mode }) => ({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  build: {
+    sourcemap: false,
+    chunkSizeWarningLimit: 2000,
+    rollupOptions: {
+      maxParallelFileOps: 2,
+      output: {
+        manualChunks(id: string) {
+          if (!id.includes("node_modules")) return;
+          if (id.includes("pdfjs-dist")) return "vendor-pdf";
+          if (id.includes("html2canvas") || id.includes("jspdf") || id.includes("dompurify")) return "vendor-pdf-export";
+          if (id.includes("reactflow") || id.includes("@reactflow")) return "vendor-flow";
+          if (id.includes("@radix-ui")) return "vendor-radix";
+          if (id.includes("@supabase")) return "vendor-supabase";
+          if (id.includes("xlsx") || id.includes("papaparse")) return "vendor-sheets";
+          return "vendor";
+        },
+      },
+    },
+  },
 }));
