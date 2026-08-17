@@ -1759,6 +1759,7 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                   <div className="pt-2 border-t border-border space-y-2">
                     {/* Copy Data with PIX Button */}
                     <Button
+                      variant="outline"
                       className="w-full h-10 rounded-xl font-semibold text-xs shadow-lg shadow-primary/10 bg-gradient-to-r from-primary/10 to-primary/5 hover:from-primary/20 hover:to-primary/10 border border-primary/20 text-primary transition-all active:scale-[0.98]"
                       onClick={handleCopyBillingWithPix}
                     >
