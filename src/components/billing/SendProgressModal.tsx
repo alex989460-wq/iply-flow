@@ -1,4 +1,3 @@
-import { useEffect, useState } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -9,7 +8,7 @@ import { Progress } from '@/components/ui/progress';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { CheckCircle, XCircle, Loader2, Phone, Send, AlertCircle } from 'lucide-react';
+import { CheckCircle, XCircle, Loader2, Phone, Send, AlertCircle, Ban } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface SendResult {
@@ -31,6 +30,9 @@ interface SendProgressModalProps {
   sent: number;
   errors: number;
   skipped: number;
+  onCancel?: () => void;
+  isCancelling?: boolean;
+  cancelled?: boolean;
 }
 
 export function SendProgressModal({
@@ -43,9 +45,12 @@ export function SendProgressModal({
   sent,
   errors,
   skipped,
+  onCancel,
+  isCancelling,
+  cancelled,
 }: SendProgressModalProps) {
-  const processedCount = sent + errors;
-  const progress = totalToSend > 0 ? (processedCount / totalToSend) * 100 : 0;
+  const processedCount = sent + errors + skipped;
+  const progress = totalToSend > 0 ? Math.min(100, (processedCount / totalToSend) * 100) : 0;
 
   const getBillingTypeLabel = (type: string) => {
     switch (type) {
@@ -59,48 +64,56 @@ export function SendProgressModal({
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && isComplete && onClose()}>
-      <DialogContent className="max-w-2xl max-h-[90vh] sm:max-h-[80vh] flex flex-col mx-2 sm:mx-auto">
+      <DialogContent className="max-w-2xl max-h-[92vh] sm:max-h-[85vh] flex flex-col mx-2 sm:mx-auto border-border/60 bg-card/95 backdrop-blur-xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-base sm:text-lg">
-            <Send className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 text-primary">
+              <Send className="w-4 h-4" />
+            </span>
             <span className="truncate">{getBillingTypeLabel(billingType)}</span>
+            {cancelled && (
+              <Badge variant="secondary" className="ml-1 text-[10px]">Cancelado</Badge>
+            )}
           </DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4 flex-1 overflow-hidden flex flex-col">
           {/* Progress Section */}
-          <div className="space-y-2">
+          <div className="space-y-2 rounded-xl border border-border/60 bg-secondary/20 p-3">
             <div className="flex items-center justify-between text-sm">
-              <span className="text-muted-foreground">
-                {isComplete ? 'Envio concluído!' : 'Enviando...'}
+              <span className="text-muted-foreground flex items-center gap-2">
+                {!isComplete && <Loader2 className="w-3.5 h-3.5 animate-spin text-primary" />}
+                {isComplete
+                  ? (cancelled ? 'Envio cancelado' : 'Envio concluído!')
+                  : (isCancelling ? 'Cancelando após o lote atual…' : 'Enviando…')}
               </span>
-              <span className="font-medium">
-                {processedCount} / {totalToSend}
+              <span className="font-medium tabular-nums">
+                {processedCount} / {totalToSend} · {Math.round(progress)}%
               </span>
             </div>
-            <Progress value={progress} className="h-2" />
+            <Progress value={progress} className="h-2.5" />
           </div>
 
           {/* Stats */}
           <div className="grid grid-cols-3 gap-2 sm:gap-3">
-            <div className="p-2 sm:p-3 rounded-lg bg-success/10 border border-success/20 text-center">
+            <div className="p-2 sm:p-3 rounded-xl bg-success/10 border border-success/20 text-center">
               <div className="flex items-center justify-center gap-1 text-success">
                 <CheckCircle className="w-3 h-3 sm:w-4 sm:h-4" />
-                <span className="text-base sm:text-lg font-bold">{sent}</span>
+                <span className="text-base sm:text-lg font-bold tabular-nums">{sent}</span>
               </div>
               <p className="text-[10px] sm:text-xs text-success/80">Enviados</p>
             </div>
-            <div className="p-2 sm:p-3 rounded-lg bg-destructive/10 border border-destructive/20 text-center">
+            <div className="p-2 sm:p-3 rounded-xl bg-destructive/10 border border-destructive/20 text-center">
               <div className="flex items-center justify-center gap-1 text-destructive">
                 <XCircle className="w-3 h-3 sm:w-4 sm:h-4" />
-                <span className="text-base sm:text-lg font-bold">{errors}</span>
+                <span className="text-base sm:text-lg font-bold tabular-nums">{errors}</span>
               </div>
               <p className="text-[10px] sm:text-xs text-destructive/80">Erros</p>
             </div>
-            <div className="p-2 sm:p-3 rounded-lg bg-muted/50 border border-border text-center">
+            <div className="p-2 sm:p-3 rounded-xl bg-muted/50 border border-border text-center">
               <div className="flex items-center justify-center gap-1 text-muted-foreground">
                 <AlertCircle className="w-3 h-3 sm:w-4 sm:h-4" />
-                <span className="text-base sm:text-lg font-bold">{skipped}</span>
+                <span className="text-base sm:text-lg font-bold tabular-nums">{skipped}</span>
               </div>
               <p className="text-[10px] sm:text-xs text-muted-foreground">Ignorados</p>
             </div>
@@ -109,7 +122,7 @@ export function SendProgressModal({
           {/* Results List */}
           <div className="flex-1 overflow-hidden">
             <p className="text-xs sm:text-sm font-medium mb-2">Detalhes do envio:</p>
-            <ScrollArea className="h-[200px] sm:h-[300px] border rounded-lg">
+            <ScrollArea className="h-[200px] sm:h-[300px] border border-border/60 rounded-xl bg-background/40">
               <div className="p-2 space-y-1">
                 {results.length === 0 && !isComplete && (
                   <div className="flex items-center justify-center py-8 text-muted-foreground">
@@ -121,9 +134,9 @@ export function SendProgressModal({
                   <div
                     key={index}
                     className={cn(
-                      'flex items-center justify-between p-2 rounded-lg text-sm',
-                      result.status === 'sent' && 'bg-success/5',
-                      result.status === 'error' && 'bg-destructive/5',
+                      'flex items-center justify-between p-2 rounded-lg text-sm border border-transparent',
+                      result.status === 'sent' && 'bg-success/5 border-success/20',
+                      result.status === 'error' && 'bg-destructive/5 border-destructive/20',
                       result.status === 'skipped' && 'bg-muted/50',
                       result.status === 'pending' && 'bg-muted/30'
                     )}
@@ -172,10 +185,23 @@ export function SendProgressModal({
             </ScrollArea>
           </div>
 
-          {/* Close Button */}
-          {isComplete && (
+          {/* Actions */}
+          {isComplete ? (
             <Button onClick={onClose} className="w-full">
               Fechar
+            </Button>
+          ) : (
+            <Button
+              variant="destructive"
+              onClick={onCancel}
+              disabled={!onCancel || isCancelling}
+              className="w-full"
+            >
+              {isCancelling ? (
+                <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Cancelando…</>
+              ) : (
+                <><Ban className="w-4 h-4 mr-2" /> Cancelar envio</>
+              )}
             </Button>
           )}
         </div>
