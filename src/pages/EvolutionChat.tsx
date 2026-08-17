@@ -12,7 +12,7 @@ import {
   Loader2, Send, Zap, Plus, RefreshCw, Search, MessageSquare,
   Phone, X, Smile, Mic, Paperclip, Trash2, Image as ImageIcon, FileText, Sticker, QrCode,
   Pin, PinOff, Info, Copy, ExternalLink, MoreVertical, ArrowLeft, ChevronDown,
-  Reply, Forward, Star, StarOff, Trash, Volume2, VolumeX, BookOpen, CheckCircle2, MailOpen, Maximize2, UserPlus, Pencil, Check, MessageCircle, Headphones,
+  Reply, Forward, Star, StarOff, Trash, Volume2, VolumeX, BookOpen, CheckCircle2, MailOpen, Maximize2, UserPlus, Pencil, Check, MessageCircle, Headphones, ChevronLeft
 } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import KnowledgeBaseDialog from '@/components/chat/KnowledgeBaseDialog';
@@ -152,6 +152,70 @@ function longRelativeTime(iso: string) {
   const dy = Math.floor(hr / 24);
   return `${dy} dia${dy > 1 ? 's' : ''}`;
 }
+
+const EvolutionLayout = ({ children, sidebar, panelCollapsed, setPanelCollapsed, showRenewalPanel }: { 
+  children: React.ReactNode, 
+  sidebar: React.ReactNode, 
+  panelCollapsed: boolean, 
+  setPanelCollapsed: (v: boolean) => void,
+  showRenewalPanel: boolean
+}) => {
+  return (
+    <div className="flex h-full w-full overflow-hidden bg-background/50 backdrop-blur-sm">
+      <div className="w-[320px] lg:w-[380px] h-full border-r border-border/50 shrink-0 bg-background/30 backdrop-blur-md">
+        {sidebar}
+      </div>
+      <div className="flex-1 min-w-0 h-full relative">
+        {children}
+      </div>
+      {showRenewalPanel && (
+        <aside 
+          className={cn(
+            "h-full border-l border-border/50 bg-card/40 backdrop-blur-3xl flex flex-col shrink-0 transition-all duration-500 ease-in-out relative group shadow-2xl",
+            panelCollapsed ? "w-14" : "w-[420px] xl:w-[460px]"
+          )}
+        >
+          {/* Modern Glass Toggle Button */}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setPanelCollapsed(!panelCollapsed)}
+            className="absolute -left-5 top-24 z-20 w-10 h-10 rounded-2xl border border-border/50 bg-background/80 backdrop-blur-xl shadow-2xl opacity-0 group-hover:opacity-100 transition-all hover:scale-110 active:scale-95"
+          >
+            <ChevronLeft className={cn("h-5 w-5 text-primary transition-transform duration-500", panelCollapsed && "rotate-180")} />
+          </Button>
+
+          <div className={cn(
+            "flex items-center gap-3 px-5 py-4 border-b border-border/50 bg-background/20 transition-opacity duration-300",
+            panelCollapsed ? "opacity-0 invisible" : "opacity-100"
+          )}>
+            <div className="w-8 h-8 rounded-xl bg-emerald-500/20 flex items-center justify-center shadow-inner">
+              <Zap className="h-4 w-4 text-emerald-500 fill-emerald-500/20" />
+            </div>
+            <span className="tracking-[0.2em] uppercase text-[10px] font-black text-foreground/70">Renovação rápida</span>
+          </div>
+          
+          <div className={cn(
+            "flex-1 min-h-0 overflow-hidden transition-all duration-500",
+            panelCollapsed ? "opacity-0 invisible scale-95" : "opacity-100 scale-100"
+          )}>
+            <QuickRenewalPanel />
+          </div>
+
+          {panelCollapsed && (
+            <div className="absolute inset-0 flex flex-col items-center pt-6 pointer-events-none space-y-4">
+              <div className="w-8 h-8 rounded-xl bg-emerald-500/10 flex items-center justify-center">
+                <Zap className="h-4 w-4 text-emerald-500/40" />
+              </div>
+              <div className="w-px h-full bg-gradient-to-b from-emerald-500/20 to-transparent" />
+            </div>
+          )}
+        </aside>
+      )}
+    </div>
+  );
+};
+
 
 
 function getNestedValue(source: unknown, path: string[]): unknown {
@@ -350,6 +414,7 @@ export default function EvolutionChat({ embed = false }: { embed?: boolean } = {
   const [sending, setSending] = useState(false);
   const [search, setSearch] = useState('');
   const [showRenewalPanel, setShowRenewalPanel] = useState(false);
+  const [panelCollapsed, setPanelCollapsed] = useState(false);
   const [showQuickReplies, setShowQuickReplies] = useState(false);
   // Slash command (/) — dispatch bot flow from composer
   const [botFlows, setBotFlows] = useState<Array<{ id: string; name: string; start_step_id: string | null; steps: any[] }>>([]);
