@@ -61,7 +61,6 @@ const menuItems: Array<{
   { icon: MessageCircleMore, label: 'Chat', path: '/chat', adminOnly: false, badgeKey: 'evolution' },
   { icon: FileText, label: 'Templates CRM Oficial', path: '/crm-oficial-templates', adminOnly: false },
   { icon: Bot, label: 'Robô CRM', path: '/crm-oficial-chatbots', adminOnly: false },
-  { icon: MessageCircleMore, label: 'Atendimentos', path: '/atendimentos', adminOnly: false },
   { icon: QrCode, label: 'Conexões WhatsApp', path: '/evolution-instances', adminOnly: false },
   { icon: ShieldCheck, label: 'Agente Utility WhatsApp', path: '/whatsapp-utility', adminOnly: true },
 
