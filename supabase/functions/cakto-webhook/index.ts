@@ -1430,10 +1430,11 @@ serve(async (req) => {
             console.log(`[Cakto] 📌 ${allRemoved.length} cliente(s) filtrado(s) enviado(s) para revisão manual.`);
           } else {
             // Case: phone did not match ANY customer at all (wrong number)
+            const customerNameCakto = customer?.name || customer?.full_name || caktoData?.name || `(Telefone não cadastrado) ${phone}`;
             const { error: pmrErr } = await supabaseAdmin.from('pending_manual_renewals').insert({
               owner_id: pmrOwnerId,
               customer_id: null,
-              customer_name: `(Telefone não cadastrado) ${phone}`,
+              customer_name: customerNameCakto,
               customer_phone: phoneDigits,
               username: null,
               server_id: null,
@@ -1445,7 +1446,7 @@ serve(async (req) => {
               reason: 'phone_not_found',
               source: 'cakto',
               error_details: {
-                message: `⚠️ Pagamento Cakto recebido (R$ ${amountNumeric.toFixed(2)}) mas telefone não corresponde a nenhum cliente. Verifique se o número foi digitado errado.`,
+                message: `⚠️ Pagamento Cakto recebido de ${customerNameCakto} (R$ ${amountNumeric.toFixed(2)}) mas telefone não corresponde a nenhum cliente. Verifique se o número foi digitado errado.`,
                 payment_phone: phone,
                 searched_variants: [...searchVariants],
                 cakto_id: caktoId || null,
