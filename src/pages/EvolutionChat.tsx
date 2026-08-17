@@ -2404,7 +2404,7 @@ export default function EvolutionChat({ embed = false }: { embed?: boolean } = {
                 <div>Nenhuma conversa ainda.<br />Inicie pelo número acima.</div>
               </div>
             ) : (
-              conversations.map((c: any) => {
+              conversations.map((c: any) => (
                 const active = selectedPhone === c.phone;
                 const isOut = c.last?.direction === 'out';
                 const isStatusEntry = c.phone.startsWith('status:');
