@@ -3135,7 +3135,6 @@ export default function EvolutionChat({ embed = false }: { embed?: boolean } = {
             </>
           )}
         </div>
-
       </div>
 
       {/* Lightbox de imagens das conversas */}
