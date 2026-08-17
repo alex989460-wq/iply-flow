@@ -754,7 +754,7 @@ export default function Billing() {
   const BATCH_DELAY_MS = 500; // short pause between batches
 
 
-  const handleSendBillings = async (billingType?: BillingType, forceResend: boolean = false) => {
+  const handleSendBillings = async (billingType?: BillingType, forceResend: boolean = false, onlyErrors: boolean = false) => {
     if (!hasValidSession) {
       toast({
         title: isMetaCloudApi ? 'Nenhum número selecionado' : 'Nenhuma sessão selecionada',
@@ -782,7 +782,7 @@ export default function Billing() {
     try {
       // Step 1: Get customers to process (with optional force resend)
       const { data: startData, error: startError } = await supabase.functions.invoke('send-billing-batch', {
-        body: { action: 'start', billing_type: billingType || null, force: forceResend },
+        body: { action: 'start', billing_type: billingType || null, force: forceResend, only_errors: onlyErrors },
       });
       
       if (startError || !startData?.success) {
@@ -854,7 +854,7 @@ export default function Billing() {
         let batchError: any = null;
         for (let attempt = 0; attempt < 3; attempt++) {
           const res = await supabase.functions.invoke('send-billing-batch', {
-            body: { action: 'batch', batch, force: forceResend },
+            body: { action: 'batch', batch, force: forceResend, only_errors: onlyErrors },
           });
           batchData = res.data;
           batchError = res.error;
@@ -1103,20 +1103,28 @@ export default function Billing() {
                   <AlertDialogHeader>
                     <AlertDialogTitle>Forçar Reenvio de Cobranças</AlertDialogTitle>
                     <AlertDialogDescription>
-                      Isso irá reenviar cobranças para <strong>todos os clientes</strong> elegíveis (D-1, D0, D+1), 
-                      <strong>mesmo que já tenham sido processados hoje</strong>.
+                      Selecione como deseja reenviar as cobranças de hoje.
                       <br /><br />
-                      Use apenas se os clientes não receberam as mensagens anteriores.
+                      <strong>Reenviar Falhas:</strong> Tenta novamente apenas para os clientes que deram erro no último envio.
+                      <br />
+                      <strong>Forçar Tudo:</strong> Envia para todos, mesmo os que já receberam.
                     </AlertDialogDescription>
                   </AlertDialogHeader>
-                  <AlertDialogFooter>
+                  <AlertDialogFooter className="flex-col sm:flex-row gap-2">
                     <AlertDialogCancel>Cancelar</AlertDialogCancel>
                     <AlertDialogAction 
+                      onClick={() => handleSendBillings(undefined, false, true)}
+                      className="bg-warning/80 hover:bg-warning text-white"
+                    >
+                      <AlertCircle className="w-4 h-4 mr-2" />
+                      Reenviar Falhas
+                    </AlertDialogAction>
+                    <AlertDialogAction 
                       onClick={() => handleSendBillings(undefined, true)}
-                      className="bg-warning hover:bg-warning/90 text-warning-foreground"
+                      className="bg-destructive hover:bg-destructive/90 text-white"
                     >
                       <RefreshCw className="w-4 h-4 mr-2" />
-                      Forçar Reenvio
+                      Forçar Tudo
                     </AlertDialogAction>
                   </AlertDialogFooter>
                 </AlertDialogContent>
