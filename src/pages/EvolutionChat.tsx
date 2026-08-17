@@ -153,12 +153,13 @@ function longRelativeTime(iso: string) {
   return `${dy} dia${dy > 1 ? 's' : ''}`;
 }
 
-const EvolutionLayout = ({ children, sidebar, panelCollapsed, setPanelCollapsed, showRenewalPanel }: { 
+const EvolutionLayout = ({ children, sidebar, panelCollapsed, setPanelCollapsed, showRenewalPanel, selectedPhone }: { 
   children: React.ReactNode, 
   sidebar: React.ReactNode, 
   panelCollapsed: boolean, 
   setPanelCollapsed: (v: boolean) => void,
-  showRenewalPanel: boolean
+  showRenewalPanel: boolean,
+  selectedPhone: string | null
 }) => {
   return (
     <div className="flex h-full w-full overflow-hidden bg-background/50 backdrop-blur-sm">
@@ -199,7 +200,7 @@ const EvolutionLayout = ({ children, sidebar, panelCollapsed, setPanelCollapsed,
             "flex-1 min-h-0 overflow-hidden transition-all duration-500",
             panelCollapsed ? "opacity-0 invisible scale-95" : "opacity-100 scale-100"
           )}>
-            <QuickRenewalPanel />
+            <QuickRenewalPanel initialPhone={selectedPhone && !selectedPhone.startsWith('status') ? selectedPhone : null} />
           </div>
 
           {panelCollapsed && (
@@ -2162,12 +2163,13 @@ export default function EvolutionChat({ embed = false }: { embed?: boolean } = {
   const __content = (
     <>
 
-      <div className={`flex flex-col md:flex-row ${embed ? 'h-full' : 'h-[calc(100dvh-4rem)] lg:h-[100dvh]'} animate-fade-in bg-background`}>
-        {/* Conversations sidebar */}
+      <div className={cn(
+        "flex flex-col md:flex-row animate-fade-in bg-background overflow-hidden",
+        embed ? 'h-full' : 'h-[calc(100dvh-4rem)] lg:h-[100dvh]'
+      )}>
         <div className={cn(
-          'flex flex-col border-r border-border bg-card/30',
-          isMobile && selectedPhone ? 'hidden' : 'flex',
-          'w-full md:w-80 lg:w-96'
+          "flex flex-col border-r border-border bg-background/50 backdrop-blur-sm transition-all duration-300",
+          isMobile ? (selectedPhone ? 'hidden' : 'w-full') : 'w-[380px]'
         )}>
           <div className="px-3 py-2.5 border-b border-border flex items-center gap-2 bg-gradient-to-r from-emerald-600/15 via-primary/10 to-cyan-500/10">
             <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-700 flex items-center justify-center shadow-lg shadow-emerald-500/20">
@@ -2404,7 +2406,7 @@ export default function EvolutionChat({ embed = false }: { embed?: boolean } = {
                 <div>Nenhuma conversa ainda.<br />Inicie pelo número acima.</div>
               </div>
             ) : (
-              conversations.map((c) => {
+              conversations.map((c: any) => {
                 const active = selectedPhone === c.phone;
                 const isOut = c.last?.direction === 'out';
                 const isStatusEntry = c.phone.startsWith('status:');
@@ -2453,7 +2455,6 @@ export default function EvolutionChat({ embed = false }: { embed?: boolean } = {
                               {isNewsletter ? '📢' : isGroup ? '👥' : initials(displayName, c.phone)}
                             </AvatarFallback>
                           </Avatar>
-                          {/* Ícone do canal WhatsApp no canto inferior — estilo moderno */}
                           {!isStatusEntry && !isNewsletter && (
                             <span
                               className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-[#00a884] border-2 border-background flex items-center justify-center shadow-sm"
@@ -2470,7 +2471,6 @@ export default function EvolutionChat({ embed = false }: { embed?: boolean } = {
                               {isNewsletter && <span className="text-[9px] px-1 rounded bg-blue-500/20 text-blue-400 shrink-0">CANAL</span>}
                               {isGroup && <span className="text-[9px] px-1 rounded bg-purple-500/20 text-purple-400 shrink-0">GRUPO</span>}
                               <span className="truncate">{displayName}</span>
-                              {/* Headset — indicador de atendimento estilo ZapCRM */}
                               {!isStatusEntry && !isNewsletter && !isGroup && (
                                 <Headphones className="w-3 h-3 text-[#8696a0] shrink-0" />
                               )}
@@ -2488,7 +2488,6 @@ export default function EvolutionChat({ embed = false }: { embed?: boolean } = {
                             )}
                           </div>
 
-                          {/* Protocolo estilo ZapCRM (vermelho-alaranjado) */}
                           {!isStatusEntry && (
                             <div className="text-[10px] font-mono text-[#c9564e] mt-0.5 truncate tracking-wide">
                               {conversationProtocol(c.phone)}
@@ -3135,35 +3134,196 @@ export default function EvolutionChat({ embed = false }: { embed?: boolean } = {
             </>
           )}
         </div>
-
-        {/* Quick Renewal Panel — mesmo design da API Oficial */}
-        {!isMobile && (
-          <div className="w-[420px] xl:w-[460px] h-full border-l bg-background flex flex-col shrink-0">
-            <div className="flex items-center gap-2 px-3 py-2 border-b text-sm font-semibold">
-              <Zap className="h-4 w-4 text-emerald-500" />
-              Renovação rápida
-            </div>
-            <div className="flex-1 min-h-0 overflow-hidden">
-              <QuickRenewalPanel initialPhone={selectedPhone && !selectedPhone.startsWith('status') ? selectedPhone : null} />
-            </div>
-          </div>
-        )}
-        {isMobile && showRenewalPanel && (
-          <div className="fixed inset-0 z-50 bg-background/95 backdrop-blur-sm animate-in fade-in slide-in-from-bottom-4 duration-200">
-            <div className="flex flex-col h-full">
-              <div className="flex items-center justify-between px-3 py-2 border-b border-border">
-                <h2 className="text-sm font-semibold">Renovação Rápida</h2>
-                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setShowRenewalPanel(false)}>
-                  <ArrowLeft className="w-4 h-4" />
-                </Button>
-              </div>
-              <div className="flex-1 overflow-auto">
-                <QuickRenewalPanel isMobile onClose={() => setShowRenewalPanel(false)} initialPhone={selectedPhone && !selectedPhone.startsWith('status') ? selectedPhone : null} />
-              </div>
-            </div>
-          </div>
-        )}
       </div>
+      
+      {/* Configurações do Robô */}
+      {/* Configurações do Robô */}
+      <Dialog open={showAutoReplySettings} onOpenChange={setShowAutoReplySettings}>
+        <DialogContent className="max-w-md bg-background border-border overflow-hidden p-0">
+          <div className="bg-gradient-to-r from-emerald-600 to-emerald-800 p-4 text-white">
+            <h3 className="text-lg font-bold flex items-center gap-2">
+              <Zap className="w-5 h-5" /> Configurar Auto-Atendimento
+            </h3>
+            <p className="text-xs text-white/70">Respostas automáticas inteligentes via Gemini AI</p>
+          </div>
+          
+          <div className="p-4 space-y-4 max-h-[70vh] overflow-y-auto">
+            <div className="flex items-center justify-between p-3 rounded-xl bg-accent/30 border border-border">
+              <div className="space-y-0.5">
+                <Label className="text-sm font-semibold">Ativar Robô</Label>
+                <p className="text-[10px] text-muted-foreground">Responder contatos automaticamente</p>
+              </div>
+              <Switch 
+                checked={autoReply.enabled} 
+                onCheckedChange={(checked) => setAutoReply(prev => ({ ...prev, enabled: checked }))}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Base de Conhecimento</Label>
+              <Textarea 
+                value={autoReply.prompt} 
+                onChange={(e) => setAutoReply(prev => ({ ...prev, prompt: e.target.value }))}
+                placeholder="Ex: Você é um assistente de vendas da IPTV Flow. Nossos planos são..."
+                className="h-32 text-xs bg-muted/20 border-border resize-none"
+              />
+              <p className="text-[10px] text-muted-foreground italic">Use este campo para treinar o comportamento do robô.</p>
+            </div>
+
+            <div className="space-y-3 p-3 rounded-xl bg-accent/30 border border-border">
+              <div className="flex items-center justify-between">
+                <Label className="text-xs font-semibold">Tempo de Resposta (segundos)</Label>
+                <span className="text-xs font-mono font-bold text-emerald-500">{autoReply.delay}s</span>
+              </div>
+              <Slider
+                value={[autoReply.delay]}
+                min={1}
+                max={30}
+                step={1}
+                onValueChange={([val]) => setAutoReply(prev => ({ ...prev, delay: val }))}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Apenas estes contatos (opcional)</Label>
+              <Input 
+                value={autoReply.whitelist} 
+                onChange={(e) => setAutoReply(prev => ({ ...prev, whitelist: e.target.value }))}
+                placeholder="Ex: 5511999999999, 5511888888888"
+                className="h-9 text-xs bg-muted/20 border-border"
+              />
+              <p className="text-[10px] text-muted-foreground">Se vazio, responderá a todos os contatos.</p>
+            </div>
+            
+            <div className="flex justify-end gap-2 pt-2 border-t border-border mt-4">
+              <Button variant="ghost" size="sm" onClick={() => setShowAutoReplySettings(false)} className="text-xs">
+                Cancelar
+              </Button>
+              <Button 
+                size="sm" 
+                className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs px-6"
+                disabled={autoReplySaving}
+                onClick={async () => {
+                  setAutoReplySaving(true);
+                  try {
+                    const { error } = await supabase
+                      .from('platform_settings')
+                      .upsert({
+                        key: 'evolution_auto_reply',
+                        value: autoReply,
+                        reseller_id: (await supabase.auth.getUser()).data.user?.id
+                      });
+                    
+                    if (error) throw error;
+                    toast({ title: 'Configurações salvas!', description: 'O robô foi atualizado com sucesso.' });
+                    setShowAutoReplySettings(false);
+                  } catch (e: any) {
+                    toast({ title: 'Erro ao salvar', description: e.message, variant: 'destructive' });
+                  } finally {
+                    setAutoReplySaving(false);
+                  }
+                }}
+              >
+                {autoReplySaving && <Loader2 className="w-3 h-3 mr-2 animate-spin" />}
+                Salvar Configurações
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+        <DialogContent className="max-w-md bg-background border-border overflow-hidden p-0">
+          <div className="bg-gradient-to-r from-emerald-600 to-emerald-800 p-4 text-white">
+            <h3 className="text-lg font-bold flex items-center gap-2">
+              <Zap className="w-5 h-5" /> Configurar Auto-Atendimento
+            </h3>
+            <p className="text-xs text-white/70">Respostas automáticas inteligentes via Gemini AI</p>
+          </div>
+          
+          <div className="p-4 space-y-4 max-h-[70vh] overflow-y-auto">
+            <div className="flex items-center justify-between p-3 rounded-xl bg-accent/30 border border-border">
+              <div className="space-y-0.5">
+                <Label className="text-sm font-semibold">Ativar Robô</Label>
+                <p className="text-[10px] text-muted-foreground">Responder contatos automaticamente</p>
+              </div>
+              <Switch 
+                checked={autoReply.enabled} 
+                onCheckedChange={(checked) => setAutoReply(prev => ({ ...prev, enabled: checked }))}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Base de Conhecimento</Label>
+              <Textarea 
+                value={autoReply.prompt} 
+                onChange={(e) => setAutoReply(prev => ({ ...prev, prompt: e.target.value }))}
+                placeholder="Ex: Você é um assistente de vendas da IPTV Flow. Nossos planos são..."
+                className="h-32 text-xs bg-muted/20 border-border resize-none"
+              />
+              <p className="text-[10px] text-muted-foreground italic">Use este campo para treinar o comportamento do robô.</p>
+            </div>
+
+            <div className="space-y-3 p-3 rounded-xl bg-accent/30 border border-border">
+              <div className="flex items-center justify-between">
+                <Label className="text-xs font-semibold">Tempo de Resposta (segundos)</Label>
+                <span className="text-xs font-mono font-bold text-emerald-500">{autoReply.delay}s</span>
+              </div>
+              <Slider
+                value={[autoReply.delay]}
+                min={1}
+                max={30}
+                step={1}
+                onValueChange={([val]) => setAutoReply(prev => ({ ...prev, delay: val }))}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Apenas estes contatos (opcional)</Label>
+              <Input 
+                value={autoReply.whitelist} 
+                onChange={(e) => setAutoReply(prev => ({ ...prev, whitelist: e.target.value }))}
+                placeholder="Ex: 5511999999999, 5511888888888"
+                className="h-9 text-xs bg-muted/20 border-border"
+              />
+              <p className="text-[10px] text-muted-foreground">Se vazio, responderá a todos os contatos.</p>
+            </div>
+            
+            <div className="flex justify-end gap-2 pt-2 border-t border-border mt-4">
+              <Button variant="ghost" size="sm" onClick={() => setShowAutoReplySettings(false)} className="text-xs">
+                Cancelar
+              </Button>
+              <Button 
+                size="sm" 
+                className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs px-6"
+                disabled={autoReplySaving}
+                onClick={async () => {
+                  setAutoReplySaving(true);
+                  try {
+                    const { error } = await supabase
+                      .from('platform_settings')
+                      .upsert({
+                        key: 'evolution_auto_reply',
+                        value: autoReply,
+                        reseller_id: (await supabase.auth.getUser()).data.user?.id
+                      });
+                    
+                    if (error) throw error;
+                    toast({ title: 'Configurações salvas!', description: 'O robô foi atualizado com sucesso.' });
+                    setShowAutoReplySettings(false);
+                  } catch (e: any) {
+                    toast({ title: 'Erro ao salvar', description: e.message, variant: 'destructive' });
+                  } finally {
+                    setAutoReplySaving(false);
+                  }
+                }}
+              >
+                {autoReplySaving && <Loader2 className="w-3 h-3 mr-2 animate-spin" />}
+                Salvar Configurações
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+      <KnowledgeBaseDialog open={showKbDialog} onOpenChange={setShowKbDialog} />
 
       {/* Lightbox de imagens das conversas */}
       <Dialog open={!!previewImage} onOpenChange={(open) => !open && setPreviewImage(null)}>
@@ -3587,50 +3747,30 @@ export default function EvolutionChat({ embed = false }: { embed?: boolean } = {
                   </div>
                 )}
 
-                <div className="flex justify-end gap-2 pt-1">
-                  <Button size="sm" variant="outline" onClick={() => setShowAutoReplySettings(false)}>Cancelar</Button>
-                  <Button
-                    size="sm"
-                    disabled={autoReplySaving}
-                    onClick={async () => {
-                      if (!user) return;
-                      setAutoReplySaving(true);
-                      const { error } = await supabase
-                        .from('evolution_settings')
-                        .update({
-                          autoreply_enabled: autoReply.enabled,
-                          autoreply_only_outside_hours: autoReply.only_outside_hours,
-                          autoreply_business_start: autoReply.business_start,
-                          autoreply_business_end: autoReply.business_end,
-                          autoreply_disabled_phones: autoReply.disabled_phones,
-                          autoreply_absence_enabled: autoReply.absence_enabled,
-                          autoreply_absence_message: autoReply.absence_message,
-                          autoreply_absence_cooldown_hours: autoReply.absence_cooldown_hours,
-                        } as any)
-                        .eq('user_id', user.id);
-
-                      setAutoReplySaving(false);
-                      if (error) {
-                        toast({ title: 'Erro ao salvar', description: error.message, variant: 'destructive' });
-                        return;
-                      }
-                      toast({ title: autoReply.enabled ? '🤖 Auto-atendimento ATIVO' : 'Auto-atendimento desativado' });
-                      setShowAutoReplySettings(false);
-                    }}
-                  >
-                    {autoReplySaving ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : null}
-                    Salvar
-                  </Button>
-                </div>
-              </>
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      <KnowledgeBaseDialog open={showKbDialog} onOpenChange={setShowKbDialog} />
     </>
   );
-  return embed ? __content : <DashboardLayout noPadding>{__content}</DashboardLayout>;
+  return embed ? (
+    <EvolutionLayout 
+      sidebar={null} 
+      panelCollapsed={panelCollapsed} 
+      setPanelCollapsed={setPanelCollapsed} 
+      showRenewalPanel={showRenewalPanel}
+      selectedPhone={selectedPhone}
+    >
+      {__content}
+    </EvolutionLayout>
+  ) : (
+    <DashboardLayout noPadding>
+      <EvolutionLayout 
+        sidebar={null} 
+        panelCollapsed={panelCollapsed} 
+        setPanelCollapsed={setPanelCollapsed} 
+        showRenewalPanel={showRenewalPanel}
+        selectedPhone={selectedPhone}
+      >
+        {__content}
+      </EvolutionLayout>
+    </DashboardLayout>
+  );
 }
 
