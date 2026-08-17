@@ -7,7 +7,8 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { Loader2, Save, Eye, EyeOff, AlertCircle, CheckCircle2, Key, Copy, ExternalLink, Plus, Trash2 } from 'lucide-react';
+import { Loader2, Save, Eye, EyeOff, AlertCircle, CheckCircle2, Key, Copy, ExternalLink, Plus, Trash2, Zap } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 import MaskedUrlField from '@/components/ui/masked-url';
 
 export default function ResellerApiSettings() {
@@ -32,6 +33,7 @@ export default function ResellerApiSettings() {
   const [testingVplay, setTestingVplay] = useState(false);
   const [sigmaConnections, setSigmaConnections] = useState<any[]>([]);
   const [savingSigmaConnection, setSavingSigmaConnection] = useState(false);
+  const [generatingBridgeToken, setGeneratingBridgeToken] = useState<string | null>(null);
 
   const [testingUniplay, setTestingUniplay] = useState(false);
   const [testingP2cine, setTestingP2cine] = useState(false);
@@ -416,6 +418,107 @@ export default function ResellerApiSettings() {
     } finally {
       setSavingSigmaConnection(false);
     }
+  };
+
+  const generateSigmaBridgeToken = async (connectionId: string) => {
+    setGeneratingBridgeToken(connectionId);
+    try {
+      const token = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+      const { error } = await supabase.from('sigma_panel_connections' as any).update({ bridge_token: token }).eq('id', connectionId);
+      if (error) throw error;
+      await fetchSettings();
+      toast({ title: 'Chave da Ponte gerada', description: 'Agora você pode ativar a ponte para este painel.' });
+    } catch (error: any) {
+      toast({ title: 'Erro ao gerar chave', description: error.message, variant: 'destructive' });
+    } finally {
+      setGeneratingBridgeToken(null);
+    }
+  };
+
+  const revokeSigmaBridgeToken = async (connectionId: string) => {
+    try {
+      const { error } = await supabase.from('sigma_panel_connections' as any).update({ bridge_token: null }).eq('id', connectionId);
+      if (error) throw error;
+      await fetchSettings();
+      toast({ title: 'Ponte desativada', description: 'A chave da ponte foi removida.' });
+    } catch (error: any) {
+      toast({ title: 'Erro ao desativar', description: error.message, variant: 'destructive' });
+    }
+  };
+
+  const getSigmaBridgeBookmarklet = (token: string) => {
+    const code = `(function(){
+      const TOKEN = "${token}";
+      const API = "${import.meta.env.VITE_SUPABASE_URL}/functions/v1/sigma-bridge";
+      console.log("[SigmaBridge] Iniciando ponte...");
+      
+      async function poll() {
+        try {
+          const res = await fetch(API + "?action=poll", {
+            headers: { "x-bridge-token": TOKEN }
+          });
+          const data = await res.json();
+          if (data.jobs && data.jobs.length > 0) {
+            for (const job of data.jobs) {
+              console.log("[SigmaBridge] Executando tarefa:", job.action);
+              try {
+                let result;
+                if (job.action === "renew_customer") {
+                  // Lógica de renovação via fetch na aba do Sigma (usa a sessão da aba)
+                  const findRes = await fetch("/api/customers?page=1&keyword=" + encodeURIComponent(job.payload.username), {
+                    headers: { "Accept": "application/json", "x-app-version": "3.89" }
+                  });
+                  const findData = await findRes.json();
+                  const customer = (findData.data || []).find(c => c.username.toLowerCase() === job.payload.username.toLowerCase());
+                  
+                  if (!customer) throw new Error("Cliente não encontrado no Sigma.");
+                  
+                  // Busca pacotes para bater o mês
+                  const serversRes = await fetch("/api/servers", { headers: { "Accept": "application/json", "x-app-version": "3.89" } });
+                  const serversData = await serversRes.json();
+                  const server = (serversData.data || []).find(s => s.id == customer.server_id);
+                  const pkg = (server.packages || []).find(p => !p.is_trial && Math.abs((p.duration_in === 'MONTHS' ? p.duration * 30 : p.duration) - (job.payload.months * 30)) <= 2);
+                  const packageId = pkg ? pkg.id : customer.package_id;
+
+                  const renewRes = await fetch("/api/customers/" + customer.id + "/renew", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json", "Accept": "application/json", "x-app-version": "3.89" },
+                    body: JSON.stringify({ 
+                      package_id: packageId, 
+                      connections: job.payload.connections || 1,
+                      reference: "",
+                      create_manual_customer_order: false,
+                      manual_payment_total: null
+                    })
+                  });
+                  const renewData = await renewRes.json();
+                  if (!renewRes.ok) throw new Error(renewData.message || "Erro do painel Sigma.");
+                  result = renewData.data || renewData;
+                }
+                
+                await fetch(API + "?action=complete", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json", "x-bridge-token": TOKEN },
+                  body: JSON.stringify({ job_id: job.id, response: result })
+                });
+              } catch (err) {
+                console.error("[SigmaBridge] Falha na tarefa:", err);
+                await fetch(API + "?action=complete", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json", "x-bridge-token": TOKEN },
+                  body: JSON.stringify({ job_id: job.id, error: err.message })
+                });
+              }
+            }
+          }
+        } catch (e) { console.error("[SigmaBridge] Erro no poll:", e); }
+        setTimeout(poll, 5000);
+      }
+      
+      poll();
+      alert("Ponte Sigma Ativada! Mantenha esta aba aberta.");
+    })();`.replace(/\n/g, '').replace(/\s\s+/g, ' ');
+    return `javascript:${code}`;
   };
 
   const removeSigmaConnection = async (id: string) => {
@@ -1046,17 +1149,78 @@ export default function ResellerApiSettings() {
           {sigmaConnections.length > 0 && (
             <div className="space-y-2">
               <Label>Conexões cadastradas</Label>
-              {sigmaConnections.map((connection) => (
-                <div key={connection.id} className="flex items-center justify-between gap-3 rounded-md border border-border p-3">
-                  <div className="min-w-0">
-                    <p className="font-medium truncate">{connection.name}</p>
-                    <p className="text-xs text-muted-foreground truncate">{connection.base_url} • {connection.username}</p>
-                  </div>
-                  <Button type="button" variant="ghost" size="icon" onClick={() => removeSigmaConnection(connection.id)} aria-label="Remover conexão Sigma">
-                    <Trash2 className="w-4 h-4 text-destructive" />
-                  </Button>
-                </div>
-              ))}
+              <div className="space-y-3">
+                {sigmaConnections.map((connection) => {
+                  const isOnline = connection.last_bridge_seen_at && (new Date().getTime() - new Date(connection.last_bridge_seen_at).getTime() < 60000);
+                  
+                  return (
+                    <div key={connection.id} className="flex flex-col gap-3 rounded-md border border-border p-4 bg-muted/30">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            <p className="font-medium truncate">{connection.name}</p>
+                            {connection.bridge_token && (
+                              <Badge variant={isOnline ? "default" : "secondary"} className={isOnline ? "bg-green-500 hover:bg-green-600" : ""}>
+                                {isOnline ? "Ponte Online" : "Ponte Offline"}
+                              </Badge>
+                            )}
+                          </div>
+                          <p className="text-xs text-muted-foreground truncate">{connection.base_url} • {connection.username}</p>
+                        </div>
+                        <Button type="button" variant="ghost" size="icon" onClick={() => removeSigmaConnection(connection.id)} aria-label="Remover conexão Sigma">
+                          <Trash2 className="w-4 h-4 text-destructive" />
+                        </Button>
+                      </div>
+
+                      <div className="flex flex-col gap-2 pt-2 border-t border-border/50">
+                        {!connection.bridge_token ? (
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            className="w-full justify-start gap-2"
+                            onClick={() => generateSigmaBridgeToken(connection.id)}
+                            disabled={generatingBridgeToken === connection.id}
+                          >
+                            <Zap className="w-4 h-4 text-yellow-500" />
+                            Ativar Ponte Sigma (Bypass WAF)
+                          </Button>
+                        ) : (
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-2">
+                              <a 
+                                href={getSigmaBridgeBookmarklet(connection.bridge_token)}
+                                className="flex-1 inline-flex items-center justify-center gap-2 rounded-md bg-yellow-500 px-3 py-2 text-sm font-medium text-white hover:bg-yellow-600 transition-colors cursor-move"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  toast({ 
+                                    title: "Instrução", 
+                                    description: "Arraste este botão para sua barra de favoritos. Depois, abra o painel Sigma e clique no favorito.",
+                                    duration: 5000 
+                                  });
+                                }}
+                              >
+                                <Zap className="w-4 h-4" />
+                                Arraste para os Favoritos
+                              </a>
+                              <Button 
+                                variant="ghost" 
+                                size="sm" 
+                                className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                                onClick={() => revokeSigmaBridgeToken(connection.id)}
+                              >
+                                Desativar
+                              </Button>
+                            </div>
+                            <p className="text-[10px] text-muted-foreground leading-tight">
+                              Para usar: arraste o botão amarelo para sua barra de favoritos, abra a aba do seu painel Sigma ({connection.base_url}) e clique no favorito. Deixe a aba aberta.
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           )}
 

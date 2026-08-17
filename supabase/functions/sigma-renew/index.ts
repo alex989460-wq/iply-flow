@@ -365,8 +365,58 @@ Deno.serve(async (req) => {
       const months = Math.max(1, Number(body.months || 1));
       const connections = Number(body.connections || 1);
 
-      const customer = await findSigmaCustomer(apiBase, token, username, proxy);
-      if (!customer) return json({ error: `Usuário "${username}" não encontrado no Painel Sigma.` }, 404);
+      // Tenta API direta primeiro (com proxy se houver)
+      let customer = null;
+      let apiError = null;
+      try {
+        customer = await findSigmaCustomer(apiBase, token, username, proxy);
+      } catch (err) {
+        apiError = err instanceof Error ? err.message : String(err);
+      }
+
+      // Se falhou por WAF/bloqueio, tenta via Ponte Sigma se disponível
+      const useBridge = !customer && (apiError?.includes("firewall") || apiError?.includes("403") || apiError?.includes("bloqueou"));
+      
+      if (useBridge && connectionId) {
+        const { data: conn } = await admin.from("sigma_panel_connections").select("bridge_token, last_bridge_seen_at").eq("id", connectionId).maybeSingle();
+        const bridgeOnline = conn?.bridge_token && conn.last_bridge_seen_at && (new Date().getTime() - new Date(conn.last_bridge_seen_at).getTime() < 60000);
+        
+        if (bridgeOnline) {
+          // Cria tarefa na fila para a ponte
+          const { data: job, error: jobErr } = await admin.from("sigma_bridge_jobs").insert({
+            user_id: ownerId,
+            sigma_connection_id: connectionId,
+            action: "renew_customer",
+            payload: { username, months, connections }
+          }).select().single();
+
+          if (jobErr) throw new Error("Falha ao encaminhar renovação para a ponte.");
+
+          // Aguarda o resultado (long polling simulado curto)
+          for (let i = 0; i < 20; i++) {
+            await new Promise(r => setTimeout(r, 1500));
+            const { data: updatedJob } = await admin.from("sigma_bridge_jobs").select("*").eq("id", job.id).single();
+            if (updatedJob.status === "completed") {
+              const d = updatedJob.response_payload;
+              return json({
+                ok: true,
+                username: d?.username || username,
+                expires_at: d?.expires_at || null,
+                package: d?.package || null,
+                via_bridge: true
+              });
+            }
+            if (updatedJob.status === "failed") {
+              throw new Error(updatedJob.error_message || "A ponte Sigma falhou ao renovar.");
+            }
+          }
+          throw new Error("A ponte Sigma está demorando muito. Verifique se a aba do painel está aberta e ativa.");
+        }
+      }
+
+      if (!customer) {
+        throw new Error(apiError || `Usuário "${username}" não encontrado no Painel Sigma.`);
+      }
 
       // escolhe pacote: o informado, ou o pacote atual, ou o que casa com a duração
       let packageId = String(body.package_id || "");
