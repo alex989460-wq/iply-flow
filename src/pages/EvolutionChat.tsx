@@ -2522,7 +2522,8 @@ export default function EvolutionChat({ embed = false }: { embed?: boolean } = {
                     </ContextMenuContent>
                   </ContextMenu>
                 );
-              })}
+              })
+            )}
             </div>
           </div>
         </div>
