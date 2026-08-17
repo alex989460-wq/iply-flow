@@ -535,55 +535,13 @@ Deno.serve(async (req) => {
         return json({ success: false, error: "Cadastre o usuário e a chave de API do painel kOffice em Configurações → APIs." }, 200);
       }
       
-      const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, {
-        auth: { autoRefreshToken: false, persistSession: false },
-      });
-
-      // Tenta API direta
+      // Login direto pela API do painel kOffice (sem ponte, sem extensão).
       let loginRes = null;
       let apiErr = null;
       try {
         loginRes = await apiLogin(base, username, apiKey);
       } catch (err) {
         apiErr = err instanceof Error ? err.message : String(err);
-      }
-
-      // Se falhou por Cloudflare, tenta via Ponte Sigma (infra compartilhada)
-      const useBridge = !loginRes?.ok && (apiErr?.includes("cloudflare") || apiErr?.includes("403") || loginRes?.detail?.includes("cloudflare"));
-      if (useBridge) {
-        const { data: conn } = await admin
-          .from("sigma_panel_connections")
-          .select("id, bridge_token, last_bridge_seen_at")
-          .eq("user_id", user.id)
-          .not("bridge_token", "is", null)
-          .maybeSingle();
-
-        const bridgeOnline = conn?.bridge_token && conn.last_bridge_seen_at && (new Date().getTime() - new Date(conn.last_bridge_seen_at).getTime() < 60000);
-        
-        if (bridgeOnline) {
-          const targetUser = String(body?.username || body?.client_login || "").trim();
-          const months = Math.max(1, Number(body?.months || 1));
-          
-          const { data: job, error: jobErr } = await admin.from("sigma_bridge_jobs").insert({
-            user_id: user.id,
-            sigma_connection_id: conn.id,
-            action: "renew_customer",
-            payload: { username: targetUser, months, panel_type: 'koffice', base_url: base, api_key: apiKey }
-          }).select().single();
-
-          if (!jobErr) {
-            for (let i = 0; i < 20; i++) {
-              await new Promise(r => setTimeout(r, 1500));
-              const { data: updatedJob } = await admin.from("sigma_bridge_jobs").select("*").eq("id", job.id).single();
-              if (updatedJob.status === "completed") {
-                return json({ success: true, message: updatedJob.response_payload?.detail || "Cliente renovado via Ponte.", via_bridge: true });
-              }
-              if (updatedJob.status === "failed") {
-                return json({ success: false, error: updatedJob.error_message || "A ponte falhou ao renovar." }, 200);
-              }
-            }
-          }
-        }
       }
 
       if (!loginRes?.ok) {
