@@ -1935,9 +1935,9 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                   )}
                 </div>
               </CardContent>
-              </Card>
-            </div>
-          )}
+            </Card>
+          </div>
+        )}
 
           {/* Empty state */}
           {!selectedCustomer && searchTerm.length < 3 && (
