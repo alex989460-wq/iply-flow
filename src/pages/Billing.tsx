@@ -820,7 +820,21 @@ export default function Billing() {
       const allResults: any[] = [];
 
       for (let i = 0; i < customers.length; i += BATCH_SIZE) {
+        if (cancelRef.current) {
+          setWasCancelled(true);
+          const remaining = customers.length - i;
+          skippedCount += remaining;
+          setProgressStats({
+            sent: totalSent,
+            errors: totalErrors,
+            skipped: skippedCount,
+            total: totalToProcess + startData.skipped,
+          });
+          toast({ title: 'Envio cancelado', description: `${remaining} cobranças não foram enviadas.` });
+          break;
+        }
         const batch = customers.slice(i, i + BATCH_SIZE);
+
         
         // Add pending items to show they're being processed
         const pendingItems = batch.map((c: any) => ({
