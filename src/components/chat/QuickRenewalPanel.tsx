@@ -688,8 +688,9 @@ Obrigado pela preferência! 🙏`;
       setRenewalMessage(message);
 
       // Send confirmation via backend (official Meta/Zap + Evolution fallback + e-mail + admin)
-      try {
-        const { data: confData, error: confError } = await supabase.functions.invoke('send-payment-confirmation', {
+      // Não bloqueia a UI: a renovação já está concluída no banco/painel.
+      void supabase.functions
+        .invoke('send-payment-confirmation', {
           body: {
             customer_id: customer.id,
             amount,
@@ -697,18 +698,19 @@ Obrigado pela preferência! 🙏`;
             new_due_date: newDueDate,
             source: 'manual_chat',
           },
-        });
-        if (confError) {
-          console.error('Erro ao enviar confirmação:', confError);
-          toast.warning('Renovado, mas falha ao enviar a confirmação automática.');
-        } else if (confData?.results?.text?.ok || confData?.results?.template?.ok) {
-          toast.success('Mensagem de confirmação enviada!');
-        } else if (confData?.results?.text && !confData.results.text.ok) {
-          toast.warning(`Renovado, mas a confirmação não foi enviada: ${confData.results.text.error || 'erro desconhecido'}`);
-        }
-      } catch (e) {
-        console.error('Erro ao enviar confirmação:', e);
-      }
+        })
+        .then(({ data: confData, error: confError }) => {
+          if (confError) {
+            console.error('Erro ao enviar confirmação:', confError);
+            toast.warning('Renovado, mas falha ao enviar a confirmação automática.');
+          } else if (confData?.results?.text?.ok || confData?.results?.template?.ok) {
+            toast.success('Mensagem de confirmação enviada!');
+          } else if (confData?.results?.text && !confData.results.text.ok) {
+            toast.warning(`Renovado, mas a confirmação não foi enviada: ${confData.results.text.error || 'erro desconhecido'}`);
+          }
+        })
+        .catch((e) => console.error('Erro ao enviar confirmação:', e));
+
 
 
       toast.success('Cliente renovado com sucesso!');
