@@ -2516,7 +2516,7 @@ export default function EvolutionChat({ embed = false }: { embed?: boolean } = {
                       <ContextMenuItem onClick={() => clearConversation(c.phone)} className="text-destructive focus:text-destructive">
                         <Trash2 className="w-4 h-4 mr-2" /> Excluir conversa
                       </ContextMenuItem>
-                    </DropdownMenuContent>
+                    </ContextMenuContent>
                   </ContextMenu>
                 );
               })}
