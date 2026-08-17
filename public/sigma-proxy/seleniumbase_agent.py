@@ -111,7 +111,7 @@ def browser_session(payload):
     wait_ms = int(payload.get("wait_ms") or 5000)
 
     with BROWSER_LOCK, new_sb() as sb:
-        sb.uc_open_with_reconnect(url, reconnect_time=4)
+        sb.uc_open_with_reconnect(url, reconnect_time=8)
         captcha = try_solve_captcha(sb)
 
         steps_log = []
@@ -209,7 +209,7 @@ def relay_fetch(payload):
     origin = origin.group(0) if origin else url
 
     with BROWSER_LOCK, new_sb() as sb:
-        sb.uc_open_with_reconnect(origin, reconnect_time=4)
+        sb.uc_open_with_reconnect(origin, reconnect_time=8)
         try_solve_captcha(sb)
         script = (
             "const done = arguments[arguments.length-1];"
@@ -259,7 +259,7 @@ class Handler(BaseHTTPRequestHandler):
             except BaseException as exc:  # SeleniumBase pode chamar sys.exit()
                 return self._send(502, {"ok": False, "browser": "falhou",
                                         "error": f"{type(exc).__name__}: {exc}"})
-        self._send(200, {"ok": True, "engine": "seleniumbase", "version": "1.1.0"})
+        self._send(200, {"ok": True, "engine": "seleniumbase", "version": "1.2.0"})
 
     def do_POST(self):
         if self.headers.get("x-sigma-proxy-secret", "") != SECRET:
