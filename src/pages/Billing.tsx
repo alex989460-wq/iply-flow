@@ -958,6 +958,9 @@ export default function Billing() {
     } finally {
       setIsSending(false);
       setSendingType(null);
+      setIsCancelling(false);
+      setIsProgressComplete(true);
+      cancelRef.current = false;
     }
   };
 
