@@ -2017,7 +2017,11 @@ export default function Billing() {
         sent={progressStats.sent}
         errors={progressStats.errors}
         skipped={progressStats.skipped}
+        onCancel={() => { cancelRef.current = true; setIsCancelling(true); }}
+        isCancelling={isCancelling}
+        cancelled={wasCancelled}
       />
+
     </DashboardLayout>
   );
 }
