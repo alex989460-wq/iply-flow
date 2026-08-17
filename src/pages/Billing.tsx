@@ -1131,9 +1131,6 @@ export default function Billing() {
               <TabsTrigger value="config" className="flex-1 rounded-xl px-3 py-2 text-xs sm:text-sm whitespace-nowrap data-[state=active]:bg-primary/15 data-[state=active]:text-primary">
                 <Bot className="w-4 h-4 mr-1.5" /> Config
               </TabsTrigger>
-              <TabsTrigger value="templates" className="flex-1 rounded-xl px-3 py-2 text-xs sm:text-sm whitespace-nowrap data-[state=active]:bg-primary/15 data-[state=active]:text-primary">
-                <FileText className="w-4 h-4 mr-1.5" /> Templates
-              </TabsTrigger>
               <TabsTrigger value="templates-nao-oficial" className="flex-1 rounded-xl px-3 py-2 text-xs sm:text-sm whitespace-nowrap data-[state=active]:bg-primary/15 data-[state=active]:text-primary">
                 <MessageCircle className="w-4 h-4 mr-1.5" />
                 <span className="hidden sm:inline">Não Oficial</span>
