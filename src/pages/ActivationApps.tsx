@@ -142,7 +142,7 @@ export default function ActivationApps() {
 
   const [duplecastForm, setDuplecastForm] = useState({ username: '', password: '', is_enabled: true });
   const [clouddyForm, setClouddyForm] = useState({ base_url: 'https://console.clouddy.online', cookie: '', is_enabled: true });
-  const [ibosolForm, setIbosolForm] = useState({ token: '', is_enabled: true });
+  const [ibosolForm, setIbosolForm] = useState({ token: '', email: '', login_password: '', is_enabled: true });
   const [iboProForm, setIboProForm] = useState({ username: '', password: '', is_enabled: true });
   const [showPass, setShowPass] = useState(false);
   const [showClCookie, setShowClCookie] = useState(false);
