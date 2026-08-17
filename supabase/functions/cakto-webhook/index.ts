@@ -2227,7 +2227,8 @@ serve(async (req) => {
               return `👤 *${c.name}* (${c.username || '-'})\n🔗 ${link}`;
             }).join('\n\n');
 
-            const adminMsg = `⚠️ *Atenção: Pagamento requer decisão manual*\n\n📞 Telefone: ${phoneDigits}\n💰 Valor: *R$ ${amountNumeric.toFixed(2)}*\n📦 Plano: *${matchedPlanName || '-'}*\n🧩 Motivo: *${conflictReason}*\n\n${customerLinks}\n\n👆 *Clique no link do cliente que deseja renovar*\n⏳ Pagamento registrado mas *NÃO confirmado*.`;
+            const customerNameCakto = customer?.name || customer?.full_name || caktoData?.name || '-';
+            const adminMsg = `⚠️ *Atenção: Pagamento de ${customerNameCakto} requer decisão manual*\n\n📞 Telefone: ${phoneDigits}\n💰 Valor: *R$ ${amountNumeric.toFixed(2)}*\n📦 Plano: *${matchedPlanName || '-'}*\n🧩 Motivo: *${conflictReason}*\n\n${customerLinks}\n\n👆 *Clique no link do cliente que deseja renovar*\n⏳ Pagamento registrado mas *NÃO confirmado*.`;
 
             await fetch(
               `${supabaseUrl}/functions/v1/crm-oficial-sync`,
