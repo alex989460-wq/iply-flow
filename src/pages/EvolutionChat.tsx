@@ -2167,13 +2167,8 @@ export default function EvolutionChat({ embed = false }: { embed?: boolean } = {
         "flex flex-col md:flex-row animate-fade-in bg-background overflow-hidden",
         embed ? 'h-full' : 'h-[calc(100dvh-4rem)] lg:h-[100dvh]'
       )}>
-        {/* Conversations sidebar hidden in __content, moved to sidebar prop of Layout */}
         {false && (
           <div>
-            'flex flex-col border-r border-border bg-card/30',
-            isMobile && selectedPhone ? 'hidden' : 'flex',
-            'w-full md:w-80 lg:w-96'
-          )}>
           <div className="px-3 py-2.5 border-b border-border flex items-center gap-2 bg-gradient-to-r from-emerald-600/15 via-primary/10 to-cyan-500/10">
             <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-700 flex items-center justify-center shadow-lg shadow-emerald-500/20">
               <Zap className="w-4 h-4 text-white" />
@@ -3141,7 +3136,6 @@ export default function EvolutionChat({ embed = false }: { embed?: boolean } = {
           )}
         </div>
 
-      </div>
       </div>
 
       {/* Lightbox de imagens das conversas */}
