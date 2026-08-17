@@ -1277,19 +1277,19 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
   };
 
   return (
-    <div className={`${isMobile ? 'w-full' : 'w-[360px] lg:w-[400px] shrink-0 border-l border-border/50'} bg-background/30 backdrop-blur-xl flex flex-col h-full max-h-full min-h-0 overflow-hidden text-[13px] shadow-2xl transition-all duration-300`}>
+    <div className={`${isMobile ? 'w-full' : 'w-[360px] lg:w-[420px] shrink-0 border-l border-border/20'} bg-background/40 backdrop-blur-3xl flex flex-col h-full max-h-full min-h-0 overflow-hidden text-[13px] shadow-2xl transition-all duration-500 ease-in-out`}>
       {!isMobile && (
-        <div className="p-4 border-b border-border/40 bg-background/20 space-y-3">
+        <div className="p-5 border-b border-border/20 bg-background/30 space-y-4">
           <div className="flex items-center justify-between">
-            <h2 className="text-xs font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+            <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/60 flex items-center gap-2">
               <RefreshCw className="h-3 w-3 text-primary animate-pulse-slow" />
               Renovação Rápida
             </h2>
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1.5">
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-7 w-7 rounded-full hover:bg-primary/10"
+                className="h-8 w-8 rounded-xl bg-primary/5 hover:bg-primary/10 border border-primary/10 text-primary transition-all duration-300 hover:scale-110"
                 onClick={() => setIsBillingSettingsOpen(true)}
                 title="Configurar PIX e Preços"
               >
@@ -1298,7 +1298,7 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-7 w-7 rounded-full hover:bg-primary/10"
+                className="h-8 w-8 rounded-xl bg-emerald-500/5 hover:bg-emerald-500/10 border border-emerald-500/10 text-emerald-500 transition-all duration-300 hover:scale-110"
                 onClick={() => setIsSendPlaylistOpen(true)}
                 title="Enviar lista para o app"
               >
@@ -1307,7 +1307,7 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-7 w-7 rounded-full hover:bg-primary/10"
+                className="h-8 w-8 rounded-xl bg-violet-500/5 hover:bg-violet-500/10 border border-violet-500/10 text-violet-500 transition-all duration-300 hover:scale-110"
                 onClick={() => setIsClouddyCreateOpen(true)}
                 title="Criar usuário Clouddy"
               >
@@ -1317,7 +1317,7 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-7 text-xs gap-1"
+                className="h-8 px-3 rounded-xl bg-primary/10 text-primary hover:bg-primary/20 border border-primary/10 text-[10px] font-bold uppercase tracking-wider gap-1.5 transition-all duration-300"
                 onClick={() => {
                   setShowNewCustomerForm(!showNewCustomerForm);
                   setSelectedCustomer(null);
@@ -1329,7 +1329,7 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
             </div>
           </div>
           <div className="relative">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/40" />
             <Input
               placeholder="Telefone ou usuário..."
               value={searchTerm}
@@ -1338,7 +1338,7 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                 setSelectedCustomer(null);
                 setShowNewCustomerForm(false);
               }}
-              className="pl-9 h-10 text-sm bg-background/40 border-border/40 focus:border-primary/50 transition-all rounded-xl shadow-inner"
+              className="pl-10 h-11 text-sm bg-background/40 border-border/20 focus:border-primary/40 focus:ring-1 focus:ring-primary/20 transition-all rounded-2xl shadow-inner"
             />
           </div>
         </div>
@@ -1369,7 +1369,7 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
         <div className="p-4 space-y-3">
           <div className="flex items-center gap-2">
             <div className="relative flex-1">
-              <Search className="absolute left-3 top-3 h-5 w-5 text-muted-foreground" />
+              <Search className="absolute left-3 top-3 h-5 w-5 text-muted-foreground/80" />
               <Input
                 placeholder="Buscar por telefone ou usuário..."
                 value={searchTerm}
@@ -1423,7 +1423,7 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
           {/* Search Results */}
           {!selectedCustomer && !showNewCustomerForm && (isSearching || (searchResults && searchResults.length > 0)) && (
             <div className="space-y-1">
-              <p className="text-xs text-muted-foreground mb-2">{isSearching ? 'Buscando...' : 'Resultados:'}</p>
+              <p className="text-xs text-muted-foreground/80 mb-2">{isSearching ? 'Buscando...' : 'Resultados:'}</p>
               {(searchResults ?? []).map((customer) => (
                 <Card
                   key={customer.id}
@@ -1434,7 +1434,7 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                     <div className="flex items-center justify-between gap-2">
                       <div className="min-w-0 flex-1">
                         <p className="text-sm font-medium truncate">{customer.name}</p>
-                        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <div className="flex items-center gap-1.5 text-xs text-muted-foreground/80">
                           <PhoneFlagBadge phone={customer.phone} size="xs" />
                           <span>{customer.phone}</span>
                           {customer.username && (
@@ -1446,11 +1446,11 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                         </div>
                         <div className="flex items-center gap-2 text-xs mt-0.5">
                           <div className="flex items-center gap-1">
-                            <Calendar className="h-3 w-3 text-muted-foreground" />
+                            <Calendar className="h-3 w-3 text-muted-foreground/80" />
                             <span className={
                               customer.due_date && isCustomerOverdue(customer.due_date)
                                 ? 'text-destructive font-medium' 
-                                : 'text-muted-foreground'
+                                : 'text-muted-foreground/80'
                             }>
                               {formatDate(customer.due_date)}
                             </span>
@@ -1471,7 +1471,7 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
           {/* No results message */}
           {!selectedCustomer && !showNewCustomerForm && searchTerm.length >= 3 && !isSearching && searchResults?.length === 0 && (
             <div className="text-center py-4">
-              <p className="text-sm text-muted-foreground">
+              <p className="text-sm text-muted-foreground/80">
                 Nenhum cliente encontrado
               </p>
             </div>
@@ -1479,46 +1479,63 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
 
           {/* Selected Customer Details */}
           {selectedCustomer && (
-            <Card className="border-primary/20 bg-primary/5 shadow-inner overflow-hidden">
-              <CardHeader className="p-3 pb-2">
-                <CardTitle className="text-sm flex items-center gap-2">
-                  <User className="h-4 w-4" />
-                  <Input
-                    value={editedName}
-                    onChange={(e) => setEditedName(e.target.value)}
-                    className="h-7 text-sm font-semibold border-dashed"
-                  />
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="p-3 pt-0 space-y-3">
-                <div className="space-y-2 text-sm">
-                  <div className="flex items-center gap-2">
-                    <PhoneFlagBadge phone={editedPhone} size="sm" />
+            <div className="space-y-4 animate-in slide-in-from-right-4 duration-500">
+              <Card className="border-border/30 bg-card/50 backdrop-blur-2xl shadow-xl overflow-hidden rounded-3xl relative group/card">
+                <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-transparent pointer-events-none" />
+                <CardHeader className="p-4 pb-2 relative z-10">
+                  <CardTitle className="text-sm flex items-center gap-3">
+                    <div className="p-2 rounded-2xl bg-primary/10 text-primary group-hover/card:scale-110 transition-transform duration-500 shadow-inner">
+                      <User className="h-4 w-4" />
+                    </div>
                     <Input
-                      value={editedPhone}
-                      onChange={(e) => setEditedPhone(e.target.value)}
-                      placeholder="Telefone principal"
-                      className="h-7 text-sm border-dashed"
+                      value={editedName}
+                      onChange={(e) => setEditedName(e.target.value)}
+                      className="h-8 text-base font-bold bg-transparent border-none focus:ring-0 p-0 shadow-none selection:bg-primary/20"
+                      placeholder="Nome do cliente"
                     />
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-4 pt-0 space-y-4 relative z-10">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1.5 p-3 rounded-2xl bg-background/40 border border-border/10 shadow-inner group/field">
+                      <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/40 flex items-center gap-1.5">
+                        <Phone className="h-3 w-3" />
+                        Principal
+                      </label>
+                      <div className="flex items-center gap-2">
+                        <PhoneFlagBadge phone={editedPhone} size="sm" />
+                        <Input
+                          value={editedPhone}
+                          onChange={(e) => setEditedPhone(e.target.value)}
+                          className="h-6 text-sm font-bold bg-transparent border-none focus:ring-0 p-0 shadow-none"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5 p-3 rounded-2xl bg-background/40 border border-border/10 shadow-inner group/field">
+                      <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/40 flex items-center gap-1.5">
+                        <Phone className="h-3 w-3 text-emerald-500" />
+                        Extra
+                      </label>
+                      <div className="flex items-center gap-2">
+                        <PhoneFlagBadge phone={editedExtraPhone} size="sm" fallbackIconColor="text-emerald-500" />
+                        <Input
+                          value={editedExtraPhone}
+                          onChange={(e) => setEditedExtraPhone(e.target.value)}
+                          placeholder="Adicionar..."
+                          className="h-6 text-sm font-bold bg-transparent border-none focus:ring-0 p-0 shadow-none placeholder:text-muted-foreground/20"
+                        />
+                      </div>
+                    </div>
                   </div>
 
-                  <div className="flex items-center gap-2">
-                    <PhoneFlagBadge phone={editedExtraPhone} size="sm" fallbackIconColor="text-emerald-500" />
-                    <Input
-                      value={editedExtraPhone}
-                      onChange={(e) => setEditedExtraPhone(e.target.value)}
-                      placeholder="Telefone extra (ex: esposa)"
-                      className="h-7 text-sm border-dashed"
-                    />
-                  </div>
-                  
-                  <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">Status:</span>
+                  <div className="flex items-center justify-between p-3 rounded-2xl bg-primary/5 border border-primary/10">
+                    <span className="text-[10px] font-black uppercase tracking-widest text-primary/60">Status do Cliente</span>
                     <Select value={editedStatus} onValueChange={setEditedStatus}>
-                      <SelectTrigger className="h-7 w-[130px] text-xs">
+                      <SelectTrigger className="h-7 w-[110px] text-[11px] font-bold rounded-xl bg-background/50 border-none shadow-sm">
                         <SelectValue />
                       </SelectTrigger>
-                      <SelectContent>
+                      <SelectContent className="rounded-xl border-border/20 backdrop-blur-xl">
                         <SelectItem value="ativa">Ativa</SelectItem>
                         <SelectItem value="inativa">Inativa</SelectItem>
                         <SelectItem value="suspensa">Suspensa</SelectItem>
@@ -1527,33 +1544,32 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                     </Select>
                   </div>
                   
-                  {/* Username & Password Grid */}
                   <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-bold uppercase tracking-tight text-muted-foreground flex items-center gap-1">
+                    <div className="space-y-1.5 p-3 rounded-2xl bg-background/40 border border-border/10 shadow-inner">
+                      <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/40 flex items-center gap-1.5">
                         <User className="h-3 w-3" />
-                        Usuário(s):
+                        Usuário(s)
                       </label>
                       <Input
                         value={editedUsername}
                         onChange={(e) => setEditedUsername(e.target.value)}
                         placeholder="user1, user2"
-                        className="h-9 text-xs font-mono bg-background/50"
+                        className="h-6 text-xs font-mono bg-transparent border-none focus:ring-0 p-0 shadow-none placeholder:text-muted-foreground/20"
                       />
                     </div>
                     
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-bold uppercase tracking-tight text-muted-foreground flex items-center gap-1">
+                    <div className="space-y-1.5 p-3 rounded-2xl bg-background/40 border border-border/10 shadow-inner">
+                      <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/40 flex items-center gap-1.5">
                         <Key className="h-3 w-3" />
-                        Senha:
+                        Senha
                       </label>
-                      <div className="h-9 px-3 rounded-md bg-background/50 border border-input flex items-center justify-between group/pw">
+                      <div className="flex items-center justify-between group/pw">
                         <span className="font-mono text-xs truncate max-w-[80px]">
                           {selectedCustomer.password || '—'}
                         </span>
                         {selectedCustomer.password && (
                           <Copy 
-                            className="h-3 w-3 text-muted-foreground opacity-0 group-hover/pw:opacity-100 hover:text-primary cursor-pointer transition-all" 
+                            className="h-3 w-3 text-muted-foreground/40 opacity-0 group-hover/pw:opacity-100 hover:text-primary cursor-pointer transition-all" 
                             onClick={() => handleCopyMessage(selectedCustomer.password!)}
                           />
                         )}
@@ -1561,18 +1577,30 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                     </div>
                   </div>
 
-                  {/* Grid for Selectors */}
                   <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-bold uppercase tracking-tight text-muted-foreground">Telas:</label>
+                    <div className="space-y-1.5 p-3 rounded-2xl bg-background/40 border border-border/10 shadow-inner">
+                      <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/40 flex items-center gap-1.5">
+                        <Calendar className="h-3 w-3" />
+                        Vencimento
+                      </label>
+                      <Input
+                        type="date"
+                        value={editedDueDate}
+                        onChange={(e) => setEditedDueDate(e.target.value)}
+                        className={`h-6 text-[11px] bg-transparent border-none focus:ring-0 p-0 shadow-none appearance-none ${selectedCustomer?.due_date && isCustomerOverdue(selectedCustomer.due_date) ? 'text-destructive font-black' : 'font-bold'}`}
+                      />
+                    </div>
+
+                    <div className="space-y-1.5 p-3 rounded-2xl bg-background/40 border border-border/10 shadow-inner">
+                      <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/40">Telas</label>
                       <Select 
                         value={selectedScreens.toString()} 
                         onValueChange={(v) => setSelectedScreens(parseInt(v))}
                       >
-                        <SelectTrigger className="h-9 text-xs bg-background/50">
+                        <SelectTrigger className="h-6 text-[11px] font-bold bg-transparent border-none focus:ring-0 p-0 shadow-none">
                           <SelectValue />
                         </SelectTrigger>
-                        <SelectContent>
+                        <SelectContent className="rounded-xl border-border/20 backdrop-blur-xl">
                           {[1, 2, 3, 4, 5].map((num) => (
                             <SelectItem key={num} value={num.toString()}>
                               {num} {num === 1 ? 'tela' : 'telas'}
@@ -1581,22 +1609,11 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                         </SelectContent>
                       </Select>
                     </div>
-                    
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-bold uppercase tracking-tight text-muted-foreground flex items-center gap-1">
-                        <Calendar className="h-3 w-3" />
-                        Vencimento:
-                      </label>
-                      <Input
-                        type="date"
-                        value={editedDueDate}
-                        onChange={(e) => setEditedDueDate(e.target.value)}
-                        className={`h-9 text-xs bg-background/50 ${selectedCustomer?.due_date && isCustomerOverdue(selectedCustomer.due_date) ? 'text-destructive font-bold' : ''}`}
-                      />
-                    </div>
+                  </div>
 
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-bold uppercase tracking-tight text-muted-foreground">Plano:</label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1.5 p-3 rounded-2xl bg-background/40 border border-border/10 shadow-inner">
+                      <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/40">Plano</label>
                       <Select 
                         value={selectedPlanId || ''} 
                         onValueChange={(v) => {
@@ -1609,10 +1626,10 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                           }
                         }}
                       >
-                        <SelectTrigger className="h-9 text-xs bg-background/50">
+                        <SelectTrigger className="h-6 text-[11px] font-bold bg-transparent border-none focus:ring-0 p-0 shadow-none overflow-hidden">
                           <SelectValue placeholder="Plano" />
                         </SelectTrigger>
-                        <SelectContent>
+                        <SelectContent className="rounded-xl border-border/20 backdrop-blur-xl">
                           {allPlans.map((plan) => (
                             <SelectItem key={plan.id} value={plan.id}>
                               {plan.plan_name}
@@ -1622,16 +1639,16 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                       </Select>
                     </div>
 
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-bold uppercase tracking-tight text-muted-foreground flex items-center gap-1">
-                        <Server className="h-3 w-3" />
-                        Servidor:
+                    <div className="space-y-1.5 p-3 rounded-2xl bg-background/40 border border-border/10 shadow-inner">
+                      <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/40 flex items-center gap-1.5">
+                        <Server className="h-3 w-3 text-blue-400" />
+                        Servidor
                       </label>
                       <Select value={editedServerId || ''} onValueChange={setEditedServerId}>
-                        <SelectTrigger className="h-9 text-xs bg-background/50 text-blue-400 font-bold">
+                        <SelectTrigger className="h-6 text-[11px] font-bold bg-transparent border-none focus:ring-0 p-0 shadow-none text-blue-400">
                           <SelectValue placeholder="Servidor" />
                         </SelectTrigger>
-                        <SelectContent>
+                        <SelectContent className="rounded-xl border-border/20 backdrop-blur-xl">
                           {allServers.map((s) => (
                             <SelectItem key={s.id} value={s.id}>
                               {s.server_name}
@@ -1642,19 +1659,18 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                     </div>
                   </div>
                   
-                  {/* Editable Price & Save Row */}
-                  <div className="flex items-end gap-3">
-                    <div className="flex-1 space-y-1">
-                      <label className="text-[10px] font-bold uppercase tracking-tight text-muted-foreground">Valor:</label>
-                      <div className="relative">
-                        <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">R$</span>
+                  <div className="flex items-end gap-3 pt-2">
+                    <div className="flex-1 space-y-1.5 p-3 rounded-2xl bg-background/40 border border-border/10 shadow-inner">
+                      <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/40">Valor Renovação</label>
+                      <div className="relative flex items-center">
+                        <span className="text-xs font-black text-primary mr-1">R$</span>
                         <Input
                           type="number"
                           step="0.01"
                           min="0"
                           value={customRenewalPrice}
                           onChange={(e) => setCustomRenewalPrice(e.target.value)}
-                          className="h-9 text-sm pl-8 font-bold text-primary bg-background/50"
+                          className="h-6 text-sm font-black text-primary bg-transparent border-none focus:ring-0 p-0 shadow-none"
                         />
                       </div>
                     </div>
@@ -1662,16 +1678,16 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                     <Button 
                       variant="secondary" 
                       size="sm" 
-                      className="h-9 px-4 text-xs font-bold shadow-sm active:scale-95 transition-all"
+                      className="h-12 w-12 rounded-2xl bg-primary/10 text-primary hover:bg-primary/20 border border-primary/10 shadow-lg transition-all active:scale-90"
                       onClick={() => saveCustomerData.mutate()}
                       disabled={saveCustomerData.isPending}
+                      title="Salvar alterações"
                     >
                       {saveCustomerData.isPending ? (
-                        <Loader2 className="h-3 w-3 animate-spin" />
+                        <Loader2 className="h-4 w-4 animate-spin" />
                       ) : (
-                        <CheckCircle className="h-3.5 w-3.5 mr-1.5" />
+                        <CheckCircle className="h-5 w-5" />
                       )}
-                      Salvar
                     </Button>
                   </div>
 
@@ -1694,10 +1710,10 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                         </DialogTitle>
                       </DialogHeader>
                       <div className="space-y-3">
-                        <p className="text-sm text-muted-foreground">
+                        <p className="text-sm text-muted-foreground/80">
                           Você está prestes a excluir <strong className="text-foreground">{selectedCustomer.name}</strong>. Esta ação é permanente.
                         </p>
-                        <p className="text-xs text-muted-foreground">
+                        <p className="text-xs text-muted-foreground/80">
                           Para confirmar, digite <strong className="text-destructive">excluir</strong> abaixo:
                         </p>
                         <Input
@@ -1804,7 +1820,7 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                       </div>
                     </div>
                     {selectedCustomer.extra_months > 0 && (
-                      <p className="text-[10px] text-muted-foreground">
+                      <p className="text-[10px] text-muted-foreground/80">
                         Meses extras são abatidos automaticamente na próxima renovação e não disparam renovação no servidor.
                       </p>
                     )}
@@ -1920,11 +1936,12 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                 </div>
               </CardContent>
             </Card>
-          )}
+          </div>
+        )}
 
           {/* Empty state */}
           {!selectedCustomer && searchTerm.length < 3 && (
-            <div className="text-center py-6 text-muted-foreground">
+            <div className="text-center py-6 text-muted-foreground/80">
               <Phone className="h-8 w-8 mx-auto mb-2 opacity-50" />
               <p className="text-sm">Digite telefone ou usuário para buscar</p>
             </div>
@@ -1933,7 +1950,7 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
           {/* Quick Messages Section - Compact Chip Design */}
           <Collapsible open={isLinksOpen} onOpenChange={setIsLinksOpen}>
             <div className="flex items-center justify-between px-2 py-1 bg-secondary/10 rounded-lg">
-              <CollapsibleTrigger className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider text-muted-foreground hover:text-primary transition-colors group">
+              <CollapsibleTrigger className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider text-muted-foreground/80 hover:text-primary transition-colors group">
                 <div className="p-1 rounded-md bg-primary/10 group-hover:bg-primary/20 transition-all">
                   {isLinksOpen ? <ChevronUp className="h-3 w-3 text-primary" /> : <ChevronDown className="h-3 w-3 text-primary" />}
                 </div>
@@ -1988,7 +2005,7 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
 
                     {/* Existing messages - drag to reorder */}
                     {quickMessages.length > 0 && (
-                      <p className="text-xs text-muted-foreground px-1">
+                      <p className="text-xs text-muted-foreground/80 px-1">
                         Arraste pelo ícone <GripVertical className="inline h-3 w-3" /> para reordenar as mensagens.
                       </p>
                     )}
@@ -2031,7 +2048,7 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                                         <div className="flex items-center gap-2">
                                           <button
                                             type="button"
-                                            className="cursor-grab active:cursor-grabbing touch-none p-1 -ml-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground"
+                                            className="cursor-grab active:cursor-grabbing touch-none p-1 -ml-1 rounded hover:bg-muted text-muted-foreground/80 hover:text-foreground"
                                             aria-label="Arrastar para reordenar"
                                             {...listeners}
                                             {...attributes}
@@ -2043,7 +2060,7 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                                         </div>
                                         <Badge variant="secondary" className="text-xs">{msg.category}</Badge>
                                       </div>
-                                      <p className="text-xs text-muted-foreground line-clamp-2">{msg.content}</p>
+                                      <p className="text-xs text-muted-foreground/80 line-clamp-2">{msg.content}</p>
                                       <div className="flex gap-2">
                                         <Button size="sm" variant="outline" onClick={() => setEditingMessage(msg)}>
                                           Editar
@@ -2100,7 +2117,7 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                           {msg.title}
                         </span>
                         <Copy
-                          className="flex-shrink-0 h-2.5 w-2.5 text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-primary transition-opacity"
+                          className="flex-shrink-0 h-2.5 w-2.5 text-muted-foreground/80 opacity-0 group-hover:opacity-100 hover:text-primary transition-opacity"
                           onClick={(e) => {
                             e.stopPropagation();
                             handleCopyMessage(msg.content);
@@ -2112,8 +2129,8 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                 </div>
               ) : (
                 <div className="text-center py-4 bg-muted/20 rounded-md border border-dashed border-border">
-                  <MessageSquare className="h-6 w-6 mx-auto text-muted-foreground/50 mb-1" />
-                  <p className="text-[10px] text-muted-foreground">Nenhuma mensagem</p>
+                  <MessageSquare className="h-6 w-6 mx-auto text-muted-foreground/80/50 mb-1" />
+                  <p className="text-[10px] text-muted-foreground/80">Nenhuma mensagem</p>
                   <Button
                     variant="link"
                     size="sm"
@@ -2137,7 +2154,7 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                           </div>
                           <div className="min-w-0">
                             <p className="text-xs font-semibold text-foreground truncate leading-tight">{selectedQuickMessage.title}</p>
-                            <p className="text-[9px] text-muted-foreground leading-tight">{selectedQuickMessage.category}</p>
+                            <p className="text-[9px] text-muted-foreground/80 leading-tight">{selectedQuickMessage.category}</p>
                           </div>
                         </div>
                         <Button
@@ -2168,7 +2185,7 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
               </div>
               <div className="flex-1">
                 <h3 className="text-sm font-semibold text-violet-600 dark:text-violet-400">Gerar Teste</h3>
-                <p className="text-[10px] text-muted-foreground">
+                <p className="text-[10px] text-muted-foreground/80">
                   {vplayServers.length > 0 ? `${vplayServers.length} servidor${vplayServers.length > 1 ? 'es' : ''} configurado${vplayServers.length > 1 ? 's' : ''}` : 'Nenhum servidor'}
                 </p>
               </div>
@@ -2252,7 +2269,7 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                className="h-6 w-6 text-muted-foreground/80 hover:text-foreground"
                 onClick={() => setVplayTestResult(null)}
               >
                 <X className="h-4 w-4" />
