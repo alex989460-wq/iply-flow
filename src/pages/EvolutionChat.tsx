@@ -2522,12 +2522,10 @@ export default function EvolutionChat({ embed = false }: { embed?: boolean } = {
                     </ContextMenuContent>
                   </ContextMenu>
                 );
-              })
-            )}
+              })}
+            </div>
           </div>
         </div>
-        </div>
-      </div>
 
         {/* Thread */}
         <div className={cn('flex-1 flex flex-col min-w-0', isMobile && !selectedPhone && 'hidden')}>
