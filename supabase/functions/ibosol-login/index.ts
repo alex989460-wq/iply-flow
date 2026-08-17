@@ -83,7 +83,7 @@ export async function ibosolBrowserLogin(email: string, password: string) {
   const res = await fetch(base + "/", {
     method: "POST",
     headers: { "Content-Type": "application/json", "x-sigma-proxy-secret": secret },
-    body: JSON.stringify({ browser: true, url: LOGIN_URL, wait_ms: 3000, js }),
+    body: JSON.stringify({ browser: true, url: LOGIN_URL, wait_ms: 3000, force_captcha: true, js }),
   });
 
   const text = await res.text();
