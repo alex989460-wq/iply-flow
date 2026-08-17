@@ -1422,41 +1422,44 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
 
           {/* Search Results */}
           {!selectedCustomer && !showNewCustomerForm && (isSearching || (searchResults && searchResults.length > 0)) && (
-            <div className="space-y-1">
-              <p className="text-xs text-muted-foreground/80 mb-2">{isSearching ? 'Buscando...' : 'Resultados:'}</p>
+            <div className="space-y-2">
+              <p className="text-[10px] font-black uppercase tracking-wider text-muted-foreground/60 mb-2 flex items-center gap-2">
+                <Search className="h-3 w-3" />
+                {isSearching ? 'Buscando...' : `Resultados (${searchResults?.length || 0})`}
+              </p>
               {(searchResults ?? []).map((customer) => (
                 <Card
                   key={customer.id}
-                  className="cursor-pointer hover:bg-accent/50 transition-colors"
+                  className="cursor-pointer border-border/20 bg-background/40 backdrop-blur-2xl hover:bg-background/60 hover:border-primary/30 hover:shadow-lg transition-all duration-300 rounded-2xl overflow-hidden group/card"
                   onClick={() => handleSelectCustomer(customer)}
                 >
-                  <CardContent className="p-2">
+                  <CardContent className="p-3 relative z-10">
                     <div className="flex items-center justify-between gap-2">
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-medium truncate">{customer.name}</p>
+                      <div className="min-w-0 flex-1 space-y-1">
+                        <p className="text-sm font-bold truncate group-hover/card:text-primary transition-colors">{customer.name}</p>
                         <div className="flex items-center gap-1.5 text-xs text-muted-foreground/80">
                           <PhoneFlagBadge phone={customer.phone} size="xs" />
                           <span>{customer.phone}</span>
                           {customer.username && (
                             <>
-                              <span>•</span>
-                              <span className="font-mono">{customer.username}</span>
+                              <span className="text-muted-foreground/40">•</span>
+                              <span className="font-mono text-[10px]">{customer.username}</span>
                             </>
                           )}
                         </div>
-                        <div className="flex items-center gap-2 text-xs mt-0.5">
+                        <div className="flex items-center gap-2 text-xs">
                           <div className="flex items-center gap-1">
-                            <Calendar className="h-3 w-3 text-muted-foreground/80" />
+                            <Calendar className="h-3 w-3 text-muted-foreground/60" />
                             <span className={
                               customer.due_date && isCustomerOverdue(customer.due_date)
-                                ? 'text-destructive font-medium' 
+                                ? 'text-destructive font-bold' 
                                 : 'text-muted-foreground/80'
                             }>
                               {formatDate(customer.due_date)}
                             </span>
                           </div>
                           {customer.server && (
-                            <span className="text-blue-400 font-medium">{customer.server.server_name}</span>
+                            <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-primary/10 text-primary font-medium">{customer.server.server_name}</span>
                           )}
                         </div>
                       </div>
@@ -1467,6 +1470,7 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
               ))}
             </div>
           )}
+
 
           {/* No results message */}
           {!selectedCustomer && !showNewCustomerForm && searchTerm.length >= 3 && !isSearching && searchResults?.length === 0 && (
@@ -1752,99 +1756,101 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                     </DialogContent>
                   </Dialog>
 
-
-
-                  {/* Copy Data with PIX Button (always visible) */}
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    className="w-full h-8 text-xs border-primary/50 text-primary hover:bg-primary/10"
-                    onClick={handleCopyBillingWithPix}
-                  >
-                    <Copy className="h-3 w-3 mr-1" />
-                    Copiar Dados + PIX
-                  </Button>
-
-                  {/* Overdue Warning and Billing Message Button */}
-                  {isCustomerOverdue(selectedCustomer.due_date) && (
-                    <div className="mt-2 p-2 bg-destructive/10 border border-destructive/30 rounded-lg">
-                      <div className="flex items-center gap-2 text-destructive mb-2">
-                        <AlertTriangle className="h-4 w-4" />
-                        <span className="text-xs font-semibold">Plano Vencido</span>
+                  <div className="pt-2 border-t border-border space-y-2">
+                    {/* Copy Data with PIX Button */}
+                    <Button
+                      variant="outline"
+                      className="w-full h-10 rounded-xl font-semibold text-xs shadow-lg shadow-primary/10 bg-gradient-to-r from-primary/10 to-primary/5 hover:from-primary/20 hover:to-primary/10 border border-primary/20 text-primary transition-all active:scale-[0.98]"
+                      onClick={handleCopyBillingWithPix}
+                    >
+                      <div className="p-1 rounded-lg bg-primary/20 mr-2">
+                        <Copy className="h-3.5 w-3.5" />
                       </div>
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
-                        className="w-full h-7 text-xs border-destructive/50 text-destructive hover:bg-destructive/10"
-                        onClick={handleCopyOverdueMessage}
-                      >
-                        <Copy className="h-3 w-3 mr-1" />
-                        Copiar Cobrança
-                      </Button>
-                    </div>
-                  )}
-                  {/* Extra Months Control */}
-                  <div className="mt-2 p-2 bg-amber-500/10 border border-amber-500/30 rounded-lg space-y-2">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400">
-                        <AlertTriangle className="h-4 w-4" />
-                        <span className="text-xs font-semibold">
-                          {selectedCustomer.extra_months} {selectedCustomer.extra_months === 1 ? 'mês extra' : 'meses extras'}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-1">
+                      Copiar Dados + PIX
+                    </Button>
+
+                    {/* Overdue Warning */}
+                    {isCustomerOverdue(selectedCustomer.due_date) && (
+                      <div className="p-2.5 bg-destructive/10 border border-destructive/30 rounded-2xl space-y-2">
+                        <div className="flex items-center gap-2 text-destructive">
+                          <div className="p-1 rounded-lg bg-destructive/20">
+                            <AlertTriangle className="h-3.5 w-3.5" />
+                          </div>
+                          <span className="text-xs font-bold">Plano Vencido</span>
+                        </div>
                         <Button
                           variant="outline"
-                          size="sm"
-                          className="h-6 w-6 p-0 text-xs"
-                          disabled={selectedCustomer.extra_months <= 0 || adjustExtraMonths.isPending}
-                          onClick={() => adjustExtraMonths.mutate(-1)}
-                          title="Remover 1 mês extra"
+                          className="w-full h-9 rounded-xl text-xs font-semibold bg-gradient-to-r from-destructive/20 to-destructive/10 hover:from-destructive/30 hover:to-destructive/20 border border-destructive/30 text-destructive transition-all active:scale-[0.98]"
+                          onClick={handleCopyOverdueMessage}
                         >
-                          −
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-6 px-2 text-xs border-amber-500/50 text-amber-600 dark:text-amber-400 hover:bg-amber-500/10"
-                          disabled={adjustExtraMonths.isPending}
-                          onClick={() => adjustExtraMonths.mutate(1)}
-                          title="Adicionar 1 mês extra"
-                        >
-                          {adjustExtraMonths.isPending ? (
-                            <Loader2 className="h-3 w-3 animate-spin" />
-                          ) : (
-                            <>+ Mês extra</>
-                          )}
+                          <Copy className="h-3 w-3 mr-1.5" />
+                          Copiar Cobrança
                         </Button>
                       </div>
-                    </div>
-                    {selectedCustomer.extra_months > 0 && (
-                      <p className="text-[10px] text-muted-foreground/80">
-                        Meses extras são abatidos automaticamente na próxima renovação e não disparam renovação no servidor.
-                      </p>
                     )}
+
+                    {/* Extra Months Control */}
+                    <div className="p-2.5 bg-amber-500/10 border border-amber-500/30 rounded-2xl space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400">
+                          <div className="p-1 rounded-lg bg-amber-500/20">
+                            <AlertTriangle className="h-3.5 w-3.5" />
+                          </div>
+                          <span className="text-xs font-bold">
+                            {selectedCustomer.extra_months} {selectedCustomer.extra_months === 1 ? 'mês extra' : 'meses extras'}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-7 w-7 p-0 text-xs rounded-xl border-amber-500/30 hover:bg-amber-500/10"
+                            disabled={selectedCustomer.extra_months <= 0 || adjustExtraMonths.isPending}
+                            onClick={() => adjustExtraMonths.mutate(-1)}
+                            title="Remover 1 mês extra"
+                          >
+                            −
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-7 px-2.5 text-xs rounded-xl border-amber-500/50 text-amber-600 dark:text-amber-400 hover:bg-amber-500/10"
+                            disabled={adjustExtraMonths.isPending}
+                            onClick={() => adjustExtraMonths.mutate(1)}
+                            title="Adicionar 1 mês extra"
+                          >
+                            {adjustExtraMonths.isPending ? (
+                              <Loader2 className="h-3 w-3 animate-spin" />
+                            ) : (
+                              <>+ Mês extra</>
+                            )}
+                          </Button>
+                        </div>
+                      </div>
+                      {selectedCustomer.extra_months > 0 && (
+                        <p className="text-[10px] text-muted-foreground/80">
+                          Meses extras são abatidos automaticamente na próxima renovação e não disparam renovação no servidor.
+                        </p>
+                      )}
                   </div>
-                </div>
 
-                <div className="pt-2 border-t border-border space-y-2">
-
-                  
                   {/* Extra Months Confirmation Dialog */}
                   {showExtraMonthsConfirm && selectedCustomer.extra_months > 0 && (
-                    <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-lg space-y-2">
+                    <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-2xl space-y-2">
                       <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400">
-                        <AlertTriangle className="h-4 w-4" />
-                        <span className="text-sm font-semibold">Confirmar Renovação</span>
+                        <div className="p-1 rounded-lg bg-amber-500/20">
+                          <AlertTriangle className="h-3.5 w-3.5" />
+                        </div>
+                        <span className="text-sm font-bold">Confirmar Renovação</span>
                       </div>
                       <p className="text-xs text-foreground">
                         Este cliente ainda possui <strong>{selectedCustomer.extra_months} {selectedCustomer.extra_months === 1 ? 'mês extra' : 'meses extras'}</strong>.
                         Deseja realmente renovar? O contador será reduzido em 1.
                       </p>
                       <div className="flex gap-2">
-                        <Button 
-                          size="sm" 
-                          className="flex-1 h-8 bg-amber-600 hover:bg-amber-700 text-white"
+                        <Button
+                          size="sm"
+                          className="flex-1 h-9 rounded-xl bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-white shadow-lg shadow-amber-500/20 transition-all active:scale-[0.98]"
                           onClick={handleConfirmExtraMonthsRenewal}
                           disabled={registerPayment.isPending}
                         >
@@ -1855,10 +1861,10 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                           )}
                           Sim, Renovar
                         </Button>
-                        <Button 
-                          size="sm" 
-                          variant="outline" 
-                          className="h-8"
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-9 rounded-xl"
                           onClick={handleCancelExtraMonthsRenewal}
                         >
                           Cancelar
@@ -1869,20 +1875,20 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                   
                   {!showExtraMonthsConfirm && (
                     <div className="space-y-2">
-                      <div className="flex items-center gap-2 p-2 rounded-md bg-secondary/30 border border-border">
+                      <div className="flex items-center gap-2 p-2.5 rounded-xl bg-background/40 border border-border/30">
                         <Checkbox
                           id="activate_on_server_renewal"
                           checked={activateOnServer}
                           onCheckedChange={(checked) => setActivateOnServer(!!checked)}
+                          className="border-primary/50 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
                         />
-                        <Label htmlFor="activate_on_server_renewal" className="text-xs cursor-pointer">
+                        <Label htmlFor="activate_on_server_renewal" className="text-xs cursor-pointer font-medium">
                           ⚡ Renovar no painel do servidor
                         </Label>
                       </div>
                       <div className="flex gap-2">
-                        <Button 
-                          className="flex-1 h-10 rounded-xl font-semibold shadow-lg shadow-primary/20 bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 transition-all" 
-
+                        <Button
+                          className="flex-1 h-11 rounded-xl font-bold text-sm shadow-lg shadow-primary/25 bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 transition-all active:scale-[0.98]"
                           onClick={handleRenew}
                           disabled={registerPayment.isPending}
                         >
@@ -1893,9 +1899,9 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                           )}
                           Renovar
                         </Button>
-                        <Button 
+                        <Button
                           variant="outline"
-                          className="h-9"
+                          className="h-11 w-11 rounded-xl border-primary/20 hover:bg-primary/10 hover:text-primary transition-all active:scale-[0.98]"
                           onClick={handleCopyPaymentMessage}
                           title="Copiar mensagem de pagamento aprovado"
                         >
@@ -1907,25 +1913,28 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
 
                   {/* Renewal success message */}
                   {renewalMessage && (
-                    <div className="mt-3 p-3 bg-accent/30 border border-border rounded-lg space-y-2">
-                      <p className="text-xs text-primary font-semibold">✅ Renovação realizada!</p>
-                      <pre className="text-xs text-foreground whitespace-pre-wrap bg-background/50 p-2 rounded max-h-32 overflow-auto select-text">
+                    <div className="mt-3 p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-2xl space-y-2">
+                      <p className="text-xs text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-1.5">
+                        <CheckCircle className="h-3.5 w-3.5" />
+                        Renovação realizada!
+                      </p>
+                      <pre className="text-xs text-foreground whitespace-pre-wrap bg-background/50 p-2.5 rounded-xl border border-emerald-500/20 max-h-32 overflow-auto select-text">
                         {renewalMessage}
                       </pre>
                       <div className="flex gap-2">
-                        <Button 
-                          size="sm" 
-                          variant="outline" 
-                          className="flex-1 h-7 text-xs"
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="flex-1 h-8 text-xs rounded-xl border-emerald-500/30 hover:bg-emerald-500/10 hover:text-emerald-600"
                           onClick={handleCopyRenewalMessage}
                         >
                           <Copy className="h-3 w-3 mr-1" />
                           Copiar
                         </Button>
-                        <Button 
-                          size="sm" 
-                          variant="ghost" 
-                          className="h-7 text-xs"
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-8 text-xs rounded-xl"
                           onClick={handleCloseRenewal}
                         >
                           Fechar
@@ -1934,6 +1943,7 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                     </div>
                   )}
                 </div>
+
               </CardContent>
             </Card>
           </div>
@@ -2177,37 +2187,41 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
           </Collapsible>
 
 
-          {/* Vplay Test Section - Below Quick Messages */}
-          <div className="mt-4 p-3 rounded-lg bg-violet-500/5 border border-violet-500/20">
-            <div className="flex items-center gap-2 mb-3">
-              <div className="p-1.5 rounded-md bg-violet-500/20">
-                <Play className="h-4 w-4 text-violet-500" />
+          {/* Vplay Test Section - Modern Glassmorphism Card */}
+          <Card className="mt-4 border-violet-500/20 bg-violet-500/5 backdrop-blur-xl shadow-lg rounded-2xl overflow-hidden relative group/card">
+            <div className="absolute inset-0 bg-gradient-to-br from-violet-500/10 via-transparent to-transparent pointer-events-none" />
+            <CardHeader className="p-3 pb-2 relative z-10">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="p-2 rounded-xl bg-violet-500/20 text-violet-600 dark:text-violet-400 group-hover/card:scale-110 transition-transform duration-500 shadow-inner">
+                    <Play className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-violet-600 dark:text-violet-400">Gerar Teste</h3>
+                    <p className="text-[10px] text-muted-foreground/80">
+                      {vplayServers.length > 0 ? `${vplayServers.length} servidor${vplayServers.length > 1 ? 'es' : ''} configurado${vplayServers.length > 1 ? 's' : ''}` : 'Nenhum servidor'}
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 rounded-full hover:bg-violet-500/10"
+                  onClick={() => window.location.href = '/settings'}
+                  title="Configurar Servidores de Teste"
+                >
+                  <Settings className="h-3.5 w-3.5 text-violet-500" />
+                </Button>
               </div>
-              <div className="flex-1">
-                <h3 className="text-sm font-semibold text-violet-600 dark:text-violet-400">Gerar Teste</h3>
-                <p className="text-[10px] text-muted-foreground/80">
-                  {vplayServers.length > 0 ? `${vplayServers.length} servidor${vplayServers.length > 1 ? 'es' : ''} configurado${vplayServers.length > 1 ? 's' : ''}` : 'Nenhum servidor'}
-                </p>
-              </div>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7 rounded-full hover:bg-violet-500/10"
-                onClick={() => window.location.href = '/settings'}
-                title="Configurar Servidores de Teste"
-              >
-                <Settings className="h-3.5 w-3.5 text-violet-500" />
-              </Button>
-            </div>
-            
-            <div className="space-y-2">
+            </CardHeader>
+            <CardContent className="p-3 pt-0 space-y-2 relative z-10">
               {/* Server Selector */}
               {vplayServers.length > 0 ? (
                 <Select
                   value={selectedVplayServerId || ''}
                   onValueChange={(value) => setSelectedVplayServerId(value)}
                 >
-                  <SelectTrigger className="h-8 text-sm">
+                  <SelectTrigger className="h-9 text-sm bg-background/40 border-violet-500/20 rounded-xl focus:ring-violet-500/20">
                     <SelectValue placeholder="Selecione o servidor" />
                   </SelectTrigger>
                   <SelectContent>
@@ -2229,12 +2243,10 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                 placeholder="Nome do cliente (opcional)"
                 value={vplayTestName}
                 onChange={(e) => setVplayTestName(e.target.value)}
-                className="h-8 text-sm"
+                className="h-9 text-sm bg-background/40 border-violet-500/20 rounded-xl focus-visible:ring-violet-500/20"
               />
               <Button 
-                variant="outline" 
-                size="sm" 
-                className="w-full h-9 border-violet-500/50 text-violet-600 dark:text-violet-400 hover:bg-violet-500/10"
+                className="w-full h-10 rounded-xl font-semibold shadow-lg shadow-violet-500/20 bg-gradient-to-r from-violet-600 to-violet-500 hover:from-violet-500 hover:to-violet-400 text-white transition-all active:scale-[0.98]" 
                 onClick={handleGenerateVplayTest}
                 disabled={isGeneratingTest || vplayServers.length === 0}
               >
@@ -2251,76 +2263,80 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                   Configure servidores em Configurações &gt; Gerador de Teste
                 </p>
               )}
-            </div>
+            </CardContent>
+          </Card>
 
-          </div>
         </div>
       </ScrollArea>
       
-      {/* Vplay Test Result - Fixed at bottom */}
+      {/* Vplay Test Result - Fixed at bottom with glassmorphism */}
       {vplayTestResult && (
-        <div className="flex-shrink-0 p-3 border-t border-border bg-background">
-          <div className="p-2.5 bg-violet-500/10 border border-violet-500/30 rounded-lg space-y-2">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 text-violet-600 dark:text-violet-400">
-                <CheckCircle className="h-4 w-4" />
-                <span className="text-xs font-semibold">Teste Gerado!</span>
-              </div>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-6 w-6 text-muted-foreground/80 hover:text-foreground"
-                onClick={() => setVplayTestResult(null)}
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
-            <pre className="text-xs text-foreground whitespace-pre-wrap bg-background/50 p-2 rounded max-h-24 overflow-y-auto select-text font-mono break-words">
-              {vplayTestResult}
-            </pre>
-            {(() => {
-              const links = vplayTestResult.match(/https?:\/\/\S+/gi) || [];
-              const m3u = links.find((l) => /output=ts|type=m3u/i.test(l)) || links[0] || '';
-              const hls = links.find((l) => /output=hls/i.test(l)) || '';
-              const user = vplayTestResult.match(/username[=:\s]+([^\s&|,]+)/i)?.[1]
-                || vplayTestResult.match(/usu[áa]rio:\s*([^\s]+)/i)?.[1] || '';
-              const pass = vplayTestResult.match(/password[=:\s]+([^\s&|,]+)/i)?.[1]
-                || vplayTestResult.match(/senha:\s*([^\s]+)/i)?.[1] || '';
-              const copy = async (txt: string, label: string) => {
-                if (!txt) { toast.error(`Nada para copiar (${label})`); return; }
-                const ok = await copyText(txt);
-                if (ok) toast.success(`${label} copiado!`);
-              };
-              return (
-                <div className="space-y-1.5">
-                  <Button
-                    size="sm"
-                    className="w-full h-8 bg-violet-600 hover:bg-violet-700 text-white"
-                    onClick={() => copy(vplayTestResult, 'Teste completo')}
-                  >
-                    <Copy className="h-3.5 w-3.5 mr-1.5" />
-                    Copiar tudo
-                  </Button>
-                  <div className="grid grid-cols-3 gap-1.5">
-                    <Button size="sm" variant="outline" className="h-7 text-[11px] px-1"
-                      onClick={() => copy(m3u, 'Lista M3U')}>
-                      Lista M3U
-                    </Button>
-                    <Button size="sm" variant="outline" className="h-7 text-[11px] px-1"
-                      onClick={() => copy(hls || m3u, 'Link HLS')}>
-                      Link HLS
-                    </Button>
-                    <Button size="sm" variant="outline" className="h-7 text-[11px] px-1"
-                      onClick={() => copy(user && pass ? `Usuário: ${user}\nSenha: ${pass}` : '', 'Usuário e senha')}>
-                      Usuário/Senha
-                    </Button>
-                  </div>
+        <div className="flex-shrink-0 p-3 border-t border-border bg-background/80 backdrop-blur-2xl">
+          <Card className="border-violet-500/30 bg-violet-500/10 backdrop-blur-xl shadow-lg rounded-2xl overflow-hidden relative">
+            <div className="absolute inset-0 bg-gradient-to-br from-violet-500/10 via-transparent to-transparent pointer-events-none" />
+            <CardContent className="p-3 space-y-2 relative z-10">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-violet-600 dark:text-violet-400">
+                  <CheckCircle className="h-4 w-4" />
+                  <span className="text-xs font-bold">Teste Gerado!</span>
                 </div>
-              );
-            })()}
-          </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6 rounded-full text-muted-foreground/80 hover:text-foreground hover:bg-background/50"
+                  onClick={() => setVplayTestResult(null)}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+              <pre className="text-xs text-foreground whitespace-pre-wrap bg-background/50 p-2.5 rounded-xl border border-violet-500/20 max-h-24 overflow-y-auto select-text font-mono break-words">
+                {vplayTestResult}
+              </pre>
+              {(() => {
+                const links = vplayTestResult.match(/https?:\/\/\S+/gi) || [];
+                const m3u = links.find((l) => /output=ts|type=m3u/i.test(l)) || links[0] || '';
+                const hls = links.find((l) => /output=hls/i.test(l)) || '';
+                const user = vplayTestResult.match(/username[=:\s]+([^\s&|,]+)/i)?.[1]
+                  || vplayTestResult.match(/usu[áa]rio:\s*([^\s]+)/i)?.[1] || '';
+                const pass = vplayTestResult.match(/password[=:\s]+([^\s&|,]+)/i)?.[1]
+                  || vplayTestResult.match(/senha:\s*([^\s]+)/i)?.[1] || '';
+                const copy = async (txt: string, label: string) => {
+                  if (!txt) { toast.error(`Nada para copiar (${label})`); return; }
+                  const ok = await copyText(txt);
+                  if (ok) toast.success(`${label} copiado!`);
+                };
+                return (
+                  <div className="space-y-1.5">
+                    <Button
+                      size="sm"
+                      className="w-full h-9 rounded-xl bg-violet-600 hover:bg-violet-500 text-white shadow-lg shadow-violet-500/20 transition-all active:scale-[0.98]"
+                      onClick={() => copy(vplayTestResult, 'Teste completo')}
+                    >
+                      <Copy className="h-3.5 w-3.5 mr-1.5" />
+                      Copiar tudo
+                    </Button>
+                    <div className="grid grid-cols-3 gap-1.5">
+                      <Button size="sm" variant="outline" className="h-8 text-[10px] px-1 rounded-xl border-violet-500/30 hover:bg-violet-500/10 hover:text-violet-600"
+                        onClick={() => copy(m3u, 'Lista M3U')}>
+                        Lista M3U
+                      </Button>
+                      <Button size="sm" variant="outline" className="h-8 text-[10px] px-1 rounded-xl border-violet-500/30 hover:bg-violet-500/10 hover:text-violet-600"
+                        onClick={() => copy(hls || m3u, 'Link HLS')}>
+                        Link HLS
+                      </Button>
+                      <Button size="sm" variant="outline" className="h-8 text-[10px] px-1 rounded-xl border-violet-500/30 hover:bg-violet-500/10 hover:text-violet-600"
+                        onClick={() => copy(user && pass ? `Usuário: ${user}\nSenha: ${pass}` : '', 'Usuário e senha')}>
+                        Usuário/Senha
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })()}
+            </CardContent>
+          </Card>
         </div>
       )}
+
     </div>
   );
 }
