@@ -91,17 +91,15 @@ export default function Sidebar() {
     <>
       {/* Mobile overlay */}
       <div className={cn(
-        "fixed inset-0 bg-background/80 backdrop-blur-sm z-40 lg:hidden transition-opacity duration-300",
+        "fixed inset-0 bg-background/90 backdrop-blur-md z-[60] lg:hidden transition-all duration-500",
         collapsed ? "opacity-0 pointer-events-none" : "opacity-100"
       )} onClick={() => setCollapsed(true)} />
 
       {/* Sidebar */}
       <aside className={cn(
-        "fixed top-0 left-0 z-50 h-screen bg-gradient-to-b from-sidebar via-sidebar to-sidebar/95 border-r border-sidebar-border/50 flex flex-col shadow-xl",
-        "transition-all duration-300 ease-out",
-        collapsed ? "w-16" : "w-64",
-        "lg:translate-x-0",
-        collapsed ? "-translate-x-full lg:translate-x-0" : "translate-x-0"
+        "fixed top-0 left-0 z-[70] h-[100dvh] bg-gradient-to-b from-sidebar via-sidebar to-sidebar/95 border-r border-sidebar-border/50 flex flex-col shadow-2xl",
+        "transition-all duration-500 cubic-bezier(0.4, 0, 0.2, 1)",
+        collapsed ? "w-0 lg:w-16 -translate-x-full lg:translate-x-0" : "w-[min(280px,85vw)] translate-x-0",
       )}>
         {/* Logo */}
         <div className={cn(
@@ -220,20 +218,19 @@ export default function Sidebar() {
       </aside>
 
       {/* Mobile toggle button */}
-      <div className="fixed top-0 left-0 right-0 h-14 bg-background/95 backdrop-blur-md border-b border-border/50 z-30 lg:hidden flex items-center px-4 shadow-sm">
+      <div className="fixed top-0 left-0 right-0 h-14 bg-background/90 backdrop-blur-lg border-b border-border/40 z-50 lg:hidden flex items-center px-4 shadow-sm safe-top">
         <Button
           variant="ghost"
           size="icon"
           onClick={() => setCollapsed(false)}
-          className="hover:bg-secondary/80"
+          className="hover:bg-secondary/80 active:scale-95 transition-transform"
         >
-          <Menu className="w-5 h-5" />
+          <Menu className="w-6 h-6" />
         </Button>
-        <div className="flex items-center gap-2 ml-3">
-          <img src={logoSg} alt="Super Gestor" className="w-16 h-16 object-contain -my-2" />
-          <span className="font-bold text-foreground flex items-center gap-1.5">
+        <div className="flex items-center gap-2 ml-4">
+          <img src={logoSg} alt="Super Gestor" className="w-10 h-10 object-contain drop-shadow-md" />
+          <span className="font-black text-foreground text-lg tracking-tighter">
             Super Gestor
-            <Sparkles className="w-3 h-3 text-primary" />
           </span>
         </div>
       </div>

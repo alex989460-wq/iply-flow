@@ -168,8 +168,11 @@
   }
 
   body {
-    @apply bg-background text-foreground font-sans antialiased;
+    @apply bg-background text-foreground font-sans antialiased selection:bg-primary/30;
     font-feature-settings: "rlig" 1, "calt" 1;
+    -webkit-tap-highlight-color: transparent;
+    overflow-x: hidden;
+    width: 100%;
   }
 
   h1, h2, h3, h4, h5, h6 {
@@ -441,8 +444,7 @@
     font-variant-numeric: tabular-nums;
   }
 }
-/* Mobile: evita o zoom automático do iOS/Safari ao focar campos pequenos.
-   Qualquer fonte < 16px em inputs faz o navegador dar zoom e "quebrar" o layout. */
+/* Mobile: evita o zoom automático do iOS/Safari ao focar campos pequenos. */
 @media (max-width: 767px) {
   input,
   textarea,
@@ -451,8 +453,21 @@
     font-size: 16px !important;
   }
 
-  /* Diálogos nunca podem estourar a largura da tela no celular */
+  /* Diálogos ocupam tela cheia no mobile para melhor ergonomia */
   [role="dialog"] {
-    max-width: 100vw;
+    width: 100% !important;
+    max-width: 100% !important;
+    height: 100% !important;
+    max-height: 100% !important;
+    margin: 0 !important;
+    border-radius: 0 !important;
   }
+}
+
+.safe-top {
+  padding-top: env(safe-area-inset-top);
+}
+
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
 }
