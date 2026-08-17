@@ -426,15 +426,56 @@ export default function QuickRenewalPanel({ isMobile = false, onClose, initialPh
               </Card>
 
               {/* Quick Actions (Playlist, Clouddy, etc) */}
-              <div className="grid grid-cols-2 gap-2">
-                 <Button variant="outline" className="h-10 border-border/50 rounded-xl gap-2 font-semibold text-xs active:scale-95" onClick={() => setIsSendPlaylistOpen(true)}>
-                   <ListPlus className="h-4 w-4" />
+              <div className="grid grid-cols-2 gap-3">
+                 <Button 
+                   variant="outline" 
+                   className="h-12 border-border/50 rounded-2xl gap-2 font-bold text-xs active:scale-95 bg-background/50 hover:bg-primary/5 hover:border-primary/30 transition-all shadow-sm group" 
+                   onClick={() => setIsSendPlaylistOpen(true)}
+                 >
+                   <div className="w-7 h-7 rounded-lg bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
+                     <ListPlus className="h-4 w-4 text-primary" />
+                   </div>
                    Enviar Lista
                  </Button>
-                 <Button variant="outline" className="h-10 border-border/50 rounded-xl gap-2 font-semibold text-xs active:scale-95" onClick={() => setIsClouddyCreateOpen(true)}>
-                   <UserPlus className="h-4 w-4" />
+                 <Button 
+                   variant="outline" 
+                   className="h-12 border-border/50 rounded-2xl gap-2 font-bold text-xs active:scale-95 bg-background/50 hover:bg-primary/5 hover:border-primary/30 transition-all shadow-sm group" 
+                   onClick={() => setIsClouddyCreateOpen(true)}
+                 >
+                   <div className="w-7 h-7 rounded-lg bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
+                     <UserPlus className="h-4 w-4 text-primary" />
+                   </div>
                    Criar Clouddy
                  </Button>
+              </div>
+
+              {/* Modern Quick Replies Section */}
+              <div className="pt-2 space-y-3">
+                <div className="flex items-center gap-2 px-1">
+                  <div className="w-1.5 h-1.5 rounded-full bg-emerald-500/50" />
+                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/60">Respostas Rápidas</p>
+                </div>
+                <div className="grid grid-cols-1 gap-2">
+                  {[
+                    { text: 'Bom dia! 😊', icon: '☀️' },
+                    { text: 'Pix gerado, segue abaixo:', icon: '💸' },
+                    { text: 'Renovação confirmada ✅', icon: '🛡️' },
+                    { text: 'Obrigado pela preferência! 🙏', icon: '✨' }
+                  ].map((reply, idx) => (
+                    <Button
+                      key={idx}
+                      variant="ghost"
+                      className="justify-start h-auto py-2.5 px-3 rounded-xl bg-background/40 border border-border/40 hover:bg-primary/5 hover:border-primary/20 transition-all text-xs font-semibold group"
+                      onClick={() => {
+                        navigator.clipboard.writeText(reply.text);
+                        toast.success('Resposta copiada!');
+                      }}
+                    >
+                      <span className="mr-2 opacity-70 group-hover:opacity-100 transition-opacity">{reply.icon}</span>
+                      <span className="truncate">{reply.text}</span>
+                    </Button>
+                  ))}
+                </div>
               </div>
             </div>
           )}
@@ -454,6 +495,6 @@ export default function QuickRenewalPanel({ isMobile = false, onClose, initialPh
         onOpenChange={setIsClouddyCreateOpen}
         defaultEmail={selectedCustomer?.phone || ''}
       />
-    </>
+    </div>
   );
 }

@@ -153,12 +153,13 @@ function longRelativeTime(iso: string) {
   return `${dy} dia${dy > 1 ? 's' : ''}`;
 }
 
-const EvolutionLayout = ({ children, sidebar, panelCollapsed, setPanelCollapsed, showRenewalPanel }: { 
+const EvolutionLayout = ({ children, sidebar, panelCollapsed, setPanelCollapsed, showRenewalPanel, selectedPhone }: { 
   children: React.ReactNode, 
   sidebar: React.ReactNode, 
   panelCollapsed: boolean, 
   setPanelCollapsed: (v: boolean) => void,
-  showRenewalPanel: boolean
+  showRenewalPanel: boolean,
+  selectedPhone: string | null
 }) => {
   return (
     <div className="flex h-full w-full overflow-hidden bg-background/50 backdrop-blur-sm">
@@ -199,7 +200,7 @@ const EvolutionLayout = ({ children, sidebar, panelCollapsed, setPanelCollapsed,
             "flex-1 min-h-0 overflow-hidden transition-all duration-500",
             panelCollapsed ? "opacity-0 invisible scale-95" : "opacity-100 scale-100"
           )}>
-            <QuickRenewalPanel />
+            <QuickRenewalPanel initialPhone={selectedPhone && !selectedPhone.startsWith('status') ? selectedPhone : null} />
           </div>
 
           {panelCollapsed && (

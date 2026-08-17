@@ -180,7 +180,7 @@ export default function CrmOficialChat({ embed = false, active = true }: { embed
                 "flex-1 min-h-0 overflow-hidden transition-all duration-500",
                 panelCollapsed ? "opacity-0 invisible scale-95" : "opacity-100 scale-100"
               )}>
-                <QuickRenewalPanel />
+                <QuickRenewalPanel initialPhone={null} />
               </div>
 
               {panelCollapsed && (
