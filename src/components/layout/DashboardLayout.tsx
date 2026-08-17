@@ -30,14 +30,17 @@ export default function DashboardLayout({ children, noPadding }: DashboardLayout
   const hidePendingFloat = false;
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background overflow-x-hidden selection:bg-primary/30">
       <Sidebar />
       <main className={cn(
-        "pt-16 lg:pt-0 box-border",
+        "pt-14 lg:pt-0 box-border w-full",
         isChatRoute ? "relative h-[100dvh] overflow-hidden transition-none" : "min-h-screen transition-all duration-300",
-        collapsed ? "lg:ml-16" : "lg:ml-64"
+        collapsed ? "lg:pl-16" : "lg:pl-64"
       )}>
-        <div className={cn(noPadding ? (isChatRoute ? 'absolute inset-0 pt-16 lg:pt-0 overflow-hidden' : '') : 'p-3 sm:p-4 lg:p-8')}>
+        <div className={cn(
+          "w-full max-w-[2000px] mx-auto",
+          noPadding ? (isChatRoute ? 'absolute inset-0 pt-14 lg:pt-0 overflow-hidden' : '') : 'p-3 sm:p-4 lg:p-8 xl:p-10'
+        )}>
           {children}
         </div>
       </main>

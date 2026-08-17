@@ -34,19 +34,21 @@ export default function WelcomeHeader() {
   const displayName = profileName || user?.email?.split('@')[0] || 'Usuário';
 
   return (
-    <div className="flex items-center justify-between gap-4 p-4 rounded-xl bg-gradient-to-r from-primary/10 via-primary/5 to-transparent border border-primary/20 animate-fade-in">
-      <div className="flex items-center gap-3">
-        <div className={cn("p-2 rounded-lg bg-background/50", greeting.color)}>
-          <GreetingIcon className="w-5 h-5" />
+    <div className="flex items-center justify-between gap-4 p-5 sm:p-6 rounded-2xl bg-gradient-to-br from-primary/10 via-primary/5 to-card/30 border border-primary/20 shadow-xl shadow-primary/5 animate-fade-in relative overflow-hidden group">
+      <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full -mr-16 -mt-16 blur-3xl transition-transform duration-700 group-hover:scale-150" />
+      <div className="flex items-center gap-4 relative z-10">
+        <div className={cn("p-3 rounded-xl bg-background/80 backdrop-blur-md shadow-inner border border-white/10", greeting.color)}>
+          <GreetingIcon className="w-6 h-6 animate-pulse-slow" />
         </div>
         <div>
-          <div className="flex items-center gap-2">
-            <span className={cn("text-xs font-medium", greeting.color)}>
+          <div className="flex items-center gap-2 mb-1">
+            <span className={cn("text-xs font-bold uppercase tracking-widest opacity-80", greeting.color)}>
               {greeting.text}
             </span>
+            <div className={cn("h-px w-8", greeting.color.replace('text', 'bg'), "opacity-30")} />
           </div>
-          <h1 className="text-lg sm:text-xl font-bold text-foreground">
-            Olá, <span className="text-primary">{displayName}</span>! ✨
+          <h1 className="text-xl sm:text-2xl lg:text-3xl font-black text-foreground tracking-tight leading-none">
+            Olá, <span className="text-primary drop-shadow-sm">{displayName}</span>! ✨
           </h1>
         </div>
       </div>
