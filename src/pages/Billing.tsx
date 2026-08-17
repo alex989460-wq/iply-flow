@@ -1028,81 +1028,101 @@ export default function Billing() {
 
   return (
     <DashboardLayout>
-      <div className="space-y-4 sm:space-y-6 animate-fade-in">
-        <div className="flex flex-col gap-3">
-          <div>
-            <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-foreground">Cobranças & WhatsApp</h1>
-            <p className="text-muted-foreground text-sm sm:text-base mt-1">
-              Gerencie cobranças automáticas e comunicações via WhatsApp
-            </p>
-          </div>
-          <div className="flex flex-col sm:flex-row gap-2">
-            <Button 
-              variant="glow" 
-              onClick={() => handleSendBillings()}
-              disabled={isSending || totalPending === 0 || !hasValidSession}
-              className="w-full sm:w-auto"
-            >
-              {isSending && sendingType === 'all' ? (
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              ) : (
-                <Send className="w-4 h-4 mr-2" />
-              )}
-              <span className="hidden sm:inline">Enviar Todas as Cobranças</span>
-              <span className="sm:hidden">Enviar Todas</span>
-            </Button>
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button 
-                  variant="outline" 
-                  disabled={isSending || !hasValidSession}
-                  className="w-full sm:w-auto border-warning/50 text-warning hover:bg-warning/10"
-                >
-                  <RefreshCw className="w-4 h-4 mr-2" />
-                  <span className="hidden sm:inline">Forçar Reenvio</span>
-                  <span className="sm:hidden">Reenviar</span>
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Forçar Reenvio de Cobranças</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    Isso irá reenviar cobranças para <strong>todos os clientes</strong> elegíveis (D-1, D0, D+1), 
-                    <strong>mesmo que já tenham sido processados hoje</strong>.
-                    <br /><br />
-                    Use apenas se os clientes não receberam as mensagens anteriores.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                  <AlertDialogAction 
-                    onClick={() => handleSendBillings(undefined, true)}
-                    className="bg-warning hover:bg-warning/90 text-warning-foreground"
+      <div className="space-y-5 animate-fade-in">
+        <div className="relative overflow-hidden rounded-3xl border border-border/50 bg-card/60 backdrop-blur-xl p-5 sm:p-6">
+          <div className="pointer-events-none absolute -top-24 -right-16 w-64 h-64 rounded-full bg-primary/15 blur-3xl" />
+          <div className="relative flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+            <div className="flex items-start gap-3">
+              <div className="w-12 h-12 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0">
+                <MessageSquare className="w-5 h-5 text-primary" />
+              </div>
+              <div>
+                <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-foreground tracking-tight">
+                  Cobranças & WhatsApp
+                </h1>
+                <p className="text-muted-foreground text-sm mt-1">
+                  Gerencie cobranças automáticas e comunicações via WhatsApp
+                </p>
+              </div>
+            </div>
+            <div className="flex flex-col sm:flex-row gap-2 lg:shrink-0">
+              <Button
+                variant="glow"
+                onClick={() => handleSendBillings()}
+                disabled={isSending || totalPending === 0 || !hasValidSession}
+                className="w-full sm:w-auto rounded-xl"
+              >
+                {isSending && sendingType === 'all' ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <Send className="w-4 h-4 mr-2" />
+                )}
+                <span className="hidden sm:inline">Enviar Todas as Cobranças</span>
+                <span className="sm:hidden">Enviar Todas</span>
+              </Button>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button
+                    variant="outline"
+                    disabled={isSending || !hasValidSession}
+                    className="w-full sm:w-auto rounded-xl border-warning/50 text-warning hover:bg-warning/10"
                   >
                     <RefreshCw className="w-4 h-4 mr-2" />
-                    Forçar Reenvio
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
+                    <span className="hidden sm:inline">Forçar Reenvio</span>
+                    <span className="sm:hidden">Reenviar</span>
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Forçar Reenvio de Cobranças</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Isso irá reenviar cobranças para <strong>todos os clientes</strong> elegíveis (D-1, D0, D+1), 
+                      <strong>mesmo que já tenham sido processados hoje</strong>.
+                      <br /><br />
+                      Use apenas se os clientes não receberam as mensagens anteriores.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                    <AlertDialogAction 
+                      onClick={() => handleSendBillings(undefined, true)}
+                      className="bg-warning hover:bg-warning/90 text-warning-foreground"
+                    >
+                      <RefreshCw className="w-4 h-4 mr-2" />
+                      Forçar Reenvio
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </div>
           </div>
         </div>
 
-        <Tabs defaultValue="config" className="space-y-4">
-          <TabsList className="grid w-full grid-cols-2 sm:grid-cols-5 h-auto">
-            <TabsTrigger value="config" className="text-xs sm:text-sm py-2">Config</TabsTrigger>
-            <TabsTrigger value="templates" className="text-xs sm:text-sm py-2">Templates</TabsTrigger>
-            <TabsTrigger value="templates-nao-oficial" className="text-xs sm:text-sm py-2">
-              <span className="hidden sm:inline">Template Não Oficial</span>
-              <span className="sm:hidden">Não Oficial</span>
-            </TabsTrigger>
-            <TabsTrigger value="relatorios" className="text-xs sm:text-sm py-2 flex items-center gap-1">
-              <BarChart3 className="w-3 h-3 sm:w-4 sm:h-4" />
-              <span className="hidden sm:inline">Relatórios</span>
-              <span className="sm:hidden">Rel.</span>
-            </TabsTrigger>
-            <TabsTrigger value="historico" className="text-xs sm:text-sm py-2">Histórico</TabsTrigger>
-          </TabsList>
+        <Tabs defaultValue="config" className="space-y-5">
+          <div className="overflow-x-auto -mx-1 px-1">
+            <TabsList className="h-auto p-1 bg-card/60 backdrop-blur-sm border border-border/50 rounded-2xl flex gap-1 w-full">
+              <TabsTrigger value="config" className="flex-1 rounded-xl px-3 py-2 text-xs sm:text-sm whitespace-nowrap data-[state=active]:bg-primary/15 data-[state=active]:text-primary">
+                <Bot className="w-4 h-4 mr-1.5" /> Config
+              </TabsTrigger>
+              <TabsTrigger value="templates" className="flex-1 rounded-xl px-3 py-2 text-xs sm:text-sm whitespace-nowrap data-[state=active]:bg-primary/15 data-[state=active]:text-primary">
+                <FileText className="w-4 h-4 mr-1.5" /> Templates
+              </TabsTrigger>
+              <TabsTrigger value="templates-nao-oficial" className="flex-1 rounded-xl px-3 py-2 text-xs sm:text-sm whitespace-nowrap data-[state=active]:bg-primary/15 data-[state=active]:text-primary">
+                <MessageCircle className="w-4 h-4 mr-1.5" />
+                <span className="hidden sm:inline">Não Oficial</span>
+                <span className="sm:hidden">N. Oficial</span>
+              </TabsTrigger>
+              <TabsTrigger value="relatorios" className="flex-1 rounded-xl px-3 py-2 text-xs sm:text-sm whitespace-nowrap data-[state=active]:bg-primary/15 data-[state=active]:text-primary">
+                <BarChart3 className="w-4 h-4 mr-1.5" />
+                <span className="hidden sm:inline">Relatórios</span>
+                <span className="sm:hidden">Rel.</span>
+              </TabsTrigger>
+              <TabsTrigger value="historico" className="flex-1 rounded-xl px-3 py-2 text-xs sm:text-sm whitespace-nowrap data-[state=active]:bg-primary/15 data-[state=active]:text-primary">
+                <Clock className="w-4 h-4 mr-1.5" /> Histórico
+              </TabsTrigger>
+            </TabsList>
+          </div>
+
 
           {/* Tab: Template Não Oficial */}
           <TabsContent value="templates-nao-oficial" className="space-y-4">
