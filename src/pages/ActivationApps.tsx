@@ -158,7 +158,13 @@ export default function ActivationApps() {
   }, [clouddy?.id, clouddy?.updated_at]);
 
   useEffect(() => {
-    if (ibosol) setIbosolForm({ token: ibosol.password || '', is_enabled: ibosol.is_enabled ?? true });
+    if (ibosol) setIbosolForm({
+      token: ibosol.password || '',
+      email: (ibosol.extra as any)?.email || '',
+      login_password: (ibosol.extra as any)?.login_password || '',
+      is_enabled: ibosol.is_enabled ?? true,
+    });
+
   }, [ibosol?.id, ibosol?.updated_at]);
 
   useEffect(() => {
