@@ -83,7 +83,7 @@ export async function ibosolBrowserLogin(email: string, password: string) {
   const res = await fetch(base + "/", {
     method: "POST",
     headers: { "Content-Type": "application/json", "x-sigma-proxy-secret": secret },
-    body: JSON.stringify({ browser: true, url: LOGIN_URL, wait_ms: 3000, js }),
+    body: JSON.stringify({ browser: true, url: LOGIN_URL, wait_ms: 3000, force_captcha: true, js }),
   });
 
   const text = await res.text();
@@ -123,48 +123,86 @@ serve(async (req) => {
 
   try {
     const authHeader = req.headers.get("Authorization") || "";
-    const supabase = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_ANON_KEY")!,
-      { global: { headers: { Authorization: authHeader } }, auth: { persistSession: false } },
-    );
-    const { data: auth } = await supabase.auth.getUser();
-    if (!auth?.user) {
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const isService = authHeader.replace(/^Bearer\s+/i, "").trim() === serviceKey;
+
+    const admin = createClient(Deno.env.get("SUPABASE_URL")!, serviceKey, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+
+    const body = await req.json().catch(() => ({}));
+    let userId: string | null = null;
+
+    if (isService) {
+      userId = String(body.user_id || "") || null;
+    } else {
+      const supabase = createClient(
+        Deno.env.get("SUPABASE_URL")!,
+        Deno.env.get("SUPABASE_ANON_KEY")!,
+        { global: { headers: { Authorization: authHeader } }, auth: { persistSession: false } },
+      );
+      const { data: auth } = await supabase.auth.getUser();
+      userId = auth?.user?.id || null;
+    }
+
+    if (!userId) {
       return new Response(JSON.stringify({ error: "Não autenticado" }), { status: 401, headers: jh });
     }
 
-    const body = await req.json().catch(() => ({}));
-    const email = String(body.email || "").trim();
-    const password = String(body.password || "");
+    let email = String(body.email || "").trim();
+    let password = String(body.password || "");
+
+    if (!email || !password) {
+      const { data: saved } = await admin
+        .from("activation_panel_credentials")
+        .select("extra")
+        .eq("user_id", userId)
+        .eq("panel_type", "ibosol")
+        .maybeSingle();
+      email = email || String((saved?.extra as any)?.email || "").trim();
+      password = password || String((saved?.extra as any)?.login_password || "");
+    }
+
     if (!email || !password) {
       return new Response(JSON.stringify({ error: "Informe e-mail e senha do IBO Sol." }), { status: 400, headers: jh });
     }
 
-    const { token, final_url } = await ibosolBrowserLogin(email, password);
+    const run = async () => {
+      const { token, final_url } = await ibosolBrowserLogin(email, password);
+      const { error } = await admin
+        .from("activation_panel_credentials")
+        .upsert({
+          user_id: userId,
+          panel_type: "ibosol",
+          username: "https://backend-apis.ibosol.com",
+          password: token,
+          is_enabled: body.is_enabled === false ? false : true,
+          extra: { email, login_password: password, auto_login: true, last_login_at: new Date().toISOString() },
+          updated_at: new Date().toISOString(),
+        }, { onConflict: "user_id,parel_type".replace("parel", "panel") });
+      if (error) throw new Error(error.message);
+      return { token, final_url };
+    };
 
-    const admin = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
-      { auth: { autoRefreshToken: false, persistSession: false } },
-    );
+    if (body.background) {
+      // @ts-ignore EdgeRuntime global
+      EdgeRuntime.waitUntil(
+        run().catch(async (e) => {
+          await admin.from("activation_panel_credentials").update({
+            extra: { email, login_password: password, auto_login: true, last_error: String((e as Error).message).slice(0, 500) },
+            updated_at: new Date().toISOString(),
+          }).eq("user_id", userId).eq("panel_type", "ibosol");
+        }),
+      );
+      return new Response(JSON.stringify({ started: true }), { status: 202, headers: jh });
+    }
 
-    const { error } = await admin
-      .from("activation_panel_credentials")
-      .upsert({
-        user_id: auth.user.id,
-        panel_type: "ibosol",
-        username: "https://backend-apis.ibosol.com",
-        password: token,
-        is_enabled: body.is_enabled === false ? false : true,
-        extra: { email, login_password: password, auto_login: true, last_login_at: new Date().toISOString() },
-        updated_at: new Date().toISOString(),
-      }, { onConflict: "user_id,panel_type" });
-    if (error) throw new Error(error.message);
-
+    const { token, final_url } = await run();
     return new Response(
       JSON.stringify({ success: true, final_url, token_preview: token.slice(0, 10) + "..." }),
       { headers: jh },
     );
+
   } catch (e) {
     return new Response(JSON.stringify({ error: (e as Error).message }), { status: 400, headers: jh });
   }

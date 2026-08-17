@@ -59,22 +59,43 @@ def new_sb():
               incognito=False, page_load_strategy="eager")
 
 
-def _page(sb, limit=4000):
+def _page(sb, limit=200000):
     try:
         return sb.get_page_source()[:limit]
     except Exception:
         return ""
 
 
-def try_solve_captcha(sb, attempts=4):
+def try_solve_captcha(sb, attempts=4, force=False):
     """Tenta passar pelo Cloudflare/Turnstile. Retorna o status para o SuperGestor."""
     marks = r"just a moment|cf-chl|challenge-platform|cf-turnstile|g-recaptcha|h-captcha|verify you are human"
     html = _page(sb)
-    if not re.search(marks, html, re.I):
+    if not force and not re.search(marks, html, re.I):
         return {"status": "not_detected"}
+
+
+    def widget_token(sb):
+        """Valor do input cf-turnstile-response (widget embutido em formulários)."""
+        try:
+            return sb.execute_script(
+                "const el=document.querySelector('[name=\"cf-turnstile-response\"]');"
+                "return el && el.value ? el.value : '';"
+            ) or ""
+        except Exception:
+            return ""
+
+    def solved(sb):
+        if force and widget_token(sb):
+            return True
+        if force:
+            return False
+        return not re.search(r"just a moment|verify you are human|cf-chl", _page(sb), re.I)
 
     last_error = ""
     for attempt in range(attempts):
+        if solved(sb):
+            return {"status": "solve_finished", "provider": "seleniumbase",
+                    "handler": "auto", "attempt": attempt + 1}
         for handler in ("uc_gui_click_captcha", "uc_gui_handle_captcha", "uc_gui_handle_cf"):
             fn = getattr(sb, handler, None)
             if not fn:
@@ -85,7 +106,7 @@ def try_solve_captcha(sb, attempts=4):
             except Exception as exc:
                 last_error = str(exc)
                 continue
-            if not re.search(r"just a moment|verify you are human|cf-chl", _page(sb), re.I):
+            if solved(sb):
                 return {"status": "solve_finished", "provider": "seleniumbase",
                         "handler": handler, "attempt": attempt + 1}
         # Recarrega em UC mode: às vezes o desafio só passa no segundo open.
@@ -94,7 +115,7 @@ def try_solve_captcha(sb, attempts=4):
             sb.sleep(3)
         except Exception as exc:
             last_error = str(exc)
-        if not re.search(r"just a moment|verify you are human|cf-chl", _page(sb), re.I):
+        if solved(sb):
             return {"status": "solve_finished", "provider": "seleniumbase",
                     "handler": "reconnect", "attempt": attempt + 1}
 
@@ -109,10 +130,12 @@ def browser_session(payload):
     steps = payload.get("steps") or []
     capture = payload.get("capture")
     wait_ms = int(payload.get("wait_ms") or 5000)
+    force_captcha = bool(payload.get("force_captcha"))
 
     with BROWSER_LOCK, new_sb() as sb:
         sb.uc_open_with_reconnect(url, reconnect_time=8)
-        captcha = try_solve_captcha(sb)
+        captcha = try_solve_captcha(sb, force=force_captcha)
+
 
         steps_log = []
         for step in steps:
@@ -134,7 +157,7 @@ def browser_session(payload):
                 steps_log.append({"selector": selector, "ok": False, "error": str(exc)})
 
         # Alguns painéis só mostram o captcha depois do submit.
-        retry = try_solve_captcha(sb)
+        retry = try_solve_captcha(sb, force=force_captcha)
         if retry.get("status") == "solve_finished":
             captcha = retry
             submit = next((s for s in steps if s.get("click") and s.get("selector")), None)
@@ -268,7 +291,7 @@ class Handler(BaseHTTPRequestHandler):
             except BaseException as exc:  # SeleniumBase pode chamar sys.exit()
                 return self._send(502, {"ok": False, "browser": "falhou",
                                         "error": f"{type(exc).__name__}: {exc}"})
-        self._send(200, {"ok": True, "engine": "seleniumbase", "version": "1.3.0"})
+        self._send(200, {"ok": True, "engine": "seleniumbase", "version": "1.4.0"})
 
     def do_POST(self):
         if self.headers.get("x-sigma-proxy-secret", "") != SECRET:
