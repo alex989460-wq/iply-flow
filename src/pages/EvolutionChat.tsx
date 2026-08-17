@@ -2171,7 +2171,6 @@ export default function EvolutionChat({ embed = false }: { embed?: boolean } = {
           "flex flex-col border-r border-border bg-background/50 backdrop-blur-sm transition-all duration-300",
           isMobile ? (selectedPhone ? 'hidden' : 'w-full') : 'w-[380px]'
         )}>
-          <div>
           <div className="px-3 py-2.5 border-b border-border flex items-center gap-2 bg-gradient-to-r from-emerald-600/15 via-primary/10 to-cyan-500/10">
             <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-700 flex items-center justify-center shadow-lg shadow-emerald-500/20">
               <Zap className="w-4 h-4 text-white" />
