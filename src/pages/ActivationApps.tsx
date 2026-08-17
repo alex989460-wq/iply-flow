@@ -203,12 +203,45 @@ export default function ActivationApps() {
 
   const saveIbosol = useMutation({
     mutationFn: async () => {
-      if (!ibosolForm.token.trim()) throw new Error('Token do IBO Sol é obrigatório');
-      await upsertPanel({ panel_type: 'ibosol', username: 'https://backend-apis.ibosol.com', password: ibosolForm.token.trim(), is_enabled: ibosolForm.is_enabled });
+      if (!ibosolForm.token.trim() && !(ibosolForm.email.trim() && ibosolForm.login_password)) {
+        throw new Error('Informe e-mail e senha do IBO Sol (ou cole o token manualmente)');
+      }
+      await upsertPanel({
+        panel_type: 'ibosol',
+        username: 'https://backend-apis.ibosol.com',
+        password: ibosolForm.token.trim(),
+        is_enabled: ibosolForm.is_enabled,
+        extra: {
+          email: ibosolForm.email.trim(),
+          login_password: ibosolForm.login_password,
+          auto_login: !!(ibosolForm.email.trim() && ibosolForm.login_password),
+        },
+      });
     },
-    onSuccess: () => panelSaved('Token IBO Sol salvo!'),
+    onSuccess: () => panelSaved('Credenciais IBO Sol salvas!'),
     onError: (e: any) => toast.error(e.message),
   });
+
+  const loginIbosol = useMutation({
+    mutationFn: async () => {
+      if (!ibosolForm.email.trim() || !ibosolForm.login_password) {
+        throw new Error('Informe e-mail e senha do IBO Sol para conectar');
+      }
+      const { data, error } = await supabase.functions.invoke('ibosol-login', {
+        body: {
+          email: ibosolForm.email.trim(),
+          password: ibosolForm.login_password,
+          is_enabled: ibosolForm.is_enabled,
+        },
+      });
+      if (error) throw new Error((data as any)?.error || error.message);
+      if ((data as any)?.error) throw new Error((data as any).error);
+      return data;
+    },
+    onSuccess: () => panelSaved('Conectado ao IBO Sol! Token capturado automaticamente.'),
+    onError: (e: any) => toast.error(e.message || 'Não foi possível conectar no IBO Sol'),
+  });
+
 
   const saveIboPro = useMutation({
     mutationFn: async () => {
