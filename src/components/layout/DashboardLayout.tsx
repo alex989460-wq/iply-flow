@@ -30,15 +30,14 @@ export default function DashboardLayout({ children, noPadding }: DashboardLayout
   const hidePendingFloat = false;
 
   return (
-    <div className="min-h-screen bg-background overflow-x-hidden selection:bg-primary/30">
+    <div className="min-h-screen bg-background flex selection:bg-primary/30">
       <Sidebar />
       <main className={cn(
-        "pt-14 lg:pt-0 box-border w-full",
-        isChatRoute ? "relative h-[100dvh] overflow-hidden transition-none" : "min-h-screen transition-all duration-300",
-        collapsed ? "lg:pl-16" : "lg:pl-64"
+        "flex-1 min-w-0 pt-14 lg:pt-0 box-border relative",
+        isChatRoute ? "h-[100dvh] overflow-hidden" : "min-h-screen"
       )}>
         <div className={cn(
-          "w-full max-w-[2000px] mx-auto",
+          "w-full max-w-[2000px] mx-auto h-full",
           noPadding ? (isChatRoute ? 'absolute inset-0 pt-14 lg:pt-0 overflow-hidden' : '') : 'p-3 sm:p-4 lg:p-8 xl:p-10'
         )}>
           {children}
@@ -46,7 +45,6 @@ export default function DashboardLayout({ children, noPadding }: DashboardLayout
       </main>
       {!hidePendingFloat && <PendingManualRenewalsFloat />}
       <InstallAppFloat />
-
     </div>
   );
 }
