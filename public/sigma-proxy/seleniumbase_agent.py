@@ -232,7 +232,18 @@ class Handler(BaseHTTPRequestHandler):
         self._send(204, {})
 
     def do_GET(self):
-        self._send(200, {"ok": True, "engine": "seleniumbase", "version": "1.0.0"})
+        if self.path.startswith("/diag"):
+            started = time.time()
+            try:
+                with BROWSER_LOCK, new_sb() as sb:
+                    sb.uc_open_with_reconnect("https://example.com", reconnect_time=3)
+                    title = sb.get_title()
+                return self._send(200, {"ok": True, "browser": "ok", "title": title,
+                                        "elapsed_ms": int((time.time() - started) * 1000)})
+            except BaseException as exc:  # SeleniumBase pode chamar sys.exit()
+                return self._send(502, {"ok": False, "browser": "falhou",
+                                        "error": f"{type(exc).__name__}: {exc}"})
+        self._send(200, {"ok": True, "engine": "seleniumbase", "version": "1.1.0"})
 
     def do_POST(self):
         if self.headers.get("x-sigma-proxy-secret", "") != SECRET:
@@ -256,8 +267,12 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(400, {"error": "informe url"})
             result["elapsed_ms"] = int((time.time() - started) * 1000)
             self._send(200, result)
-        except Exception as exc:
-            self._send(502, {"error": "agent_error", "message": str(exc)})
+        except BaseException as exc:  # inclui SystemExit do SeleniumBase
+            try:
+                self._send(502, {"error": "agent_error",
+                                 "message": f"{type(exc).__name__}: {exc}"})
+            except Exception:
+                pass
 
 
 if __name__ == "__main__":
