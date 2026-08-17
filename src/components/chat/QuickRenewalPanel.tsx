@@ -454,6 +454,9 @@ export default function QuickRenewalPanel({ isMobile = false, onClose, initialPh
         onOpenChange={setIsClouddyCreateOpen}
         defaultEmail={selectedCustomer?.phone || ''}
       />
+    </>
+  );
+}
     </div>
   );
 }
