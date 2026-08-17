@@ -20,26 +20,29 @@ export default function BillingSettings() {
   return (
     <DashboardLayout>
       <div className="space-y-5 animate-fade-in">
-        <div className="flex items-center gap-3">
-          <div className="w-11 h-11 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center">
-            <Receipt className="w-5 h-5 text-primary" />
-          </div>
-          <div>
-            <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-foreground">Configurações de Cobrança</h1>
-            <p className="text-sm text-muted-foreground mt-0.5">
-              Canais de mensagem, formas de recebimento, checkout e cupons — tudo organizado por etapa.
-            </p>
+        <div className="relative overflow-hidden rounded-3xl border border-border/50 bg-card/60 backdrop-blur-xl p-5 sm:p-6">
+          <div className="pointer-events-none absolute -top-24 -right-16 w-64 h-64 rounded-full bg-primary/15 blur-3xl" />
+          <div className="relative flex items-start gap-3">
+            <div className="w-12 h-12 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0">
+              <Receipt className="w-5 h-5 text-primary" />
+            </div>
+            <div>
+              <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-foreground tracking-tight">Configurações de Cobrança</h1>
+              <p className="text-sm text-muted-foreground mt-1">
+                Canais de mensagem, formas de recebimento, checkout e cupons — tudo organizado por etapa.
+              </p>
+            </div>
           </div>
         </div>
 
         <Tabs defaultValue="messages" className="space-y-5">
           <div className="overflow-x-auto -mx-1 px-1">
-            <TabsList className="h-auto p-1 bg-card/60 backdrop-blur-sm border border-border/50 rounded-2xl flex gap-1">
+            <TabsList className="h-auto p-1 bg-card/60 backdrop-blur-sm border border-border/50 rounded-2xl flex gap-1 w-full">
               {TABS.map((t) => (
                 <TabsTrigger
                   key={t.value}
                   value={t.value}
-                  className="rounded-xl px-3 py-2 text-sm data-[state=active]:bg-primary/15 data-[state=active]:text-primary whitespace-nowrap"
+                  className="flex-1 rounded-xl px-3 py-2 text-xs sm:text-sm data-[state=active]:bg-primary/15 data-[state=active]:text-primary whitespace-nowrap"
                 >
                   <t.icon className="w-4 h-4 mr-1.5" />
                   {t.label}
@@ -50,7 +53,11 @@ export default function BillingSettings() {
 
           {TABS.map((t) => (
             <TabsContent key={t.value} value={t.value} className="space-y-5 mt-0">
-              <p className="text-xs text-muted-foreground">{t.hint}</p>
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <t.icon className="w-3.5 h-3.5" />
+                {t.hint}
+              </div>
+
               {t.value === 'messages' && <BillingSettingsCard />}
               {t.value === 'gateways' && (
                 <>
