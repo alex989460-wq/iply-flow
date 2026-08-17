@@ -1557,84 +1557,85 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                     </div>
                   )}
 
-                  {/* Screens Selector */}
-                  <div className="space-y-1">
-                    <label className="text-xs text-muted-foreground">Telas:</label>
-                    <Select 
-                      value={selectedScreens.toString()} 
-                      onValueChange={(v) => setSelectedScreens(parseInt(v))}
-                    >
-                      <SelectTrigger className="h-8 text-sm">
-                        <SelectValue placeholder="Quantidade de telas" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {[1, 2, 3, 4, 5].map((num) => (
-                          <SelectItem key={num} value={num.toString()}>
-                            {num} {num === 1 ? 'tela' : 'telas'}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  
-                  <div className="space-y-1">
-                    <label className="text-xs text-muted-foreground flex items-center gap-1">
-                      <Calendar className="h-3 w-3" />
-                      Vencimento:
-                    </label>
-                    <Input
-                      type="date"
-                      value={editedDueDate}
-                      onChange={(e) => setEditedDueDate(e.target.value)}
-                      className={`h-8 text-sm ${selectedCustomer?.due_date && isCustomerOverdue(selectedCustomer.due_date) ? 'text-destructive' : ''}`}
-                    />
-                  </div>
-                  
-                  {/* Plan Selector */}
-                  <div className="space-y-1">
-                    <label className="text-xs text-muted-foreground">Plano:</label>
-                    <Select 
-                      value={selectedPlanId || ''} 
-                       onValueChange={(v) => {
-                         setSelectedPlanId(v);
-                         const plan = allPlans.find(p => p.id === v);
-                         if (plan) {
-                           setCustomRenewalPrice(plan.price.toString());
-                           const ps = extractScreensFromPlanName(plan.plan_name);
-                           if (ps) setSelectedScreens(ps);
-                         }
-                       }}
-                    >
-                      <SelectTrigger className="h-8 text-sm">
-                        <SelectValue placeholder="Selecione o plano" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {allPlans.map((plan) => (
-                          <SelectItem key={plan.id} value={plan.id}>
-                            {plan.plan_name} - R$ {plan.price.toFixed(2)}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
+                  {/* Grid for Selectors */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold uppercase tracking-tight text-muted-foreground">Telas:</label>
+                      <Select 
+                        value={selectedScreens.toString()} 
+                        onValueChange={(v) => setSelectedScreens(parseInt(v))}
+                      >
+                        <SelectTrigger className="h-9 text-xs bg-background/50">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {[1, 2, 3, 4, 5].map((num) => (
+                            <SelectItem key={num} value={num.toString()}>
+                              {num} {num === 1 ? 'tela' : 'telas'}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold uppercase tracking-tight text-muted-foreground flex items-center gap-1">
+                        <Calendar className="h-3 w-3" />
+                        Vencimento:
+                      </label>
+                      <Input
+                        type="date"
+                        value={editedDueDate}
+                        onChange={(e) => setEditedDueDate(e.target.value)}
+                        className={`h-9 text-xs bg-background/50 ${selectedCustomer?.due_date && isCustomerOverdue(selectedCustomer.due_date) ? 'text-destructive font-bold' : ''}`}
+                      />
+                    </div>
 
-                  <div className="space-y-1">
-                    <label className="text-xs text-muted-foreground flex items-center gap-1">
-                      <Server className="h-3 w-3" />
-                      Servidor:
-                    </label>
-                    <Select value={editedServerId || ''} onValueChange={setEditedServerId}>
-                      <SelectTrigger className="h-8 text-sm text-blue-400 font-medium">
-                        <SelectValue placeholder="Selecione o servidor" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {allServers.map((s) => (
-                          <SelectItem key={s.id} value={s.id}>
-                            {s.server_name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold uppercase tracking-tight text-muted-foreground">Plano:</label>
+                      <Select 
+                        value={selectedPlanId || ''} 
+                        onValueChange={(v) => {
+                          setSelectedPlanId(v);
+                          const plan = allPlans.find(p => p.id === v);
+                          if (plan) {
+                            setCustomRenewalPrice(plan.price.toString());
+                            const ps = extractScreensFromPlanName(plan.plan_name);
+                            if (ps) setSelectedScreens(ps);
+                          }
+                        }}
+                      >
+                        <SelectTrigger className="h-9 text-xs bg-background/50">
+                          <SelectValue placeholder="Plano" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {allPlans.map((plan) => (
+                            <SelectItem key={plan.id} value={plan.id}>
+                              {plan.plan_name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold uppercase tracking-tight text-muted-foreground flex items-center gap-1">
+                        <Server className="h-3 w-3" />
+                        Servidor:
+                      </label>
+                      <Select value={editedServerId || ''} onValueChange={setEditedServerId}>
+                        <SelectTrigger className="h-9 text-xs bg-background/50 text-blue-400 font-bold">
+                          <SelectValue placeholder="Servidor" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {allServers.map((s) => (
+                            <SelectItem key={s.id} value={s.id}>
+                              {s.server_name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
                   
                   {/* Editable Price */}
