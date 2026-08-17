@@ -1544,33 +1544,32 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                     </Select>
                   </div>
                   
-                  {/* Username & Password Grid */}
                   <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-bold uppercase tracking-tight text-muted-foreground/80 flex items-center gap-1">
+                    <div className="space-y-1.5 p-3 rounded-2xl bg-background/40 border border-border/10 shadow-inner">
+                      <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/40 flex items-center gap-1.5">
                         <User className="h-3 w-3" />
-                        Usuário(s):
+                        Usuário(s)
                       </label>
                       <Input
                         value={editedUsername}
                         onChange={(e) => setEditedUsername(e.target.value)}
                         placeholder="user1, user2"
-                        className="h-9 text-xs font-mono bg-background/50"
+                        className="h-6 text-xs font-mono bg-transparent border-none focus:ring-0 p-0 shadow-none placeholder:text-muted-foreground/20"
                       />
                     </div>
                     
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-bold uppercase tracking-tight text-muted-foreground/80 flex items-center gap-1">
+                    <div className="space-y-1.5 p-3 rounded-2xl bg-background/40 border border-border/10 shadow-inner">
+                      <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/40 flex items-center gap-1.5">
                         <Key className="h-3 w-3" />
-                        Senha:
+                        Senha
                       </label>
-                      <div className="h-9 px-3 rounded-md bg-background/50 border border-input flex items-center justify-between group/pw">
+                      <div className="flex items-center justify-between group/pw">
                         <span className="font-mono text-xs truncate max-w-[80px]">
                           {selectedCustomer.password || '—'}
                         </span>
                         {selectedCustomer.password && (
                           <Copy 
-                            className="h-3 w-3 text-muted-foreground/80 opacity-0 group-hover/pw:opacity-100 hover:text-primary cursor-pointer transition-all" 
+                            className="h-3 w-3 text-muted-foreground/40 opacity-0 group-hover/pw:opacity-100 hover:text-primary cursor-pointer transition-all" 
                             onClick={() => handleCopyMessage(selectedCustomer.password!)}
                           />
                         )}
@@ -1578,18 +1577,30 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                     </div>
                   </div>
 
-                  {/* Grid for Selectors */}
                   <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-bold uppercase tracking-tight text-muted-foreground/80">Telas:</label>
+                    <div className="space-y-1.5 p-3 rounded-2xl bg-background/40 border border-border/10 shadow-inner">
+                      <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/40 flex items-center gap-1.5">
+                        <Calendar className="h-3 w-3" />
+                        Vencimento
+                      </label>
+                      <Input
+                        type="date"
+                        value={editedDueDate}
+                        onChange={(e) => setEditedDueDate(e.target.value)}
+                        className={`h-6 text-[11px] bg-transparent border-none focus:ring-0 p-0 shadow-none appearance-none ${selectedCustomer?.due_date && isCustomerOverdue(selectedCustomer.due_date) ? 'text-destructive font-black' : 'font-bold'}`}
+                      />
+                    </div>
+
+                    <div className="space-y-1.5 p-3 rounded-2xl bg-background/40 border border-border/10 shadow-inner">
+                      <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/40">Telas</label>
                       <Select 
                         value={selectedScreens.toString()} 
                         onValueChange={(v) => setSelectedScreens(parseInt(v))}
                       >
-                        <SelectTrigger className="h-9 text-xs bg-background/50">
+                        <SelectTrigger className="h-6 text-[11px] font-bold bg-transparent border-none focus:ring-0 p-0 shadow-none">
                           <SelectValue />
                         </SelectTrigger>
-                        <SelectContent>
+                        <SelectContent className="rounded-xl border-border/20 backdrop-blur-xl">
                           {[1, 2, 3, 4, 5].map((num) => (
                             <SelectItem key={num} value={num.toString()}>
                               {num} {num === 1 ? 'tela' : 'telas'}
@@ -1598,22 +1609,11 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                         </SelectContent>
                       </Select>
                     </div>
-                    
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-bold uppercase tracking-tight text-muted-foreground/80 flex items-center gap-1">
-                        <Calendar className="h-3 w-3" />
-                        Vencimento:
-                      </label>
-                      <Input
-                        type="date"
-                        value={editedDueDate}
-                        onChange={(e) => setEditedDueDate(e.target.value)}
-                        className={`h-9 text-xs bg-background/50 ${selectedCustomer?.due_date && isCustomerOverdue(selectedCustomer.due_date) ? 'text-destructive font-bold' : ''}`}
-                      />
-                    </div>
+                  </div>
 
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-bold uppercase tracking-tight text-muted-foreground/80">Plano:</label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1.5 p-3 rounded-2xl bg-background/40 border border-border/10 shadow-inner">
+                      <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/40">Plano</label>
                       <Select 
                         value={selectedPlanId || ''} 
                         onValueChange={(v) => {
@@ -1626,10 +1626,10 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                           }
                         }}
                       >
-                        <SelectTrigger className="h-9 text-xs bg-background/50">
+                        <SelectTrigger className="h-6 text-[11px] font-bold bg-transparent border-none focus:ring-0 p-0 shadow-none overflow-hidden">
                           <SelectValue placeholder="Plano" />
                         </SelectTrigger>
-                        <SelectContent>
+                        <SelectContent className="rounded-xl border-border/20 backdrop-blur-xl">
                           {allPlans.map((plan) => (
                             <SelectItem key={plan.id} value={plan.id}>
                               {plan.plan_name}
@@ -1639,16 +1639,16 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                       </Select>
                     </div>
 
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-bold uppercase tracking-tight text-muted-foreground/80 flex items-center gap-1">
-                        <Server className="h-3 w-3" />
-                        Servidor:
+                    <div className="space-y-1.5 p-3 rounded-2xl bg-background/40 border border-border/10 shadow-inner">
+                      <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/40 flex items-center gap-1.5">
+                        <Server className="h-3 w-3 text-blue-400" />
+                        Servidor
                       </label>
                       <Select value={editedServerId || ''} onValueChange={setEditedServerId}>
-                        <SelectTrigger className="h-9 text-xs bg-background/50 text-blue-400 font-bold">
+                        <SelectTrigger className="h-6 text-[11px] font-bold bg-transparent border-none focus:ring-0 p-0 shadow-none text-blue-400">
                           <SelectValue placeholder="Servidor" />
                         </SelectTrigger>
-                        <SelectContent>
+                        <SelectContent className="rounded-xl border-border/20 backdrop-blur-xl">
                           {allServers.map((s) => (
                             <SelectItem key={s.id} value={s.id}>
                               {s.server_name}
@@ -1659,19 +1659,18 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                     </div>
                   </div>
                   
-                  {/* Editable Price & Save Row */}
-                  <div className="flex items-end gap-3">
-                    <div className="flex-1 space-y-1">
-                      <label className="text-[10px] font-bold uppercase tracking-tight text-muted-foreground/80">Valor:</label>
-                      <div className="relative">
-                        <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground/80">R$</span>
+                  <div className="flex items-end gap-3 pt-2">
+                    <div className="flex-1 space-y-1.5 p-3 rounded-2xl bg-background/40 border border-border/10 shadow-inner">
+                      <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/40">Valor Renovação</label>
+                      <div className="relative flex items-center">
+                        <span className="text-xs font-black text-primary mr-1">R$</span>
                         <Input
                           type="number"
                           step="0.01"
                           min="0"
                           value={customRenewalPrice}
                           onChange={(e) => setCustomRenewalPrice(e.target.value)}
-                          className="h-9 text-sm pl-8 font-bold text-primary bg-background/50"
+                          className="h-6 text-sm font-black text-primary bg-transparent border-none focus:ring-0 p-0 shadow-none"
                         />
                       </div>
                     </div>
@@ -1679,16 +1678,16 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                     <Button 
                       variant="secondary" 
                       size="sm" 
-                      className="h-9 px-4 text-xs font-bold shadow-sm active:scale-95 transition-all"
+                      className="h-12 w-12 rounded-2xl bg-primary/10 text-primary hover:bg-primary/20 border border-primary/10 shadow-lg transition-all active:scale-90"
                       onClick={() => saveCustomerData.mutate()}
                       disabled={saveCustomerData.isPending}
+                      title="Salvar alterações"
                     >
                       {saveCustomerData.isPending ? (
-                        <Loader2 className="h-3 w-3 animate-spin" />
+                        <Loader2 className="h-4 w-4 animate-spin" />
                       ) : (
-                        <CheckCircle className="h-3.5 w-3.5 mr-1.5" />
+                        <CheckCircle className="h-5 w-5" />
                       )}
-                      Salvar
                     </Button>
                   </div>
 
