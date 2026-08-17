@@ -2177,37 +2177,41 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
           </Collapsible>
 
 
-          {/* Vplay Test Section - Below Quick Messages */}
-          <div className="mt-4 p-3 rounded-lg bg-violet-500/5 border border-violet-500/20">
-            <div className="flex items-center gap-2 mb-3">
-              <div className="p-1.5 rounded-md bg-violet-500/20">
-                <Play className="h-4 w-4 text-violet-500" />
+          {/* Vplay Test Section - Modern Glassmorphism Card */}
+          <Card className="mt-4 border-violet-500/20 bg-violet-500/5 backdrop-blur-xl shadow-lg rounded-2xl overflow-hidden relative group/card">
+            <div className="absolute inset-0 bg-gradient-to-br from-violet-500/10 via-transparent to-transparent pointer-events-none" />
+            <CardHeader className="p-3 pb-2 relative z-10">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="p-2 rounded-xl bg-violet-500/20 text-violet-600 dark:text-violet-400 group-hover/card:scale-110 transition-transform duration-500 shadow-inner">
+                    <Play className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-violet-600 dark:text-violet-400">Gerar Teste</h3>
+                    <p className="text-[10px] text-muted-foreground/80">
+                      {vplayServers.length > 0 ? `${vplayServers.length} servidor${vplayServers.length > 1 ? 'es' : ''} configurado${vplayServers.length > 1 ? 's' : ''}` : 'Nenhum servidor'}
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 rounded-full hover:bg-violet-500/10"
+                  onClick={() => window.location.href = '/settings'}
+                  title="Configurar Servidores de Teste"
+                >
+                  <Settings className="h-3.5 w-3.5 text-violet-500" />
+                </Button>
               </div>
-              <div className="flex-1">
-                <h3 className="text-sm font-semibold text-violet-600 dark:text-violet-400">Gerar Teste</h3>
-                <p className="text-[10px] text-muted-foreground/80">
-                  {vplayServers.length > 0 ? `${vplayServers.length} servidor${vplayServers.length > 1 ? 'es' : ''} configurado${vplayServers.length > 1 ? 's' : ''}` : 'Nenhum servidor'}
-                </p>
-              </div>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7 rounded-full hover:bg-violet-500/10"
-                onClick={() => window.location.href = '/settings'}
-                title="Configurar Servidores de Teste"
-              >
-                <Settings className="h-3.5 w-3.5 text-violet-500" />
-              </Button>
-            </div>
-            
-            <div className="space-y-2">
+            </CardHeader>
+            <CardContent className="p-3 pt-0 space-y-2 relative z-10">
               {/* Server Selector */}
               {vplayServers.length > 0 ? (
                 <Select
                   value={selectedVplayServerId || ''}
                   onValueChange={(value) => setSelectedVplayServerId(value)}
                 >
-                  <SelectTrigger className="h-8 text-sm">
+                  <SelectTrigger className="h-9 text-sm bg-background/40 border-violet-500/20 rounded-xl focus:ring-violet-500/20">
                     <SelectValue placeholder="Selecione o servidor" />
                   </SelectTrigger>
                   <SelectContent>
@@ -2229,12 +2233,10 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                 placeholder="Nome do cliente (opcional)"
                 value={vplayTestName}
                 onChange={(e) => setVplayTestName(e.target.value)}
-                className="h-8 text-sm"
+                className="h-9 text-sm bg-background/40 border-violet-500/20 rounded-xl focus-visible:ring-violet-500/20"
               />
               <Button 
-                variant="outline" 
-                size="sm" 
-                className="w-full h-9 border-violet-500/50 text-violet-600 dark:text-violet-400 hover:bg-violet-500/10"
+                className="w-full h-10 rounded-xl font-semibold shadow-lg shadow-violet-500/20 bg-gradient-to-r from-violet-600 to-violet-500 hover:from-violet-500 hover:to-violet-400 text-white transition-all active:scale-[0.98]" 
                 onClick={handleGenerateVplayTest}
                 disabled={isGeneratingTest || vplayServers.length === 0}
               >
@@ -2251,9 +2253,9 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                   Configure servidores em Configurações &gt; Gerador de Teste
                 </p>
               )}
-            </div>
+            </CardContent>
+          </Card>
 
-          </div>
         </div>
       </ScrollArea>
       
