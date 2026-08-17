@@ -1277,7 +1277,7 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
   };
 
   return (
-    <div className={`${isMobile ? 'w-full' : 'w-[360px] lg:w-[400px] shrink-0 border-l border-border/50'} bg-background/30 backdrop-blur-xl flex flex-col h-full max-h-full min-h-0 overflow-hidden text-[13px] shadow-2xl transition-all duration-300`}>
+    <div className={`${isMobile ? 'w-full' : 'w-[360px] lg:w-[420px] shrink-0 border-l border-border/20'} bg-background/40 backdrop-blur-3xl flex flex-col h-full max-h-full min-h-0 overflow-hidden text-[13px] shadow-2xl transition-all duration-500 ease-in-out`}>
       {!isMobile && (
         <div className="p-4 border-b border-border/40 bg-background/20 space-y-3">
           <div className="flex items-center justify-between">
