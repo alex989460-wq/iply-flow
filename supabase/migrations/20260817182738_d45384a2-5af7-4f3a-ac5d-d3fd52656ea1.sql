@@ -1,0 +1,1 @@
+update public.activation_requests set status='completed', updated_at=now() where id in ('250e90a6-bdc9-452f-a74b-d6cee4f3c210','0b4e04c8-5743-48e9-ac5c-c93549b1f35e');
