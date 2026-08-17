@@ -376,9 +376,13 @@ export function CrmOficialBillingScheduleCard() {
               ))}
             </SelectContent>
           </Select>
+          <p className="text-[11px] text-muted-foreground">
+            Apenas números da API Oficial (Cloud API) são listados aqui — instâncias não oficiais são ignoradas para evitar erros de envio.
+          </p>
           {(!channels || channels.length === 0) && !loadingChannels && (
-            <p className="text-[11px] text-muted-foreground">Nenhum canal WhatsApp encontrado nessa chave do CRM Oficial.</p>
+            <p className="text-[11px] text-amber-500">Nenhum número da API Oficial encontrado nessa chave do CRM Oficial.</p>
           )}
+
         </div>
 
         {rows.map((row) => {
