@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import DashboardLayout from '@/components/layout/DashboardLayout';
@@ -747,8 +747,12 @@ export default function Billing() {
   });
 
   const [sendingType, setSendingType] = useState<string | null>(null);
+  const [isCancelling, setIsCancelling] = useState(false);
+  const [wasCancelled, setWasCancelled] = useState(false);
+  const cancelRef = useRef(false);
   const BATCH_SIZE = 6;
   const BATCH_DELAY_MS = 500; // short pause between batches
+
 
   const handleSendBillings = async (billingType?: BillingType, forceResend: boolean = false) => {
     if (!hasValidSession) {
@@ -763,10 +767,14 @@ export default function Billing() {
     }
 
     // Reset and open progress modal
+    cancelRef.current = false;
+    setIsCancelling(false);
+    setWasCancelled(false);
     setProgressResults([]);
     setProgressStats({ sent: 0, errors: 0, skipped: 0, total: 0 });
     setIsProgressComplete(false);
     setProgressModalOpen(true);
+
 
     setIsSending(true);
     setSendingType(billingType || 'all');
@@ -790,10 +798,12 @@ export default function Billing() {
       }
 
       const customers = startData.customers || [];
-      let skippedCount = startData.skipped || 0;
+      const initialSkipped = startData.skipped || 0;
+      let skippedCount = initialSkipped;
       const totalToProcess = customers.length;
+      const TOTAL = totalToProcess + initialSkipped;
 
-      setProgressStats({ sent: 0, errors: 0, skipped: skippedCount, total: totalToProcess + skippedCount });
+      setProgressStats({ sent: 0, errors: 0, skipped: skippedCount, total: TOTAL });
 
       if (totalToProcess === 0) {
         toast({
@@ -812,7 +822,21 @@ export default function Billing() {
       const allResults: any[] = [];
 
       for (let i = 0; i < customers.length; i += BATCH_SIZE) {
+        if (cancelRef.current) {
+          setWasCancelled(true);
+          const remaining = customers.length - i;
+          skippedCount += remaining;
+          setProgressStats({
+            sent: totalSent,
+            errors: totalErrors,
+            skipped: skippedCount,
+            total: TOTAL,
+          });
+          toast({ title: 'Envio cancelado', description: `${remaining} cobranças não foram enviadas.` });
+          break;
+        }
         const batch = customers.slice(i, i + BATCH_SIZE);
+
         
         // Add pending items to show they're being processed
         const pendingItems = batch.map((c: any) => ({
@@ -903,7 +927,7 @@ export default function Billing() {
           sent: totalSent,
           errors: totalErrors,
           skipped: skippedCount,
-          total: totalToProcess + skippedCount,
+          total: TOTAL,
         });
 
         // Delay between batches (except for the last one)
@@ -934,6 +958,9 @@ export default function Billing() {
     } finally {
       setIsSending(false);
       setSendingType(null);
+      setIsCancelling(false);
+      setIsProgressComplete(true);
+      cancelRef.current = false;
     }
   };
 
@@ -2017,7 +2044,11 @@ export default function Billing() {
         sent={progressStats.sent}
         errors={progressStats.errors}
         skipped={progressStats.skipped}
+        onCancel={() => { cancelRef.current = true; setIsCancelling(true); }}
+        isCancelling={isCancelling}
+        cancelled={wasCancelled}
       />
+
     </DashboardLayout>
   );
 }

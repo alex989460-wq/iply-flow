@@ -84,24 +84,35 @@ function normalizeTemplates(body: any): MetaTemplate[] {
 function normalizeChannels(body: any): CrmChannel[] {
   const fromChannels = Array.isArray(body) ? body : Array.isArray(body?.channels) ? body.channels : [];
   const raw = fromChannels.length
-    ? fromChannels.filter((c: any) => String(c.kind || c.type || 'whatsapp_cloud').toLowerCase().includes('whatsapp') || c.phone_number_id || c.primary)
+    ? fromChannels
     : Array.isArray(body?.whatsapp)
       ? body.whatsapp
       : body?.whatsapp
         ? [body.whatsapp]
         : [];
-  return raw.map((c: any, index: number) => ({
-    ...c,
-    id: String(c.id || c.phone_number_id || (c.primary ? 'primary' : '') || `whatsapp-${index}`),
-    kind: c.kind || c.type || 'whatsapp_cloud',
-    name: c.name || c.title || c.verified_name || c.display_name,
-    verified_name: c.verified_name || c.verifiedName || c.business_name || c.name,
-    display_phone_number: c.display_phone_number || c.displayPhoneNumber || c.phone_display,
-    phone_number: c.phone_number || c.phone || c.number,
-    primary: Boolean(c.primary || c.is_primary || c.id === 'primary'),
-    is_active: Boolean(c.is_active ?? c.active ?? c.connected ?? c.primary),
-  }));
+  return raw
+    .map((c: any, index: number) => ({
+      ...c,
+      id: String(c.id || c.phone_number_id || (c.primary ? 'primary' : '') || `whatsapp-${index}`),
+      kind: c.kind || c.type || 'whatsapp_cloud',
+      name: c.name || c.title || c.verified_name || c.display_name,
+      verified_name: c.verified_name || c.verifiedName || c.business_name || c.name,
+      display_phone_number: c.display_phone_number || c.displayPhoneNumber || c.phone_display,
+      phone_number: c.phone_number || c.phone || c.number,
+      phone_number_id: c.phone_number_id || c.phoneNumberId || null,
+      primary: Boolean(c.primary || c.is_primary || c.id === 'primary'),
+      is_active: Boolean(c.is_active ?? c.active ?? c.connected ?? c.primary),
+    }))
+    // Somente canais da API Oficial (Cloud API): precisam ter phone_number_id e número.
+    // Isso evita selecionar instâncias não oficiais/QR Code, que causam erro de sessão no envio.
+    .filter((c: any) => {
+      const kind = String(c.kind || '').toLowerCase();
+      const isUnofficial = /evolution|qr|baileys|web|zapresponder|unofficial/.test(kind);
+      const hasPhone = Boolean(c.display_phone_number || c.phone_number);
+      return !isUnofficial && Boolean(c.phone_number_id) && hasPhone;
+    });
 }
+
 
 type RowKey = 'd1' | 'd0' | 'dp1';
 
@@ -365,9 +376,13 @@ export function CrmOficialBillingScheduleCard() {
               ))}
             </SelectContent>
           </Select>
+          <p className="text-[11px] text-muted-foreground">
+            Apenas números da API Oficial (Cloud API) são listados aqui — instâncias não oficiais são ignoradas para evitar erros de envio.
+          </p>
           {(!channels || channels.length === 0) && !loadingChannels && (
-            <p className="text-[11px] text-muted-foreground">Nenhum canal WhatsApp encontrado nessa chave do CRM Oficial.</p>
+            <p className="text-[11px] text-amber-500">Nenhum número da API Oficial encontrado nessa chave do CRM Oficial.</p>
           )}
+
         </div>
 
         {rows.map((row) => {
