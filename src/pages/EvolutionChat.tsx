@@ -2168,7 +2168,8 @@ export default function EvolutionChat({ embed = false }: { embed?: boolean } = {
         embed ? 'h-full' : 'h-[calc(100dvh-4rem)] lg:h-[100dvh]'
       )}>
         {false && (
-          <div />}
+          <div />
+        )}
         {false && (
           <div>
           <div className="px-3 py-2.5 border-b border-border flex items-center gap-2 bg-gradient-to-r from-emerald-600/15 via-primary/10 to-cyan-500/10">
