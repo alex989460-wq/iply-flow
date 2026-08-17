@@ -1865,7 +1865,8 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                       </div>
                       <div className="flex gap-2">
                         <Button 
-                          className="flex-1 h-9" 
+                          className="flex-1 h-10 rounded-xl font-semibold shadow-lg shadow-primary/20 bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 transition-all" 
+
                           onClick={handleRenew}
                           disabled={registerPayment.isPending}
                         >
