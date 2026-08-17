@@ -91,7 +91,7 @@ export async function reportScreensMismatch(admin: any, params: ScreensMismatchP
       error_details: {
         current_screens: currentScreens,
         paid_screens: paidScreens,
-        conflict_reason: `O cliente pagou por ${paidScreens} tela(s), mas o cadastro atual dele possui apenas ${currentScreens}. Verifique o motivo, pois o valor bate e a renovação deveria ter sido automática. Ajuste as conexões para evitar novas pendências.`,
+        conflict_reason: `O cliente pagou por ${paidScreens} tela(s), mas o cadastro atual dele possui apenas ${currentScreens}. Identifique falhas, erros de lógica e bugs no código fornecido. Forneça a correção exata para cada problema encontrado, acompanhada de uma explicação clara sobre a causa raiz e a solução aplicada, garantindo que o código funcione perfeitamente e sem erros. veja por que nao renovou automatica e corrija para renovar os proximos , veja que ela pagou 60,00 que é o valor para duas telas`,
       },
     });
 
