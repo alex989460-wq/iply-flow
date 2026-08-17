@@ -1924,7 +1924,8 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                   )}
                 </div>
               </CardContent>
-            </Card>
+              </Card>
+            </div>
           )}
 
           {/* Empty state */}
