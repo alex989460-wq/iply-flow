@@ -1527,35 +1527,39 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                     </Select>
                   </div>
                   
-                  {/* Username - Editable for multiple users */}
-                  <div className="space-y-1">
-                    <label className="text-xs text-muted-foreground flex items-center gap-1">
-                      <User className="h-3 w-3" />
-                      Usuário(s):
-                    </label>
-                    <Input
-                      value={editedUsername}
-                      onChange={(e) => setEditedUsername(e.target.value)}
-                      placeholder="Ex: user1, user2"
-                      className="h-8 text-sm font-mono"
-                    />
-                    {selectedScreens > 1 && (
-                      <p className="text-[10px] text-muted-foreground">
-                        Separe múltiplos usuários por vírgula
-                      </p>
-                    )}
-                  </div>
-
-                  {/* Password - Read only display */}
-                  {selectedCustomer.password && (
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2 text-muted-foreground">
-                        <Key className="h-3.5 w-3.5" />
-                        <span>Senha:</span>
-                      </div>
-                      <span className="font-mono text-sm">{selectedCustomer.password}</span>
+                  {/* Username & Password Grid */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold uppercase tracking-tight text-muted-foreground flex items-center gap-1">
+                        <User className="h-3 w-3" />
+                        Usuário(s):
+                      </label>
+                      <Input
+                        value={editedUsername}
+                        onChange={(e) => setEditedUsername(e.target.value)}
+                        placeholder="user1, user2"
+                        className="h-9 text-xs font-mono bg-background/50"
+                      />
                     </div>
-                  )}
+                    
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold uppercase tracking-tight text-muted-foreground flex items-center gap-1">
+                        <Key className="h-3 w-3" />
+                        Senha:
+                      </label>
+                      <div className="h-9 px-3 rounded-md bg-background/50 border border-input flex items-center justify-between group/pw">
+                        <span className="font-mono text-xs truncate max-w-[80px]">
+                          {selectedCustomer.password || '—'}
+                        </span>
+                        {selectedCustomer.password && (
+                          <Copy 
+                            className="h-3 w-3 text-muted-foreground opacity-0 group-hover/pw:opacity-100 hover:text-primary cursor-pointer transition-all" 
+                            onClick={() => handleCopyMessage(selectedCustomer.password!)}
+                          />
+                        )}
+                      </div>
+                    </div>
+                  </div>
 
                   {/* Grid for Selectors */}
                   <div className="grid grid-cols-2 gap-3">
@@ -1638,37 +1642,38 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                     </div>
                   </div>
                   
-                  {/* Editable Price */}
-                  <div className="space-y-1">
-                    <label className="text-xs text-muted-foreground">Valor:</label>
-                    <div className="relative">
-                      <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">R$</span>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        value={customRenewalPrice}
-                        onChange={(e) => setCustomRenewalPrice(e.target.value)}
-                        className="h-8 text-sm pl-8 font-bold text-primary"
-                      />
+                  {/* Editable Price & Save Row */}
+                  <div className="flex items-end gap-3">
+                    <div className="flex-1 space-y-1">
+                      <label className="text-[10px] font-bold uppercase tracking-tight text-muted-foreground">Valor:</label>
+                      <div className="relative">
+                        <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">R$</span>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={customRenewalPrice}
+                          onChange={(e) => setCustomRenewalPrice(e.target.value)}
+                          className="h-9 text-sm pl-8 font-bold text-primary bg-background/50"
+                        />
+                      </div>
                     </div>
+                    
+                    <Button 
+                      variant="secondary" 
+                      size="sm" 
+                      className="h-9 px-4 text-xs font-bold shadow-sm active:scale-95 transition-all"
+                      onClick={() => saveCustomerData.mutate()}
+                      disabled={saveCustomerData.isPending}
+                    >
+                      {saveCustomerData.isPending ? (
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                      ) : (
+                        <CheckCircle className="h-3.5 w-3.5 mr-1.5" />
+                      )}
+                      Salvar
+                    </Button>
                   </div>
-
-                  {/* Save Customer Data Button */}
-                  <Button 
-                    variant="secondary" 
-                    size="sm" 
-                    className="w-full h-8 text-xs"
-                    onClick={() => saveCustomerData.mutate()}
-                    disabled={saveCustomerData.isPending}
-                  >
-                    {saveCustomerData.isPending ? (
-                      <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                    ) : (
-                      <CheckCircle className="h-3 w-3 mr-1" />
-                    )}
-                    Salvar Dados
-                  </Button>
 
                   {/* Delete Customer - compact with keyword confirmation */}
                   <Dialog>
