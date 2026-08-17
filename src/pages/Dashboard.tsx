@@ -103,7 +103,7 @@ export default function Dashboard() {
 
   return (
     <DashboardLayout>
-      <div className="space-y-4 sm:space-y-6 lg:space-y-8">
+      <div className="space-y-4 sm:space-y-6 lg:space-y-10">
         {/* Welcome Header */}
         <WelcomeHeader />
 
@@ -150,7 +150,7 @@ export default function Dashboard() {
         )}
 
         {/* Stats Grid with staggered animations */}
-        <div className="grid grid-cols-2 lg:grid-cols-5 gap-2 sm:gap-3 lg:gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4 lg:gap-6">
           <StatsCard
             title="Total de Clientes"
             value={stats?.totalCustomers || 0}
@@ -189,7 +189,7 @@ export default function Dashboard() {
         </div>
 
         {/* Revenue Row */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3 lg:gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
           <StatsCard
             title="Recebidos Hoje"
             value={`R$ ${(stats?.todayRevenue || 0).toFixed(2)}`}
@@ -225,7 +225,7 @@ export default function Dashboard() {
 
 
         {/* Due Dates Row - Clickable */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3 lg:gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
           <StatsCard
             title="Vencem Hoje"
             value={stats?.dueTodayCustomers || 0}
