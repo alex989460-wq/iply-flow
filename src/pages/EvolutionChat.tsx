@@ -3655,8 +3655,51 @@ export default function EvolutionChat({ embed = false }: { embed?: boolean } = {
                   </div>
                 )}
 
+                <div className="flex justify-end gap-2 pt-2 border-t border-border">
+                  <Button variant="ghost" size="sm" onClick={() => setShowAutoReplySettings(false)}>Cancelar</Button>
+                  <Button
+                    size="sm"
+                    disabled={autoReplySaving}
+                    onClick={async () => {
+                      if (!user) return;
+                      setAutoReplySaving(true);
+                      try {
+                        const { error } = await supabase
+                          .from('evolution_settings')
+                          .update({
+                            autoreply_enabled: autoReply.enabled,
+                            autoreply_only_outside_hours: autoReply.only_outside_hours,
+                            autoreply_business_start: autoReply.business_start,
+                            autoreply_business_end: autoReply.business_end,
+                            autoreply_disabled_phones: autoReply.disabled_phones,
+                            autoreply_absence_enabled: autoReply.absence_enabled,
+                            autoreply_absence_message: autoReply.absence_message,
+                            autoreply_absence_cooldown_hours: autoReply.absence_cooldown_hours,
+                          } as any)
+                          .eq('user_id', user.id);
+                        if (error) throw error;
+                        toast({ title: 'Configurações salvas!' });
+                        setShowAutoReplySettings(false);
+                      } catch (e: any) {
+                        toast({ title: 'Erro ao salvar', description: e.message, variant: 'destructive' });
+                      } finally {
+                        setAutoReplySaving(false);
+                      }
+                    }}
+                  >
+                    {autoReplySaving && <Loader2 className="w-3 h-3 mr-2 animate-spin" />}
+                    Salvar
+                  </Button>
+                </div>
+              </>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
     </>
   );
+
   return embed ? (
     <EvolutionLayout 
       sidebar={null} 
