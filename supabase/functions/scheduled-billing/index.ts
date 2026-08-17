@@ -691,7 +691,10 @@ Deno.serve(async (req) => {
       };
 
       for (const log of existingLogs || []) {
-        if (log.whatsapp_status !== 'sent') continue;
+        // Any log for today (sent, pending or error) already occupies the unique
+        // daily slot — re-selecting it only produces "duplicate key" noise and
+        // blocks real pending customers from entering the batch.
+
         const type = log.billing_type as string;
         if (processedByType[type]) {
           processedByType[type].customerIds.add(log.customer_id);
