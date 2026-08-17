@@ -59,33 +59,49 @@ def new_sb():
               incognito=False, page_load_strategy="eager")
 
 
-def try_solve_captcha(sb):
-    """Tenta passar pelo Cloudflare/Turnstile. Retorna o status para o SuperGestor."""
-    html = ""
+def _page(sb, limit=4000):
     try:
-        html = sb.get_page_source()[:4000]
+        return sb.get_page_source()[:limit]
     except Exception:
-        pass
+        return ""
+
+
+def try_solve_captcha(sb, attempts=4):
+    """Tenta passar pelo Cloudflare/Turnstile. Retorna o status para o SuperGestor."""
     marks = r"just a moment|cf-chl|challenge-platform|cf-turnstile|g-recaptcha|h-captcha|verify you are human"
+    html = _page(sb)
     if not re.search(marks, html, re.I):
         return {"status": "not_detected"}
-    try:
-        sb.uc_gui_click_captcha()  # clica no checkbox / turnstile como humano
-        sb.sleep(3)
-    except Exception as exc:
+
+    last_error = ""
+    for attempt in range(attempts):
+        for handler in ("uc_gui_click_captcha", "uc_gui_handle_captcha", "uc_gui_handle_cf"):
+            fn = getattr(sb, handler, None)
+            if not fn:
+                continue
+            try:
+                fn()
+                sb.sleep(4)
+            except Exception as exc:
+                last_error = str(exc)
+                continue
+            if not re.search(r"just a moment|verify you are human|cf-chl", _page(sb), re.I):
+                return {"status": "solve_finished", "provider": "seleniumbase",
+                        "handler": handler, "attempt": attempt + 1}
+        # Recarrega em UC mode: às vezes o desafio só passa no segundo open.
         try:
-            sb.uc_gui_handle_captcha()
+            sb.uc_open_with_reconnect(sb.get_current_url(), reconnect_time=6)
             sb.sleep(3)
-        except Exception:
-            return {"status": "failed", "provider": "seleniumbase", "message": str(exc)}
-    try:
-        html2 = sb.get_page_source()[:4000]
-    except Exception:
-        html2 = ""
-    if re.search(r"just a moment|verify you are human", html2, re.I):
-        return {"status": "failed", "provider": "seleniumbase",
-                "message": "O desafio continuou na tela após o clique automático."}
-    return {"status": "solve_finished", "provider": "seleniumbase"}
+        except Exception as exc:
+            last_error = str(exc)
+        if not re.search(r"just a moment|verify you are human|cf-chl", _page(sb), re.I):
+            return {"status": "solve_finished", "provider": "seleniumbase",
+                    "handler": "reconnect", "attempt": attempt + 1}
+
+    return {"status": "failed", "provider": "seleniumbase",
+            "message": "O desafio do Cloudflare continuou na tela após várias tentativas."
+                       + (f" Último erro: {last_error}" if last_error else "")}
+
 
 
 def browser_session(payload):
