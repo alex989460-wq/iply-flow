@@ -1279,17 +1279,17 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
   return (
     <div className={`${isMobile ? 'w-full' : 'w-[360px] lg:w-[420px] shrink-0 border-l border-border/20'} bg-background/40 backdrop-blur-3xl flex flex-col h-full max-h-full min-h-0 overflow-hidden text-[13px] shadow-2xl transition-all duration-500 ease-in-out`}>
       {!isMobile && (
-        <div className="p-4 border-b border-border/40 bg-background/20 space-y-3">
+        <div className="p-5 border-b border-border/20 bg-background/30 space-y-4">
           <div className="flex items-center justify-between">
-            <h2 className="text-xs font-bold uppercase tracking-widest text-muted-foreground/80 flex items-center gap-2">
+            <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/60 flex items-center gap-2">
               <RefreshCw className="h-3 w-3 text-primary animate-pulse-slow" />
               Renovação Rápida
             </h2>
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1.5">
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-7 w-7 rounded-full hover:bg-primary/10"
+                className="h-8 w-8 rounded-xl bg-primary/5 hover:bg-primary/10 border border-primary/10 text-primary transition-all duration-300 hover:scale-110"
                 onClick={() => setIsBillingSettingsOpen(true)}
                 title="Configurar PIX e Preços"
               >
@@ -1298,7 +1298,7 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-7 w-7 rounded-full hover:bg-primary/10"
+                className="h-8 w-8 rounded-xl bg-emerald-500/5 hover:bg-emerald-500/10 border border-emerald-500/10 text-emerald-500 transition-all duration-300 hover:scale-110"
                 onClick={() => setIsSendPlaylistOpen(true)}
                 title="Enviar lista para o app"
               >
@@ -1307,7 +1307,7 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-7 w-7 rounded-full hover:bg-primary/10"
+                className="h-8 w-8 rounded-xl bg-violet-500/5 hover:bg-violet-500/10 border border-violet-500/10 text-violet-500 transition-all duration-300 hover:scale-110"
                 onClick={() => setIsClouddyCreateOpen(true)}
                 title="Criar usuário Clouddy"
               >
@@ -1317,7 +1317,7 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-7 text-xs gap-1"
+                className="h-8 px-3 rounded-xl bg-primary/10 text-primary hover:bg-primary/20 border border-primary/10 text-[10px] font-bold uppercase tracking-wider gap-1.5 transition-all duration-300"
                 onClick={() => {
                   setShowNewCustomerForm(!showNewCustomerForm);
                   setSelectedCustomer(null);
@@ -1329,7 +1329,7 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
             </div>
           </div>
           <div className="relative">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground/80" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/40" />
             <Input
               placeholder="Telefone ou usuário..."
               value={searchTerm}
@@ -1338,7 +1338,7 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                 setSelectedCustomer(null);
                 setShowNewCustomerForm(false);
               }}
-              className="pl-9 h-10 text-sm bg-background/40 border-border/40 focus:border-primary/50 transition-all rounded-xl shadow-inner"
+              className="pl-10 h-11 text-sm bg-background/40 border-border/20 focus:border-primary/40 focus:ring-1 focus:ring-primary/20 transition-all rounded-2xl shadow-inner"
             />
           </div>
         </div>
