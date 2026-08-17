@@ -183,6 +183,15 @@ def browser_session(payload):
             except Exception:
                 captured = []
 
+        js_result = None
+        js_code = payload.get("js")
+        if js_code:
+            try:
+                sb.driver.set_script_timeout(120)
+                js_result = sb.driver.execute_async_script(str(js_code))
+            except Exception as exc:
+                js_result = {"error": f"{type(exc).__name__}: {exc}"}
+
         fields = []
         try:
             fields = sb.execute_script(
@@ -196,7 +205,7 @@ def browser_session(payload):
 
         return {"final_url": final_url, "cookies": cookies, "html": html, "captcha": captcha,
                 "storage": storage, "captured": captured, "steps": steps_log, "fields": fields,
-                "engine": "seleniumbase"}
+                "js_result": js_result, "engine": "seleniumbase"}
 
 
 def relay_fetch(payload):
@@ -259,7 +268,7 @@ class Handler(BaseHTTPRequestHandler):
             except BaseException as exc:  # SeleniumBase pode chamar sys.exit()
                 return self._send(502, {"ok": False, "browser": "falhou",
                                         "error": f"{type(exc).__name__}: {exc}"})
-        self._send(200, {"ok": True, "engine": "seleniumbase", "version": "1.2.0"})
+        self._send(200, {"ok": True, "engine": "seleniumbase", "version": "1.3.0"})
 
     def do_POST(self):
         if self.headers.get("x-sigma-proxy-secret", "") != SECRET:
