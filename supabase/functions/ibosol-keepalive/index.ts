@@ -57,16 +57,42 @@ serve(async (req) => {
 
     const { data: creds } = await admin
       .from("activation_panel_credentials")
-      .select("user_id, password, is_enabled")
+      .select("user_id, password, is_enabled, extra")
       .eq("panel_type", "ibosol")
       .eq("is_enabled", true);
 
     const results: any[] = [];
     for (const c of creds || []) {
       const token = String((c as any).password || "").trim();
-      if (!token) { results.push({ user_id: c.user_id, ok: false, error: "sem token" }); continue; }
-      const r = await pingIbosol(token);
-      results.push({ user_id: c.user_id, ok: r.alive, expired: r.expired, status: r.status, endpoint: r.endpoint });
+      const extra = ((c as any).extra || {}) as Record<string, any>;
+      if (!token && !extra.email) { results.push({ user_id: c.user_id, ok: false, error: "sem token" }); continue; }
+      let r = token
+        ? await pingIbosol(token)
+        : { alive: false, expired: true, status: 401, endpoint: null as string | null };
+
+      // Auto-relogin: se o revendedor salvou e-mail/senha, renova o token pelo agente
+      // de navegador (SeleniumBase) em vez de abrir pendência manual.
+      let relogin: string | null = null;
+      if (r.expired && extra.auto_login && extra.email && extra.login_password) {
+        const newToken = await tryRelogin(String(extra.email), String(extra.login_password));
+        if (newToken) {
+          await admin
+            .from("activation_panel_credentials")
+            .update({
+              password: newToken,
+              extra: { ...extra, last_login_at: new Date().toISOString() },
+              updated_at: new Date().toISOString(),
+            })
+            .eq("user_id", c.user_id)
+            .eq("panel_type", "ibosol");
+          r = await pingIbosol(newToken);
+          relogin = "ok";
+        } else {
+          relogin = "failed";
+        }
+      }
+
+      results.push({ user_id: c.user_id, ok: r.alive, expired: r.expired, status: r.status, endpoint: r.endpoint, relogin });
 
       if (r.expired) {
         const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
@@ -84,13 +110,16 @@ serve(async (req) => {
             reason: "ibosol_session_expired",
             source: "ibosol-keepalive",
             error_details: {
-              message: "Bearer token da IBO Sol expirou. Faça login em ibosol.com, copie o novo token do DevTools (Application → Cookies → token) e atualize em Ativação de Apps → IBO Sol.",
+              message: relogin === "failed"
+                ? "O login automático do IBO Sol falhou (Cloudflare ou senha alterada). Reconecte em Ativação de Apps → IBO Sol."
+                : "Bearer token da IBO Sol expirou. Salve e-mail e senha em Ativação de Apps → IBO Sol para reconectar automaticamente.",
               status: r.status,
             },
           });
         }
       }
     }
+
     return new Response(JSON.stringify({ pinged: results.length, results }), { headers: jh });
   } catch (e) {
     return new Response(JSON.stringify({ error: (e as Error).message }), { status: 500, headers: jh });
