@@ -1752,9 +1752,9 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                     </DialogContent>
                   </Dialog>
 
+                  <div className="pt-2 border-t border-border space-y-2">
+                    {/* Copy Data with PIX Button (always visible) */}
 
-
-                  {/* Copy Data with PIX Button (always visible) */}
                   <Button 
                     variant="outline" 
                     size="sm" 
