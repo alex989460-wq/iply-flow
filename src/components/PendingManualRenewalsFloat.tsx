@@ -132,6 +132,8 @@ export default function PendingManualRenewalsFloat() {
           <div className="text-left">
             <p className="font-semibold text-sm leading-tight">Pendências de Renovação</p>
             <p className="text-[11px] text-muted-foreground">Ações que precisam de você</p>
+
+
           </div>
           <Badge variant="destructive" className="ml-1 rounded-full px-2">{items.length}</Badge>
         </div>
