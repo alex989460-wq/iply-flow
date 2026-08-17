@@ -1753,79 +1753,82 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                   </Dialog>
 
                   <div className="pt-2 border-t border-border space-y-2">
-                    {/* Copy Data with PIX Button (always visible) */}
-
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    className="w-full h-8 text-xs border-primary/50 text-primary hover:bg-primary/10"
-                    onClick={handleCopyBillingWithPix}
-                  >
-                    <Copy className="h-3 w-3 mr-1" />
-                    Copiar Dados + PIX
-                  </Button>
-
-                  {/* Overdue Warning and Billing Message Button */}
-                  {isCustomerOverdue(selectedCustomer.due_date) && (
-                    <div className="mt-2 p-2 bg-destructive/10 border border-destructive/30 rounded-lg">
-                      <div className="flex items-center gap-2 text-destructive mb-2">
-                        <AlertTriangle className="h-4 w-4" />
-                        <span className="text-xs font-semibold">Plano Vencido</span>
+                    {/* Copy Data with PIX Button */}
+                    <Button
+                      className="w-full h-10 rounded-xl font-semibold text-xs shadow-lg shadow-primary/10 bg-gradient-to-r from-primary/10 to-primary/5 hover:from-primary/20 hover:to-primary/10 border border-primary/20 text-primary transition-all active:scale-[0.98]"
+                      onClick={handleCopyBillingWithPix}
+                    >
+                      <div className="p-1 rounded-lg bg-primary/20 mr-2">
+                        <Copy className="h-3.5 w-3.5" />
                       </div>
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
-                        className="w-full h-7 text-xs border-destructive/50 text-destructive hover:bg-destructive/10"
-                        onClick={handleCopyOverdueMessage}
-                      >
-                        <Copy className="h-3 w-3 mr-1" />
-                        Copiar Cobrança
-                      </Button>
-                    </div>
-                  )}
-                  {/* Extra Months Control */}
-                  <div className="mt-2 p-2 bg-amber-500/10 border border-amber-500/30 rounded-lg space-y-2">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400">
-                        <AlertTriangle className="h-4 w-4" />
-                        <span className="text-xs font-semibold">
-                          {selectedCustomer.extra_months} {selectedCustomer.extra_months === 1 ? 'mês extra' : 'meses extras'}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-1">
+                      Copiar Dados + PIX
+                    </Button>
+
+                    {/* Overdue Warning */}
+                    {isCustomerOverdue(selectedCustomer.due_date) && (
+                      <div className="p-2.5 bg-destructive/10 border border-destructive/30 rounded-2xl space-y-2">
+                        <div className="flex items-center gap-2 text-destructive">
+                          <div className="p-1 rounded-lg bg-destructive/20">
+                            <AlertTriangle className="h-3.5 w-3.5" />
+                          </div>
+                          <span className="text-xs font-bold">Plano Vencido</span>
+                        </div>
                         <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-6 w-6 p-0 text-xs"
-                          disabled={selectedCustomer.extra_months <= 0 || adjustExtraMonths.isPending}
-                          onClick={() => adjustExtraMonths.mutate(-1)}
-                          title="Remover 1 mês extra"
+                          className="w-full h-9 rounded-xl text-xs font-semibold bg-gradient-to-r from-destructive/20 to-destructive/10 hover:from-destructive/30 hover:to-destructive/20 border border-destructive/30 text-destructive transition-all active:scale-[0.98]"
+                          onClick={handleCopyOverdueMessage}
                         >
-                          −
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-6 px-2 text-xs border-amber-500/50 text-amber-600 dark:text-amber-400 hover:bg-amber-500/10"
-                          disabled={adjustExtraMonths.isPending}
-                          onClick={() => adjustExtraMonths.mutate(1)}
-                          title="Adicionar 1 mês extra"
-                        >
-                          {adjustExtraMonths.isPending ? (
-                            <Loader2 className="h-3 w-3 animate-spin" />
-                          ) : (
-                            <>+ Mês extra</>
-                          )}
+                          <Copy className="h-3 w-3 mr-1.5" />
+                          Copiar Cobrança
                         </Button>
                       </div>
-                    </div>
-                    {selectedCustomer.extra_months > 0 && (
-                      <p className="text-[10px] text-muted-foreground/80">
-                        Meses extras são abatidos automaticamente na próxima renovação e não disparam renovação no servidor.
-                      </p>
                     )}
+
+                    {/* Extra Months Control */}
+                    <div className="p-2.5 bg-amber-500/10 border border-amber-500/30 rounded-2xl space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400">
+                          <div className="p-1 rounded-lg bg-amber-500/20">
+                            <AlertTriangle className="h-3.5 w-3.5" />
+                          </div>
+                          <span className="text-xs font-bold">
+                            {selectedCustomer.extra_months} {selectedCustomer.extra_months === 1 ? 'mês extra' : 'meses extras'}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-7 w-7 p-0 text-xs rounded-xl border-amber-500/30 hover:bg-amber-500/10"
+                            disabled={selectedCustomer.extra_months <= 0 || adjustExtraMonths.isPending}
+                            onClick={() => adjustExtraMonths.mutate(-1)}
+                            title="Remover 1 mês extra"
+                          >
+                            −
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-7 px-2.5 text-xs rounded-xl border-amber-500/50 text-amber-600 dark:text-amber-400 hover:bg-amber-500/10"
+                            disabled={adjustExtraMonths.isPending}
+                            onClick={() => adjustExtraMonths.mutate(1)}
+                            title="Adicionar 1 mês extra"
+                          >
+                            {adjustExtraMonths.isPending ? (
+                              <Loader2 className="h-3 w-3 animate-spin" />
+                            ) : (
+                              <>+ Mês extra</>
+                            )}
+                          </Button>
+                        </div>
+                      </div>
+                      {selectedCustomer.extra_months > 0 && (
+                        <p className="text-[10px] text-muted-foreground/80">
+                          Meses extras são abatidos automaticamente na próxima renovação e não disparam renovação no servidor.
+                        </p>
+                      )}
+                    </div>
                   </div>
-                </div>
+
 
                 <div className="pt-2 border-t border-border space-y-2">
 
