@@ -3137,8 +3137,6 @@ export default function EvolutionChat({ embed = false }: { embed?: boolean } = {
         </div>
       </div>
       <KnowledgeBaseDialog open={showKbDialog} onOpenChange={setShowKbDialog} />
-    </>
-  );
 
       {/* Lightbox de imagens das conversas */}
       <Dialog open={!!previewImage} onOpenChange={(open) => !open && setPreviewImage(null)}>
@@ -3602,6 +3600,8 @@ export default function EvolutionChat({ embed = false }: { embed?: boolean } = {
           </div>
         </DialogContent>
       </Dialog>
+    </>
+  );
   return embed ? (
     <EvolutionLayout 
       sidebar={null} 
