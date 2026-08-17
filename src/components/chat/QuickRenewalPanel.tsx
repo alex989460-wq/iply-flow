@@ -1277,11 +1277,14 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
   };
 
   return (
-    <div className={`${isMobile ? 'w-full' : 'w-96 shrink-0 border-l border-border'} bg-background/50 flex flex-col h-full max-h-full min-h-0 overflow-hidden text-[13px]`}>
+    <div className={`${isMobile ? 'w-full' : 'w-[360px] lg:w-[400px] shrink-0 border-l border-border/50'} bg-background/30 backdrop-blur-xl flex flex-col h-full max-h-full min-h-0 overflow-hidden text-[13px] shadow-2xl transition-all duration-300`}>
       {!isMobile && (
-        <div className="p-3 border-b border-border space-y-2">
+        <div className="p-4 border-b border-border/40 bg-background/20 space-y-3">
           <div className="flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-foreground">Renovação Rápida</h2>
+            <h2 className="text-xs font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+              <RefreshCw className="h-3 w-3 text-primary animate-pulse-slow" />
+              Renovação Rápida
+            </h2>
             <div className="flex items-center gap-1">
               <Button
                 variant="ghost"
@@ -1328,14 +1331,14 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
           <div className="relative">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="Buscar por telefone ou usuário..."
+              placeholder="Telefone ou usuário..."
               value={searchTerm}
               onChange={(e) => {
                 setSearchTerm(e.target.value);
                 setSelectedCustomer(null);
                 setShowNewCustomerForm(false);
               }}
-              className="pl-9 h-9 text-sm"
+              className="pl-9 h-10 text-sm bg-background/40 border-border/40 focus:border-primary/50 transition-all rounded-xl shadow-inner"
             />
           </div>
         </div>
@@ -1476,7 +1479,7 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
 
           {/* Selected Customer Details */}
           {selectedCustomer && (
-            <Card>
+            <Card className="border-primary/20 bg-primary/5 shadow-inner overflow-hidden">
               <CardHeader className="p-3 pb-2">
                 <CardTitle className="text-sm flex items-center gap-2">
                   <User className="h-4 w-4" />
@@ -1922,13 +1925,13 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
 
           {/* Quick Messages Section - Compact Chip Design */}
           <Collapsible open={isLinksOpen} onOpenChange={setIsLinksOpen}>
-            <div className="flex items-center justify-between px-1">
-              <CollapsibleTrigger className="flex items-center gap-1.5 text-xs font-semibold text-foreground hover:text-primary transition-colors group">
-                <div className="p-0.5 rounded bg-primary/10 group-hover:bg-primary/20 transition-colors">
+            <div className="flex items-center justify-between px-2 py-1 bg-secondary/10 rounded-lg">
+              <CollapsibleTrigger className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider text-muted-foreground hover:text-primary transition-colors group">
+                <div className="p-1 rounded-md bg-primary/10 group-hover:bg-primary/20 transition-all">
                   {isLinksOpen ? <ChevronUp className="h-3 w-3 text-primary" /> : <ChevronDown className="h-3 w-3 text-primary" />}
                 </div>
                 <span>Mensagens Rápidas</span>
-                <Badge variant="secondary" className="text-[9px] h-3.5 px-1 leading-none">{quickMessages.length}</Badge>
+                <Badge variant="secondary" className="text-[9px] h-3.5 px-1 bg-primary/20 text-primary border-none">{quickMessages.length}</Badge>
               </CollapsibleTrigger>
               <Dialog open={isConfigOpen} onOpenChange={setIsConfigOpen}>
                 <DialogTrigger asChild>
@@ -2078,10 +2081,10 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                         key={msg.id}
                         type="button"
                         title={`${msg.title} — ${msg.category}`}
-                        className={`group relative flex items-center gap-1.5 px-2 py-1.5 rounded-md border text-left transition-all overflow-hidden ${
+                        className={`group relative flex items-center gap-2 px-2.5 py-2 rounded-xl border text-left transition-all duration-300 overflow-hidden ${
                           isSelected
-                            ? 'bg-primary/15 border-primary/50 shadow-sm'
-                            : 'bg-card/40 border-border/40 hover:border-primary/40 hover:bg-card'
+                            ? 'bg-primary/20 border-primary/50 shadow-md scale-[1.02]'
+                            : 'bg-background/40 border-border/30 hover:border-primary/30 hover:bg-background/60 hover:shadow-sm'
                         }`}
                         onClick={() => setSelectedQuickMessage(isSelected ? null : msg)}
                       >
